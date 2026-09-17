@@ -2,64 +2,33 @@ import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { Button } from "@/src/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
-  AnalyticsIntegrationExportSource,
-  validateExportSource,
-  type BlobExportWriteMode,
+  PostHogIntegrationForm,
+  type PostHogIntegrationFormValues,
+} from "@/src/features/posthog-integration/components/PostHogIntegrationForm";
+import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
-  getExportSourceOptions,
-  getExportSourceUnavailableMessage,
-  isExportSourceSelectable,
-  shouldHideExportSourceSelector,
+  getExportSourceFormValue,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
-import { useForm } from "react-hook-form";
-import { type z } from "zod";
-import { Info, ExternalLink } from "lucide-react";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
@@ -98,11 +67,11 @@ export default function PosthogIntegrationSettings() {
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
-          <Button asChild variant="secondary">
-            <Link href="https://langfuse.com/integrations/analytics/posthog">
-              Integration Docs ↗
-            </Link>
-          </Button>
+          <Button
+            href="https://langfuse.com/integrations/analytics/posthog"
+            text="Integration Docs"
+            variant="secondary"
+          />
         ),
       }}
     >
@@ -131,7 +100,7 @@ export default function PosthogIntegrationSettings() {
             {!state.data || !project ? (
               <IntegrationSettingsSkeleton />
             ) : (
-              <PostHogIntegrationSettings
+              <ConnectedPostHogIntegrationForm
                 // Draft lifetime = entity identity, so background refetches
                 // cannot reset a draft in progress.
                 key={`${projectId}:${state.data.config ? "configured" : "new"}`}
@@ -151,7 +120,7 @@ export default function PosthogIntegrationSettings() {
   );
 }
 
-const PostHogIntegrationSettings = ({
+const ConnectedPostHogIntegrationForm = ({
   state,
   projectId,
   writeMode,
@@ -159,92 +128,31 @@ const PostHogIntegrationSettings = ({
 }: {
   state?: NonNullable<RouterOutput["posthogIntegration"]["get"]["config"]>;
   projectId: string;
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
   // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
     () =>
       buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+  const defaultExportSource = getExportSourceFormValue(
+    state?.exportSource,
     exportSourceCtx,
   );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
-    exportSourceCtx,
-  );
-  // Selector is beta-gated, except a persisted source blocked by capability
-  // forces it visible so the blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    ((isBetaEnabled && !isPostCutoffCloud) || persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
-
-  // Blocked-save validation instead of silent rewrite (LFE-10296).
-  const formSchema = useMemo(
-    () =>
-      posthogIntegrationFormSchema.superRefine((data, ctx) => {
-        // The credential is write-only: blank keeps the saved key, so it is
-        // only required when no integration exists yet (LFE-14384).
-        if (!state && !data.posthogProjectApiKey) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["posthogProjectApiKey"],
-            message: "PostHog Project API Key is required",
-          });
-        }
-        if (!isExportSourceSelectable(data.exportSource, exportSourceCtx)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["exportSource"],
-            message:
-              "This export source is not available on this deployment. Select an available export source to save.",
-          });
-        }
-      }),
-    [exportSourceCtx, state],
-  );
-
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
-
-  const posthogForm = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: "",
-      enabled: state?.enabled ?? false,
-      exportSource: defaultExportSource,
-    },
-  });
-
-  const watchedExportSource = posthogForm.watch("exportSource");
-  const watchedValidation =
-    watchedExportSource != null
-      ? validateExportSource(watchedExportSource, exportSourceCtx)
-      : ({ ok: true } as const);
 
   const utils = api.useUtils();
   const mut = api.posthogIntegration.update.useMutation({
@@ -258,9 +166,7 @@ const PostHogIntegrationSettings = ({
     },
   });
 
-  async function onSubmit(
-    values: z.infer<typeof posthogIntegrationFormSchema>,
-  ) {
+  function onSubmit(values: PostHogIntegrationFormValues) {
     capture("integrations:posthog_form_submitted");
     mut.mutate({
       projectId,
@@ -269,166 +175,22 @@ const PostHogIntegrationSettings = ({
   }
 
   return (
-    <Form {...posthogForm}>
-      <form className="space-y-3" onSubmit={posthogForm.handleSubmit(onSubmit)}>
-        <FormField
-          control={posthogForm.control}
-          name="posthogHostname"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Hostname</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormDescription>
-                US region: https://us.posthog.com; EU region:
-                https://eu.posthog.com
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={posthogForm.control}
-          name="posthogProjectApiKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Project API Key</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  {...field}
-                  placeholder={state?.posthogApiKeyDisplay}
-                />
-              </FormControl>
-              {state && (
-                <FormDescription>
-                  Leave blank to keep the current API key.
-                </FormDescription>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {showExportSourceField && (
-          <FormField
-            control={posthogForm.control}
-            name="exportSource"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-[350px] space-y-2 p-3"
-                    >
-                      {exportSourceOptions.map((option) => (
-                        <div key={option.value} className="space-y-0.5">
-                          <div className="font-bold">{option.label}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {option.description}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="border-t pt-2">
-                        <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                        >
-                          For further information see
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {exportSourceOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.unavailable}
-                      >
-                        {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
-                          : option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  Choose which data sources to export to PostHog. Scores are
-                  always included.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        {!watchedValidation.ok && (
-          <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
-            <AlertDescription>
-              {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </AlertDescription>
-          </Alert>
-        )}
-        <FormField
-          control={posthogForm.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <div className="mt-1 ml-4">
-                  <Switch
-                    id="posthog-integration-enabled"
-                    checked={field.value}
-                    onCheckedChange={() => {
-                      field.onChange(!field.value);
-                    }}
-                  />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </form>
-      <div className="mt-8 flex gap-2">
-        <Button
-          loading={mut.isPending}
-          onClick={posthogForm.handleSubmit(onSubmit)}
-        >
-          Save
-        </Button>
-        <Button
-          variant="ghost"
-          loading={mutDelete.isPending}
-          disabled={!state}
-          onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the PostHog integration for this project?",
-              )
-            )
-              mutDelete.mutate({ projectId });
-          }}
-        >
-          Reset
-        </Button>
-      </div>
-    </Form>
+    <PostHogIntegrationForm
+      actionState={
+        mut.isPending ? "saving" : mutDelete.isPending ? "resetting" : "idle"
+      }
+      configurationState={state ? "configured" : "new"}
+      defaultValues={{
+        posthogHostname: state?.posthogHostName ?? "",
+        posthogProjectApiKey: "",
+        enabled: state?.enabled ?? false,
+        exportSource: defaultExportSource,
+      }}
+      exportSourceContext={exportSourceCtx}
+      projectApiKeyDisplay={state?.posthogApiKeyDisplay}
+      resetError={mutDelete.error?.message}
+      onSubmit={onSubmit}
+      onReset={() => mutDelete.mutateAsync({ projectId })}
+    />
   );
 };

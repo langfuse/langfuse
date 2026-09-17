@@ -26,11 +26,11 @@ export type LogViewMode = "chronological" | "tree-order";
 /** Log view tree visualization style (only applies in tree-order mode) */
 export type LogViewTreeStyle = "flat" | "indented";
 
-/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta) */
+/** JSON view preference (formatted/pretty vs raw JSON vs advanced JSON beta). */
 export type JsonViewPreference = "pretty" | "json" | "json-beta";
 
 /** Context in which trace is rendered - affects feature availability */
-export type TraceRenderContext = "fullscreen" | "peek" | "annotation";
+type TraceRenderContext = "fullscreen" | "peek" | "annotation";
 
 interface ViewPreferencesContextValue {
   showDuration: boolean;
@@ -43,8 +43,6 @@ interface ViewPreferencesContextValue {
   setColorCodeMetrics: (value: boolean) => void;
   showComments: boolean;
   setShowComments: (value: boolean) => void;
-  showGraph: boolean;
-  setShowGraph: (value: boolean) => void;
   /** Graph panel build mode (aggregated vs expanded "as it ran") */
   graphViewMode: GraphViewMode;
   setGraphViewMode: (value: GraphViewMode) => void;
@@ -115,7 +113,6 @@ export function ViewPreferencesProvider({
     true,
   );
   const [showComments, setShowComments] = useLocalStorage("showComments", true);
-  const [showGraph, setShowGraph] = useLocalStorage("showGraph", true);
   const [storedGraphViewMode, setGraphViewMode] =
     useLocalStorage<GraphViewMode>("graphViewMode", "aggregated");
   // Sanitize persisted values: the mode enum may evolve and a stale
@@ -134,8 +131,14 @@ export function ViewPreferencesProvider({
   );
   const [logViewTreeStyle, setLogViewTreeStyle] =
     useLocalStorage<LogViewTreeStyle>("logViewTreeStyle", "flat");
-  const [jsonViewPreference, setJsonViewPreference] =
+  const [storedJsonViewPreference, setJsonViewPreference] =
     useLocalStorage<JsonViewPreference>("jsonViewPreference", "pretty");
+  // A previously persisted "pretty-beta" preference is no longer a view mode;
+  // degrade it to the Formatted view rather than breaking the toggle.
+  const jsonViewPreference: JsonViewPreference =
+    (storedJsonViewPreference as string) === "pretty-beta"
+      ? "pretty"
+      : storedJsonViewPreference;
   // Migration: default to true if user had json-beta selected previously
   // TODO: Remove migration logic after 2025-01-26 (2 weeks) when user settings are migrated
   const [jsonBetaEnabled, setJsonBetaEnabled] = useLocalStorage<boolean>(
@@ -160,8 +163,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,
@@ -191,8 +192,6 @@ export function ViewPreferencesProvider({
       setColorCodeMetrics,
       showComments,
       setShowComments,
-      showGraph,
-      setShowGraph,
       graphViewMode,
       setGraphViewMode,
       minObservationLevel,

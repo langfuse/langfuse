@@ -2,9 +2,8 @@ import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
-  useCanUseInAppAgent,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -24,7 +23,6 @@ export const InAppAiAgentButton = ({
   prominent?: boolean;
 } = {}) => {
   const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
-  const canUseAssistant = useCanUseInAppAgent();
 
   const toggleAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {
@@ -39,10 +37,6 @@ export const InAppAiAgentButton = ({
   );
 
   useEffect(() => {
-    if (!canUseAssistant) {
-      return;
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.repeat ||
@@ -60,11 +54,7 @@ export const InAppAiAgentButton = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [canUseAssistant, toggleAssistant]);
-
-  if (!canUseAssistant) {
-    return null;
-  }
+  }, [toggleAssistant]);
 
   const attentionSuffix =
     attentionCount > 0
@@ -123,16 +113,9 @@ export const InAppAiAgentButton = ({
       {!prominent && (
         <>
           <span className="hidden sm:inline">Assistant</span>
-          <KeyboardShortcut
-            className="bg-transparent shadow-none"
-            keys={[
-              typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Mac")
-                ? "⌘"
-                : "Ctrl",
-              "I",
-            ]}
-          />
+          <span className="hidden md:inline-flex">
+            <KeyboardShortcut variant="subtle" keys={["Mod", "I"]} />
+          </span>
         </>
       )}
     </Button>

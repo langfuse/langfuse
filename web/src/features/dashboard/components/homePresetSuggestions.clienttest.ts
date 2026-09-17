@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from "vitest";
 import { HOME_DASHBOARD_PRESET_IDS } from "@langfuse/shared";
 import { getSuggestedHomePresetIds } from "@/src/features/dashboard/components/home-preset-registry";

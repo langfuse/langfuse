@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -6,6 +6,7 @@ import {
   getRenderedInlineMediaIds,
 } from "@/src/components/ui/markdown-media.utils";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import {
   ChatMessage,
   type ViewMode,
@@ -88,6 +89,8 @@ export function ChatMessageList({
     [isCollapsed, messagesToRender],
   );
 
+  const characterLimit = useMarkdownRenderCharacterLimit();
+
   const remainingMedia = useMemo(() => {
     if (!shouldRenderMarkdown) {
       return media ?? [];
@@ -96,36 +99,28 @@ export function ChatMessageList({
     const renderedMediaIds = new Set<string>();
 
     visibleMessages.forEach(({ message }) => {
-      const content = message.content;
+      const content = message.content || "";
 
       // Only content that ChatMessage renders through MarkdownView shows its
       // media inline; anything falling back to a JSON table still needs the
       // shared strip, so ask the renderer's own predicate.
-      if (typeof content === "string" || canRenderContentAsMarkdown(content)) {
+      if (canRenderContentAsMarkdown(content, characterLimit)) {
         getRenderedInlineMediaIds({
           markdown: content,
-          audio: message.audio,
-        }).forEach((mediaId) => renderedMediaIds.add(mediaId));
-        return;
-      }
-
-      if (message.audio) {
-        getRenderedInlineMediaIds({
-          markdown: "",
           audio: message.audio,
         }).forEach((mediaId) => renderedMediaIds.add(mediaId));
       }
     });
 
     return filterAlreadyRenderedMedia(media, renderedMediaIds);
-  }, [media, shouldRenderMarkdown, visibleMessages]);
+  }, [media, shouldRenderMarkdown, visibleMessages, characterLimit]);
 
   return (
     <div className="flex max-h-full min-h-0 flex-col gap-2">
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
           {visibleMessages.map(({ message, originalIndex }) => (
-            <Fragment key={originalIndex}>
+            <div className="flex flex-col gap-1" key={originalIndex}>
               <ChatMessage
                 message={message}
                 shouldRenderMarkdown={shouldRenderMarkdown}
@@ -141,14 +136,14 @@ export function ChatMessageList({
                     variant="ghost"
                     size="xs"
                     onClick={() => setCollapsed((v) => !v)}
-                    className="underline"
+                    className="text-muted-foreground hover:text-foreground w-fit pl-2 underline hover:bg-transparent"
                   >
                     {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
                       : "Hide history"}
                   </Button>
                 )}
-            </Fragment>
+            </div>
           ))}
         </div>
 

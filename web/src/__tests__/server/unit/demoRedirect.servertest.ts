@@ -33,10 +33,9 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
 }));
 
-vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return { ...actual, prisma: prismaMock };
-});
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: prismaMock,
+}));
 
 import { type GetServerSidePropsContext } from "next";
 import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo";

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Tests for jsonTypes.ts utilities
  *

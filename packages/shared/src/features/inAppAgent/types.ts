@@ -61,6 +61,16 @@ export enum InAppAgentRunErrorCode {
   APPROVAL_SUPERSEDED = "approval_superseded",
   /** Pending approval cancelled by the user (recorded on CANCELLED). */
   APPROVAL_CANCELLED = "approval_cancelled",
+  /**
+   * Loop hit maxSteps without a `stop` finish — the run completed the
+   * configured wall but did not produce a final answer.
+   */
+  STEP_LIMIT = "step_limit",
+  /**
+   * The last model step ended with a `length` finish: the response hit the
+   * provider's output-token limit before a final answer.
+   */
+  OUTPUT_LIMIT = "output_limit",
 }
 
 /**
@@ -79,8 +89,16 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
   }),
   z.object({
     kind: z.literal("approvalDecision"),
-    /** Provenance for debugging only; no code path queries lineage. */
+    /** Immediate parent run used to derive durable approval-chain lineage. */
     parentRunId: z.string(),
+    /** Original user-message run whose trace owns the complete approval chain. */
+    rootRunId: z.string().optional(),
+    /** Stable root trace timestamp propagated across durable continuations. */
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    /** Time at which the parent run parked and began waiting for approval. */
+    approvalRequestedAt: z.iso.datetime({ offset: true }).optional(),
+    /** One-based position in the current user turn's approval continuation chain. */
+    continuationNumber: z.number().int().positive().optional(),
     toolCallId: z.string(),
     approved: z.boolean(),
     /** Inherited sanitized context; defaults for legacy continuation rows. */
@@ -89,3 +107,15 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
+
+// Approval continuations inherit the root run's trace ids, so telemetry keyed
+// off a run must resolve the root first.
+export const resolveInAppAgentRootRunId = (
+  request: unknown,
+  runId: string,
+): string => {
+  const parsed = InAppAgentRunRequestSchema.safeParse(request);
+  return parsed.success && parsed.data.kind === "approvalDecision"
+    ? (parsed.data.rootRunId ?? parsed.data.parentRunId)
+    : runId;
+};

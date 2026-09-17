@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import {
+  hasEntitlementLimit,
+  throwIfNoEntitlement,
+} from "@/src/features/entitlements/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -26,8 +29,10 @@ import {
   PromptType,
   StringNoHTMLNonEmpty,
   TracingSearchType,
+  orderBy,
+  singleFilterList,
+  normalizeOrderByForTable,
 } from "@langfuse/shared";
-import { orderBy, singleFilter } from "@langfuse/shared";
 import {
   orderByToPrismaSql,
   PromptService,
@@ -46,7 +51,6 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
-import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -59,7 +63,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
   ...paginationZod,
   pathPrefix: z.string().optional(),
@@ -114,7 +118,10 @@ export const promptRouter = createTRPCRouter({
       });
 
       const orderByCondition = orderByToPrismaSql(
-        input.orderBy,
+        normalizeOrderByForTable({
+          orderBy: input.orderBy,
+          expectedTimeColumn: "createdAt",
+        }),
         promptsTableCols,
       );
 
@@ -199,7 +206,7 @@ export const promptRouter = createTRPCRouter({
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         pathPrefix: z.string().optional(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {

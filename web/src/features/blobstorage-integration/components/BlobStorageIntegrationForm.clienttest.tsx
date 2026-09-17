@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
@@ -20,7 +20,7 @@ const exportSourceCtx: ExportSourceContext = {
   isCloud: true,
   enrichedAvailable: true,
   legacyWritesActive: true,
-  projectCreatedAt: new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + 1),
+  projectCreatedAt: new Date(LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + 1),
   integrationCreatedAt: null,
 };
 

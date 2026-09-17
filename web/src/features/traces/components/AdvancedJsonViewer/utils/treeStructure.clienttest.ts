@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Comprehensive test suite for tree building functionality
  *

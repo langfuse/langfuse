@@ -88,11 +88,13 @@ Chart Components (receive props)
 **Purpose**: Context provider that wraps `useScoreAnalyticsQuery` and exposes data to child components.
 
 **Responsibilities**:
+
 - Calls `useScoreAnalyticsQuery` with query parameters
 - Determines color scheme based on mode (single vs two scores)
 - Exposes data, loading state, params, and colors via context
 
 **Usage**:
+
 ```tsx
 <ScoreAnalyticsProvider
   projectId="..."
@@ -112,6 +114,7 @@ Chart Components (receive props)
 **Purpose**: Fetches data from API and transforms it ONCE using pure functions.
 
 **Responsibilities**:
+
 - Fetch data via tRPC (`api.scoreAnalytics.getScoreComparisonAnalytics`)
 - Transform data using functions from `/lib/scoreAnalyticsTransformers.ts`:
   - Extract categories (categorical/boolean only)
@@ -124,6 +127,7 @@ Chart Components (receive props)
 - Return structured `ScoreAnalyticsData` object
 
 **Key Interfaces**:
+
 ```typescript
 interface ScoreAnalyticsQueryParams {
   projectId: string;
@@ -149,6 +153,7 @@ interface ScoreAnalyticsData {
 **Purpose**: Self-contained components that consume context and handle their own UI logic.
 
 **Pattern**:
+
 ```tsx
 export function ExampleCard() {
   const { data, isLoading, params, colors } = useScoreAnalytics();
@@ -168,6 +173,7 @@ export function ExampleCard() {
 ```
 
 **All cards**:
+
 - Consume `useScoreAnalytics()` hook (NOT props)
 - Handle their own loading/empty states
 - Use data directly from context (no prop drilling)
@@ -178,6 +184,7 @@ export function ExampleCard() {
 **Purpose**: Pure presentation components that receive data via props.
 
 **Pattern**:
+
 ```tsx
 interface ChartProps {
   data: SomeDataType;
@@ -198,6 +205,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 **Purpose**: Pure functions for data transformation (no side effects).
 
 **Key Functions**:
+
 - `extractCategories()` - Get unique categories from confusion matrix/stacked distribution
 - `fillDistributionBins()` - Fill missing bins with zero counts
 - `calculateModeMetrics()` - Calculate mode and mode percentage
@@ -205,6 +213,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 - `generateBinLabels()` - Generate formatted bin labels for numeric distributions
 
 **All functions**:
+
 - Pure (same input → same output)
 - No side effects
 - Fully typed
@@ -226,6 +235,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
 **Purpose**: tRPC router exposing score analytics API endpoints.
 
 **Procedures**:
+
 - **`getScoreIdentifiers`**: Returns all available scores in a project (name, dataType, source)
 - **`estimateScoreComparisonSize`**: Estimates query size and determines if sampling is needed
   - Returns: score counts, estimated matched count, willSample flag, estimatedQueryTime
@@ -236,6 +246,7 @@ export function ExampleChart({ data, dataType, score1Name, score2Name }: ChartPr
   - Returns: statistics, distributions, time series, heatmap data
 
 **ClickHouse Optimizations**:
+
 - Uses `cityHash64` for consistent sampling
 - Dynamic FINAL application based on dataset size
 - Proper time interval alignment (ISO 8601 weeks, calendar months)
@@ -357,11 +368,13 @@ if (isSingleScoreColors(colors)) {
 **Feature Directory**: `/web/src/features/score-analytics/`
 
 **Server (tRPC)**:
+
 - Router: `/web/src/features/score-analytics/server/scoreAnalyticsRouter.ts`
 - Registered as: `api.scoreAnalytics.*`
 - Root registration: `/web/src/server/api/root.ts`
 
 **Utilities**:
+
 - All utilities: `/web/src/features/score-analytics/lib/`
   - `scoreAnalyticsTransformers.ts` - Pure transformation functions
   - `analytics-url-state.ts` - URL state management
@@ -373,6 +386,7 @@ if (isSingleScoreColors(colors)) {
 - Time series gap filling: `/web/src/utils/fill-time-series-gaps.ts`
 
 **Backend Repositories**:
+
 - Score analytics queries: `/packages/shared/src/server/repositories/score-analytics.ts`
 
 ## Performance Considerations
@@ -387,6 +401,7 @@ if (isSingleScoreColors(colors)) {
 Backend tests: `/web/src/__tests__/server/score-comparison-analytics.servertest.ts`
 
 Test coverage:
+
 - All data types (NUMERIC, BOOLEAN, CATEGORICAL)
 - All modes (single, two-score, same-score-twice)
 - Edge cases (empty data, missing bins, timezone handling)
@@ -396,6 +411,7 @@ Test coverage:
 - Object type filtering (trace, observation, session, dataset_run)
 
 Run tests:
+
 ```bash
 pnpm --filter=web test "score-comparison-analytics"
 ```

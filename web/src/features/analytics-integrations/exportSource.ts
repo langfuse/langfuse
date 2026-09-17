@@ -1,11 +1,12 @@
 import {
-  AnalyticsIntegrationExportSource,
   areEnrichedWritesActive,
   areLegacyWritesActive,
+  defaultExportSource,
   EXPORT_SOURCE_OPTIONS,
   getAvailableExportSources,
   validateExportSource,
-  type BlobExportWriteMode,
+  type AnalyticsIntegrationExportSource,
+  type V4WriteMode,
   type ExportSourceBlockedReason,
   type ExportSourceContext,
   type ExportSourceOption,
@@ -22,11 +23,13 @@ export function buildExportSourceContext({
   isCloud,
   projectCreatedAt,
   integrationCreatedAt,
+  exporterCutoff,
 }: {
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
   isCloud: boolean;
   projectCreatedAt?: Date;
   integrationCreatedAt?: Date | null;
+  exporterCutoff?: Date;
 }): ExportSourceContext {
   return {
     isCloud,
@@ -34,6 +37,7 @@ export function buildExportSourceContext({
     legacyWritesActive: areLegacyWritesActive(writeMode),
     projectCreatedAt,
     integrationCreatedAt,
+    exporterCutoff,
   };
 }
 
@@ -45,19 +49,14 @@ export function isExportSourceSelectable(
 }
 
 // The persisted value always wins so initialize+save can never silently
-// rewrite it (LFE-10296); validation blocks the save if it is not selectable.
+// rewrite it; validation blocks the save if it is not selectable. A create
+// falls through to the shared policy default, which the routers use too, so the
+// page and the server agree on what a new integration gets.
 export function getExportSourceFormValue(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,
 ): AnalyticsIntegrationExportSource {
-  if (persisted) return persisted;
-  const legacySelectable = isExportSourceSelectable(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    ctx,
-  );
-  return ctx.enrichedAvailable || !legacySelectable
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+  return persisted ?? defaultExportSource(ctx);
 }
 
 export type SelectableExportSourceOption = ExportSourceOption & {
@@ -76,7 +75,7 @@ export function shouldHideExportSourceSelector(
 
 // Selectable sources, plus the persisted one (marked unavailable) when it is
 // no longer selectable, so the conflict is visible rather than silently
-// rewritten (LFE-10296).
+// rewritten.
 export function getExportSourceOptions(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   ctx: ExportSourceContext,
@@ -87,6 +86,29 @@ export function getExportSourceOptions(
     if (!option) return [];
     return [{ ...option, unavailable: blockedReason !== undefined }];
   });
+}
+
+export type ExportSourceFieldState = {
+  options: SelectableExportSourceOption[];
+  showField: boolean;
+  defaultValue: AnalyticsIntegrationExportSource;
+};
+
+// Visibility and the default have to agree: a hidden selector whose default is
+// not selectable blocks every save with no field left to fix it with. Both
+// therefore derive from the same option list, with no per-context override —
+// the persisted value survives even where it can no longer be chosen, so the
+// blocked-save alert names it instead of a save quietly replacing it.
+export function getExportSourceFieldState(
+  persisted: AnalyticsIntegrationExportSource | null | undefined,
+  ctx: ExportSourceContext,
+): ExportSourceFieldState {
+  const options = getExportSourceOptions(persisted ?? null, ctx);
+  return {
+    options,
+    showField: !shouldHideExportSourceSelector(options),
+    defaultValue: getExportSourceFormValue(persisted, ctx),
+  };
 }
 
 // Blocked-save alert body per policy reason.

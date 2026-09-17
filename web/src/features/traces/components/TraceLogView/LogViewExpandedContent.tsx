@@ -9,7 +9,7 @@ import { memo, useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 export interface LogViewExpandedContentProps {
   node: TreeNode;
@@ -83,7 +83,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
       {jsonData && !isLoading && (
         <PrettyJsonView
           json={jsonData}
-          // Map "json-beta" to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
+          // Map json-beta to "pretty" for PrettyJsonView since it only supports "pretty" | "json"
           currentView={currentView === "json-beta" ? "pretty" : currentView}
           isLoading={false}
           showNullValues={false}

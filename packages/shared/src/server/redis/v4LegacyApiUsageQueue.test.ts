@@ -12,15 +12,15 @@ describe("V4LegacyApiUsageQueue schedule", () => {
     vi.clearAllMocks();
   });
 
-  it("removes the legacy hourly repeatable job before scheduling */15", async () => {
-    const removeRepeatable = vi.fn().mockResolvedValue(undefined);
-    const add = vi.fn().mockResolvedValue(undefined);
+  it("removes the legacy repeatable schedules and upserts a job scheduler", async () => {
+    const removeRepeatable = vi.fn().mockResolvedValue(true);
+    const upsertJobScheduler = vi.fn().mockResolvedValue({});
     const on = vi.fn();
 
     vi.doMock("bullmq", () => ({
       Queue: class {
         removeRepeatable = removeRepeatable;
-        add = add;
+        upsertJobScheduler = upsertJobScheduler;
         on = on;
       },
     }));
@@ -45,18 +45,31 @@ describe("V4LegacyApiUsageQueue schedule", () => {
 
     V4LegacyApiUsageQueue.getInstance();
 
+    // Scheduling is fire-and-forget from getInstance, so wait for the chain.
+    await vi.waitFor(() => {
+      expect(upsertJobScheduler).toHaveBeenCalledTimes(1);
+    });
+
+    // Legacy repeatable entries are keyed by md5(name + pattern), so both the
+    // current pattern and the pre-migration hourly pattern must be cleaned up.
+    expect(removeRepeatable).toHaveBeenCalledWith(
+      QueueJobs.V4LegacyApiUsageJob,
+      { pattern: V4_LEGACY_API_USAGE_CRON_PATTERN },
+    );
     expect(removeRepeatable).toHaveBeenCalledWith(
       QueueJobs.V4LegacyApiUsageJob,
       { pattern: "25 * * * *" },
     );
-    expect(add).toHaveBeenCalledWith(
+    expect(upsertJobScheduler).toHaveBeenCalledWith(
       QueueJobs.V4LegacyApiUsageJob,
-      {},
-      { repeat: { pattern: V4_LEGACY_API_USAGE_CRON_PATTERN } },
+      { pattern: V4_LEGACY_API_USAGE_CRON_PATTERN },
+      { name: QueueJobs.V4LegacyApiUsageJob, data: {} },
     );
     expect(V4_LEGACY_API_USAGE_CRON_PATTERN).toBe("*/15 * * * *");
-    expect(removeRepeatable.mock.invocationCallOrder[0]).toBeLessThan(
-      add.mock.invocationCallOrder[0]!,
-    );
+    for (const removeCall of removeRepeatable.mock.invocationCallOrder) {
+      expect(removeCall).toBeLessThan(
+        upsertJobScheduler.mock.invocationCallOrder[0]!,
+      );
+    }
   });
 });

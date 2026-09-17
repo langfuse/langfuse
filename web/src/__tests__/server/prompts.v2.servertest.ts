@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { prisma } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -9,8 +10,8 @@ import {
   type ChatMessage,
   type Prompt,
   PromptType,
+  parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";

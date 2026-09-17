@@ -3,10 +3,12 @@ import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
+import {
+  Chart,
+  ChartLoadingState,
+  type DataPoint,
+  getWidgetMetricPresentation,
+} from "@/src/features/widgets";
 import {
   type FilterState,
   type metricAggregations,
@@ -79,7 +81,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -103,7 +105,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );

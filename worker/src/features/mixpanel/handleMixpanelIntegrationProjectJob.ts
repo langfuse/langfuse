@@ -9,10 +9,12 @@ import {
   getScoresForAnalyticsIntegrations,
   getEventsForAnalyticsIntegrations,
   getCurrentSpan,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
@@ -21,6 +23,10 @@ import {
 } from "./transformers";
 import { env, v4WritesToLegacyTables } from "../../env";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
+import { classifyCustomerFault } from "../integrations/customerFaultClassification";
+
+export const MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC =
+  "langfuse.mixpanel.integration_customer_fault.count";
 
 const sleep = (ms: number) =>
   ms > 0
@@ -46,6 +52,12 @@ type MixpanelExecutionConfig = {
   minTimestamp: Date;
   maxTimestamp: Date;
   decryptedMixpanelProjectToken: string;
+  // Plain string at use time. The Mixpanel settings dropdown is currently the
+  // only input that can set this (`api` | `api-eu` | `api-in`). If that ever
+  // becomes free-form, `validateAnalyticsIntegrationUrl` (called from the
+  // Mixpanel sender) is the remaining guard against IP-literal, credentialed,
+  // and non-HTTP destinations — the connect-time DNS hook never fires for a
+  // literal.
   mixpanelRegion: string;
   // First attempt uses ClickHouse `auto` join algorithm. We only fall back to
   // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
@@ -238,21 +250,23 @@ export const handleMixpanelIntegrationProjectJob = async (
     return;
   }
 
-  // Fetch relevant data and send it to Mixpanel
-  const executionConfig: MixpanelExecutionConfig = {
-    projectId,
-    projectName: mixpanelIntegration.project.name,
-    // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
-    minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
-    maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
-    decryptedMixpanelProjectToken: decrypt(
-      mixpanelIntegration.encryptedMixpanelProjectToken,
-    ),
-    mixpanelRegion: mixpanelIntegration.mixpanelRegion,
-    useGraceHash: job.attemptsMade > 0,
-  };
+  const runStartTime = new Date();
 
   try {
+    // Fetch relevant data and send it to Mixpanel
+    const executionConfig: MixpanelExecutionConfig = {
+      projectId,
+      projectName: mixpanelIntegration.project.name,
+      // Start from 2000-01-01 if no lastSyncAt. Workaround because 1970-01-01 leads to subtle bugs in ClickHouse
+      minTimestamp: mixpanelIntegration.lastSyncAt || new Date("2000-01-01"),
+      maxTimestamp: new Date(new Date().getTime() - 30 * 60 * 1000), // 30 minutes ago
+      decryptedMixpanelProjectToken: decrypt(
+        mixpanelIntegration.encryptedMixpanelProjectToken,
+      ),
+      mixpanelRegion: mixpanelIntegration.mixpanelRegion,
+      useGraceHash: job.attemptsMade > 0,
+    };
+
     // Fail loudly before exporting empty data and advancing lastSyncAt
     // (LFE-10148, LFE-11009); the catch below logs and BullMQ retries.
     assertExportSourceWritable(
@@ -303,13 +317,40 @@ export const handleMixpanelIntegrationProjectJob = async (
       bytes: mixpanel.getSerializedBytes(),
       projectId,
     });
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: executionConfig.maxTimestamp,
+    });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
     );
   } catch (error) {
+    recordExportFreshnessLag({
+      integration: "mixpanel",
+      window: "1h",
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: mixpanelIntegration.lastSyncAt,
+    });
+    const mixpanelFaultReason = classifyCustomerFault(error);
+    if (mixpanelFaultReason !== undefined) {
+      recordIncrement(MIXPANEL_INTEGRATION_CUSTOMER_FAULT_METRIC, 1, {
+        reason: mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      });
+    }
     logger.error(
       `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      error,
+      {
+        error,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+        mixpanelFaultReason,
+        attempt: job.attemptsMade,
+      },
     );
     throw error;
   }

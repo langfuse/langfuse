@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -6,21 +7,20 @@ import { deduplicateBy } from "@/src/utils/arrays";
 import { safeJsonParse, stableJsonStringify } from "@langfuse/shared";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
-} from "@langfuse/shared/in-app-agent";
-import {
   AgUiMessageSchema,
   type AgUiMessage,
-  InAppAgentRateLimitErrorResponseSchema,
-  type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
-  InAppAgentMessageSourceSchema,
+  InAppAgentRateLimitErrorResponseSchema,
 } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentMessageFeedbackSchema,
+  type InAppAgentMessageSource,
+  InAppAgentMessageSourceSchema,
+} from "../../schema";
 
 export type InAppAgentError =
   | { type: "generic"; message: string }
-  | { type: "write_lock" }
   | { type: "rate_limit"; retryAt: number };
 
 const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
@@ -28,6 +28,7 @@ const InAppAiAgentMessageSchema = AgUiMessageSchema.and(
     isLoading: z.boolean().optional(),
     feedbackMessageId: z.string().optional(),
     timestamp: z.number().optional(),
+    feedback: InAppAgentMessageFeedbackSchema.optional(),
   }),
 );
 
@@ -53,6 +54,7 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchUpsertDatasetItems: "Saving dataset items",
   createAnnotationQueueAssignment: "Assigning annotation queue",
   createAnnotationQueueItem: "Adding to annotation queue",
   createChatPrompt: "Creating chat prompt",
@@ -74,6 +76,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   queryMetrics: "Checking metrics",
   read: "Reading file",
   submitFeedback: "Submitting user feedback",
+  testEvaluator: "Testing evaluator",
   updateDashboardPlacement: "Moving widget",
   updateDashboardWidget: "Updating widget",
   updatePromptLabels: "Updating prompt labels",
@@ -348,10 +351,6 @@ export function getInAppAgentError(
       type: "rate_limit",
       retryAt: now + rateLimitError.details.retryAfterSeconds * 1_000,
     };
-  }
-
-  if (message.includes(IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE)) {
-    return { type: "write_lock" };
   }
 
   return { type: "generic", message };
@@ -794,7 +793,7 @@ function getRedirectActionFromToolResult(
   }
 }
 
-export function extractLangfuseDocsSources(
+function extractLangfuseDocsSources(
   tools: readonly InAppAgentToolCallContent[],
 ): InAppAgentMessageSource[] {
   return mergeSources(

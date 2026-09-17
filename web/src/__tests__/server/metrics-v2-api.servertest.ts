@@ -9,6 +9,7 @@ import {
   createEventsCh,
   createScoresCh,
   createTraceScore,
+  DateTimeFilter,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -119,6 +120,29 @@ describe("/api/public/v2/metrics API Endpoint", () => {
   });
 
   maybe("Basic Functionality", () => {
+    it("preserves DateTime64 filter instants outside the ClickHouse session timezone", async () => {
+      const instant = new Date("2026-08-14T23:30:00.123+02:00");
+      const applied = new DateTimeFilter({
+        clickhouseTable: "events",
+        field: "start_time",
+        operator: ">=",
+        value: instant,
+      }).apply();
+      const placeholder = applied.query.match(/\{[^}]+\}/)?.[0];
+
+      if (!placeholder) {
+        throw new Error("DateTimeFilter did not produce a query parameter");
+      }
+
+      const result = await queryClickhouse<{ timestampMs: string }>({
+        query: `SELECT toUnixTimestamp64Milli(${placeholder}) AS timestampMs`,
+        params: applied.params,
+        clickhouseSettings: { session_timezone: "Europe/Berlin" },
+      });
+
+      expect(Number(result[0]?.timestampMs)).toBe(instant.getTime());
+    });
+
     it("should apply default row_limit of 100 when not specified", async () => {
       // Create enough observations to exceed default limit
       const rowLimitTraceId = randomUUID();
@@ -229,6 +253,38 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toBeDefined();
       expect(Array.isArray(response.body.data)).toBe(true);
+    });
+
+    it("should accept Unix epoch fromTimestamp without ClickHouse DateTime64 parse errors", async () => {
+      // Regression: ClickHouse rejects DateTime64(3) query parameter value 0,
+      // which is Date#getTime() for 1970-01-01T00:00:00.000Z. Clients often use
+      // epoch as an open-ended lower bound; the API must return 200, not 500.
+      const query = {
+        view: "observations",
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+            type: "string",
+          },
+        ],
+        fromTimestamp: "1970-01-01T00:00:00.000Z",
+        toTimestamp: new Date(timestamp.getTime() + 10_000).toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(Number(response.body.data[0]?.count_count)).toBe(
+        observationIds.length,
+      );
     });
 
     it("should support latency metrics with microsecond to millisecond conversion", async () => {
@@ -1307,6 +1363,8 @@ describe("/api/public/v2/metrics API Endpoint", () => {
           project_id: projectId,
           name: "test-observation-for-score-v2",
           provided_model_name: "gpt-4-turbo",
+          prompt_name: "ticket-intent-router",
+          prompt_version: 2,
           start_time: Date.now() * 1000,
         }),
       ]);
@@ -1350,6 +1408,16 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         "test-observation-for-score-v2",
         (row: any) => row.observationName === "test-observation-for-score-v2",
       ],
+      [
+        "observationPromptName",
+        "ticket-intent-router",
+        (row: any) => row.observationPromptName === "ticket-intent-router",
+      ],
+      [
+        "observationPromptVersion",
+        2,
+        (row: any) => Number(row.observationPromptVersion) === 2,
+      ],
     ])(
       "should support %s dimension via events table",
       async (dimensionField, expectedValue, findRowFn) => {
@@ -1383,5 +1451,91 @@ describe("/api/public/v2/metrics API Endpoint", () => {
         expect(foundRow).toBeDefined();
       },
     );
+
+    it("should filter scores-numeric by observationPromptVersion as a number", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "name",
+            operator: "=",
+            value: "score-with-observation-v2",
+            type: "string",
+          },
+          {
+            column: "observationPromptVersion",
+            operator: "=",
+            value: 2,
+            type: "number",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "score-with-observation-v2",
+          }),
+        ]),
+      );
+
+      const mismatched = await makeZodVerifiedAPICall(
+        GetMetricsV1Response,
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(
+          JSON.stringify({
+            ...query,
+            filters: [
+              query.filters[0],
+              {
+                column: "observationPromptVersion",
+                operator: "=",
+                value: 99,
+                type: "number",
+              },
+            ],
+          }),
+        )}`,
+      );
+
+      expect(mismatched.status).toBe(200);
+      expect(mismatched.body.data).toHaveLength(0);
+    });
+
+    it("rejects a string filter on observationPromptVersion", async () => {
+      const query = {
+        view: "scores-numeric",
+        dimensions: [{ field: "name" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [
+          {
+            column: "observationPromptVersion",
+            operator: "=",
+            value: "2",
+            type: "string",
+          },
+        ],
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date().toISOString(),
+      };
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(query))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
   });
 });

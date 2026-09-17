@@ -12,15 +12,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { PasswordInput } from "@/src/components/ui/password-input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   Tooltip,
   TooltipTrigger,
@@ -33,21 +27,19 @@ import {
   type MixpanelRegion,
 } from "@/src/features/mixpanel-integration/types";
 import {
-  AnalyticsIntegrationExportSource,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   validateExportSource,
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
-  getExportSourceOptions,
+  getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  shouldHideExportSourceSelector,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -165,51 +157,39 @@ const MixpanelIntegrationSettingsForm = ({
 }: {
   state?: NonNullable<RouterOutput["mixpanelIntegration"]["get"]["config"]>;
   projectId: string;
-  writeMode: BlobExportWriteMode;
+  writeMode: V4WriteMode;
   // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
   // reference on every render and would defeat the memo below.
   projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
   const exportSourceCtx: ExportSourceContext = useMemo(
     () =>
       buildExportSourceContext({
         writeMode,
         isCloud: isLangfuseCloud,
         projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
       }),
-    [writeMode, isLangfuseCloud, projectCreatedAt],
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const legacyValidation = validateExportSource(
-    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-    exportSourceCtx,
-  );
-  // Post-cutoff Cloud projects: field hidden, form value pinned to EVENTS via
-  // the default below (LFE-9688 / 9830 behavior, unchanged).
-  const isPostCutoffCloud =
-    !legacyValidation.ok && legacyValidation.reason === "cloud-cutoff";
-  const exportSourceOptions = getExportSourceOptions(
-    state?.exportSource ?? null,
-    exportSourceCtx,
-  );
-  // Selector is beta-gated, except a persisted source blocked by capability
-  // forces it visible so the blocked-save alert has something to point at.
-  const persistedBlockedByCapability =
-    state?.exportSource != null &&
-    !isPostCutoffCloud &&
-    !isExportSourceSelectable(state.exportSource, exportSourceCtx);
-  const showExportSourceField =
-    ((isBetaEnabled && !isPostCutoffCloud) || persistedBlockedByCapability) &&
-    !shouldHideExportSourceSelector(exportSourceOptions);
+  const {
+    options: exportSourceOptions,
+    showField: showExportSourceField,
+    defaultValue: defaultExportSource,
+  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
 
-  // Blocked-save validation instead of silent rewrite (LFE-10296).
+  // Blocked-save validation instead of silent rewrite.
   const formSchema = useMemo(
     () =>
       mixpanelIntegrationFormSchema.superRefine((data, ctx) => {
         // The credential is write-only: blank keeps the saved token, so it is
-        // only required when no integration exists yet (LFE-14384).
+        // only required when no integration exists yet.
         if (!state && !data.mixpanelProjectToken) {
           ctx.addIssue({
             code: "custom",
@@ -228,13 +208,6 @@ const MixpanelIntegrationSettingsForm = ({
       }),
     [exportSourceCtx, state],
   );
-
-  const defaultExportSource = isPostCutoffCloud
-    ? AnalyticsIntegrationExportSource.EVENTS
-    : (state?.exportSource ??
-      (isBetaEnabled || !exportSourceCtx.legacyWritesActive
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS));
 
   const mixpanelForm = useForm({
     resolver: zodResolver(formSchema),
@@ -288,20 +261,17 @@ const MixpanelIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Mixpanel Region</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a region" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {MIXPANEL_REGIONS.map((region) => (
-                    <SelectItem key={region.subdomain} value={region.subdomain}>
-                      {region.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SelectInput
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  placeholder="Select a region"
+                  options={MIXPANEL_REGIONS.map((region) => ({
+                    value: region.subdomain,
+                    label: region.description,
+                  }))}
+                />
+              </FormControl>
               <FormDescription>
                 Select the Mixpanel region where your project is hosted
               </FormDescription>
@@ -368,26 +338,25 @@ const MixpanelIntegrationSettingsForm = ({
                     </TooltipContent>
                   </Tooltip>
                 </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {exportSourceOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.unavailable}
-                      >
-                        {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
-                          : option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SelectInput
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    placeholder="Select data to export"
+                    options={exportSourceOptions.map((option) => {
+                      if (option.unavailable) {
+                        return {
+                          value: option.value,
+                          label: `${option.label} (not available on this deployment)`,
+                          disabled: true as const,
+                          disabledReason: "Not available on this deployment.",
+                        };
+                      }
+
+                      return { value: option.value, label: option.label };
+                    })}
+                  />
+                </FormControl>
                 <FormDescription>
                   Choose which data sources to export to Mixpanel. Scores are
                   always included.
@@ -399,10 +368,12 @@ const MixpanelIntegrationSettingsForm = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>
+              Saved export source is no longer available
+            </Alert.Title>
+            <Alert.Description>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
         <FormField

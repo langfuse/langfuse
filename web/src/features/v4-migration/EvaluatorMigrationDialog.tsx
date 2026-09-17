@@ -9,14 +9,14 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
+import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 
 type EvaluatorMigrationScope = { type: "all" } | { type: "single" };
 
@@ -47,7 +47,7 @@ export function EvaluatorMigrationDialog({
   onAssistantStarted,
   initialAction,
 }: EvaluatorMigrationDialogProps) {
-  const canUseAssistant = useCanUseInAppAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { organization } = useQueryProjectOrOrganization();
   const { openAssistant, submit } = useInAppAiAgent();
   const canUpdateOrgSettings = useHasOrganizationAccess({
@@ -60,7 +60,7 @@ export function EvaluatorMigrationDialog({
 
   const aiFeaturesEnabled = Boolean(organization?.aiFeaturesEnabled);
   const isSingleEvaluator = scope.type === "single";
-  const showAssistantOption = canUseAssistant;
+  const showAssistantOption = isInAppAgentLauncherVisible;
   // With AI features disabled, the choice screen's assistant option owns the
   // enable-AI and admin-handoff side effects, so the preselect only applies
   // once the assistant can actually start.

@@ -6,8 +6,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { EventType } from "@ag-ui/core";
-import { InAppAgentRunErrorCode, InAppAgentRunStatus } from "@langfuse/shared";
-import type { AgUiMessage } from "@langfuse/shared/in-app-agent";
+import {
+  InAppAgentRunErrorCode,
+  InAppAgentRunStatus,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
@@ -53,7 +56,7 @@ const providerMocks = vi.hoisted(() => {
       data: undefined as
         | undefined
         | {
-            conversation: { id: string; isWriteLocked: boolean };
+            conversation: { id: string };
             messages: AgUiMessage[];
             eventCursor: number;
             latestRun: {
@@ -109,6 +112,7 @@ vi.mock("next/router", () => ({
 const sessionMocks = vi.hoisted(() => ({
   userId: "user-1" as string | undefined,
   aiFeaturesEnabled: true,
+  inAppAgentEnabled: true,
   isLangfuseCloud: true,
 }));
 
@@ -116,6 +120,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
       user: { id: sessionMocks.userId, name: "Test User" },
+      environment: { inAppAgentEnabled: sessionMocks.inAppAgentEnabled },
     },
   }),
 }));
@@ -276,6 +281,7 @@ describe("in-app agent execution", () => {
   beforeEach(() => {
     sessionMocks.userId = "user-1";
     sessionMocks.aiFeaturesEnabled = true;
+    sessionMocks.inAppAgentEnabled = true;
     sessionMocks.isLangfuseCloud = true;
     providerMocks.activityUseQuery.mockImplementation(
       () => providerMocks.activityQuery,
@@ -298,9 +304,10 @@ describe("in-app agent execution", () => {
     window.sessionStorage.clear();
   });
 
-  // Gated more strictly than useCanUseInAppAgent, which ignores the org AI
-  // toggle so the entry points can offer to turn it on. Polling with it off
-  // turns every page load and window focus into a Forbidden toast.
+  // Polling uses useCanUseInAppAgent (org AI Features on). Entry points use
+  // useIsInAppAgentLauncherVisible, which still shows when AI Features are off
+  // so clicking can open the enable dialog. Polling with it off turns every
+  // page load and window focus into a Forbidden toast.
   it("polls for activity only once AI features are on", () => {
     sessionMocks.aiFeaturesEnabled = false;
 
@@ -327,11 +334,24 @@ describe("in-app agent execution", () => {
     );
   });
 
+  it("does not poll for activity when in-app agent is instance-disabled", () => {
+    sessionMocks.inAppAgentEnabled = false;
+
+    render(
+      <InAppAiAgentProvider defaultOpen={false}>
+        <div />
+      </InAppAiAgentProvider>,
+    );
+
+    expect(providerMocks.activityUseQuery.mock.calls.at(-1)?.[1]?.enabled).toBe(
+      false,
+    );
+  });
+
   it("always allows a persisted background tool for the conversation", async () => {
     const approvedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -447,7 +467,6 @@ describe("in-app agent execution", () => {
     const completedSnapshot = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -553,7 +572,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -606,7 +624,6 @@ describe("in-app agent execution", () => {
     providerMocks.conversationQuery.data = {
       conversation: {
         id: "conversation-1",
-        isWriteLocked: false,
       },
       messages: [
         {
@@ -660,7 +677,7 @@ describe("in-app agent execution", () => {
 
   it("does not observe a cached active run while the assistant is closed", async () => {
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 5,
       latestRun: {
@@ -706,7 +723,7 @@ describe("in-app agent execution", () => {
     const initialText = "I found the affected traces.";
     const finalText = "The remaining analysis was cancelled before completion.";
     const runningSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
         {
@@ -876,14 +893,14 @@ describe("in-app agent execution", () => {
 
     const finalText = "The investigation was cancelled before it completed.";
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: -1,
       latestRun: null,
       pendingToolApprovals: [],
     };
     const cancellingSnapshot = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [
         { id: "persisted-user", role: "user", content: "Investigate this" },
       ] satisfies AgUiMessage[],
@@ -1089,7 +1106,7 @@ describe("in-app agent concurrent conversations", () => {
 
   it("starts a new conversation while another one is still running", async () => {
     providerMocks.conversationQuery.data = {
-      conversation: { id: "conversation-1", isWriteLocked: false },
+      conversation: { id: "conversation-1" },
       messages: [],
       eventCursor: 3,
       latestRun: {

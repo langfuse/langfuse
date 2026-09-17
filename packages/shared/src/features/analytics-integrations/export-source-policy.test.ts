@@ -4,20 +4,27 @@ import * as exportSourcePolicy from "./export-source-policy";
 import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
+  defaultExportSource,
   getAvailableExportSources,
-  isEnrichedBlobExportSource,
-  isLegacyBlobExportSource,
-  LEGACY_BLOB_EXPORT_CUTOFF,
+  isEnrichedExportSource,
+  isLegacyExporter,
+  isLegacyExportSource,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
   LEGACY_BLOB_EXPORTER_CUTOFF,
   validateExportSource,
-  type BlobExportWriteMode,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "./export-source-policy";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PROJECT_PRE = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const PROJECT_AT = LEGACY_BLOB_EXPORT_CUTOFF;
-const PROJECT_POST = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PROJECT_PRE = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const PROJECT_AT = LEGACY_EXPORT_PROJECT_CUTOFF;
+const PROJECT_POST = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 const ROW_PRE = new Date(LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY);
 const ROW_AT = LEGACY_BLOB_EXPORTER_CUTOFF;
 
@@ -194,14 +201,10 @@ describe("getAvailableExportSources", () => {
 // sources hold data. Neither the V4 frontend preview flag nor a per-user beta
 // opt-in may re-enter this decision.
 describe("write mode drives export-source availability", () => {
-  const WRITE_MODES: readonly BlobExportWriteMode[] = [
-    "legacy",
-    "dual",
-    "events_only",
-  ];
+  const WRITE_MODES: readonly V4WriteMode[] = ["legacy", "dual", "events_only"];
 
   const ctxFor = (
-    writeMode: BlobExportWriteMode,
+    writeMode: V4WriteMode,
     over: Partial<ExportSourceContext> = {},
   ): ExportSourceContext => ({
     isCloud: false,
@@ -269,7 +272,7 @@ describe("write mode drives export-source availability", () => {
   // No special case: the combined source needs both halves, so only dual can
   // offer it. A hand-rolled rule for it would drift from the two predicates.
   it("TRACES_OBSERVATIONS_EVENTS requires dual, purely from the two rules", () => {
-    const ok = (mode: BlobExportWriteMode) =>
+    const ok = (mode: V4WriteMode) =>
       validateExportSource("TRACES_OBSERVATIONS_EVENTS", ctxFor(mode)).ok;
     expect(ok("legacy")).toBe(false);
     expect(ok("dual")).toBe(true);
@@ -305,29 +308,194 @@ describe("write mode drives export-source availability", () => {
   });
 });
 
-describe("isLegacyBlobExportSource", () => {
+describe("isLegacyExportSource", () => {
   it("is true for the legacy sources", () => {
-    expect(isLegacyBlobExportSource("TRACES_OBSERVATIONS")).toBe(true);
-    expect(isLegacyBlobExportSource("TRACES_OBSERVATIONS_EVENTS")).toBe(true);
+    expect(isLegacyExportSource("TRACES_OBSERVATIONS")).toBe(true);
+    expect(isLegacyExportSource("TRACES_OBSERVATIONS_EVENTS")).toBe(true);
   });
 
   it("is false for the enriched-only source and nullish values", () => {
-    expect(isLegacyBlobExportSource("EVENTS")).toBe(false);
-    expect(isLegacyBlobExportSource(null)).toBe(false);
-    expect(isLegacyBlobExportSource(undefined)).toBe(false);
+    expect(isLegacyExportSource("EVENTS")).toBe(false);
+    expect(isLegacyExportSource(null)).toBe(false);
+    expect(isLegacyExportSource(undefined)).toBe(false);
   });
 
   it("TRACES_OBSERVATIONS_EVENTS counts as both legacy and enriched", () => {
     // It exports the legacy tables *and* the enriched events, so both
     // predicates must return true — this project still needs the warning.
     const source = "TRACES_OBSERVATIONS_EVENTS";
-    expect(isLegacyBlobExportSource(source)).toBe(true);
-    expect(isEnrichedBlobExportSource(source)).toBe(true);
+    expect(isLegacyExportSource(source)).toBe(true);
+    expect(isEnrichedExportSource(source)).toBe(true);
   });
 
   it("EVENTS is enriched-only, never legacy", () => {
     const source = "EVENTS";
-    expect(isLegacyBlobExportSource(source)).toBe(false);
-    expect(isEnrichedBlobExportSource(source)).toBe(true);
+    expect(isLegacyExportSource(source)).toBe(false);
+    expect(isEnrichedExportSource(source)).toBe(true);
+  });
+});
+
+// Each integration family carries its own integration-level cutoff. Dates are
+// derived from the constants, never written as literals: both are overridable
+// via NEXT_PUBLIC_* for local testing, and a literal would silently stop
+// testing the shipped value.
+describe("per-family exporter cutoff", () => {
+  const cloud = (over: Partial<ExportSourceContext>): ExportSourceContext =>
+    ctx({ isCloud: true, projectCreatedAt: PROJECT_PRE, ...over });
+
+  it("defaults to the blob cutoff when the context omits one", () => {
+    // Grandfathered under the blob default...
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: ROW_PRE })),
+    ).toBeUndefined();
+    // ...and blocked once the row reaches it.
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: ROW_AT })),
+    ).toBe("cloud-cutoff");
+  });
+
+  it("a later context cutoff grandfathers a row the blob default would block", () => {
+    // Between the two cutoffs: blocked under the blob default, allowed under the
+    // analytics one. This is the whole point of the parameter.
+    const between = new Date(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+    );
+    expect(between < LEGACY_ANALYTICS_EXPORTER_CUTOFF).toBe(true);
+    expect(
+      reasonOf("TRACES_OBSERVATIONS", cloud({ integrationCreatedAt: between })),
+    ).toBe("cloud-cutoff");
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        cloud({
+          integrationCreatedAt: between,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("a brand-new Cloud row is blocked under any cutoff, today's date notwithstanding", () => {
+    for (const exporterCutoff of [
+      undefined,
+      LEGACY_BLOB_EXPORTER_CUTOFF,
+      LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+    ]) {
+      expect(
+        reasonOf(
+          "TRACES_OBSERVATIONS",
+          cloud({ integrationCreatedAt: null, exporterCutoff }),
+        ),
+      ).toBe("cloud-cutoff");
+    }
+  });
+
+  it("self-hosted is exempt from every exporter cutoff", () => {
+    expect(
+      isLegacyExporter(null, false, LEGACY_ANALYTICS_EXPORTER_CUTOFF),
+    ).toBe(true);
+    expect(
+      reasonOf(
+        "TRACES_OBSERVATIONS",
+        ctx({
+          isCloud: false,
+          integrationCreatedAt: null,
+          exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+        }),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("names the context cutoff in the rejection message, not the blob default", () => {
+    const res = validateExportSource(
+      "TRACES_OBSERVATIONS",
+      cloud({
+        integrationCreatedAt: null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      }),
+    );
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.message).toContain(
+      LEGACY_ANALYTICS_EXPORTER_CUTOFF.toISOString(),
+    );
+    expect(res.message).not.toContain(
+      LEGACY_BLOB_EXPORTER_CUTOFF.toISOString(),
+    );
+  });
+
+  it("the analytics cutoff postdates the blob one", () => {
+    // Guards against someone 'tidying' the analytics constant onto the blob
+    // date, which would retroactively invalidate grandfathered analytics rows.
+    expect(LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime()).toBeGreaterThan(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime(),
+    );
+  });
+});
+
+describe("defaultExportSource", () => {
+  const forWriteMode = (
+    writeMode: V4WriteMode,
+    over: Partial<ExportSourceContext> = {},
+  ) =>
+    defaultExportSource(
+      ctx({
+        enrichedAvailable: areEnrichedWritesActive(writeMode),
+        legacyWritesActive: areLegacyWritesActive(writeMode),
+        ...over,
+      }),
+    );
+
+  it("prefers enriched wherever the deployment writes it", () => {
+    // `dual` is the case that used to disagree between the settings page and
+    // the routers: the page defaulted to EVENTS while the routers created
+    // TRACES_OBSERVATIONS. One rule now answers both.
+    expect(forWriteMode("dual")).toBe("EVENTS");
+    expect(forWriteMode("events_only")).toBe("EVENTS");
+  });
+
+  it("falls back to legacy only when enriched cannot be served", () => {
+    expect(forWriteMode("legacy")).toBe("TRACES_OBSERVATIONS");
+  });
+
+  it("pins enriched on Cloud where the cutoffs block legacy", () => {
+    // A brand-new Cloud row is post-cutoff, so legacy is not selectable even
+    // under a write mode that cannot serve enriched — returning legacy would
+    // hand back a value the caller is forbidden to save.
+    expect(
+      forWriteMode("legacy", { isCloud: true, integrationCreatedAt: null }),
+    ).toBe("EVENTS");
+    expect(
+      forWriteMode("legacy", { isCloud: true, projectCreatedAt: PROJECT_POST }),
+    ).toBe("EVENTS");
+  });
+
+  it("still allows legacy for a grandfathered Cloud row", () => {
+    expect(
+      forWriteMode("legacy", {
+        isCloud: true,
+        projectCreatedAt: PROJECT_PRE,
+        integrationCreatedAt: ROW_PRE,
+      }),
+    ).toBe("TRACES_OBSERVATIONS");
+  });
+
+  it("never returns a source it just declared unselectable", () => {
+    const modes: V4WriteMode[] = ["legacy", "dual", "events_only"];
+    for (const mode of modes) {
+      for (const isCloud of [false, true]) {
+        // Write mode `legacy` on Cloud cannot serve enriched and cannot use
+        // legacy either, so no source is selectable; the default is then a
+        // misconfiguration signal rather than a usable value.
+        if (mode === "legacy" && isCloud) continue;
+        const c = ctx({
+          isCloud,
+          enrichedAvailable: areEnrichedWritesActive(mode),
+          legacyWritesActive: areLegacyWritesActive(mode),
+          integrationCreatedAt: null,
+        });
+        expect(validateExportSource(defaultExportSource(c), c).ok).toBe(true);
+      }
+    }
   });
 });

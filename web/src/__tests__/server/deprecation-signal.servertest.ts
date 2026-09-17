@@ -15,6 +15,7 @@ import {
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
@@ -22,21 +23,12 @@ import {
   V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
 import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
-import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
 
-// `_deprecation` injection is gated on LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
-// which also enables the events read path (requires ClickHouse >= 25.12). The
-// -azure / -redis-cluster CI modes intentionally run older ClickHouse with the
-// flag off, so skip there — same pattern as the other events-read-path suites.
-const maybeDescribe =
-  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
-    ? describe
-    : describe.skip;
-
-// LFE-10895: legacy (v3-data-model) endpoints attach a top-level `_deprecation`
-// object so coding agents get a self-correcting migration signal.
-maybeDescribe("public API deprecation signal", () => {
+// Legacy (v3-data-model) endpoints attach a top-level `_deprecation`
+// object so coding agents get a self-correcting migration signal. Cloud-only:
+// assumes the server under test sets NEXT_PUBLIC_LANGFUSE_CLOUD_REGION.
+describe("public API deprecation signal", () => {
   let auth: string;
   let projectId: string;
 
@@ -217,5 +209,114 @@ maybeDescribe("public API deprecation signal", () => {
     expect((response.body as Record<string, unknown>)._deprecation).toEqual(
       DATASET_RUNS_DEPRECATION,
     );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when the batch writes a trace", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+    expect(INGESTION_DEPRECATION.replacement).toBe(
+      "POST /api/public/otel/v1/traces",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain("POST /api/public/scores");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/observations",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/metrics",
+    );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when a mixed batch includes an observation", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+          {
+            id: randomUUID(),
+            type: "span-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              traceId: randomUUID(),
+              startTime: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+  });
+
+  it("omits `_deprecation` from POST /ingestion when the batch is only scores", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect(
+      (response.body as Record<string, unknown>)._deprecation,
+    ).toBeUndefined();
   });
 });

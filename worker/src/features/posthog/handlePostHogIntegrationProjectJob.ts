@@ -16,6 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   buildAnalyticsRedirectOptions,
+  hostnameForLog,
   rethrowIfOutboundValidationFailure,
 } from "../analyticsIntegrationEgress";
 import {
@@ -27,6 +28,7 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
+import { recordExportFreshnessLag } from "../../services/exportFreshnessLagMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
 import { isRecordNotFoundError } from "../integrations/prismaErrors";
@@ -283,6 +285,8 @@ export const handlePostHogIntegrationProjectJob = async (
     return;
   }
 
+  const runStartTime = new Date();
+
   try {
     // Validate PostHog hostname to prevent SSRF attacks before sending data.
     // Rewrap preserving { cause } so the single catch below can classify the
@@ -291,7 +295,7 @@ export const handlePostHogIntegrationProjectJob = async (
       await validateWebhookURL(postHogIntegration.posthogHostName);
     } catch (error) {
       logger.error(
-        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${postHogIntegration.posthogHostName}. Error: ${error instanceof Error ? error.message : String(error)}`,
+        `[POSTHOG] PostHog integration for project ${projectId} has invalid hostname: ${hostnameForLog(postHogIntegration.posthogHostName)}. Error: ${error instanceof Error ? error.message : String(error)}`,
       );
       throw new Error(
         `Invalid PostHog hostname for project ${projectId}: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -326,6 +330,13 @@ export const handlePostHogIntegrationProjectJob = async (
       logger.info(
         `[POSTHOG] Skipping PostHog integration for project ${projectId}: empty sync window (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
       );
+      recordExportFreshnessLag({
+        integration: "posthog",
+        window: "1h",
+        status: "success",
+        runStartTime,
+        maxExportedTimestamp: postHogIntegration.lastSyncAt,
+      });
       return;
     }
 
@@ -424,6 +435,13 @@ export const handlePostHogIntegrationProjectJob = async (
       bytes: executionConfig.volume.bytes,
       projectId,
     });
+    recordExportFreshnessLag({
+      integration: "posthog",
+      window: "1h",
+      status: "success",
+      runStartTime,
+      maxExportedTimestamp: executionConfig.maxTimestamp,
+    });
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,
     );
@@ -443,14 +461,19 @@ export const handlePostHogIntegrationProjectJob = async (
       error instanceof Error ? error.message : String(error)
     ).slice(0, 1000);
 
+    recordExportFreshnessLag({
+      integration: "posthog",
+      window: "1h",
+      status: "failure",
+      runStartTime,
+      maxExportedTimestamp: postHogIntegration.lastSyncAt,
+    });
+
     if (reason === undefined) {
-      // A connect-time SSRF block is a permanent misconfiguration of the
-      // integration host, not a transient failure, so skip the remaining BullMQ
-      // attempts for this job. Only reached for blocks the classifier above does
-      // not own (e.g. a rejected redirect target): a blocked hostname/IP is a
-      // customer fault and disables the integration instead. The integration
-      // stays enabled here, so the schedule re-enqueues the project next cycle,
-      // which is what lets a fixed endpoint recover on its own.
+      // Defensive fallback: every code today either classifies above and
+      // disables (including one raised on a redirect hop, reached through the
+      // redirect error's `cause`) or is transient. An unrecognised block stays
+      // terminal, but leaves the integration enabled to recover next run.
       rethrowIfOutboundValidationFailure(error, {
         logSubject: `[POSTHOG] Outbound send for project ${projectId}`,
         jobSubject: `PostHog integration for project ${projectId}`,
@@ -520,7 +543,7 @@ export const handlePostHogIntegrationProjectJob = async (
     await notifyPostHogExportFailed(
       projectId,
       postHogIntegration.project.name,
-      postHogIntegration.posthogHostName,
+      hostnameForLog(postHogIntegration.posthogHostName),
     );
     return;
   }

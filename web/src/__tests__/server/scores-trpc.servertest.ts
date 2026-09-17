@@ -1,15 +1,11 @@
 const {
   mockAddScoreDelete,
   mockAddBatchAction,
-  mockGetEventsGroupedByTraceTags,
-  mockGetEventsGroupedByTraceName,
-  mockGetEventsGroupedByUserId,
+  mockGetEventsExactFilterOptionsForColumns,
 } = vi.hoisted(() => ({
   mockAddScoreDelete: vi.fn(),
   mockAddBatchAction: vi.fn(),
-  mockGetEventsGroupedByTraceTags: vi.fn(async () => []),
-  mockGetEventsGroupedByTraceName: vi.fn(async () => []),
-  mockGetEventsGroupedByUserId: vi.fn(async () => []),
+  mockGetEventsExactFilterOptionsForColumns: vi.fn(async () => []),
 }));
 
 vi.mock("@langfuse/shared/src/server", async () => {
@@ -26,9 +22,8 @@ vi.mock("@langfuse/shared/src/server", async () => {
         add: mockAddBatchAction,
       })),
     },
-    getEventsGroupedByTraceTags: mockGetEventsGroupedByTraceTags,
-    getEventsGroupedByTraceName: mockGetEventsGroupedByTraceName,
-    getEventsGroupedByUserId: mockGetEventsGroupedByUserId,
+    getEventsExactFilterOptionsForColumns:
+      mockGetEventsExactFilterOptionsForColumns,
   };
 });
 
@@ -53,6 +48,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { observationScopeFilter } from "@/src/features/filters/config/scores-config";
+import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { randomUUID } from "crypto";
 
 const maybeEvents =
@@ -71,9 +68,7 @@ describe("scores trpc", () => {
     orgId = setup.orgId;
     mockAddScoreDelete.mockClear();
     mockAddBatchAction.mockClear();
-    mockGetEventsGroupedByTraceTags.mockClear();
-    mockGetEventsGroupedByTraceName.mockClear();
-    mockGetEventsGroupedByUserId.mockClear();
+    mockGetEventsExactFilterOptionsForColumns.mockClear();
 
     const session: Session = {
       expires: "1",
@@ -123,6 +118,381 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    it("applies search-bar name matching and repeated numeric bounds to v4 rows and counts", async () => {
+      await createScoresCh(
+        [
+          { name: "Rouge Score", value: 0.5 },
+          { name: "Weighted Rouge Score", value: 0.7 },
+          { name: "confidence", value: 0.6 },
+          { name: "Rouge Score", value: 0.1 },
+          { name: "confidence", value: 0.95 },
+        ].map((score) =>
+          createTraceScore({
+            project_id: projectId,
+            data_type: "NUMERIC",
+            ...score,
+          }),
+        ),
+      );
+
+      for (const { query, names } of [
+        {
+          query: "Rouge Score value:>0.2 value:<0.8",
+          names: ["Rouge Score", "Weighted Rouge Score"],
+        },
+        {
+          query: 'name:("Rouge Score" OR confidence) value:>0.2 value:<0.8',
+          names: ["Rouge Score", "confidence"],
+        },
+      ]) {
+        const committed = planCommit(query, undefined, SCORES_FIELD_REGISTRY);
+        expect(committed.status, query).toBe("committed");
+        if (committed.status !== "committed") {
+          throw new Error(`Invalid score search: ${query}`);
+        }
+
+        const payload = { projectId, filter: committed.filters };
+        const [rows, count] = await Promise.all([
+          caller.scores.allFromEvents({
+            ...payload,
+            orderBy: { column: "timestamp", order: "DESC" },
+            page: 0,
+            limit: 50,
+          }),
+          caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+        ]);
+
+        expect(rows.scores.map((score) => score.name).sort(), query).toEqual(
+          names,
+        );
+        expect(count.totalCount, query).toBe(names.length);
+      }
+    });
+
+    it("counts v4 scores within a timestamp window, pruning other day-buckets and honoring the exact bound", async () => {
+      // Exercises the FINAL-free count path's date handling: the coarse
+      // toDate(timestamp) prune must drop other day-buckets pre-dedup, while the
+      // exact timestamp bound (re-applied post-dedup) must still exclude an
+      // in-bucket-but-out-of-window row. Regression guard for
+      // buildScoresDatePrune.
+      const from = new Date("2024-06-15T10:00:00.000Z");
+      const to = new Date("2024-06-15T14:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          name: "in-window",
+          timestamp: new Date("2024-06-15T12:00:00.000Z"),
+        }),
+        // Same day (survives the coarse toDate prune) but after `to` — only the
+        // exact post-dedup bound excludes it.
+        createTraceScore({
+          project_id: projectId,
+          name: "same-day-after-window",
+          timestamp: new Date("2024-06-15T20:00:00.000Z"),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "earlier-day",
+          timestamp: new Date("2024-06-10T12:00:00.000Z"),
+        }),
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "timestamp",
+            type: "datetime" as const,
+            operator: ">=" as const,
+            value: from,
+          },
+          {
+            column: "timestamp",
+            type: "datetime" as const,
+            operator: "<" as const,
+            value: to,
+          },
+        ],
+      };
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(rows.scores.map((score) => score.name)).toEqual(["in-window"]);
+      expect(count.totalCount).toBe(rows.scores.length);
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("reconstructs the latest version of a score id without FINAL", async () => {
+      // Two versions of one score id share the dedup key
+      // (project_id, toDate(timestamp), name, id) and differ only in event_ts.
+      // The FINAL-free rows path (ORDER BY event_ts DESC + LIMIT 1 BY) and count
+      // path (argMax) must both collapse them to the single latest version and
+      // return the whole latest row.
+      const scoreId = randomUUID();
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+          comment: "stale",
+        }),
+        createTraceScore({
+          id: scoreId,
+          project_id: projectId,
+          name: "versioned-score",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+          comment: "latest",
+        }),
+      ]);
+
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          projectId,
+          filter: [],
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({
+          projectId,
+          filter: [],
+          orderBy: null,
+        }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([scoreId]);
+      expect(rows.scores[0].value).toBe(0.9);
+      expect(rows.scores[0].comment).toBe("latest");
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("filters mutable columns after dedup, never against a stale version", async () => {
+      // value/comment/timestamp/trace_id are mutable across a score's versions,
+      // so a filter must run AFTER dedup. Each id below has a stale version that
+      // disagrees with its latest on `value > 0.5`; filtering the raw rows
+      // pre-dedup would wrongly keep `latest-low` (its stale 0.9) and could drop
+      // `latest-high`. The predicate must be decided on the latest version only.
+      const latestLowId = randomUUID(); // stale 0.9, latest 0.1 -> excluded
+      const latestHighId = randomUUID(); // stale 0.1, latest 0.9 -> included
+      const timestamp = new Date("2024-06-15T12:00:00.000Z");
+
+      await createScoresCh([
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.9,
+        }),
+        createTraceScore({
+          id: latestLowId,
+          project_id: projectId,
+          name: "latest-low",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:00:00.000Z"),
+          value: 0.1,
+        }),
+        createTraceScore({
+          id: latestHighId,
+          project_id: projectId,
+          name: "latest-high",
+          timestamp,
+          event_ts: new Date("2024-06-15T12:05:00.000Z"),
+          value: 0.9,
+        }),
+      ]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "value",
+            type: "number" as const,
+            operator: ">" as const,
+            value: 0.5,
+          },
+        ],
+      };
+      const [rows, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+          page: 0,
+          limit: 50,
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(rows.scores.map((score) => score.id)).toEqual([latestHighId]);
+      expect(count.totalCount).toBe(1);
+    });
+
+    it("returns the recorded evaluator and resolves legacy scores by rule assignment and score name", async () => {
+      const [recordedEvaluator, matchingEvaluator, otherEvaluator] =
+        await Promise.all(
+          ["Recorded evaluator", "Matching evaluator", "Other evaluator"].map(
+            (name) =>
+              prisma.evaluator.create({
+                data: {
+                  projectId,
+                  name,
+                  type: "LLM_AS_JUDGE",
+                },
+              }),
+          ),
+        );
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Evaluation rule",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: [matchingEvaluator, otherEvaluator].map((evaluator) => ({
+              projectId,
+              evaluatorId: evaluator.id,
+            })),
+          },
+        },
+      });
+      const recordedScore = createTraceScore({
+        project_id: projectId,
+        name: recordedEvaluator.name,
+        metadata: { evaluator_id: recordedEvaluator.id },
+      });
+      const legacyScore = createTraceScore({
+        project_id: projectId,
+        name: matchingEvaluator.name,
+        metadata: {},
+      });
+
+      await Promise.all([
+        createScoresCh([recordedScore, legacyScore]),
+        prisma.jobExecution.createMany({
+          data: [recordedScore, legacyScore].map((score) => ({
+            projectId,
+            jobConfigurationId: rule.id,
+            jobOutputScoreId: score.id,
+            status: "COMPLETED",
+          })),
+        }),
+      ]);
+
+      const result = await caller.scores.allFromEvents({
+        projectId,
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        page: 0,
+        limit: 50,
+      });
+      const evaluatorIdByScoreId = new Map(
+        result.scores.map((score) => [score.id, score.evaluatorId]),
+      );
+
+      expect(evaluatorIdByScoreId.get(recordedScore.id)).toBe(
+        recordedEvaluator.id,
+      );
+      expect(evaluatorIdByScoreId.get(legacyScore.id)).toBe(
+        matchingEvaluator.id,
+      );
+    });
+
+    it("filters evaluator scores only by recorded evaluator metadata", async () => {
+      const [evaluator, otherEvaluator] = await Promise.all(
+        ["Evaluator", "Other evaluator"].map((name) =>
+          prisma.evaluator.create({
+            data: { projectId, name, type: "CODE" },
+          }),
+        ),
+      );
+      const rule = await prisma.evaluationRule.create({
+        data: {
+          projectId,
+          name: "Legacy rule",
+          targetObject: "EVENT",
+          filter: [],
+          sampling: 1,
+          delay: 0,
+          assignments: {
+            create: { projectId, evaluatorId: evaluator.id },
+          },
+        },
+      });
+      const directScore = createTraceScore({
+        project_id: projectId,
+        name: "direct-score",
+        metadata: { evaluator_id: evaluator.id },
+      });
+      const legacyScore = createTraceScore({
+        project_id: projectId,
+        name: "legacy-score-with-a-different-name",
+        metadata: { job_configuration_id: rule.id },
+      });
+      const otherScore = createTraceScore({
+        project_id: projectId,
+        name: "other-score",
+        metadata: { evaluator_id: otherEvaluator.id },
+      });
+      await createScoresCh([directScore, legacyScore, otherScore]);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "evaluatorId",
+            type: "stringOptions" as const,
+            operator: "any of" as const,
+            value: [evaluator.id, rule.id],
+          },
+        ],
+        orderBy: { column: "timestamp", order: "DESC" as const },
+        page: 0,
+        limit: 50,
+      };
+
+      const [scores, eventScores, count, eventCount] = await Promise.all([
+        caller.scores.all(payload),
+        caller.scores.allFromEvents(payload),
+        caller.scores.countAll({ ...payload, orderBy: null }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(new Set(scores.scores.map(({ id }) => id))).toEqual(
+        new Set([directScore.id]),
+      );
+      expect(new Set(eventScores.scores.map(({ id }) => id))).toEqual(
+        new Set([directScore.id]),
+      );
+      expect(count.totalCount).toBe(1);
+      expect(eventCount.totalCount).toBe(1);
+    });
+
     it("does not match empty boolean representations when filtering boolean values", async () => {
       const trueBooleanScore = createTraceScore({
         project_id: projectId,
@@ -586,6 +956,86 @@ describe("scores trpc", () => {
 
       expect(tiedIds).toEqual(configIds.slice().sort());
       expect(new Set(tiedIds).size).toBe(configIds.length);
+    });
+  });
+
+  describe("scoreConfigs.appendCategory", () => {
+    it("keeps both categories when two appends race", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-race-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await Promise.all([
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "just_testing",
+        }),
+      ]);
+
+      const latest = await caller.scoreConfigs.byId({
+        projectId,
+        id: config.id,
+      });
+
+      expect(
+        latest.categories?.map((category) => category.label).sort(),
+      ).toEqual(["internal_user", "just_testing", "pen_testing"]);
+    });
+
+    it("rejects a duplicate label", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-dup-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: [{ label: "internal_user", value: 0 }],
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "internal_user",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "A category with this name already exists",
+      });
+    });
+
+    it("rejects a non-categorical config", async () => {
+      const config = await prisma.scoreConfig.create({
+        data: {
+          projectId,
+          name: `append-numeric-${randomUUID().slice(0, 8)}`,
+          dataType: ScoreConfigDataType.NUMERIC,
+          minValue: 0,
+          maxValue: 1,
+        },
+      });
+
+      await expect(
+        caller.scoreConfigs.appendCategory({
+          projectId,
+          id: config.id,
+          label: "pen_testing",
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Only categorical score configs can append categories.",
+      });
     });
   });
 });

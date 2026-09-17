@@ -44,7 +44,7 @@ export function ComposerWithPreview(
   );
 
   return (
-    <div className="relative grid">
+    <div className="ph-no-capture relative grid">
       <div
         className={cn(
           "col-start-1 row-start-1 min-w-0",
@@ -76,6 +76,7 @@ export function ComposerWithPreview(
                 scoreTypes={scoreTypes}
                 fieldReason={props.fieldReason}
                 freeTextReason={props.freeTextReason}
+                registry={props.registry}
               />
             </div>
           </div>

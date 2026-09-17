@@ -14,10 +14,11 @@ export const toPricingTierInputs = (
     name: tier.name,
     isDefault: tier.isDefault,
     priority: priorities[tierIndex],
-    conditions: tier.conditions.map((condition) => ({
-      ...condition,
-      caseSensitive: condition.caseSensitive ?? false,
-    })),
+    conditions: tier.conditions.map((condition) =>
+      "usageDetailPattern" in condition
+        ? { ...condition, caseSensitive: condition.caseSensitive ?? false }
+        : condition,
+    ),
     prices: Object.fromEntries(
       values.usageTypes.flatMap((row) => {
         const price = parsePriceInput(tier.prices[row.key]);

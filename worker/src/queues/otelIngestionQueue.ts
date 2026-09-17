@@ -1,4 +1,6 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { Job, Processor } from "bullmq";
+import { z } from "zod";
 import {
   clickhouseClient,
   createIngestionEventSchema,
@@ -35,6 +37,7 @@ import {
   v4WritesToLegacyTables,
 } from "../env";
 import { IngestionService } from "../services/IngestionService";
+import { trackTraceBatchActivity } from "../features/traceBatching/traceBatching";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
@@ -42,7 +45,7 @@ import {
   convertEventRecordToObservationForEval,
 } from "@langfuse/shared";
 import {
-  fetchObservationEvalConfigs,
+  fetchObservationEvalRules,
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
   createObservationEvalSchedulerDeps,
@@ -247,7 +250,7 @@ function isOtelDirectWriteOrgCutoffConfigured(): boolean {
  * enqueued before that field existed resolve too. Returns false when the
  * project cannot be found, which keeps the batch on its existing path.
  */
-export async function isProjectOrgPastOtelDirectWriteCutoff(
+async function isProjectOrgPastOtelDirectWriteCutoff(
   projectId: string,
 ): Promise<boolean> {
   if (!isOtelDirectWriteOrgCutoffConfigured()) {
@@ -560,22 +563,39 @@ export const otelIngestionQueueProcessorBuilder = (
       );
       // We need to parse each incoming observation through our ingestion schema to make use of its included transformations.
       const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-      const observations = events
-        .filter((e) => getClickhouseEntityType(e.type) === "observation")
+      const candidateObservations = events.filter(
+        (e) => getClickhouseEntityType(e.type) === "observation",
+      );
+      let firstParseError: z.ZodError | undefined;
+      const observations = candidateObservations
         .map((o) => ingestionSchema.safeParse(o))
         .flatMap((o) => {
           if (!o.success) {
-            logger.warn(
-              `Failed to parse otel observation for project ${projectId} in ${fileKey}: ${o.error}`,
-              {
-                error: o.error,
-                fileKey,
-              },
-            );
+            firstParseError ??= o.error;
             return [];
           }
           return [o.data];
         });
+
+      // Per-observation parse failures are near-pure noise (customer-sent data
+      // that fails our schema). Aggregate to one metric + one sample warn per
+      // file instead of one line per observation.
+      const parseFailureCount =
+        candidateObservations.length - observations.length;
+      if (parseFailureCount > 0) {
+        recordIncrement(
+          "langfuse.ingestion.otel.observation_parse_failure",
+          parseFailureCount,
+        );
+        logger.warn(
+          `Failed to parse ${parseFailureCount}/${candidateObservations.length} otel observations for project ${projectId} in ${fileKey}: ${firstParseError}`,
+          {
+            error: firstParseError,
+            fileKey,
+            parseFailureCount,
+          },
+        );
+      }
 
       // In the next row, we only consider observations. The traces will be recorded in processEventBatch.
       recordIncrement("langfuse.ingestion.event", observations.length, {
@@ -775,7 +795,7 @@ export const otelIngestionQueueProcessorBuilder = (
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
 
-      const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
+      const evalConfigs = await fetchObservationEvalRules(projectId).catch(
         (error) => {
           traceException(error);
           logger.warn(
@@ -811,6 +831,8 @@ export const otelIngestionQueueProcessorBuilder = (
       const evalSchedulerDeps = hasEvalConfigs
         ? createObservationEvalSchedulerDeps()
         : null;
+
+      const traceBatchEvents: { traceId: string; startTimeISO: string }[] = [];
 
       await Promise.all(
         // Process each event independently
@@ -862,6 +884,15 @@ export const otelIngestionQueueProcessorBuilder = (
           if (shouldWriteToEventsTable) {
             try {
               await ingestionService.writeEventRecord(eventRecord);
+              if (
+                env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+                env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
+              ) {
+                traceBatchEvents.push({
+                  traceId: eventInput.traceId,
+                  startTimeISO: eventInput.startTimeISO,
+                });
+              }
             } catch (error) {
               traceException(error);
               logger.error(
@@ -872,6 +903,15 @@ export const otelIngestionQueueProcessorBuilder = (
           }
         }),
       );
+
+      if (traceBatchEvents.length > 0) {
+        recordDistribution(
+          "langfuse.trace_batch.ingestion_trace_count",
+          new Set(traceBatchEvents.map((event) => event.traceId)).size,
+        );
+        // The writer has accepted these records; its flush completes separately.
+        await trackTraceBatchActivity(projectId, traceBatchEvents);
+      }
     } catch (e) {
       const fileKey = job.data.payload.data.fileKey;
       if (e instanceof ForbiddenError) {

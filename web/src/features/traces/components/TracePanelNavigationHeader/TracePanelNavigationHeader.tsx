@@ -13,7 +13,13 @@ import { useSearch } from "@/src/features/traces/contexts/SearchContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { useReadPath } from "@/src/features/events";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -21,10 +27,7 @@ import {
   UnfoldVertical,
   Download,
   Loader2,
-  ListTree,
-  GanttChartSquare,
   MoreHorizontal,
-  type LucideIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -45,9 +48,9 @@ import {
   downloadServerTraceAsJson,
 } from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
-import { PlaybackControls } from "../PlaybackControls";
+import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
@@ -93,8 +96,12 @@ function TracePanelNavigationHeaderExpanded({
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
   const { roots, trace, observations } = useTraceData();
-  const { isGraphViewAvailable } = useTraceGraphData();
-  const { isBetaEnabled } = useV4Beta();
+  const {
+    isGraphViewAvailable,
+    graphAvailability,
+    isLoading: isGraphLoading,
+  } = useTraceGraphData();
+  const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -149,7 +156,7 @@ function TracePanelNavigationHeaderExpanded({
     useWatchedPromiseCallback(async () => {
       capture("trace_detail:download_button_click", analyticsDimensions);
       try {
-        if (!isBetaEnabled) {
+        if (!isV4) {
           downloadLegacyTraceAsJson({
             trace,
             observations,
@@ -174,22 +181,39 @@ function TracePanelNavigationHeaderExpanded({
             : "Failed to download trace JSON",
         );
       }
-    }, [isBetaEnabled, observations, trace, capture, analyticsDimensions]);
+    }, [isV4, observations, trace, capture, analyticsDimensions]);
 
-  const isTimelineView = viewMode === "timeline";
+  // Hold the Graph segment while its query loads, else it vanishes and returns
+  // on every trace switch. Stale ?view=graph then falls back to tree.
+  const graphResolved = isGraphViewAvailable || isGraphLoading;
+  const graphDisabledReason =
+    graphAvailability.available || isGraphLoading
+      ? undefined
+      : GRAPH_UNAVAILABLE_COPY[graphAvailability.reason];
+  const activeView: TraceViewMode =
+    viewMode === "timeline"
+      ? "timeline"
+      : viewMode === "graph" && graphResolved
+        ? "graph"
+        : "tree";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width —
-          no JS measurement. The breakpoints are tuned to the row's actual
-          content minimums (all fixed-size icon buttons + the search input's
-          min-width, so the sums are font-independent): with playback controls
-          present the row needs ~434px with switcher labels, ~352px icons-only,
-          ~292px with the minor tools folded into "…". Hence: labels < 440px →
-          hidden; tools < 360px → folded; search < 300px → narrower min-width
-          (covers dragging to the 260px panel min). If you ADD anything to this
-          row, re-measure and retune all three — stale thresholds show up as a
-          clipped switcher at default widths (LFE-10729). */}
+      {/* Responsive toolbar via container queries on this row's own width — no JS
+          measurement. The breakpoints are tuned to the row's actual content
+          minimums (all fixed-size icon buttons plus the search input's
+          min-width, so the sums are font-independent). Measured states:
+
+            ≥ 440px   switcher labels, minor tools and transport all inline
+            360-440   switcher icons-only, tools and transport still inline
+            < 360px   tools AND transport folded into the "…" menu; this row
+                      first overflows at 188px, well under the 260px panel min
+
+          Hence: labels < 440px → hidden; tools and the transport < 360px →
+          folded; search < 300px → narrower min-width (covers dragging to the
+          panel min). If you ADD anything to this row, re-measure and retune all
+          three — stale thresholds show up as a clipped switcher at default
+          widths, which is what the folding exists to prevent. */}
       <div className="@container/navheader flex flex-row items-center justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
             version. Hidden while the detail panel is closed (nothing useful to
@@ -205,12 +229,15 @@ function TracePanelNavigationHeaderExpanded({
         )}
         {/* Search Input */}
         <div
-          className={cn("relative flex-1", isDetailPanelCollapsed && "pl-1")}
+          className={cn(
+            "relative min-w-0 flex-1",
+            isDetailPanelCollapsed && "pl-1",
+          )}
         >
           <CommandInput
             showBorder={false}
             placeholder="Search"
-            className="h-7 min-w-20 border-0 pr-0 focus:ring-0 @max-[300px]/navheader:min-w-10"
+            className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
             value={searchInputValue}
             onValueChange={setSearchInputValue}
             onKeyDown={handleSearchKeyDown}
@@ -218,7 +245,7 @@ function TracePanelNavigationHeaderExpanded({
         </div>
         <div className="flex shrink-0 flex-row items-center gap-0.5">
           {/* Minor tools — inline when the panel is wide enough. */}
-          <div className="hidden flex-row items-center gap-0.5 @min-[360px]/navheader:flex">
+          <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
             <Button
               onClick={handleToggleTreeNodes}
               variant="ghost"
@@ -233,9 +260,7 @@ function TracePanelNavigationHeaderExpanded({
               )}
             </Button>
 
-            <TraceSettingsDropdown
-              isGraphViewAvailable={isGraphViewAvailable}
-            />
+            <TraceSettingsDropdown />
 
             <Button
               variant="ghost"
@@ -261,7 +286,7 @@ function TracePanelNavigationHeaderExpanded({
                 size="icon"
                 title="More"
                 aria-label="More options"
-                className="h-7 w-7 @min-[360px]/navheader:hidden"
+                className="h-7 w-7 @min-[510px]/navheader:hidden"
               >
                 <MoreHorizontal className="h-3.5 w-3.5" />
               </Button>
@@ -282,30 +307,33 @@ function TracePanelNavigationHeaderExpanded({
                 <Download className="mr-2 h-3.5 w-3.5" />
                 Download trace as JSON
               </DropdownMenuItem>
+              <PlaybackMenuItems />
               <DropdownMenuSeparator />
-              <TraceViewOptionsMenuItems
-                isGraphViewAvailable={isGraphViewAvailable}
-              />
+              <TraceViewOptionsMenuItems />
             </DropdownMenuContent>
           </DropdownMenu>
 
           {/* Playback transport + circular time-progress ring. View-agnostic:
-              shown in both Tree and Timeline views (see PlaybackControls). */}
-          <PlaybackControls />
+              shown in both Tree and Timeline views (see PlaybackControls) — and
+              folded into the overflow menu on a narrow panel, like the tools
+              above it. Two more 28px buttons are what tipped this row over: the
+              search input collapsed to "Se" and the switch clipped. */}
+          <div className="hidden flex-row items-center @min-[510px]/navheader:flex">
+            <PlaybackControls />
+          </div>
 
-          {/* Tree / Timeline segmented switch (labels collapse to icons when
-              the panel is narrow — see @container/navheader). */}
           <ViewModeSwitch
-            isTimelineView={isTimelineView}
-            onSelect={(timeline) => {
+            activeView={activeView}
+            graphDisabledReason={graphDisabledReason}
+            onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
-              if (timeline !== isTimelineView) {
+              if (view !== activeView) {
                 capture("trace_detail:view_mode_switch", {
-                  viewMode: timeline ? "timeline" : "tree",
+                  viewMode: view,
                   ...analyticsDimensions,
                 });
               }
-              setViewMode(timeline ? "timeline" : null);
+              setViewMode(view === "tree" ? null : view);
             }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
@@ -318,26 +346,45 @@ function TracePanelNavigationHeaderExpanded({
   );
 }
 
+const GRAPH_UNAVAILABLE_COPY: Record<GraphUnavailableReason, string> = {
+  "no-data": "No graph data on this trace.",
+  "too-large": "Too many observations to graph.",
+  "no-structure": "Nothing to graph. This trace has only one node.",
+};
+
+type TraceViewMode = "tree" | "timeline" | "graph";
+
 function ViewModeSwitch({
-  isTimelineView,
+  activeView,
+  graphDisabledReason,
   onSelect,
 }: {
-  isTimelineView: boolean;
-  onSelect: (timeline: boolean) => void;
+  activeView: TraceViewMode;
+  /** Present when the trace has no graph: the segment renders disabled. */
+  graphDisabledReason?: string;
+  onSelect: (view: TraceViewMode) => void;
 }) {
   return (
     <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
-        active={!isTimelineView}
-        onClick={() => onSelect(false)}
-        icon={ListTree}
+        active={activeView === "tree"}
+        onClick={() => onSelect("tree")}
         label="Tree"
       />
+      {/* One Timeline. What it IS depends on the Compact Timeline feature
+          preview — see TracePanelNavigation — rather than on a third segment
+          the user has to understand. */}
       <ViewModeSegment
-        active={isTimelineView}
-        onClick={() => onSelect(true)}
-        icon={GanttChartSquare}
+        active={activeView === "timeline"}
+        onClick={() => onSelect("timeline")}
         label="Timeline"
+      />
+      <ViewModeSegment
+        active={activeView === "graph"}
+        onClick={() => onSelect("graph")}
+        label="Graph"
+        disabled={Boolean(graphDisabledReason)}
+        title={graphDisabledReason}
       />
     </div>
   );
@@ -346,29 +393,42 @@ function ViewModeSwitch({
 function ViewModeSegment({
   active,
   onClick,
-  icon: Icon,
   label,
+  disabled = false,
+  title,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: LucideIcon;
   label: string;
+  disabled?: boolean;
+  /** Why the view is unavailable; shown in a tooltip. */
+  title?: string;
 }) {
-  return (
+  const segment = (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      aria-disabled={disabled || undefined}
       aria-pressed={active}
-      title={label}
+      title={disabled ? undefined : label}
       className={cn(
         "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-bold transition-colors",
+        disabled && "cursor-not-allowed opacity-40",
         active
           ? "bg-primary text-primary-foreground shadow-sm"
           : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="@max-[440px]/navheader:hidden">{label}</span>
+      {label}
     </button>
+  );
+
+  // A native title does not reliably surface on a segment this small.
+  if (!disabled || !title) return segment;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{segment}</TooltipTrigger>
+      <TooltipContent>{title}</TooltipContent>
+    </Tooltip>
   );
 }

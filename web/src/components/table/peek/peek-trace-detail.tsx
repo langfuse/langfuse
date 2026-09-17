@@ -11,7 +11,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
-import { buildTraceDetailPath } from "@/src/utils/navigation";
+import { buildTracePath } from "@langfuse/shared";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -19,9 +19,10 @@ export const TablePeekViewTraceDetail = (
     "children" | "title"
   > & {
     projectId: string;
+    layout?: React.ComponentProps<typeof TraceDetailBody>["layout"];
   },
 ) => {
-  const { projectId } = props;
+  const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
   const { traceId, timestamp } = resolvePeekTraceParams({
@@ -48,7 +49,7 @@ export const TablePeekViewTraceDetail = (
         traceId: trace.data.id,
         projectId: trace.data.projectId,
         isPublic: trace.data.public,
-        shareUrl: buildTraceDetailPath({
+        shareUrl: buildTracePath({
           projectId: trace.data.projectId,
           traceId: trace.data.id,
           timestamp,
@@ -57,7 +58,7 @@ export const TablePeekViewTraceDetail = (
         timestamp,
         onAfterDelete: (deletedTraceId: string) => {
           if (shouldClosePeekAfterDelete(peekIdRef.current, deletedTraceId)) {
-            props.closePeek();
+            tablePeekViewProps.closePeek();
           }
         },
       }
@@ -65,7 +66,7 @@ export const TablePeekViewTraceDetail = (
 
   return (
     <TablePeekView
-      {...props}
+      {...tablePeekViewProps}
       title={traceDetailTitle(trace.data, traceId)}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
@@ -79,6 +80,7 @@ export const TablePeekViewTraceDetail = (
       <TraceDetailBody
         trace={trace.data}
         context="peek"
+        layout={layout}
         truncatedAtObservations={trace.truncatedAtObservations}
       />
     </TablePeekView>

@@ -8,8 +8,8 @@ import {
 } from "@langfuse/shared";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { RateLimitService } from "@/src/features/public-api/server";
 
 type SessionUser = NonNullable<Session["user"]>;
 
@@ -68,7 +68,7 @@ export function getInAppAgentApiAccessScope(
   };
 }
 
-export async function checkInAppAgentRateLimit(
+async function checkInAppAgentRateLimit(
   scope: ApiAccessScope,
   resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
 ): Promise<RateLimitResult | undefined> {

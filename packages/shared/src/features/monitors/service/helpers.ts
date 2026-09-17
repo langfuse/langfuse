@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /** service/helpers.ts contains the mapping + calculate helpers consumed
  * by MonitorService. Exported so that colocated unit tests can exercise them,
  * but intentionally not re-exported from the service barrel — internal
@@ -10,6 +11,7 @@ import {
   Prisma,
 } from "@prisma/client";
 
+import { coerceLegacyEmptyMetadataFilters } from "../../../interfaces/filters";
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   type Monitor,
@@ -55,9 +57,18 @@ export const toPrismaOrderBy = (
 export const toPrismaWhere = (
   projectId: string,
   filter: ListMonitorFilter | undefined,
+  evaluatorMonitorIds?: string[],
 ): Prisma.MonitorWhereInput => {
   const and: Prisma.MonitorWhereInput[] = [];
   for (const f of filter ?? []) {
+    if (f.column === "evaluatorId") {
+      and.push(
+        f.operator === "any of"
+          ? { id: { in: evaluatorMonitorIds ?? [] } }
+          : { id: { notIn: evaluatorMonitorIds ?? [] } },
+      );
+      continue;
+    }
     if (f.type === "stringOptions") {
       and.push(
         f.operator === "any of"
@@ -191,6 +202,9 @@ export { windowToMs, windowFromMs };
 export const monitorFromPrisma = (monitor: PrismaMonitor): Monitor =>
   MonitorSchema.parse({
     ...monitor,
+    // Persisted filters may use the legacy metadata `contains ""` key-presence
+    // idiom that the value guard now rejects; coerce it to `is set` on read.
+    filters: coerceLegacyEmptyMetadataFilters(monitor.filters),
     view: viewFromPrisma(monitor.view),
     window: windowFromMs(monitor.windowMs),
     alertThreshold: monitor.alertThreshold.toNumber(),

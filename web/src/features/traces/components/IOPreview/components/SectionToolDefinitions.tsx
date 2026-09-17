@@ -23,10 +23,6 @@ export function SectionToolDefinitions({
   toolCallsByName,
   toolNameToDefinitionNumber,
 }: SectionToolDefinitionsProps) {
-  if (tools.length === 0) {
-    return null;
-  }
-
   return (
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
       <div className="border-border mb-4 border-b pb-4">

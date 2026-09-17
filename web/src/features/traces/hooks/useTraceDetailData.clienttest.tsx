@@ -5,21 +5,21 @@ import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailDa
 
 // Created via vi.hoisted so they exist before the hoisted vi.mock factories run.
 const {
-  mockUseV4Beta,
+  mockUseReadPath,
   mockUseSession,
   mockUseEventsTraceData,
   mockTracesQuery,
   mockTraceReadConfigQuery,
 } = vi.hoisted(() => ({
-  mockUseV4Beta: vi.fn(),
+  mockUseReadPath: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseEventsTraceData: vi.fn(),
   mockTracesQuery: vi.fn(),
   mockTraceReadConfigQuery: vi.fn(),
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => mockUseV4Beta(),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => mockUseReadPath(),
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
@@ -53,7 +53,7 @@ const render = () =>
 describe("useTraceDetailData (beta / events path)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: true });
+    mockUseReadPath.mockReturnValue({ isV4: true });
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
@@ -111,7 +111,7 @@ describe("useTraceDetailData (beta / events path)", () => {
 describe("useTraceDetailData endpoint routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: false });
+    mockUseReadPath.mockReturnValue({ isV4: false });
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -169,7 +169,7 @@ describe("useTraceDetailData endpoint routing", () => {
 
   it("uses events endpoints for authenticated beta users", () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: true });
+    mockUseReadPath.mockReturnValue({ isV4: true });
 
     render();
 
@@ -188,6 +188,21 @@ describe("useTraceDetailData endpoint routing", () => {
 
     expect(mockTracesQuery.mock.calls[0]?.[1]).toMatchObject({
       enabled: true,
+    });
+    expect(mockUseEventsTraceData).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("does not fetch while the trace id is missing (deep-link first render)", () => {
+    mockUseSession.mockReturnValue({ status: "authenticated" });
+
+    renderHook(() =>
+      useTraceDetailData({ projectId: "p", traceId: undefined }),
+    );
+
+    expect(mockTracesQuery.mock.calls[0]?.[1]).toMatchObject({
+      enabled: false,
     });
     expect(mockUseEventsTraceData).toHaveBeenCalledWith(
       expect.objectContaining({ enabled: false }),

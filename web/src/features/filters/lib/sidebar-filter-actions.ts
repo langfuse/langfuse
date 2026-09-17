@@ -4,6 +4,7 @@ import type {
   SingleValueOption,
 } from "@langfuse/shared";
 import type { FilterConfig } from "./filter-config";
+import { partitionNoneOfEnvironmentValues } from "./managedEnvironmentPolicy";
 
 // Pure FilterState transitions behind the sidebar's facet interactions.
 // No React: every function maps (context, current state, user input) to the
@@ -16,7 +17,7 @@ export type TextFilterOperator = "contains" | "does not contain";
 
 /** Options as the sidebar hook receives them (per-column value lists, or
  *  nested key→values records for keyed facets). */
-export type SidebarFilterOptions = Record<
+type SidebarFilterOptions = Record<
   string,
   (string | SingleValueOption)[] | Record<string, string[]> | undefined
 >;
@@ -31,6 +32,12 @@ export type SidebarFilterActionContext = {
    * enable-all-environments override in applySelection.
    */
   managedEnvironmentColumn?: string;
+  /**
+   * Hidden environments for the managed-environment policy. Required to
+   * distinguish "default plus extra exclusions" (stay in none-of) from
+   * "user enabled at least one hidden env" (store as any-of [checked]).
+   */
+  hiddenEnvironments?: readonly string[];
 };
 
 // Represents one active filter row in the key-value facet UI
@@ -56,12 +63,18 @@ export type BooleanKeyValueFilterEntry = {
 };
 
 // Represents one active string filter row in the string key-value facet UI
-// Example: key="environment", operator="=", value="production"
+// Example: key="environment", operator="=", value="production". `is set` /
+// `is not set` are value-less key-presence operators (value stays "").
 export type StringKeyValueFilterEntry = {
   key: string;
-  operator: "=" | "contains" | "does not contain";
+  operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
   value: string;
 };
+
+// `is set` / `is not set` filter on key presence, so a row is complete without a
+// value — unlike the value operators, whose empty-value rows are still drafts.
+export const isStringPresenceOperator = (operator: string): boolean =>
+  operator === "is set" || operator === "is not set";
 
 const toValueList = (options: SidebarFilterOptions[string]): string[] | null =>
   Array.isArray(options)
@@ -300,6 +313,28 @@ export function applySelection(
     // "none of" filter.
     if (finalOperator === "none of" && finalValues.length === 0) {
       return other;
+    }
+  }
+
+  // Managed environment: a none-of that does not exclude every hidden env
+  // means the user enabled at least one hidden environment. Store that as
+  // a positive any-of of the checked set so it cannot be confused with
+  // "default plus extra exclusions" (`none of [hidden ∪ extras]`). Shared
+  // by checkbox writes and the explicit-operator path (Only / operator
+  // toggle) so the sidebar never persists extras-only none-of.
+  const hiddenEnvironments = ctx.hiddenEnvironments ?? [];
+  if (
+    isManagedEnvironmentColumn &&
+    finalOperator === "none of" &&
+    hiddenEnvironments.length > 0
+  ) {
+    const { excludesAllHidden } = partitionNoneOfEnvironmentValues({
+      values: finalValues,
+      hiddenEnvironments,
+    });
+    if (!excludesAllHidden) {
+      finalOperator = "any of";
+      finalValues = values;
     }
   }
 
@@ -611,13 +646,19 @@ export function applyKeyedFilterEntries(
       return [
         ...without,
         ...update.entries
-          .filter((entry) => entry.key && entry.value.trim() !== "")
+          .filter(
+            (entry) =>
+              entry.key &&
+              (isStringPresenceOperator(entry.operator) ||
+                entry.value.trim() !== ""),
+          )
           .map((entry) => ({
             column,
             type: "stringObject" as const,
             operator: entry.operator,
             key: entry.key,
-            value: entry.value,
+            // Presence operators carry no value.
+            value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
           })),
       ];
   }

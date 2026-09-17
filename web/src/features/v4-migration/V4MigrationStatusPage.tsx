@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -5,21 +6,18 @@ import { useSession } from "next-auth/react";
 import { ArrowRight } from "lucide-react";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { Card } from "@/src/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { SimpleDataTable } from "@/src/components/table/simple-data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
   useCopyMigrationPrompt,
+  useHasV4MigrationDeadline,
+  useV4MigrationTitle,
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -38,8 +36,7 @@ import {
 } from "@/src/features/v4-migration/migrationData";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
-import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -97,10 +94,10 @@ function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
   if (readiness === "partner-managed") {
     return (
       <a
+        data-row-click-ignore
         href={PARTNER_INTEGRATION_FAQ_URL}
         target="_blank"
         rel="noopener noreferrer"
-        onClick={(event) => event.stopPropagation()}
         className="bg-muted text-muted-foreground inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap hover:underline"
         title="Upgrade is handled by your integration partner"
       >
@@ -131,7 +128,7 @@ type OrderBy = { column: SortKey; order: "ASC" | "DESC" } | null;
 
 // Header styling and none → DESC → ASC → none sort cycle copied from the
 // trace table (DataTable); sorting here is client-side over the static rows.
-function SortableHead({
+function SortableHeader({
   label,
   column,
   orderBy,
@@ -143,8 +140,8 @@ function SortableHead({
   onSort: (column: SortKey) => void;
 }) {
   return (
-    <TableHead
-      className="group cursor-pointer px-2"
+    <div
+      className="-mx-2 flex h-10 w-[calc(100%+1rem)] items-center px-2"
       onClick={() => onSort(column)}
     >
       <div className="flex items-center select-none">
@@ -157,7 +154,7 @@ function SortableHead({
           </span>
         )}
       </div>
-    </TableHead>
+    </div>
   );
 }
 
@@ -296,6 +293,119 @@ function OrgStatusSection({
       })
     : rows;
 
+  const sortableHeader = (label: string, column: SortKey) => (
+    <SortableHeader
+      label={label}
+      column={column}
+      orderBy={orderBy}
+      onSort={handleSort}
+    />
+  );
+
+  const columnOptions = {
+    cellPadding: "comfortable" as const,
+  };
+
+  const columns: LangfuseColumnDef<(typeof rows)[number]>[] = [
+    {
+      ...columnOptions,
+      accessorKey: "name",
+      size: 192,
+      header: () => sortableHeader("Project", "name"),
+      cell: ({ row }) => (
+        <Link
+          data-row-click-ignore
+          href={`/project/${row.original.id}/traces`}
+          className="block truncate font-bold hover:underline"
+          title={row.original.name}
+          onClick={() => {
+            if (!row.original.status.forceV3Experience) {
+              openProjectMigration(row.original, row.original.readiness);
+            }
+          }}
+        >
+          {row.original.name}
+        </Link>
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "readiness",
+      header: () => sortableHeader("Status", "status"),
+      cell: ({ row }) => <StatusPill readiness={row.original.readiness} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "sdk",
+      header: () => sortableHeader("SDK", "sdk"),
+      cell: ({ row }) =>
+        row.original.status.sdk.status === "latest" ? (
+          <span className="text-foreground-tertiary">Latest</span>
+        ) : row.original.status.sdk.status === "otel_realtime" ? (
+          <span className="text-foreground-tertiary">OTel real-time</span>
+        ) : row.original.status.sdk.status === "no_data" ? (
+          <span className="text-foreground-tertiary">No data detected</span>
+        ) : row.original.status.sdk.status === "checking" ? (
+          <span className="text-foreground-tertiary">Checking…</span>
+        ) : row.original.status.sdk.status === "unknown" ? (
+          <span className="text-foreground-tertiary">Unknown</span>
+        ) : row.original.status.sdk.status === "otel_header_required" ? (
+          <span>
+            {row.original.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+            {row.original.status.sdk.delayedOtelIngestionCount === 1
+              ? "required"
+              : "issues"}
+          </span>
+        ) : row.original.status.sdk.status === "error" ? (
+          <span className="text-foreground-tertiary">Unavailable</span>
+        ) : (
+          <span>{row.original.status.sdk.upgradeRequiredCount} outdated</span>
+        ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "evals",
+      header: () => sortableHeader("Affected Evals", "evals"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.evals} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "experiments",
+      header: () => sortableHeader("Affected Experiments", "experiments"),
+      cell: ({ row }) => (
+        <MigrationActionCell state={row.original.status.experiments} />
+      ),
+    },
+    {
+      ...columnOptions,
+      accessorKey: "apis",
+      header: () => sortableHeader("Affected APIs", "apis"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.apis} />,
+    },
+    {
+      ...columnOptions,
+      accessorKey: "exports",
+      header: () => sortableHeader("Affected Exports", "exports"),
+      cell: ({ row }) => <AffectedCell count={row.original.status.exports} />,
+    },
+    createTextTableColumn<(typeof rows)[number]>({
+      ...columnOptions,
+      accessorKey: "lastTraceLabel",
+      header: () => sortableHeader("Last trace", "lastTrace"),
+    }),
+    {
+      accessorKey: "id",
+      header: "",
+      size: 96,
+      cellPadding: "comfortable",
+      cell: () => (
+        <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
+          Review <ArrowRight className="h-3 w-3 shrink-0" />
+        </span>
+      ),
+    },
+  ];
+
   if (rows.length === 0) return null;
 
   return (
@@ -305,156 +415,16 @@ function OrgStatusSection({
       </h3>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <Table className="min-w-[60rem] table-auto">
-            <TableHeader>
-              <TableRow>
-                <SortableHead
-                  label="Project"
-                  column="name"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Status"
-                  column="status"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="SDK"
-                  column="sdk"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Evals"
-                  column="evals"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Experiments"
-                  column="experiments"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected APIs"
-                  column="apis"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Affected Exports"
-                  column="exports"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <SortableHead
-                  label="Last trace"
-                  column="lastTrace"
-                  orderBy={orderBy}
-                  onSort={handleSort}
-                />
-                <TableHead className="w-24" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRows.map((row) => {
-                const { readiness } = row;
-                return (
-                  <TableRow
-                    key={row.id}
-                    className="group/row cursor-pointer"
-                    onClick={() => handleRowClick(row, readiness)}
-                  >
-                    <TableCell density="comfortable" className="max-w-48">
-                      <Link
-                        href={`/project/${row.id}/traces`}
-                        className="block truncate font-bold hover:underline"
-                        title={row.name}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          // Forced-v3 projects have no migration panel.
-                          if (!row.status.forceV3Experience) {
-                            openProjectMigration(row, readiness);
-                          }
-                        }}
-                      >
-                        {row.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="overflow-hidden"
-                    >
-                      <StatusPill readiness={readiness} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      {row.status.sdk.status === "latest" ? (
-                        <span className="text-foreground-tertiary">Latest</span>
-                      ) : row.status.sdk.status === "otel_realtime" ? (
-                        <span className="text-foreground-tertiary">
-                          OTel real-time
-                        </span>
-                      ) : row.status.sdk.status === "no_data" ? (
-                        <span className="text-foreground-tertiary">
-                          No data detected
-                        </span>
-                      ) : row.status.sdk.status === "checking" ? (
-                        <span className="text-foreground-tertiary">
-                          Checking…
-                        </span>
-                      ) : row.status.sdk.status === "unknown" ? (
-                        <span className="text-foreground-tertiary">
-                          Unknown
-                        </span>
-                      ) : row.status.sdk.status === "otel_header_required" ? (
-                        <span>
-                          {row.status.sdk.delayedOtelIngestionCount} OTel header{" "}
-                          {row.status.sdk.delayedOtelIngestionCount === 1
-                            ? "required"
-                            : "issues"}
-                        </span>
-                      ) : row.status.sdk.status === "error" ? (
-                        <span className="text-foreground-tertiary">
-                          Unavailable
-                        </span>
-                      ) : (
-                        <span>
-                          {row.status.sdk.upgradeRequiredCount} outdated
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.evals} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <MigrationActionCell state={row.status.experiments} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.apis} />
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <AffectedCell count={row.status.exports} />
-                    </TableCell>
-                    <TableCell
-                      density="comfortable"
-                      className="text-muted-foreground truncate"
-                      title={row.lastTraceLabel}
-                    >
-                      {row.lastTraceLabel}
-                    </TableCell>
-                    <TableCell density="comfortable">
-                      <span className="text-dark-blue flex items-center justify-end gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/row:opacity-100">
-                        Review <ArrowRight className="h-3 w-3 shrink-0" />
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <SimpleDataTable
+            columns={columns}
+            data={sortedRows}
+            isLoading={false}
+            noResults={null}
+            presentation="wide"
+            rowVariant="review"
+            onRowClick={(row) => handleRowClick(row, row.readiness)}
+            getRowLabel={(row) => `Review ${row.name}`}
+          />
         </div>
       </Card>
     </div>
@@ -474,6 +444,8 @@ export default function V4MigrationStatusPage() {
 function V4MigrationStatusPageContent() {
   const session = useSession();
   const handleCopyPrompt = useCopyMigrationPrompt();
+  const hasDeadline = useHasV4MigrationDeadline();
+  const title = useV4MigrationTitle();
 
   const orgs: V4MigrationOrganization[] =
     session.data?.user?.organizations?.map((org) => ({
@@ -532,8 +504,13 @@ function V4MigrationStatusPageContent() {
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
           and APIs are frozen and stop working{" "}
-          <span className="underline">on {V4_MIGRATION_DEADLINE}</span>. They
-          keep running until then, but we&apos;re no longer fixing bugs in them.
+          <span className="underline">
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : "once your administrator disables the legacy mode"}
+          </span>
+          . They keep running until then, but we&apos;re no longer fixing bugs
+          in them.
         </>
       ),
     },
@@ -558,8 +535,12 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          <span className="underline">On {V4_MIGRATION_DEADLINE}</span>, old
-          SDKs stop sending data, and the{" "}
+          <span className="underline">
+            {hasDeadline
+              ? `On ${V4_MIGRATION_DEADLINE}`
+              : "Once your administrator disables the legacy mode"}
+          </span>
+          , old SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints
           </FaqLink>{" "}
@@ -616,11 +597,11 @@ function V4MigrationStatusPageContent() {
     >
       <div className="flex flex-col gap-6 pt-2 pb-24">
         <Card className="flex min-w-0 flex-col gap-2.5 p-6">
-          <p className="text-base font-bold">Upgrade to v4</p>
+          <p className="text-base font-bold">{title}</p>
           <div className="text-muted-foreground flex flex-col gap-2 text-sm leading-relaxed">
             <p>
               {actionNeededProjects > 0
-                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to switch over. "
+                ? "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. Complete the action items on each project below to avoid disruption. "
                 : "Langfuse v4 is here: real-time ingestion and up to 165× faster queries. "}
               <V4MigrationDocsLink />
             </p>
@@ -689,7 +670,8 @@ function V4MigrationStatusPageContent() {
 // Hides itself when the session cannot toggle v4 (legacy/events_only write
 // mode, post-rollout auto-enrollment).
 function SwitchBackSection() {
-  const { canToggleV4, isBetaEnabled } = useV4Beta();
+  const { canToggleV4, isV4 } = useReadPath();
+  const hasDeadline = useHasV4MigrationDeadline();
 
   if (!canToggleV4) {
     return null;
@@ -698,16 +680,18 @@ function SwitchBackSection() {
   return (
     <div className="mt-6">
       <p className="text-base font-bold">
-        {isBetaEnabled
+        {isV4
           ? "Need to switch back to the legacy UI (v3)?"
           : "Switch back to the latest UI (v4)"}
       </p>
       <div className="flex flex-col gap-4 pt-4">
-        {isBetaEnabled && (
+        {isV4 && (
           <p className="text-muted-foreground text-sm leading-relaxed">
-            The features powering the legacy v3 UI will be sunset on{" "}
-            {V4_MIGRATION_DEADLINE}. We strongly recommend switching to the
-            latest UI (v4) before then.
+            The features powering the legacy v3 UI will be sunset{" "}
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : "once your administrator disables the legacy mode"}
+            . We strongly recommend switching to the latest UI (v4) before then.
           </p>
         )}
         <V4PreviewToggleRow />

@@ -4,8 +4,10 @@ import {
   areEnrichedWritesActive,
   areLegacyWritesActive,
   InvalidRequestError,
-  LEGACY_BLOB_EXPORT_CUTOFF,
-  type BlobExportWriteMode,
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
 
@@ -13,7 +15,9 @@ import {
 // (packages/shared/.../export-source-policy.test.ts).
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
 
 const cloudPostCutoff: ExportSourceContext = {
   isCloud: true,
@@ -68,7 +72,7 @@ describe("assertExportSourceAllowed", () => {
           legacyWritesActive: true,
         },
       }),
-    ).toThrow(/Enriched blob export is not available/);
+    ).toThrow(/Enriched export sources are not available/);
     expect(() =>
       assertExportSourceAllowed({
         nextExportSource: undefined,
@@ -85,14 +89,14 @@ describe("assertExportSourceAllowed", () => {
   // The write-mode gate every save path funnels through (tRPC routers and the
   // public REST PUT). It must accept exactly what the UI offers for the mode.
   describe("write mode gate", () => {
-    const ctxFor = (writeMode: BlobExportWriteMode): ExportSourceContext => ({
+    const ctxFor = (writeMode: V4WriteMode): ExportSourceContext => ({
       isCloud: false,
       enrichedAvailable: areEnrichedWritesActive(writeMode),
       legacyWritesActive: areLegacyWritesActive(writeMode),
     });
 
     const attempt = (
-      writeMode: BlobExportWriteMode,
+      writeMode: V4WriteMode,
       nextExportSource:
         | "TRACES_OBSERVATIONS"
         | "TRACES_OBSERVATIONS_EVENTS"
@@ -102,7 +106,7 @@ describe("assertExportSourceAllowed", () => {
 
     const cases: Array<
       [
-        BlobExportWriteMode,
+        V4WriteMode,
         "TRACES_OBSERVATIONS" | "TRACES_OBSERVATIONS_EVENTS" | "EVENTS",
         boolean,
       ]
@@ -143,6 +147,33 @@ describe("assertExportSourceAllowed", () => {
         nextExportSource: undefined,
         persistedExportSource: null,
         ctx: cloudPostCutoff,
+      }),
+    ).not.toThrow();
+  });
+  // Forwarding guard: adapters override the integration-level cutoff through the
+  // context. A destructuring assert that dropped the field would silently fall
+  // back to the blob cutoff and reject a row its own family grandfathers.
+  it("forwards a context-supplied exporterCutoff instead of the blob default", () => {
+    // Between the blob cutoff and the analytics one: blocked under the default,
+    // grandfathered under the override.
+    const between = new Date(
+      LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + 24 * 60 * 60 * 1000,
+    );
+    const base = {
+      nextExportSource: "TRACES_OBSERVATIONS" as const,
+      ctx: {
+        isCloud: true,
+        enrichedAvailable: true,
+        legacyWritesActive: true,
+        projectCreatedAt: new Date(LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - 1),
+        integrationCreatedAt: between,
+      },
+    };
+    expect(() => assertExportSourceAllowed(base)).toThrow(InvalidRequestError);
+    expect(() =>
+      assertExportSourceAllowed({
+        ...base,
+        ctx: { ...base.ctx, exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF },
       }),
     ).not.toThrow();
   });

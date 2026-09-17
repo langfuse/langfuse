@@ -35,9 +35,9 @@ vi.mock(
   () => ({ TraceDetailView: () => <div data-testid="trace-detail" /> }),
 );
 vi.mock(
-  "@/src/features/traces/components/ObservationDetailView/ObservationDetailView",
+  "@/src/features/traces/components/ObservationDetailView/ConnectedObservationDetailView",
   () => ({
-    ObservationDetailView: ({
+    ConnectedObservationDetailView: ({
       observation,
     }: {
       observation: ObservationReturnTypeWithMetadata;

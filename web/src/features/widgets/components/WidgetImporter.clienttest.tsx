@@ -1,7 +1,8 @@
+// @vitest-environment node
+
 import { describe, expect, it, vi } from "vitest";
 
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 
 import { __test } from "./WidgetImporter";
 
@@ -54,7 +55,7 @@ describe("runImport", () => {
     await runImport({
       file: fileFor({ ...baseWidget, filters: [] }),
       optionSets: { observationLevels: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 
@@ -69,7 +70,7 @@ describe("runImport", () => {
     await runImport({
       file: { text: async () => "not json" } as File,
       optionSets: { observationLevels: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 
@@ -97,7 +98,7 @@ describe("runImport", () => {
         ],
       }),
       optionSets: { observationLevels: [], environmentValues: [] },
-      isBetaEnabled: false,
+      isV4: false,
       onImport,
     });
 

@@ -1,10 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../db";
+import { coerceLegacyEmptyMetadataFilters } from "../../../interfaces/filters";
 import {
   TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "../../../domain/table-view-presets";
-import { LangfuseConflictError, LangfuseNotFoundError } from "../../../errors";
+import {
+  InvalidRequestError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+} from "../../../errors";
 import {
   TableViewPresetsNamesCreatorList,
   TableViewPresetsNamesCreatorListSchema,
@@ -26,9 +31,14 @@ const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
     [TableViewPresetTableName.ObservationsEvents]: "traces",
     [TableViewPresetTableName.Scores]: "scores",
     [TableViewPresetTableName.Sessions]: "sessions",
+    [TableViewPresetTableName.Users]: "users",
+    [TableViewPresetTableName.Prompts]: "prompts",
+    [TableViewPresetTableName.Monitors]: "alerts",
     [TableViewPresetTableName.Datasets]: "datasets",
     [TableViewPresetTableName.Experiments]: "experiments",
     [TableViewPresetTableName.ExperimentItems]: "experiments/results",
+    [TableViewPresetTableName.Evaluators]: "evals",
+    [TableViewPresetTableName.EvaluationRules]: "evals/rules",
   };
 
 // The v4 table was mistakenly released under the `observations` table name,
@@ -236,7 +246,12 @@ export class TableViewService {
 
     const presets = TableViewPresetsNamesCreatorListSchema.parse([
       ...systemPresets,
-      ...records,
+      // Persisted presets may use the legacy metadata `contains ""` key-presence
+      // idiom that the value guard now rejects; coerce it to `is set` on read.
+      ...records.map((record) => ({
+        ...record,
+        filters: coerceLegacyEmptyMetadataFilters(record.filters),
+      })),
     ]);
 
     if (tableName === TableViewPresetTableName.ObservationsEvents) {
@@ -320,7 +335,10 @@ export class TableViewService {
       );
     }
 
-    return tableViewPresets as unknown as TableViewPresetDomain;
+    return {
+      ...tableViewPresets,
+      filters: coerceLegacyEmptyMetadataFilters(tableViewPresets.filters),
+    } as unknown as TableViewPresetDomain;
   }
 
   /**
@@ -336,14 +354,16 @@ export class TableViewService {
       isSystemTableViewPresetId(TableViewPresetsId) &&
       !getSystemTableViewPresetByTableAndId(tableName, TableViewPresetsId)
     ) {
-      throw new Error(
+      throw new InvalidRequestError(
         `Permalinks are not supported for preset ${TableViewPresetsId}`,
       );
     }
 
     const page = TABLE_NAME_TO_URL_MAP[tableName];
     if (!page) {
-      throw new Error(`Permalinks are not supported for table ${tableName}`);
+      throw new InvalidRequestError(
+        `Permalinks are not supported for table ${tableName}`,
+      );
     }
     return `${baseUrl}/project/${projectId}/${page}?viewId=${TableViewPresetsId}`;
   }

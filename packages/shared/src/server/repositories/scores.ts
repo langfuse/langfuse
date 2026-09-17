@@ -225,7 +225,9 @@ const formatMetadataSelect = (
   includeHasMetadata: boolean,
 ) => {
   return [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
+    !excludeMetadata
+      ? "* EXCEPT (evaluator_id, evaluation_rule_id)"
+      : "* EXCEPT (metadata, evaluator_id, evaluation_rule_id)",
     includeHasMetadata
       ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
       : null,
@@ -261,7 +263,7 @@ export const getScoresForSessions = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -310,7 +312,7 @@ export const getScoresForExperiments = async <
       AND s.data_type IN ({dataTypes: Array(String)})
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -529,7 +531,7 @@ const getScoresForTracesInternal = async <
       ${levelFilter}
       ORDER BY s.event_ts DESC
       LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
+      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
   const rows = await queryClickhouse<
@@ -644,14 +646,7 @@ export const getScoresForObservations = async <
     includeHasMetadata = false,
   } = props;
 
-  const select = [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
-    includeHasMetadata
-      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
-      : null,
-  ]
-    .filter((s) => s != null)
-    .join(", ");
+  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
 
   const query = `
       select
@@ -1443,6 +1438,63 @@ const scoresTraceFilterEventsMapping = [
   },
 ];
 
+// Score columns the count path reconstructs to their latest version via
+// argMax(col, event_ts), replacing FINAL. id / project_id / name are the
+// grouping keys and so are selected directly, not here.
+const SCORE_COUNT_DEDUP_COLUMNS = [
+  "timestamp",
+  "environment",
+  "trace_id",
+  "observation_id",
+  "session_id",
+  "evaluator_id",
+  "evaluation_rule_id",
+  "value",
+  "source",
+  "comment",
+  "author_user_id",
+  "data_type",
+  "string_value",
+  "metadata",
+] as const;
+
+/**
+ * Coarse toDate(timestamp) prune for a dedup subquery's pre-dedup scan (count
+ * and rows paths share it).
+ *
+ * The exact timestamp bound must NOT filter raw rows before dedup (a score's
+ * timestamp is mutable across versions, so it could drop the latest one); it is
+ * re-applied post-dedup in the outer WHERE. This prune only skips partitions /
+ * granules, keeping or dropping whole day-buckets, so the latest version always
+ * survives to the dedup. Operators are relaxed (> / < to >= / <=) and both
+ * sides wrapped in toDate() so boundary-day rows are never lost.
+ */
+const buildScoresDatePrune = (
+  filter: FilterState,
+): { query: string; params: Record<string, unknown> } => {
+  const timestampColumn = scoresTableUiColumnDefinitionsFromEvents.find(
+    (c) => c.uiTableId === "timestamp",
+  );
+  if (!timestampColumn) return { query: "", params: {} };
+
+  const timestampFilters = createFilterFromFilterState(
+    filter.filter((f) => matchesUiColumnMapping(timestampColumn, f.column)),
+    scoresTableUiColumnDefinitionsFromEvents,
+    scoresTableCols,
+  ).filter((f): f is DateTimeFilter => f instanceof DateTimeFilter);
+
+  const params: Record<string, unknown> = {};
+  const clauses = timestampFilters.map((f) => {
+    const dateOp = f.operator.startsWith(">") ? ">=" : "<=";
+    const varName = `scoresInnerDatePrune${clickhouseCompliantRandomCharacters()}`;
+    const column = `${f.tablePrefix ? `${f.tablePrefix}.` : ""}${f.field}`;
+    params[varName] = convertDateToClickhouseDateTime(new Date(f.value));
+    return `toDate(${column}) ${dateOp} toDate({${varName}: DateTime64(3, 'UTC')})`;
+  });
+
+  return { query: clauses.join(" AND "), params };
+};
+
 /**
  * v4 variant: scores query using a flat events CTE instead of the physical
  * traces table. Trace-level filters and sort use a "traces" CTE built by
@@ -1489,6 +1541,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
     (f) => f.clickhouseTable !== "traces",
   );
   const scoreOnlyFilterRes = scoreOnlyFilters.apply();
+
+  // Coarse pre-dedup prune shared by the count and rows subqueries; see
+  // buildScoresDatePrune.
+  const { query: innerDatePruneQuery, params: innerDatePruneParams } =
+    buildScoresDatePrune(filter);
 
   // Trace-level filter entries from the frontend filter state
   const traceFilterState = filter.filter((filterEntry) =>
@@ -1545,10 +1602,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
-  const select =
-    props.select === "count"
-      ? "count(*) as count"
-      : `
+  const rowSelect = `
         s.id,
         s.project_id,
         s.environment,
@@ -1559,6 +1613,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         s.source,
         s.data_type,
         s.comment,
+        s.evaluator_id,
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
@@ -1578,15 +1633,69 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
       `;
 
-  const query = `
+  // Pre-dedup inner scan: project scope + coarse date prune only. Mutable-column
+  // filters run post-dedup in the outer WHERE (see the dedup rule below).
+  const innerScanWhere = `
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}`;
+
+  // Post-dedup outer filters, shared by the count and rows paths.
+  const outerWhereClause = `
+      WHERE s.data_type IN ({dataTypes: Array(String)})
+      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}`;
+
+  // ── Dedup without FINAL ───────────────────────────────────────────────────
+  // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
+  // version instead of FINAL: the count path via one argMax pass grouped on the
+  // sorting key, the rows path via ORDER BY event_ts DESC + LIMIT 1 BY that same
+  // key (keeps the whole latest row).
+  //
+  // Rule: filter AFTER dedup, never before. value / comment / timestamp /
+  // trace_id are all mutable across a score's versions, so filtering raw rows
+  // can drop the true-latest version and surface a stale one — a result that
+  // disagrees with FINAL. Example, filter `value > 0.5`:
+  //   v1 @10:02 value=0.9,  v2 @10:07 value=0.1 (latest)
+  //   filter-then-dedup -> v1 kept        (WRONG)
+  //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
+  //
+  // So every filter and the trace join runs in the OUTER query. The inner scan
+  // carries only a coarse toDate(timestamp) prune (see innerDatePruneQuery):
+  // whole buckets are kept or dropped, so the latest is never lost pre-dedup.
+  // Dedup granularity is the full sorting key, so different toDate(timestamp)
+  // buckets of one id stay distinct — matching FINAL.
+  const query =
+    props.select === "count"
+      ? `
+      ${tracesCTEClause}
+      SELECT count(*) AS count
+      FROM (
+        SELECT
+          s.id,
+          s.project_id,
+          s.name,
+          ${SCORE_COUNT_DEDUP_COLUMNS.map(
+            (c) => `argMax(s.${c}, s.event_ts) AS ${c}`,
+          ).join(",\n          ")}
+        FROM scores s
+        ${innerScanWhere}
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
+      ${eventsJoin}
+      ${outerWhereClause}
+    `
+      : `
       ${tracesCTEClause}
       SELECT
-          ${select}
-      FROM scores s final
+          ${rowSelect}
+      FROM (
+        SELECT *
+        FROM scores s
+        ${innerScanWhere}
+        ORDER BY s.event_ts DESC
+        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) s
       ${eventsJoin}
-      WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${scoreOnlyFilterRes?.query ? `AND ${scoreOnlyFilterRes.query}` : ""}
+      ${outerWhereClause}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
@@ -1596,6 +1705,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       projectId,
       dataTypes: LISTABLE_SCORE_TYPES,
       ...(scoreOnlyFilterRes ? scoreOnlyFilterRes.params : {}),
+      ...innerDatePruneParams,
       ...tracesCTEParams,
       limit,
       offset,
@@ -1629,6 +1739,7 @@ export const getScoresUiCountFromEvents = async (props: {
 
 export type ScoreUiTableRowFromEvents = Omit<ScoreDomain, "metadata"> & {
   hasMetadata: boolean;
+  evaluatorId: string | null;
 };
 
 export async function getScoresUiTableFromEvents(props: {
@@ -1671,6 +1782,7 @@ export async function getScoresUiTableFromEvents(props: {
     event_ts: string;
     created_at: string;
     updated_at: string;
+    evaluator_id: string;
     has_metadata: 0 | 1;
   }>({
     select: "rows",
@@ -1692,6 +1804,7 @@ export async function getScoresUiTableFromEvents(props: {
     return {
       ...score,
       hasMetadata: !!row.has_metadata,
+      evaluatorId: row.evaluator_id || null,
     };
   });
 }
@@ -2319,7 +2432,7 @@ const buildScoresForBlobStorageExportQuery = (
     FROM scores FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
-    AND timestamp <= {maxTimestamp: DateTime64(3)}
+    AND timestamp < {maxTimestamp: DateTime64(3)}
     AND data_type IN ({dataTypes: Array(String)})
   `;
 

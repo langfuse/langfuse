@@ -14,10 +14,9 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type DeleteButtonProps = {
   itemId: string;
@@ -88,7 +87,6 @@ export function DeleteButton({
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
 
   const hasAccess = useHasProjectAccess({ projectId, scope: scope });
 
@@ -109,15 +107,76 @@ export function DeleteButton({
     capture,
   ]);
 
+  if (!deleteBlocker) {
+    return (
+      <ConfirmationDialogController
+        title={`Delete ${entityToDeleteName}?`}
+        text={
+          customDeletePrompt ??
+          `This action cannot be undone. It removes all the data associated with this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`
+        }
+        confirmationText={deleteConfirmation}
+        confirmLabel={`Delete ${entityToDeleteName}`}
+        variant="destructive"
+        loading={isDeleteMutationLoading || isDeleted}
+        onConfirm={() => executeDeleteMutation(onDeleteSuccess)}
+      >
+        {({ openDialog }) =>
+          icon ? (
+            <IconOnlyButton
+              icon={<TrashIcon className="h-4 w-4" />}
+              label={title ?? "Delete"}
+              aria-label={ariaLabel ?? "delete"}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
+              }
+              variant={variant ?? "outline"}
+              size={size ?? "icon"}
+              className={className}
+              disabled={!enabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                captureDeleteOpen(capture, isTableAction);
+                onPopoverOpenChange?.(true);
+                openDialog();
+              }}
+            />
+          ) : (
+            <Button
+              variant={variant ?? "ghost"}
+              size={size ?? "default"}
+              title={title}
+              aria-label={ariaLabel}
+              className={className}
+              disabled={!hasAccess || !enabled}
+              onClick={(event) => {
+                event.stopPropagation();
+                captureDeleteOpen(capture, isTableAction);
+                onPopoverOpenChange?.(true);
+                openDialog();
+              }}
+            >
+              {hasAccess ? (
+                <TrashIcon className="mr-2 h-4 w-4" />
+              ) : (
+                <LockIcon className="mr-2 h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          )
+        }
+      </ConfirmationDialogController>
+    );
+  }
+
   return (
     <Popover
       key={itemId ?? "delete-action"}
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        // Reset the type-to-confirm input on close so the confirmation must be
-        // re-typed each time (the component now stays mounted per table row).
-        if (!o) setDeleteConfirmationInput("");
         onPopoverOpenChange?.(o);
       }}
     >
@@ -175,47 +234,7 @@ export function DeleteButton({
         </PopoverTrigger>
       )}
       <PopoverContent onClick={(e) => e.stopPropagation()}>
-        {deleteBlocker ?? (
-          <>
-            <h2 className="mb-3 font-bold">Please confirm</h2>
-            <p className="mb-3 max-w-72 text-sm">
-              {customDeletePrompt ??
-                `This action cannot be undone. It removes all the data associated with
-            this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`}
-            </p>
-            {deleteConfirmation && (
-              <div className="mb-4 grid w-full gap-1.5">
-                <Label htmlFor="delete-confirmation">
-                  Type &quot;{deleteConfirmation}&quot; to confirm
-                </Label>
-                <Input
-                  id="delete-confirmation"
-                  value={deleteConfirmationInput}
-                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-                />
-              </div>
-            )}
-            <div className="flex justify-end space-x-4">
-              <Button
-                type="button"
-                variant="destructive"
-                loading={isDeleteMutationLoading || isDeleted}
-                onClick={() => {
-                  if (
-                    deleteConfirmation &&
-                    deleteConfirmationInput !== deleteConfirmation
-                  ) {
-                    alert("Please type the correct confirmation");
-                    return;
-                  }
-                  executeDeleteMutation(onDeleteSuccess);
-                }}
-              >
-                Delete {entityToDeleteName}
-              </Button>
-            </div>
-          </>
-        )}
+        {deleteBlocker}
       </PopoverContent>
     </Popover>
   );
@@ -266,91 +285,6 @@ export function DeleteTraceButton(props: DeleteButtonProps) {
       executeDeleteMutation={executeDeleteMutation}
       isDeleteMutationLoading={traceMutation.isPending}
       enabled={hasTraceDeletionEntitlement}
-    />
-  );
-}
-
-export function DeleteDatasetButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "datasets:CUD",
-    invalidateFunc = () => utils.datasets.invalidate(),
-  } = props;
-  const datasetMutation = api.datasets.deleteDataset.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await datasetMutation.mutateAsync({
-        datasetId: itemId,
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    onSuccess();
-  };
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture, isTableAction) =>
-        capture("datasets:delete_form_open", {
-          source: isTableAction ? "table-single-row" : "dataset",
-        })
-      }
-      captureDeleteSuccess={(capture, isTableAction) =>
-        capture("datasets:delete_dataset_button_click", {
-          source: isTableAction ? "table-single-row" : "dataset",
-        })
-      }
-      entityToDeleteName="dataset"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={datasetMutation.isPending}
-    />
-  );
-}
-
-export function DeleteDashboardButton(props: DeleteButtonProps) {
-  const utils = api.useUtils();
-  const {
-    itemId,
-    projectId,
-    scope = "dashboards:CUD",
-    invalidateFunc = () => utils.dashboard.invalidate(),
-  } = props;
-  const dashboardMutation = api.dashboard.delete.useMutation();
-  const executeDeleteMutation = async (onSuccess: () => void) => {
-    try {
-      await dashboardMutation.mutateAsync({
-        dashboardId: itemId,
-        projectId,
-      });
-    } catch (error) {
-      return Promise.reject(error);
-    }
-    showSuccessToast({
-      title: "Dashboard deleted",
-      description: "The dashboard has been deleted successfully",
-    });
-    onSuccess();
-  };
-
-  return (
-    <DeleteButton
-      {...props}
-      scope={scope}
-      invalidateFunc={invalidateFunc}
-      captureDeleteOpen={(capture) =>
-        capture("dashboard:delete_dashboard_form_open")
-      }
-      captureDeleteSuccess={(capture) =>
-        capture("dashboard:delete_dashboard_button_click")
-      }
-      entityToDeleteName="dashboard"
-      executeDeleteMutation={executeDeleteMutation}
-      isDeleteMutationLoading={dashboardMutation.isPending}
     />
   );
 }
@@ -411,7 +345,7 @@ export function DeleteEvalConfigButton(props: DeleteButtonProps) {
   const {
     itemId,
     projectId,
-    scope = "evalJob:CUD",
+    scope = "evaluationRule:CUD",
     invalidateFunc = () => utils.evals.invalidate(),
   } = props;
 

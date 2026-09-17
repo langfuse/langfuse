@@ -3,7 +3,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   formatBucketRange,
   OUTLIER_STRIP_METRICS,
@@ -264,8 +264,9 @@ export function OutlierBarStrip({
           ticks.map((tick) => (
             <text
               key={`label-${tick.index}`}
-              x={tick.index * slotPx + 3}
+              x={tick.x}
               y={heightPx + 9}
+              textAnchor={tick.textAnchor}
               className="fill-muted-foreground/80 font-sans"
               fontSize={9}
             >

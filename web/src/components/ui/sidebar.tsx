@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -316,7 +316,7 @@ const SidebarTrigger = React.forwardRef<
       {/* Hamburger below `md` (opens the sheet); panel-collapse glyph on
           desktop (toggles the docked sidebar). */}
       <Menu className="size-5 md:hidden" />
-      <PanelLeft className="hidden md:block" />
+      <PanelLeft className="hidden size-5 md:block" />
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );
@@ -392,7 +392,7 @@ const SidebarHeader = React.forwardRef<
     <div
       ref={ref}
       data-sidebar="header"
-      className={cn("flex min-h-11 flex-col pt-2 md:h-fit", className)}
+      className={cn("flex flex-col", className)}
       {...props}
     />
   );
@@ -631,7 +631,7 @@ const SidebarMenuButton = React.forwardRef<
         <TooltipTrigger asChild>{button}</TooltipTrigger>
         {/* No extra Portal, no z-index: TooltipContent already portals into the
             `tooltip` overlay layer, which paints above the whole app by layer
-            ORDER (see components/ui/layer.tsx). The old outer Portal re-parented
+            ORDER (see context/LayerContext/LayerContext.tsx). The old outer Portal re-parented
             to <body> and `relative isolate z-9999` escaped via a magic number —
             both are now obsolete and the `isolate` even risked trapping it. */}
         <TooltipContent
@@ -793,24 +793,15 @@ export {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarHeader,
-  SidebarInput,
   SidebarInset,
   SidebarMenu,
-  SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 };

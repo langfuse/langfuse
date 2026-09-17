@@ -4,7 +4,7 @@
     "modelName": "gpt-4o",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o)$",
     "createdAt": "2024-05-13T23:15:07.670Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -19,10 +19,32 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.0000025,
-          "input_cached_tokens": 0.00000125,
-          "input_cache_read": 0.00000125,
-          "output": 0.00001
+          "input": 2.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "output": 10e-6,
+          "cache_read_input_tokens": 1.25e-6
+        }
+      },
+      {
+        "id": "ba3b2121-9c68-4333-af3b-26f98fbab7ee",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 4.25e-6,
+          "input_cached_tokens": 2.125e-6,
+          "input_cache_read": 2.125e-6,
+          "output": 17e-6,
+          "cache_read_input_tokens": 2.125e-6
         }
       }
     ]
@@ -32,7 +54,7 @@
     "modelName": "gpt-4o-2024-05-13",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-05-13)$",
     "createdAt": "2024-05-13T23:15:07.670Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o-2024-05-13",
@@ -47,8 +69,26 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000005,
-          "output": 0.000015
+          "input": 5e-6,
+          "output": 15e-6
+        }
+      },
+      {
+        "id": "62d76894-9b2d-444a-985e-6802a1c730aa",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 8.75e-6,
+          "output": 26.25e-6
         }
       }
     ]
@@ -1569,7 +1609,7 @@
     "modelName": "gpt-4o-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1584,10 +1624,32 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 1.5e-7,
-          "output": 6e-7,
-          "input_cached_tokens": 7.5e-8,
-          "input_cache_read": 7.5e-8
+          "input": 0.15e-6,
+          "output": 0.6e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "cache_read_input_tokens": 0.075e-6
+        }
+      },
+      {
+        "id": "6a318ead-09a7-49cd-9cfd-e3c799b3716a",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.25e-6,
+          "output": 1e-6,
+          "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
+          "cache_read_input_tokens": 0.125e-6
         }
       }
     ]
@@ -1597,7 +1659,7 @@
     "modelName": "gpt-4o-mini-2024-07-18",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-mini-2024-07-18)$",
     "createdAt": "2024-07-18T17:56:09.591Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1612,10 +1674,32 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 1.5e-7,
-          "input_cached_tokens": 7.5e-8,
-          "input_cache_read": 7.5e-8,
-          "output": 6e-7
+          "input": 0.15e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "output": 0.6e-6,
+          "cache_read_input_tokens": 0.075e-6
+        }
+      },
+      {
+        "id": "204f0b4b-5605-4f63-bec5-3d62c2b810b4",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
+          "output": 1e-6,
+          "cache_read_input_tokens": 0.125e-6
         }
       }
     ]
@@ -1625,7 +1709,7 @@
     "modelName": "gpt-4o-2024-08-06",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-08-06)$",
     "createdAt": "2024-08-07T11:54:31.298Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1640,10 +1724,32 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.0000025,
-          "input_cached_tokens": 0.00000125,
-          "input_cache_read": 0.00000125,
-          "output": 0.00001
+          "input": 2.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "output": 10e-6,
+          "cache_read_input_tokens": 1.25e-6
+        }
+      },
+      {
+        "id": "0e6f6dac-20cc-4ae2-bfab-90070ac2de4a",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 4.25e-6,
+          "input_cached_tokens": 2.125e-6,
+          "input_cache_read": 2.125e-6,
+          "output": 17e-6,
+          "cache_read_input_tokens": 2.125e-6
         }
       }
     ]
@@ -1895,7 +2001,7 @@
     "modelName": "gpt-4o-2024-11-20",
     "matchPattern": "(?i)^(openai\/)?(gpt-4o-2024-11-20)$",
     "createdAt": "2024-12-03T10:06:12.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4o",
@@ -1910,10 +2016,32 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.0000025,
-          "input_cached_tokens": 0.00000125,
-          "input_cache_read": 0.00000125,
-          "output": 0.00001
+          "input": 2.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "output": 10e-6,
+          "cache_read_input_tokens": 1.25e-6
+        }
+      },
+      {
+        "id": "eb22e14f-7474-422a-aac3-2d0f722ceba0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 4.25e-6,
+          "input_cached_tokens": 2.125e-6,
+          "input_cache_read": 2.125e-6,
+          "output": 17e-6,
+          "cache_read_input_tokens": 2.125e-6
         }
       }
     ]
@@ -2265,7 +2393,7 @@
     "modelName": "gpt-4.1",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2280,11 +2408,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000002,
-          "input_cached_tokens": 5e-7,
-          "input_cached_text_tokens": 5e-7,
-          "input_cache_read": 5e-7,
-          "output": 0.000008
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cached_text_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "cache_read_input_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "757639cc-73fa-49c5-adfd-686bbd0e9dbe",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.875e-6,
+          "input_cached_text_tokens": 0.875e-6,
+          "input_cache_read": 0.875e-6,
+          "output": 14e-6,
+          "cache_read_input_tokens": 0.875e-6
         }
       }
     ]
@@ -2294,7 +2445,7 @@
     "modelName": "gpt-4.1-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2309,11 +2460,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000002,
-          "input_cached_tokens": 5e-7,
-          "input_cached_text_tokens": 5e-7,
-          "input_cache_read": 5e-7,
-          "output": 0.000008
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cached_text_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "cache_read_input_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "ef4f4063-bd8f-441c-b2a2-6771f404212e",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.875e-6,
+          "input_cached_text_tokens": 0.875e-6,
+          "input_cache_read": 0.875e-6,
+          "output": 14e-6,
+          "cache_read_input_tokens": 0.875e-6
         }
       }
     ]
@@ -2323,7 +2497,7 @@
     "modelName": "gpt-4.1-mini-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2338,11 +2512,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 4e-7,
-          "input_cached_tokens": 1e-7,
-          "input_cached_text_tokens": 1e-7,
-          "input_cache_read": 1e-7,
-          "output": 0.0000016
+          "input": 0.4e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cached_text_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "output": 1.6e-6,
+          "cache_read_input_tokens": 0.1e-6
+        }
+      },
+      {
+        "id": "94d78fcb-36e0-4dd7-b7ae-7d43e8dd278b",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.7e-6,
+          "input_cached_tokens": 0.175e-6,
+          "input_cached_text_tokens": 0.175e-6,
+          "input_cache_read": 0.175e-6,
+          "output": 2.8e-6,
+          "cache_read_input_tokens": 0.175e-6
         }
       }
     ]
@@ -2352,7 +2549,7 @@
     "modelName": "gpt-4.1-nano-2025-04-14",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano-2025-04-14)$",
     "createdAt": "2025-04-15T10:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2367,11 +2564,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 1e-7,
-          "input_cached_tokens": 2.5e-8,
-          "input_cached_text_tokens": 2.5e-8,
-          "input_cache_read": 2.5e-8,
-          "output": 4e-7
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.025e-6,
+          "input_cached_text_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
+          "output": 0.4e-6,
+          "cache_read_input_tokens": 0.025e-6
+        }
+      },
+      {
+        "id": "38ecc517-b487-45d0-abea-7dbbf1a706a6",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cached_text_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "output": 0.8e-6,
+          "cache_read_input_tokens": 0.05e-6
         }
       }
     ]
@@ -2381,7 +2601,7 @@
     "modelName": "o3",
     "matchPattern": "(?i)^(openai\/)?(o3)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wmny967124dhjtb95w8f81_tier_default",
@@ -2390,12 +2610,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000002,
-          "input_cached_tokens": 5e-7,
-          "input_cache_read": 5e-7,
-          "output": 0.000008,
-          "output_reasoning_tokens": 0.000008,
-          "output_reasoning": 0.000008
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "output_reasoning_tokens": 8e-6,
+          "output_reasoning": 8e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "reasoning_tokens": 8e-6
+        }
+      },
+      {
+        "id": "ad862208-0cc4-4ad6-868d-363fbaace2b2",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.875e-6,
+          "input_cache_read": 0.875e-6,
+          "output": 14e-6,
+          "output_reasoning_tokens": 14e-6,
+          "output_reasoning": 14e-6,
+          "cache_read_input_tokens": 0.875e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "0c5034e2-181e-4942-bd65-4a210bfd48dd",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 4e-6,
+          "output_reasoning_tokens": 4e-6,
+          "output_reasoning": 4e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 4e-6
         }
       }
     ]
@@ -2405,7 +2675,7 @@
     "modelName": "o3-2025-04-16",
     "matchPattern": "(?i)^(openai\/)?(o3-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wopq3327124dhjtb95w8f81_tier_default",
@@ -2414,12 +2684,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.000002,
-          "input_cached_tokens": 5e-7,
-          "input_cache_read": 5e-7,
-          "output": 0.000008,
-          "output_reasoning_tokens": 0.000008,
-          "output_reasoning": 0.000008
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "output_reasoning_tokens": 8e-6,
+          "output_reasoning": 8e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "reasoning_tokens": 8e-6
+        }
+      },
+      {
+        "id": "0aa1a211-4af7-43a8-86e2-d193beda27a1",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.875e-6,
+          "input_cache_read": 0.875e-6,
+          "output": 14e-6,
+          "output_reasoning_tokens": 14e-6,
+          "output_reasoning": 14e-6,
+          "cache_read_input_tokens": 0.875e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "54114e6b-05a0-4e6c-92e6-b5683245c1dc",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "output": 4e-6,
+          "output_reasoning_tokens": 4e-6,
+          "output_reasoning": 4e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 4e-6
         }
       }
     ]
@@ -2429,7 +2749,7 @@
     "modelName": "o4-mini",
     "matchPattern": "(?i)^(openai\/)?(o4-mini)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7wqrs1327124dhjtb95w8f81_tier_default",
@@ -2438,12 +2758,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.0000011,
-          "input_cached_tokens": 2.75e-7,
-          "input_cache_read": 2.75e-7,
-          "output": 0.0000044,
-          "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "input": 1.1e-6,
+          "input_cached_tokens": 0.275e-6,
+          "input_cache_read": 0.275e-6,
+          "output": 4.4e-6,
+          "output_reasoning_tokens": 4.4e-6,
+          "output_reasoning": 4.4e-6,
+          "cache_read_input_tokens": 0.275e-6,
+          "reasoning_tokens": 4.4e-6
+        }
+      },
+      {
+        "id": "1ddaa9b4-df3b-4ab2-9969-62b263974086",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "output_reasoning_tokens": 8e-6,
+          "output_reasoning": 8e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "reasoning_tokens": 8e-6
+        }
+      },
+      {
+        "id": "02bf5921-4756-4997-9eee-232a7d6e0567",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.55e-6,
+          "input_cached_tokens": 0.138e-6,
+          "input_cache_read": 0.138e-6,
+          "output": 2.2e-6,
+          "output_reasoning_tokens": 2.2e-6,
+          "output_reasoning": 2.2e-6,
+          "cache_read_input_tokens": 0.138e-6,
+          "reasoning_tokens": 2.2e-6
         }
       }
     ]
@@ -2453,7 +2823,7 @@
     "modelName": "o4-mini-2025-04-16",
     "matchPattern": "(?i)^(openai\/)?(o4-mini-2025-04-16)$",
     "createdAt": "2025-04-16T23:26:54.132Z",
-    "updatedAt": "2026-06-27T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cm7zqrs1327124dhjtb95w8f82_tier_default",
@@ -2462,12 +2832,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.0000011,
-          "input_cached_tokens": 2.75e-7,
-          "input_cache_read": 2.75e-7,
-          "output": 0.0000044,
-          "output_reasoning_tokens": 0.0000044,
-          "output_reasoning": 0.0000044
+          "input": 1.1e-6,
+          "input_cached_tokens": 0.275e-6,
+          "input_cache_read": 0.275e-6,
+          "output": 4.4e-6,
+          "output_reasoning_tokens": 4.4e-6,
+          "output_reasoning": 4.4e-6,
+          "cache_read_input_tokens": 0.275e-6,
+          "reasoning_tokens": 4.4e-6
+        }
+      },
+      {
+        "id": "ccb75c3f-8fd7-487c-a5f0-1fefae485dd3",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "output": 8e-6,
+          "output_reasoning_tokens": 8e-6,
+          "output_reasoning": 8e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "reasoning_tokens": 8e-6
+        }
+      },
+      {
+        "id": "5be139db-2dfd-49d9-ae69-40a9a0018be1",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.55e-6,
+          "input_cached_tokens": 0.138e-6,
+          "input_cache_read": 0.138e-6,
+          "output": 2.2e-6,
+          "output_reasoning_tokens": 2.2e-6,
+          "output_reasoning": 2.2e-6,
+          "cache_read_input_tokens": 0.138e-6,
+          "reasoning_tokens": 2.2e-6
         }
       }
     ]
@@ -2517,7 +2937,7 @@
     "modelName": "gpt-4.1-nano",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-nano)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2532,11 +2952,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 1e-7,
-          "input_cached_tokens": 2.5e-8,
-          "input_cached_text_tokens": 2.5e-8,
-          "input_cache_read": 2.5e-8,
-          "output": 4e-7
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.025e-6,
+          "input_cached_text_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
+          "output": 0.4e-6,
+          "cache_read_input_tokens": 0.025e-6
+        }
+      },
+      {
+        "id": "27947175-4b36-475d-ac36-44f69fbf1eac",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cached_text_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "output": 0.8e-6,
+          "cache_read_input_tokens": 0.05e-6
         }
       }
     ]
@@ -2546,7 +2989,7 @@
     "modelName": "gpt-4.1-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-4.1-mini)$",
     "createdAt": "2025-04-22T10:11:35.241Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2561,11 +3004,34 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 4e-7,
-          "input_cached_tokens": 1e-7,
-          "input_cached_text_tokens": 1e-7,
-          "input_cache_read": 1e-7,
-          "output": 0.0000016
+          "input": 0.4e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cached_text_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "output": 1.6e-6,
+          "cache_read_input_tokens": 0.1e-6
+        }
+      },
+      {
+        "id": "e747c083-dae8-4085-a1e2-e46c16e39498",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.7e-6,
+          "input_cached_tokens": 0.175e-6,
+          "input_cached_text_tokens": 0.175e-6,
+          "input_cache_read": 0.175e-6,
+          "output": 2.8e-6,
+          "cache_read_input_tokens": 0.175e-6
         }
       }
     ]
@@ -2783,7 +3249,7 @@
     "modelName": "gemini-2.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkfwn000107l43bf5e8ax_tier_default",
@@ -2792,23 +3258,58 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 3e-7,
-          "input_text": 3e-7,
-          "input_modality_1": 3e-7,
-          "prompt_token_count": 3e-7,
-          "promptTokenCount": 3e-7,
-          "input_cached_tokens": 3e-8,
-          "cached_content_token_count": 3e-8,
-          "output": 0.0000025,
-          "output_text": 0.0000025,
-          "output_modality_1": 0.0000025,
-          "candidates_token_count": 0.0000025,
-          "candidatesTokenCount": 0.0000025,
-          "thoughtsTokenCount": 0.0000025,
-          "thoughts_token_count": 0.0000025,
-          "output_reasoning_tokens": 0.0000025,
-          "output_reasoning": 0.0000025,
-          "input_audio_tokens": 0.000001
+          "input": 0.3e-6,
+          "input_text": 0.3e-6,
+          "input_modality_1": 0.3e-6,
+          "prompt_token_count": 0.3e-6,
+          "promptTokenCount": 0.3e-6,
+          "input_cached_tokens": 0.03e-6,
+          "input_cache_read": 0.03e-6,
+          "cached_content_token_count": 0.03e-6,
+          "output": 2.5e-6,
+          "output_text": 2.5e-6,
+          "output_modality_1": 2.5e-6,
+          "candidates_token_count": 2.5e-6,
+          "candidatesTokenCount": 2.5e-6,
+          "thoughtsTokenCount": 2.5e-6,
+          "thoughts_token_count": 2.5e-6,
+          "output_reasoning_tokens": 2.5e-6,
+          "output_reasoning": 2.5e-6,
+          "input_audio_tokens": 1e-6
+        }
+      },
+      {
+        "id": "d21eecda-f90f-4967-9917-0fd4304c32d6",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.54e-6,
+          "input_text": 0.54e-6,
+          "input_modality_1": 0.54e-6,
+          "prompt_token_count": 0.54e-6,
+          "promptTokenCount": 0.54e-6,
+          "input_cached_tokens": 0.054e-6,
+          "input_cache_read": 0.054e-6,
+          "cached_content_token_count": 0.054e-6,
+          "output": 4.5e-6,
+          "output_text": 4.5e-6,
+          "output_modality_1": 4.5e-6,
+          "candidates_token_count": 4.5e-6,
+          "candidatesTokenCount": 4.5e-6,
+          "thoughtsTokenCount": 4.5e-6,
+          "thoughts_token_count": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "input_audio_tokens": 1.8e-6
         }
       }
     ]
@@ -2818,7 +3319,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2827,23 +3328,58 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 1e-7,
-          "input_text": 1e-7,
-          "input_modality_1": 1e-7,
-          "prompt_token_count": 1e-7,
-          "promptTokenCount": 1e-7,
-          "input_cached_tokens": 1e-8,
-          "cached_content_token_count": 1e-8,
-          "output": 4e-7,
-          "output_text": 4e-7,
-          "output_modality_1": 4e-7,
-          "candidates_token_count": 4e-7,
-          "candidatesTokenCount": 4e-7,
-          "thoughtsTokenCount": 4e-7,
-          "thoughts_token_count": 4e-7,
-          "output_reasoning_tokens": 4e-7,
-          "output_reasoning": 4e-7,
-          "input_audio_tokens": 3e-7
+          "input": 0.1e-6,
+          "input_text": 0.1e-6,
+          "input_modality_1": 0.1e-6,
+          "prompt_token_count": 0.1e-6,
+          "promptTokenCount": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "cached_content_token_count": 0.01e-6,
+          "output": 0.4e-6,
+          "output_text": 0.4e-6,
+          "output_modality_1": 0.4e-6,
+          "candidates_token_count": 0.4e-6,
+          "candidatesTokenCount": 0.4e-6,
+          "thoughtsTokenCount": 0.4e-6,
+          "thoughts_token_count": 0.4e-6,
+          "output_reasoning_tokens": 0.4e-6,
+          "output_reasoning": 0.4e-6,
+          "input_audio_tokens": 0.3e-6
+        }
+      },
+      {
+        "id": "8a527fb3-2348-4066-a938-9dccb419400d",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.18e-6,
+          "input_text": 0.18e-6,
+          "input_modality_1": 0.18e-6,
+          "prompt_token_count": 0.18e-6,
+          "promptTokenCount": 0.18e-6,
+          "input_cached_tokens": 0.018e-6,
+          "input_cache_read": 0.018e-6,
+          "cached_content_token_count": 0.018e-6,
+          "output": 0.72e-6,
+          "output_text": 0.72e-6,
+          "output_modality_1": 0.72e-6,
+          "candidates_token_count": 0.72e-6,
+          "candidatesTokenCount": 0.72e-6,
+          "thoughtsTokenCount": 0.72e-6,
+          "thoughts_token_count": 0.72e-6,
+          "output_reasoning_tokens": 0.72e-6,
+          "output_reasoning": 0.72e-6,
+          "input_audio_tokens": 0.54e-6
         }
       }
     ]
@@ -2883,7 +3419,7 @@
     "modelName": "gpt-5",
     "matchPattern": "(?i)^(openai\/)?(gpt-5)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2898,12 +3434,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.00000125,
-          "input_cached_tokens": 1.25e-7,
-          "output": 0.00001,
-          "input_cache_read": 1.25e-7,
-          "output_reasoning_tokens": 0.00001,
-          "output_reasoning": 0.00001
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "output": 10e-6,
+          "input_cache_read": 0.125e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "a67e2dee-d22c-4717-8f90-38a38b8a9e0c",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "output": 20e-6,
+          "input_cache_read": 0.25e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "be4042e8-253f-4f20-94a8-2508b0dff73b",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.625e-6,
+          "input_cached_tokens": 0.0625e-6,
+          "output": 5e-6,
+          "input_cache_read": 0.0625e-6,
+          "output_reasoning_tokens": 5e-6,
+          "output_reasoning": 5e-6,
+          "cache_read_input_tokens": 0.0625e-6,
+          "reasoning_tokens": 5e-6
         }
       }
     ]
@@ -2913,7 +3499,7 @@
     "modelName": "gpt-5-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2928,12 +3514,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.00000125,
-          "input_cached_tokens": 1.25e-7,
-          "output": 0.00001,
-          "input_cache_read": 1.25e-7,
-          "output_reasoning_tokens": 0.00001,
-          "output_reasoning": 0.00001
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "output": 10e-6,
+          "input_cache_read": 0.125e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "76480c39-b037-42eb-b553-640c7df3a3f1",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "output": 20e-6,
+          "input_cache_read": 0.25e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "5988c80e-a2c3-42b9-8167-ba6c903a4a2b",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.625e-6,
+          "input_cached_tokens": 0.0625e-6,
+          "output": 5e-6,
+          "input_cache_read": 0.0625e-6,
+          "output_reasoning_tokens": 5e-6,
+          "output_reasoning": 5e-6,
+          "cache_read_input_tokens": 0.0625e-6,
+          "reasoning_tokens": 5e-6
         }
       }
     ]
@@ -2943,7 +3579,7 @@
     "modelName": "gpt-5-mini",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-mini)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2958,12 +3594,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 2.5e-7,
-          "input_cached_tokens": 2.5e-8,
-          "output": 0.000002,
-          "input_cache_read": 2.5e-8,
-          "output_reasoning_tokens": 0.000002,
-          "output_reasoning": 0.000002
+          "input": 0.25e-6,
+          "input_cached_tokens": 0.025e-6,
+          "output": 2e-6,
+          "input_cache_read": 0.025e-6,
+          "output_reasoning_tokens": 2e-6,
+          "output_reasoning": 2e-6,
+          "cache_read_input_tokens": 0.025e-6,
+          "reasoning_tokens": 2e-6
+        }
+      },
+      {
+        "id": "fa4c5173-323e-41e4-8066-071ac910aa80",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.45e-6,
+          "input_cached_tokens": 0.045e-6,
+          "output": 3.6e-6,
+          "input_cache_read": 0.045e-6,
+          "output_reasoning_tokens": 3.6e-6,
+          "output_reasoning": 3.6e-6,
+          "cache_read_input_tokens": 0.045e-6,
+          "reasoning_tokens": 3.6e-6
+        }
+      },
+      {
+        "id": "5fe8248d-f3f4-49fd-ad76-d3654eac8593",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.125e-6,
+          "input_cached_tokens": 0.0125e-6,
+          "output": 1e-6,
+          "input_cache_read": 0.0125e-6,
+          "output_reasoning_tokens": 1e-6,
+          "output_reasoning": 1e-6,
+          "cache_read_input_tokens": 0.0125e-6,
+          "reasoning_tokens": 1e-6
         }
       }
     ]
@@ -2973,7 +3659,7 @@
     "modelName": "gpt-5-mini-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-mini-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -2988,12 +3674,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 2.5e-7,
-          "input_cached_tokens": 2.5e-8,
-          "output": 0.000002,
-          "input_cache_read": 2.5e-8,
-          "output_reasoning_tokens": 0.000002,
-          "output_reasoning": 0.000002
+          "input": 0.25e-6,
+          "input_cached_tokens": 0.025e-6,
+          "output": 2e-6,
+          "input_cache_read": 0.025e-6,
+          "output_reasoning_tokens": 2e-6,
+          "output_reasoning": 2e-6,
+          "cache_read_input_tokens": 0.025e-6,
+          "reasoning_tokens": 2e-6
+        }
+      },
+      {
+        "id": "4c70b81b-e828-459f-80da-8218f7d816d8",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.45e-6,
+          "input_cached_tokens": 0.045e-6,
+          "output": 3.6e-6,
+          "input_cache_read": 0.045e-6,
+          "output_reasoning_tokens": 3.6e-6,
+          "output_reasoning": 3.6e-6,
+          "cache_read_input_tokens": 0.045e-6,
+          "reasoning_tokens": 3.6e-6
+        }
+      },
+      {
+        "id": "810a215a-d0ea-456d-bc19-64f2e28f2d2f",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.125e-6,
+          "input_cached_tokens": 0.0125e-6,
+          "output": 1e-6,
+          "input_cache_read": 0.0125e-6,
+          "output_reasoning_tokens": 1e-6,
+          "output_reasoning": 1e-6,
+          "cache_read_input_tokens": 0.0125e-6,
+          "reasoning_tokens": 1e-6
         }
       }
     ]
@@ -3003,7 +3739,7 @@
     "modelName": "gpt-5-nano",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-nano)$",
     "createdAt": "2025-08-07T16:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3018,12 +3754,38 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 5e-8,
-          "input_cached_tokens": 5e-9,
-          "output": 4e-7,
-          "input_cache_read": 5e-9,
-          "output_reasoning_tokens": 4e-7,
-          "output_reasoning": 4e-7
+          "input": 0.05e-6,
+          "input_cached_tokens": 0.005e-6,
+          "output": 0.4e-6,
+          "input_cache_read": 0.005e-6,
+          "output_reasoning_tokens": 0.4e-6,
+          "output_reasoning": 0.4e-6,
+          "cache_read_input_tokens": 0.005e-6,
+          "reasoning_tokens": 0.4e-6
+        }
+      },
+      {
+        "id": "74d737d8-ac19-4992-896a-e389bf46842a",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.025e-6,
+          "input_cached_tokens": 0.0025e-6,
+          "output": 0.2e-6,
+          "input_cache_read": 0.0025e-6,
+          "output_reasoning_tokens": 0.2e-6,
+          "output_reasoning": 0.2e-6,
+          "cache_read_input_tokens": 0.0025e-6,
+          "reasoning_tokens": 0.2e-6
         }
       }
     ]
@@ -3033,7 +3795,7 @@
     "modelName": "gpt-5-nano-2025-08-07",
     "matchPattern": "(?i)^(openai\/)?(gpt-5-nano-2025-08-07)$",
     "createdAt": "2025-08-11T08:00:00.000Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3048,12 +3810,38 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 5e-8,
-          "input_cached_tokens": 5e-9,
-          "output": 4e-7,
-          "input_cache_read": 5e-9,
-          "output_reasoning_tokens": 4e-7,
-          "output_reasoning": 4e-7
+          "input": 0.05e-6,
+          "input_cached_tokens": 0.005e-6,
+          "output": 0.4e-6,
+          "input_cache_read": 0.005e-6,
+          "output_reasoning_tokens": 0.4e-6,
+          "output_reasoning": 0.4e-6,
+          "cache_read_input_tokens": 0.005e-6,
+          "reasoning_tokens": 0.4e-6
+        }
+      },
+      {
+        "id": "736cfc37-cb89-4981-aa0e-ffc352330dc0",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.025e-6,
+          "input_cached_tokens": 0.0025e-6,
+          "output": 0.2e-6,
+          "input_cache_read": 0.0025e-6,
+          "output_reasoning_tokens": 0.2e-6,
+          "output_reasoning": 0.2e-6,
+          "cache_read_input_tokens": 0.0025e-6,
+          "reasoning_tokens": 0.2e-6
         }
       }
     ]
@@ -3179,7 +3967,7 @@
     "modelName": "gpt-5.1",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.1)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3194,12 +3982,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.00000125,
-          "input_cached_tokens": 1.25e-7,
-          "output": 0.00001,
-          "input_cache_read": 1.25e-7,
-          "output_reasoning_tokens": 0.00001,
-          "output_reasoning": 0.00001
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "output": 10e-6,
+          "input_cache_read": 0.125e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "78484894-8814-4eff-b250-06368c7c1fbb",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "output": 20e-6,
+          "input_cache_read": 0.25e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "34bf46b6-995a-4e2e-a839-430c1da110e8",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.625e-6,
+          "input_cached_tokens": 0.0625e-6,
+          "output": 5e-6,
+          "input_cache_read": 0.0625e-6,
+          "output_reasoning_tokens": 5e-6,
+          "output_reasoning": 5e-6,
+          "cache_read_input_tokens": 0.0625e-6,
+          "reasoning_tokens": 5e-6
         }
       }
     ]
@@ -3209,7 +4047,7 @@
     "modelName": "gpt-5.1-2025-11-13",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.1-2025-11-13)$",
     "createdAt": "2025-11-14T08:57:23.481Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3224,12 +4062,62 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 0.00000125,
-          "input_cached_tokens": 1.25e-7,
-          "output": 0.00001,
-          "input_cache_read": 1.25e-7,
-          "output_reasoning_tokens": 0.00001,
-          "output_reasoning": 0.00001
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.125e-6,
+          "output": 10e-6,
+          "input_cache_read": 0.125e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "cache_read_input_tokens": 0.125e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "aa398ff9-69fa-4f7a-b18a-6085e82ee20b",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "output": 20e-6,
+          "input_cache_read": 0.25e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "b92ba7b5-513c-4f78-8e2b-f98adceee0fd",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.625e-6,
+          "input_cached_tokens": 0.0625e-6,
+          "output": 5e-6,
+          "input_cache_read": 0.0625e-6,
+          "output_reasoning_tokens": 5e-6,
+          "output_reasoning": 5e-6,
+          "cache_read_input_tokens": 0.0625e-6,
+          "reasoning_tokens": 5e-6
         }
       }
     ]
@@ -3363,7 +4251,7 @@
     "modelName": "claude-opus-4-8",
     "matchPattern": "(?i)^((anthropic\/)?claude-opus-4-8|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-4-8(-v1(:0)?)?)$",
     "createdAt": "2026-05-28T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3385,6 +4273,33 @@
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
+        }
+      },
+      {
+        "id": "d157528f-9083-43be-ba65-2d281a8891db",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
         }
       }
     ]
@@ -3452,6 +4367,68 @@
     ]
   },
   {
+    "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a",
+    "modelName": "claude-fable-5-1",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5-1|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-fable-5-1(-v1(:0)?)?)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "4cbb2cdd-e3b9-41ce-b07e-36136282d92a_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "0e053111-eda4-4015-8d36-88f553adabc3",
+    "modelName": "claude-mythos-5-1",
+    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5-1$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "0e053111-eda4-4015-8d36-88f553adabc3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "7c2e1f89-3a54-4b67-9d21-58e634b79a0c",
     "modelName": "claude-sonnet-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-sonnet-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-5(-v1(:0)?)?)$",
@@ -3487,7 +4464,7 @@
     "modelName": "claude-opus-5",
     "matchPattern": "(?i)^((anthropic\\/)?claude-opus-5|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-opus-5(-v1(:0)?)?)$",
     "createdAt": "2026-07-25T00:00:00.000Z",
-    "updatedAt": "2026-07-28T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": null,
     "tokenizerId": "claude",
     "pricingTiers": [
@@ -3510,6 +4487,33 @@
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
         }
+      },
+      {
+        "id": "c4a83d8c-31d6-41c8-a836-3837999083d2",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "speed",
+            "operator": "in",
+            "values": ["fast"]
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
+        }
       }
     ]
   },
@@ -3518,7 +4522,7 @@
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1hb7i000104l72qrzgc6h_tier_default",
@@ -3533,6 +4537,7 @@
           "prompt_token_count": 1.25e-6,
           "promptTokenCount": 1.25e-6,
           "input_cached_tokens": 0.125e-6,
+          "input_cache_read": 0.125e-6,
           "cached_content_token_count": 0.125e-6,
           "output": 10e-6,
           "output_text": 10e-6,
@@ -3549,7 +4554,7 @@
         "id": "bcf39e8f-9969-455f-be9a-541a00256092",
         "name": "Large Context",
         "isDefault": false,
-        "priority": 1,
+        "priority": 3,
         "conditions": [
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -3565,6 +4570,7 @@
           "prompt_token_count": 2.5e-6,
           "promptTokenCount": 2.5e-6,
           "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
           "cached_content_token_count": 0.25e-6,
           "output": 15e-6,
           "output_text": 15e-6,
@@ -3576,6 +4582,78 @@
           "output_reasoning_tokens": 15e-6,
           "output_reasoning": 15e-6
         }
+      },
+      {
+        "id": "d5830838-8f92-4dc6-9b7e-fe88bf4b3875",
+        "name": "Priority Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          },
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4.5e-6,
+          "input_text": 4.5e-6,
+          "input_modality_1": 4.5e-6,
+          "prompt_token_count": 4.5e-6,
+          "promptTokenCount": 4.5e-6,
+          "input_cached_tokens": 0.45e-6,
+          "input_cache_read": 0.45e-6,
+          "cached_content_token_count": 0.45e-6,
+          "output": 27e-6,
+          "output_text": 27e-6,
+          "output_modality_1": 27e-6,
+          "candidates_token_count": 27e-6,
+          "candidatesTokenCount": 27e-6,
+          "thoughtsTokenCount": 27e-6,
+          "thoughts_token_count": 27e-6,
+          "output_reasoning_tokens": 27e-6,
+          "output_reasoning": 27e-6
+        }
+      },
+      {
+        "id": "d390c3ff-1c21-43ae-b7f3-c3337de464b5",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.25e-6,
+          "input_text": 2.25e-6,
+          "input_modality_1": 2.25e-6,
+          "prompt_token_count": 2.25e-6,
+          "promptTokenCount": 2.25e-6,
+          "input_cached_tokens": 0.225e-6,
+          "input_cache_read": 0.225e-6,
+          "cached_content_token_count": 0.225e-6,
+          "output": 18e-6,
+          "output_text": 18e-6,
+          "output_modality_1": 18e-6,
+          "candidates_token_count": 18e-6,
+          "candidatesTokenCount": 18e-6,
+          "thoughtsTokenCount": 18e-6,
+          "thoughts_token_count": 18e-6,
+          "output_reasoning_tokens": 18e-6,
+          "output_reasoning": 18e-6
+        }
       }
     ]
   },
@@ -3584,7 +4662,7 @@
     "modelName": "gemini-3-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-pro-preview)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1wmep000404l7fh6q5uog_tier_default",
@@ -3599,6 +4677,7 @@
           "prompt_token_count": 2e-6,
           "promptTokenCount": 2e-6,
           "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
           "cached_content_token_count": 0.2e-6,
           "output": 12e-6,
           "output_text": 12e-6,
@@ -3635,6 +4714,7 @@
           "prompt_token_count": 4e-6,
           "promptTokenCount": 4e-6,
           "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
           "cached_content_token_count": 0.4e-6,
           "output": 18e-6,
           "output_text": 18e-6,
@@ -3658,7 +4738,7 @@
     "modelName": "gemini-3.1-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-pro-preview(-customtools)?)$",
     "createdAt": "2026-02-19T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
@@ -3673,6 +4753,7 @@
           "prompt_token_count": 2e-6,
           "promptTokenCount": 2e-6,
           "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
           "cached_content_token_count": 0.2e-6,
           "output": 12e-6,
           "output_text": 12e-6,
@@ -3693,7 +4774,7 @@
         "id": "ada11e9f-fe0d-465a-92af-ce334d0eedeb",
         "name": "Large Context",
         "isDefault": false,
-        "priority": 1,
+        "priority": 3,
         "conditions": [
           {
             "usageDetailPattern": "(input|prompt|cached)",
@@ -3709,6 +4790,7 @@
           "prompt_token_count": 4e-6,
           "promptTokenCount": 4e-6,
           "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
           "cached_content_token_count": 0.4e-6,
           "output": 18e-6,
           "output_text": 18e-6,
@@ -3724,6 +4806,86 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "2c647939-6d8b-4e92-b578-62e33c6dc085",
+        "name": "Priority Large Context",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          },
+          {
+            "usageDetailPattern": "(input|prompt|cached)",
+            "operator": "gt",
+            "value": 200000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 7.2e-6,
+          "input_modality_1": 7.2e-6,
+          "input_text": 7.2e-6,
+          "prompt_token_count": 7.2e-6,
+          "promptTokenCount": 7.2e-6,
+          "input_cached_tokens": 0.72e-6,
+          "input_cache_read": 0.72e-6,
+          "cached_content_token_count": 0.72e-6,
+          "output": 32.4e-6,
+          "output_text": 32.4e-6,
+          "output_modality_1": 32.4e-6,
+          "candidates_token_count": 32.4e-6,
+          "candidatesTokenCount": 32.4e-6,
+          "thoughtsTokenCount": 32.4e-6,
+          "thoughts_token_count": 32.4e-6,
+          "output_reasoning_tokens": 32.4e-6,
+          "output_reasoning": 32.4e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      },
+      {
+        "id": "693d3318-1ee7-42c3-8b01-420e1745c5e1",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.6e-6,
+          "input_modality_1": 3.6e-6,
+          "input_text": 3.6e-6,
+          "prompt_token_count": 3.6e-6,
+          "promptTokenCount": 3.6e-6,
+          "input_cached_tokens": 0.36e-6,
+          "input_cache_read": 0.36e-6,
+          "cached_content_token_count": 0.36e-6,
+          "output": 21.6e-6,
+          "output_text": 21.6e-6,
+          "output_modality_1": 21.6e-6,
+          "candidates_token_count": 21.6e-6,
+          "candidatesTokenCount": 21.6e-6,
+          "thoughtsTokenCount": 21.6e-6,
+          "thoughts_token_count": 21.6e-6,
+          "output_reasoning_tokens": 21.6e-6,
+          "output_reasoning": 21.6e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -3732,7 +4894,7 @@
     "modelName": "gpt-5.2",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.2)$",
     "createdAt": "2025-12-12T09:00:06.513Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3752,7 +4914,57 @@
           "input_cache_read": 0.175e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
-          "output_reasoning": 14e-6
+          "output_reasoning": 14e-6,
+          "cache_read_input_tokens": 0.175e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "b9f9277b-3d3e-4c75-9559-3ae60a8e221a",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.35e-6,
+          "input_cache_read": 0.35e-6,
+          "output": 28e-6,
+          "output_reasoning_tokens": 28e-6,
+          "output_reasoning": 28e-6,
+          "cache_read_input_tokens": 0.35e-6,
+          "reasoning_tokens": 28e-6
+        }
+      },
+      {
+        "id": "74ae8425-2dbb-4879-a0da-c76a3a722c14",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.875e-6,
+          "input_cached_tokens": 0.0875e-6,
+          "input_cache_read": 0.0875e-6,
+          "output": 7e-6,
+          "output_reasoning_tokens": 7e-6,
+          "output_reasoning": 7e-6,
+          "cache_read_input_tokens": 0.0875e-6,
+          "reasoning_tokens": 7e-6
         }
       }
     ]
@@ -3762,7 +4974,7 @@
     "modelName": "gpt-5.2-2025-12-11",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.2-2025-12-11)$",
     "createdAt": "2025-12-12T09:00:06.513Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3782,7 +4994,57 @@
           "input_cache_read": 0.175e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
-          "output_reasoning": 14e-6
+          "output_reasoning": 14e-6,
+          "cache_read_input_tokens": 0.175e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "7616bc9c-1606-4318-a79b-b0a9e4746477",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.35e-6,
+          "input_cache_read": 0.35e-6,
+          "output": 28e-6,
+          "output_reasoning_tokens": 28e-6,
+          "output_reasoning": 28e-6,
+          "cache_read_input_tokens": 0.35e-6,
+          "reasoning_tokens": 28e-6
+        }
+      },
+      {
+        "id": "c6660696-8b14-4a83-8eb5-f1c68840a832",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.875e-6,
+          "input_cached_tokens": 0.0875e-6,
+          "input_cache_read": 0.0875e-6,
+          "output": 7e-6,
+          "output_reasoning_tokens": 7e-6,
+          "output_reasoning": 7e-6,
+          "cache_read_input_tokens": 0.0875e-6,
+          "reasoning_tokens": 7e-6
         }
       }
     ]
@@ -3848,7 +5110,7 @@
     "modelName": "gpt-5.3-codex",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.3-codex)$",
     "createdAt": "2026-07-27T00:00:00.000Z",
-    "updatedAt": "2026-07-29T00:00:00.000Z",
+    "updatedAt": "2026-09-02T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3866,9 +5128,38 @@
           "input": 1.75e-6,
           "input_cached_tokens": 0.175e-6,
           "input_cache_read": 0.175e-6,
+          "cache_read_input_tokens": 0.175e-6,
           "output": 14e-6,
           "output_reasoning_tokens": 14e-6,
-          "output_reasoning": 14e-6
+          "output_reasoning": 14e-6,
+          "reasoning_tokens": 14e-6
+        }
+      },
+      {
+        "id": "365e9e81-8ae0-4c17-94b5-0359ad9c184c",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "fast",
+              "priority"
+            ]
+          }
+        ],
+        "prices": {
+          "input": 3.5e-6,
+          "input_cached_tokens": 0.35e-6,
+          "input_cache_read": 0.35e-6,
+          "cache_read_input_tokens": 0.35e-6,
+          "output": 28e-6,
+          "output_reasoning_tokens": 28e-6,
+          "output_reasoning": 28e-6,
+          "reasoning_tokens": 28e-6
         }
       }
     ]
@@ -3878,7 +5169,7 @@
     "modelName": "gpt-5.4",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3904,10 +5195,88 @@
         }
       },
       {
+        "id": "1a2e3fd0-8bbd-4b8b-95d3-1d9750c45548",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "output": 11.25e-6,
+          "output_reasoning_tokens": 11.25e-6,
+          "output_reasoning": 11.25e-6,
+          "reasoning_tokens": 11.25e-6
+        }
+      },
+      {
+        "id": "e99b8dc7-8bb2-4373-9b03-8473958c9574",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
+        }
+      },
+      {
+        "id": "4d8bb956-4374-430c-bfb5-66237dcbc636",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.13e-6,
+          "input_cache_read": 0.13e-6,
+          "cache_read_input_tokens": 0.13e-6,
+          "output": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "reasoning_tokens": 7.5e-6
+        }
+      },
+      {
         "id": "8f7d2163-197d-4bb2-a403-957c1f9f7244",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 4,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -3934,7 +5303,7 @@
     "modelName": "gpt-5.4-pro",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -3957,10 +5326,58 @@
         }
       },
       {
+        "id": "303abe77-afd3-42d7-b4a9-fc259b2c20c0",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 30e-6,
+          "output": 135e-6,
+          "output_reasoning_tokens": 135e-6,
+          "output_reasoning": 135e-6,
+          "reasoning_tokens": 135e-6
+        }
+      },
+      {
+        "id": "84c1acad-a05b-499d-97c9-8998b4ff0c5b",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 15e-6,
+          "output": 90e-6,
+          "output_reasoning_tokens": 90e-6,
+          "output_reasoning": 90e-6,
+          "reasoning_tokens": 90e-6
+        }
+      },
+      {
         "id": "3c335f8e-6594-4b8b-abde-f3be0bcf0349",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 3,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -3984,7 +5401,7 @@
     "modelName": "gpt-5.4-2026-03-05",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4-2026-03-05)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4010,10 +5427,88 @@
         }
       },
       {
+        "id": "e670a6f6-c046-445e-a6f3-d1c71d934051",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "output": 11.25e-6,
+          "output_reasoning_tokens": 11.25e-6,
+          "output_reasoning": 11.25e-6,
+          "reasoning_tokens": 11.25e-6
+        }
+      },
+      {
+        "id": "fb92ade7-c15c-4b2a-a5aa-b5f5eb6f8c34",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
+        }
+      },
+      {
+        "id": "efb0cdd3-3a13-49dc-9b4e-29fbc9fecdcf",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 1.25e-6,
+          "input_cached_tokens": 0.13e-6,
+          "input_cache_read": 0.13e-6,
+          "cache_read_input_tokens": 0.13e-6,
+          "output": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "reasoning_tokens": 7.5e-6
+        }
+      },
+      {
         "id": "596cb5e9-ba20-4fcf-aa07-fa8c557b643c",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 4,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -4040,7 +5535,7 @@
     "modelName": "gpt-5.4-pro-2026-03-05",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.4-pro-2026-03-05)$",
     "createdAt": "2026-03-05T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4063,10 +5558,58 @@
         }
       },
       {
+        "id": "af0f392c-1286-4cac-a7be-6b85d9c5449e",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 30e-6,
+          "output": 135e-6,
+          "output_reasoning_tokens": 135e-6,
+          "output_reasoning": 135e-6,
+          "reasoning_tokens": 135e-6
+        }
+      },
+      {
+        "id": "e603b77a-ce1f-4306-b345-322c9b37cc44",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 15e-6,
+          "output": 90e-6,
+          "output_reasoning_tokens": 90e-6,
+          "output_reasoning": 90e-6,
+          "reasoning_tokens": 90e-6
+        }
+      },
+      {
         "id": "a5aec834-b2a6-4d42-addc-c9c424034cb4",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 3,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -4090,7 +5633,7 @@
     "modelName": "gpt-5.4-mini",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-03-18T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4108,7 +5651,59 @@
           "input": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
-          "output": 4.5e-6
+          "output": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "reasoning_tokens": 4.5e-6,
+          "cache_read_input_tokens": 0.075e-6
+        }
+      },
+      {
+        "id": "33d3b03a-fa64-46ce-b077-fd245bc7997d",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.5e-6,
+          "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
+          "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6,
+          "cache_read_input_tokens": 0.15e-6
+        }
+      },
+      {
+        "id": "386cf9dc-77cb-4d09-9cb1-e5eae3e69abd",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "output": 2.25e-6,
+          "output_reasoning_tokens": 2.25e-6,
+          "output_reasoning": 2.25e-6,
+          "reasoning_tokens": 2.25e-6,
+          "cache_read_input_tokens": 0.0375e-6
         }
       }
     ]
@@ -4118,7 +5713,7 @@
     "modelName": "gpt-5.4-mini-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-mini-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-03-18T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4136,7 +5731,59 @@
           "input": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
           "input_cache_read": 0.075e-6,
-          "output": 4.5e-6
+          "output": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "reasoning_tokens": 4.5e-6,
+          "cache_read_input_tokens": 0.075e-6
+        }
+      },
+      {
+        "id": "a4470b39-40df-45a2-a77b-b1e5e4cea7e0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.5e-6,
+          "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
+          "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6,
+          "cache_read_input_tokens": 0.15e-6
+        }
+      },
+      {
+        "id": "8c294d78-ef7d-469c-9669-e2a515ca028e",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.375e-6,
+          "input_cached_tokens": 0.0375e-6,
+          "input_cache_read": 0.0375e-6,
+          "output": 2.25e-6,
+          "output_reasoning_tokens": 2.25e-6,
+          "output_reasoning": 2.25e-6,
+          "reasoning_tokens": 2.25e-6,
+          "cache_read_input_tokens": 0.0375e-6
         }
       }
     ]
@@ -4146,7 +5793,7 @@
     "modelName": "gpt-5.4-nano",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-03-18T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4164,7 +5811,35 @@
           "input": 0.2e-6,
           "input_cached_tokens": 0.02e-6,
           "input_cache_read": 0.02e-6,
-          "output": 1.25e-6
+          "output": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "reasoning_tokens": 1.25e-6,
+          "cache_read_input_tokens": 0.02e-6
+        }
+      },
+      {
+        "id": "12454d21-744a-4c31-b0a3-54d1725015da",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "output": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6,
+          "cache_read_input_tokens": 0.01e-6
         }
       }
     ]
@@ -4174,7 +5849,7 @@
     "modelName": "gpt-5.4-nano-2026-03-17",
     "matchPattern": "(?i)^(openai\\/)?(gpt-5.4-nano-2026-03-17)$",
     "createdAt": "2026-03-18T00:00:00.000Z",
-    "updatedAt": "2026-03-18T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4192,7 +5867,35 @@
           "input": 0.2e-6,
           "input_cached_tokens": 0.02e-6,
           "input_cache_read": 0.02e-6,
-          "output": 1.25e-6
+          "output": 1.25e-6,
+          "output_reasoning_tokens": 1.25e-6,
+          "output_reasoning": 1.25e-6,
+          "reasoning_tokens": 1.25e-6,
+          "cache_read_input_tokens": 0.02e-6
+        }
+      },
+      {
+        "id": "e5e91108-dbc1-44a7-930b-feb35141ed70",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "output": 0.625e-6,
+          "output_reasoning_tokens": 0.625e-6,
+          "output_reasoning": 0.625e-6,
+          "reasoning_tokens": 0.625e-6,
+          "cache_read_input_tokens": 0.01e-6
         }
       }
     ]
@@ -4202,7 +5905,7 @@
     "modelName": "gpt-5.5-2026-04-23",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.5(-2026-04-23)?)$",
     "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4228,10 +5931,88 @@
         }
       },
       {
+        "id": "67ba2a0f-c796-4d93-bbb6-cf0338718150",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "output": 22.5e-6,
+          "output_reasoning_tokens": 22.5e-6,
+          "output_reasoning": 22.5e-6,
+          "reasoning_tokens": 22.5e-6
+        }
+      },
+      {
+        "id": "af5ffdbd-411b-4215-ae86-bfc0d9c9817e",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 12.5e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cache_read": 1.25e-6,
+          "cache_read_input_tokens": 1.25e-6,
+          "output": 75e-6,
+          "output_reasoning_tokens": 75e-6,
+          "output_reasoning": 75e-6,
+          "reasoning_tokens": 75e-6
+        }
+      },
+      {
+        "id": "93bdcf85-5a30-4cfa-8144-25d4f7af82ec",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 2.5e-6,
+          "input_cached_tokens": 0.25e-6,
+          "input_cache_read": 0.25e-6,
+          "cache_read_input_tokens": 0.25e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
         "id": "a3ad657c-fff1-44dd-a51b-20d9845a112a",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 4,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -4258,7 +6039,7 @@
     "modelName": "gpt-5.5-pro-2026-04-23",
     "matchPattern": "(?i)^(openai\/)?(gpt-5.5-pro(-2026-04-23)?)$",
     "createdAt": "2026-04-25T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4281,10 +6062,31 @@
         }
       },
       {
+        "id": "921195dc-7b97-44c7-a12e-0dd4acafe335",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 15e-6,
+          "output": 90e-6,
+          "output_reasoning_tokens": 90e-6,
+          "output_reasoning": 90e-6,
+          "reasoning_tokens": 90e-6
+        }
+      },
+      {
         "id": "56beb248-e8af-4d42-a861-1f921e81cfb2",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 2,
         "conditions": [
           {
             "usageDetailPattern": "(input)",
@@ -4308,7 +6110,7 @@
     "modelName": "gpt-5.6-sol",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-sol)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-03T00:00:00.000Z",
+    "updatedAt": "2026-08-24T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4323,23 +6125,139 @@
         "priority": 0,
         "conditions": [],
         "prices": {
-          "input": 5e-6,
-          "input_cached_tokens": 0.5e-6,
-          "input_cache_read": 0.5e-6,
-          "cache_read_input_tokens": 0.5e-6,
-          "input_cache_creation": 6.25e-6,
-          "cache_write_tokens": 6.25e-6,
-          "output": 30e-6,
-          "output_reasoning_tokens": 30e-6,
-          "output_reasoning": 30e-6,
-          "reasoning_tokens": 30e-6
+          "input": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "output": 20e-6,
+          "output_reasoning_tokens": 20e-6,
+          "output_reasoning": 20e-6,
+          "reasoning_tokens": 20e-6
+        }
+      },
+      {
+        "id": "54bb424a-ac97-4316-93b2-1b3a46a79f71",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 16e-6,
+          "input_cached_tokens": 1.6e-6,
+          "input_cache_read": 1.6e-6,
+          "cache_read_input_tokens": 1.6e-6,
+          "input_cache_creation": 20e-6,
+          "cache_write_tokens": 20e-6,
+          "output": 60e-6,
+          "output_reasoning_tokens": 60e-6,
+          "output_reasoning": 60e-6,
+          "reasoning_tokens": 60e-6
+        }
+      },
+      {
+        "id": "53c9716e-6693-4ad4-af66-a00091b91d80",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
+        "id": "26ef382b-df27-4a55-ad8c-dedea29d76ee",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 8e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "output": 40e-6,
+          "output_reasoning_tokens": 40e-6,
+          "output_reasoning": 40e-6,
+          "reasoning_tokens": 40e-6
+        }
+      },
+      {
+        "id": "4735e32d-5ff7-4fc9-ad62-8c9579dc5f2a",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
         }
       },
       {
         "id": "1a2b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 5,
         "conditions": [
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4349,16 +6267,16 @@
           }
         ],
         "prices": {
-          "input": 10e-6,
-          "input_cached_tokens": 1e-6,
-          "input_cache_read": 1e-6,
-          "cache_read_input_tokens": 1e-6,
-          "input_cache_creation": 12.5e-6,
-          "cache_write_tokens": 12.5e-6,
-          "output": 45e-6,
-          "output_reasoning_tokens": 45e-6,
-          "output_reasoning": 45e-6,
-          "reasoning_tokens": 45e-6
+          "input": 8e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "output": 30e-6,
+          "output_reasoning_tokens": 30e-6,
+          "output_reasoning": 30e-6,
+          "reasoning_tokens": 30e-6
         }
       }
     ]
@@ -4368,7 +6286,7 @@
     "modelName": "gpt-5.6-terra",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-terra)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-03T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4396,10 +6314,126 @@
         }
       },
       {
+        "id": "9ca35f10-4a56-4cb0-9ca6-0ae9c57deeee",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 8e-6,
+          "input_cached_tokens": 0.8e-6,
+          "input_cache_read": 0.8e-6,
+          "cache_read_input_tokens": 0.8e-6,
+          "input_cache_creation": 10e-6,
+          "cache_write_tokens": 10e-6,
+          "output": 36e-6,
+          "output_reasoning_tokens": 36e-6,
+          "output_reasoning": 36e-6,
+          "reasoning_tokens": 36e-6
+        }
+      },
+      {
+        "id": "8a5adb80-6e59-4a56-a69f-9eda3d8ebaae",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "output": 9e-6,
+          "output_reasoning_tokens": 9e-6,
+          "output_reasoning": 9e-6,
+          "reasoning_tokens": 9e-6
+        }
+      },
+      {
+        "id": "9ff3bb71-f328-4cee-81b8-6b767871d820",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_cached_tokens": 0.4e-6,
+          "input_cache_read": 0.4e-6,
+          "cache_read_input_tokens": 0.4e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "output": 24e-6,
+          "output_reasoning_tokens": 24e-6,
+          "output_reasoning": 24e-6,
+          "reasoning_tokens": 24e-6
+        }
+      },
+      {
+        "id": "489d530a-bcfd-4667-a4a3-508ff3555cf7",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "output": 6e-6,
+          "output_reasoning_tokens": 6e-6,
+          "output_reasoning": 6e-6,
+          "reasoning_tokens": 6e-6
+        }
+      },
+      {
         "id": "2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 5,
         "conditions": [
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4428,7 +6462,7 @@
     "modelName": "gpt-5.6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-5.6-luna)$",
     "createdAt": "2026-07-09T00:00:00.000Z",
-    "updatedAt": "2026-08-03T00:00:00.000Z",
+    "updatedAt": "2026-08-20T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4",
@@ -4456,10 +6490,126 @@
         }
       },
       {
+        "id": "5ab18b8b-86aa-4077-9f3c-a4ea6f8a37c8",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.8e-6,
+          "input_cached_tokens": 0.08e-6,
+          "input_cache_read": 0.08e-6,
+          "cache_read_input_tokens": 0.08e-6,
+          "input_cache_creation": 1e-6,
+          "cache_write_tokens": 1e-6,
+          "output": 3.6e-6,
+          "output_reasoning_tokens": 3.6e-6,
+          "output_reasoning": 3.6e-6,
+          "reasoning_tokens": 3.6e-6
+        }
+      },
+      {
+        "id": "dde1aa4b-c9ba-46ad-803a-561411629f77",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.02e-6,
+          "input_cache_read": 0.02e-6,
+          "cache_read_input_tokens": 0.02e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "output": 0.9e-6,
+          "output_reasoning_tokens": 0.9e-6,
+          "output_reasoning": 0.9e-6,
+          "reasoning_tokens": 0.9e-6
+        }
+      },
+      {
+        "id": "079cdd36-4c31-4df3-9e4b-38074becb0b4",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.4e-6,
+          "input_cached_tokens": 0.04e-6,
+          "input_cache_read": 0.04e-6,
+          "cache_read_input_tokens": 0.04e-6,
+          "input_cache_creation": 0.5e-6,
+          "cache_write_tokens": 0.5e-6,
+          "output": 2.4e-6,
+          "output_reasoning_tokens": 2.4e-6,
+          "output_reasoning": 2.4e-6,
+          "reasoning_tokens": 2.4e-6
+        }
+      },
+      {
+        "id": "2a50074e-4a63-4a3f-b161-fd8811b3f655",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "cache_read_input_tokens": 0.01e-6,
+          "input_cache_creation": 0.125e-6,
+          "cache_write_tokens": 0.125e-6,
+          "output": 0.6e-6,
+          "output_reasoning_tokens": 0.6e-6,
+          "output_reasoning": 0.6e-6,
+          "reasoning_tokens": 0.6e-6
+        }
+      },
+      {
         "id": "3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
         "name": "Large Context (>272K)",
         "isDefault": false,
-        "priority": 1,
+        "priority": 5,
         "conditions": [
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -4484,11 +6634,187 @@
     ]
   },
   {
+    "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18",
+    "modelName": "gpt-6-astra",
+    "matchPattern": "(?i)^(openai/)?(gpt-6-astra)$",
+    "createdAt": "2026-09-03T00:00:00.000Z",
+    "updatedAt": "2026-09-03T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "92f817ff-d8a1-479b-87eb-405f9c7b4a18_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "output": 50e-6,
+          "output_reasoning_tokens": 50e-6,
+          "output_reasoning": 50e-6,
+          "reasoning_tokens": 50e-6
+        }
+      },
+      {
+        "id": "d3151184-4443-430a-a4ed-961dd55d223c",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 40e-6,
+          "input_cached_tokens": 4e-6,
+          "input_cache_read": 4e-6,
+          "cache_read_input_tokens": 4e-6,
+          "input_cache_creation": 50e-6,
+          "cache_write_tokens": 50e-6,
+          "output": 150e-6,
+          "output_reasoning_tokens": 150e-6,
+          "output_reasoning": 150e-6,
+          "reasoning_tokens": 150e-6
+        }
+      },
+      {
+        "id": "1b8d0945-bd74-4223-8bed-320f2063a2db",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 10e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cache_creation": 12.5e-6,
+          "cache_write_tokens": 12.5e-6,
+          "output": 37.5e-6,
+          "output_reasoning_tokens": 37.5e-6,
+          "output_reasoning": 37.5e-6,
+          "reasoning_tokens": 37.5e-6
+        }
+      },
+      {
+        "id": "2da4af90-9c52-452a-b9d2-73e8306bad6e",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["fast", "priority"]
+          }
+        ],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "output": 100e-6,
+          "output_reasoning_tokens": 100e-6,
+          "output_reasoning": 100e-6,
+          "reasoning_tokens": 100e-6
+        }
+      },
+      {
+        "id": "ec8b3a8e-86c2-4a31-8c60-5f8c4ade98a8",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["flex"]
+          }
+        ],
+        "prices": {
+          "input": 5e-6,
+          "input_cached_tokens": 0.5e-6,
+          "input_cache_read": 0.5e-6,
+          "cache_read_input_tokens": 0.5e-6,
+          "input_cache_creation": 6.25e-6,
+          "cache_write_tokens": 6.25e-6,
+          "output": 25e-6,
+          "output_reasoning_tokens": 25e-6,
+          "output_reasoning": 25e-6,
+          "reasoning_tokens": 25e-6
+        }
+      },
+      {
+        "id": "296fbd59-2e9a-43c0-8308-cbc3b9014fdd",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 5,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 20e-6,
+          "input_cached_tokens": 2e-6,
+          "input_cache_read": 2e-6,
+          "cache_read_input_tokens": 2e-6,
+          "input_cache_creation": 25e-6,
+          "cache_write_tokens": 25e-6,
+          "output": 75e-6,
+          "output_reasoning_tokens": 75e-6,
+          "output_reasoning": 75e-6,
+          "reasoning_tokens": 75e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0",
     "modelName": "gemini-3.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0_tier_default",
@@ -4503,6 +6829,7 @@
           "prompt_token_count": 1.5e-6,
           "promptTokenCount": 1.5e-6,
           "input_cached_tokens": 0.15e-6,
+          "input_cache_read": 0.15e-6,
           "cached_content_token_count": 0.15e-6,
           "output": 9e-6,
           "output_text": 9e-6,
@@ -4518,6 +6845,43 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "93ba6a87-613b-440f-891c-3ffec07dbae8",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 2.7e-6,
+          "input_modality_1": 2.7e-6,
+          "input_text": 2.7e-6,
+          "prompt_token_count": 2.7e-6,
+          "promptTokenCount": 2.7e-6,
+          "input_cached_tokens": 0.27e-6,
+          "input_cache_read": 0.27e-6,
+          "cached_content_token_count": 0.27e-6,
+          "output": 16.2e-6,
+          "output_text": 16.2e-6,
+          "output_modality_1": 16.2e-6,
+          "candidates_token_count": 16.2e-6,
+          "candidatesTokenCount": 16.2e-6,
+          "thoughtsTokenCount": 16.2e-6,
+          "thoughts_token_count": 16.2e-6,
+          "output_reasoning_tokens": 16.2e-6,
+          "output_reasoning": 16.2e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -4526,7 +6890,7 @@
     "modelName": "gemini-3-flash-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-flash-preview)$",
     "createdAt": "2025-12-21T12:01:42.282Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
@@ -4541,6 +6905,7 @@
           "prompt_token_count": 0.5e-6,
           "promptTokenCount": 0.5e-6,
           "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
           "cached_content_token_count": 0.05e-6,
           "output": 3e-6,
           "output_text": 3e-6,
@@ -4556,6 +6921,43 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "fae75451-275c-4105-a086-81c2c0905db9",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.9e-6,
+          "input_text": 0.9e-6,
+          "input_modality_1": 0.9e-6,
+          "prompt_token_count": 0.9e-6,
+          "promptTokenCount": 0.9e-6,
+          "input_cached_tokens": 0.09e-6,
+          "input_cache_read": 0.09e-6,
+          "cached_content_token_count": 0.09e-6,
+          "output": 5.4e-6,
+          "output_text": 5.4e-6,
+          "output_modality_1": 5.4e-6,
+          "candidates_token_count": 5.4e-6,
+          "candidatesTokenCount": 5.4e-6,
+          "thoughtsTokenCount": 5.4e-6,
+          "thoughts_token_count": 5.4e-6,
+          "output_reasoning_tokens": 5.4e-6,
+          "output_reasoning": 5.4e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -4564,7 +6966,7 @@
     "modelName": "gemini-3.1-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "79f4d62c-22fb-4ec3-82e1-6e56cdd5e23c_tier_default",
@@ -4579,6 +6981,7 @@
           "prompt_token_count": 0.25e-6,
           "promptTokenCount": 0.25e-6,
           "input_cached_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
           "cached_content_token_count": 0.025e-6,
           "output": 1.5e-6,
           "output_text": 1.5e-6,
@@ -4595,6 +6998,44 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "10a6f73f-c118-4949-a100-2f2ea7d17260",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.45e-6,
+          "input_modality_1": 0.45e-6,
+          "input_text": 0.45e-6,
+          "prompt_token_count": 0.45e-6,
+          "promptTokenCount": 0.45e-6,
+          "input_cached_tokens": 0.045e-6,
+          "input_cache_read": 0.045e-6,
+          "cached_content_token_count": 0.045e-6,
+          "output": 2.7e-6,
+          "output_text": 2.7e-6,
+          "output_modality_1": 2.7e-6,
+          "candidates_token_count": 2.7e-6,
+          "candidatesTokenCount": 2.7e-6,
+          "thoughtsTokenCount": 2.7e-6,
+          "thoughts_token_count": 2.7e-6,
+          "output_reasoning_tokens": 2.7e-6,
+          "output_reasoning": 2.7e-6,
+          "input_audio_tokens": 0.9e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -4603,7 +7044,7 @@
     "modelName": "gemini-3.1-flash-lite-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite-preview)$",
     "createdAt": "2026-03-03T00:00:00.000Z",
-    "updatedAt": "2026-07-14T00:00:00.000Z",
+    "updatedAt": "2026-09-09T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "0707bef8-10c8-46e2-a871-0436f05f0b92_tier_default",
@@ -4618,6 +7059,7 @@
           "prompt_token_count": 0.25e-6,
           "promptTokenCount": 0.25e-6,
           "input_cached_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
           "cached_content_token_count": 0.025e-6,
           "output": 1.5e-6,
           "output_text": 1.5e-6,
@@ -4667,7 +7109,7 @@
     "modelName": "gemini-3.6-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.6-flash)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-08-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d_tier_default",
@@ -4682,6 +7124,7 @@
           "prompt_token_count": 0.75e-6,
           "promptTokenCount": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
           "cached_content_token_count": 0.075e-6,
           "output": 3.75e-6,
           "output_text": 3.75e-6,
@@ -4697,6 +7140,43 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "786aefe9-1f56-4e31-ac2d-dd27ba337353",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.35e-6,
+          "input_text": 1.35e-6,
+          "input_modality_1": 1.35e-6,
+          "prompt_token_count": 1.35e-6,
+          "promptTokenCount": 1.35e-6,
+          "input_cached_tokens": 0.135e-6,
+          "input_cache_read": 0.135e-6,
+          "cached_content_token_count": 0.135e-6,
+          "output": 6.75e-6,
+          "output_text": 6.75e-6,
+          "output_modality_1": 6.75e-6,
+          "candidates_token_count": 6.75e-6,
+          "candidatesTokenCount": 6.75e-6,
+          "thoughtsTokenCount": 6.75e-6,
+          "thoughts_token_count": 6.75e-6,
+          "output_reasoning_tokens": 6.75e-6,
+          "output_reasoning": 6.75e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -4705,7 +7185,7 @@
     "modelName": "gemini-3.7-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.7-flash)$",
     "createdAt": "2026-08-14T00:00:00.000Z",
-    "updatedAt": "2026-08-14T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b91d332c-a2fd-b85c-f6e6-971796f3f111_tier_default",
@@ -4720,6 +7200,7 @@
           "prompt_token_count": 0.75e-6,
           "promptTokenCount": 0.75e-6,
           "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
           "cached_content_token_count": 0.075e-6,
           "output": 3.75e-6,
           "output_text": 3.75e-6,
@@ -4735,6 +7216,119 @@
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
         }
+      },
+      {
+        "id": "2667be7b-bdb3-4422-bc26-2cb7e0febd2d",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.35e-6,
+          "input_text": 1.35e-6,
+          "input_modality_1": 1.35e-6,
+          "prompt_token_count": 1.35e-6,
+          "promptTokenCount": 1.35e-6,
+          "input_cached_tokens": 0.135e-6,
+          "input_cache_read": 0.135e-6,
+          "cached_content_token_count": 0.135e-6,
+          "output": 6.75e-6,
+          "output_text": 6.75e-6,
+          "output_modality_1": 6.75e-6,
+          "candidates_token_count": 6.75e-6,
+          "candidatesTokenCount": 6.75e-6,
+          "thoughtsTokenCount": 6.75e-6,
+          "thoughts_token_count": 6.75e-6,
+          "output_reasoning_tokens": 6.75e-6,
+          "output_reasoning": 6.75e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
+      }
+    ]
+  },
+  {
+    "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709",
+    "modelName": "gemini-3.8-flash",
+    "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.8-flash)$",
+    "createdAt": "2026-09-02T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "c3a9f9a6-b79a-4e42-8835-9f0f8204a709_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.75e-6,
+          "input_text": 0.75e-6,
+          "input_modality_1": 0.75e-6,
+          "prompt_token_count": 0.75e-6,
+          "promptTokenCount": 0.75e-6,
+          "input_cached_tokens": 0.075e-6,
+          "input_cache_read": 0.075e-6,
+          "cached_content_token_count": 0.075e-6,
+          "output": 3.75e-6,
+          "output_text": 3.75e-6,
+          "output_modality_1": 3.75e-6,
+          "candidates_token_count": 3.75e-6,
+          "candidatesTokenCount": 3.75e-6,
+          "thoughtsTokenCount": 3.75e-6,
+          "thoughts_token_count": 3.75e-6,
+          "output_reasoning_tokens": 3.75e-6,
+          "output_reasoning": 3.75e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "03c531f0-b254-45ce-b850-43156316fb39",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 1.35e-6,
+          "input_text": 1.35e-6,
+          "input_modality_1": 1.35e-6,
+          "prompt_token_count": 1.35e-6,
+          "promptTokenCount": 1.35e-6,
+          "input_cached_tokens": 0.135e-6,
+          "input_cache_read": 0.135e-6,
+          "cached_content_token_count": 0.135e-6,
+          "output": 6.75e-6,
+          "output_text": 6.75e-6,
+          "output_modality_1": 6.75e-6,
+          "candidates_token_count": 6.75e-6,
+          "candidatesTokenCount": 6.75e-6,
+          "thoughtsTokenCount": 6.75e-6,
+          "thoughts_token_count": 6.75e-6,
+          "output_reasoning_tokens": 6.75e-6,
+          "output_reasoning": 6.75e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
+        }
       }
     ]
   },
@@ -4743,7 +7337,7 @@
     "modelName": "gemini-3.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash-lite)$",
     "createdAt": "2026-07-22T00:00:00.000Z",
-    "updatedAt": "2026-08-04T00:00:00.000Z",
+    "updatedAt": "2026-09-14T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e_tier_default",
@@ -4758,6 +7352,7 @@
           "prompt_token_count": 0.3e-6,
           "promptTokenCount": 0.3e-6,
           "input_cached_tokens": 0.03e-6,
+          "input_cache_read": 0.03e-6,
           "cached_content_token_count": 0.03e-6,
           "output": 2.5e-6,
           "output_text": 2.5e-6,
@@ -4772,6 +7367,43 @@
           "groundingQueries": 14e-3,
           "web_search_queries": 14e-3,
           "webSearchQueries": 14e-3
+        }
+      },
+      {
+        "id": "75fc1a97-fc1a-4478-8486-6095f6e81b7b",
+        "name": "Priority",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": ["priority"]
+          }
+        ],
+        "prices": {
+          "input": 0.54e-6,
+          "input_text": 0.54e-6,
+          "input_modality_1": 0.54e-6,
+          "prompt_token_count": 0.54e-6,
+          "promptTokenCount": 0.54e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "cached_content_token_count": 0.05e-6,
+          "output": 4.5e-6,
+          "output_text": 4.5e-6,
+          "output_modality_1": 4.5e-6,
+          "candidates_token_count": 4.5e-6,
+          "candidatesTokenCount": 4.5e-6,
+          "thoughtsTokenCount": 4.5e-6,
+          "thoughts_token_count": 4.5e-6,
+          "output_reasoning_tokens": 4.5e-6,
+          "output_reasoning": 4.5e-6,
+          "grounding_queries": 0.014,
+          "groundingQueries": 0.014,
+          "web_search_queries": 0.014,
+          "webSearchQueries": 0.014
         }
       }
     ]

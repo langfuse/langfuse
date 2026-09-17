@@ -8,10 +8,13 @@ import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
 } from "./fns/jsonViewSizeGate";
+import { StatusMessageSection } from "./components/StatusMessageSection";
+import type { ObservationStatusMessage } from "./components/statusMessagePresentation";
 
 export interface IOPreviewJSONSimpleProps {
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
+  status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
@@ -24,6 +27,7 @@ export interface IOPreviewJSONSimpleProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -56,6 +60,7 @@ export interface IOPreviewJSONSimpleProps {
 export function IOPreviewJSONSimple({
   input,
   output,
+  status,
   metadata,
   outputCorrection,
   parsedInput,
@@ -66,6 +71,7 @@ export function IOPreviewJSONSimple({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   inputExpanded,
   outputExpanded,
@@ -123,12 +129,16 @@ export function IOPreviewJSONSimple({
     !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
   const showOutput =
     !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
-  const showMetadata = metadataTooLarge || !(hideIfNull && !effectiveMetadata);
+  const showMetadata =
+    !hideMetadata && (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
 
   const downloadName = observationId ?? traceId;
 
   return (
     <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
+      {status ? (
+        <StatusMessageSection status={status} currentView="json" />
+      ) : null}
       {showInput &&
         (inputTooLarge ? (
           <LargeJsonFieldFallback

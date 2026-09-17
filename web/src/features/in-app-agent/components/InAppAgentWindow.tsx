@@ -17,16 +17,17 @@ import {
   History,
   Info,
   Maximize2,
+  TriangleAlert,
   Minimize2,
   Minus,
   Plus,
   SendHorizontal,
   Square,
-  TriangleAlert,
   Trash2,
   X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,17 +49,17 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import {
-  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
-  IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE,
-  type InAppAgentMessageFeedbackValue,
-  type InAppAgentMessageSource,
-} from "@langfuse/shared/in-app-agent";
-import { deduplicateBy } from "@/src/utils/arrays";
+import type {
+  InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
+} from "../schema";
+import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
 import { ConversationActivityIndicator } from "@/src/features/in-app-agent/components/ConversationActivityIndicator";
 import { InAppAgentBackgroundHint } from "@/src/features/in-app-agent/components/InAppAgentBackgroundHint";
+import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
 import { useInAppAgentBackgroundHint } from "@/src/features/in-app-agent/lib/useInAppAgentBackgroundHint";
 import { InAppAgentToolCallCard } from "@/src/features/in-app-agent/components/InAppAgentToolCallCard";
 import {
@@ -66,7 +67,7 @@ import {
   type InAppAgentError,
   isInAppAgentRateLimited,
 } from "@/src/features/in-app-agent/components/utils/utils";
-import messageStyles from "./InAppAgentMessage.module.css";
+import { deduplicateBy } from "@/src/utils/arrays";
 import styles from "./InAppAgentWindow.module.css";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -79,8 +80,8 @@ import {
   type InAppAgentQuickActionContext,
   type InAppAgentSubmitOptions,
 } from "@/src/features/in-app-agent/quickActions";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -136,31 +137,35 @@ function InAppAgentQuickActionPicker({
       <p className="text-muted-foreground mt-1 max-w-xs text-center text-xs leading-relaxed">
         What do you want to do?
       </p>
-      <Tabs
-        value={selectedContext}
-        className="mt-4 w-full max-w-sm"
-        onValueChange={(value) => {
-          if (isInAppAgentQuickActionContext(value)) {
-            setSelectedContext(value);
-          }
-        }}
-      >
-        <TabsList
-          aria-label="Quick action category"
-          className="flex h-auto w-full rounded-none border-b bg-transparent p-0"
+      <div className="mt-4 w-full max-w-sm">
+        <Tabs
+          value={selectedContext}
+          onValueChange={(value) => {
+            if (isInAppAgentQuickActionContext(value)) {
+              setSelectedContext(value);
+            }
+          }}
         >
-          {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
-            <TabsTrigger
-              key={context}
-              value={context}
-              disabled={isDisabled}
-              className="text-muted-foreground data-[state=active]:border-primary-accent data-[state=active]:text-foreground h-7 min-w-0 flex-1 rounded-none border-b-2 border-transparent bg-transparent px-1 text-xs shadow-none data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-            >
-              {IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+          <Tabs.List
+            aria-label="Quick action category"
+            variant="underline"
+            size="auto"
+            layout="full"
+          >
+            {IN_APP_AGENT_QUICK_ACTION_CONTEXTS.map((context) => (
+              <span key={context} className="min-w-0 flex-1">
+                <Tabs.Trigger
+                  value={context}
+                  disabled={isDisabled}
+                  variant="underline"
+                  size="lg"
+                  label={IN_APP_AGENT_QUICK_ACTION_CONTEXT_LABELS[context]}
+                />
+              </span>
+            ))}
+          </Tabs.List>
+        </Tabs>
+      </div>
       <div className="mt-3 grid w-full max-w-sm grid-cols-1 gap-2">
         {selectedActions.map((action, position) => {
           const ActionIcon = action.icon ?? contextFallbackIcon;
@@ -526,23 +531,44 @@ function formatWorkedDuration(totalSeconds: number) {
   return `${totalSeconds}s`;
 }
 
+function getSettledActivityGroupLabel({
+  durationSeconds,
+  outcome,
+}: {
+  durationSeconds: number | null;
+  outcome: SettledActivityOutcome;
+}) {
+  const duration =
+    durationSeconds === null ? null : formatWorkedDuration(durationSeconds);
+
+  if (outcome === "stopped") {
+    return duration ? `Stopped after ${duration}` : "Stopped";
+  }
+
+  if (outcome === "failed") {
+    return duration ? `Failed after ${duration}` : "Failed";
+  }
+
+  return duration ? `Worked for ${duration}` : "Activity";
+}
+
 function getActivityGroupLabel({
   durationSeconds,
   hasDetails,
   isAwaitingApproval,
   isInProgress,
+  outcome,
   toolNames,
 }: {
   durationSeconds: number | null;
   hasDetails: boolean;
   isAwaitingApproval: boolean;
   isInProgress: boolean;
+  outcome: SettledActivityOutcome;
   toolNames: string[];
 }) {
   if (!isInProgress) {
-    return durationSeconds === null
-      ? "Activity"
-      : `Worked for ${formatWorkedDuration(durationSeconds)}`;
+    return getSettledActivityGroupLabel({ durationSeconds, outcome });
   }
 
   // The run has stopped and owes the user a decision, so it must not keep
@@ -562,6 +588,7 @@ function AssistantActivityGroup({
   isCompact,
   isInProgress,
   messages,
+  outcome,
   startTimestamp,
 }: {
   endTimestamp?: number;
@@ -569,6 +596,7 @@ function AssistantActivityGroup({
   isCompact: boolean;
   isInProgress: boolean;
   messages: InAppAgentWindowMessage[];
+  outcome: SettledActivityOutcome;
   startTimestamp?: number;
 }) {
   const hasDetails = messages.length > 0;
@@ -587,6 +615,7 @@ function AssistantActivityGroup({
     hasDetails,
     isAwaitingApproval,
     isInProgress,
+    outcome,
     toolNames,
   });
 
@@ -609,7 +638,7 @@ function AssistantActivityGroup({
           className={cn(
             isInProgress &&
               !isAwaitingApproval &&
-              messageStyles.thinkingShimmer,
+              textShimmerStyles.textShimmer,
           )}
         >
           {label}
@@ -814,8 +843,15 @@ type InAppAgentWindowCloseButtonProps =
       onClose: () => void;
     };
 
+type InAppAgentWindowNotice = {
+  text: string;
+  tone: "info" | "warning";
+};
+
 export type InAppAgentWindowExecutionUi = {
-  notice: string | null;
+  notice: InAppAgentWindowNotice | null;
+  /** How the latest settled turn ended. Earlier turns stay "worked". */
+  activityOutcome?: SettledActivityOutcome;
   stop: {
     status: "available" | "stopping";
     onStop: () => void;
@@ -826,7 +862,6 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   /** Per-conversation attention state, for the recent-conversation indicators. */
   activityByConversationId: InAppAgentActivityByConversationId;
-  disablePendingToolApprovalActions?: boolean;
   error: InAppAgentError | null;
   executionUi: InAppAgentWindowExecutionUi;
   hasMoreConversations: boolean;
@@ -869,7 +904,7 @@ export type InAppAgentWindowProps = {
   quickActionResetKey: string;
   selectedConversationId: string | undefined;
   /** Titles the window. Null until the server has named the conversation,
-   * which is when the product name and its Beta tag show instead. */
+   * which is when the product name shows instead. */
   selectedConversationTitle: string | null;
 } & InAppAgentWindowCloseButtonProps;
 
@@ -900,58 +935,34 @@ function InAppAgentRateLimitError({
   }, [error.retryAt]);
 
   return (
-    <div
+    <InAppAgentNotice
+      icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
+      isExpanded={isExpanded}
       role="alert"
-      className={cn(
-        "border-border bg-muted/60 text-foreground w-full rounded-lg border px-2 py-1",
-        isExpanded ? "text-sm" : "text-xs",
-      )}
+      tone="neutral"
     >
-      <div className="space-y-0.5">
-        <p className="font-bold">
+      <span className="space-y-0.5">
+        <span className="block font-bold">
           You&apos;ve reached the assistant request limit
-        </p>
-        <p>Try again in about {formatApproximateDuration(secondsRemaining)}.</p>
-      </div>
-    </div>
+        </span>
+        <span className="block">
+          Try again in about {formatApproximateDuration(secondsRemaining)}.
+        </span>
+      </span>
+    </InAppAgentNotice>
   );
 }
 
-function InAppAgentIssueNotice({
-  isExpanded,
-  variant,
-}: {
-  isExpanded: boolean;
-  variant: "error" | "write_lock";
-}) {
-  const isWriteLock = variant === "write_lock";
-
+function InAppAgentIssueNotice({ isExpanded }: { isExpanded: boolean }) {
   return (
-    <div className="shrink-0 px-2 pb-2">
-      <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
-        <p
-          role="alert"
-          className={cn(
-            "flex w-full items-center gap-2 rounded-lg border px-2 py-1",
-            isWriteLock
-              ? "border-border bg-muted/60 text-foreground"
-              : "border-destructive/40 bg-destructive/10 text-destructive",
-            isExpanded ? "text-sm" : "text-xs",
-          )}
-        >
-          {isWriteLock ? (
-            <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
-          ) : (
-            <Info aria-hidden="true" className="size-3 shrink-0" />
-          )}
-          <span className="min-w-0 flex-1">
-            {isWriteLock
-              ? IN_APP_AGENT_SANDBOX_CONVERSATION_WRITE_LOCK_MESSAGE
-              : IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
-          </span>
-        </p>
-      </div>
-    </div>
+    <InAppAgentNotice
+      icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
+      isExpanded={isExpanded}
+      role="alert"
+      tone="danger"
+    >
+      {IN_APP_AGENT_GENERIC_ERROR_MESSAGE}
+    </InAppAgentNotice>
   );
 }
 
@@ -959,7 +970,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const {
     activityByConversationId,
     conversations,
-    disablePendingToolApprovalActions = false,
     error,
     executionUi,
     hasMoreConversations,
@@ -1038,6 +1048,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const displayItems = useMemo(
     () => buildConversationDisplayItems(messages, isRunUnsettled),
     [messages, isRunUnsettled],
+  );
+  const lastUserIndex = displayItems.findLastIndex(
+    (item) => item.type === "user",
+  );
+  // activityOutcome is for the latest turn. If that turn never produced an
+  // activity group (failed or cancelled before the first assistant token),
+  // do not stamp the outcome onto an earlier turn.
+  const lastSettledActivityIndex = displayItems.findLastIndex(
+    (item, index) =>
+      item.type === "activity" && !item.isInProgress && index > lastUserIndex,
   );
   const hasSettledAssistantReply = displayItems.some(
     (item) => item.type === "assistant" && item.isFinalAnswer,
@@ -1153,17 +1173,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               {conversationTitle}
             </p>
           ) : (
-            <>
-              <p
-                className="shrink-0 truncate text-sm font-bold"
-                title="Assistant"
-              >
-                Assistant
-              </p>
-              <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-bold">
-                Beta
-              </span>
-            </>
+            <p
+              className="shrink-0 truncate text-sm font-bold"
+              title="Assistant"
+            >
+              Assistant
+            </p>
           )}
         </div>
         <div
@@ -1387,19 +1402,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       quickActionCategory: context,
                       position,
                     });
-                    submitInput(action.prompt, {
-                      quickAction: {
-                        key: action.id,
-                        category: context,
-                      },
-                    });
+                    submitInput(action.prompt);
                   }}
                 />
               </div>
             ) : null}
 
             <ol className="flex w-full flex-col gap-1 pb-4">
-              {displayItems.map((item) => {
+              {displayItems.map((item, index) => {
                 if (item.type === "user") {
                   return (
                     <li
@@ -1432,6 +1442,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                         isInProgress={item.isInProgress}
                         isAwaitingApproval={
                           item.isInProgress && isAwaitingApproval
+                        }
+                        outcome={
+                          index === lastSettledActivityIndex
+                            ? (executionUi.activityOutcome ?? "worked")
+                            : "worked"
                         }
                       />
                     </li>
@@ -1492,9 +1507,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   key={`${tool.approval?.id ?? tool.name}-${index}`}
                   tool={tool}
                   isCompact={!isExpanded}
-                  isDisabled={
-                    isRateLimited || disablePendingToolApprovalActions
-                  }
+                  isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
                   onAlwaysAllowToolCall={onAlwaysAllowToolCall}
                   onRejectToolCall={onRejectToolCall}
@@ -1504,28 +1517,23 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         ) : null}
         {backgroundNotice ? (
-          <div className="shrink-0 px-2 pb-2">
-            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
-              <p
-                role="status"
-                className={cn(
-                  "border-border bg-muted/60 text-foreground-tertiary flex w-full items-center gap-1 rounded-lg border px-2 py-1",
-                  isExpanded ? "text-sm" : "text-xs",
-                )}
-              >
+          <InAppAgentNotice
+            icon={
+              backgroundNotice.tone === "warning" ? (
+                <TriangleAlert aria-hidden="true" className="size-3 shrink-0" />
+              ) : (
                 <Info aria-hidden="true" className="size-3 shrink-0" />
-                <span className="min-w-0" title={backgroundNotice}>
-                  {backgroundNotice}
-                </span>
-              </p>
-            </div>
-          </div>
-        ) : null}
-        {(error?.type === "generic" || error?.type === "write_lock") && (
-          <InAppAgentIssueNotice
+              )
+            }
             isExpanded={isExpanded}
-            variant={error.type === "write_lock" ? "write_lock" : "error"}
-          />
+            role="status"
+            tone={backgroundNotice.tone === "warning" ? "warning" : "neutral"}
+          >
+            <span title={backgroundNotice.text}>{backgroundNotice.text}</span>
+          </InAppAgentNotice>
+        ) : null}
+        {error?.type === "generic" && (
+          <InAppAgentIssueNotice isExpanded={isExpanded} />
         )}
         {backgroundHint.isVisible && props.onClose ? (
           <InAppAgentBackgroundHint
@@ -1537,24 +1545,12 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           />
         ) : null}
         {error?.type === "rate_limit" && (
-          <div
-            className={cn(
-              "shrink-0 px-2 pb-2",
-              isAssistantTurnInProgress && "pt-2",
-            )}
-          >
-            <div className={cn(isExpanded && "mx-auto max-w-3xl")}>
-              <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
-            </div>
+          <div className={cn(isAssistantTurnInProgress && "pt-2")}>
+            <InAppAgentRateLimitError error={error} isExpanded={isExpanded} />
           </div>
         )}
         {isAssistantTurnInProgress && pendingToolCalls.length === 0 ? (
-          <div
-            className={cn(
-              "pointer-events-none relative h-px w-full shrink-0 select-none",
-              isExpanded && "mx-auto max-w-3xl",
-            )}
-          >
+          <div className="pointer-events-none relative mx-auto h-px w-[calc(100%-1.5rem)] max-w-[calc(48rem-0.75rem)] shrink-0 select-none">
             <div className="absolute top-0 h-4 w-full -translate-y-full overflow-hidden">
               <div className="absolute top-0 h-12 w-full bg-radial from-(--color-3) to-transparent to-60% bg-center opacity-25" />
             </div>
@@ -1563,18 +1559,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 aria-hidden="true"
                 className={cn("h-[4rem]", styles.loadingGradient)}
               />
-              {isExpanded && (
-                <>
-                  {/* Gradient overlays for expanded state so that the edges fade out */}
-                  {/* Match the assistant surface (bg-background) so edges fade cleanly */}
-                  <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
-                  <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
-                </>
-              )}
+              {/* Match the assistant surface so the loading animation fades at both edges. */}
+              <div className="from-background absolute top-0 right-0 h-full w-1/2 bg-linear-to-l to-transparent" />
+              <div className="from-background absolute top-0 left-0 h-full w-1/2 bg-linear-to-r to-transparent" />
             </div>
           </div>
         ) : null}
-        <div className={cn("p-1.5", isExpanded && "pt-0")}>
+        <div
+          className={cn(
+            "p-1.5",
+            (isExpanded || isAssistantTurnInProgress) && "pt-0",
+          )}
+        >
           {/* The composer separates from the transcript by elevation, not by a
               rule: one hairline edge, a lifted surface, and a footer band a
               step off the input. `overflow-hidden` keeps that band inside the
@@ -1640,7 +1636,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     executionStop?.onStop();
                   }}
                 >
-                  <Square className="size-3" />
+                  <Square className="text-muted-foreground size-3 fill-current" />
                 </Button>
               ) : (
                 <Button

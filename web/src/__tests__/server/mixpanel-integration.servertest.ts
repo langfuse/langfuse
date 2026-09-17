@@ -3,13 +3,38 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { LEGACY_BLOB_EXPORT_CUTOFF } from "@langfuse/shared";
+import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+} from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
-const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
+// Row ages derive from the cutoff constants, never from literals, so the
+// NEXT_PUBLIC_LANGFUSE_*_CUTOFF dev overrides cannot fail the suite.
+const ROW_PRE_ANALYTICS_CUTOFF = new Date(
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const ROW_POST_ANALYTICS_CUTOFF = new Date(
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
+// Grandfathered under BOTH exporter cutoffs, so the pre-flight assert provably
+// cannot be what rejects — only the in-transaction backstop can.
+const RACED_PREFLIGHT_CREATED_AT = new Date(
+  Math.min(
+    LEGACY_ANALYTICS_EXPORTER_CUTOFF.getTime(),
+    LEGACY_BLOB_EXPORTER_CUTOFF.getTime(),
+  ) -
+    30 * MS_PER_DAY,
+);
 
 const buildSession = (orgId: string, projectId: string): Session => ({
   expires: "1",
@@ -115,7 +140,10 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     return { project, caller };
   };
 
-  it("Cloud + pre-cutoff project + legacy source → allow", async () => {
+  // A pre-cutoff project no longer buys a *new* integration the right to a
+  // legacy source. Existing integrations stay grandfathered — see
+  // "Cloud new-integration enriched pin" below.
+  it("Cloud + pre-cutoff project + legacy source on create → BAD_REQUEST", async () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
     try {
@@ -130,7 +158,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
           ...baseConfig,
           exportSource: "TRACES_OBSERVATIONS" as const,
         }),
-      ).resolves.not.toThrow();
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
     }
@@ -220,7 +248,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     }
   });
 
-  // LFE-10148: events_only no longer writes the v3 tables, so legacy sources
+  // The events_only write mode no longer writes the v3 tables, so legacy sources
   // are refused by data capability, independent of Cloud date cutoffs.
   describe("events_only write-mode gate", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -369,7 +397,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     );
   });
 
-  // LFE-10148 review: the form schema's zod default must not be injected into
+  // Review: the form schema's zod default must not be injected into
   // partial updates — an omitted exportSource preserves the persisted value
   // (capability-checked only), and CREATE picks an explicit, validated default.
   describe("Mixpanel partial updates and create defaults", () => {
@@ -426,11 +454,11 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("EVENTS");
     });
 
-    // Router default for an omitted exportSource: legacy writes active ?
-    // TRACES_OBSERVATIONS : EVENTS. It deliberately differs from the
-    // settings-page default (EVENTS on dual) — a pre-existing divergence this
-    // change does not touch, pinned here so a later fix has to flip it.
-    it("create without exportSource defaults to TRACES_OBSERVATIONS on dual", async () => {
+    // Router default for an omitted exportSource comes from the shared policy's
+    // defaultExportSource, the same rule the settings page uses: enriched
+    // wherever the deployment writes it. Previously the router defaulted to
+    // TRACES_OBSERVATIONS here while the page offered EVENTS.
+    it("create without exportSource defaults to EVENTS on dual", async () => {
       const { caller, project } = await prepare();
       await caller.mixpanelIntegration.update({
         projectId: project.id,
@@ -439,7 +467,7 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       const result = await caller.mixpanelIntegration.get({
         projectId: project.id,
       });
-      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(result.config?.exportSource).toBe("EVENTS");
     });
 
     it("create without exportSource defaults to TRACES_OBSERVATIONS on legacy", async () => {
@@ -455,19 +483,21 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
     });
 
-    it("Cloud + post-cutoff project + create without exportSource → BAD_REQUEST (validated default)", async () => {
+    it("Cloud + post-cutoff project + create without exportSource → persists EVENTS", async () => {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
         data: { createdAt: POST_CUTOFF },
       });
-      await expect(
-        caller.mixpanelIntegration.update({
-          projectId: project.id,
-          ...baseConfig,
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
     });
 
     it("raced delete between read and write: mis-created legacy row is rolled back (post-cutoff Cloud)", async () => {
@@ -504,6 +534,63 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
       ).toBeNull();
     });
 
+    // Both raced-CREATE cases below share one shape and differ only in whether
+    // the caller sent an explicit exportSource. That difference is the point:
+    // the real settings form always sends one (it lives in the form's
+    // defaultValues and onSubmit spreads every value), so a backstop that only
+    // runs when the field is omitted never runs in production.
+    const expectRacedCreateRejected = async (
+      extraInput: { exportSource?: "TRACES_OBSERVATIONS" } = {},
+    ) => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      const { caller, project } = await prepare();
+      // Pre-cutoff project, so the project-level gate cannot fire either.
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      // The pre-flight read sees a grandfathered row and allows the legacy
+      // source; the DB holds no row, so the upsert lands as a CREATE. Reusing
+      // the stale createdAt, or skipping the backstop, persists a legacy row.
+      const spy = vi
+        .spyOn(prisma.mixpanelIntegration, "findUnique")
+        .mockResolvedValueOnce({
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt: RACED_PREFLIGHT_CREATED_AT,
+        } as never);
+      try {
+        await expect(
+          caller.mixpanelIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            ...extraInput,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          // Pins the cutoff path: an unrelated BAD_REQUEST (credentials,
+          // validation) must not satisfy this test.
+          message: expect.stringContaining("created on or after"),
+        });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(
+        await prisma.mixpanelIntegration.findUnique({
+          where: { projectId: project.id },
+        }),
+      ).toBeNull();
+    };
+
+    it("raced delete with the source omitted: the backstop re-validates as a brand-new row, not the stale pre-flight row", async () => {
+      await expectRacedCreateRejected();
+    });
+
+    it("raced delete with the source explicitly present: the backstop still re-validates as a brand-new row", async () => {
+      await expectRacedCreateRejected({
+        exportSource: "TRACES_OBSERVATIONS",
+      });
+    });
+
     it("create without exportSource defaults to EVENTS on events_only", async () => {
       (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
       const { caller, project } = await prepare();
@@ -518,7 +605,149 @@ describe("Mixpanel Integration legacy export source cutoff gate", () => {
     });
   });
 
-  // LFE-14384: the credential is write-only — get returns only a masked
+  // New Cloud integrations land on the enriched events source and cannot be
+  // moved off it. Rows created before the analytics exporter cutoff are
+  // grandfathered: they keep their legacy source and may opt into enriched, but
+  // are never rewritten behind the user's back. Self-hosted is exempt — the
+  // create defaults above still pass unchanged.
+  describe("Cloud new-integration enriched pin", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    beforeEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      // dual keeps legacy writes active, so any rejection below comes from the
+      // Cloud cutoff rather than the write-mode capability gate.
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+    });
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    // Pre-cutoff project so the only Cloud gate in play is the
+    // integration-level one.
+    const prepareOldProject = async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      return { caller, project };
+    };
+
+    // Seeds a legacy row of a chosen age: created while self-hosted (where
+    // legacy is still selectable), then backdated.
+    const seedLegacyRow = async (
+      caller: Awaited<ReturnType<typeof prepare>>["caller"],
+      projectId: string,
+      createdAt: Date,
+      exportSource: "TRACES_OBSERVATIONS" | "EVENTS" = "TRACES_OBSERVATIONS",
+    ) => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        await caller.mixpanelIntegration.update({
+          projectId,
+          ...baseConfig,
+          exportSource,
+        });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      }
+      await prisma.mixpanelIntegration.update({
+        where: { projectId },
+        data: { createdAt },
+      });
+    };
+
+    it("create with no existing row persists EVENTS", async () => {
+      const { caller, project } = await prepareOldProject();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
+    });
+
+    it("pre-cutoff row with a persisted legacy source: omitted source is preserved, not rewritten", async () => {
+      const { caller, project } = await prepareOldProject();
+      await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          enabled: false,
+        }),
+      ).resolves.not.toThrow();
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("TRACES_OBSERVATIONS");
+      expect(result.config?.enabled).toBe(false);
+    });
+
+    it("pre-cutoff row may re-assert legacy, opt into enriched, and switch back", async () => {
+      // The gate keys on the row's creation date, not its current source, so
+      // trying enriched must not be a one-way door: someone evaluating it needs
+      // to be able to back out while legacy still exists. The row also predates
+      // the analytics cutoff while postdating the blob one, so this catches an
+      // adapter that forwards the blob cutoff by mistake.
+      const { caller, project } = await prepareOldProject();
+      await seedLegacyRow(caller, project.id, ROW_PRE_ANALYTICS_CUTOFF);
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+        }),
+      ).resolves.not.toThrow();
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "EVENTS" as const,
+      });
+      expect(
+        (await caller.mixpanelIntegration.get({ projectId: project.id })).config
+          ?.exportSource,
+      ).toBe("EVENTS");
+      await caller.mixpanelIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+      });
+      expect(
+        (await caller.mixpanelIntegration.get({ projectId: project.id })).config
+          ?.exportSource,
+      ).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("post-cutoff row requesting a legacy source → BAD_REQUEST", async () => {
+      const { caller, project } = await prepareOldProject();
+      await seedLegacyRow(
+        caller,
+        project.id,
+        ROW_POST_ANALYTICS_CUTOFF,
+        "EVENTS",
+      );
+      await expect(
+        caller.mixpanelIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      const result = await caller.mixpanelIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.exportSource).toBe("EVENTS");
+    });
+  });
+
+  // The credential is write-only — get returns only a masked
   // display value; a blank token on update keeps the persisted encrypted value.
   describe("Mixpanel credential masking", () => {
     const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;

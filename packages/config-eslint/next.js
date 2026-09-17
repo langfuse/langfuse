@@ -54,19 +54,28 @@ export default [
       },
     },
     rules: {
-      ...reactPlugin.configs.recommended.rules,
-      ...reactHooksPlugin.configs.recommended.rules,
       ...nextPlugin.configs["core-web-vitals"].rules,
       "import/no-anonymous-default-export": "warn",
-      "react/no-unknown-property": "off",
-      "react/react-in-jsx-scope": "off",
-      "react/prop-types": "off",
+      "import/no-duplicates": ["error", { "prefer-inline": true }],
       "jsx-a11y/alt-text": ["warn", { elements: ["img"], img: ["Image"] }],
       "jsx-a11y/aria-props": "warn",
       "jsx-a11y/aria-proptypes": "warn",
       "jsx-a11y/aria-unsupported-elements": "warn",
       "jsx-a11y/role-has-required-aria-props": "warn",
       "jsx-a11y/role-supports-aria-props": "warn",
+    },
+  },
+
+  {
+    name: "langfuse/next/react",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      ...reactPlugin.configs.recommended.rules,
+      ...reactHooksPlugin.configs.recommended.rules,
+      "react/no-unknown-property": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
       "react/jsx-no-target-blank": "off",
     },
   },
@@ -93,6 +102,7 @@ export default [
   // Keep the pre-React-Compiler hooks baseline used by this repo.
   {
     name: "langfuse/next/react-hooks-overrides",
+    ignores: ["**/*.servertest.{ts,tsx}"],
     rules: {
       "react-hooks/component-hook-factories": "off",
       "react-hooks/config": "off",
@@ -145,7 +155,6 @@ export default [
       },
     },
     rules: {
-      "@repo/no-abstracted-overlay-trigger": "warn",
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
@@ -156,6 +165,13 @@ export default [
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+    },
+  },
+  {
+    name: "langfuse/next/typescript-react",
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
       "react/jsx-curly-brace-presence": [
         "warn",
         {
@@ -166,6 +182,19 @@ export default [
       ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
+    },
+  },
+  {
+    name: "langfuse/next/tests-and-stories",
+    files: [
+      "**/*.clienttest.{ts,tsx}",
+      "**/*.servertest.{ts,tsx}",
+      "**/*.test.{ts,tsx}",
+      "**/*.story.{ts,tsx}",
+      "**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-tailwind-overflow-scroll": "off",
     },
   },
 ];

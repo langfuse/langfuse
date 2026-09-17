@@ -10,6 +10,7 @@
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode } from "./ast";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "./fields";
 import {
   astToFilterState,
   OR_NOT_SUPPORTED_MESSAGE,
@@ -18,11 +19,8 @@ import {
 import { serialize, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
-// The full-text scope a bare query (no scope token) applies: ids & names
-// (`id` lane) PLUS input & output (`content` lane). Typing plain text searches
-// all of them. `input:`/`output:` narrow to one column; `name:`/`id:` narrow to
-// those. `content` here is the backend searchType lane (input ∪ output), not a
-// user-typed token — the `content:` grammar token has been removed.
+// The full Events default. Other hosts declare their own defaultSearchType
+// in the registry so bare text keeps the host's existing search behavior.
 export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id", "content"];
 
 export type CommitResult =
@@ -46,14 +44,16 @@ export type CommitResult =
 export function planCommit(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): CommitResult {
-  const res = validateQuery(draftText.trim(), scoreTypes);
+  const res = validateQuery(draftText.trim(), scoreTypes, registry);
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics, ast: res.ast };
   }
   const { filters, searchQuery, searchType, errors } = astToFilterState(
     res.ast,
     scoreTypes,
+    registry,
   );
   // Parity belt-and-suspenders: validateQuery lowers with the same scoreTypes,
   // so a valid draft should never produce lowering errors. If it ever does
@@ -75,8 +75,8 @@ export function planCommit(
     status: "committed",
     filters,
     searchQuery,
-    searchType: searchType ?? DEFAULT_SEARCH_TYPE,
-    canonical: serialize(res.ast),
+    searchType: searchType ?? [...registry.defaultSearchType],
+    canonical: serialize(res.ast, registry),
   };
 }
 
@@ -101,7 +101,7 @@ export type SearchErrorReason =
  * between-conditions OR, so we recurse through those; a `filter`'s within-field
  * OR lives in `valueOp`, so we never descend into it.
  */
-export function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
+function queryUsesTopLevelOr(ast: ASTNode | null): boolean {
   if (ast === null) return false;
   switch (ast.kind) {
     case "or":

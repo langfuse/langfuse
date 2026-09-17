@@ -1,12 +1,14 @@
 /**
- * LFE-14342: `langfuse.ingestion.metadata_dropped` counter at the OTel
- * metadata drop site (`parseMetadataAttribute` drop branches).
+ * `langfuse.ingestion.metadata_dropped` counter at the OTel metadata drop
+ * site (`parseMetadataAttribute` drop branches).
  *
  * Spec under test:
  * - Counter name: langfuse.ingestion.metadata_dropped
  * - Tags: reason ∈ {non_object_top_level, parse_failure, primitive},
- *   source = otel, domain ∈ {trace, observation}
- * - project_id must NOT be a metric tag (cardinality)
+ *   source = otel, domain ∈ {trace, observation}, projectId (low
+ *   cardinality: only projects emitting malformed metadata appear),
+ *   attributeKey (closed set of Langfuse constants), sdkName, sdkVersion,
+ *   and — for parse_failure only — kind (value-shape sub-classification)
  * - No behavior change to what the processor returns
  * - Dotted-key metadata (langfuse.*.metadata.foo) stays increment-free
  *
@@ -31,9 +33,7 @@ vi.mock("../instrumentation", async (importOriginal) => {
 
 // processToIngestionEvents awaits redis.set (seen-traces tracking); CI's
 // tests-shared job has REDIS_HOST set but no Redis server, so ioredis
-// queues the command forever and the suite times out. Stub the client
-// (not null — the null path adds a logger.warn, which would break the
-// warn-cap exactly-10 assertion).
+// queues the command forever and the suite times out. Stub the client.
 vi.mock("../redis/redis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../redis/redis")>()),
   redis: { set: vi.fn().mockResolvedValue("OK") },
@@ -112,12 +112,107 @@ const expectDropTags = (
   // recordIncrement(stat) defaults to 1; explicit 1 is equivalent.
   expect(value ?? 1).toBe(1);
   expect(tags).toEqual(expect.objectContaining(expected));
-  // Acceptance criterion: project_id is NOT a metric tag (cardinality).
-  expect(Object.keys(tags ?? {})).not.toContain("project_id");
-  expect(Object.keys(tags ?? {})).not.toContain("projectId");
+  // projectId is a metric tag (low cardinality) for tenant attribution.
+  expect(tags?.projectId).toBe(PROJECT_ID);
+  // sdkName/sdkVersion attribute the emitting client.
+  expect(tags?.sdkName).toBe("python");
+  expect(tags?.sdkVersion).toBe("3.8.1");
 };
 
-describe("OTel metadata_dropped metric (LFE-14342)", () => {
+describe("gateway metadata", () => {
+  it.each([
+    ["v3", "langfuse-ai-gateway"],
+    ["v4", "langfuse-ai-gateway"],
+    ["v3", "other-instrumentation"],
+    ["v4", "other-instrumentation"],
+  ])(
+    "preserves canonical fields and metadata for %s %s",
+    async (path, scope) => {
+      const completionStartTime = "2025-07-13T05:20:00.500Z";
+      const modelParameters = {
+        service_tier: "default",
+        stream: true,
+        reasoning: { effort: "low" },
+      };
+      const usageDetails = { input: 10, output: 21 };
+      const canonicalAttributes = {
+        "langfuse.observation.type": "generation",
+        "langfuse.observation.level": "ERROR",
+        "langfuse.observation.status_message": "HTTP 429: rate limited",
+        "langfuse.observation.model.name": "test-model",
+        "langfuse.observation.model.parameters":
+          JSON.stringify(modelParameters),
+        "langfuse.observation.usage_details": JSON.stringify(usageDetails),
+        "langfuse.observation.cost_details": JSON.stringify({ total: 0.001 }),
+        "langfuse.observation.completion_start_time": completionStartTime,
+      };
+      const batch = buildBatch(
+        Object.entries({
+          ...canonicalAttributes,
+          "langfuse.observation.input": '[{"role":"user","content":"Hi"}]',
+          "langfuse.observation.output": '[{"type":"message","content":[]}]',
+          "langfuse.observation.metadata": JSON.stringify({
+            "langfuse.gateway.provider.request_id": "req-test",
+          }),
+          "langfuse.observation.metadata.langfuse.gateway.api-key.id":
+            "key-test",
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        }).map(([key, value]) => ({ key, value: { stringValue: value } })),
+      );
+      batch[0].scopeSpans![0].scope!.name = scope;
+      const processor = createProcessor();
+      const observation =
+        path === "v4"
+          ? processor.processToEvent(batch)[0]
+          : (await processor.processToIngestionEvents(batch)).find(
+              (event) => event.type === "generation-create",
+            )?.body;
+
+      expect(observation).toMatchObject({
+        level: "ERROR",
+        statusMessage: "HTTP 429: rate limited",
+        modelParameters: {
+          service_tier: "default",
+          stream: "true",
+          reasoning: '{"effort":"low"}',
+        },
+        completionStartTime,
+        input: '[{"role":"user","content":"Hi"}]',
+        output: '[{"type":"message","content":[]}]',
+        ...(path === "v4"
+          ? {
+              type: "GENERATION",
+              modelName: "test-model",
+              providedUsageDetails: usageDetails,
+              providedCostDetails: { total: 0.001 },
+            }
+          : {
+              model: "test-model",
+              usageDetails,
+              costDetails: { total: 0.001 },
+            }),
+      });
+      expect(observation?.metadata).toEqual({
+        "langfuse.gateway.provider.request_id": "req-test",
+        "langfuse.gateway.api-key.id": "key-test",
+        attributes: {
+          ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        },
+        resourceAttributes: { "service.name": "test-svc" },
+        scope: {
+          name: scope,
+          version: "3.8.1",
+          attributes: { public_key: "pk-test" },
+        },
+      });
+    },
+  );
+});
+
+describe("OTel metadata_dropped metric", () => {
   beforeEach(() => {
     recordIncrementMock.mockClear();
   });
@@ -299,8 +394,7 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         expect.objectContaining({ reason: expectedReason, source: "otel" }),
       );
       expect(["trace", "observation"]).toContain(tags?.domain);
-      expect(Object.keys(tags ?? {})).not.toContain("project_id");
-      expect(Object.keys(tags ?? {})).not.toContain("projectId");
+      expect(tags?.projectId).toBe(PROJECT_ID);
     };
 
     it("counts a dropped attribute once when both pipelines run on one processor instance", async () => {
@@ -458,8 +552,7 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         expect(["trace", "observation"]).toContain(
           (tags as Record<string, string>)?.domain,
         );
-        expect(Object.keys(tags ?? {})).not.toContain("project_id");
-        expect(Object.keys(tags ?? {})).not.toContain("projectId");
+        expect((tags as Record<string, string>)?.projectId).toBe(PROJECT_ID);
       }
     };
 
@@ -613,41 +706,6 @@ describe("OTel metadata_dropped metric (LFE-14342)", () => {
         expectDropReasons(["parse_failure", "primitive"]);
       });
     });
-
-    // RULING C: logger.warn from the drop path is capped at 10 per
-    // processor instance (per job); the metric keeps counting past the cap.
-    describe("warn cap", () => {
-      it("caps drop-path warns at 10 per instance while increments keep counting", async () => {
-        const warnSpy = vi
-          .spyOn(serverBarrel.logger, "warn")
-          .mockImplementation(() => serverBarrel.logger);
-
-        try {
-          const spans = Array.from({ length: 12 }, (_, i) =>
-            makeSpan(
-              [
-                {
-                  key: "langfuse.observation.metadata",
-                  // Distinct malformed values so per-value dedup keeps all 12.
-                  value: { stringValue: `{bad-${i}` },
-                },
-              ],
-              `00000000000000${(i + 1).toString(16).padStart(2, "0")}`,
-            ),
-          );
-
-          const events = await createProcessor().processToIngestionEvents([
-            makeResourceSpan([], spans),
-          ]);
-
-          expect(events.length).toBeGreaterThan(0);
-          expect(droppedCalls().length).toBeGreaterThan(10);
-          expect(warnSpy).toHaveBeenCalledTimes(10);
-        } finally {
-          warnSpy.mockRestore();
-        }
-      });
-    });
   });
 });
 
@@ -661,25 +719,44 @@ describe("OTel reconstructed array drop telemetry", () => {
       ([stat]) => stat === ARRAY_ATTRIBUTE_DROPPED_METRIC,
     );
 
-  it("reports an out-of-range array attribute", async () => {
+  it("reports validation drops with their own reasons", async () => {
     const processor = createProcessor();
     const batch = buildBatch([
       {
         key: "llm.input_messages.10001.content",
         value: { stringValue: "dropped" },
       },
+      {
+        key: `llm.input_messages.${Array.from(
+          { length: 65 },
+          () => "nested",
+        ).join(".")}`,
+        value: { stringValue: "dropped" },
+      },
     ]);
 
     await processor.processToIngestionEvents(batch);
 
-    expect(arrayDropCalls()).toContainEqual([
-      ARRAY_ATTRIBUTE_DROPPED_METRIC,
-      1,
-      {
-        reason: "reconstruction_budget_exceeded",
-        prefix: "llm.input_messages",
-      },
-    ]);
+    expect(arrayDropCalls()).toEqual(
+      expect.arrayContaining([
+        [
+          ARRAY_ATTRIBUTE_DROPPED_METRIC,
+          1,
+          {
+            reason: "reconstruction_array_index_exceeded",
+            prefix: "llm.input_messages",
+          },
+        ],
+        [
+          ARRAY_ATTRIBUTE_DROPPED_METRIC,
+          1,
+          {
+            reason: "reconstruction_path_depth_exceeded",
+            prefix: "llm.input_messages",
+          },
+        ],
+      ]),
+    );
   });
 
   it("caps warnings without logging rejected attribute keys or values", async () => {
@@ -693,7 +770,7 @@ describe("OTel reconstructed array drop telemetry", () => {
         (_, index) =>
           buildBatch([
             {
-              key: `llm.input_messages.${10_001 + index}.secret-content`,
+              key: "llm.input_messages.5000.messages.5000.secret-content",
               value: { stringValue: `customer-secret-${index}` },
             },
           ])[0],
@@ -721,6 +798,145 @@ describe("OTel reconstructed array drop telemetry", () => {
       }
     } finally {
       warnSpy.mockRestore();
+    }
+  });
+
+  it("does not let validation drops consume the array-budget warning cap", async () => {
+    const warnSpy = vi
+      .spyOn(serverBarrel.logger, "warn")
+      .mockImplementation(() => serverBarrel.logger);
+
+    try {
+      const deepPath = Array.from({ length: 65 }, () => "nested").join(".");
+      const processor = createProcessor();
+      const validationBatches = Array.from(
+        { length: 12 },
+        () =>
+          buildBatch([
+            {
+              key: `llm.input_messages.${deepPath}`,
+              value: { stringValue: "dropped" },
+            },
+          ])[0],
+      );
+
+      await processor.processToIngestionEvents(validationBatches);
+      warnSpy.mockClear();
+
+      await processor.processToIngestionEvents(
+        buildBatch([
+          {
+            key: "llm.input_messages.5000.messages.5000.content",
+            value: { stringValue: "dropped" },
+          },
+        ]),
+      );
+
+      expect(warnSpy).toHaveBeenCalledWith("OTEL array attribute dropped", {
+        projectId: PROJECT_ID,
+        prefix: "llm.input_messages",
+        reason: "reconstruction_budget_exceeded",
+        droppedAttributeCount: 1,
+      });
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+});
+
+describe("metadata_dropped attribution tags (parse_failure kind, attributeKey)", () => {
+  beforeEach(() => {
+    recordIncrementMock.mockClear();
+  });
+
+  const singleDropTags = () => {
+    const calls = recordIncrementMock.mock.calls.filter(
+      ([stat]) => stat === METRIC,
+    );
+    expect(calls).toHaveLength(1);
+    return (calls[0] as [string, number, Record<string, string>])[2];
+  };
+
+  // Each value fails JSON.parse and must be sub-classified by its shape.
+  // The values are synthetic and carry no real user content.
+  const kindCases: Array<{ name: string; value: string; kind: string }> = [
+    {
+      name: "python dict repr",
+      value: "{'user': 'x', 'ok': True}",
+      kind: "python_repr",
+    },
+    { name: "bare True token", value: "True", kind: "python_repr" },
+    { name: "unquoted string", value: "in progress", kind: "unquoted_string" },
+    {
+      name: "truncated object",
+      value: '{"a":"long va',
+      kind: "truncated_json",
+    },
+    {
+      name: "loose json trailing comma",
+      value: '{"a":1,}',
+      kind: "loose_json",
+    },
+    { name: "empty string on compat key", value: "", kind: "empty" },
+  ];
+
+  for (const { name, value, kind } of kindCases) {
+    it(`classifies ${name} as kind=${kind}`, async () => {
+      // Empty is only reachable on the compat key (a falsy primary value
+      // survives the `||` fallback); non-empty values sit on the primary key.
+      const attrKey =
+        value === "" ? "langfuse.metadata" : "langfuse.observation.metadata";
+      await createProcessor().processToIngestionEvents(
+        buildBatch([{ key: attrKey, value: { stringValue: value } }]),
+      );
+
+      const tags = singleDropTags();
+      expect(tags.reason).toBe("parse_failure");
+      expect(tags.kind).toBe(kind);
+      expect(tags.attributeKey).toBe(attrKey);
+      expect(tags.sdkName).toBe("python");
+      expect(tags.sdkVersion).toBe("3.8.1");
+    });
+  }
+
+  it("omits kind for a non-parse_failure drop (primitive)", async () => {
+    await createProcessor().processToIngestionEvents(
+      buildBatch([
+        { key: "langfuse.observation.metadata", value: { intValue: 42 } },
+      ]),
+    );
+    const tags = singleDropTags();
+    expect(tags.reason).toBe("primitive");
+    expect(tags.kind).toBeUndefined();
+  });
+
+  it("sanitizes and bounds attacker-controlled sdkName/sdkVersion tags", async () => {
+    // sdkName/sdkVersion come from raw request headers; a caller must not be
+    // able to inject tag separators, control chars, or oversized values.
+    const processor = new OtelIngestionProcessor({
+      projectId: PROJECT_ID,
+      publicKey: "pk-test",
+      sdkName: "evil,name|with:sep=chars",
+      sdkVersion: `1.0\n${"x".repeat(100)}`,
+    });
+    await processor.processToIngestionEvents(
+      buildBatch([
+        {
+          key: "langfuse.observation.metadata",
+          value: { stringValue: "{bad" },
+        },
+      ]),
+    );
+
+    const tags = singleDropTags();
+    for (const key of ["sdkName", "sdkVersion"] as const) {
+      expect(tags[key]).not.toMatch(/[,|:=]/);
+      expect(tags[key].length).toBeLessThanOrEqual(32);
+      for (const character of tags[key]) {
+        const codePoint = character.codePointAt(0) ?? 0;
+        expect(codePoint).toBeGreaterThan(31);
+        expect(codePoint).not.toBe(127);
+      }
     }
   });
 });

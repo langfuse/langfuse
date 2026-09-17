@@ -1,7 +1,11 @@
 import { v4 } from "uuid";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
+import {
+  ClickHouseResourceError,
+  createOrgProjectAndApiKey,
+  logger,
+} from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
 import {
   MonitorProcessor,
@@ -96,7 +100,7 @@ type ProcessCase = {
   injectError?: {
     stage: InjectErrorStage;
     message: string;
-    errorClass?: "invalid-request";
+    errorClass?: "invalid-request" | "resource" | "resource-memory";
   };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
@@ -216,7 +220,7 @@ function makeEvent(
   };
 }
 
-/** wrapDbToThrow returns a Proxy over `db` that rejects at the DB seam matching `stage`: claim intercepts `monitor.updateManyAndReturn`, complete intercepts `$executeRaw`. Lets the table inject failures without per-method seams on the processor. */
+/** wrapDbToThrow returns a Proxy over `db` that rejects at the DB seam matching `stage`: claim intercepts `monitor.updateManyAndReturn`, complete intercepts `$transaction`. Lets the table inject failures without per-method seams on the processor. */
 function wrapDbToThrow(
   db: PrismaClient,
   stage: "claim" | "complete",
@@ -225,7 +229,7 @@ function wrapDbToThrow(
   if (stage === "complete") {
     return new Proxy(db, {
       get(target, prop, _receiver) {
-        if (prop === "$executeRaw") {
+        if (prop === "$transaction") {
           return () => Promise.reject(new Error(message));
         }
         return Reflect.get(target, prop, target);
@@ -250,7 +254,7 @@ function wrapDbToThrow(
   }) as PrismaClient;
 }
 
-/** wrapDbPreemptBeforeComplete simulates another worker re-claiming between this worker's claim and complete: the first `$executeRaw` (the complete) first bumps `lastClaimedAt` on the project's monitors so the complete-side CAS owner key no longer matches and the update no-ops. */
+/** wrapDbPreemptBeforeComplete simulates another worker re-claiming between this worker's claim and complete: the complete `$transaction` first bumps `lastClaimedAt` on the project's monitors so the complete-side CAS owner key no longer matches and the update no-ops. */
 function wrapDbPreemptBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -259,7 +263,7 @@ function wrapDbPreemptBeforeComplete(
   let preempted = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!preempted) {
             preempted = true;
@@ -268,7 +272,7 @@ function wrapDbPreemptBeforeComplete(
               data: { lastClaimedAt: newClaimedAt },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -276,7 +280,7 @@ function wrapDbPreemptBeforeComplete(
   }) as PrismaClient;
 }
 
-/** wrapDbPauseBeforeComplete simulates a user pausing between this worker's claim and complete: the first `$executeRaw` (the complete) first flips the project's monitors to PAUSED without touching `lastClaimedAt`, so the complete-side CAS owner key still matches. */
+/** wrapDbPauseBeforeComplete simulates a user pausing between this worker's claim and complete: the complete `$transaction` first flips the project's monitors to PAUSED without touching `lastClaimedAt`, so the complete-side CAS owner key still matches. */
 function wrapDbPauseBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -285,7 +289,7 @@ function wrapDbPauseBeforeComplete(
   let paused = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!paused) {
             paused = true;
@@ -298,7 +302,7 @@ function wrapDbPauseBeforeComplete(
               },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -306,7 +310,7 @@ function wrapDbPauseBeforeComplete(
   }) as PrismaClient;
 }
 
-/** wrapDbRescueBeforeComplete simulates the scheduler TTL-rescuing this worker's stale run between claim and complete: the first `$executeRaw` (the complete) first advances `lastPublishedAt` on the project's monitors — leaving `lastClaimedAt` and `lastCompletedAt` untouched, exactly as buildScheduleQuery does — so the complete-side CAS owner key still matches on `lastClaimedAt` but the new publish-identity clause no-ops. */
+/** wrapDbRescueBeforeComplete simulates the scheduler TTL-rescuing this worker's stale run between claim and complete: the complete `$transaction` first advances `lastPublishedAt` on the project's monitors — leaving `lastClaimedAt` and `lastCompletedAt` untouched, exactly as buildScheduleQuery does — so the complete-side CAS owner key still matches on `lastClaimedAt` but the new publish-identity clause no-ops. */
 function wrapDbRescueBeforeComplete(
   db: PrismaClient,
   projectId: string,
@@ -315,7 +319,7 @@ function wrapDbRescueBeforeComplete(
   let rescued = false;
   return new Proxy(db, {
     get(target, prop, _receiver) {
-      if (prop === "$executeRaw") {
+      if (prop === "$transaction") {
         return async (...args: unknown[]) => {
           if (!rescued) {
             rescued = true;
@@ -324,7 +328,7 @@ function wrapDbRescueBeforeComplete(
               data: { lastPublishedAt: newPublishedAt },
             });
           }
-          return (target.$executeRaw as (...a: unknown[]) => unknown)(...args);
+          return (target.$transaction as (...a: unknown[]) => unknown)(...args);
         };
       }
       return Reflect.get(target, prop, target);
@@ -696,6 +700,68 @@ const cases: ProcessCase[] = [
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
           lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "ClickHouseResourceError on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "resource",
+      message: "Timeout exceeded",
+    },
+    expect: {
+      throws: "Timeout exceeded",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
+    name: "ClickHouse memory limit resource error on executeQuery: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: MonitorSeveritySchema.enum.OK,
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "resource-memory",
+      message: "Memory limit (for query) exceeded: would use 2.25 GiB",
+    },
+    expect: {
+      throws: "Memory limit (for query) exceeded: would use 2.25 GiB",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
         },
       ],
     },
@@ -1310,6 +1376,17 @@ describe("MonitorProcessor.process (integration)", () => {
       if (c.injectError?.stage === "executeQuery") {
         if (c.injectError.errorClass === "invalid-request") {
           throw new InvalidRequestError(c.injectError.message);
+        }
+        if (c.injectError.errorClass === "resource") {
+          throw new ClickHouseResourceError(
+            "TIMEOUT",
+            new Error(c.injectError.message),
+          );
+        }
+        if (c.injectError.errorClass === "resource-memory") {
+          throw ClickHouseResourceError.wrapIfResourceError(
+            new Error(c.injectError.message),
+          );
         }
         throw new Error(c.injectError.message);
       }

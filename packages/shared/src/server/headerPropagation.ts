@@ -5,6 +5,8 @@ import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
   type ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
+import { extractPublicApiCallerAttribution } from "./ingestion/ingestionAttribution";
+import { redactLangfuseSecretKeys } from "./auth/apiKeys";
 
 export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
@@ -30,11 +32,23 @@ export const contextWithLangfuseProps = (
     opentelemetry.propagation.getBaggage(ctx) ??
     opentelemetry.propagation.createBaggage();
 
+  if (props.clickhouse?.surface === "publicapi") {
+    [
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName,
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion,
+      CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent,
+    ].forEach((key) => {
+      baggage = baggage.removeEntry(key);
+    });
+  }
+
   if (props.headers) {
     (env.LANGFUSE_LOG_PROPAGATED_HEADERS as string[]).forEach((name) => {
       const value = props.headers![name];
       if (!value) return;
-      const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
+      const strValue = redactLangfuseSecretKeys(
+        Array.isArray(value) ? JSON.stringify(value) : value,
+      );
       baggage = baggage.setEntry(`langfuse.header.${name}`, {
         value: strValue,
       });
@@ -48,12 +62,39 @@ export const contextWithLangfuseProps = (
       ) {
         const value = props.headers![name];
         if (!value) return;
-        const strValue = Array.isArray(value) ? JSON.stringify(value) : value;
+        const strValue = redactLangfuseSecretKeys(
+          Array.isArray(value) ? JSON.stringify(value) : value,
+        );
         baggage = baggage.setEntry(`langfuse.header.${name}`, {
           value: strValue,
         });
       }
     });
+
+    if (props.clickhouse?.surface === "publicapi") {
+      const callerAttribution = extractPublicApiCallerAttribution(
+        props.headers,
+      );
+      if (callerAttribution.sdkName) {
+        baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkName, {
+          value: callerAttribution.sdkName,
+        });
+      }
+      if (callerAttribution.sdkVersion) {
+        baggage = baggage.setEntry(
+          CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.sdkVersion,
+          { value: callerAttribution.sdkVersion },
+        );
+      }
+      if (callerAttribution.userAgent) {
+        baggage = baggage.setEntry(
+          CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.userAgent,
+          {
+            value: callerAttribution.userAgent,
+          },
+        );
+      }
+    }
   }
   if (props.userId) {
     baggage = baggage.setEntry("langfuse.user.id", { value: props.userId });

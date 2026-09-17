@@ -4,10 +4,35 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
+import { logger } from "../logger";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
+}
+
+const LANGFUSE_SECRET_KEY_PATTERN = /sk-lf-[A-Za-z0-9_-]+/g;
+
+/**
+ * Replaces every Langfuse secret key inside a user-controlled string with its
+ * display form (`sk-lf-...abcd`), so the value can be logged or attached to a
+ * span without exposing the secret.
+ */
+export function redactLangfuseSecretKeys(value: string): string {
+  return value.replace(LANGFUSE_SECRET_KEY_PATTERN, (match) =>
+    getDisplaySecretKey(match),
+  );
+}
+
+/**
+ * Formats a client-submitted public key for logging. Only a value that is
+ * actually a Langfuse public key is echoed verbatim; anything else is masked to
+ * its display form because it may be a secret placed in the wrong slot.
+ */
+export function formatSubmittedPublicKeyForLog(value: string): string {
+  if (value.startsWith("pk-lf-")) return value;
+  if (value.length < 12) return "****";
+  return getDisplaySecretKey(value);
 }
 
 export async function hashSecretKey(key: string) {
@@ -103,6 +128,11 @@ export async function deleteApiKeyFromDb(p: {
   entityId: string;
   scope: ApiKeyScope;
   redis?: Redis | Cluster | null;
+  /**
+   * When true, only delete keys minted for in-app agent MCP sessions.
+   * A matching project key that is not an agent key is left intact.
+   */
+  isInAppAgentKey?: boolean;
 }) {
   const entity =
     p.scope === "PROJECT" ? { projectId: p.entityId } : { orgId: p.entityId };
@@ -115,6 +145,18 @@ export async function deleteApiKeyFromDb(p: {
     },
   });
 
+  if (p.isInAppAgentKey === true && apiKey.isInAppAgentKey !== true) {
+    logger.warn(
+      "Refusing to delete API key that is not an in-app agent MCP key",
+      {
+        apiKeyId: p.id,
+        entityId: p.entityId,
+        scope: p.scope,
+      },
+    );
+    return false;
+  }
+
   await invalidateCachedApiKeys([apiKey], `key ${p.id}`, p.redis);
 
   await p.prisma.apiKey.delete({
@@ -124,4 +166,21 @@ export async function deleteApiKeyFromDb(p: {
   });
 
   return true;
+}
+
+/** Delete an in-app agent MCP session key. Skips user project keys. */
+export async function deleteInAppAgentMcpApiKeyFromDb(p: {
+  prisma: PrismaClient;
+  id: string;
+  projectId: string;
+  redis?: Redis | Cluster | null;
+}) {
+  return deleteApiKeyFromDb({
+    prisma: p.prisma,
+    id: p.id,
+    entityId: p.projectId,
+    scope: "PROJECT",
+    redis: p.redis,
+    isInAppAgentKey: true,
+  });
 }

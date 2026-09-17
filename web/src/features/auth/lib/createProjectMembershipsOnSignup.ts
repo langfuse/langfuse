@@ -2,13 +2,16 @@ import { env } from "@/src/env.mjs";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  getOrganizationPlanServerSide,
+  hasEntitlementBasedOnPlan,
+} from "@/src/features/entitlements/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { projectRoleAccessRights } from "@langfuse/shared";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -18,8 +21,8 @@ export async function createProjectMembershipsOnSignup(
   },
   options?: {
     userWasJustCreated?: boolean;
-    /** Google Ads click id, see getGclidFromRequest */
-    gclid?: string;
+    /** Ad-platform click ids, see getAdClickIdsFromRequest */
+    adClickIds?: AdClickIds;
   },
 ) {
   try {
@@ -281,10 +284,15 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // for conversion metric tracking in posthog: did a new user sign up?
+    // Fires on all production cloud regions, including ones added in the
+    // future. STAGING/DEV are excluded to keep test signups out of
+    // conversion metrics, and self-hosted deployments never emit this
+    // event as the region env is unset. HIPAA still constructs ServerPosthog
+    // here; the client is opted out via disable() so the capture is a no-op.
     if (
       isNewUser &&
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      ["EU", "US"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
+      !["STAGING", "DEV"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
     ) {
       try {
         const posthog = new ServerPosthog();
@@ -297,7 +305,9 @@ export async function createProjectMembershipsOnSignup(
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
             // Google Ads click id for ad conversion attribution
-            ...(options?.gclid ? { gclid: options.gclid } : {}),
+            // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
+            // for ad conversion attribution; only resolved ids are present
+            ...(options?.adClickIds ?? {}),
           },
         });
         await posthog.shutdown();

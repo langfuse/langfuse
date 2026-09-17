@@ -43,12 +43,12 @@ import {
   FormUpsertModelSchema,
   type GetModelResult,
 } from "@/src/features/models/validation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/router";
 
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
 
 type UpsertModelDialogProps =

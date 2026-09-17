@@ -1,4 +1,30 @@
-import { getPromptVariableDiagnostics } from "@/src/components/editor/CodeMirrorEditor";
+// @vitest-environment jsdom
+
+import { render, screen } from "@testing-library/react";
+import type * as ReactCodeMirror from "@uiw/react-codemirror";
+import {
+  CodeMirrorEditor,
+  getPromptVariableDiagnostics,
+} from "@/src/components/editor/CodeMirrorEditor";
+
+vi.mock("@uiw/react-codemirror", async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactCodeMirror>();
+
+  return {
+    ...actual,
+    default: ({ className }: { className?: string }) => (
+      <div className={className} data-testid="code-mirror" />
+    ),
+  };
+});
+
+describe("CodeMirrorEditor session recording privacy", () => {
+  it("blocks editor values from PostHog session recordings", () => {
+    render(<CodeMirrorEditor value="customer payload" mode="text" />);
+
+    expect(screen.getByTestId("code-mirror")).toHaveClass("ph-no-capture");
+  });
+});
 
 describe("getPromptVariableDiagnostics", () => {
   it("accepts triple-brace prompt variables as an inner variable with literal outer braces", () => {

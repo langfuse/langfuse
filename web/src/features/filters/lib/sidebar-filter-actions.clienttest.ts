@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import type { FilterState } from "@langfuse/shared";
 import {
   addTextFilterEntry,
@@ -105,6 +107,131 @@ describe("applySelection", () => {
         type: "stringOptions",
         operator: "any of",
         value: ["prod", "dev", "test"],
+      },
+    ]);
+  });
+
+  it("keeps none-of when unchecking a default env while hidden stay excluded", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+
+    expect(applySelection(managedCtx, [], "env", ["staging"])).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production", ...hidden],
+      },
+    ]);
+  });
+
+  it("stores any-of when every hidden env is checked and a default env is not", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+    const existing: FilterState = [
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production", ...hidden],
+      },
+    ];
+    const checked = ["staging", ...hidden];
+
+    expect(applySelection(managedCtx, existing, "env", checked)).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: checked,
+      },
+    ]);
+  });
+
+  it("stores any-of when a hidden environment is enabled from the default", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+    const checked = ["production", "staging", "langfuse-evaluation"];
+
+    expect(applySelection(managedCtx, [], "env", checked)).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: checked,
+      },
+    ]);
+  });
+
+  it("promotes extras-only none-of from the explicit-operator path to any-of", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+
+    expect(
+      applySelection(managedCtx, [], "env", ["production"], "none of"),
+    ).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production"],
+      },
+    ]);
+  });
+
+  it("keeps an explicit none-of that already excludes every hidden env", () => {
+    const hidden = ["langfuse-evaluation", "sdk-experiment"];
+    const managedCtx: SidebarFilterActionContext = {
+      ...ctx,
+      managedEnvironmentColumn: "env",
+      hiddenEnvironments: hidden,
+      options: {
+        ...ctx.options,
+        env: ["production", "staging", ...hidden],
+      },
+    };
+    const exclusions = ["production", ...hidden];
+
+    expect(
+      applySelection(managedCtx, [], "env", exclusions, "none of"),
+    ).toEqual([
+      {
+        column: "env",
+        type: "stringOptions",
+        operator: "none of",
+        value: exclusions,
       },
     ]);
   });
@@ -324,6 +451,33 @@ describe("keyed facet transitions", () => {
         operator: "=",
         key: "env",
         value: "prod",
+      },
+    ]);
+  });
+
+  it("keeps `is set` / `is not set` presence rows even with an empty value", () => {
+    const next = applyKeyedFilterEntries([], "metadata", {
+      kind: "stringObject",
+      entries: [
+        { key: "env", operator: "is set", value: "" },
+        { key: "region", operator: "is not set", value: "" },
+        { key: "", operator: "is set", value: "" },
+      ],
+    });
+    expect(next).toEqual([
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is set",
+        key: "env",
+        value: "",
+      },
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "is not set",
+        key: "region",
+        value: "",
       },
     ]);
   });

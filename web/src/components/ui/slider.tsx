@@ -7,7 +7,7 @@ import { Input } from "./input";
 
 import { cn } from "@/src/utils/tailwind";
 
-export interface SliderProps extends React.ComponentPropsWithoutRef<
+interface SliderProps extends React.ComponentPropsWithoutRef<
   typeof SliderPrimitive.Root
 > {
   showInput?: boolean;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { encrypt } from "../../../encryption";
+import { env } from "../../../env";
 import {
   type ChatMessage,
   ChatMessageRole,
@@ -9,6 +10,7 @@ import {
   type ModelParams,
   type TraceSinkParams,
 } from "../types";
+import { generateLangfuseAIText } from "../langfuseAiCompletion";
 import {
   createLLMOutput,
   generateLLMText,
@@ -259,6 +261,43 @@ describe("AI SDK request shapes", () => {
     expect(request.url).toBe("https://api.openai.com/v1/responses");
     expect(request.headers.get("authorization")).toBe("Bearer sk-test");
     expect(request.body.model).toBe("gpt-4o");
+  });
+
+  it("Langfuse AI first-party OpenAI credentials hit /v1/responses", async () => {
+    const original = {
+      LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
+      LANGFUSE_AI_MODEL: env.LANGFUSE_AI_MODEL,
+      LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
+      LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
+      LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
+      LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
+    };
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "openai",
+      LANGFUSE_AI_MODEL: "gpt-5.6-sol",
+      LANGFUSE_AI_SMALL_MODEL: "gpt-5.6-luna",
+      LANGFUSE_AI_API_KEY: "sk-test",
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_USE_RESPONSES_API: undefined,
+    });
+
+    try {
+      const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
+      vi.stubGlobal("fetch", fetch);
+
+      const text = await generateLangfuseAIText({
+        messages,
+        timeout: 10_000,
+      });
+
+      expect(text).toBe("ok");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toBe("https://api.openai.com/v1/responses");
+      expect(calls[0]?.headers.get("authorization")).toBe("Bearer sk-test");
+      expect(calls[0]?.body.model).toBe("gpt-5.6-sol");
+    } finally {
+      Object.assign(env, original);
+    }
   });
 
   it("OpenAI-compatible chat completions: preserves custom provider options on the wire", async () => {

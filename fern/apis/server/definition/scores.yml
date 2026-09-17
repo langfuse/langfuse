@@ -15,7 +15,7 @@ service:
     get-many:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint is not available on Langfuse v4 and later and will be removed on November 16, 2026. Use `GET /api/public/v3/scores` instead."
+        message: "On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on November 16, 2026. Use `GET /api/public/v3/scores` instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: Get a list of scores (supports both trace and session scores)
       method: GET
       path: /v2/scores
@@ -91,12 +91,13 @@ service:
               Supports filtering by score metadata using the stringObject type.
               Example: [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
               Supported types: stringObject (metadata key-value filtering), string, number, datetime, stringOptions, arrayOptions.
-              Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
+              Supported operators for stringObject: =, contains, does not contain, starts with, ends with, is set, is not set.
+              Use is set / is not set to filter on metadata key presence. An empty value for contains, starts with, or ends with is treated as is set (key presence).
       response: GetScoresResponse
     get-by-id:
       availability:
         status: deprecated
-        message: "Langfuse v3 is deprecated; this endpoint is not available on Langfuse v4 and later and will be removed on November 16, 2026. Use `GET /api/public/v3/scores` with the `id` filter instead."
+        message: "On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on November 16, 2026. Use `GET /api/public/v3/scores` with the `id` filter instead. Self-hosted deployments are unaffected by this date; the endpoint becomes unavailable when they upgrade to Langfuse v4."
       docs: Get a score (supports both trace and session scores)
       method: GET
       path: /v2/scores/{scoreId}

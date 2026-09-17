@@ -5,14 +5,14 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/src/utils/tailwind";
-import {
-  stopScrollPropagation,
-  useLayerContainer,
-} from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
 const Popover = PopoverPrimitive.Root;
 
 const PopoverTrigger = PopoverPrimitive.Trigger;
+
+const PopoverAnchor = PopoverPrimitive.Anchor;
 
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
@@ -62,8 +62,70 @@ const PopoverContent = React.forwardRef<
 );
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
 
+/**
+ * Owns popover open state while callers retain trigger and content presentation.
+ * Use the supplied Trigger to preserve Radix behavior.
+ */
+type PopoverControllerProps = {
+  align: React.ComponentProps<typeof PopoverContent>["align"];
+  children: (control: {
+    disabled: boolean;
+    isOpen: boolean;
+    openPopover: () => void;
+    Anchor: typeof PopoverAnchor;
+    Trigger: typeof PopoverTrigger;
+  }) => React.ReactNode;
+  contentClassName: string;
+  disabled: boolean;
+  modal: boolean;
+  onOpenChange?: (isOpen: boolean) => void;
+  renderContent: (control: { closePopover: () => void }) => React.ReactNode;
+};
+
+const PopoverController = ({
+  align,
+  children,
+  contentClassName,
+  disabled,
+  modal,
+  onOpenChange,
+  renderContent,
+}: PopoverControllerProps) => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const handleOpenChange = (nextIsOpen: boolean) => {
+    if (nextIsOpen && disabled) return;
+
+    setIsOpen(nextIsOpen);
+    onOpenChange?.(nextIsOpen);
+  };
+
+  return (
+    <Popover modal={modal} open={isOpen} onOpenChange={handleOpenChange}>
+      {children({
+        disabled,
+        isOpen,
+        openPopover: () => handleOpenChange(true),
+        Anchor: PopoverAnchor,
+        Trigger: PopoverTrigger,
+      })}
+      <PopoverContent
+        align={align}
+        className={contentClassName}
+        onClick={(event) => event.stopPropagation()}
+      >
+        {renderContent({ closePopover: () => setIsOpen(false) })}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 const PopoverClose = PopoverPrimitive.Close;
 
-const PopoverAnchor = PopoverPrimitive.Anchor;
-
-export { Popover, PopoverTrigger, PopoverContent, PopoverClose, PopoverAnchor };
+export {
+  Popover,
+  PopoverController,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverClose,
+  PopoverAnchor,
+};

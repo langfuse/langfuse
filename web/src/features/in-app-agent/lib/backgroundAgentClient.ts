@@ -2,13 +2,15 @@ import { AbstractAgent, type RunAgentInput } from "@ag-ui/client";
 import { EventType, type BaseEvent } from "@ag-ui/core";
 import { Observable } from "rxjs";
 
-import { InAppAgentRunStatus } from "@langfuse/shared";
+import {
+  InAppAgentRunStatus,
+  type AgUiContext,
+  type AgUiMessage,
+} from "@langfuse/shared/in-app-agent";
 import {
   InAppAgentWatchFrameSchema,
-  type AgUiMessage,
-  type AgUiRunAgentInput,
   type InAppAgentWatchFrame,
-} from "@langfuse/shared/in-app-agent";
+} from "../watchFrames";
 
 import { env } from "@/src/env.mjs";
 import { parseSSEBuffer } from "@/src/hooks/useSSEDashboardQuery";
@@ -44,17 +46,12 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 
 type StartRunFn = (params: {
   message: string;
-  context: AgUiRunAgentInput["context"];
+  context: AgUiContext;
 }) => Promise<{ runId: string }>;
 
 type RunFramingState = {
   openRunId: string | null;
 };
-
-// AG-UI's Zod v3 declarations resolve as unknown against this repo's Zod v4.
-function asAgUiRunAgentInput(input: RunAgentInput): AgUiRunAgentInput {
-  return input as unknown as AgUiRunAgentInput;
-}
 
 // AG-UI transport backed by a tRPC start mutation and persisted event tail.
 export class InAppAgentBackgroundClient extends AbstractAgent {
@@ -92,15 +89,18 @@ export class InAppAgentBackgroundClient extends AbstractAgent {
     return new Observable<BaseEvent>((subscriber) => {
       const controller = this.resetAbortController();
 
-      const runInput = asAgUiRunAgentInput(input);
-      const message = getLastUserMessageContent(runInput.messages);
+      const messages = input.messages as unknown as AgUiMessage[];
+      const message = getLastUserMessageContent(messages);
 
       if (!message) {
         subscriber.error(new Error("A user message is required"));
         return;
       }
 
-      this.startRun({ message, context: runInput.context })
+      this.startRun({
+        message,
+        context: input.context as unknown as AgUiContext,
+      })
         .then(({ runId }) => {
           this.onStatus?.({
             type: "status",
@@ -363,7 +363,7 @@ function getErrorMessage(error: unknown): string {
 }
 
 function getLastUserMessageContent(
-  messages: AgUiRunAgentInput["messages"],
+  messages: readonly AgUiMessage[],
 ): string | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];

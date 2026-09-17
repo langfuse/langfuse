@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
 import {
@@ -12,7 +13,7 @@ import {
   useInAppAgentWindowShellPanelControl,
 } from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
 import {
-  useCanUseInAppAgent,
+  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
@@ -64,7 +65,7 @@ function DeleteConversationDialog({
  * window unmounts and its geometry resets on every navigation.
  */
 export function InAppAgentWindowHost() {
-  const canUseAgent = useCanUseInAppAgent();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -121,9 +122,9 @@ export function InAppAgentWindowHost() {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open]);
 
-  // Only `canUseAgent` gates the tree: the shell owns the `open` guard so the
-  // handheld drawer stays mounted and can animate itself closed.
-  if (!canUseAgent) {
+  // Only `isInAppAgentLauncherVisible` gates the tree: the shell owns the `open` guard
+  // so the handheld drawer stays mounted and can animate itself closed.
+  if (!isInAppAgentLauncherVisible) {
     return null;
   }
 
@@ -142,7 +143,7 @@ export function InAppAgentWindowHost() {
         // <body>-level layer container that floats above page content and
         // panel surfaces, but below true modals and transient overlays by DOM
         // order alone. No z-index: layer ORDER stacks it (see
-        // components/ui/layer.tsx). This replaces the old body portal + z-51,
+        // context/LayerContext/LayerContext.tsx). This replaces the old body portal + z-51,
         // which fought the nav-user dropdown's z-60 at <body> level.
         <Layer name="agent">
           <InAppAgentWindowShell

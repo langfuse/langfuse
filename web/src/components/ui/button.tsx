@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
 
-import { default as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner as SpinnerLib } from "@/src/components/design-system/Spinner/Spinner";
 
 const buttonVariants = cva(
   // No font-* here: buttons follow the text-sm token weight (one weight per
@@ -60,6 +60,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   loading?: boolean;
+  loadingText?: React.ReactNode;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -70,6 +71,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size,
       asChild = false,
       loading = false,
+      loadingText,
       disabled,
       onClick,
       children,
@@ -80,14 +82,24 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button";
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(
+          buttonVariants({ variant, size, className }),
+          loading && loadingText && "gap-2",
+        )}
         ref={ref}
         disabled={disabled || loading}
         onClick={loading || disabled ? undefined : onClick}
         {...props}
         type={props.type || "button"}
       >
-        {loading ? <Spinner /> : children}
+        {loading ? (
+          <>
+            <Spinner />
+            {loadingText}
+          </>
+        ) : (
+          children
+        )}
       </Comp>
     );
   },
