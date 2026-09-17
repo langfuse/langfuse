@@ -113,7 +113,7 @@ web/test-results/*
 # Local overrides for AGENTS.md
 **/AGENTS.override.md
 
-# Agent identity (workspace copy; never commit)
+# Local agent scratch (never commit)
 .langfuse/
 
 # Superset config

@@ -160,6 +160,7 @@ export function PromptVariableEditor({
   showPreviewToggle = false,
   previewDisabledReason = null,
   preview,
+  previewSurface = "default",
   readOnly = false,
   validateVariableMappings = true,
   renderPreviewText = (value) => value,
@@ -185,6 +186,8 @@ export function PromptVariableEditor({
   previewDisabledReason?: string | null;
   /** Interpolated prompt state prepared by the owning container. */
   preview?: InterpolatedPromptPreviewState;
+  /** Visual treatment for the rendered preview surface. */
+  previewSurface?: "default" | "muted";
   /** Preserve variable syntax highlighting without exposing editor controls. */
   readOnly?: boolean;
   /** Whether variables without a known mapping should receive a warning. */
@@ -226,13 +229,11 @@ export function PromptVariableEditor({
   }, [statusKey, mappingsKey, readOnly, validateVariableMappings]);
 
   const hasToolbar =
-    !readOnly &&
-    Boolean(
-      showPreviewToggle ||
-      toolbarStart ||
-      toolbarActionsBeforePreview ||
-      toolbarActions,
-    );
+    Boolean(toolbarStart) ||
+    (!readOnly &&
+      Boolean(
+        showPreviewToggle || toolbarActionsBeforePreview || toolbarActions,
+      ));
   const activePreview = previewEnabled ? preview : undefined;
 
   return (
@@ -311,11 +312,23 @@ export function PromptVariableEditor({
           </div>
           {activePreview ? (
             activePreview.status === "unavailable" ? (
-              <p className="ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5">
+              <p
+                className={cn(
+                  "ph-no-capture bg-muted/50 text-muted-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 text-sm leading-5",
+                  previewSurface === "muted" &&
+                    "bg-muted/50 text-muted-foreground",
+                )}
+              >
                 {activePreview.message}
               </p>
             ) : (
-              <pre className="ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap">
+              <pre
+                className={cn(
+                  "ph-no-capture bg-muted/50 text-card-foreground absolute inset-0 overflow-y-auto rounded-b-md border px-3 py-2 font-sans text-sm leading-5 whitespace-pre-wrap",
+                  previewSurface === "muted" &&
+                    "bg-muted/50 text-muted-foreground",
+                )}
+              >
                 {activePreview.fragments.map((fragment, index) => (
                   <Fragment key={index}>
                     {fragment.type === "text" ? (

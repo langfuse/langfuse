@@ -1,9 +1,5 @@
 import type { ComponentProps } from "react";
 import preview from "../../../.storybook/preview";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { OrganizationDropdownMenu } from "./OrganizationDropdownMenu";
 
 type Organization = Extract<
@@ -36,14 +32,18 @@ const organizations = [
 const meta = preview.meta({
   component: OrganizationDropdownMenu,
   args: {
+    children: () => null,
     canCreateOrganizations: true,
     getOrgPath: (organizationId) => `/organization/${organizationId}`,
   },
   render: (args) => (
-    <DropdownMenu defaultOpen>
-      <DropdownMenuTrigger>Trigger</DropdownMenuTrigger>
-      <OrganizationDropdownMenu {...args} />
-    </DropdownMenu>
+    <OrganizationDropdownMenu {...args}>
+      {({ getTriggerProps }) => (
+        <button type="button" {...getTriggerProps()}>
+          Trigger
+        </button>
+      )}
+    </OrganizationDropdownMenu>
   ),
 });
 

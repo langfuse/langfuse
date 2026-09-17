@@ -19,6 +19,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
 import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
+import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
@@ -136,7 +137,7 @@ export function createMcpServer(context: ServerContext): Server {
   return server;
 }
 
-/** assertToolAuthorized authorizes a tool call through the per-item seam, throwing on an enforce-mode deny. */
+/** assertToolAuthorized authorizes a tool call through the per-item seam, throwing an enforce-mode deny as an MCP error. */
 function assertToolAuthorized(
   definition: ToolDefinition,
   context: ServerContext,
@@ -147,7 +148,7 @@ function assertToolAuthorized(
     resource: { projectId: context.projectId },
     accessLevel: context.accessLevel,
   });
-  if (!decision.success) throw decision.error;
+  if (!decision.success) throw formatErrorForUser(decision.error);
 }
 
 export const __test = { assertToolAuthorized };

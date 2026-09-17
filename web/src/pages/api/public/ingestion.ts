@@ -11,6 +11,7 @@ import {
   createIngestionAttribution,
   processEventBatch,
   type ApiAccessLevel,
+  redactLangfuseSecretKeys,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
@@ -38,6 +39,7 @@ import {
   shadowAuth,
   shadowAuthorize,
 } from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import {
   type AuthorizationContext,
   type ProjectAction,
@@ -87,9 +89,13 @@ export default async function handler(
         header.toLowerCase().startsWith("x-langfuse") ||
         header.toLowerCase().startsWith("x_langfuse")
       ) {
+        const value = req.headers[header];
+        if (value === undefined) return;
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
-            req.headers[header],
+            Array.isArray(value)
+              ? value.map(redactLangfuseSecretKeys)
+              : redactLangfuseSecretKeys(value),
         });
       }
     });
@@ -104,9 +110,10 @@ export default async function handler(
 
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // CHECK AUTH FOR ALL EVENTS
+    // CHECK AUTH FOR ALL EVENTS; each event authorizes its own action below.
     const authResult = await shadowAuth({
       req,
+      action: __dangerouslySkipAuthz,
       allowedAccessLevels: ["project", "scores"],
     });
     if (!authResult.success) throw authResult.error;
@@ -169,9 +176,9 @@ export default async function handler(
 
         await telemetry();
 
-        // V4 events_only mode: refuse trace/observation events because their
-        // writes would land in the legacy ClickHouse tables this deployment no
-        // longer reads. Scores and SDK logs are unaffected and pass through.
+        // V4 events_only mode: refuse every non-score event because trace and
+        // observation writes target legacy ClickHouse tables this deployment
+        // no longer reads. SDK logs are no longer accepted in this mode.
         // Reject per-event so a mixed batch still processes its score events.
         const isEventsOnlyMode =
           env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
@@ -285,13 +292,9 @@ export default async function handler(
   }
 }
 
-// Event types that may continue to ingest in V4 events_only mode. Scores keep
-// their own ClickHouse table (no legacy traces/observations write); SDK logs
-// are non-persisting.
-const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
-  eventTypes.SCORE_CREATE,
-  eventTypes.SDK_LOG,
-]);
+// Scores keep their own ClickHouse table and are the only event type accepted
+// by this endpoint in V4 events_only mode.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
 
 const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
   Object.values(eventTypes).filter(
@@ -311,7 +314,7 @@ const EVENTS_ONLY_INGESTION_REMEDIATION = [
   `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
 ].join(" ");
 
-function filterBatchForEventsOnly(
+export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
 ): IngestionBatchFilter {
@@ -339,7 +342,7 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score and log events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
       });
     }
   }
@@ -378,11 +381,11 @@ function authorizeIngestionBatch(
   return { batchForProcessing, rejectedErrors };
 }
 
-/** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs assert nothing. */
+/** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs skip authz. */
 function ingestionActionForEventType(
   type: string | null,
-): ProjectAction | null {
-  if (type === eventTypes.SDK_LOG) return null;
+): ProjectAction | typeof __dangerouslySkipAuthz {
+  if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
   if (type === eventTypes.SCORE_CREATE) return "scores:create";
   return "traces:create";
 }

@@ -32,6 +32,7 @@ import {
 } from "./structuredPublicApiErrorContract";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
+import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import {
@@ -263,6 +264,17 @@ export const createAuthedProjectAPIRoute = <
         errorContract: routeConfig.errorContract,
         upgradePath: routeConfig.rateLimitUpgradePath,
       });
+    }
+
+    const cutoffRejection = applyLegacyApiOrganizationCutoff({
+      req,
+      deprecation,
+      scope: auth.scope,
+      routeName: routeConfig.name,
+    });
+    if (cutoffRejection) {
+      res.status(410).json(cutoffRejection.body);
+      return;
     }
 
     logger.debug(

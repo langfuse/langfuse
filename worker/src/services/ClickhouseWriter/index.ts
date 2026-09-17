@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import {
   clickhouseClient,
   ClickhouseClientType,
@@ -89,8 +90,6 @@ export class ClickhouseWriter {
       if (this.isIntervalFlushInProgress) return;
 
       this.isIntervalFlushInProgress = true;
-
-      logger.debug("Flush interval elapsed, flushing all queues...");
 
       this.flushAll().finally(() => {
         this.isIntervalFlushInProgress = false;

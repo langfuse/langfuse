@@ -39,6 +39,7 @@ import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
@@ -77,9 +78,10 @@ export default async function handler(
       return;
     }
 
-    // Authenticate and authorize the connection through the policy seam.
+    // Each tool authorizes its own action.
     const authResult = await shadowAuth({
       req,
+      action: __dangerouslySkipAuthz,
       allowedAccessLevels: ["project"],
       allowInAppAgentKey: true,
     });
@@ -157,9 +159,22 @@ export default async function handler(
     // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
     await handleMcpRequest(server, req, res);
   } catch (error) {
-    logger.error("MCP API route error", {
+    // Client-caused errors (bad Host/Origin header -> "Invalid Host header",
+    // invalid input, auth failures) are expected, high-volume noise fired per
+    // request by misconfigured or probing clients. Keep the detailed line at
+    // debug for those (4xx) and reserve error level for genuine server faults.
+    const isExpectedClientError =
+      (error instanceof BaseError && error.httpCode < 500) ||
+      isUserInputError(error) ||
+      error instanceof ZodError;
+    const errorMeta = {
       message: error instanceof Error ? error.message : "Unknown error",
-    });
+    };
+    if (isExpectedClientError) {
+      logger.debug("MCP API route error", errorMeta);
+    } else {
+      logger.error("MCP API route error", errorMeta);
+    }
 
     // Format error for user (never throw from handler)
     if (!res.headersSent) {

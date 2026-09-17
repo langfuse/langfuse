@@ -1,6 +1,6 @@
 import React from "react";
 import { useRouter } from "next/router";
-import SessionsTable from "@/src/components/table/use-cases/sessions";
+import SessionsTable from "@/src/features/sessions/SessionsTable";
 import Page from "@/src/components/layouts/page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";

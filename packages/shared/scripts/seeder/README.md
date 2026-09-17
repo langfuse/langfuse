@@ -159,7 +159,8 @@ cost.
   without flags or interactivity.
 - More scenarios as needs surface: score zoo (blocked on the insert
   schema's non-nullable `value` for TEXT scores), annotation queue items,
-  dataset experiment loops, media edge cases, deliberate orphan shapes
+  multi-run dataset experiment loops (single-run structured I/O is available
+  through `experiment-io`), media edge cases, deliberate orphan shapes
   behind explicit flags.
 
 The original design discussion (registry/profiles/budgets alternatives,

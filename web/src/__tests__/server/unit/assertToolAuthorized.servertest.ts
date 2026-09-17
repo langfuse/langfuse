@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 import { ForbiddenError } from "@langfuse/shared";
 
@@ -8,8 +9,18 @@ const { env } = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env }));
 
+const { shadowAuthDiff } = vi.hoisted(() => ({ shadowAuthDiff: vi.fn() }));
+
+vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
+  shadowAuthDiff,
+}));
+
 import { __test } from "@/src/features/mcp/server/mcpServer";
 import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
+import {
+  __dangerouslySkipAuthz,
+  type ApiAction,
+} from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 import {
   type AuthorizationContext,
@@ -55,7 +66,7 @@ const serverContext = (auth?: AuthorizationContext): ServerContext => ({
   auth,
 });
 
-const tool = (action: ProjectAction | null): ToolDefinition => ({
+const tool = (action: ApiAction): ToolDefinition => ({
   name: "someTool",
   description: "",
   action,
@@ -65,23 +76,73 @@ const tool = (action: ProjectAction | null): ToolDefinition => ({
 describe("assertToolAuthorized", () => {
   beforeEach(() => {
     env.API_AUTH_MIGRATION = "enforce";
+    shadowAuthDiff.mockReset();
   });
 
-  it("throws the decision error when the context lacks the tool's action", () => {
+  it("throws a formatted InvalidRequest error when the context lacks the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
         tool("prompts:CUD"),
         serverContext(authContext([allowPrompts])),
       ),
-    ).toThrow(ForbiddenError);
+    ).toThrow(
+      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+    );
   });
 
-  it("passes when the context holds the tool's action", () => {
+  it("passes when the resolved context holds the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
         tool("prompts:read"),
         serverContext(authContext([allowPrompts])),
       ),
     ).not.toThrow();
+  });
+
+  it("passes an ungated tool regardless of context", () => {
+    expect(() =>
+      assertToolAuthorized(
+        tool(__dangerouslySkipAuthz),
+        serverContext(authContext([])),
+      ),
+    ).not.toThrow();
+  });
+
+  it("passes when no context resolved (legacy)", () => {
+    expect(() =>
+      assertToolAuthorized(tool("prompts:CUD"), serverContext(undefined)),
+    ).not.toThrow();
+  });
+
+  describe("shadow mode", () => {
+    beforeEach(() => {
+      env.API_AUTH_MIGRATION = "shadow";
+    });
+
+    it("diffs a denied action without throwing", () => {
+      expect(() =>
+        assertToolAuthorized(
+          tool("prompts:CUD"),
+          serverContext(authContext([allowPrompts])),
+        ),
+      ).not.toThrow();
+      expect(shadowAuthDiff).toHaveBeenCalledWith(
+        { success: false, error: expect.any(ForbiddenError) },
+        { success: true, scope: { accessLevel: "project" } },
+        "prompts:CUD",
+      );
+    });
+
+    it("diffs an allowed action", () => {
+      assertToolAuthorized(
+        tool("prompts:read"),
+        serverContext(authContext([allowPrompts])),
+      );
+      expect(shadowAuthDiff).toHaveBeenCalledWith(
+        { success: true },
+        { success: true, scope: { accessLevel: "project" } },
+        "prompts:read",
+      );
+    });
   });
 });

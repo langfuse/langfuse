@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 import { wrapErrorHandling } from "./error-formatting";
-import type { ProjectAction } from "@/src/features/auth/policy/types";
+import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
 /**
@@ -37,8 +37,8 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
 
-  /** Project action the caller must hold to run this tool; null leaves the tool ungated. */
-  action: ProjectAction | null;
+  /** Action the caller must hold to run this tool. */
+  action: ApiAction;
 
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
@@ -56,7 +56,7 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
-  action: ProjectAction | null;
+  action: ApiAction;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
