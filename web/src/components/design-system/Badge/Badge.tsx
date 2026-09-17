@@ -6,12 +6,11 @@ import { type ComponentPropsWithoutRef } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border px-1.5 pb-px font-mono text-xs leading-none font-normal",
+  "inline-flex h-5.5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1.5 rounded-sm border px-2 font-mono text-xs leading-none font-normal",
   {
     variants: {
       color: {
-        primary:
-          "border-border-contrast bg-transparent text-foreground-secondary",
+        primary: "border-border bg-transparent text-foreground-secondary",
         emphasis: "border-transparent bg-tertiary/60 text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",

@@ -5,7 +5,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex h-5 items-center gap-1 rounded-xs border px-1.5 pb-px font-mono text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border px-2 font-mono text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2",
   {
     variants: {
       variant: {
@@ -15,7 +15,7 @@ const badgeVariants = cva(
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "border-border-contrast text-muted-foreground",
+        outline: "border-border text-foreground-secondary",
         "outline-solid": "border-input bg-background text-foreground",
         tertiary: "border-transparent bg-tertiary/60 text-foreground-secondary",
         success: "border-transparent bg-light-green text-dark-green",
