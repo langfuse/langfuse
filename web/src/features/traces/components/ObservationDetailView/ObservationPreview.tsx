@@ -1,12 +1,9 @@
 import { useState, type ComponentProps, type Key } from "react";
 
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
-import TagList from "@/src/features/tag/components/TagList";
-import { isPrettyLikeJsonView } from "@/src/components/ui/jsonViewPreference";
 
 export interface ObservationPreviewProps {
   currentView?: ComponentProps<typeof IOPreview>["currentView"];
-  tags?: string[] | null;
   previewKey: Key;
   previewProps: Omit<
     ComponentProps<typeof IOPreview>,
@@ -17,7 +14,6 @@ export interface ObservationPreviewProps {
 
 export function ObservationPreview({
   currentView,
-  tags,
   previewKey,
   previewProps,
   onPrettyViewAvailabilityChange,
@@ -32,20 +28,6 @@ export function ObservationPreview({
           : "overflow-auto pb-4"
       }`}
     >
-      {tags && tags.length > 0 ? (
-        <>
-          <div
-            className={`px-2 pt-2 text-sm font-bold ${currentView && !isPrettyLikeJsonView(currentView) ? "shrink-0" : ""}`}
-          >
-            Tags
-          </div>
-          <div
-            className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${currentView && !isPrettyLikeJsonView(currentView) ? "shrink-0" : ""}`}
-          >
-            <TagList selectedTags={tags} isLoading={false} />
-          </div>
-        </>
-      ) : null}
       <IOPreview
         key={previewKey}
         {...previewProps}

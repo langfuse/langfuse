@@ -281,12 +281,13 @@ export default [
   // Root design-system components follow `Name/Name.tsx`, optionally alongside
   // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
   // match that folder's name, and expose a matching named runtime export. The
-  // table and internal subtrees are domain-specific exceptions with their own
-  // structure.
+  // factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: [
+      "src/components/design-system/factories/**",
       "src/components/design-system/internal/**",
       "src/components/design-system/table/**",
     ],
