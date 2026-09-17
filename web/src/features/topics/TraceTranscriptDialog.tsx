@@ -64,15 +64,17 @@ function TraceTranscriptDialog({
 
   return (
     <div className="ph-no-capture flex min-h-0 flex-col overflow-hidden">
-      <header className="shrink-0 space-y-1.5 border-b p-4 pr-10">
+      <header className="flex shrink-0 flex-col gap-1 border-b p-3 pr-10">
         <DialogTitle>Trace transcript</DialogTitle>
         <DialogDescription>
-          One transcript, shared by every facet. Regenerated from the current
-          trace; saved summaries below are specific to each facet version.
+          Current transcript and saved summaries by facet version.
         </DialogDescription>
       </header>
       <DialogBody>
-        <section aria-labelledby="trace-facet-summaries" className="space-y-3">
+        <section
+          aria-labelledby="trace-facet-summaries"
+          className="flex flex-col gap-2"
+        >
           <h3 id="trace-facet-summaries" className="text-sm font-bold">
             Saved facet summaries
           </h3>
@@ -84,33 +86,36 @@ function TraceTranscriptDialog({
             </p>
           )}
           {summaries.data?.map((summary) => (
-            <details key={summary.id} open className="rounded-md border p-3">
-              <summary className="cursor-pointer text-sm font-bold">
-                {summary.facetName} · v{summary.facetVersion}
-              </summary>
-              <div className="mt-2 space-y-2 text-sm">
-                <p className="break-words whitespace-pre-wrap">
-                  {summary.summary ||
-                    (summary.state === "not_applicable"
-                      ? "This facet does not apply to this trace."
-                      : "Not enough evidence to summarize this facet.")}
-                </p>
+            <article
+              key={summary.id}
+              className="flex flex-col gap-1 rounded-md border p-2 text-sm"
+            >
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <h4 className="font-bold">
+                  {summary.facetName} · v{summary.facetVersion}
+                </h4>
                 <p className="text-muted-foreground text-xs">
                   Saved {new Date(summary.processedAt).toLocaleString()}
                 </p>
-                {summary.transcriptVersion === null ? (
-                  <p className="text-muted-foreground text-xs">
-                    Generated using the earlier facet-specific transcript.
-                  </p>
-                ) : transcript.data &&
-                  summary.inputHash !== transcript.data.inputHash ? (
-                  <p className="text-muted-foreground text-xs">
-                    The trace or transcript format has changed since this
-                    summary was generated.
-                  </p>
-                ) : null}
               </div>
-            </details>
+              <p className="break-words whitespace-pre-wrap">
+                {summary.summary ||
+                  (summary.state === "not_applicable"
+                    ? "This facet does not apply to this trace."
+                    : "Not enough evidence to summarize this facet.")}
+              </p>
+              {summary.transcriptVersion === null ? (
+                <p className="text-muted-foreground text-xs">
+                  Generated using the earlier facet-specific transcript.
+                </p>
+              ) : transcript.data &&
+                summary.inputHash !== transcript.data.inputHash ? (
+                <p className="text-muted-foreground text-xs">
+                  The trace or transcript format has changed since this summary
+                  was generated.
+                </p>
+              ) : null}
+            </article>
           ))}
         </section>
         {transcript.isLoading && <p role="status">Loading transcript…</p>}

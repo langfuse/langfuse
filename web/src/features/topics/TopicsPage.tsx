@@ -48,6 +48,7 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
 
 export default function TopicsPage() {
   const router = useRouter();
+  const utils = api.useUtils();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
   const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
@@ -64,6 +65,15 @@ export default function TopicsPage() {
           description:
             "Explore recurring themes across traces, one facet at a time.",
         },
+        actionButtonsRight: projectId && !router.query.executionId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => utils.topics.currentResults.refetch({ projectId })}
+          >
+            Refresh results
+          </Button>
+        ),
       }}
       scrollable
       withPadding

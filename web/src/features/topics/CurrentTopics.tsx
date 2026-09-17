@@ -1,8 +1,18 @@
 import { useState } from "react";
-import Link from "next/link";
+import { type PaginationState } from "@tanstack/react-table";
+import { DataTable } from "@/src/components/table/data-table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  TabsBar,
+  TabsBarContent,
+  TabsBarList,
+  TabsBarTrigger,
+} from "@/src/components/ui/tabs-bar";
 import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
 
 type Facet = RouterOutputs["topics"]["currentResults"][number];
@@ -14,22 +24,18 @@ export function CurrentTopics({
   projectId: string;
   running: boolean;
 }) {
+  const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const result = api.topics.currentResults.useQuery(
     { projectId },
     { refetchInterval: running ? 3000 : false },
   );
+  const selectedFacet = result.data?.some(
+    (facet) => facet.facetId === selectedFacetId,
+  )
+    ? selectedFacetId
+    : result.data?.[0]?.facetId;
   return (
     <section className="flex min-w-0 flex-col gap-5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold">Topics</h2>
-        <Button variant="ghost" size="sm" onClick={() => result.refetch()}>
-          Refresh results
-        </Button>
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Current results across all runs. Each trace uses its latest facet
-        assignment.
-      </p>
       {result.error && (
         <p role="alert" className="text-destructive text-sm">
           {result.error.message}
@@ -41,9 +47,22 @@ export function CurrentTopics({
           Run topics below to discover patterns in your traces.
         </p>
       )}
-      {result.data?.map((facet) => (
-        <CurrentFacet key={facet.facetId} projectId={projectId} facet={facet} />
-      ))}
+      {selectedFacet && (
+        <TabsBar value={selectedFacet} onValueChange={setSelectedFacetId}>
+          <TabsBarList aria-label="Facets" className="shrink-0 overflow-x-auto">
+            {result.data?.map((facet) => (
+              <TabsBarTrigger key={facet.facetId} value={facet.facetId}>
+                {facet.name}
+              </TabsBarTrigger>
+            ))}
+          </TabsBarList>
+          {result.data?.map((facet) => (
+            <TabsBarContent key={facet.facetId} value={facet.facetId}>
+              <CurrentFacet projectId={projectId} facet={facet} />
+            </TabsBarContent>
+          ))}
+        </TabsBar>
+      )}
     </section>
   );
 }
@@ -90,13 +109,12 @@ function CurrentFacet({
       ]
     : facet.topics;
   return (
-    <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
-      <div className="flex items-center gap-2">
-        <h3 className="font-bold">{facet.name}</h3>
-        {facet.map?.exploratory && (
-          <Badge variant="outline">Provisional topics</Badge>
-        )}
-      </div>
+    <div className="flex min-w-0 flex-col gap-3">
+      {facet.map?.exploratory && (
+        <Badge variant="outline" className="self-start">
+          Provisional topics
+        </Badge>
+      )}
       <p className="text-muted-foreground text-sm">
         {facet.rows.length.toLocaleString()} traces · {facet.topics.length}{" "}
         topics
@@ -187,7 +205,7 @@ function CurrentFacet({
           </Button>
         )}
       </div>
-      <CurrentTraceList
+      <CurrentTraceTable
         key={selected ?? "all"}
         projectId={projectId}
         rows={visible}
@@ -196,75 +214,104 @@ function CurrentFacet({
   );
 }
 
-function CurrentTraceList({
+function CurrentTraceTable({
   projectId,
   rows,
 }: {
   projectId: string;
   rows: Facet["rows"];
 }) {
-  const [page, setPage] = useState(0);
-  const pages = Math.max(1, Math.ceil(rows.length / 20));
-  const currentPage = Math.min(page, pages - 1);
-  return (
-    <div className="flex flex-col gap-2">
-      {rows.slice(currentPage * 20, (currentPage + 1) * 20).map((row) => (
-        <article
-          key={row.traceId}
-          className="flex flex-col gap-2 rounded-md border p-3"
+  const peekNavigation = usePeekNavigation({
+    tableName: "topics-current-traces",
+    isV4: false,
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    expandConfig: {
+      basePath: `/project/${projectId}/traces`,
+      reader: "trace",
+    },
+  });
+  const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+  const pageIndex = Math.min(
+    pagination.pageIndex,
+    Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
+  );
+  const columns: LangfuseColumnDef<Facet["rows"][number]>[] = [
+    {
+      accessorKey: "traceId",
+      header: "Trace ID",
+      size: 220,
+      cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => peekNavigation.openPeek(row.original.traceId)}
+          title={row.original.traceId}
+          className="font-mono text-xs underline"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <Link
-              href={`/project/${projectId}/traces/${encodeURIComponent(row.traceId)}`}
-              title={row.traceId}
-              className="truncate font-mono text-xs underline"
-            >
-              {row.traceId}
-            </Link>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">
-                {row.topicName ?? row.outcome.replaceAll("_", " ")}
+          {row.original.traceId}
+        </button>
+      ),
+    },
+    {
+      accessorKey: "topicName",
+      header: "Topic",
+      size: 260,
+      cell: ({ row }) => (
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="outline" className="whitespace-normal">
+            {row.original.topicName ??
+              row.original.outcome.replaceAll("_", " ")}
+          </Badge>
+          {row.original.awaitingUpdate &&
+            row.original.outcome !== "awaiting_map" && (
+              <Badge variant="outline" className="whitespace-normal">
+                Previous result · update pending
               </Badge>
-              {row.awaitingUpdate && row.outcome !== "awaiting_map" && (
-                <Badge variant="outline">
-                  Previous result · update pending
-                </Badge>
-              )}
-            </div>
-          </div>
-          <p className="text-sm whitespace-pre-wrap">
-            {row.summary || "No applicable summary."}
-          </p>
-        </article>
-      ))}
-      {rows.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          No traces in this selection.
-        </p>
-      )}
-      {pages > 1 && (
-        <div className="flex items-center justify-end gap-2 text-sm">
-          <span>
-            {currentPage + 1} / {pages.toLocaleString()}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            Previous traces
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage >= pages - 1}
-            onClick={() => setPage(currentPage + 1)}
-          >
-            Next traces
-          </Button>
+            )}
         </div>
-      )}
-    </div>
+      ),
+    },
+    {
+      accessorKey: "summary",
+      header: "Summary",
+      size: 600,
+      cell: ({ row }) => (
+        <p className="break-words whitespace-pre-wrap">
+          {row.original.summary || "No applicable summary."}
+        </p>
+      ),
+    },
+  ];
+  return (
+    <>
+      <DataTable
+        tableName="topics-current-traces"
+        columns={columns}
+        data={{
+          isLoading: false,
+          isError: false,
+          data: rows
+            .slice(
+              pageIndex * pagination.pageSize,
+              (pageIndex + 1) * pagination.pageSize,
+            )
+            .map((row) => ({ ...row, id: row.traceId })),
+        }}
+        pagination={{
+          totalCount: rows.length,
+          state: { ...pagination, pageIndex },
+          onChange: setPagination,
+          options: [20, 50, 100],
+        }}
+        topAlignCells
+        cellPadding="comfortable"
+        noResultsMessage="No traces in this selection."
+        peekView={peekConfig}
+      />
+      <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
+    </>
   );
 }
