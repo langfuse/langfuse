@@ -25,6 +25,20 @@ export const traceBatchQueueProcessor: Processor<
   const startedAt = performance.now();
   let outcome: "success" | "failure" | "discard" = "failure";
   let queryId: string | undefined;
+  let batchShape:
+    | {
+        batchTraceCount: number;
+        batchProjectCount: number;
+        eventTimeSpanMs: number;
+        maxTraceSpanMs: number;
+      }
+    | undefined;
+  const foundTraces = new Set<string>();
+  const foundProjects = new Set<string>();
+  let observationCount = 0;
+  let inputBytes = 0;
+  let outputBytes = 0;
+  let metadataBytes = 0;
   try {
     const disabledReason = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? "not_cloud"
@@ -50,13 +64,6 @@ export const traceBatchQueueProcessor: Processor<
       return { discarded: "expired" };
     }
     const batch = event.payload;
-    const foundTraces = new Set<string>();
-    const foundProjects = new Set<string>();
-    let observationCount = 0;
-    let inputBytes = 0;
-    let outputBytes = 0;
-    let metadataBytes = 0;
-
     const queryOptions = {
       maxThreads: env.LANGFUSE_TRACE_BATCH_MAX_THREADS,
       maxBlockSize: env.LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE,
@@ -65,6 +72,25 @@ export const traceBatchQueueProcessor: Processor<
     };
     queryId = queryOptions.queryId;
     if (queryOptions.experimentId) {
+      const projects = new Set<string>();
+      let minStart = Infinity;
+      let maxStart = -Infinity;
+      let maxTraceSpanMs = 0;
+      for (const trace of batch.traces) {
+        projects.add(trace.projectId);
+        minStart = Math.min(minStart, trace.minStart);
+        maxStart = Math.max(maxStart, trace.maxStart);
+        maxTraceSpanMs = Math.max(
+          maxTraceSpanMs,
+          trace.maxStart - trace.minStart,
+        );
+      }
+      batchShape = {
+        batchTraceCount: batch.traces.length,
+        batchProjectCount: projects.size,
+        eventTimeSpanMs: batch.traces.length ? maxStart - minStart : 0,
+        maxTraceSpanMs,
+      };
       logger.info("Trace batch experiment read", {
         ...queryOptions,
         jobId: job.id,
@@ -149,6 +175,7 @@ export const traceBatchQueueProcessor: Processor<
       ioMetadataBytes,
     };
   } finally {
+    const durationMs = performance.now() - startedAt;
     if (env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID) {
       logger.info("Trace batch experiment read completed", {
         experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
@@ -156,13 +183,24 @@ export const traceBatchQueueProcessor: Processor<
         attempt: job.attemptsMade + 1,
         queryId,
         outcome,
+        durationMs,
+        ...batchShape,
+        ...(queryId
+          ? {
+              observationCount,
+              foundTraceCount: foundTraces.size,
+              foundProjectCount: foundProjects.size,
+              inputBytes,
+              outputBytes,
+              metadataBytes,
+              partial: outcome !== "success",
+            }
+          : {}),
       });
     }
     recordIncrement("langfuse.trace_batch.read_attempts", 1, { outcome });
-    recordDistribution(
-      "langfuse.trace_batch.read_duration_ms",
-      performance.now() - startedAt,
-      { outcome },
-    );
+    recordDistribution("langfuse.trace_batch.read_duration_ms", durationMs, {
+      outcome,
+    });
   }
 };

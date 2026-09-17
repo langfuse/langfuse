@@ -159,6 +159,18 @@ the stream. Discards and validation failures have no query ID. Identifiers are
 not metric tags and logs contain no event payloads. Successful batch metrics and
 job return values retain their existing meanings.
 
+Completion logs also correlate the requested `batchTraceCount`, distinct
+`batchProjectCount`, `eventTimeSpanMs` (outer event-time span, without query
+buffering), and `maxTraceSpanMs` with the outcome and `durationMs`. These are
+batch-locality proxies, not measured ClickHouse scan costs. `observationCount`,
+`foundTraceCount`, `foundProjectCount` and separate `inputBytes`, `outputBytes`,
+`metadataBytes` describe rows consumed by that attempt. `partial: true` marks
+failed reads, including failures before any row arrives; zero then does not mean
+the requested batch was empty. Successful counts cover the completed stream,
+not unique ingested events. Discarded/unparsed jobs omit stream counters.
+Use these existing logs to compare batch shape and volume across outcomes by
+query ID; no payload contents, project-ID lists or per-batch metric tags are added.
+
 For the initial scaling curve, use deterministic trace sampling at 10%, 20%,
 50%, then 100% across the same project population. Annotate fixed UTC windows;
 pause tracking and drain old readiness/queued work between settings. Warm up at

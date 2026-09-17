@@ -26,6 +26,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
 beforeEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -33,6 +34,7 @@ beforeEach(() => {
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+  env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = originalExperimentId;
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
@@ -142,6 +144,13 @@ describe("trace batch queue", () => {
           maxStart: 2_000,
           revision: "r",
         },
+        {
+          projectId: "other",
+          traceId: "trace",
+          minStart: 9_000,
+          maxStart: 12_000,
+          revision: "r",
+        },
       ],
     };
     const job = {
@@ -171,7 +180,7 @@ describe("trace batch queue", () => {
           buildId: "test-build",
           maxThreads: 1,
           maxBlockSize: 512,
-          batchTraceCount: 1,
+          batchTraceCount: 2,
           jobId: "batch-job",
           attempt: 2,
           queryId: vi.mocked(getTraceBatchEventStream).mock.lastCall![1]!
@@ -186,6 +195,18 @@ describe("trace batch queue", () => {
           queryId: vi.mocked(getTraceBatchEventStream).mock.lastCall![1]!
             .queryId,
           outcome: "failure",
+          batchTraceCount: 2,
+          batchProjectCount: 2,
+          eventTimeSpanMs: 11_000,
+          maxTraceSpanMs: 3_000,
+          observationCount: 1,
+          foundTraceCount: 1,
+          foundProjectCount: 1,
+          inputBytes: 5,
+          outputBytes: 6,
+          metadataBytes: 9,
+          partial: true,
+          durationMs: expect.any(Number),
         }),
       );
       expect(vi.mocked(recordDistribution).mock.calls).toEqual([
@@ -216,6 +237,8 @@ describe("trace batch queue", () => {
     }
   });
   it("retains the active read count when overlapping reads succeed or fail", async () => {
+    env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "overlapping";
+    const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const first = Promise.withResolvers<void>();
     const second = Promise.withResolvers<void>();
     const failure = new Error("stream failed");
@@ -262,6 +285,25 @@ describe("trace batch queue", () => {
     );
     second.resolve();
     await expect(failedRead).rejects.toBe(failure);
+    for (const outcome of ["success", "failure"]) {
+      expect(log).toHaveBeenCalledWith(
+        "Trace batch experiment read completed",
+        expect.objectContaining({
+          outcome,
+          batchTraceCount: 1,
+          batchProjectCount: 1,
+          eventTimeSpanMs: 1,
+          maxTraceSpanMs: 1,
+          observationCount: 0,
+          foundTraceCount: 0,
+          foundProjectCount: 0,
+          inputBytes: 0,
+          outputBytes: 0,
+          metadataBytes: 0,
+          partial: outcome === "failure",
+        }),
+      );
+    }
     expect(vi.mocked(recordGauge).mock.calls).toEqual([
       ["langfuse.trace_batch.active_reads", 1],
       ["langfuse.trace_batch.active_reads", 2],
@@ -275,6 +317,8 @@ describe("trace batch queue", () => {
     ]);
   });
   it("counts project/trace pairs with producers disabled and safely repeats reads without retaining payloads", async () => {
+    env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "successful-read";
+    const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const ingestionEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
     const dispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
@@ -287,11 +331,11 @@ describe("trace batch queue", () => {
           ["other", "trace-a"],
           ["project", "trace-missing"],
           ["absent", "trace-missing"],
-        ].map(([projectId, traceId]) => ({
+        ].map(([projectId, traceId], index) => ({
           projectId,
           traceId,
-          minStart: 1_000,
-          maxStart: 2_000,
+          minStart: 1_000 + index * 10_000,
+          maxStart: 2_000 + index * 11_000,
           revision: "revision",
         })),
       };
@@ -352,6 +396,24 @@ describe("trace batch queue", () => {
         expect.anything(),
       );
       expect(yieldedRows).toBe(8);
+      expect(log).toHaveBeenCalledWith(
+        "Trace batch experiment read completed",
+        expect.objectContaining({
+          outcome: "success",
+          batchTraceCount: 5,
+          batchProjectCount: 3,
+          eventTimeSpanMs: 45_000,
+          maxTraceSpanMs: 5_000,
+          observationCount: 4,
+          foundTraceCount: 3,
+          foundProjectCount: 2,
+          inputBytes: 20,
+          outputBytes: 24,
+          metadataBytes: 36,
+          partial: false,
+          durationMs: expect.any(Number),
+        }),
+      );
       for (const [name, bytes] of [
         ["input_bytes", 20],
         ["output_bytes", 24],
