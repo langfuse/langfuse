@@ -149,6 +149,11 @@ export function PostHogIntegrationForm({
           <PostHogForm.Field
             name="posthogProjectApiKey"
             label="Posthog Project API Key"
+            description={
+              configurationState === "configured"
+                ? "Leave blank to keep the current API key."
+                : undefined
+            }
           >
             {(field) => (
               <PasswordInput
@@ -200,6 +205,7 @@ export function PostHogIntegrationForm({
                 <PostHogForm.Field
                   name="exportSource"
                   label="Export Source"
+                  description="Choose which data sources to export to PostHog. Scores are always included."
                   registerLabelTooltip={getTriggerProps}
                 >
                   {(field) => (
