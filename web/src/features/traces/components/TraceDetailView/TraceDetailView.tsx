@@ -103,8 +103,6 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // The Formatted view shares the pretty layout; JSON views differ.
-  const isPrettyLikeView = currentView === "pretty";
 
   const selectedViewTab =
     jsonViewPreference === "pretty" ? "pretty" : ("json" as const);

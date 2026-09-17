@@ -12,7 +12,7 @@ export const TagButton: React.FC<{
 }> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => {
   const label = (
     <>
-      <TagIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
+      <TagIcon className="size-3 shrink-0" />
       <span
         className={cn(
           "overflow-hidden text-ellipsis whitespace-nowrap",
@@ -42,7 +42,7 @@ export const TagButton: React.FC<{
       key={tag}
       variant="tertiary"
       size="icon-sm"
-      className="w-fit max-w-40 min-w-16"
+      className="w-fit max-w-40 min-w-16 gap-1"
       loading={loading}
     >
       {label}
