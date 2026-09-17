@@ -2,6 +2,7 @@ import { type GetServerSideProps, type GetServerSidePropsResult } from "next";
 
 import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
+import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { prisma } from "@langfuse/shared/src/db";
 
 const DemoRedirectPage = () => null;
@@ -35,8 +36,12 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   });
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
-  if (session?.user) {
+  if (isProjectMemberOrAdmin(session?.user, demoProject.id)) {
     return redirect(demoProjectPath);
+  }
+
+  if (session?.user) {
+    return redirect("/");
   }
 
   const authPath =

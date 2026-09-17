@@ -23,9 +23,6 @@ const { getServerAuthSessionMock, prismaMock } = vi.hoisted(() => ({
     project: {
       findUnique: vi.fn(),
     },
-    organizationMembership: {
-      upsert: vi.fn(),
-    },
   },
 }));
 
@@ -73,12 +70,20 @@ describe("demo redirect page", () => {
     prismaMock.project.findUnique.mockResolvedValue({
       id: "demo-project",
     });
-    prismaMock.organizationMembership.upsert.mockResolvedValue({});
     getServerAuthSessionMock.mockResolvedValue(null);
   });
 
-  it("redirects authenticated users to the configured regional demo project without changing memberships", async () => {
-    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+  it("redirects authenticated users with demo project access to the configured regional demo project", async () => {
+    getServerAuthSessionMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        organizations: [
+          {
+            projects: [{ id: "demo-project" }],
+          },
+        ],
+      },
+    });
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
@@ -96,7 +101,26 @@ describe("demo redirect page", () => {
         id: true,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("falls back home for authenticated users without demo project access", async () => {
+    getServerAuthSessionMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        organizations: [
+          {
+            projects: [{ id: "other-project" }],
+          },
+        ],
+      },
+    });
+
+    await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
   });
 
   it("redirects unauthenticated users to sign up with the demo target", async () => {
@@ -109,11 +133,19 @@ describe("demo redirect page", () => {
       },
     });
     expect(prismaMock.project.findUnique).toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("redirects authenticated users from demo subpaths to the same demo project subpath", async () => {
-    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    getServerAuthSessionMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        organizations: [
+          {
+            projects: [{ id: "demo-project" }],
+          },
+        ],
+      },
+    });
 
     await expect(
       getDemoServerSideProps(
@@ -127,7 +159,6 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("redirects unauthenticated users to sign up with the demo subpath target", async () => {
@@ -147,7 +178,6 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("redirects unauthenticated users to sign in when sign-up is disabled", async () => {
@@ -193,7 +223,6 @@ describe("demo redirect page", () => {
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("falls back to home when the deployment is not Langfuse Cloud", async () => {
@@ -207,7 +236,6 @@ describe("demo redirect page", () => {
     });
     expect(getServerAuthSessionMock).not.toHaveBeenCalled();
     expect(prismaMock.project.findUnique).not.toHaveBeenCalled();
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
   it("falls back to home when no demo organization is configured", async () => {
@@ -225,7 +253,16 @@ describe("demo redirect page", () => {
   });
 
   it("falls back to home when the configured demo project does not exist", async () => {
-    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+    getServerAuthSessionMock.mockResolvedValue({
+      user: {
+        id: "user-1",
+        organizations: [
+          {
+            projects: [{ id: "demo-project" }],
+          },
+        ],
+      },
+    });
     prismaMock.project.findUnique.mockResolvedValue(null);
 
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
@@ -234,6 +271,5 @@ describe("demo redirect page", () => {
         permanent: false,
       },
     });
-    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 });

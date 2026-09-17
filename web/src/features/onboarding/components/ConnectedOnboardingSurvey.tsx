@@ -21,12 +21,17 @@ const getCallbackPath = (url: string): string | null => {
   }
 };
 
-const getDemoCallbackRedirectPath = (value: unknown): string | undefined => {
+export const getDemoCallbackRedirectPath = (
+  value: unknown,
+): string | undefined => {
   if (typeof value !== "string") return undefined;
   const callbackPath = getCallbackPath(value);
   if (!callbackPath) return undefined;
   const redirectPath = stripBasePath(getSafeRedirectPath(callbackPath));
-  return redirectPath === "/demo" ? redirectPath : undefined;
+  const pathname = new URL(redirectPath, window.location.origin).pathname;
+  return pathname === "/demo" || pathname.startsWith("/demo/")
+    ? redirectPath
+    : undefined;
 };
 
 export function ConnectedOnboardingSurvey() {
