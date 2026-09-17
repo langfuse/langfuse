@@ -19,10 +19,15 @@ import {
   notFoundError,
   type Action,
   type AuthorizationContext,
+  type Decision,
   type ErrorResult,
   type Principal,
+  type Resource,
   type Success,
 } from "@/src/features/auth/policy/types";
+
+/** __dangerouslySkipAuthz skips the connection-level action check for routes that authorize each call themselves. */
+export const __dangerouslySkipAuthz = "__dangerouslySkipAuthz" as const;
 
 /** orgIdHeader selects the target org. */
 const orgIdHeader = "x-langfuse-organization-id";
@@ -30,7 +35,7 @@ const orgIdHeader = "x-langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "x-langfuse-project-id";
 
-/** enforceAuth authenticates the request and authorizes an action for the given endpoint (combines authz and authn) */
+/** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
   req,
   action,
@@ -49,7 +54,7 @@ export async function enforceAuth({
     case "admin":
       return enforceAdminAuthz(context, req, action);
     case "apiKey":
-      return isOrgAction(action)
+      return action !== __dangerouslySkipAuthz && isOrgAction(action)
         ? enforceOrgAuthz(context, req, action)
         : enforceProjectAuthz(context, req, action);
     default:
@@ -61,7 +66,7 @@ export async function enforceAuth({
 async function enforceAdminAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): Promise<EnforceAuthResult> {
   const projectId = getHeaderProjectId(req);
   if (!projectId) return forbiddenError(`Missing '${projectIdHeader}' header`);
@@ -69,7 +74,7 @@ async function enforceAdminAuthz(
   const org = await lookupProjectOrgId(projectId);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { projectId });
+  const decision = authorizeAction(context, action, { projectId });
   if (!decision.success) return decision;
 
   return access(context, org.orgId, projectId);
@@ -79,12 +84,12 @@ async function enforceAdminAuthz(
 function enforceOrgAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): EnforceAuthResult {
   const org = getOrgId(context, req);
   if (!org.success) return org;
 
-  const decision = authorize(context, action, { orgId: org.orgId });
+  const decision = authorizeAction(context, action, { orgId: org.orgId });
   if (!decision.success) return decision;
 
   return access(context, org.orgId);
@@ -94,7 +99,7 @@ function enforceOrgAuthz(
 function enforceProjectAuthz(
   context: AuthorizationContext,
   req: NextApiRequest,
-  action: Action,
+  action: ApiAction,
 ): EnforceAuthResult {
   const project = getProjectId(context, req);
   if (!project.success) return project;
@@ -103,7 +108,7 @@ function enforceProjectAuthz(
     return notFoundError("Project not found or you don't have access to it");
   }
 
-  const decision = authorize(context, action, {
+  const decision = authorizeAction(context, action, {
     projectId: project.projectId,
   });
   if (!decision.success) return decision;
@@ -112,6 +117,16 @@ function enforceProjectAuthz(
   if (!orgId) return internalServerError(`Missing bound org on api-key`);
 
   return access(context, orgId, project.projectId);
+}
+
+/** authorizeAction authorizes against a given action, or passes when the route skips authz and authorizes each call itself. */
+function authorizeAction(
+  context: AuthorizationContext,
+  action: ApiAction,
+  resource: Resource,
+): Decision {
+  if (action === __dangerouslySkipAuthz) return { success: true };
+  return authorize(context, action, resource);
 }
 
 /** getOrgId resolves the target org the key's bound org and the header agree on. */
@@ -231,13 +246,16 @@ function access(
   };
 }
 
-/** EnforceAuthParams is the request, the checked action, and the request's key-kind opt-ins. */
+/** EnforceAuthParams is the request, the connection action, and the request's key-kind opt-ins. */
 export type EnforceAuthParams = {
   req: NextApiRequest;
-  action: Action;
+  action: ApiAction;
   allowInAppAgentKey?: boolean;
   isAdminApiKeyAuthAllowed?: boolean;
 };
+
+/** ApiAction is the action a route authorizes at the connection, or the explicit opt-out. */
+export type ApiAction = Action | typeof __dangerouslySkipAuthz;
 
 /** AccessResult is the seam's success outcome: the resolved ApiAccessScope and the context that authorized it. */
 type AccessResult = Success & {
