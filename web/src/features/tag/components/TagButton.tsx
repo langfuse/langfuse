@@ -1,4 +1,5 @@
-import { Button, buttonVariants } from "@/src/components/ui/button";
+import { Button } from "@/src/components/ui/button";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 import { TagIcon } from "lucide-react";
 import React from "react";
@@ -25,16 +26,13 @@ export const TagButton: React.FC<{
   );
 
   // A read-only tag is not a control: a disabled button would dim it, drop it
-  // from the tab order and announce as disabled.
+  // from the tab order and announce as disabled. BadgeShell rather than Badge
+  // because the tag icon leads and Badge only takes a trailing one.
   if (viewOnly) {
+    // Badge takes no className, so the width cap lives on a wrapper.
     return (
-      <span
-        className={cn(
-          buttonVariants({ variant: "tertiary", size: "icon-sm" }),
-          "w-fit max-w-40 min-w-16 cursor-default",
-        )}
-      >
-        {label}
+      <span className="inline-flex max-w-40 min-w-0">
+        <BadgeShell color="neutral">{label}</BadgeShell>
       </span>
     );
   }
