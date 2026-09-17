@@ -136,7 +136,7 @@ export function ChatMessageList({
                     variant="ghost"
                     size="xs"
                     onClick={() => setCollapsed((v) => !v)}
-                    className="text-muted-foreground w-fit underline"
+                    className="text-muted-foreground w-fit"
                   >
                     {isCollapsed
                       ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
