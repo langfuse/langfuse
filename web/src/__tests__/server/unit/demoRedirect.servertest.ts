@@ -112,6 +112,44 @@ describe("demo redirect page", () => {
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
 
+  it("redirects authenticated users from demo subpaths to the same demo project subpath", async () => {
+    getServerAuthSessionMock.mockResolvedValue({ user: { id: "user-1" } });
+
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          resolvedUrl: "/demo/datasets/dataset-1/items?foo=bar",
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: "/project/demo-project/datasets/dataset-1/items?foo=bar",
+        permanent: false,
+      },
+    });
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
+  it("redirects unauthenticated users to sign up with the demo subpath target", async () => {
+    getServerAuthSessionMock.mockResolvedValue(null);
+
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          resolvedUrl: "/demo/datasets/dataset-1/items?foo=bar",
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: `/auth/sign-up?targetPath=${encodeURIComponent(
+          "/demo/datasets/dataset-1/items?foo=bar",
+        )}`,
+        permanent: false,
+      },
+    });
+    expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
+  });
+
   it("redirects unauthenticated users to sign in when sign-up is disabled", async () => {
     mockEnv.env.AUTH_DISABLE_SIGNUP = "true";
     getServerAuthSessionMock.mockResolvedValue(null);
@@ -119,6 +157,26 @@ describe("demo redirect page", () => {
     await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
       redirect: {
         destination: `/auth/sign-in?targetPath=${encodeURIComponent("/demo")}`,
+        permanent: false,
+      },
+    });
+  });
+
+  it("redirects unauthenticated users to sign in with the demo subpath target when sign-up is disabled", async () => {
+    mockEnv.env.AUTH_DISABLE_SIGNUP = "true";
+    getServerAuthSessionMock.mockResolvedValue(null);
+
+    await expect(
+      getDemoServerSideProps(
+        makeCtx({
+          resolvedUrl: "/demo/datasets/dataset-1/items?foo=bar",
+        }),
+      ),
+    ).resolves.toEqual({
+      redirect: {
+        destination: `/auth/sign-in?targetPath=${encodeURIComponent(
+          "/demo/datasets/dataset-1/items?foo=bar",
+        )}`,
         permanent: false,
       },
     });

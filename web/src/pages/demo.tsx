@@ -30,9 +30,10 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return redirect("/");
   }
 
-  const demoProjectPath = `/project/${encodeURIComponent(
-    demoProject.id,
-  )}/traces`;
+  const { demoTargetPath, demoProjectPath } = getDemoRedirectPaths({
+    resolvedUrl: ctx.resolvedUrl,
+    projectId: demoProject.id,
+  });
   const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
 
   if (session?.user) {
@@ -45,9 +46,51 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
       ? "/auth/sign-in"
       : "/auth/sign-up";
 
-  return redirect(`${authPath}?targetPath=${encodeURIComponent("/demo")}`);
+  return redirect(
+    `${authPath}?targetPath=${encodeURIComponent(demoTargetPath)}`,
+  );
 };
 
 const redirect = (destination: string): GetServerSidePropsResult<never> => ({
   redirect: { destination, permanent: false },
 });
+
+function getDemoRedirectPaths({
+  resolvedUrl,
+  projectId,
+}: {
+  resolvedUrl: string;
+  projectId: string;
+}) {
+  const encodedProjectId = encodeURIComponent(projectId);
+
+  try {
+    const url = new URL(resolvedUrl, "https://langfuse.invalid");
+
+    if (url.pathname.startsWith("/demo/")) {
+      const demoSuffix = url.pathname.slice("/demo".length);
+      const pathSuffix = `${url.search}${url.hash}`;
+
+      return {
+        demoTargetPath: `${url.pathname}${pathSuffix}`,
+        demoProjectPath: `/project/${encodedProjectId}${demoSuffix}${pathSuffix}`,
+      };
+    }
+
+    if (url.pathname === "/demo") {
+      const pathSuffix = `${url.search}${url.hash}`;
+
+      return {
+        demoTargetPath: `/demo${pathSuffix}`,
+        demoProjectPath: `/project/${encodedProjectId}/traces${pathSuffix}`,
+      };
+    }
+  } catch {
+    // Fall through to the stable default below.
+  }
+
+  return {
+    demoTargetPath: "/demo",
+    demoProjectPath: `/project/${encodedProjectId}/traces`,
+  };
+}
