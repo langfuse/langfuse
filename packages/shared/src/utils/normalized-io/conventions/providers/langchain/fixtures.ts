@@ -1,4 +1,3 @@
-import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
 /**
@@ -683,7 +682,6 @@ export const langgraphProductionShapeFixture = {
 } satisfies NormalizedIOFixture;
 
 // Verbatim stored observation IO from ChatML integration-example exports.
-// Expected messages are authored from source payloads, not normalizer snapshots.
 export const capturedTraceFixtures: NormalizedIOFixture[] = [
   // Source: worker/src/__tests__/chatml/framework-traces/langgraph-js-2025-10-30.trace.json; observation 0856a1825ccee968
   {
@@ -697,31 +695,55 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"tags":["seq:step:2"],"langgraph_step":3,"langgraph_node":"model_request","langgraph_triggers":["branch:to:model_request"],"langgraph_path":["__pregel_pull","model_request"],"langgraph_checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb|model_request:c51cebc4-7aca-5acb-951c-245ef0a1809c","__pregel_task_id":"3d72c0f6-1849-5286-bc3f-b198da3bc9cb","checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb","ls_provider":"openai","ls_model_name":"gpt-5-mini","ls_model_type":"chat","resourceAttributes":{"host.name":"Janniks-MacBook-Pro.local","host.arch":"arm64","host.id":"04B49C49-15E0-55D5-9040-4D6FF6E415E6","process.pid":97650,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/jannik/Documents/GitHub/playground/js/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/jannik/Documents/GitHub/playground/js/$deno$jupyter.mts","process.owner":"jannik","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"langfuse-sdk","version":"4.3.0","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "What's the weather in San Francisco?",
+            },
+          ],
           source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-call",
               toolCallId: "call_VEZJgIQLgzcb80IIyQJm7JCi",
               toolName: "get_weather",
-              input: { city: "San Francisco" },
-            }),
-          ]),
-        }),
-        expect.objectContaining({
-          source: "output",
+              input: {
+                city: "San Francisco",
+              },
+              toolType: "function",
+            },
+          ],
+          source: "input",
+        },
+        {
+          senderName: "get_weather",
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "It's always sunny in San Francisco!",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "text",
               text: "It's always sunny in San Francisco! \n\nWould you like more details (current temperature, hourly forecast, or a multi-day outlook)?",
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
   // Source: worker/src/__tests__/chatml/framework-traces/langgraph-python-2025-08-22.trace.json; observation 4f6535aaebcda355
@@ -736,28 +758,59 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"tags":["seq:step:1","demo","langfuse","langgraph"],"thread_id":"demo-thread-1","langgraph_step":1,"langgraph_node":"agent","langgraph_triggers":["branch:to:agent"],"langgraph_path":["__pregel_pull","agent"],"langgraph_checkpoint_ns":"agent:d507d231-6dad-b926-076f-0644c0a0134e","checkpoint_ns":"agent:d507d231-6dad-b926-076f-0644c0a0134e","ls_provider":"openai","ls_model_name":"gpt-4o","ls_model_type":"chat","ls_temperature":0,"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.36.0","service.name":"unknown_service"},"scope":{"name":"langfuse-sdk","version":"3.3.0","attributes":{"public_key":"KJGLKJGLJG"}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "input",
+      messages: [
+        {
           role: "user",
-          parts: expect.arrayContaining([
-            expect.objectContaining({ type: "text", text: "Be helpful!" }),
-          ]),
-        }),
-        expect.objectContaining({
-          source: "output",
+          parts: [
+            {
+              type: "text",
+              text: "Be helpful!",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Search the web for 'example' and summarize.",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-call",
               toolCallId: "call_1oGK863sxQHlPreFhDdEs3yl",
               toolName: "Web-Search",
-              input: { query: "example" },
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+              input: {
+                query: "example",
+              },
+              toolType: "function",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [
+        {
+          name: "Web-Search",
+          description: "Dummy web search tool.",
+          inputSchema: {
+            properties: {
+              query: {
+                type: "string",
+              },
+            },
+            required: ["query"],
+            type: "object",
+          },
+          type: "function",
+        },
+      ],
     },
   },
 ];

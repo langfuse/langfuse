@@ -1,4 +1,3 @@
-import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../../fixture-types";
 import { looseProviderMessageShapesFixture } from "./loose-provider-message-shapes";
 import { outputOnlyPlainTextFixture } from "./output-only-plain-text";
@@ -6,7 +5,6 @@ import { outputOnlyStructuredMessageFixture } from "./output-only-structured-mes
 import { rawPassthroughToolCallsFixture } from "./raw-passthrough-tool-calls";
 
 // Verbatim stored observation IO from ChatML integration-example exports.
-// Expected messages are authored from source payloads, not normalizer snapshots.
 const capturedTraceFixtures: NormalizedIOFixture[] = [
   // Source: worker/src/__tests__/chatml/framework-traces/autogen-2025-06-06.trace.json; observation 83517f9062f5ada4
   {
@@ -19,16 +17,29 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"langfuse-sdk","version":"3.0.0","attributes":{"public_key":"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "output",
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "system: You are a helpful AI assistant. Solve tasks using your tools. Reply with TERMINATE when the task has been completed.\nuser: Say 'Hello World!'",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({ type: "text", text: "Hello World!" }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+          parts: [
+            {
+              type: "text",
+              text: "Hello World!",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
   // Source: worker/src/__tests__/chatml/framework-traces/beeai-2025-08-01.trace.json; observation 52df0f7f9dad6b23
@@ -42,19 +53,39 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"target":"backend.openai.chat.start","name":"start","traceId":"0cff2691-3a45-4988-a243-8cb8c508aa25","input.mime_type":"application/json","input.value":"[{\\"role\\": \\"system\\", \\"content\\": \\"# Available functions\\\\nYou can only use the following functions. Always use all required parameters.\\\\n\\\\nFunction Name: Wikipedia\\\\nDescription: Search factual and historical information, including biography, history, politics, geography, society, culture, science, technology, people, animal species, mathematics, and other subjects.\\\\nInput Schema: {\\\\\\"properties\\\\\\": {\\\\\\"full_text\\\\\\": {\\\\\\"default\\\\\\": false, \\\\\\"description\\\\\\": \\\\\\"If set to true, it will return the full text of the page instead of its short summary.\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Full Text\\\\\\", \\\\\\"type\\\\\\": \\\\\\"boolean\\\\\\"}, \\\\\\"query\\\\\\": {\\\\\\"description\\\\\\": \\\\\\"Name of the Wikipedia page.\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Query\\\\\\", \\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}}, \\\\\\"required\\\\\\": [\\\\\\"query\\\\\\"], \\\\\\"title\\\\\\": \\\\\\"WikipediaToolInput\\\\\\", \\\\\\"type\\\\\\": \\\\\\"object\\\\\\"}\\\\n\\\\nFunction Name: OpenMeteoTool\\\\nDescription: Retrieve current, past, or future weather forecasts for a location.\\\\nInput Schema: {\\\\\\"properties\\\\\\": {\\\\\\"country\\\\\\": {\\\\\\"anyOf\\\\\\": [{\\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}, {\\\\\\"type\\\\\\": \\\\\\"null\\\\\\"}], \\\\\\"default\\\\\\": null, \\\\\\"description\\\\\\": \\\\\\"Country name.\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Country\\\\\\"}, \\\\\\"end_date\\\\\\": {\\\\\\"anyOf\\\\\\": [{\\\\\\"format\\\\\\": \\\\\\"date\\\\\\", \\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}, {\\\\\\"type\\\\\\": \\\\\\"null\\\\\\"}], \\\\\\"default\\\\\\": null, \\\\\\"description\\\\\\": \\\\\\"End date for the weather forecast in the format YYYY-MM-DD (UTC)\\\\\\", \\\\\\"title\\\\\\": \\\\\\"End Date\\\\\\"}, \\\\\\"location_name\\\\\\": {\\\\\\"description\\\\\\": \\\\\\"The name of the location to retrieve weather information.\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Location Name\\\\\\", \\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}, \\\\\\"start_date\\\\\\": {\\\\\\"anyOf\\\\\\": [{\\\\\\"format\\\\\\": \\\\\\"date\\\\\\", \\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}, {\\\\\\"type\\\\\\": \\\\\\"null\\\\\\"}], \\\\\\"default\\\\\\": null, \\\\\\"description\\\\\\": \\\\\\"Start date for the weather forecast in the format YYYY-MM-DD (UTC)\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Start Date\\\\\\"}, \\\\\\"temperature_unit\\\\\\": {\\\\\\"default\\\\\\": \\\\\\"celsius\\\\\\", \\\\\\"description\\\\\\": \\\\\\"The unit to express temperature\\\\\\", \\\\\\"enum\\\\\\": [\\\\\\"celsius\\\\\\", \\\\\\"fahrenheit\\\\\\"], \\\\\\"title\\\\\\": \\\\\\"Temperature Unit\\\\\\", \\\\\\"type\\\\\\": \\\\\\"string\\\\\\"}}, \\\\\\"required\\\\\\": [\\\\\\"location_name\\\\\\"], \\\\\\"title\\\\\\": \\\\\\"OpenMeteoToolInput\\\\\\", \\\\\\"type\\\\\\": \\\\\\"object\\\\\\"}\\\\n\\\\n# Communication structure\\\\nYou communicate only in instruction lines. The format is: \\\\\\"Instruction: expected output\\\\\\". You must only use these instruction lines and must not enter empty lines or anything else between instruction lines.\\\\nYou must skip the instruction lines Function Name, Function Input and Function Output if no function calling is required.\\\\n\\\\nMessage: User\'s message. You never use this instruction line.\\\\nThought: A single-line step-by-step plan of how to answer the user\'s message. You can use the available functions defined above. This instruction line must be immediately followed by Function Name if one of the available functions defined above needs to be called, or by Final Answer. Do not provide the answer here.\\\\nFunction Name: Name of the function. This instruction line must be immediately followed by Function Input.\\\\nFunction Input: Function parameters in JSON format adhering to the function\'s input specification ie. {\\\\\\"arg1\\\\\\":\\\\\\"value1\\\\\\", \\\\\\"arg2\\\\\\":\\\\\\"value2\\\\\\"}. Empty object is a valid parameter.\\\\nFunction Output: Output of the function in JSON format.\\\\nThought: Continue your thinking process.\\\\nFinal Answer: Answer the user or ask for more information or clarification. It must always be preceded by Thought.\\\\n\\\\n## Examples\\\\nMessage: Can you translate \\\\\\"How are you\\\\\\" into French?\\\\nThought: The user wants to translate a text into French. I can do that.\\\\nFinal Answer: Comment vas-tu?\\\\n\\\\n# Instructions\\\\nUser can only see the Final Answer, all answers must be provided there.\\\\nYou must always use the communication structure and instructions defined above. Do not forget that Thought must be a single-line immediately followed by either Function Name or Final Answer.\\\\nFunctions must be used to retrieve factual or historical information to answer the message.\\\\nIf the user suggests using a function that is not available, answer that the function is not available. You can suggest alternatives if appropriate.\\\\nWhen the message is unclear or you need more information from the user, ask in Final Answer.\\\\n\\\\n# Your capabilities\\\\nPrefer to use these capabilities over functions.\\\\n- You understand these languages: English, Spanish, French.\\\\n- You can translate and summarize, even long documents.\\\\n\\\\n# Notes\\\\n- If you don\'t know the answer, say that you don\'t know.\\\\n- The current time and date in ISO format might be found in the last message.\\\\n- When answering the user, use friendly formats for time and date.\\\\n- Use markdown syntax for formatting code snippets, links, JSON, tables, images, files.\\\\n- Sometimes, things don\'t go as planned. Functions may not provide useful information on the first few tries. You should always try a few different approaches before declaring the problem unsolvable.\\\\n- When the function doesn\'t give you what you were asking for, you must either use another function or a different function input.\\\\n  - When using search engines, you try different formulations of the query, possibly even in a different language.\\\\n- You cannot do complex calculations, computations, or data manipulations without using functions.\\\\n\\"}, {\\"role\\": \\"user\\", \\"content\\": [{\\"type\\": \\"text\\", \\"text\\": \\"Message: I\'m planning a trip to Barcelona, Spain. Can you research key attractions and landmarks I should visit, and also tell me what the current weather conditions are like there?\\\\n\\\\nThis message was created at 2025-08-01T13:56:54+00:00\\"}]}, {\\"role\\": \\"assistant\\", \\"content\\": [{\\"type\\": \\"text\\", \\"text\\": \\"Thought: I will first research key attractions and landmarks in Barcelona and then check the current weather conditions there.  \\\\nFunction Name: Wikipedia\\\\nFunction Input: {\\\\\\"query\\\\\\": \\\\\\"Tourism in Barcelona\\\\\\"}\\\\nFunction Output: [{\\\\\\"description\\\\\\": \\\\\\"Barcelona (  BAR-s\\\\u0259-LOH-n\\\\u0259; Catalan: [b\\\\u0259\\\\u027es\\\\u0259\\\\u02c8lon\\\\u0259] ; Spanish: [ba\\\\u027e\\\\u03b8e\\\\u02c8lona] ) is a city on the northeastern coast of Spain. It is the capital and largest city of the autonomous community of Catalonia, as well as the second-most populous municipality of Spain. With a population of 1.6 million within city limits, its urban area extends to numerous neighbouring municipalities within the province of Barcelona and is home to around 5.3 million people, making it the fifth most populous urban area of the European Union after Paris, the Ruhr area, Madrid and Milan. It is one of the largest metropolises on the Mediterranean Sea, located on the coast between the mouths of the rivers Llobregat and Bes\\\\u00f2s, bounded to the west by the Serra de Collserola mountain range.\\\\\\\\nAccording to tradition, Barcelona was founded by either the Phoenicians or the Carthaginians, who had trading posts along the Catalonian coast. In the Middle Ages, Barcelona became the capital of the County of Barcelona. After joining with the Kingdom of Aragon to form the composite monarchy of the Crown of Aragon, Barcelona, which continued to be the capital of the Principality of Catalonia, became the most important city in the Crown of Aragon and its main economic and administrative centre, only to be overtaken by Valencia, wrested from Moorish control by the Catalans, shortly before the dynastic union between the Crown of Castile and the Crown of Aragon in 1516. Barcelona became the centre of Catalan separatism, briefly becoming part of France during the 17th century Reapers\' War and again in 1812 until 1814 under Napoleon. Experiencing industrialization and several workers movements during the 19th and early 20th century, it became the capital of autonomous Catalonia in 1931 and it was the epicenter of the revolution experienced by Catalonia during the Spanish Revolution of 1936, until its capture by the fascists in 1939. After the Spanish transition to democracy in the 1970s, Barcelona once again became the capital of an autonomous Catalonia.\\\\\\\\nBarcelona has a rich cultural heritage and is today an important cultural centre and a major tourist destination. Particularly renowned are the architectural works of Antoni Gaud\\\\u00ed and Llu\\\\u00eds Dom\\\\u00e8nech i Montaner, which have been designated UNESCO World Heritage Sites. The city is home to two of the most prestigious universities in Spain: the University of Barcelona and Pompeu Fabra University. The headquarters of the Union for the Mediterranean are located in Barcelona. The city is known for hosting the 1992 Summer Olympics as well as world-class conferences and expositions. In addition, many international sport tournaments have been played here.\\\\\\\\nBarcelona is a major cultural, economic, and financial centre in southwestern Europe, as well as the main biotech hub in Spain. As a leading world city, Barcelona\'s influence in global socio-economic affairs qualifies it for global city status (Beta +).\\\\\\\\nBarcelona is a transport hub, with the Port of Barcelona being one of Europe\'s principal seaports and busiest European passenger port, an international airport, Barcelona\\\\u2013El Prat Airport, which handles over 50-million passengers per year, an extensive motorway network, and a high-speed rail line with a link to France and the rest of Europe.\\\\\\", \\\\\\"title\\\\\\": \\\\\\"Barcelona\\\\\\", \\\\\\"url\\\\\\": \\\\\\"https://en.wikipedia.org/wiki/Barcelona\\\\\\"}]\\\\n\\"}]}]","llm.input_messages.0.message.role":"system","llm.input_messages.0.message.content":"# Available functions\\nYou can only use the following functions. Always use all required parameters.\\n\\nFunction Name: Wikipedia\\nDescription: Search factual and historical information, including biography, history, politics, geography, society, culture, science, technology, people, animal species, mathematics, and other subjects.\\nInput Schema: {\\"properties\\": {\\"full_text\\": {\\"default\\": false, \\"description\\": \\"If set to true, it will return the full text of the page instead of its short summary.\\", \\"title\\": \\"Full Text\\", \\"type\\": \\"boolean\\"}, \\"query\\": {\\"description\\": \\"Name of the Wikipedia page.\\", \\"title\\": \\"Query\\", \\"type\\": \\"string\\"}}, \\"required\\": [\\"query\\"], \\"title\\": \\"WikipediaToolInput\\", \\"type\\": \\"object\\"}\\n\\nFunction Name: OpenMeteoTool\\nDescription: Retrieve current, past, or future weather forecasts for a location.\\nInput Schema: {\\"properties\\": {\\"country\\": {\\"anyOf\\": [{\\"type\\": \\"string\\"}, {\\"type\\": \\"null\\"}], \\"default\\": null, \\"description\\": \\"Country name.\\", \\"title\\": \\"Country\\"}, \\"end_date\\": {\\"anyOf\\": [{\\"format\\": \\"date\\", \\"type\\": \\"string\\"}, {\\"type\\": \\"null\\"}], \\"default\\": null, \\"description\\": \\"End date for the weather forecast in the format YYYY-MM-DD (UTC)\\", \\"title\\": \\"End Date\\"}, \\"location_name\\": {\\"description\\": \\"The name of the location to retrieve weather information.\\", \\"title\\": \\"Location Name\\", \\"type\\": \\"string\\"}, \\"start_date\\": {\\"anyOf\\": [{\\"format\\": \\"date\\", \\"type\\": \\"string\\"}, {\\"type\\": \\"null\\"}], \\"default\\": null, \\"description\\": \\"Start date for the weather forecast in the format YYYY-MM-DD (UTC)\\", \\"title\\": \\"Start Date\\"}, \\"temperature_unit\\": {\\"default\\": \\"celsius\\", \\"description\\": \\"The unit to express temperature\\", \\"enum\\": [\\"celsius\\", \\"fahrenheit\\"], \\"title\\": \\"Temperature Unit\\", \\"type\\": \\"string\\"}}, \\"required\\": [\\"location_name\\"], \\"title\\": \\"OpenMeteoToolInput\\", \\"type\\": \\"object\\"}\\n\\n# Communication structure\\nYou communicate only in instruction lines. The format is: \\"Instruction: expected output\\". You must only use these instruction lines and must not enter empty lines or anything else between instruction lines.\\nYou must skip the instruction lines Function Name, Function Input and Function Output if no function calling is required.\\n\\nMessage: User\'s message. You never use this instruction line.\\nThought: A single-line step-by-step plan of how to answer the user\'s message. You can use the available functions defined above. This instruction line must be immediately followed by Function Name if one of the available functions defined above needs to be called, or by Final Answer. Do not provide the answer here.\\nFunction Name: Name of the function. This instruction line must be immediately followed by Function Input.\\nFunction Input: Function parameters in JSON format adhering to the function\'s input specification ie. {\\"arg1\\":\\"value1\\", \\"arg2\\":\\"value2\\"}. Empty object is a valid parameter.\\nFunction Output: Output of the function in JSON format.\\nThought: Continue your thinking process.\\nFinal Answer: Answer the user or ask for more information or clarification. It must always be preceded by Thought.\\n\\n## Examples\\nMessage: Can you translate \\"How are you\\" into French?\\nThought: The user wants to translate a text into French. I can do that.\\nFinal Answer: Comment vas-tu?\\n\\n# Instructions\\nUser can only see the Final Answer, all answers must be provided there.\\nYou must always use the communication structure and instructions defined above. Do not forget that Thought must be a single-line immediately followed by either Function Name or Final Answer.\\nFunctions must be used to retrieve factual or historical information to answer the message.\\nIf the user suggests using a function that is not available, answer that the function is not available. You can suggest alternatives if appropriate.\\nWhen the message is unclear or you need more information from the user, ask in Final Answer.\\n\\n# Your capabilities\\nPrefer to use these capabilities over functions.\\n- You understand these languages: English, Spanish, French.\\n- You can translate and summarize, even long documents.\\n\\n# Notes\\n- If you don\'t know the answer, say that you don\'t know.\\n- The current time and date in ISO format might be found in the last message.\\n- When answering the user, use friendly formats for time and date.\\n- Use markdown syntax for formatting code snippets, links, JSON, tables, images, files.\\n- Sometimes, things don\'t go as planned. Functions may not provide useful information on the first few tries. You should always try a few different approaches before declaring the problem unsolvable.\\n- When the function doesn\'t give you what you were asking for, you must either use another function or a different function input.\\n  - When using search engines, you try different formulations of the query, possibly even in a different language.\\n- You cannot do complex calculations, computations, or data manipulations without using functions.\\n","llm.input_messages.1.message.role":"user","llm.input_messages.1.message.content":"Message: I\'m planning a trip to Barcelona, Spain. Can you research key attractions and landmarks I should visit, and also tell me what the current weather conditions are like there?\\n\\nThis message was created at 2025-08-01T13:56:54+00:00","llm.input_messages.2.message.role":"assistant","llm.input_messages.2.message.content":"Thought: I will first research key attractions and landmarks in Barcelona and then check the current weather conditions there.  \\nFunction Name: Wikipedia\\nFunction Input: {\\"query\\": \\"Tourism in Barcelona\\"}\\nFunction Output: [{\\"description\\": \\"Barcelona (  BAR-sə-LOH-nə; Catalan: [bəɾsəˈlonə] ; Spanish: [baɾθeˈlona] ) is a city on the northeastern coast of Spain. It is the capital and largest city of the autonomous community of Catalonia, as well as the second-most populous municipality of Spain. With a population of 1.6 million within city limits, its urban area extends to numerous neighbouring municipalities within the province of Barcelona and is home to around 5.3 million people, making it the fifth most populous urban area of the European Union after Paris, the Ruhr area, Madrid and Milan. It is one of the largest metropolises on the Mediterranean Sea, located on the coast between the mouths of the rivers Llobregat and Besòs, bounded to the west by the Serra de Collserola mountain range.\\\\nAccording to tradition, Barcelona was founded by either the Phoenicians or the Carthaginians, who had trading posts along the Catalonian coast. In the Middle Ages, Barcelona became the capital of the County of Barcelona. After joining with the Kingdom of Aragon to form the composite monarchy of the Crown of Aragon, Barcelona, which continued to be the capital of the Principality of Catalonia, became the most important city in the Crown of Aragon and its main economic and administrative centre, only to be overtaken by Valencia, wrested from Moorish control by the Catalans, shortly before the dynastic union between the Crown of Castile and the Crown of Aragon in 1516. Barcelona became the centre of Catalan separatism, briefly becoming part of France during the 17th century Reapers\' War and again in 1812 until 1814 under Napoleon. Experiencing industrialization and several workers movements during the 19th and early 20th century, it became the capital of autonomous Catalonia in 1931 and it was the epicenter of the revolution experienced by Catalonia during the Spanish Revolution of 1936, until its capture by the fascists in 1939. After the Spanish transition to democracy in the 1970s, Barcelona once again became the capital of an autonomous Catalonia.\\\\nBarcelona has a rich cultural heritage and is today an important cultural centre and a major tourist destination. Particularly renowned are the architectural works of Antoni Gaudí and Lluís Domènech i Montaner, which have been designated UNESCO World Heritage Sites. The city is home to two of the most prestigious universities in Spain: the University of Barcelona and Pompeu Fabra University. The headquarters of the Union for the Mediterranean are located in Barcelona. The city is known for hosting the 1992 Summer Olympics as well as world-class conferences and expositions. In addition, many international sport tournaments have been played here.\\\\nBarcelona is a major cultural, economic, and financial centre in southwestern Europe, as well as the main biotech hub in Spain. As a leading world city, Barcelona\'s influence in global socio-economic affairs qualifies it for global city status (Beta +).\\\\nBarcelona is a transport hub, with the Port of Barcelona being one of Europe\'s principal seaports and busiest European passenger port, an international airport, Barcelona–El Prat Airport, which handles over 50-million passengers per year, an extensive motorway network, and a high-speed rail line with a link to France and the rest of Europe.\\", \\"title\\": \\"Barcelona\\", \\"url\\": \\"https://en.wikipedia.org/wiki/Barcelona\\"}]\\n","llm.provider":"openai","llm.model_name":"gpt-4o-mini","llm.invocation_parameters":"{\\"max_tokens\\":null,\\"top_p\\":null,\\"frequency_penalty\\":null,\\"temperature\\":0.7,\\"top_k\\":null,\\"n\\":null,\\"presence_penalty\\":null,\\"seed\\":null,\\"stop_sequences\\":null,\\"stream\\":null}","openinference.span.kind":"LLM"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.34.1","service.name":"unknown_service"},"scope":{"name":"openinference.instrumentation.beeai","version":"0.1.33","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "input",
+      messages: [
+        {
           role: "system",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "text",
               text: '# Available functions\nYou can only use the following functions. Always use all required parameters.\n\nFunction Name: Wikipedia\nDescription: Search factual and historical information, including biography, history, politics, geography, society, culture, science, technology, people, animal species, mathematics, and other subjects.\nInput Schema: {"properties": {"full_text": {"default": false, "description": "If set to true, it will return the full text of the page instead of its short summary.", "title": "Full Text", "type": "boolean"}, "query": {"description": "Name of the Wikipedia page.", "title": "Query", "type": "string"}}, "required": ["query"], "title": "WikipediaToolInput", "type": "object"}\n\nFunction Name: OpenMeteoTool\nDescription: Retrieve current, past, or future weather forecasts for a location.\nInput Schema: {"properties": {"country": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null, "description": "Country name.", "title": "Country"}, "end_date": {"anyOf": [{"format": "date", "type": "string"}, {"type": "null"}], "default": null, "description": "End date for the weather forecast in the format YYYY-MM-DD (UTC)", "title": "End Date"}, "location_name": {"description": "The name of the location to retrieve weather information.", "title": "Location Name", "type": "string"}, "start_date": {"anyOf": [{"format": "date", "type": "string"}, {"type": "null"}], "default": null, "description": "Start date for the weather forecast in the format YYYY-MM-DD (UTC)", "title": "Start Date"}, "temperature_unit": {"default": "celsius", "description": "The unit to express temperature", "enum": ["celsius", "fahrenheit"], "title": "Temperature Unit", "type": "string"}}, "required": ["location_name"], "title": "OpenMeteoToolInput", "type": "object"}\n\n# Communication structure\nYou communicate only in instruction lines. The format is: "Instruction: expected output". You must only use these instruction lines and must not enter empty lines or anything else between instruction lines.\nYou must skip the instruction lines Function Name, Function Input and Function Output if no function calling is required.\n\nMessage: User\'s message. You never use this instruction line.\nThought: A single-line step-by-step plan of how to answer the user\'s message. You can use the available functions defined above. This instruction line must be immediately followed by Function Name if one of the available functions defined above needs to be called, or by Final Answer. Do not provide the answer here.\nFunction Name: Name of the function. This instruction line must be immediately followed by Function Input.\nFunction Input: Function parameters in JSON format adhering to the function\'s input specification ie. {"arg1":"value1", "arg2":"value2"}. Empty object is a valid parameter.\nFunction Output: Output of the function in JSON format.\nThought: Continue your thinking process.\nFinal Answer: Answer the user or ask for more information or clarification. It must always be preceded by Thought.\n\n## Examples\nMessage: Can you translate "How are you" into French?\nThought: The user wants to translate a text into French. I can do that.\nFinal Answer: Comment vas-tu?\n\n# Instructions\nUser can only see the Final Answer, all answers must be provided there.\nYou must always use the communication structure and instructions defined above. Do not forget that Thought must be a single-line immediately followed by either Function Name or Final Answer.\nFunctions must be used to retrieve factual or historical information to answer the message.\nIf the user suggests using a function that is not available, answer that the function is not available. You can suggest alternatives if appropriate.\nWhen the message is unclear or you need more information from the user, ask in Final Answer.\n\n# Your capabilities\nPrefer to use these capabilities over functions.\n- You understand these languages: English, Spanish, French.\n- You can translate and summarize, even long documents.\n\n# Notes\n- If you don\'t know the answer, say that you don\'t know.\n- The current time and date in ISO format might be found in the last message.\n- When answering the user, use friendly formats for time and date.\n- Use markdown syntax for formatting code snippets, links, JSON, tables, images, files.\n- Sometimes, things don\'t go as planned. Functions may not provide useful information on the first few tries. You should always try a few different approaches before declaring the problem unsolvable.\n- When the function doesn\'t give you what you were asking for, you must either use another function or a different function input.\n  - When using search engines, you try different formulations of the query, possibly even in a different language.\n- You cannot do complex calculations, computations, or data manipulations without using functions.\n',
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Message: I'm planning a trip to Barcelona, Spain. Can you research key attractions and landmarks I should visit, and also tell me what the current weather conditions are like there?\n\nThis message was created at 2025-08-01T13:56:54+00:00",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: 'Thought: I will first research key attractions and landmarks in Barcelona and then check the current weather conditions there.  \nFunction Name: Wikipedia\nFunction Input: {"query": "Tourism in Barcelona"}\nFunction Output: [{"description": "Barcelona (  BAR-sə-LOH-nə; Catalan: [bəɾsəˈlonə] ; Spanish: [baɾθeˈlona] ) is a city on the northeastern coast of Spain. It is the capital and largest city of the autonomous community of Catalonia, as well as the second-most populous municipality of Spain. With a population of 1.6 million within city limits, its urban area extends to numerous neighbouring municipalities within the province of Barcelona and is home to around 5.3 million people, making it the fifth most populous urban area of the European Union after Paris, the Ruhr area, Madrid and Milan. It is one of the largest metropolises on the Mediterranean Sea, located on the coast between the mouths of the rivers Llobregat and Besòs, bounded to the west by the Serra de Collserola mountain range.\\nAccording to tradition, Barcelona was founded by either the Phoenicians or the Carthaginians, who had trading posts along the Catalonian coast. In the Middle Ages, Barcelona became the capital of the County of Barcelona. After joining with the Kingdom of Aragon to form the composite monarchy of the Crown of Aragon, Barcelona, which continued to be the capital of the Principality of Catalonia, became the most important city in the Crown of Aragon and its main economic and administrative centre, only to be overtaken by Valencia, wrested from Moorish control by the Catalans, shortly before the dynastic union between the Crown of Castile and the Crown of Aragon in 1516. Barcelona became the centre of Catalan separatism, briefly becoming part of France during the 17th century Reapers\' War and again in 1812 until 1814 under Napoleon. Experiencing industrialization and several workers movements during the 19th and early 20th century, it became the capital of autonomous Catalonia in 1931 and it was the epicenter of the revolution experienced by Catalonia during the Spanish Revolution of 1936, until its capture by the fascists in 1939. After the Spanish transition to democracy in the 1970s, Barcelona once again became the capital of an autonomous Catalonia.\\nBarcelona has a rich cultural heritage and is today an important cultural centre and a major tourist destination. Particularly renowned are the architectural works of Antoni Gaudí and Lluís Domènech i Montaner, which have been designated UNESCO World Heritage Sites. The city is home to two of the most prestigious universities in Spain: the University of Barcelona and Pompeu Fabra University. The headquarters of the Union for the Mediterranean are located in Barcelona. The city is known for hosting the 1992 Summer Olympics as well as world-class conferences and expositions. In addition, many international sport tournaments have been played here.\\nBarcelona is a major cultural, economic, and financial centre in southwestern Europe, as well as the main biotech hub in Spain. As a leading world city, Barcelona\'s influence in global socio-economic affairs qualifies it for global city status (Beta +).\\nBarcelona is a transport hub, with the Port of Barcelona being one of Europe\'s principal seaports and busiest European passenger port, an international airport, Barcelona–El Prat Airport, which handles over 50-million passengers per year, an extensive motorway network, and a high-speed rail line with a link to France and the rest of Europe.", "title": "Barcelona", "url": "https://en.wikipedia.org/wiki/Barcelona"}]\n',
+            },
+          ],
+          source: "input",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
   // Source: worker/src/__tests__/chatml/framework-traces/crewai-2025-07-11.trace.json; observation 231c43964b7e7e63
@@ -69,19 +100,39 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"llm.model_name":"gpt-4o-mini","llm.input_messages.0.message.role":"system","llm.input_messages.0.message.content":"You are Software developer. An expert coder with a keen eye for software trends.\\nYour personal goal is: Write clear, concise code on demand\\nTo give my best complete final answer to the task respond using the exact following format:\\n\\nThought: I now can give a great answer\\nFinal Answer: Your final answer must be the great and the most complete as possible, it must be outcome described.\\n\\nI MUST use these formats, my job depends on it!","llm.input_messages.1.message.role":"user","llm.input_messages.1.message.content":"\\nCurrent Task: Define the HTML for making a simple website with heading- Hello World! Langfuse monitors your CrewAI agent!\\n\\nThis is the expected criteria for your final answer: A clear and concise HTML code\\nyou MUST return the actual complete content as the final answer, not a summary.\\n\\nBegin! This is VERY important to you, use the tools available and give your best Final Answer, your job depends on it!\\n\\nThought:","input.value":"{\\"messages\\": [{\\"role\\": \\"system\\", \\"content\\": \\"You are Software developer. An expert coder with a keen eye for software trends.\\\\nYour personal goal is: Write clear, concise code on demand\\\\nTo give my best complete final answer to the task respond using the exact following format:\\\\n\\\\nThought: I now can give a great answer\\\\nFinal Answer: Your final answer must be the great and the most complete as possible, it must be outcome described.\\\\n\\\\nI MUST use these formats, my job depends on it!\\"}, {\\"role\\": \\"user\\", \\"content\\": \\"\\\\nCurrent Task: Define the HTML for making a simple website with heading- Hello World! Langfuse monitors your CrewAI agent!\\\\n\\\\nThis is the expected criteria for your final answer: A clear and concise HTML code\\\\nyou MUST return the actual complete content as the final answer, not a summary.\\\\n\\\\nBegin! This is VERY important to you, use the tools available and give your best Final Answer, your job depends on it!\\\\n\\\\nThought:\\"}]}","input.mime_type":"application/json","llm.invocation_parameters":"{\\"model\\": \\"gpt-4o-mini\\", \\"stop\\": [\\"\\\\nObservation:\\"], \\"stream\\": false}","output.value":"I now can give a great answer  \\nFinal Answer: \\n```html\\n<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n    <meta charset=\\"UTF-8\\">\\n    <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\">\\n    <title>Hello World</title>\\n    <style>\\n        body {\\n            font-family: Arial, sans-serif;\\n            display: flex;\\n            justify-content: center;\\n            align-items: center;\\n            height: 100vh;\\n            background-color: #f0f0f0;\\n        }\\n        h1 {\\n            color: #333;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <h1>Hello World! Langfuse monitors your CrewAI agent!</h1>\\n</body>\\n</html>\\n```","llm.output_messages.0.message.role":"assistant","llm.output_messages.0.message.content":"I now can give a great answer  \\nFinal Answer: \\n```html\\n<!DOCTYPE html>\\n<html lang=\\"en\\">\\n<head>\\n    <meta charset=\\"UTF-8\\">\\n    <meta name=\\"viewport\\" content=\\"width=device-width, initial-scale=1.0\\">\\n    <title>Hello World</title>\\n    <style>\\n        body {\\n            font-family: Arial, sans-serif;\\n            display: flex;\\n            justify-content: center;\\n            align-items: center;\\n            height: 100vh;\\n            background-color: #f0f0f0;\\n        }\\n        h1 {\\n            color: #333;\\n        }\\n    </style>\\n</head>\\n<body>\\n    <h1>Hello World! Langfuse monitors your CrewAI agent!</h1>\\n</body>\\n</html>\\n```","llm.token_count.prompt":"190","llm.token_count.prompt_details.cache_read":"0","llm.token_count.prompt_details.audio":"0","llm.token_count.completion":"164","llm.token_count.completion_details.reasoning":"0","llm.token_count.completion_details.audio":"0","llm.token_count.total":"354","openinference.span.kind":"LLM"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.34.1","service.name":"unknown_service"},"scope":{"name":"openinference.instrumentation.litellm","version":"0.1.23","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "output",
+      messages: [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              text: "You are Software developer. An expert coder with a keen eye for software trends.\nYour personal goal is: Write clear, concise code on demand\nTo give my best complete final answer to the task respond using the exact following format:\n\nThought: I now can give a great answer\nFinal Answer: Your final answer must be the great and the most complete as possible, it must be outcome described.\n\nI MUST use these formats, my job depends on it!",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "\nCurrent Task: Define the HTML for making a simple website with heading- Hello World! Langfuse monitors your CrewAI agent!\n\nThis is the expected criteria for your final answer: A clear and concise HTML code\nyou MUST return the actual complete content as the final answer, not a summary.\n\nBegin! This is VERY important to you, use the tools available and give your best Final Answer, your job depends on it!\n\nThought:",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "text",
               text: 'I now can give a great answer  \nFinal Answer: \n```html\n<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Hello World</title>\n    <style>\n        body {\n            font-family: Arial, sans-serif;\n            display: flex;\n            justify-content: center;\n            align-items: center;\n            height: 100vh;\n            background-color: #f0f0f0;\n        }\n        h1 {\n            color: #333;\n        }\n    </style>\n</head>\n<body>\n    <h1>Hello World! Langfuse monitors your CrewAI agent!</h1>\n</body>\n</html>\n```',
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
   // Source: worker/src/__tests__/chatml/framework-traces/koog-2025-08-26.trace.json; observation e44e72cf2d221781
@@ -96,42 +147,91 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"gen_ai.prompt.4.content":"[{\\"function\\":{\\"name\\":\\"ByeTool\\",\\"arguments\\":\\"{\\\\\\"name\\\\\\": \\\\\\"Bob\\\\\\"}\\"},\\"id\\":\\"call_dOeEHJDI0liHrCdFWTpkTsuO\\",\\"type\\":\\"function\\"}]","gen_ai.prompt.5.role":"tool","gen_ai.completion.0.content":"Hello my darling Bob! And, bye my dear Bob!","gen_ai.request.temperature":"1","gen_ai.prompt.3.role":"tool","gen_ai.prompt.0.role":"system","gen_ai.prompt.5.content":"Bye my dear Bob!","gen_ai.completion.0.role":"assistant","gen_ai.prompt.4.role":"tool","gen_ai.request.model":"gpt-4o","gen_ai.conversation.id":"6f8d2449-33ed-4c7c-82e7-5410e34ee4e6","gen_ai.prompt.0.content":"You are a nice and polite assistant.","gen_ai.prompt.1.role":"user","gen_ai.response.finish_reasons":"[\\"stop\\"]","gen_ai.prompt.1.content":"Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob.","gen_ai.system":"openai","gen_ai.prompt.2.content":"[{\\"function\\":{\\"name\\":\\"HelloTool\\",\\"arguments\\":\\"{\\\\\\"name\\\\\\": \\\\\\"Bob\\\\\\"}\\"},\\"id\\":\\"call_n2HaWg9KFP0BZDqXv6G4b3nJ\\",\\"type\\":\\"function\\"}]","gen_ai.operation.name":"chat","gen_ai.prompt.2.role":"tool","gen_ai.prompt.3.content":"Hello my darling Bob!"},"resourceAttributes":{"os.arch":"aarch64","os.type":"Mac OS X","os.version":"15.4.1","service.instance.time":"2025-08-26T19:40:59.130398Z","service.name":"ai.koog","service.version":"0.3.0"},"scope":{"name":"ai.koog","version":"0.3.0","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
+      messages: [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              text: "You are a nice and polite assistant.",
+            },
+          ],
           source: "input",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Greet and say goodbye to the user in the same message. Use provided tools to generate a proper greeting. The user name is Bob.",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-call",
               toolCallId: "call_n2HaWg9KFP0BZDqXv6G4b3nJ",
               toolName: "HelloTool",
-              input: { name: "Bob" },
-            }),
-          ]),
-        }),
-        expect.objectContaining({
+              input: {
+                name: "Bob",
+              },
+              toolType: "function",
+            },
+          ],
           source: "input",
+        },
+        {
           role: "tool",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-result",
               toolCallId: null,
               output: "Hello my darling Bob!",
-            }),
-          ]),
-        }),
-        expect.objectContaining({
-          source: "output",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_dOeEHJDI0liHrCdFWTpkTsuO",
+              toolName: "ByeTool",
+              input: {
+                name: "Bob",
+              },
+              toolType: "function",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: null,
+              output: "Bye my dear Bob!",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
               type: "text",
               text: "Hello my darling Bob! And, bye my dear Bob!",
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
   // Source: worker/src/__tests__/chatml/framework-traces/llamaindex-2025-06-05.trace.json; observation 7ca8b22f6628d0c7
@@ -145,19 +245,31 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"llm.model_name":"gpt-4o","llm.invocation_parameters":"{\\"context_window\\":128000,\\"num_output\\":-1,\\"is_chat_model\\":true,\\"is_function_calling_model\\":true,\\"model_name\\":\\"gpt-4o\\",\\"system_role\\":\\"system\\"}","llm.provider":"openai","llm.system":"openai","input.value":"{\\"args\\": [\\"What is Langfuse?\\"]}","input.mime_type":"application/json","llm.prompts":"[\\"What is Langfuse?\\"]","output.value":"Langfuse is a tool designed to help developers monitor and debug applications that utilize large language models (LLMs). It provides features for tracking and analyzing the performance of LLMs, enabling developers to gain insights into how these models are functioning within their applications. Langfuse can be particularly useful for identifying issues, optimizing performance, and ensuring that the integration of language models into applications is smooth and effective.","llm.token_count.prompt":"13","llm.token_count.prompt_details.cache_read":"0","llm.token_count.prompt_details.audio":"0","llm.token_count.completion":"81","llm.token_count.completion_details.reasoning":"0","llm.token_count.completion_details.audio":"0","llm.token_count.total":"94","openinference.span.kind":"LLM"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"openinference.instrumentation.llama_index","version":"4.3.0","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "output",
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "data",
+              value: {
+                args: ["What is Langfuse?"],
+              },
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "text",
               text: "Langfuse is a tool designed to help developers monitor and debug applications that utilize large language models (LLMs). It provides features for tracking and analyzing the performance of LLMs, enabling developers to gain insights into how these models are functioning within their applications. Langfuse can be particularly useful for identifying issues, optimizing performance, and ensuring that the integration of language models into applications is smooth and effective.",
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
 ];

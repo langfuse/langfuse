@@ -1,4 +1,3 @@
-import { expect } from "vitest";
 import type { SpanIO, ToolDefinition } from "../../../types";
 
 import type { NormalizedIOFixture } from "../fixture-types";
@@ -563,7 +562,6 @@ export const vercelAiSdkOutputToolCallFixture = {
 } satisfies NormalizedIOFixture;
 
 // Verbatim stored observation IO from ChatML integration-example exports.
-// Expected messages are authored from source payloads, not normalizer snapshots.
 export const capturedTraceFixtures: NormalizedIOFixture[] = [
   // Source: worker/src/__tests__/chatml/framework-traces/vercel-aisdk-2025-11-17.trace.json; observation 1dc6768109615657
   {
@@ -576,21 +574,35 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"operation.name":"ai.generateText","ai.operationId":"ai.generateText","ai.model.provider":"openai.responses","ai.model.id":"gpt-5","ai.settings.maxRetries":"2","ai.request.headers.user-agent":"ai/5.0.76","ai.response.finishReason":"tool-calls","ai.response.providerMetadata":"{\\"openai\\":{\\"responseId\\":\\"resp_097184780dc1e1bc00691b3756e6848195a954cd789a29c378\\",\\"serviceTier\\":\\"default\\"}}","ai.usage.promptTokens":"62","ai.usage.completionTokens":"85"},"resourceAttributes":{"host.name":"Janniks-MacBook-Pro.local","host.arch":"arm64","host.id":"04B49C49-15E0-55D5-9040-4D6FF6E415E6","process.pid":22217,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/jannik/Documents/GitHub/langfuse-docs/cookbook/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/jannik/Documents/GitHub/langfuse-docs/cookbook/$deno$jupyter.mts","process.owner":"jannik","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"ai","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "output",
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "data",
+              value: {
+                prompt: "What is the weather like today in San Francisco?",
+              },
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-call",
               toolCallId: "call_DgKARp7a7IhJPDczfifMp6Ra",
               toolName: "getWeather",
-              input: { location: "San Francisco" },
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+              input: {
+                location: "San Francisco",
+              },
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
 ];

@@ -1,4 +1,3 @@
-import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 import { toJsonValue } from "../../../core/utils/json";
 
@@ -685,7 +684,6 @@ export const anthropicMessagesRichContentFixture = {
 } satisfies NormalizedIOFixture;
 
 // Verbatim stored observation IO from ChatML integration-example exports.
-// Expected messages are authored from source payloads, not normalizer snapshots.
 export const capturedTraceFixtures: NormalizedIOFixture[] = [
   // Source: worker/src/__tests__/chatml/framework-traces/claude-agent-2025-12-22.trace.json; observation f8e8f040dc94e67e
   {
@@ -698,21 +696,34 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
         '{"attributes":{"gen_ai.operation.name":"chat","gen_ai.serialized.name":"claude.assistant.turn","langsmith.span.kind":"llm","langsmith.trace.name":"claude.assistant.turn","langsmith.trace.session_name":"default","gen_ai.system":"anthropic","gen_ai.request.model":"claude-sonnet-4-5-20250929","langsmith.metadata.ls_model_name":"claude-sonnet-4-5-20250929","langsmith.metadata.LANGSMITH_OTEL_ENABLED":"true","langsmith.metadata.LANGSMITH_OTEL_ONLY":"true","langsmith.metadata.LANGSMITH_TRACING":"true"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.37.0","service.name":"unknown_service"},"scope":{"name":"langsmith","attributes":{}}}',
     },
     expected: {
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          source: "output",
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "role",
+            },
+          ],
+          source: "input",
+        },
+        {
           role: "assistant",
-          parts: expect.arrayContaining([
-            expect.objectContaining({
+          parts: [
+            {
               type: "tool-call",
               toolCallId: "toolu_01NtVat4vJLFfVd5TqdLHcA7",
               toolName: "mcp__weather__get_weather",
-              input: { city: "New York" },
-            }),
-          ]),
-        }),
-      ]),
-      toolDefinitions: expect.any(Array),
+              input: {
+                city: "New York",
+              },
+              toolType: "tool_use",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
     },
   },
 ];

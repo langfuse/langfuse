@@ -1,10 +1,10 @@
-import { capturedTraceFixtures } from "./fixtures";
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
 import {
-  openAiChatCompletionToolSequenceFixture,
+  capturedTraceFixtures,
   documentedResponsesFixtures,
+  openAiChatCompletionToolSequenceFixture,
   openAiChatMultimodalRichResponseFixture,
   openAiResponsesBuiltInToolsAndMediaFixture,
   openAiResponsesFunctionCallFixture,

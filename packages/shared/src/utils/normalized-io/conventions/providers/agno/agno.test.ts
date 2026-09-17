@@ -1,8 +1,7 @@
-import { capturedTraceFixtures } from "./fixtures";
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
-import { agnoPythonReprFixture } from "./fixtures";
+import { agnoPythonReprFixture, capturedTraceFixtures } from "./fixtures";
 
 describe("Agno normalized I/O", () => {
   it.each([...capturedTraceFixtures, agnoPythonReprFixture])(
