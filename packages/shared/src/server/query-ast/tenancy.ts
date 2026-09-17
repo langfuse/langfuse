@@ -22,11 +22,19 @@ import {
   type RootOperationNode,
 } from "kysely";
 
-import type { ExecutionContext } from "../executionContext";
 import { QueryCompileError, UnscopedRelationError } from "./errors";
 import { type ClickHouseSelectQueryNode } from "./nodes";
 import { TENANTED_TABLES } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
+
+/**
+ * Compile-time tenancy scope. Every ClickHouse query compiled through
+ * {@link compileClickhouseQuery} must carry one of these; the tenancy
+ * injection pass keys off `projectId`.
+ */
+export type ExecutionContext = {
+  projectId: string;
+};
 
 const PROJECT_ID_COLUMN = "project_id";
 

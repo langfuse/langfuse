@@ -1,9 +1,11 @@
 # AI Gateway service
 
-A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
-key to a trusted provider connection; Rust relays native JSON or SSE without
-rewriting provider bytes. A bounded capture layer captures request/response facts and
-logs capture completeness at debug level. Each finalized execution is immediately
+A standalone Rust gateway for `POST /openai/v1/responses`, `POST /openai/v1/responses/compact`,
+and `GET /openai/v1/models`. Web resolves the gateway key to a trusted provider connection;
+Rust relays native JSON or SSE without rewriting provider bytes. Compact uses the same
+Responses capture path. Models listing is a GET proxy of OpenAI's catalog and is not ingested
+as a generation. A bounded capture layer captures request/response facts and
+logs capture completeness at debug level. Each finalized generation is immediately
 uploaded as a Langfuse generation through OTLP. Building and testing need no real
 Web, database or provider credentials.
 
@@ -165,6 +167,14 @@ curl http://localhost:8080/openai/v1/responses \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4.1-mini","input":"Say hello"}'
 # Add "stream":true to the JSON and use curl -N for SSE.
+
+curl http://localhost:8080/openai/v1/responses/compact \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4.1","input":[]}'
+
+curl http://localhost:8080/openai/v1/models \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"
 ```
 
 ```python
@@ -180,9 +190,11 @@ response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
 print(response.output_text)
 ```
 
-The gateway forwards inference to the official OpenAI Responses endpoint only. It does not
-retry, follow redirects, or accept client routing overrides. Request parsing is
-best-effort capture only; Web still selects the provider connection.
+The gateway forwards inference to official OpenAI v1 paths only: Responses, Responses compact,
+and GET `/models`. It does not retry, follow redirects, or accept client routing overrides.
+Request parsing is best-effort capture only; Web still selects the provider connection.
+Compact `encrypted_content` is relayed unchanged. GET `/models` returns OpenAI's list
+payload as-is, drops request query strings, and does not upload a generation.
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
@@ -548,7 +560,7 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/openai.rs`: fixed destination, provider credentials and admission.
+- `providers/openai.rs`: fixed OpenAI v1 origin, route, provider credentials and admission.
 - `transport/mod.rs`: header allowlists, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.

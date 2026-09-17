@@ -87,7 +87,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
     // Kysely has no public hook to register one, so we patch its private
     // visitNode/nodeStack to route the node to visitArrayIndex. Kysely is
-    // pinned to 0.28.17 for this; see kysely/README.md ("upgrade hazard").
+    // pinned to 0.28.17 for this; see README.md ("upgrade hazard").
     const parentVisit = this.visitNode.bind(this);
     // Anti-pattern: cast through `unknown` once to reach Kysely's private
     // `visitNode` / `nodeStack` (not part of the public type). Deliberate, to

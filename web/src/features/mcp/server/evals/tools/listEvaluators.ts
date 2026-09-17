@@ -13,6 +13,7 @@ export const [listEvaluatorsTool, handleListEvaluators] = defineTool({
   name: "listEvaluators",
   description:
     "List evaluators (llm_as_judge and code) defined in the current Langfuse project. Results are paginated.",
+  action: "evaluator:read",
   baseSchema: ListEvaluatorsInput,
   inputSchema: ListEvaluatorsInput,
   handler: async (input, context) =>

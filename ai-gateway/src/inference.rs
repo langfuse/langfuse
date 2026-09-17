@@ -6,7 +6,7 @@ use axum::{
 use tokio::sync::Semaphore;
 
 use crate::{
-    providers::openai::{OpenAiProvider, ProviderError, RequestPermit},
+    providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -81,8 +81,11 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        route: OpenAiRoute,
     ) -> Result<Response<Body>, ProviderError> {
-        self.provider.forward(permit, context, headers, body).await
+        self.provider
+            .forward_route(permit, context, headers, body, route)
+            .await
     }
 
     #[cfg(test)]

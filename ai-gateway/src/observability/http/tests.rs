@@ -190,7 +190,8 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
                 .unwrap()
         })
         .await;
-        let provider = OpenAiProvider::for_test(upstream.url.clone(), ProviderLimits::default());
+        let provider =
+            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
         let recording = Recording::start();
         let response = provider
             .forward(
