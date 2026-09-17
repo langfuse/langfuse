@@ -66,6 +66,22 @@ pub(crate) struct ExecutionCapture {
 }
 
 impl ExecutionCapture {
+    pub fn unobserved() -> Self {
+        Self {
+            span: tracing::Span::current(),
+            protocol: None,
+            started: Instant::now(),
+            start_time_unix_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis(),
+            first_byte_ms: None,
+            http_status: None,
+            metadata: json!({}),
+            delivery: None,
+        }
+    }
+
     pub fn openai_responses(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
