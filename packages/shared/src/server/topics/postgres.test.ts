@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { topicProcessingConfigSchema } from "../../topics";
-import { createTopicFacetVersion, getTopicRun, saveTopicRun } from "./postgres";
+import {
+  createTopicFacetVersion,
+  getPublishedTopicRun,
+  getTopicDefinitions,
+  getTopicRun,
+  saveTopicRun,
+} from "./postgres";
 
 const mocks = vi.hoisted(() => ({
   lock: vi.fn(),
@@ -10,11 +16,16 @@ const mocks = vi.hoisted(() => ({
   runUpdate: vi.fn(),
   runUpdateMany: vi.fn(),
   deleteTopics: vi.fn(),
+  facetFind: vi.fn(),
+  facetUpdate: vi.fn(),
+  topicFind: vi.fn(),
 }));
 vi.mock("../../db", () => ({
   Prisma: {},
   prisma: {
     topicClusteringRun: { findFirst: mocks.runFind },
+    topicFacet: { findFirst: mocks.facetFind },
+    topic: { findMany: mocks.topicFind },
     $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
         $queryRaw: mocks.lock,
@@ -24,6 +35,10 @@ vi.mock("../../db", () => ({
           updateMany: mocks.runUpdateMany,
         },
         topic: { deleteMany: mocks.deleteTopics },
+        topicFacet: {
+          findFirstOrThrow: mocks.facetFind,
+          update: mocks.facetUpdate,
+        },
         topicFacetVersion: {
           findFirst: mocks.findFirst,
           create: mocks.create,
@@ -41,7 +56,7 @@ describe("Topics facet version configuration", () => {
       version: 2,
       processingConfig: topicProcessingConfigSchema.parse({
         projection: "issues",
-        embeddingDimensions: 256,
+        maxInputTokens: 3000,
       }),
     });
     mocks.create.mockImplementation(async ({ data }) => ({
@@ -51,7 +66,7 @@ describe("Topics facet version configuration", () => {
     }));
   });
 
-  it("preserves the previous projection and embedding contract when only the prompt changes", async () => {
+  it("preserves the previous summary settings when only the prompt changes", async () => {
     const version = await createTopicFacetVersion({
       projectId: "project-a",
       facetId: "facet-a",
@@ -60,7 +75,7 @@ describe("Topics facet version configuration", () => {
     expect(version.version).toBe(3);
     expect(version.processingConfig).toMatchObject({
       projection: "issues",
-      embeddingDimensions: 256,
+      maxInputTokens: 3000,
     });
     expect(mocks.findFirst).toHaveBeenCalledWith({
       where: { projectId: "project-a", facetId: "facet-a" },
@@ -73,7 +88,6 @@ describe("Topics facet version configuration", () => {
       version: 2,
       processingConfig: topicProcessingConfigSchema.parse({
         projection: "issues",
-        embeddingDimensions: 256,
         maxInputTokens: 3000,
         maxOutputTokens: 128,
       }),
@@ -82,12 +96,11 @@ describe("Topics facet version configuration", () => {
       projectId: "project-a",
       facetId: "facet-a",
       prompt: "Describe evidenced failures.",
-      processingConfig: { embeddingDimensions: 512 },
+      processingConfig: { maxInputTokens: 4000 },
     });
     expect(version.processingConfig).toMatchObject({
       projection: "issues",
-      embeddingDimensions: 512,
-      maxInputTokens: 3000,
+      maxInputTokens: 4000,
       maxOutputTokens: 128,
     });
   });
@@ -152,6 +165,88 @@ describe("Topics run start checkpoint", () => {
     expect(mocks.runUpdateMany).toHaveBeenCalledWith({
       where: { projectId: "project-a", id: "run-a", startedAt: null },
       data: { startedAt: new Date(firstStart) },
+    });
+  });
+});
+
+describe("Topics published results", () => {
+  beforeEach(() => vi.resetAllMocks());
+
+  it("resolves only the selected project's published facet map and exact topic versions", async () => {
+    mocks.facetFind.mockResolvedValue({ publishedRunId: "run-a" });
+    mocks.runFind.mockResolvedValue(null);
+    await getPublishedTopicRun("project-a", "facet-a");
+    expect(mocks.facetFind).toHaveBeenCalledWith({
+      where: { projectId: "project-a", id: "facet-a" },
+      select: { publishedRunId: true },
+    });
+    expect(mocks.runFind).toHaveBeenCalledWith({
+      where: {
+        projectId: "project-a",
+        id: "run-a",
+        status: "completed",
+        publishedAt: { not: null },
+        facetVersion: { facetId: "facet-a" },
+      },
+      include: { topics: true },
+    });
+    mocks.topicFind.mockResolvedValue([]);
+    const ids = Array.from({ length: 1001 }, (_, index) => `topic-${index}`);
+    await getTopicDefinitions("project-a", [...ids, ids[0]!]);
+    expect(
+      mocks.topicFind.mock.calls.flatMap(
+        ([query]) => query.where.topicVersionId.in,
+      ),
+    ).toEqual(ids);
+    expect(
+      mocks.topicFind.mock.calls.every(
+        ([query]) => query.where.projectId === "project-a",
+      ),
+    ).toBe(true);
+  });
+
+  it("publishes a completed empty map while rejecting incomplete publication", async () => {
+    const stored = {
+      id: "run-a",
+      projectId: "project-a",
+      facetVersionId: "facet-v1",
+      facetVersion: { facetId: "facet-a", version: 1 },
+      runSequence: 1n,
+      status: "pending",
+      phase: "snapshot",
+      config: {},
+      metrics: {},
+      error: null,
+      artifactPath: "",
+      manifestPath: "",
+      topics: [],
+      createdAt: new Date("2026-09-16T00:00:00Z"),
+      startedAt: null,
+      finishedAt: null,
+      publishedAt: null,
+    };
+    mocks.runFind.mockResolvedValue(stored);
+    mocks.runUpdate.mockImplementation(async ({ data }) => ({
+      ...stored,
+      ...data,
+    }));
+    mocks.facetFind.mockResolvedValue({ id: "facet-a", publishedRunId: null });
+    const pending = (await getTopicRun("project-a", "run-a"))!;
+    const publishedAt = "2026-09-16T00:01:00.000Z";
+    await expect(saveTopicRun({ ...pending, publishedAt })).rejects.toThrow(
+      "Only a completed map can be published",
+    );
+    const published = await saveTopicRun({
+      ...pending,
+      status: "completed",
+      phase: "published",
+      publishedAt,
+    });
+    expect(published.topics).toEqual([]);
+    expect(published.publishedAt).toBe(publishedAt);
+    expect(mocks.facetUpdate).toHaveBeenCalledWith({
+      where: { projectId_id: { projectId: "project-a", id: "facet-a" } },
+      data: { publishedRunId: "run-a" },
     });
   });
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { eventsTableTraceNameSelectSql, singleFilter } from "@langfuse/shared";
-import { TOPICS_MAX_TRACES, topicIdSchema } from "@langfuse/shared/topics";
+import { topicIdSchema } from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   applyCommentFilters,
@@ -15,7 +15,7 @@ export const topicTraceSelectionSchema = z
     filter: z.array(singleFilter).max(100),
     from: z.date(),
     to: z.date(),
-    limit: z.number().int().min(1).max(TOPICS_MAX_TRACES),
+    limit: z.number().int().positive().nullable().default(null),
     sampling: z.enum(["random", "latest"]),
     seed: z.string().min(1).max(128),
   })
@@ -107,7 +107,7 @@ export async function previewTopicTraces(
     .groupBy("m.id")
     .buildWithParams();
 
-  const selected = new CTEQueryBuilder()
+  const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
       ...traces,
       schema: [
@@ -134,9 +134,9 @@ export async function previewTopicTraces(
           }
         : { column: "t.latest_match", direction: "DESC" },
       { column: "t.id", direction: "ASC" },
-    ])
-    .limit(input.limit)
-    .buildWithParams();
+    ]);
+  if (input.limit !== null) selection.limit(input.limit);
+  const selected = selection.buildWithParams();
   const rows = await queryClickhouse<TraceSelectionRow>({
     ...selected,
     params: { ...selected.params, samplingSeed: input.seed },

@@ -32,9 +32,7 @@ const facet: TopicFacetVersion = {
   facetId: "facet",
   version: 1,
   prompt: "Describe the interaction intent.",
-  processingConfig: topicProcessingConfigSchema.parse({
-    embeddingDimensions: 16,
-  }),
+  processingConfig: topicProcessingConfigSchema.parse({}),
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -138,6 +136,33 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     state.runs.set(run.id, run);
     return run;
   },
+  getPublishedTopicRun: async (_project: string, facetId: string) =>
+    [...state.runs.values()]
+      .filter(
+        (run) =>
+          run.publishedAt &&
+          state.facets.get(run.facetVersionId)?.facetId === facetId,
+      )
+      .at(-1) ?? null,
+  getLatestFacetSummaries: async (
+    _project: string,
+    facetId: string,
+    facetVersionId: string,
+  ) => {
+    const latest = new Map<string, TopicSummary>();
+    for (const row of state.summaries.values()) {
+      if (
+        row.facetId !== facetId ||
+        row.facetVersionId !== facetVersionId ||
+        row.state === "summarized"
+      )
+        continue;
+      const prior = latest.get(row.traceId);
+      if (!prior || BigInt(row.revision) >= BigInt(prior.revision))
+        latest.set(row.traceId, row);
+    }
+    return [...latest.values()];
+  },
   getTopicRun: async (_project: string, id: string) =>
     state.runs.get(id) ?? null,
   saveTopicRun: async (run: TopicRun) => {
@@ -155,11 +180,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     runId: string,
   ) => {
     state.events.push("read-assignments");
-    return state.visible
-      ? [...state.assignments.values()].filter(
-          (row) => row.runId === runId && ids.includes(row.summaryId),
-        )
-      : [];
+    if (!state.visible) return [];
+    const latest = new Map<string, TopicAssignment>();
+    const sorted = [...state.assignments.values()].sort(
+      (a, b) =>
+        a.assignedAt.localeCompare(b.assignedAt) || a.id.localeCompare(b.id),
+    );
+    for (const row of sorted)
+      if (row.runId === runId && ids.includes(row.summaryId))
+        latest.set(row.summaryId, row);
+    return [...latest.values()];
   },
 }));
 vi.mock("./budget", () => ({
@@ -193,8 +223,9 @@ import { processTopicsExecution } from "./processTopicsExecution";
 function execution(
   id: string,
   count: number,
-  operation: "discover" | "assign" = "discover",
+  operation: "discover" | "assign" | "refresh" = "discover",
   facets = [facet],
+  embeddingDimensions = 16,
 ): TopicExecution {
   facets.forEach((selected) => state.facets.set(selected.id, selected));
   const input = {
@@ -203,6 +234,11 @@ function execution(
     facetVersionIds: facets.map((selected) => selected.id),
     budgetUsd: 0.25,
     exploratory: false,
+    embeddingConfig: {
+      embeddingModel: "text-embedding-3-small" as const,
+      embeddingDimensions,
+    },
+    forceRefresh: false,
     traceIds: Array.from({ length: count }, (_, i) => `trace${i}`),
   };
   return {
@@ -210,7 +246,7 @@ function execution(
     projectId: "project",
     revision: String(state.executions.size + 1),
     input:
-      operation === "discover"
+      operation !== "assign"
         ? { ...input, operation }
         : {
             ...input,
@@ -320,6 +356,273 @@ beforeEach(() => {
 
 describe("Topics execution", () => {
   const issues = { ...facet, id: "issues-version", facetId: "issues" };
+
+  it("accumulates small refresh batches and retains topic identities on a forced refresh", async () => {
+    const first = execution("refresh-first", 60, "refresh");
+    state.executions.set(first.id, first);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: first.id,
+    });
+    expect(state.executions.get(first.id)?.facets[0].outcome).toBe(
+      "insufficient_data",
+    );
+    const second = execution("refresh-second", 40, "refresh");
+    if (second.input.operation === "refresh")
+      second.input.traceIds = Array.from(
+        { length: 40 },
+        (_, i) => `trace${60 + i}`,
+      );
+    state.executions.set(second.id, second);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: second.id,
+    });
+    expect(state.executions.get(second.id)?.facets[0].counts.complete).toBe(
+      100,
+    );
+    const original = [...state.runs.values()].find((run) => run.publishedAt)!;
+    expect(original).toBeDefined();
+    const third = execution("refresh-third", 1, "refresh");
+    third.input.forceRefresh = true;
+    state.executions.set(third.id, third);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: third.id,
+    });
+    const refreshed = [...state.runs.values()]
+      .filter((run) => run.publishedAt)
+      .at(-1)!;
+    expect(refreshed.id).not.toBe(original.id);
+    expect(refreshed.topics.map((t) => t.topicId).sort()).toEqual(
+      original.topics.map((t) => t.topicId).sort(),
+    );
+    expect(refreshed.topics[0].topicVersionId).not.toBe(
+      original.topics[0].topicVersionId,
+    );
+    expect(state.summarize).toHaveBeenCalledTimes(100);
+    expect(state.embed).toHaveBeenCalledTimes(100);
+  });
+
+  it("clears a previous assignment when a facet becomes non-applicable", async () => {
+    state.executions.set("clear-first", execution("clear-first", 100));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "clear-first",
+    });
+    const before = [...state.assignments.values()].find(
+      (row) => row.traceId === "trace0",
+    )!;
+    expect(before.topicId).toBeTruthy();
+    state.sourceSuffix = "changed";
+    state.summarize.mockResolvedValueOnce({
+      output: { status: "not_applicable", summary: "", evidenceBlockIds: [] },
+      inputTokens: 10,
+      outputTokens: 10,
+      costUsd: 0,
+    });
+    state.executions.set(
+      "clear-second",
+      execution("clear-second", 1, "refresh"),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "clear-second",
+    });
+    const cleared = [...state.assignments.values()].find(
+      (row) => row.traceId === "trace0" && row.outcome === "not_applicable",
+    );
+    expect(cleared).toMatchObject({ topicId: null, topicVersionId: null });
+    expect(state.assignments.get(before.id)).toEqual(before);
+  });
+
+  it("changes embedding dimensions without changing the facet or repeating summary inference", async () => {
+    state.executions.set("dims-first", execution("dims-first", 1));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "dims-first",
+    });
+    const second = execution("dims-second", 1);
+    second.input.embeddingConfig.embeddingDimensions = 32;
+    state.executions.set(second.id, second);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: second.id,
+    });
+    expect(state.summarize).toHaveBeenCalledTimes(1);
+    expect(state.embed.mock.calls.map((call) => call[2])).toEqual([16, 32]);
+    expect(
+      new Set([...state.summaries.values()].map((row) => row.facetVersionId)),
+    ).toEqual(new Set([facet.id]));
+  });
+
+  it("processes more than 1000 traces without losing assignments", async () => {
+    const pending = execution("large", 1002);
+    state.executions.set(pending.id, pending);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: pending.id,
+    });
+    expect(state.executions.get(pending.id)?.status).toBe("completed");
+    expect(state.executions.get(pending.id)?.facets[0].counts.complete).toBe(
+      1002,
+    );
+    expect(state.assignments.size).toBe(1002);
+    expect(state.numeric.mock.calls[0][0]).toHaveLength(1002);
+  });
+
+  it("assigns a small new batch without reclustering and re-embeds the full cohort on a configuration change", async () => {
+    state.executions.set("grow-first", execution("grow-first", 100, "refresh"));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "grow-first",
+    });
+    const next = execution("grow-second", 1, "refresh");
+    if (next.input.operation === "refresh") next.input.traceIds = ["trace100"];
+    state.executions.set(next.id, next);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: next.id,
+    });
+    expect(state.executions.get(next.id)?.facets[0].outcome).toBe("assigned");
+    expect(state.numeric).toHaveBeenCalledTimes(1);
+    const dimensions = execution("grow-dimensions", 1, "refresh", [facet], 32);
+    state.executions.set(dimensions.id, dimensions);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: dimensions.id,
+    });
+    expect(state.executions.get(dimensions.id)?.status).toBe("completed");
+    expect(state.numeric).toHaveBeenCalledTimes(2);
+    expect(state.numeric.mock.calls[1][0]).toHaveLength(101);
+    expect(
+      state.numeric.mock.calls[1][0].every((v: number[]) => v.length === 32),
+    ).toBe(true);
+    expect(state.summarize).toHaveBeenCalledTimes(101);
+  });
+
+  it("writes outlier assignments when a successful refresh finds no topics", async () => {
+    state.executions.set(
+      "empty-first",
+      execution("empty-first", 100, "refresh"),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "empty-first",
+    });
+    state.numeric.mockResolvedValueOnce({
+      status: "no_topics",
+      labels: Array(100).fill(-1),
+      coordinates: Array(100).fill([0, 0]),
+    });
+    const empty = execution("empty-second", 1, "refresh");
+    empty.input.forceRefresh = true;
+    state.executions.set(empty.id, empty);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: empty.id,
+    });
+    expect(state.executions.get(empty.id)?.status).toBe("completed");
+    const run = [...state.runs.values()].filter((r) => r.publishedAt).at(-1)!;
+    expect(run.topics).toEqual([]);
+    expect(
+      [...state.assignments.values()].filter((a) => a.runId === run.id),
+    ).toHaveLength(100);
+    expect(
+      [...state.assignments.values()]
+        .filter((a) => a.runId === run.id)
+        .every((a) => a.outcome === "outlier"),
+    ).toBe(true);
+    const next = execution("empty-third", 1, "refresh");
+    if (next.input.operation === "refresh") next.input.traceIds = ["trace100"];
+    state.executions.set(next.id, next);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: next.id,
+    });
+    expect(state.executions.get(next.id)?.facets[0].runId).toBe(run.id);
+    expect(
+      [...state.assignments.values()].some(
+        (a) =>
+          a.traceId === "trace100" &&
+          a.runId === run.id &&
+          a.outcome === "outlier",
+      ),
+    ).toBe(true);
+    expect(state.numeric).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps pending embeddings isolated when another execution changes dimensions", async () => {
+    state.embed.mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
+    state.executions.set(
+      "pending-dimensions",
+      execution("pending-dimensions", 1),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "pending-dimensions",
+    });
+    expect(state.executions.get("pending-dimensions")?.status).toBe("failed");
+    const originalId = [...state.summaries.keys()][0];
+    state.executions.set(
+      "other-dimensions",
+      execution("other-dimensions", 1, "discover", [facet], 32),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "other-dimensions",
+    });
+    const otherId =
+      state.executions.get("other-dimensions")!.facets[0].summaryIds[0];
+    expect(otherId).not.toBe(originalId);
+    state.sourceUnavailable = true;
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "pending-dimensions",
+    });
+    expect(state.summaries.get(originalId)?.embedding).toHaveLength(16);
+    expect(state.summaries.get(otherId)?.embedding).toHaveLength(32);
+    expect(state.summarize).toHaveBeenCalledTimes(1);
+  });
+
+  it("records cached source reversions as the current summary for subsequent refreshes", async () => {
+    state.executions.set("snapshot-x", execution("snapshot-x", 1, "refresh"));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "snapshot-x",
+    });
+    state.sourceSuffix = "y";
+    state.executions.set("snapshot-y", execution("snapshot-y", 1, "refresh"));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "snapshot-y",
+    });
+    state.sourceSuffix = "";
+    state.executions.set(
+      "snapshot-x-again",
+      execution("snapshot-x-again", 1, "refresh"),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "snapshot-x-again",
+    });
+    const restored = state.summaries.get(
+      state.executions.get("snapshot-x-again")!.facets[0].summaryIds[0],
+    )!;
+    expect(restored.inputHash).toBe("trace0");
+    expect(restored.revision).toBe("3");
+    expect(state.summarize).toHaveBeenCalledTimes(2);
+    const next = execution("snapshot-next", 1, "refresh");
+    if (next.input.operation === "refresh") next.input.traceIds = ["trace1"];
+    state.executions.set(next.id, next);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: next.id,
+    });
+    expect(state.executions.get(next.id)!.facets[0].summaryIds).toContain(
+      restored.id,
+    );
+  });
 
   it("shares one in-memory source per trace across facets even when source changes during processing", async () => {
     const pending = execution("shared-transcript", 2, "discover", [
@@ -474,6 +777,11 @@ describe("Topics execution", () => {
       facetVersionIds: [facet.id],
       budgetUsd: 0.25,
       exploratory: false,
+      embeddingConfig: {
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 16,
+      },
+      forceRefresh: false,
       sourceExecutionIds: [first.id],
     };
     state.executions.set(recluster.id, recluster);
@@ -658,11 +966,10 @@ describe("Topics execution", () => {
       id: "dimensions-v2",
       version: 2,
       createdAt: "2026-01-02T00:00:00.000Z",
-      processingConfig: { ...facet.processingConfig, embeddingDimensions: 32 },
     };
     state.executions.set(
       "dimensions-updated",
-      execution("dimensions-updated", 1, "discover", [updated]),
+      execution("dimensions-updated", 1, "discover", [updated], 32),
     );
     await processTopicsExecution({
       projectId: "project",
@@ -723,11 +1030,10 @@ describe("Topics execution", () => {
       ...facet,
       id: "reuse-v2",
       version: 2,
-      processingConfig: { ...facet.processingConfig, embeddingDimensions: 32 },
     };
     state.executions.set(
       "reuse-resume",
-      execution("reuse-resume", 1, "discover", [updated]),
+      execution("reuse-resume", 1, "discover", [updated], 32),
     );
     state.embed.mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
     await processTopicsExecution({
@@ -767,11 +1073,10 @@ describe("Topics execution", () => {
       ...facet,
       id: "non-applicable-v2",
       version: 2,
-      processingConfig: { ...facet.processingConfig, embeddingDimensions: 32 },
     };
     state.executions.set(
       "non-applicable-reuse",
-      execution("non-applicable-reuse", 1, "discover", [updated]),
+      execution("non-applicable-reuse", 1, "discover", [updated], 32),
     );
     await processTopicsExecution({
       projectId: "project",
@@ -882,6 +1187,11 @@ describe("Topics execution", () => {
       facetVersionIds: [facet.id],
       budgetUsd: 0.25,
       exploratory: false,
+      embeddingConfig: {
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 16,
+      },
+      forceRefresh: false,
       sourceExecutionIds: ["A", "B"],
     };
     state.executions.set("C", recluster);

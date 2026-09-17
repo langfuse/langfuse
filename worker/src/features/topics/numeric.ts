@@ -27,8 +27,6 @@ export async function runTopicClustering(
   const settings = topicClusterSettings(exploratory);
   if (embeddings.length < settings.minimumCount)
     return { status: "insufficient_data", labels: [], coordinates: [] };
-  if (embeddings.length > 1000)
-    throw new Error("Topics local fit is limited to 1000 summaries");
   const python =
     env.LANGFUSE_TOPICS_PYTHON_PATH ??
     resolve(__dirname, "../../../.topics-venv/bin/python");
@@ -50,13 +48,21 @@ export async function runTopicClustering(
     );
     let output = "";
     let errorOutput = "";
+    // Each member produces one label and two finite JSON numbers. Allow ample
+    // per-member space without imposing a second, implicit cohort-size limit.
+    const maximumOutputLength = 4096 + embeddings.length * 256;
+    let outputExceeded = false;
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error("Topics numerical fit exceeded 120 seconds"));
     }, 120_000);
     child.stdout.on("data", (data: Buffer) => {
+      if (outputExceeded) return;
       output += data.toString();
-      if (output.length > 2_000_000) child.kill("SIGKILL");
+      if (output.length > maximumOutputLength) {
+        outputExceeded = true;
+        child.kill("SIGKILL");
+      }
     });
     child.stderr.on("data", (data: Buffer) => {
       errorOutput = (errorOutput + data.toString()).slice(-4000);
@@ -67,6 +73,10 @@ export async function runTopicClustering(
     });
     child.on("close", (code) => {
       clearTimeout(timeout);
+      if (outputExceeded) {
+        reject(new Error("Topics numerical fit returned oversized output"));
+        return;
+      }
       if (code !== 0) {
         reject(new Error(`Topics numerical fit failed: ${errorOutput}`));
         return;

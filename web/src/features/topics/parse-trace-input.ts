@@ -1,4 +1,4 @@
-import { topicTraceIdSchema, TOPICS_MAX_TRACES } from "@langfuse/shared/topics";
+import { topicTraceIdSchema } from "@langfuse/shared/topics";
 
 /** Links are identifiers only: the pipeline never fetches a pasted URL. */
 export function parseTraceInput(
@@ -30,10 +30,6 @@ export function parseTraceInput(
       return topicTraceIdSchema.parse(decodeURIComponent(match[2]));
     });
   const unique = [...new Set(ids)];
-  if (!unique.length || unique.length > TOPICS_MAX_TRACES) {
-    throw new Error(
-      `Provide between 1 and ${TOPICS_MAX_TRACES} unique traces.`,
-    );
-  }
+  if (!unique.length) throw new Error("Provide at least one trace.");
   return unique;
 }

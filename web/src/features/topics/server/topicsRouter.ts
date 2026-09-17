@@ -2,6 +2,7 @@ import { z } from "zod";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   topicExecutionInputSchema,
+  topicEmbeddingConfigSchema,
   topicIdSchema,
   topicTraceIdSchema,
   topicProcessingConfigSchema,
@@ -34,21 +35,18 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import {
   previewTopicTraces,
   topicTraceSelectionSchema,
 } from "./traceSelection";
 
+import { currentTopicResults } from "./currentResults";
+
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
 const processingConfigPatchSchema = z.object({
   summaryModel: topicProcessingConfigSchema.shape.summaryModel
-    .unwrap()
-    .optional(),
-  embeddingModel: topicProcessingConfigSchema.shape.embeddingModel
-    .unwrap()
-    .optional(),
-  embeddingDimensions: topicProcessingConfigSchema.shape.embeddingDimensions
     .unwrap()
     .optional(),
   projection: topicProcessingConfigSchema.shape.projection.unwrap().optional(),
@@ -65,10 +63,13 @@ const processingConfigPatchSchema = z.object({
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
-    if (!isTopicsEnabled())
-      throw new LangfuseNotFoundError(
-        "Topics is available on the local development instance only.",
-      );
+    if (
+      !isTopicsEnabled() ||
+      getContextualFeatureFlags(ctx.session.user, {
+        projectId: input.projectId,
+      })?.langfuseTopics !== true
+    )
+      throw new LangfuseNotFoundError("Topics is not available.");
     throwIfNoProjectAccess({
       session: ctx.session,
       projectId: input.projectId,
@@ -85,9 +86,23 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   return next();
 });
 
+function runEmbeddingConfig(run: TopicRun) {
+  if (
+    typeof run.config?.embeddingModel !== "string" ||
+    typeof run.config.dimensions !== "number"
+  )
+    return null;
+  const config = topicEmbeddingConfigSchema.safeParse({
+    embeddingModel: run.config.embeddingModel,
+    embeddingDimensions: run.config.dimensions,
+  });
+  return config.success ? config.data : null;
+}
+
 function publicRun(run: TopicRun) {
   return {
     id: run.id,
+    embeddingConfig: runEmbeddingConfig(run),
     facetVersionId: run.facetVersionId,
     runSequence: run.runSequence,
     status: run.status,
@@ -179,7 +194,7 @@ type TopicMap = {
 };
 const mapCoordinatesSchema = z.object({
   status: z.literal("complete"),
-  coordinates: z.array(z.tuple([z.number(), z.number()])).max(1000),
+  coordinates: z.array(z.tuple([z.number(), z.number()])),
 });
 
 async function publishedTopicMap(input: {
@@ -222,7 +237,6 @@ async function publishedTopicMap(input: {
     !originId.success ||
     !artifactKey.success ||
     !run.summaryIds.length ||
-    run.summaryIds.length > 1000 ||
     new Set(run.summaryIds).size !== run.summaryIds.length
   )
     return {
@@ -305,7 +319,12 @@ async function publishedTopicMap(input: {
       summary: row.summary,
       state: row.state,
       topicId: assignment?.outcome === "assigned" ? assignment.topicId : null,
-      outcome: assignment?.outcome ?? "unassigned",
+      outcome:
+        assignment?.outcome === "assigned"
+          ? "assigned"
+          : assignment?.outcome === "outlier"
+            ? "outlier"
+            : "unassigned",
     };
   };
   // Coordinates retain manifest indices even if a summary was deleted or a query returns another order.
@@ -332,6 +351,9 @@ async function publishedTopicMap(input: {
 }
 
 export const topicsRouter = createTRPCRouter({
+  currentResults: topicsProcedure.query(({ input }) =>
+    currentTopicResults(input.projectId),
+  ),
   previewTraces: topicsProcedure
     .input(topicTraceSelectionSchema)
     .query(({ input, ctx }) => previewTopicTraces(input, ctx.prisma)),
@@ -385,6 +407,17 @@ export const topicsRouter = createTRPCRouter({
           if (!run?.publishedAt || run.facetVersionId !== id)
             throw new InvalidRequestError(
               "Select a published map of the same facet version.",
+            );
+          const embeddingConfig = runEmbeddingConfig(run);
+          if (
+            !embeddingConfig ||
+            embeddingConfig.embeddingModel !==
+              input.embeddingConfig.embeddingModel ||
+            embeddingConfig.embeddingDimensions !==
+              input.embeddingConfig.embeddingDimensions
+          )
+            throw new InvalidRequestError(
+              "The selected map uses different embedding settings. Match its model and dimensions before assigning traces.",
             );
         }
       }

@@ -100,6 +100,7 @@ describe("Topics trace selection", () => {
     ).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() => expect(pending).toHaveLength(1));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "50" },
     });
@@ -124,7 +125,7 @@ describe("Topics trace selection", () => {
       screen.getByRole("button", { name: "Trigger topics" }),
     ).toBeDisabled();
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Select all sampled traces" }),
+      screen.getByRole("checkbox", { name: "Select all previewed traces" }),
     );
     expect(screen.getByTestId("selected")).toHaveTextContent('["new-trace"]');
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
@@ -161,7 +162,7 @@ describe("Topics trace selection", () => {
     expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
       traces.slice(1, 20),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Refresh sample" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh selection" }));
     await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
@@ -172,41 +173,39 @@ describe("Topics trace selection", () => {
       mocks.fetch.mock.calls[1][0].seed,
     );
     expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
-      limit: 100,
+      limit: null,
       sampling: "random",
     });
   });
 
-  it("enforces the trace cap for filter sampling and pasted IDs", async () => {
+  it("selects every matching trace by default and accepts more than 1,000 pasted IDs", async () => {
+    const ids = Array.from({ length: 1001 }, (_, i) => `trace-${i}`);
+    mocks.fetch.mockResolvedValue(result(...ids));
     setup();
-    fireEvent.change(screen.getByLabelText("Maximum traces"), {
-      target: { value: "1001" },
-    });
+    expect(screen.queryByLabelText("Maximum traces")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await waitFor(() =>
+      expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
+        ids,
+      ),
+    );
+    expect(mocks.fetch.mock.calls[0][0].limit).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Preview traces" }),
-    ).toBeDisabled();
+      screen.getAllByRole("checkbox", { name: /^Select trace / }),
+    ).toHaveLength(20);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
       button: 0,
       ctrlKey: false,
     });
     fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
-      target: { value: "trace-a\ntrace-a\ntrace-b" },
+      target: { value: [...ids, ids[0]].join("\n") },
     });
-    expect(screen.getByTestId("selected")).toHaveTextContent(
-      '["trace-a","trace-b"]',
+    expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
+      ids,
     );
-    fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
-      target: {
-        value: Array.from({ length: 1001 }, (_, i) => `trace-${i}`).join("\n"),
-      },
-    });
     expect(
       screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeDisabled();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "between 1 and 1000 unique traces",
-    );
-    expect(mocks.fetch).not.toHaveBeenCalled();
+    ).not.toBeDisabled();
   });
 
   it("previews all of the displayed custom dates using an exclusive next-day boundary", async () => {

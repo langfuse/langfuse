@@ -19,10 +19,11 @@ class NumericPipelineTest(unittest.TestCase):
 
     def test_distinct_populations_and_no_information(self):
         rng = np.random.default_rng(42)
-        vectors = np.concatenate([rng.normal(center, 0.025, (60, 16)) for center in np.eye(16)[:2]])
+        vectors = np.concatenate([rng.normal(center, 0.025, (501, 16)) for center in np.eye(16)[:2]])
         result = self.run_fit(vectors.tolist())
         self.assertEqual(result["status"], "complete")
-        self.assertEqual(len(result["labels"]), 120)
+        self.assertEqual(len(result["labels"]), 1002)
+        self.assertEqual(len(result["coordinates"]), 1002)
         self.assertGreaterEqual(len(set(result["labels"]) - {-1}), 2)
         self.assertTrue(np.isfinite(result["coordinates"]).all())
         self.assertEqual(self.run_fit(vectors[:10].tolist())["status"], "insufficient_data")

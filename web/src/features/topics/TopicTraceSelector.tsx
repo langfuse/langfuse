@@ -8,7 +8,6 @@ import {
   type FilterState,
   type TimeFilter,
 } from "@langfuse/shared";
-import { TOPICS_MAX_TRACES } from "@langfuse/shared/topics";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -71,15 +70,14 @@ export function TopicTraceSelector({
     const to = new Date();
     return { from: new Date(to.getTime() - 7 * DAY), to };
   });
+  const [sample, setSample] = useState(false);
   const [limit, setLimit] = useState("100");
   const [sampling, setSampling] = useState<"random" | "latest">("random");
   const [paste, setPaste] = useState("");
   const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
   const validLimit =
-    Number.isInteger(Number(limit)) &&
-    Number(limit) >= 1 &&
-    Number(limit) <= TOPICS_MAX_TRACES;
+    !sample || (Number.isSafeInteger(Number(limit)) && Number(limit) >= 1);
   const validRange =
     range.from < range.to &&
     range.to.getTime() - range.from.getTime() <= 93 * DAY;
@@ -88,7 +86,7 @@ export function TopicTraceSelector({
       projectId,
       filter: [],
       ...range,
-      limit: 100,
+      limit: null,
       sampling: "random",
       seed: "unselected",
     },
@@ -111,9 +109,10 @@ export function TopicTraceSelector({
     !preview.error
       ? preview.data
       : undefined;
+  const excludedIds = new Set(excluded);
   const selected =
     ready?.traces
-      .filter((trace) => !excluded.includes(trace.id))
+      .filter((trace) => !excludedIds.has(trace.id))
       .map((trace) => trace.id) ?? [];
   let pastedIds: string[] | null = null;
   let pasteError: string | null = null;
@@ -177,7 +176,7 @@ export function TopicTraceSelector({
       projectId,
       filter,
       ...range,
-      limit: Number(limit),
+      limit: sample ? Number(limit) : null,
       sampling,
       seed: crypto.randomUUID(),
     });
@@ -235,42 +234,55 @@ export function TopicTraceSelector({
                 </SelectContent>
               </Select>
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Sample up to
-              <Input
-                aria-label="Maximum traces"
-                className="w-28"
-                type="number"
-                min={1}
-                max={TOPICS_MAX_TRACES}
-                value={limit}
-                onChange={(event) => {
-                  setLimit(event.target.value);
+            <label className="flex h-8 items-center gap-2 text-sm">
+              <Checkbox
+                checked={sample}
+                onCheckedChange={(value) => {
+                  setSample(value === true);
                   setRequest(null);
                 }}
               />
+              Sample traces
             </label>
-            <label className="flex flex-col gap-1 text-sm">
-              Selection
-              <Select
-                value={sampling}
-                onValueChange={(value) => {
-                  setSampling(value as "random" | "latest");
-                  setRequest(null);
-                }}
-              >
-                <SelectTrigger
-                  className="w-44"
-                  aria-label="Trace sampling method"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="ph-no-capture">
-                  <SelectItem value="random">Random sample</SelectItem>
-                  <SelectItem value="latest">Newest first</SelectItem>
-                </SelectContent>
-              </Select>
-            </label>
+            {sample && (
+              <>
+                <label className="flex flex-col gap-1 text-sm">
+                  Sample up to
+                  <Input
+                    aria-label="Maximum traces"
+                    className="w-28"
+                    type="number"
+                    min={1}
+                    value={limit}
+                    onChange={(event) => {
+                      setLimit(event.target.value);
+                      setRequest(null);
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  Selection
+                  <Select
+                    value={sampling}
+                    onValueChange={(value) => {
+                      setSampling(value as "random" | "latest");
+                      setRequest(null);
+                    }}
+                  >
+                    <SelectTrigger
+                      className="w-44"
+                      aria-label="Trace sampling method"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="ph-no-capture">
+                      <SelectItem value="random">Random sample</SelectItem>
+                      <SelectItem value="latest">Newest first</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+              </>
+            )}
           </div>
           {timeWindow === "custom" && (
             <DateRangeInput
@@ -335,7 +347,7 @@ export function TopicTraceSelector({
           </p>
           {!validLimit && (
             <p role="alert" className="text-destructive text-sm">
-              Select between 1 and {TOPICS_MAX_TRACES.toLocaleString()} traces.
+              Enter a positive whole number of traces.
             </p>
           )}
           {!validRange && (
@@ -357,7 +369,7 @@ export function TopicTraceSelector({
             {request !== null && preview.isFetching
               ? "Loading preview…"
               : ready
-                ? "Refresh sample"
+                ? "Refresh selection"
                 : "Preview traces"}
           </Button>
           {request !== null && preview.error && (
@@ -369,11 +381,14 @@ export function TopicTraceSelector({
             <>
               <p role="status" className="text-sm">
                 {ready.matchedTraceCount.toLocaleString()} matching traces ·{" "}
-                {ready.traces.length} sampled · {selected.length} selected
+                {selected.length.toLocaleString()} selected
+                {request?.limit
+                  ? ` · sample of ${ready.traces.length.toLocaleString()}`
+                  : " · all matches loaded"}
               </p>
               <p className="text-muted-foreground text-xs">
                 This selection is fixed until you edit the criteria or refresh
-                the sample. Only the selected trace IDs will be submitted.
+                the selection. Only the selected trace IDs will be submitted.
               </p>
               <TracePreviewTable
                 key={request?.seed}
@@ -401,8 +416,8 @@ export function TopicTraceSelector({
             className="min-h-32 font-mono text-xs"
           />
           <span className="text-muted-foreground font-normal">
-            Up to {TOPICS_MAX_TRACES.toLocaleString()} unique traces from this
-            project.{pastedIds ? ` ${pastedIds.length} selected.` : ""}
+            Unique trace IDs from this project.
+            {pastedIds ? ` ${pastedIds.length} selected.` : ""}
           </span>
           {pasteError && (
             <span
@@ -433,9 +448,8 @@ function TracePreviewTable({
   onExcludedChange: (ids: string[]) => void;
 }) {
   const [page, setPage] = useState(0);
-  const selectedCount = traces.filter(
-    (trace) => !excluded.includes(trace.id),
-  ).length;
+  const excludedIds = new Set(excluded);
+  const selectedCount = traces.length - excludedIds.size;
   const pageCount = Math.max(1, Math.ceil(traces.length / 20));
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -445,7 +459,7 @@ function TracePreviewTable({
             <TableRow>
               <TableHead className="w-12">
                 <Checkbox
-                  aria-label="Select all sampled traces"
+                  aria-label="Select all previewed traces"
                   checked={
                     selectedCount === traces.length && traces.length > 0
                       ? true
@@ -472,7 +486,7 @@ function TracePreviewTable({
                 <TableCell density="comfortable">
                   <Checkbox
                     aria-label={`Select trace ${trace.id}`}
-                    checked={!excluded.includes(trace.id)}
+                    checked={!excludedIds.has(trace.id)}
                     onCheckedChange={(checked) =>
                       onExcludedChange(
                         checked === true

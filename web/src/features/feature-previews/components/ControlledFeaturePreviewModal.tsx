@@ -49,6 +49,15 @@ export function ControlledFeaturePreviewModal({
     authSession.data?.environment.enableExperimentalFeatures === true;
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled: authSession.data.user.featureFlags.langfuseTopics === true,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
     modernSession: {
       enabled: isModernSessionEnabled,
       disabled:

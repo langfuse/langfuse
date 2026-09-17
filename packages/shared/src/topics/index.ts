@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 export const TOPICS_DEFAULT_BUDGET_USD = 0.25;
-export const TOPICS_MAX_TRACES = 1000;
 export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
 export const TOPICS_EMBEDDING_MODEL = "text-embedding-3-small";
 
@@ -11,12 +10,15 @@ export const topicIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 export const topicTraceIdSchema = z.string().min(1).max(1000);
-export const topicProcessingConfigSchema = z.object({
-  summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
+export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z
     .literal(TOPICS_EMBEDDING_MODEL)
     .default(TOPICS_EMBEDDING_MODEL),
   embeddingDimensions: z.number().int().min(16).max(1536).default(768),
+});
+export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
+export const topicProcessingConfigSchema = z.object({
+  summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
   projection: z.enum(["all", "intent", "issues"]).default("all"),
   maxInputTokens: z.number().int().min(256).max(8000).default(8000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
@@ -30,20 +32,24 @@ const executionBase = {
   facetVersionIds: z.array(topicIdSchema).min(1),
   budgetUsd: z.number().positive().max(5).default(TOPICS_DEFAULT_BUDGET_USD),
   exploratory: z.boolean().default(false),
+  embeddingConfig: topicEmbeddingConfigSchema.default(() =>
+    topicEmbeddingConfigSchema.parse({}),
+  ),
+  forceRefresh: z.boolean().default(false),
 };
 export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
   z
     .object({
       ...executionBase,
       operation: z.literal("discover"),
-      traceIds: z.array(topicTraceIdSchema).min(1).max(TOPICS_MAX_TRACES),
+      traceIds: z.array(topicTraceIdSchema).min(1),
     })
     .strict(),
   z
     .object({
       ...executionBase,
       operation: z.literal("assign"),
-      traceIds: z.array(topicTraceIdSchema).min(1).max(TOPICS_MAX_TRACES),
+      traceIds: z.array(topicTraceIdSchema).min(1),
       targetRunIds: z.record(topicIdSchema, topicIdSchema),
     })
     .strict()
@@ -55,7 +61,14 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
     .object({
       ...executionBase,
       operation: z.literal("recluster"),
-      sourceExecutionIds: z.array(topicIdSchema).min(1).max(20),
+      sourceExecutionIds: z.array(topicIdSchema).min(1),
+    })
+    .strict(),
+  z
+    .object({
+      ...executionBase,
+      operation: z.literal("refresh"),
+      traceIds: z.array(topicTraceIdSchema).min(1),
     })
     .strict(),
 ]);
@@ -135,14 +148,15 @@ export interface TopicAssignment {
   facetVersionId: string;
   facetVersion: number;
   traceId: string;
+  unitType: "trace";
   traceTimestamp: string;
   summaryId: string;
   summaryRevision: string;
-  runId: string;
-  runSequence: string;
+  runId: string | null;
+  runSequence: string | null;
   topicId: string | null;
   topicVersionId: string | null;
-  outcome: "assigned" | "outlier";
+  outcome: "assigned" | "outlier" | "not_applicable" | "insufficient_input";
   distance: number | null;
   runnerUpDistance: number | null;
   rejectionReason: string;
@@ -186,6 +200,11 @@ export interface TopicFacetProgress {
   summaryIds: string[];
   runId: string | null;
   error: string | null;
+  refresh?: {
+    shouldRefresh: boolean;
+    reasons: string[];
+    metrics: Record<string, number>;
+  };
   counts: {
     requested: number;
     complete: number;

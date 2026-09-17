@@ -6,8 +6,10 @@ import {
   type TopicFacetVersion,
   type TopicRun,
   type TopicProcessingConfig,
+  type TopicDefinition,
 } from "../../topics";
 import { readTopicArtifact, writeTopicArtifact } from "./journal";
+import { chunk } from "lodash";
 
 type FacetVersionRow = Prisma.TopicFacetVersionGetPayload<object>;
 type RunRow = Prisma.TopicClusteringRunGetPayload<{
@@ -208,6 +210,47 @@ export async function getTopicRun(
   return row ? runResult(row) : null;
 }
 
+export async function getPublishedTopicRun(
+  projectId: string,
+  facetId: string,
+): Promise<TopicRun | null> {
+  const facet = await prisma.topicFacet.findFirst({
+    where: { projectId, id: facetId },
+    select: { publishedRunId: true },
+  });
+  if (!facet?.publishedRunId) return null;
+  const row = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      id: facet.publishedRunId,
+      status: "completed",
+      publishedAt: { not: null },
+      facetVersion: { facetId },
+    },
+    include: { topics: true },
+  });
+  return row ? runResult(row) : null;
+}
+
+export async function getTopicDefinitions(
+  projectId: string,
+  topicVersionIds: string[],
+): Promise<TopicDefinition[]> {
+  const definitions: TopicDefinition[] = [];
+  for (const ids of chunk([...new Set(topicVersionIds)], 1000)) {
+    const rows = await prisma.topic.findMany({
+      where: { projectId, topicVersionId: { in: ids } },
+    });
+    definitions.push(
+      ...rows.map((row) => ({
+        ...row,
+        metadata: row.metadata as Record<string, unknown>,
+      })),
+    );
+  }
+  return definitions;
+}
+
 export async function listTopicRuns(
   projectId: string,
   facetVersionId?: string,
@@ -281,8 +324,8 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       )
         throw new Error("Invalid topic definition.");
     }
-    if (run.publishedAt && (run.status !== "completed" || !run.topics.length))
-      throw new Error("Only a completed, named map can be published.");
+    if (run.publishedAt && run.status !== "completed")
+      throw new Error("Only a completed map can be published.");
     if (run.startedAt) {
       await tx.topicClusteringRun.updateMany({
         where: { projectId: run.projectId, id: run.id, startedAt: null },

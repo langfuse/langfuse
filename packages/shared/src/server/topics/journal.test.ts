@@ -20,6 +20,11 @@ const input: TopicExecutionInput = {
   traceIds: ["trace-a", "trace-b"],
   budgetUsd: 0.25,
   exploratory: false,
+  embeddingConfig: {
+    embeddingModel: "text-embedding-3-small",
+    embeddingDimensions: 768,
+  },
+  forceRefresh: false,
 };
 beforeEach(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "topics-journal-"));
@@ -31,6 +36,54 @@ afterEach(async () => {
 });
 
 describe("local Topics execution journal", () => {
+  it("accepts uncapped cohorts and independent embedding settings on refresh", async () => {
+    const traceIds = Array.from(
+      { length: 1001 },
+      (_, index) => `trace-${index}`,
+    );
+    const execution = await store.create(
+      topicExecutionInputSchema.parse({
+        ...input,
+        operation: "refresh",
+        traceIds,
+        embeddingConfig: { embeddingDimensions: 256 },
+        forceRefresh: true,
+      }),
+    );
+    expect(execution.input).toMatchObject({
+      operation: "refresh",
+      traceIds,
+      embeddingConfig: {
+        embeddingModel: "text-embedding-3-small",
+        embeddingDimensions: 256,
+      },
+      forceRefresh: true,
+    });
+    expect(
+      topicExecutionInputSchema.parse({
+        ...input,
+        traceIds,
+        embeddingConfig: undefined,
+        forceRefresh: undefined,
+      }),
+    ).toMatchObject({
+      embeddingConfig: { embeddingDimensions: 768 },
+      forceRefresh: false,
+    });
+    expect(
+      topicExecutionInputSchema.parse({
+        projectId: input.projectId,
+        requestId: "recluster-large",
+        facetVersionIds: input.facetVersionIds,
+        operation: "recluster",
+        sourceExecutionIds: Array.from(
+          { length: 21 },
+          (_, index) => `source-${index}`,
+        ),
+      }).operation,
+    ).toBe("recluster");
+  });
+
   it("treats external trace IDs as opaque values rather than artifact paths", async () => {
     const traceIds = [
       "request:2026/09.16",

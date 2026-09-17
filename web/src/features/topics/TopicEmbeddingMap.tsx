@@ -4,7 +4,10 @@ import { Button } from "@/src/components/ui/button";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
-type Topic = RouterOutputs["topics"]["runs"][number]["topics"][number];
+type Topic = Pick<
+  RouterOutputs["topics"]["runs"][number]["topics"][number],
+  "id" | "name"
+>;
 type MapData = RouterOutputs["topics"]["map"];
 const pointGroup = (point: MapData["points"][number]) =>
   point.outcome === "unassigned" ? "unassigned" : (point.topicId ?? "outliers");
@@ -53,12 +56,18 @@ function fitMapPoints(
     x: (point.x - centerX) * cosine + (point.y - centerY) * sine,
     y: -(point.x - centerX) * sine + (point.y - centerY) * cosine,
   }));
-  const xs = rotated.map((point) => point.x),
-    ys = rotated.map((point) => point.y);
-  const minX = xs.length ? Math.min(...xs) : 0,
-    maxX = xs.length ? Math.max(...xs) : 0;
-  const minY = ys.length ? Math.min(...ys) : 0,
-    maxY = ys.length ? Math.max(...ys) : 0;
+  const bounds = rotated.reduce(
+    (result, point) => ({
+      minX: Math.min(result.minX, point.x),
+      maxX: Math.max(result.maxX, point.x),
+      minY: Math.min(result.minY, point.y),
+      maxY: Math.max(result.maxY, point.y),
+    }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+  );
+  const { minX, maxX, minY, maxY } = rotated.length
+    ? bounds
+    : { minX: 0, maxX: 0, minY: 0, maxY: 0 };
   const scale = Math.min(
     Math.max(width - 48, 1) / Math.max(maxX - minX, 0.01),
     Math.max(height - 48, 1) / Math.max(maxY - minY, 0.01),

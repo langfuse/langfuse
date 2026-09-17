@@ -26,8 +26,9 @@ retries preserve it. Existing runs predating this field retain a null start time
 
 The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
 `gpt-5.6-luna` with reasoning disabled. Embeddings use `text-embedding-3-small`
-at 768 dimensions by default. The facet editor accepts 16–1,536 dimensions;
-changing this setting creates a new immutable facet version. This PoC does
+at 768 dimensions by default. Each execution chooses 16–1,536 dimensions.
+Embedding settings are independent of immutable facet versions; changing them
+reuses summary text and regenerates vectors without summarization inference. This PoC does
 not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
 events; legacy-only traces are unsupported.
 
@@ -52,6 +53,33 @@ events; legacy-only traces are unsupported.
 Use the repository seed CLI for synthetic local trace data (`pnpm run seed --
 list`). There is no automatic fixture insertion in this feature.
 
+## Current topics and manual refresh
+
+The default **Run topics** action freezes the reviewed trace IDs and accumulates
+terminal summaries across executions of each selected facet version. There is no
+total trace-count cap; explicit lookups use bounded internal batches. Before the
+first map reaches its minimum cohort, usable summaries wait for later batches.
+
+A compatible existing map receives assignments immediately. Refit triggers are
+provisional PoC defaults: at least 20 new usable summaries and 20% growth; or at
+least 10 new outliers making up 25% of new evidence; or cosine drift of 0.05
+supported by 10 new members. Exploratory absolute minima are 3. Force refresh,
+missing maps and changed embedding configuration also request a refit. The same
+summary input is not counted as new repeatedly. Progress records the decision,
+metrics and cohort count. No periodic scheduler runs in this PoC.
+
+Continuity uses at least 80% reciprocal overlap of unchanged trace inputs, 10
+anchors (3 exploratory), and 50% old-topic coverage. Compatible centroids must be
+within cosine distance 0.15. Material split/merge branches start new identities.
+These thresholds require quality calibration; they are not universal guarantees.
+
+Current membership resolves the latest `assigned_at`, then assignment ID, per
+project/facet/unit. Only published map assignments and explicit terminal no-topic
+results participate. Outliers, non-applicable facets and insufficient inputs clear
+previous membership; processing failures do not. Topic filtering happens after
+latest selection. A late older job may win by timestamp, intentionally accepted
+for this PoC. Execution links continue to show historical results.
+
 ## Algorithm and checkpoints
 
 The worker loads and assembles each trace once per processing attempt, shares
@@ -61,16 +89,12 @@ replay without reading the source. It does not persist source
 snapshots, transcripts, projections, or model request bodies. Shared deterministic
 assembly is used by the worker and the on-demand summary inspector. Accepted
 model outputs are immutable local artifacts, written before ClickHouse results.
-Unchanged effective input within a facet version reuses the original summary ID
-and revision. Embedding-only version edits reuse compatible summaries from the
-same facet when the transcript, summary model, prompt/guidance, and token limits
-match. The original invocation hash must verify against the current summary
-prompt version, including for existing saved records. Reused outputs get a new
-target-version row with source-summary provenance and zero new summary usage or
-cost. Embeddings are reused only when their model and actual dimensions match;
-otherwise only embedding inference repeats. Historical rows and vectors remain
-unchanged. Summaries are checkpointed before embedding, then completed using
-Float32 embeddings matching ClickHouse storage.
+Unchanged effective input and summary recipe reuse accepted summary text. Embedding
+settings belong to the execution, not the facet version. Compatible vectors are
+reused; a changed configuration creates a new combined summary/vector revision
+with source-summary provenance and zero new summarization usage. Historical
+vectors remain available for their original maps. Re-embedding accumulated
+summaries never reloads traces or repeats summarization.
 
 Every facet receives identical transcript text and source references for the same
 source snapshot. Facet instructions affect only summarization. Transcript format
@@ -124,8 +148,9 @@ previous published map in place. A single overall population is not forced into
 a topic; validating that case needs a future coherence policy. Maps are
 published only after their frozen initial assignment cohort is readable in
 ClickHouse. Topic definitions and initial manifests remain immutable while later
-assignments can extend a map's live membership. The PoC allocates new topic IDs
-for each discovery run; it does not infer topic continuity, splits, or merges.
+assignments can extend a map's live membership. Refresh matches final memberships to the previous published map. Continuing
+topics retain their stable topic IDs and receive new topic version IDs. Material
+splits/merges receive new IDs with predecessor lineage in topic metadata.
 
 ## Cost and recovery
 

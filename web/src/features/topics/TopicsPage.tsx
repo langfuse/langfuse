@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Page from "@/src/components/layouts/page";
+import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -16,6 +17,7 @@ import {
 } from "@/src/components/ui/select";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
   topicProcessingConfigSchema,
   type TopicFacet,
@@ -23,6 +25,7 @@ import {
   type TopicFacetOutcome,
 } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
+import { CurrentTopics } from "./CurrentTopics";
 import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
 
 const busy = (status: string) => status === "queued" || status === "running";
@@ -48,6 +51,12 @@ export default function TopicsPage() {
   const router = useRouter();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
+  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
+  if (!topicsEnabled) {
+    return (
+      <ErrorPage title="Not found" message="This page is not available." />
+    );
+  }
   return (
     <Page
       headerProps={{
@@ -86,11 +95,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   const executionId =
     typeof router.query.executionId === "string"
       ? router.query.executionId
-      : (executions.data?.find((execution) =>
-          execution.facets.some((facet) => facet.outcome === "published"),
-        )?.id ??
-        executions.data?.[0]?.id ??
-        null);
+      : null;
   const openExecution = (id: string) => {
     router.push(
       { pathname: router.pathname, query: { projectId, executionId: id } },
@@ -110,14 +115,28 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
           canWrite={canWrite}
         />
       ) : (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-bold">Topics</h2>
-          <p className="text-muted-foreground text-sm">
-            {executions.isLoading
-              ? "Loading topics…"
-              : "Run the pipeline below to discover topics in your traces."}
-          </p>
-        </section>
+        <CurrentTopics
+          projectId={projectId}
+          running={
+            executions.data?.some((execution) => busy(execution.status)) ??
+            false
+          }
+        />
+      )}
+      {executionId && (
+        <Button
+          variant="outline"
+          className="self-start"
+          onClick={() =>
+            router.push(
+              { pathname: router.pathname, query: { projectId } },
+              undefined,
+              { shallow: true },
+            )
+          }
+        >
+          Show current topics
+        </Button>
       )}
       {facets.isLoading && <p>Loading facets…</p>}
       {facets.error && <ErrorMessage message={facets.error.message} />}
@@ -204,11 +223,6 @@ function FacetEditor({
   const [facetId, setFacetId] = useState("new");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [dimensions, setDimensions] = useState("768");
-  const validDimensions =
-    topicProcessingConfigSchema.shape.embeddingDimensions.safeParse(
-      Number(dimensions),
-    ).success;
   const save = api.topics.saveFacet.useMutation({
     onSuccess: () => utils.topics.facets.invalidate({ projectId }),
   });
@@ -225,11 +239,6 @@ function FacetEditor({
             const facet = facets.find((f) => f.id === value);
             setName(facet?.name ?? "");
             setPrompt(facet?.versions[0]?.prompt ?? "");
-            setDimensions(
-              String(
-                facet?.versions[0]?.processingConfig.embeddingDimensions ?? 768,
-              ),
-            );
           }}
         >
           <SelectTrigger aria-label="Facet to edit">
@@ -257,34 +266,13 @@ function FacetEditor({
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
         />
-        <label className="flex flex-col gap-2 text-sm">
-          Embedding dimensions
-          <Input
-            aria-label="Embedding dimensions"
-            type="number"
-            min={16}
-            max={1536}
-            step={1}
-            value={dimensions}
-            onChange={(event) => setDimensions(event.target.value)}
-          />
-          <span className="text-muted-foreground text-xs">
-            16–1,536 dimensions. Higher values retain more information and use
-            more storage. Changing dimensions creates a new facet version.
-          </span>
-        </label>
         <p className="text-muted-foreground text-xs">
           Revising a question creates an immutable version. Existing summaries
           and maps retain their original question.
         </p>
         <Button
           className="self-start"
-          disabled={
-            save.isPending ||
-            !name.trim() ||
-            prompt.trim().length < 10 ||
-            !validDimensions
-          }
+          disabled={save.isPending || !name.trim() || prompt.trim().length < 10}
           onClick={() =>
             save.mutate({
               projectId,
@@ -294,7 +282,6 @@ function FacetEditor({
               processingConfig: {
                 ...(facets.find((facet) => facet.id === facetId)?.versions[0]
                   ?.processingConfig ?? topicProcessingConfigSchema.parse({})),
-                embeddingDimensions: Number(dimensions),
               },
             })
           }
@@ -361,7 +348,9 @@ function ExecutionPanel({
                     ? "Assign to existing topics"
                     : execution.input.operation === "recluster"
                       ? "Recluster saved summaries"
-                      : "Discover topics"}
+                      : execution.input.operation === "refresh"
+                        ? "Update topics"
+                        : "Discover topics"}
                 </dd>
                 <dt className="text-muted-foreground">Mode</dt>
                 <dd>
@@ -379,6 +368,8 @@ function ExecutionPanel({
                 <dd>${execution.spentCostUsd.toFixed(5)}</dd>
                 <dt className="text-muted-foreground">Reserved budget</dt>
                 <dd>${execution.reservedCostUsd.toFixed(5)}</dd>
+                <dt className="text-muted-foreground">Embedding dimensions</dt>
+                <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
               </dl>
               <p className="text-muted-foreground text-xs">
                 Reserved budget is the maximum estimated cost set aside for
@@ -470,6 +461,18 @@ function ExecutionPanel({
                   : []),
               ].join(" · ")}
             </p>
+            {progress.refresh && (
+              <p className="text-muted-foreground text-sm">
+                {progress.refresh.shouldRefresh
+                  ? "Map refresh requested"
+                  : "Existing map retained"}
+                :{" "}
+                {progress.refresh.reasons
+                  .map((reason) => reason.replaceAll("_", " "))
+                  .join(", ")}
+                .
+              </p>
+            )}
             {progress.error && <ErrorMessage message={progress.error} />}
             {progress.outcome === "insufficient_data" && (
               <p className="text-sm">

@@ -19,6 +19,7 @@ vi.mock("./TopicTraceSelector", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
+      currentResults: { useQuery: () => ({ data: [] }) },
       trigger: {
         useMutation: () => ({ mutateAsync: trigger, isPending: false }),
       },
@@ -66,26 +67,35 @@ describe("Topics pipeline selection handoff", () => {
     const view = render(<TopicPipelineForm {...props} />);
     expect(
       screen
-        .getByRole("button", { name: "Trigger pipeline" })
+        .getByRole("button", { name: "Run topics" })
         .hasAttribute("disabled"),
     ).toBe(true);
     selection.ids = ["trace-with/custom-id", "second-trace"];
     view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Trigger pipeline" }));
+    fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
+      target: { value: "512" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Force refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
     await waitFor(() => expect(onTriggered).toHaveBeenCalledWith("execution"));
     expect(trigger).toHaveBeenCalledWith(
       expect.objectContaining({
-        operation: "discover",
+        operation: "refresh",
         projectId: "project",
         traceIds: ["trace-with/custom-id", "second-trace"],
         facetVersionIds: ["intent-v1", "issues-v1"],
+        embeddingConfig: {
+          embeddingModel: "text-embedding-3-small",
+          embeddingDimensions: 512,
+        },
+        forceRefresh: true,
       }),
     );
     selection.ids = null;
     view.rerender(<TopicPipelineForm {...props} />);
     expect(
       screen
-        .getByRole("button", { name: "Trigger pipeline" })
+        .getByRole("button", { name: "Run topics" })
         .hasAttribute("disabled"),
     ).toBe(true);
   });

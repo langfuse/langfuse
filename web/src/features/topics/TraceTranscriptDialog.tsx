@@ -9,6 +9,7 @@ import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 export function TraceTranscriptDialogController({
   projectId,
@@ -20,12 +21,19 @@ export function TraceTranscriptDialogController({
   children: (control: { openTranscript: (() => void) | null }) => ReactNode;
 }) {
   const isMember = useIsAuthenticatedAndProjectMember(projectId);
+  const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
   const canReadTopics = useHasProjectAccess({
     projectId,
     scope: "topics:read",
   });
   const canShowTranscript =
-    process.env.NODE_ENV === "development" && isMember && canReadTopics;
+    process.env.NODE_ENV === "development" &&
+    topicsEnabled &&
+    isMember &&
+    canReadTopics;
+  if (!canShowTranscript || !traceId) {
+    return children({ openTranscript: null });
+  }
   return (
     <DialogController<string>
       key={`${projectId}:${traceId}`}
@@ -37,8 +45,7 @@ export function TraceTranscriptDialogController({
     >
       {({ openDialog }) =>
         children({
-          openTranscript:
-            canShowTranscript && traceId ? () => openDialog(traceId) : null,
+          openTranscript: () => openDialog(traceId),
         })
       }
     </DialogController>

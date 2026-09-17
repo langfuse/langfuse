@@ -167,6 +167,7 @@ export class TopicExecutionStore {
     );
     if (result && (result.id !== executionId || result.projectId !== projectId))
       throw new Error("Topics execution scope mismatch.");
+    if (result) result.input = topicExecutionInputSchema.parse(result.input);
     return result;
   }
 

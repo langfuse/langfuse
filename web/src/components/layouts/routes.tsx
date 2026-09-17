@@ -139,6 +139,7 @@ export const ROUTES: Route[] = [
     title: "Topics",
     pathname: "/project/[projectId]/topics",
     icon: Grid2X2,
+    featureFlag: "langfuseTopics",
     projectRbacScopes: ["topics:read"],
     show: () => process.env.NODE_ENV === "development",
     group: RouteGroup.Observability,

@@ -12,6 +12,7 @@ import {
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   topicExecutionInputSchema,
+  topicEmbeddingConfigSchema,
   type TopicFacet,
   type TopicOperation,
 } from "@langfuse/shared/topics";
@@ -35,7 +36,7 @@ export function TopicPipelineForm({
   canWrite: boolean;
   onTriggered: (id: string) => void;
 }) {
-  const [operation, setOperation] = useState<TopicOperation>("discover");
+  const [operation, setOperation] = useState<TopicOperation>("refresh");
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
       .filter((facet) => facet.versions.length > 0)
@@ -51,6 +52,12 @@ export function TopicPipelineForm({
   const [sourceExecutionIds, setSourceExecutionIds] = useState<string[]>([]);
   const [exploratory, setExploratory] = useState(false);
   const [budget, setBudget] = useState("0.25");
+  const [dimensions, setDimensions] = useState("768");
+  const [forceRefresh, setForceRefresh] = useState(false);
+  const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
+    embeddingDimensions: Number(dimensions),
+  });
+  const currentResults = api.topics.currentResults.useQuery({ projectId });
   const [error, setError] = useState<string | null>(null);
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
@@ -67,6 +74,35 @@ export function TopicPipelineForm({
   const facetVersionIds = facetChoices
     .filter((choice) => choice.selected)
     .map((choice) => choice.version.id);
+  const retainedCohort =
+    currentResults.data &&
+    facetVersionIds.every((id) =>
+      currentResults.data.some((facet) => facet.facetVersionId === id),
+    )
+      ? new Set(
+          currentResults.data
+            .filter((facet) =>
+              facetVersionIds.includes(facet.facetVersionId ?? ""),
+            )
+            .flatMap((facet) => facet.retainedTraceIds),
+        )
+      : null;
+  const compatibleRuns = runs.filter(
+    (run) =>
+      run.publishedAt &&
+      run.embeddingConfig?.embeddingDimensions === Number(dimensions) &&
+      run.embeddingConfig.embeddingModel ===
+        embeddingConfig.data?.embeddingModel,
+  );
+  const selectedTargetRunIds = Object.fromEntries(
+    facetVersionIds.flatMap((id) =>
+      compatibleRuns.some(
+        (run) => run.facetVersionId === id && run.id === targetRunIds[id],
+      )
+        ? [[id, targetRunIds[id]!]]
+        : [],
+    ),
+  );
   const reclusterSources = executions.filter(
     (execution) =>
       ["completed", "completed_with_errors"].includes(execution.status) &&
@@ -93,6 +129,10 @@ export function TopicPipelineForm({
         facetVersionIds,
         budgetUsd: Number(budget),
         exploratory,
+        forceRefresh: operation === "refresh" && forceRefresh,
+        embeddingConfig: topicEmbeddingConfigSchema.parse({
+          embeddingDimensions: Number(dimensions),
+        }),
       };
       const values =
         operation === "recluster"
@@ -102,7 +142,7 @@ export function TopicPipelineForm({
                 ...base,
                 operation,
                 traceIds,
-                targetRunIds,
+                targetRunIds: selectedTargetRunIds,
               }
             : {
                 ...base,
@@ -172,13 +212,9 @@ export function TopicPipelineForm({
               </Select>
             </div>
             <p className="text-muted-foreground text-sm">{version.prompt}</p>
-            <p className="text-muted-foreground text-xs">
-              {version.processingConfig.embeddingDimensions} embedding
-              dimensions
-            </p>
             {operation === "assign" && selected && (
               <Select
-                value={targetRunIds[version.id] ?? ""}
+                value={selectedTargetRunIds[version.id] ?? ""}
                 onValueChange={(value) =>
                   setTargetRunIds((current) => ({
                     ...current,
@@ -190,10 +226,10 @@ export function TopicPipelineForm({
                   className="w-full sm:w-64"
                   aria-label={`Map for ${facet.name} v${version.version}`}
                 >
-                  <SelectValue placeholder="Select published map" />
+                  <SelectValue placeholder="Select compatible published map" />
                 </SelectTrigger>
                 <SelectContent className="ph-no-capture">
-                  {runs
+                  {compatibleRuns
                     .filter(
                       (run) =>
                         run.facetVersionId === version.id && run.publishedAt,
@@ -247,6 +283,28 @@ export function TopicPipelineForm({
         </fieldset>
       )}
       <div className="flex flex-wrap items-end gap-5">
+        <label className="flex flex-col gap-1 text-sm">
+          Embedding dimensions
+          <Input
+            aria-label="Embedding dimensions"
+            className="w-28"
+            type="number"
+            min={16}
+            max={1536}
+            step={1}
+            value={dimensions}
+            onChange={(event) => setDimensions(event.target.value)}
+          />
+        </label>
+        {operation === "refresh" && (
+          <label className="flex h-8 items-center gap-2 text-sm">
+            <Checkbox
+              checked={forceRefresh}
+              onCheckedChange={(value) => setForceRefresh(value === true)}
+            />
+            Force refresh
+          </label>
+        )}
         {operation !== "assign" && (
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
@@ -272,33 +330,44 @@ export function TopicPipelineForm({
         <Button
           disabled={
             !canWrite ||
+            !embeddingConfig.success ||
             trigger.isPending ||
             !facetVersionIds.length ||
             (operation === "recluster"
               ? !selectedSourceIds.length
               : !traceIds?.length) ||
             (operation === "assign" &&
-              facetVersionIds.some((id) => !targetRunIds[id]))
+              facetVersionIds.some((id) => !selectedTargetRunIds[id]))
           }
           onClick={() => submit(traceIds)}
         >
-          {trigger.isPending ? "Triggering…" : "Trigger pipeline"}
+          {trigger.isPending ? "Starting…" : "Run topics"}
         </Button>
       </div>
       {operation !== "recluster" && traceIds?.length ? (
         <p className="text-muted-foreground text-sm">
-          Run on {traceIds.length} selected traces across{" "}
+          Run on {traceIds.length.toLocaleString()} traces across{" "}
           {facetVersionIds.length} facets. Existing summaries are reused when
           their inputs match. Uncached inputs and outputs are sent to OpenAI.
           The aggregate $0.25 validation budget still applies.
         </p>
       ) : null}
-      {operation === "discover" && !exploratory && (
+      {operation === "refresh" && (
         <p className="text-muted-foreground text-xs">
-          Standard discovery requires 100 usable summaries per facet. Smaller
-          batches still produce inspectable summaries.
+          Selected traces join the existing cohort. Topics refresh when the
+          cohort changes enough; force refresh rebuilds the map from cached
+          summaries.
+          {retainedCohort &&
+            ` ${retainedCohort.size.toLocaleString()} previously processed traces across the selected facet versions.`}
         </p>
       )}
+      {(operation === "discover" || operation === "refresh") &&
+        !exploratory && (
+          <p className="text-muted-foreground text-xs">
+            Standard discovery requires 100 usable summaries per facet. Smaller
+            batches still produce inspectable summaries.
+          </p>
+        )}
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -323,7 +392,8 @@ export function TopicPipelineForm({
           <SelectTrigger className="w-64" aria-label="Pipeline operation">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="ph-no-capture">
+            <SelectItem value="refresh">Update topics</SelectItem>
             <SelectItem value="discover">Discover a new topic map</SelectItem>
             <SelectItem value="assign">
               Assign traces to an existing map
