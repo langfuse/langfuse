@@ -38,7 +38,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 }));
 
 import { type GetServerSidePropsContext } from "next";
-import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo";
+import { getServerSideProps as getDemoServerSideProps } from "@/src/pages/demo/[[...path]]";
 
 type DemoCtxOverrides = {
   resolvedUrl?: string;
