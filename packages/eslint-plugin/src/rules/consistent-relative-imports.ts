@@ -163,6 +163,10 @@ const rule = createRule<Options, "useAbsolute" | "useRelative">({
       return undefined;
     }
 
+    const sourceModule =
+      getDirectoryModule(sourcePath) ?? getFileModule(sourcePath);
+    const sourceImportRoot = getImportRoot(sourcePath, true);
+
     function checkSource(node: TSESTree.StringLiteral) {
       const importPath = node.value;
       const isRelative = importPath.startsWith(".");
@@ -187,25 +191,28 @@ const rule = createRule<Options, "useAbsolute" | "useRelative">({
         return;
       }
 
-      const sourceModule =
-        getDirectoryModule(sourcePath) ?? getFileModule(sourcePath);
-      const targetModule =
-        getDirectoryModule(targetPath) ?? getFileModule(targetPath);
-      const sourceImportRoot = getImportRoot(sourcePath, true);
       const targetImportRoot = getImportRoot(targetPath, false);
       const crossesImportRoot = sourceImportRoot !== targetImportRoot;
-      const relativeTargetPath = path.posix.relative(
-        sourceDirectory,
-        targetPath,
-      );
-      const parentSegments = relativeTargetPath
-        .split("/")
-        .filter((segment) => segment === "..").length;
-      const isAdjacent = parentSegments <= 1;
-      const isLocal =
-        !crossesImportRoot &&
-        (isAdjacent ||
-          (sourceModule !== undefined && sourceModule === targetModule));
+      let isLocal = false;
+
+      if (!crossesImportRoot) {
+        const relativeTargetPath = path.posix.relative(
+          sourceDirectory,
+          targetPath,
+        );
+        const parentSegments = relativeTargetPath
+          .split("/")
+          .filter((segment) => segment === "..").length;
+        const isAdjacent = parentSegments <= 1;
+
+        if (isAdjacent) {
+          isLocal = true;
+        } else if (sourceModule !== undefined) {
+          const targetModule =
+            getDirectoryModule(targetPath) ?? getFileModule(targetPath);
+          isLocal = sourceModule === targetModule;
+        }
+      }
 
       if (isAbsolute && isLocal) {
         let relativePath = path.posix.relative(sourceDirectory, targetPath);
