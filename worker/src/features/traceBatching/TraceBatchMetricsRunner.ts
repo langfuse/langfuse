@@ -5,6 +5,7 @@ import {
   TraceBatchQueue,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
@@ -44,6 +45,7 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
       return;
     }
 
+    recordTraceBatchActiveReads();
     const collections = [
       this.collectQueueDepth(),
       this.collectWaitingHeadAge(),
@@ -100,9 +102,17 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     // BullMQ returns the next FIFO entry in each of waiting and paused. A retry
     // can re-enter behind newer jobs, so this is not the oldest creation time
     // anywhere in the queue. Jobs can disappear between ID and hash reads.
-    const heads = await queue.getWaiting(0, 0);
+    const ids = await queue.getRanges(["wait", "paused"], 0, 0, true);
+    const client = await queue.client;
+    const timestamps = await Promise.all(
+      ids.map((id) => client.hget(queue.toKey(id), "timestamp")),
+    );
     const now = Date.now();
-    const ages = heads.flatMap((job) => (job ? [now - job.timestamp] : []));
+    const ages = timestamps.flatMap((timestamp) =>
+      timestamp !== null && Number.isFinite(Number(timestamp))
+        ? [now - Number(timestamp)]
+        : [],
+    );
     recordGauge(
       `${METRIC_PREFIX}.queue_waiting_head_age_ms`,
       Math.max(0, ...ages),

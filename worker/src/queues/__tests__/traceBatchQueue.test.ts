@@ -11,7 +11,10 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { traceBatchQueueProcessor } from "../traceBatchQueue";
+import {
+  recordTraceBatchActiveReads,
+  traceBatchQueueProcessor,
+} from "../traceBatchQueue";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -249,6 +252,8 @@ describe("trace batch queue", () => {
       "langfuse.trace_batch.active_reads",
       2,
     );
+    // Periodic samples keep unchanged, long-running reads visible.
+    recordTraceBatchActiveReads();
     first.resolve();
     await successfulRead;
     expect(recordGauge).toHaveBeenLastCalledWith(
@@ -259,6 +264,7 @@ describe("trace batch queue", () => {
     await expect(failedRead).rejects.toBe(failure);
     expect(vi.mocked(recordGauge).mock.calls).toEqual([
       ["langfuse.trace_batch.active_reads", 1],
+      ["langfuse.trace_batch.active_reads", 2],
       ["langfuse.trace_batch.active_reads", 2],
       ["langfuse.trace_batch.active_reads", 1],
       ["langfuse.trace_batch.active_reads", 0],

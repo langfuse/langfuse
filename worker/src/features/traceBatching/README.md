@@ -131,6 +131,8 @@ the ClickHouse flush. No additional serialization is performed.
 enabled in a cloud worker, independently of the generic queue-metrics flag.
 It polls the queue every 30 seconds and map memory every 60 seconds per process,
 plus collection time. No completed jobs or progressing dispatcher are required.
+Queue-age collection reads only the next waiting/paused job IDs and their
+timestamp fields; it never fetches or parses batch payloads.
 One failed collection does not suppress the others; failed samples are not
 reported as zero. Check `langfuse.periodic_runner.completed` and
 `last_healthy_timestamp_seconds` with `runner:trace_batch_metrics` for freshness.
@@ -144,6 +146,8 @@ Queue/map snapshots are global and can be emitted by several workers: use
 max/latest across reporters, never sum duplicates. For map totals, first
 deduplicate reporters per `key`, then add the due/state estimates. In contrast,
 `active_reads` is local to a worker; distinct live worker series may be summed.
+It is emitted on stream start/finish and on each metrics-runner cycle, including
+zero when idle, so unchanged long-running reads remain visible.
 Instantaneous gauges can miss short-lived peaks. A retried job may re-enter
 behind newer jobs, so waiting-head age is a bounded-cost backlog indicator, not
 an exact oldest-created-job measurement across the entire queue.

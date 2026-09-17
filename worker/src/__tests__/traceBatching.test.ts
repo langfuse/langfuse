@@ -510,9 +510,14 @@ describe("trace micro-batch scheduling with Redis", () => {
       timestamp: new Date(now),
       payload: { traces: [] },
     };
-    await queue.add(QueueJobs.TraceBatch, data, { timestamp: now - 5_000 });
+    const waiting = await queue.add(QueueJobs.TraceBatch, data, {
+      timestamp: now - 5_000,
+    });
+    await queue.add(QueueJobs.TraceBatch, data, { timestamp: now - 1_000 });
     await queue.add(QueueJobs.TraceBatch, data, { delay: 120_000 });
     await queue.pause();
+    // Age collection must not fetch or parse the batch payload.
+    await connection.hset(queue.toKey(waiting.id!), "data", "invalid JSON");
     const metrics = new TraceBatchMetricsRunner();
     const evaluate = vi.spyOn(client(), "eval");
     await metrics["execute"]();
@@ -535,7 +540,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const type of ["waiting", "delayed"]) {
       expect(recordGauge).toHaveBeenCalledWith(
         "langfuse.trace_batch.queue_depth",
-        1,
+        type === "waiting" ? 2 : 1,
         { type, unit: "records" },
       );
     }
@@ -554,7 +559,11 @@ describe("trace micro-batch scheduling with Redis", () => {
     clock.mockReturnValue(now + 60_000);
     await metrics["execute"]();
     expect(evaluate).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(9);
+    expect(recordGauge).toHaveBeenCalledWith(
+      "langfuse.trace_batch.active_reads",
+      0,
+    );
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(10);
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);
@@ -583,7 +592,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(completed).toBe(false);
     pendingMemory.reject(new Error("memory unavailable"));
     await collection;
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(1);
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(2);
   });
 
   it("dispatches with locality selection and records bounded selector measurements", async () => {

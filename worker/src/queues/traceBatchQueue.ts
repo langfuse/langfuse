@@ -15,6 +15,10 @@ import { env } from "../env";
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 let activeReads = 0;
 
+export function recordTraceBatchActiveReads(): void {
+  recordGauge("langfuse.trace_batch.active_reads", activeReads);
+}
+
 export const traceBatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TraceBatch]
 > = async (job) => {
@@ -78,8 +82,8 @@ export const traceBatchQueueProcessor: Processor<
     }
 
     activeReads++;
-    recordGauge("langfuse.trace_batch.active_reads", activeReads);
     try {
+      recordTraceBatchActiveReads();
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
         foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
@@ -105,7 +109,7 @@ export const traceBatchQueueProcessor: Processor<
       throw error;
     } finally {
       activeReads--;
-      recordGauge("langfuse.trace_batch.active_reads", activeReads);
+      recordTraceBatchActiveReads();
     }
 
     recordDistribution(
