@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { BillingSwitchPlanUsageBar } from "@/src/ee/features/billing/components/BillingSwitchPlanUsageBar";
 import { StripeCancellationButton } from "@/src/ee/features/billing/components/StripeCancellationButton";
 import { StripeKeepPlanButton } from "@/src/ee/features/billing/components/StripeKeepPlanButton";
@@ -34,7 +34,7 @@ import {
   planTierLabel,
   suggestedUpgradeTier,
   teamsAddonBenefitLines,
-  teamsAddonPriceLabel,
+  teamsAddonMonthlyPriceLabel,
   VOLUME_DISCOUNT_NOTE,
   type DisplayPlanTier,
   type PlanTier,
@@ -302,7 +302,7 @@ function PlanCard({
   const scheduledHere =
     Boolean(product) && scheduledNewPlanId === product?.stripeProductId;
   const hobbyScheduled = displayTier === "hobby" && cancellationScheduled;
-  const choiceReason = planChoiceReason(displayTier, teamsAddonOn);
+  const choiceReason = planChoiceReason(displayTier);
 
   const priceLabel =
     displayTier === "hobby"
@@ -341,7 +341,16 @@ function PlanCard({
           </Badge>
         ) : null}
       </div>
-      <p className="mt-2 text-2xl font-bold whitespace-nowrap">{priceLabel}</p>
+      <p
+        className={cn(
+          "mt-2 text-2xl font-bold",
+          displayTier === "pro" && teamsAddonOn
+            ? "whitespace-normal"
+            : "whitespace-nowrap",
+        )}
+      >
+        {priceLabel}
+      </p>
       <p className="text-muted-foreground mt-1 text-sm">{usageLabel}</p>
       {displayTier === "hobby" ? (
         <p className="text-muted-foreground text-sm">{usageDetail}</p>
@@ -376,27 +385,12 @@ function PlanCard({
           ))}
         </ul>
       </div>
-      <div className="mt-auto pt-4">
+      <div className="mt-auto pt-6">
         {displayTier === "pro" ? (
-          <div className="mb-3 rounded-lg border px-3 py-2">
-            <label className="flex items-center justify-between gap-3">
-              <span className="text-sm">
-                <span className="font-bold">Teams add-on</span>
-                <span className="text-muted-foreground">
-                  {" "}
-                  · {teamsAddonPriceLabel()}
-                </span>
-              </span>
-              <Switch
-                size="sm"
-                checked={teamsAddonOn}
-                onCheckedChange={onTeamsAddonChange}
-              />
-            </label>
-            <p className="text-muted-foreground mt-1 text-xs">
-              {teamsAddonBenefitLines().join(" · ")}
-            </p>
-          </div>
+          <TeamsAddonCard
+            enabled={teamsAddonOn}
+            onEnabledChange={onTeamsAddonChange}
+          />
         ) : null}
         <PlanCardAction
           displayTier={displayTier}
@@ -416,6 +410,53 @@ function PlanCard({
           onCheckout={onCheckout}
         />
       </div>
+    </div>
+  );
+}
+
+function TeamsAddonCard({
+  enabled,
+  onEnabledChange,
+}: {
+  enabled: boolean;
+  onEnabledChange: (enabled: boolean) => void;
+}) {
+  const price = teamsAddonMonthlyPriceLabel();
+
+  return (
+    <div
+      className={cn(
+        "mb-4 rounded-xl border-2 px-4 py-4",
+        enabled ? "border-primary bg-primary/5" : "bg-muted/50 border-border",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm font-bold">Add Teams — {price}</p>
+        <Badge variant="secondary" size="sm">
+          For larger teams
+        </Badge>
+      </div>
+      <p className="text-muted-foreground mt-1 text-xs">
+        For teams that need collaboration & access controls
+      </p>
+      <ul className="mt-3 space-y-1.5 text-sm">
+        {teamsAddonBenefitLines().map((line) => (
+          <li key={line} className="flex gap-2">
+            <span className="w-3 shrink-0 font-bold" aria-hidden="true">
+              ✓
+            </span>
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+      <label className="mt-4 flex cursor-pointer items-center gap-2">
+        <Checkbox
+          checked={enabled}
+          onCheckedChange={(checked) => onEnabledChange(checked === true)}
+        />
+        <span className="text-sm font-bold">Add Teams</span>
+        <span className="text-muted-foreground text-sm">{price}</span>
+      </label>
     </div>
   );
 }

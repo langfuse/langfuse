@@ -8,7 +8,7 @@ import {
   planTierFromPlan,
   suggestedUpgradeTier,
   teamsAddonBenefitLines,
-  teamsAddonPriceLabel,
+  teamsAddonMonthlyPriceLabel,
 } from "./planComparison";
 
 describe("planComparison", () => {
@@ -37,20 +37,18 @@ describe("planComparison", () => {
     expect(planChoiceReason("pro")).toBe(
       "For projects that scale and need unlimited data access, high rate limits, and Slack support.",
     );
-    expect(planChoiceReason("pro", true)).toBe(
-      "Organizational and security controls for larger teams.",
-    );
     expect(planChoiceReason("enterprise")).toBe(
       "For large scale teams. Enterprise-grade support and security.",
     );
   });
 
   it("derives the Teams add-on price from catalogue list prices", () => {
-    expect(teamsAddonPriceLabel()).toBe("+$300/mo");
-    expect(includingTeamsPriceLabel()).toBe("$499/month incl. Teams");
+    expect(teamsAddonMonthlyPriceLabel()).toBe("$300/month");
+    expect(includingTeamsPriceLabel()).toBe("$499/month with Teams");
     expect(teamsAddonBenefitLines()).toEqual([
-      "Private Slack channel, 24h response",
-      "Enterprise SSO and fine-grained RBAC",
+      "Private Slack · 24h response",
+      "Enterprise SSO",
+      "Fine-grained RBAC",
     ]);
   });
 

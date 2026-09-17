@@ -251,16 +251,12 @@ export const suggestedUpgradeTier = (current: PlanTier): PlanTier | null => {
 
 export const planChoiceReason = (
   displayTier: DisplayPlanTier,
-  teamsAddonOn = false,
 ): string | null => {
   if (displayTier === "hobby") {
     return null;
   }
 
-  const reasonTier: Exclude<PlanTier, "hobby"> =
-    displayTier === "pro" && teamsAddonOn ? "team" : displayTier;
-
-  return checkoutProductForTier(reasonTier)?.checkout?.description ?? null;
+  return checkoutProductForTier(displayTier)?.checkout?.description ?? null;
 };
 
 export const VOLUME_DISCOUNT_NOTE =
@@ -281,14 +277,14 @@ const parseLeadingDollarAmount = (price: string) => {
   return match ? Number(match[1]) : null;
 };
 
-export const teamsAddonPriceLabel = () => {
+export const teamsAddonMonthlyPriceLabel = () => {
   const pro = checkoutProductForTier("pro")?.checkout?.price;
   const team = checkoutProductForTier("team")?.checkout?.price;
-  if (!pro || !team) return "+$300/mo";
+  if (!pro || !team) return "$300/month";
   const proAmount = parseLeadingDollarAmount(pro);
   const teamAmount = parseLeadingDollarAmount(team);
-  if (proAmount === null || teamAmount === null) return "+$300/mo";
-  return `+$${teamAmount - proAmount}/mo`;
+  if (proAmount === null || teamAmount === null) return "$300/month";
+  return `$${teamAmount - proAmount}/month`;
 };
 
 const additionalCapabilityLines = (limits: PlanLimits): string[] => {
@@ -578,13 +574,16 @@ export const getDisplayPlanComparison = ({
   });
 };
 
-export const teamsAddonBenefitLines = () =>
-  capabilityDiff(LIMITS.pro, LIMITS.team, "plus").map((line) => line.text);
+export const teamsAddonBenefitLines = () => [
+  "Private Slack · 24h response",
+  "Enterprise SSO",
+  "Fine-grained RBAC",
+];
 
 export const includingTeamsPriceLabel = () => {
   const team =
     checkoutProductForTier("team")?.checkout?.price ?? "$499 / month";
-  return `${team.replace(" / month", "/month")} incl. Teams`;
+  return `${team.replace(" / month", "/month")} with Teams`;
 };
 
 export const getPlanComparison = ({
