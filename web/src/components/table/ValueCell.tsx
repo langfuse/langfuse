@@ -39,7 +39,6 @@ const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
 const VALUE_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
-const STRING_TEXT_CLASSES = "text-json-value-string";
 const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 const ROW_ACTION_BUTTON_CLASSES =
@@ -401,7 +400,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`${STRING_TEXT_CLASSES} ${
+                className={`text-json-value-string ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
@@ -429,7 +428,9 @@ export const ValueCell = memo(
           };
         case "null":
           return {
-            content: <span className="text-json-value-nullish">null</span>,
+            content: (
+              <span className="text-json-value-nullish italic">null</span>
+            ),
             needsTruncation: false,
           };
         case "undefined":

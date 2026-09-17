@@ -107,6 +107,10 @@ overrides:
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
   fflate@0.8.1: 0.8.3
+  # CVE-2026-86472: fast-uri mishandles case sensitivity when comparing URI
+  # scheme and host. ajv declares ^3.0.1, which 3.1.7 already satisfies, so
+  # only an override moves it to the patched release.
+  fast-uri: 3.1.8
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
@@ -163,8 +167,9 @@ minimumReleaseAgeExclude:
   - next@16.3.3
   - pnpm@12.3.1
   - qs@6.16.0
-  # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
-  - fast-uri@3.1.7
+  # Case-sensitivity handling fix (CVE-2026-86472) on top of the host confusion
+  # + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.8
   # Certificate validation, request smuggling, and resource-exhaustion fixes
   # in the 7.x line (CVE-2026-84961, CVE-2026-18540, CVE-2026-84890 and more).
   - undici@7.29.1

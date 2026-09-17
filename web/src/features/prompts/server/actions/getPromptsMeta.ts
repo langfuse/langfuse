@@ -57,10 +57,14 @@ export const getPromptsMeta = async (
   `) as PromptsMeta[];
 
   const [{ count: totalItemsCount }] = (await prisma.$queryRaw`
-    SELECT COUNT(DISTINCT p.name) AS count
-    FROM prompts p
-    WHERE "project_id" = ${projectId} 
-    ${getPromptsFilterCondition(params)}
+    SELECT COUNT(*) AS count
+    FROM (
+      SELECT p.name
+      FROM prompts p
+      WHERE p."project_id" = ${projectId}
+      ${getPromptsFilterCondition(params)}
+      GROUP BY p.name
+    ) names
   `) as { count: BigInt }[];
 
   const totalItems = Number(totalItemsCount);
