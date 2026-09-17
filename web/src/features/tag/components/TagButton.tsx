@@ -27,13 +27,13 @@ export const TagButton: React.FC<{
   if (viewOnly) {
     return (
       <span className="inline-flex max-w-40 min-w-0">
-        <BadgeShell>{label}</BadgeShell>
+        <BadgeShell color="emphasis">{label}</BadgeShell>
       </span>
     );
   }
 
   return (
-    <BadgeShell asChild>
+    <BadgeShell asChild color="emphasis">
       <button
         key={tag}
         type="button"

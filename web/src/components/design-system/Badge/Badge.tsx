@@ -3,13 +3,16 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { type LucideIcon } from "lucide-react";
 import { type ComponentPropsWithoutRef } from "react";
 
+import { cn } from "@/src/utils/tailwind";
+
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border px-1.5 py-0 text-xs leading-tight font-normal",
+  "inline-flex h-5 w-fit max-w-full min-w-0 shrink-0 items-center gap-1 rounded-xs border px-1.5 pb-px font-mono text-xs leading-none font-normal",
   {
     variants: {
       color: {
-        primary: "border-transparent bg-tertiary/60 text-foreground-secondary",
-        outline: "border-border-contrast bg-transparent text-muted-foreground",
+        primary:
+          "border-border-contrast bg-transparent text-foreground-secondary",
+        emphasis: "border-transparent bg-tertiary/60 text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",
         blue: "border-transparent bg-light-blue text-dark-blue",
@@ -47,22 +50,37 @@ export function BadgeShell({
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
+  /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
+  label?: string;
   trailingIcon?: LucideIcon;
+  /** Link badges tint the arrow so the affordance reads before the hover. */
+  trailingIconTone?: "default" | "link";
 };
 
 export function Badge({
   color,
   text,
+  label,
   title,
   trailingIcon: TrailingIcon,
+  trailingIconTone = "default",
   ...props
 }: BadgeProps) {
   return (
     <BadgeShell color={color} {...props}>
+      {label && <span className="text-muted-foreground shrink-0">{label}</span>}
       <span className="truncate" title={title ?? text}>
         {text}
       </span>
-      {TrailingIcon && <TrailingIcon aria-hidden className="size-3 shrink-0" />}
+      {TrailingIcon && (
+        <TrailingIcon
+          aria-hidden
+          className={cn(
+            "size-3 shrink-0",
+            trailingIconTone === "link" && "text-link",
+          )}
+        />
+      )}
     </BadgeShell>
   );
 }
