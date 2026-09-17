@@ -28,31 +28,31 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { DeleteEvalTemplateDialog } from "./delete-eval-template-dialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications";
 import {
   type TemplateValidationInput,
   useSingleTemplateValidation,
-} from "@/src/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+} from "../hooks/useSingleTemplateValidation";
+import { getMaintainer } from "../utils/typeHelpers";
+import { MaintainerTooltip } from "./maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Badge } from "@/src/components/ui/badge";
-import { getTemplateResultType } from "@/src/features/evals/utils/template-output";
+import { getTemplateResultType } from "../utils/template-output";
 import {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   type EvalTemplate,
 } from "@langfuse/shared";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
 import {
   CODE_EVAL_ESCAPE_CONFIRM_MESSAGE,
   shouldShowEvalTemplate,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+} from "../utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";

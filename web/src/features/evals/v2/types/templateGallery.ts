@@ -6,7 +6,7 @@ import type {
   PersistedEvalOutputDefinition,
 } from "@langfuse/shared";
 
-import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
+import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 
 export type EvaluatorSetupDraft = {
   name: string;

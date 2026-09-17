@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { beginPeekResize } from "@/src/components/table/peek/actions/resizePeekPanel";
+import { beginPeekResize } from "./resizePeekPanel";
 import {
   createPeekPanelStore,
   selectDraftExpanded,
-} from "@/src/components/table/peek/store/peekPanelStore";
+} from "../store/peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
 

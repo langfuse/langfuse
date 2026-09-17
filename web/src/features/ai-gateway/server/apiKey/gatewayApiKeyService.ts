@@ -7,9 +7,9 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
+import type { GatewayMetadata } from "../provider";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
-import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import { invalidateGatewayResolveCacheForApiKey } from "../resolve/gatewayResolveCache";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 
 export class GatewayApiKeyService {

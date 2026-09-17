@@ -1,7 +1,7 @@
 import { fn } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { AutocompleteListbox } from "./AutocompleteListbox";
-import type { CompletionPlan } from "@/src/features/search-bar/lib/completions";
+import type { CompletionPlan } from "../lib/completions";
 
 const meta = preview.meta({
   component: AutocompleteListbox,

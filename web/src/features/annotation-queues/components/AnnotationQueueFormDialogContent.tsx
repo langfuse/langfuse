@@ -36,7 +36,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { UserAssignmentSection } from "@/src/features/annotation-queues/components/UserAssignmentSection";
+import { UserAssignmentSection } from "./UserAssignmentSection";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 
 type AnnotationQueueScoreConfigOption = Pick<

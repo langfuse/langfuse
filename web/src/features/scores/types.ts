@@ -1,7 +1,7 @@
 import {
   type AnnotationScoreDataSchema,
   type AnnotateFormSchema,
-} from "@/src/features/scores/schema";
+} from "./schema";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,

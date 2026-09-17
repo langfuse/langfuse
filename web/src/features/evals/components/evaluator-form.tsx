@@ -1,13 +1,13 @@
 import { type EvalTemplate, type EvalTargetObject } from "@langfuse/shared";
-import { InnerEvaluatorForm } from "@/src/features/evals/components/inner-evaluator-form";
-import { type PartialConfig } from "@/src/features/evals/types";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { InnerEvaluatorForm } from "./inner-evaluator-form";
+import { type PartialConfig } from "../types";
+import { useEvalCapabilities } from "../hooks/useEvalCapabilities";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+} from "../utils/code-eval-template-utils";
 
 export const EvaluatorForm = (props: {
   projectId: string;

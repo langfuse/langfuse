@@ -1,15 +1,15 @@
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 
-import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
-import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/ConnectedModernSessionBodyTimeline";
-import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
-import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
+import { ConnectedModernSessionBodyLegacy } from "./ConnectedModernSessionBodyLegacy";
+import { ConnectedModernSessionBodyTimeline } from "./ConnectedModernSessionBodyTimeline";
+import { ModernSessionFilterControls } from "./ModernSessionFilterControls";
+import { ModernSessionHeader } from "./ModernSessionHeader";
+import { SessionMetadataJsonPathControl } from "./SessionMetadataJsonPathControl";
 import {
   type EventSession,
   type EventSessionTrace,
-} from "@/src/features/sessions/sessionDetailPageTypes";
+} from "./sessionDetailPageTypes";
 
 type ModernSessionProps = {
   isTimelineEnabled: boolean;

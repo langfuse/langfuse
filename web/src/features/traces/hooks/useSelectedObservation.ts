@@ -12,7 +12,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
+import { traceNodeId } from "../fns/treeBuilding";
 
 export type SelectedObservation =
   | { kind: "trace" }

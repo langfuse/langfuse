@@ -7,8 +7,8 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { cn } from "@/src/utils/tailwind";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import type { GalleryNavigationItem } from "@/src/features/evals/v2/types/templateGallery";
+import { getGalleryCategoryPresentation } from "../../../../fns/templateGallery/galleryCategoryPresentation";
+import type { GalleryNavigationItem } from "../../../../types/templateGallery";
 
 export function EvaluatorGallerySidebar({
   items,

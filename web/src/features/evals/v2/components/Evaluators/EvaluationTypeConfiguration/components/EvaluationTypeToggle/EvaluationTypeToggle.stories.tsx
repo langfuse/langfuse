@@ -10,7 +10,7 @@ import { PopoverTrigger } from "@/src/components/ui/popover";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
+} from "../../../JudgeModelPicker/JudgeModelPicker";
 
 const meta = preview.meta({ component: EvaluationTypeToggle });
 

@@ -7,11 +7,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { InfoIcon, X } from "lucide-react";
-import {
-  type CsvColumnPreview,
-  type FieldMapping,
-} from "@/src/features/datasets/lib/csv/types";
-import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
+import { type CsvColumnPreview, type FieldMapping } from "../lib/csv/types";
+import { isSchemaField } from "../lib/csv/helpers";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import {

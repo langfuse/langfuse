@@ -7,8 +7,8 @@ import {
   type FieldMapping,
   type FreeformField,
   type SchemaField,
-} from "@/src/features/datasets/lib/csv/types";
-import { isFreeformField } from "@/src/features/datasets/lib/csv/helpers";
+} from "../lib/csv/types";
+import { isFreeformField } from "../lib/csv/helpers";
 
 type CsvMappingActions = {
   addColumnToInput: (column: CsvColumnPreview, key?: string) => void;

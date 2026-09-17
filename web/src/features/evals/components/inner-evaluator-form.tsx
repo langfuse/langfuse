@@ -53,20 +53,20 @@ import {
   getTargetDisplayName,
   inferDefaultMapping,
   type LangfuseObject,
-} from "@/src/features/evals/utils/evaluator-form-utils";
-import { validateAndTransformVariableMapping } from "@/src/features/evals/utils/variable-mapping-validation";
-import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
-import { ExecutionCountTooltip } from "@/src/features/evals/components/execution-count-tooltip";
+} from "../utils/evaluator-form-utils";
+import { validateAndTransformVariableMapping } from "../utils/variable-mapping-validation";
+import { useVariableMappingSync } from "../hooks/useVariableMappingSync";
+import { ExecutionCountTooltip } from "./execution-count-tooltip";
 import {
   getDateFromOption,
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
-import { type PartialConfig } from "@/src/features/evals/types";
-import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { type PartialConfig } from "../types";
+import { type EvalCapabilities } from "../hooks/useEvalCapabilities";
 import {
   EvalVersionCallout,
   getEvalVersionCalloutContent,
-} from "@/src/features/evals/components/eval-version-callout";
+} from "./eval-version-callout";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   Dialog,
@@ -98,25 +98,25 @@ import {
   isLegacyEvalTarget,
   isTraceTarget,
   shouldShowLegacyTracePreview,
-} from "@/src/features/evals/utils/typeHelpers";
+} from "../utils/typeHelpers";
 import {
   useUserFacingTarget,
   useEvaluatorTargetState,
-} from "@/src/features/evals/hooks/useEvaluatorTarget";
+} from "../hooks/useEvaluatorTarget";
 import {
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_TRACE_FILTER,
-} from "@/src/features/evals/utils/evaluator-constants";
-import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
-import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
+} from "../utils/evaluator-constants";
+import { useEvalConfigFilterOptions } from "../hooks/useEvalConfigFilterOptions";
+import { VariableMappingCard } from "./variable-mapping-card";
 import { useReadPath } from "@/src/features/events";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
   resolveCodeEvalTarget,
-} from "@/src/features/evals/utils/code-eval-template-utils";
-import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
-import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
+} from "../utils/code-eval-template-utils";
+import { CodeEvalTestRunCard } from "./code-eval-test-run-card";
+import { getExperimentEvalPreviewFilters } from "../utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 

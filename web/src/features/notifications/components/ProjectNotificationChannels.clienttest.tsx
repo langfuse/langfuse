@@ -1,6 +1,6 @@
 import { ProjectNotificationEventTypeSchema } from "@langfuse/shared";
 
-import { NOTIFIED_EVENTS } from "@/src/features/notifications/components/ProjectNotificationChannels";
+import { NOTIFIED_EVENTS } from "./ProjectNotificationChannels";
 
 describe("NOTIFIED_EVENTS", () => {
   it("has exactly one entry per ProjectNotificationEventTypeSchema member", () => {

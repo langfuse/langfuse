@@ -1,7 +1,11 @@
 import { Fragment } from "react";
 
 import preview from "../../.storybook/preview";
-import { ScoreTag, SCORE_LEVEL_LABELS, type ScoreLevel } from "./score-tag";
+import {
+  ScoreTag,
+  SCORE_LEVEL_LABELS,
+  type ScoreLevel,
+} from "@/src/components/score-tag";
 
 const meta = preview.meta({
   component: ScoreTag,

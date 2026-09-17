@@ -11,7 +11,7 @@ import { Card } from "@/src/components/ui/card";
 import { ConnectedNewOrganizationForm } from "@/src/features/organizations/components/ConnectedNewOrganizationForm";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+import { createProjectRoute } from "../setupRoutes";
 import { cn } from "@/src/utils/tailwind";
 import { Check } from "lucide-react";
 import { useRouter } from "next/router";

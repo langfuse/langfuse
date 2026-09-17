@@ -6,7 +6,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "../hooks";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { DeleteProjectDialog } from "./DeleteProjectDialog";

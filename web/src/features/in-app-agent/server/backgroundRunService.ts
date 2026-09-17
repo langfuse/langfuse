@@ -39,10 +39,10 @@ import {
   requestRunCancellation,
 } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 
-import { serializeInAppAgentDisplayState } from "@/src/features/in-app-agent/lib/display";
-import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
-import { resolveInAppAgentRunContext } from "@/src/features/in-app-agent/server/runContext";
-import { getConversationSnapshotFromEvents } from "@/src/features/in-app-agent/server/conversationSnapshot";
+import { serializeInAppAgentDisplayState } from "../lib/display";
+import { assertInAppAgentRunCapacity } from "./runCapacity";
+import { resolveInAppAgentRunContext } from "./runContext";
+import { getConversationSnapshotFromEvents } from "./conversationSnapshot";
 
 export async function getBackgroundConversationSnapshot(params: {
   prisma: PrismaClient;

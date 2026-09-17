@@ -7,12 +7,12 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
+import { blobStorageIntegrationFormSchemaBase } from "./types";
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
-} from "@/src/features/blobstorage-integration/validation";
-import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+} from "./validation";
+import { upsertBlobStorageIntegration } from "./service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";

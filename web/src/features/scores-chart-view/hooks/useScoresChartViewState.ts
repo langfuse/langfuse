@@ -5,14 +5,14 @@ import {
   type AggregationFn,
   type ViewMode,
 } from "@/src/features/chart-view/types";
-import { DEFAULT_SCORE_CHART_CONFIG } from "@/src/features/scores-chart-view/constants/defaultScoreChartConfig";
-import { coerceScoreChartConfig } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
+import { DEFAULT_SCORE_CHART_CONFIG } from "../constants/defaultScoreChartConfig";
+import { coerceScoreChartConfig } from "../fns/scoreChartConfig";
 import {
   type ScoreChartDataset,
   type ScoreChartViewConfig,
   type ScoreDimensionKey,
   type ScoreMetricKey,
-} from "@/src/features/scores-chart-view/types";
+} from "../types";
 
 const orUndefined = <T>(value: T, fallback: T): T | undefined =>
   value === fallback ? undefined : value;

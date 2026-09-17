@@ -4,7 +4,7 @@ import { type EditorView } from "@uiw/react-codemirror";
 import {
   isCodeMirrorUnstableViewportError,
   wrapEditorViewCoordLookups,
-} from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
+} from "./tolerateUnstableViewportPosAtCoords";
 
 const COORDS = { x: 10, y: 20 };
 

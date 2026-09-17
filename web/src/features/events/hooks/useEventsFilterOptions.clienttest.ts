@@ -48,7 +48,7 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useEventsFilterOptions } from "./useEventsFilterOptions";
 
 const START_TIME: TimeFilter = {
   column: "startTime",

@@ -1,7 +1,7 @@
 import type { FilterState } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
-import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
+import { getDefaultCodeEvalSource } from "../../../utils/code-eval-template-starter-examples";
 import {
   createEvaluatorSetupStore,
   selectHasValidModel,

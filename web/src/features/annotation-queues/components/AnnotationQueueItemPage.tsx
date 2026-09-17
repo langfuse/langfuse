@@ -36,7 +36,7 @@ import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
+import { ObjectNotFoundCard } from "./object-not-found-card";
 import { useSession } from "next-auth/react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 

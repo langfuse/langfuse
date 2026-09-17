@@ -5,8 +5,8 @@ import {
   sdkVersionNeedsRefresh,
   sdkVersionStorageKeys,
   toSdkVersionInfo,
-} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
-import { persistProjectSdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionStorage";
+} from "../lib/sdkVersionCapabilities";
+import { persistProjectSdkVersionInfo } from "../lib/sdkVersionStorage";
 
 const readCachedSdkVersion = (projectId: string) => {
   if (typeof window === "undefined") {

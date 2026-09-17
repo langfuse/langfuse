@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 import { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "../../../../Stepper/Stepper";
 
 export function NameStep({
   step,

@@ -9,7 +9,7 @@ import {
   type RuleDraft,
   type RuleEvaluatorOption,
 } from "@/src/features/evals";
-import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import type { ExperimentEvaluatorAssignmentsHandle } from "../../types/experimentEvaluatorAssignmentsHandle";
 
 export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
   ExperimentEvaluatorAssignmentsHandle,

@@ -4,8 +4,8 @@
 // policy/, createProjectMembershipsOnSignup, signup attribution, and the
 // enterprise SSO constant stay deep imports: server callers must not enter
 // this client door (Turbopack RSC), and nothing else imports them through here.
-export { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-export { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-export { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-export type { AdClickIds } from "@/src/features/auth/lib/signupAttribution";
-export { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+export { useIsAuthenticatedAndProjectMember } from "./hooks";
+export { projectNameSchema } from "./lib/projectNameSchema";
+export { projectRetentionSchema } from "./lib/projectRetentionSchema";
+export type { AdClickIds } from "./lib/signupAttribution";
+export { passwordSchema } from "./lib/signupSchema";

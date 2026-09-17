@@ -8,8 +8,8 @@ import {
 import { createShaHash, verifySecretKey } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import { ApiKeyRepository } from "@/src/features/apiKey/apiKeyRepository";
+import { type Credential } from "./helpers/parseAuthorizationHeader";
+import { ApiKeyRepository } from "./apiKeyRepository";
 import {
   internalServerError,
   unauthorizedError,

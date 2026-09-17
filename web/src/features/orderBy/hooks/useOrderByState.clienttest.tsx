@@ -2,7 +2,7 @@ import type { Mock } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 import { TestRouter } from "@/src/__tests__/fixtures/TestRouter";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "./useOrderByState";
 import { LocationMock } from "@jedmao/location";
 import NextAdapterPages from "next-query-params/pages";
 import { useRouter } from "next/router";

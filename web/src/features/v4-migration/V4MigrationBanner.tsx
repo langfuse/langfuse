@@ -5,8 +5,8 @@ import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+import { useAccountV4MigrationData } from "./hooks/useV4MigrationData";
+import { getProjectMigrationReadiness } from "./migrationData";
 import { env } from "@/src/env.mjs";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";

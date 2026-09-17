@@ -13,10 +13,7 @@ import {
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import {
-  useLangfuseCloudRegion,
-  useQueryOrganization,
-} from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion, useQueryOrganization } from "../hooks";
 import { Card } from "@/src/components/ui/card";
 import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";

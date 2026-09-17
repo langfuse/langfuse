@@ -1,7 +1,7 @@
 import Head from "next/head";
 import { useRouter } from "next/router";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useLayoutMetadata } from "@/src/components/layouts/app-layout/hooks/useLayoutMetadata";
+import { useLayoutMetadata } from "../app-layout/hooks/useLayoutMetadata";
 import { getPageMetadata } from "./getPageMetadata";
 
 /**

@@ -91,13 +91,13 @@ import type {
   StringKeyValueFilterEntry,
   TextFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
+import { KeyValueFilterBuilder } from "./key-value-filter-builder";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
+import { DataTableAIFilters } from "./data-table-ai-filters";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type FilterState } from "@langfuse/shared";
 

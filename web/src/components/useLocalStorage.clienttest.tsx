@@ -2,7 +2,7 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import useLocalStorage from "@/src/components/useLocalStorage";
+import useLocalStorage from "./useLocalStorage";
 
 const SHARED_KEY = "test-shared-pref-key";
 

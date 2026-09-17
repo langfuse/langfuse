@@ -3,11 +3,11 @@ import {
   ScoreDataTypeEnum,
   type EvalOutputDefinition,
 } from "@langfuse/shared";
-import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
+import type { ScoreOutputFormState } from "../../scoreOutputTypes";
 import {
   DEFAULT_REASONING_DESCRIPTION,
   DEFAULT_SCORE_DESCRIPTION,
-} from "@/src/features/evals/v2/scoreOutputDefaults";
+} from "../../scoreOutputDefaults";
 
 // A blank input means "no bound". Anything else is handed to the schema as-is
 // (NaN included) so an unparsable entry fails validation instead of silently

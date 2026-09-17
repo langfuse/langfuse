@@ -1,4 +1,4 @@
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+import { MANAGED_TEMPLATES_CATALOG } from "../../constants/managedTemplatesCatalog";
 
 export const managedEvaluatorTemplateService = {
   list({

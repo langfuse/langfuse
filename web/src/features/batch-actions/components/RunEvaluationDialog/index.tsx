@@ -35,7 +35,7 @@ import {
   getCreateEvaluatorHref,
   hasCompleteBatchEvalMappings,
 } from "./utils";
-import { BATCH_EVAL_EVALUATOR_LIMIT } from "@/src/features/batch-actions/validation";
+import { BATCH_EVAL_EVALUATOR_LIMIT } from "../../validation";
 import {
   buildSelectedSampleObject,
   createRuleSetupStore,

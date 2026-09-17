@@ -8,20 +8,20 @@ import {
   getResultUnit,
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+import { Chart } from "../chart-library/Chart";
+import { ChartLoadingState } from "../chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
-} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+} from "../chart-library/chartLoadingStateUtils";
 import {
   formatMetricName,
   shouldUseWidgetSSE,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
   type WidgetChartConfig,
-} from "@/src/features/widgets/utils";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+} from "../utils";
+import { isTimeSeriesChart } from "../chart-library/utils";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
 

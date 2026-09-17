@@ -4,8 +4,8 @@ import {
   type DataPoint,
   type LegendInteraction,
   type LegendSummaryMode,
-} from "@/src/features/widgets/chart-library/chart-props";
-import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
+} from "./chart-props";
+import { getDimensionSummaries } from "./utils";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import { cn } from "@/src/utils/tailwind";
 

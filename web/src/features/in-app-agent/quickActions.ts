@@ -1,4 +1,4 @@
-import { getInAppAgentProjectRoute } from "@/src/features/in-app-agent/routeContext";
+import { getInAppAgentProjectRoute } from "./routeContext";
 import {
   Activity,
   BarChart3,

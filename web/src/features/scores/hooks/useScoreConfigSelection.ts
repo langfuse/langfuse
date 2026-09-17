@@ -1,9 +1,9 @@
-import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
-import { resolveConfigValue } from "@/src/features/scores/lib/annotationFormHelpers";
+import { useEmptyScoreConfigs } from "./useEmptyConfigs";
+import { resolveConfigValue } from "../lib/annotationFormHelpers";
 import {
   type AnnotateFormSchemaType,
   type AnnotationScoreSchemaType,
-} from "@/src/features/scores/types";
+} from "../types";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { useCallback, useMemo } from "react";
 import {

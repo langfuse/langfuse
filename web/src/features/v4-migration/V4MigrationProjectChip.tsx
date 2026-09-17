@@ -1,8 +1,8 @@
-import { type V4MigrationTargetProject } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { type V4MigrationTargetProject } from "./V4MigrationPanelProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type ProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
-import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
-import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
+import { type ProjectMigrationReadiness } from "./migrationData";
+import { useOpenV4MigrationPanel } from "./hooks/useOpenV4MigrationPanel";
+import { PARTNER_INTEGRATION_FAQ_URL } from "./partnerIntegrationDocs";
 
 export function V4MigrationProjectChip({
   project,

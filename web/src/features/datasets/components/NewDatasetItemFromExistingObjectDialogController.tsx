@@ -7,7 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
+import { NewDatasetItemForm } from "./NewDatasetItemForm";
 import { type MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
 type DatasetItemDialogState = {

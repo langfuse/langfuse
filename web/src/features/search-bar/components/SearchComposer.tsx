@@ -24,17 +24,14 @@ import { cn } from "@/src/utils/tailwind";
 import {
   deriveComposerSegments,
   type ComposerSegment,
-} from "@/src/features/search-bar/lib/composer-segments";
+} from "../lib/composer-segments";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
-import { explainSegment } from "@/src/features/search-bar/lib/explain";
-import {
-  EVENTS_FIELD_REGISTRY,
-  type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
-import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
+} from "../lib/observed-options";
+import { explainSegment } from "../lib/explain";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
+import { getRecentSearches } from "../lib/recent-searches";
 import {
   applyPick,
   flattenOptions,
@@ -42,27 +39,24 @@ import {
   type CompletionOption,
   type CompletionPlan,
   type QueryPresetSection,
-} from "@/src/features/search-bar/lib/completions";
+} from "../lib/completions";
 import {
   useSearchBarStore,
   useSearchBarStoreApi,
   useSearchBarCommit,
-} from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
-import { AutocompletePopover } from "@/src/features/search-bar/components/AutocompletePopover";
-import {
-  ComposerTokens,
-  WORD_JOINER,
-} from "@/src/features/search-bar/components/ComposerTokens";
+} from "../store/SearchBarStoreProvider";
+import { draftsSemanticallyEqual } from "../store/searchBarStore";
+import { AutocompletePopover } from "./AutocompletePopover";
+import { ComposerTokens, WORD_JOINER } from "./ComposerTokens";
 import {
   composerPlaceholder,
   deactivationReason,
   optionDomId,
-} from "@/src/features/search-bar/components/presentation";
+} from "./presentation";
 import {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+} from "./composer-chrome";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries

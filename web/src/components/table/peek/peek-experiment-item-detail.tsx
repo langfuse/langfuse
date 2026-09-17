@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
-import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import { usePeekData } from "./hooks/usePeekData";
 import { TraceDetailBody } from "@/src/features/traces";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekView } from "./";
 import { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
 import { useExperimentPeekNavigation } from "@/src/features/experiments/hooks/useExperimentPeekNavigation";
 import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";

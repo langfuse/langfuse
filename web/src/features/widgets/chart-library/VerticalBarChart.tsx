@@ -5,16 +5,13 @@ import {
   ChartTooltipContent,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import {
-  formatMetric,
-  toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
-import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+import { type ChartProps } from "./chart-props";
+import { formatMetric, toFullMetricString } from "./utils";
+import { useChartTickBudget } from "./useChartTickBudget";
 import {
   prepareCategoryBars,
   type CategoryBarLegendItem,
-} from "@/src/features/widgets/chart-library/prepareCategoryBars";
+} from "./prepareCategoryBars";
 import { cn } from "@/src/utils/tailwind";
 
 /**

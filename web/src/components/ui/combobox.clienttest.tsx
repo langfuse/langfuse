@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "./combobox";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("Combobox footer", () => {

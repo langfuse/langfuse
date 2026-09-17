@@ -3,9 +3,9 @@ import {
   PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
 
-import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
-import { validateCodeEvalSourceWithLanguage } from "@/src/features/evals/utils/code-eval-template-validation";
+import { managedTemplateToEvaluatorSetupDraft } from "../fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
+import { MANAGED_TEMPLATES_CATALOG } from "./managedTemplatesCatalog";
+import { validateCodeEvalSourceWithLanguage } from "../../utils/code-eval-template-validation";
 
 describe("managed evaluator templates catalog", () => {
   it("contains valid, uniquely addressable templates", () => {

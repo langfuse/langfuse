@@ -2,7 +2,7 @@ import { type GetServerSideProps } from "next";
 import { env } from "@/src/env.mjs";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
-import { type PageProps } from "@/src/features/auth/SignInPage";
+import { type PageProps } from "../SignInPage";
 
 // Also used in src/pages/auth/sign-up.tsx via the pages/auth/sign-in shim.
 export const getServerSideProps: GetServerSideProps<PageProps> = async () => {

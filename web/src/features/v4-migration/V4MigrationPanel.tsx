@@ -1,14 +1,14 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { useV4MigrationPanel } from "./V4MigrationPanelProvider";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import {
   V4MigrationHeaderContent,
   V4MigrationDetailsContent,
-} from "@/src/features/v4-migration/V4MigrationContent";
-import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
+} from "./V4MigrationContent";
+import { useProjectV4MigrationData } from "./hooks/useV4MigrationData";
+import { getProjectMigrationReadiness } from "./migrationData";
 import { cn } from "@/src/utils/tailwind";
 
 export const V4MigrationPanel = ({

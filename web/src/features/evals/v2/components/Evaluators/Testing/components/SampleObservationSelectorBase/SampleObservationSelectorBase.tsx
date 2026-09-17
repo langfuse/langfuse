@@ -36,19 +36,19 @@ import {
 } from "@/src/features/column-visibility";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 import type { AbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
-import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
-import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
-import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
-import { buildSampleQueryFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/buildSampleQueryFilters";
-import { dedupeObservationPages } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/dedupeObservations";
-import { toggleExampleFilters } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/fns/toggleExampleFilters";
+import { SectionHeader } from "../SectionHeader/SectionHeader";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "../../../../../constants/evaluatorFilterExperience";
+import { FilterModeToggle } from "./components/FilterModeToggle";
+import { ObservationFilterBuilder } from "./components/ObservationFilterBuilder/ObservationFilterBuilder";
+import { buildSampleQueryFilters } from "./fns/buildSampleQueryFilters";
+import { dedupeObservationPages } from "./fns/dedupeObservations";
+import { toggleExampleFilters } from "./fns/toggleExampleFilters";
 import {
   type MapSampleObservedOptions,
   useSampleObservationFilterOptions,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/hooks/useSampleObservationFilterOptions";
-import { useReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
-import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+} from "./hooks/useSampleObservationFilterOptions";
+import { useReusableRuleFilterPresets } from "../../../../../hooks/useReusableRuleFilterPresets";
+import type { EvaluatorFilterExperience } from "../../../../../types/evaluatorFilterExperience";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type SampleObservation =

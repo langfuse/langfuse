@@ -12,7 +12,7 @@ import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
-} from "@/src/components/table/utils/refresh-intervals";
+} from "./utils/refresh-intervals";
 
 interface DataTableRefreshButtonProps {
   onRefresh: () => void;

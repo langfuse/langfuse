@@ -1,9 +1,6 @@
 import { observationsTableCols } from "@langfuse/shared";
-import {
-  omitFilterFacets,
-  type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import { omitFilterFacets, type FilterConfig } from "../lib/filter-config";
+import type { ColumnToBackendKeyMap } from "../lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
 import { renderLevelIcon } from "@/src/components/level-colors";
 

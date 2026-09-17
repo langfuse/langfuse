@@ -1,5 +1,5 @@
-import type { TreeNode } from "@/src/features/traces/types/treeNode";
-import type { FlatLogItem } from "@/src/features/traces/components/TraceLogView/log-view-types";
+import type { TreeNode } from "../../../types/treeNode";
+import type { FlatLogItem } from "../log-view-types";
 
 /**
  * Collects all observation nodes from roots (excludes TRACE root if present).

@@ -14,7 +14,7 @@ import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { getPromptDetailHref } from "@/src/features/prompts/utils";
+import { getPromptDetailHref } from "../utils";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;

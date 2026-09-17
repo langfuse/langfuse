@@ -1,6 +1,6 @@
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
-import { EvaluatorsOnboardingView } from "@/src/components/onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView";
+import { EvaluatorsOnboardingView } from "./components/EvaluatorsOnboardingView/EvaluatorsOnboardingView";
 import type { ActionConfig } from "@/src/components/ui/splash-screen";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 

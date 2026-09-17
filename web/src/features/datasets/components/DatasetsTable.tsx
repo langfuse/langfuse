@@ -2,9 +2,9 @@
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
-import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
-import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
+import { DeleteDatasetDialogController } from "./DeleteDatasetDialogController";
+import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
+import { UpdateDatasetDialogController } from "./UpdateDatasetDialogController";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
@@ -38,8 +38,8 @@ import {
   createDatasetsTableStore,
   toFolderRowId,
   type DatasetsTableStore,
-} from "@/src/features/datasets/store/datasetsTableStore";
-import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
+} from "../store/datasetsTableStore";
+import { useDatasetsTableSelectionSync } from "../hooks/useDatasetsTableSelectionSync";
 import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";

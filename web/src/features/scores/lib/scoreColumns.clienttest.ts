@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { revealScoreColumns } from "@/src/features/scores/lib/scoreColumns";
+import { revealScoreColumns } from "./scoreColumns";
 
 describe("revealScoreColumns", () => {
   it("defers while no score column is known yet", () => {

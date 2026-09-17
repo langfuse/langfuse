@@ -1,12 +1,9 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import {
-  type AnalyticsData,
-  type ScoreTarget,
-} from "@/src/features/scores/types";
+import { type AnalyticsData, type ScoreTarget } from "../types";
 import { type ReactNode, useEffect, useMemo, useRef } from "react";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
+import { AnnotateDrawerContent } from "./AnnotateDrawerContent";
 import {
   filterAndValidateDbScoreList,
   ScoreDataTypeArray,

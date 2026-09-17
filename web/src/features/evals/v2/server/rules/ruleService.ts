@@ -41,8 +41,8 @@ import {
   assertEnabledRuleHasAssignments,
 } from "./ruleErrors";
 import * as repository from "./ruleRepository";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { isLegacyEvalTarget } from "../../../utils/typeHelpers";
+import { prepareModernRuleVariableMapping } from "../../fns/variableMapping/prepareModernRuleVariableMapping";
 import {
   assertCompleteEvaluatorVariableMapping,
   extractEvaluatorPromptVariables,

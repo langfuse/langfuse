@@ -5,7 +5,7 @@ import {
   withMiddlewares,
   createAuthedProjectAPIRoute,
 } from "@/src/features/public-api/server";
-import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { updatePromptLabelsForApi } from "../prompt-api-service";
 
 const UpdatePromptBodySchema = z.object({
   newLabels: z

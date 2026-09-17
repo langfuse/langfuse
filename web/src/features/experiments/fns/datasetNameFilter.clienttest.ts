@@ -1,4 +1,4 @@
-import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
+import { getExperimentsFilterConfig } from "../components/table/filter-config";
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 

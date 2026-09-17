@@ -1,14 +1,14 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { DashboardCard } from "./cards/DashboardCard";
+import { TotalMetric } from "./TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets";
-import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
-import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { BarListChartArea } from "./cards/BarListChartArea";
+import { traceViewQuery } from "../lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 
 // Cap on bars fetched and rendered; the top list scrolls within the tile when

@@ -36,8 +36,8 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { Info, CircleCheck, ChevronDown, CheckIcon } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { type DatasetStepProps } from "@/src/features/experiments/types/stepProps";
-import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { type DatasetStepProps } from "../../types/stepProps";
+import { StepHeader } from "../shared/StepHeader";
 import { api } from "@/src/utils/api";
 import { format } from "date-fns";
 

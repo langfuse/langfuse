@@ -19,14 +19,11 @@ import {
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { EvalTemplateType, type PrismaClient } from "@langfuse/shared/src/db";
-import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
-import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
-import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+import { getObservationForEvalById } from "./getObservationForEvalById";
+import { getExperimentEvalPreviewFilters } from "../utils/experiment-eval-preview-utils";
+import { isEventTarget, isExperimentTarget } from "../utils/typeHelpers";
+import { isCodeEvalSourceCodeLanguageSupported } from "./isCodeEvalEnabled";
+import { MANAGED_TEMPLATES_CATALOG } from "../v2/constants/managedTemplatesCatalog";
 
 type CodeEvalTestRunDispatchError = Omit<CodeEvalUserVisibleError, "retryable">;
 

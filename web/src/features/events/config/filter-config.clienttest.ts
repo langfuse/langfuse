@@ -13,7 +13,7 @@ import {
 import {
   getEventsColumnName,
   observationEventsFilterConfig,
-} from "@/src/features/events/config/filter-config";
+} from "./filter-config";
 
 describe("observation status display name", () => {
   it("uses Status for both the table column and the sidebar filter", () => {

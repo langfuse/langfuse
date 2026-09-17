@@ -10,7 +10,7 @@ import {
 } from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "./CreateOrEditAnnotationQueueButton";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
@@ -19,7 +19,7 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import Link from "next/link";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DeleteAnnotationQueueButton } from "@/src/features/annotation-queues/components/DeleteAnnotationQueueButton";
+import { DeleteAnnotationQueueButton } from "./DeleteAnnotationQueueButton";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { type ScoreConfigDataType } from "@langfuse/shared";
 

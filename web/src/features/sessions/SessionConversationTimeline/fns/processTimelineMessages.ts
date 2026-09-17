@@ -7,8 +7,8 @@ import {
 import {
   getConversationEntries,
   type ConversationEntry,
-} from "@/src/features/sessions/SessionConversationTimeline/fns/getConversationEntries";
-import { getHistoricalInputIndices } from "@/src/features/sessions/SessionConversationTimeline/fns/getHistoricalInputIndices";
+} from "./getConversationEntries";
+import { getHistoricalInputIndices } from "./getHistoricalInputIndices";
 
 type ConversationPart = Exclude<
   NormalizedMessagePart,

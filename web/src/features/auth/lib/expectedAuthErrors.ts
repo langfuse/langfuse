@@ -1,4 +1,4 @@
-import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "@/src/features/auth/constants";
+import { MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE } from "../constants";
 
 /**
  * Classify NextAuth error outcomes surfaced in the browser

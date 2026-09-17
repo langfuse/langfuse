@@ -11,7 +11,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { organizationFormSchema } from "@/src/features/organizations/utils/organizationNameSchema";
+import { organizationFormSchema } from "../utils/organizationNameSchema";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { ExternalLink } from "lucide-react";
 

@@ -35,21 +35,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { buildFormValues } from "@/src/features/models/fns/buildFormValues";
-import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
-import { toPricingTierInputs } from "@/src/features/models/fns/toPricingTierInputs";
+import { buildFormValues } from "../../fns/buildFormValues";
+import { matchPatternFor } from "../../fns/matchPatternFor";
+import { toPricingTierInputs } from "../../fns/toPricingTierInputs";
 import {
   type FormUpsertModel,
   FormUpsertModelSchema,
   type GetModelResult,
-} from "@/src/features/models/validation";
+} from "../../validation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/router";
 
 import { showSuccessToast } from "@/src/features/notifications";
-import { PricingSection } from "@/src/features/models/components/PricingSection/PricingSection";
+import { PricingSection } from "../PricingSection/PricingSection";
 
 type UpsertModelDialogProps =
   | {

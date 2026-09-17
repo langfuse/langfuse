@@ -6,13 +6,13 @@ import {
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
 import { TextChip } from "@/src/components/TextChip";
-import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
-import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import BreadcrumbComponent from "./breadcrumb";
+import { PageHeaderControlsSlotTarget } from "./page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup from "./doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   Tooltip,
@@ -20,16 +20,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  PageTabs,
-  type PageTabsProps,
-} from "@/src/components/layouts/page-tabs";
+import { PageTabs, type PageTabsProps } from "./page-tabs";
 import { cn } from "@/src/utils/tailwind";
 import { type ReactNode } from "react";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
-} from "@/src/components/layouts/app-shell-chrome";
+} from "./app-shell-chrome";
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";

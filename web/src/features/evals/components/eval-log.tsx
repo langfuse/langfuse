@@ -21,7 +21,7 @@ import {
 } from "@/src/features/column-visibility";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
+import { EVAL_LOGS_FIELD_REGISTRY } from "../constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";

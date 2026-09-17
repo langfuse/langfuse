@@ -1,9 +1,9 @@
 import { ItemBadge } from "@/src/components/ItemBadge";
-import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { PageTabs } from "@/src/components/layouts/page-tabs";
-import { type PageHeaderProps } from "@/src/components/layouts/page-header";
+import BreadcrumbComponent from "./breadcrumb";
+import DocPopup from "./doc-popup";
+import { PageHeaderControlsSlotTarget } from "./page-header-controls-slot";
+import { PageTabs } from "./page-tabs";
+import { type PageHeaderProps } from "./page-header";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,

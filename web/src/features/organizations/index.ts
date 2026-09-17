@@ -1,1 +1,1 @@
-export { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+export { useLangfuseCloudRegion } from "./hooks";

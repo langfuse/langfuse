@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
+import type { RuleTableRow } from "../../types/rules";
 import { prepareRuleCloneDraft } from "./prepareRuleCloneDraft";
 
 describe("prepareRuleCloneDraft", () => {

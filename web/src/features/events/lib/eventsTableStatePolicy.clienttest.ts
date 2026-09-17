@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
+import { getEventsTableStatePolicy } from "./eventsTableStatePolicy";
 
 describe("getEventsTableStatePolicy", () => {
   it("isolates embedded table filters, search, and saved views", () => {

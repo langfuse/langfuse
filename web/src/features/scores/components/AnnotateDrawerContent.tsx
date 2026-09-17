@@ -1,9 +1,6 @@
 import { DrawerContent } from "@/src/components/ui/drawer";
-import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
-import {
-  type AnalyticsData,
-  type ScoreTarget,
-} from "@/src/features/scores/types";
+import { AnnotationForm } from "./AnnotationForm";
+import { type AnalyticsData, type ScoreTarget } from "../types";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

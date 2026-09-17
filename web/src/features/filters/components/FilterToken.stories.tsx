@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 
-import { FilterToken } from "@/src/features/filters/components/FilterToken";
+import { FilterToken } from "./FilterToken";
 
 const meta = preview.meta({
   component: FilterToken,

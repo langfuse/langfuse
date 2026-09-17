@@ -1,5 +1,5 @@
 import { evalConfigsTableCols } from "@/src/server/api/definitions/evalConfigsTable";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 
 export const evaluatorFilterConfig: FilterConfig = {
   tableName: "evaluators",

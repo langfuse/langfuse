@@ -8,7 +8,7 @@ import {
   projectInAppAgentMessagesForDisplay,
   recordInAppAgentMessagesForDisplay,
   recordInAppAgentToolCallForDisplay,
-} from "@/src/features/in-app-agent/lib/display";
+} from "./display";
 
 const assistantToolMessage = {
   id: "assistant-tools",

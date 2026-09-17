@@ -7,7 +7,7 @@ import {
   hasRunMigration,
   markMigrationRun,
   type OneTimeMigration,
-} from "@/src/features/column-visibility/lib/one-time-migration";
+} from "../lib/one-time-migration";
 
 // Stable identity for the fallback, so an unusable stored value does not make
 // a new object on every render (the value is a dependency of the effect below).

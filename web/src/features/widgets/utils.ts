@@ -7,11 +7,11 @@ import {
   views,
   type ViewVersion,
 } from "@langfuse/shared/query";
-import { formatMetric } from "@/src/features/widgets/chart-library/utils";
+import { formatMetric } from "./chart-library/utils";
 import {
   type MetricFormatterFunction,
   type MissingBucketValue,
-} from "@/src/features/widgets/chart-library/chart-props";
+} from "./chart-library/chart-props";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // Shared widget chart configuration types

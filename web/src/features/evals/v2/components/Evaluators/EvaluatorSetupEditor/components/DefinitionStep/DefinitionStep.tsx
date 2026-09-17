@@ -1,8 +1,8 @@
 import type { EvalTemplateType } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
-import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { EvaluationTypeConfiguration } from "../../../EvaluationTypeConfiguration/EvaluationTypeConfiguration";
+import { Stepper } from "../../../../Stepper/Stepper";
 
 type DefinitionStepProps = {
   open: boolean;

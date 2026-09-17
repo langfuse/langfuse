@@ -13,4 +13,4 @@ export {
   listDatasetRunItemsByRunIdForApi,
   listDatasetRunsByDatasetIdForApi,
   listDatasetsForApi,
-} from "@/src/features/datasets/server/publicDatasetService";
+} from "./publicDatasetService";

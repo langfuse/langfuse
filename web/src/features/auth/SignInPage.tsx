@@ -29,8 +29,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "./components/AuthCloudPrivacyNotice";
+import { CloudRegionSwitch } from "./components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
@@ -39,11 +39,11 @@ import {
   isExpectedSignInError,
   isNextAuthMissingSignInUrlError,
   isJsonParseSyntaxError,
-} from "@/src/features/auth/lib/expectedAuthErrors";
+} from "./lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
+import { AuthProviderButton } from "./components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";

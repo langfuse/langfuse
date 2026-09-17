@@ -7,7 +7,7 @@ import {
   type ColumnDef,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "./TableSelectionManager";
 
 type TestRow = { id: string };
 

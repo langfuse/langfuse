@@ -13,20 +13,20 @@ import { Label } from "@/src/components/ui/label";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { splitStringByMediaReferences } from "@/src/components/ui/media/mediaUtils";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
-import { EvaluationTypeConfiguration } from "@/src/features/evals/v2/components/Evaluators/EvaluationTypeConfiguration/EvaluationTypeConfiguration";
+import { EvaluatorCodeLanguageSelector } from "../../../Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
+import { EvaluationTypeConfiguration } from "../../../EvaluationTypeConfiguration/EvaluationTypeConfiguration";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
-import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
-import { ScoreOutputConfiguration } from "@/src/features/evals/v2/components/Evaluators/Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
-import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
-import { formatMappingLabel } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
-import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+} from "../../../JudgeModelPicker/JudgeModelPicker";
+import { PromptVariableEditor } from "../../../Judges/PromptVariableEditor/PromptVariableEditor";
+import { ScoreOutputConfiguration } from "../../../Judges/ScoreOutputConfiguration/ScoreOutputConfiguration";
+import { VariableMapping } from "../../../../VariableMapping/VariableMapping";
+import { evalVariableColumnLabel } from "../../../../../fns/variableMapping/evalVariableColumnLabel";
+import { formatMappingLabel } from "../../../../../fns/variableMapping/segmentsToJsonPath";
+import { sourceCodeLanguageLabel } from "../../../../../fns/evaluators/sourceCodeLanguageLabel";
+import { toScoreOutputFormState } from "../../../../../fns/scoreOutput/toScoreOutputFormState";
+import type { JudgeModel } from "../../../../../judgeModel";
 
 export type EvaluatorDefinition =
   | {

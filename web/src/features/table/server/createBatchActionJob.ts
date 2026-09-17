@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/server";
-import { generateBatchActionId } from "@/src/features/table/server/helpers";
+import { generateBatchActionId } from "./helpers";
 import {
   ActionId,
   BatchActionStatus,

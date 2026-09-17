@@ -22,7 +22,7 @@ import { InAppAgentMessageFeedbackValueSchema } from "../schema";
 import {
   assertInAppAgentAvailable,
   assertInAppAgentModelConfigured,
-} from "@/src/features/in-app-agent/server/availability";
+} from "./availability";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -36,8 +36,8 @@ import {
 import {
   assertInAppAgentRateLimit,
   getInAppAgentApiAccessScope,
-} from "@/src/features/in-app-agent/server/rateLimit";
-import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
+} from "./rateLimit";
+import { assertInAppAgentRunCapacity } from "./runCapacity";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -45,7 +45,7 @@ import {
   getBackgroundConversationSnapshot,
   serializeConversationLatestRun,
   startBackgroundRun,
-} from "@/src/features/in-app-agent/server/backgroundRunService";
+} from "./backgroundRunService";
 
 const CONVERSATION_LIST_LIMIT = 50;
 const MAX_IN_APP_AGENT_MESSAGE_LENGTH = 32_000;

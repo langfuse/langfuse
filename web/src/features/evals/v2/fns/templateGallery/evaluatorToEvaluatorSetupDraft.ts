@@ -1,5 +1,5 @@
 import type { RouterOutputs } from "@/src/utils/api";
-import type { EvaluatorSetupDraft } from "@/src/features/evals/v2/types/templateGallery";
+import type { EvaluatorSetupDraft } from "../../types/templateGallery";
 
 export function evaluatorToEvaluatorSetupDraft(
   evaluator: RouterOutputs["evalsV2"]["get"],

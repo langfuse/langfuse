@@ -1,5 +1,5 @@
-import { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
-import { type ScoreConfigSelection } from "@/src/features/scores/types";
+import { useEmptyScoreConfigs } from "./useEmptyConfigs";
+import { type ScoreConfigSelection } from "../types";
 import { api } from "@/src/utils/api";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 

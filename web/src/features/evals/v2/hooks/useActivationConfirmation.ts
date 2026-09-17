@@ -2,8 +2,8 @@ import { useCallback, useState } from "react";
 import {
   requestRuleActivation,
   type ActivationEstimate,
-} from "@/src/features/evals/v2/fns/requestRuleActivation";
-import type { ActivationConfirmationRequest } from "@/src/features/evals/v2/types/rules";
+} from "../fns/requestRuleActivation";
+import type { ActivationConfirmationRequest } from "../types/rules";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 

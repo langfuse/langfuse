@@ -15,19 +15,19 @@ import {
   SheetTitle,
 } from "@/src/components/ui/sheet";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ActivationConfirmationDialog } from "@/src/features/evals/v2/components/Rules/ActivationConfirmationDialog/ActivationConfirmationDialog";
-import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+import { ActivationConfirmationDialog } from "../ActivationConfirmationDialog/ActivationConfirmationDialog";
+import { CreateRuleDialog } from "../CreateRuleDialog/CreateRuleDialog";
+import { EvaluationRulePicker } from "../EvaluationRulePicker/EvaluationRulePicker";
+import { useActivationConfirmation } from "../../../hooks/useActivationConfirmation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { getRuleNavigationUrl } from "@/src/features/evals/v2/utils/ruleNavigation";
-import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
+import { prepareModernRuleVariableMapping } from "../../../fns/variableMapping/prepareModernRuleVariableMapping";
+import { getRuleNavigationUrl } from "../../../utils/ruleNavigation";
+import { requiresLegacyMigrationAction } from "../../../../utils/typeHelpers";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
-import { RuleRelationshipButton } from "@/src/features/evals/v2/components/Rules/EvaluatorRuleRelationships/RuleRelationshipButton";
+import { RuleRelationshipButton } from "./RuleRelationshipButton";
 
 function keepSheetOpenForRelationshipOverlay(
   event: Event & { preventDefault: () => void },

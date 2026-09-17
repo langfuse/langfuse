@@ -1,9 +1,9 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { vi } from "vitest";
 
-import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
-import { persistProjectSdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionStorage";
-import { sdkVersionStorageKeys } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { useProjectSdkVersionInfo } from "./useProjectSdkVersionInfo";
+import { persistProjectSdkVersionInfo } from "../lib/sdkVersionStorage";
+import { sdkVersionStorageKeys } from "../lib/sdkVersionCapabilities";
 
 const apiMocks = vi.hoisted(() => ({
   getSdkVersionInfo: vi.fn(),

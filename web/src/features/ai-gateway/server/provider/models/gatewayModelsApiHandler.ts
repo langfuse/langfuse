@@ -2,12 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 
 import { prisma } from "@langfuse/shared/src/db";
 
-import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
-import {
-  type GatewayApiFormat,
-  GatewayModelsResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+import { GatewayApiKeyAuthenticator } from "../../auth/gatewayApiKeyAuthenticator";
+import { GatewayControlPlaneError } from "../../gatewayControlPlaneError";
+import { type GatewayApiFormat, GatewayModelsResponseSchema } from "..";
 import { GatewayModelsService } from "./gatewayModelsService";
 
 export async function gatewayModelsApiHandler({

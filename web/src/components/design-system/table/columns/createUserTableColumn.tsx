@@ -2,7 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
-import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
+import { EMPTY_VALUE_PLACEHOLDER } from "../constants";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,

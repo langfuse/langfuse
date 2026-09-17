@@ -2,8 +2,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
 import { getProjectV4MigrationData } from "@/src/features/v4/server/v4TransitionService";
-import { defineTool } from "@/src/features/mcp/core/define-tool";
-import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const GetV4MigrationDataInput = z.object({}).strict();
 

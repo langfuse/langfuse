@@ -1,19 +1,16 @@
-import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "../utils/evaluator-form-utils";
 import { EvalTargetObject, type ObservationType } from "@langfuse/shared";
 import { type UseFormReturn, useWatch } from "react-hook-form";
 import { useRouter } from "next/router";
-import {
-  type PreviewData,
-  usePreviewData,
-} from "@/src/features/evals/hooks/usePreviewData";
+import { type PreviewData, usePreviewData } from "./usePreviewData";
 import { useEffect, useRef } from "react";
 import { useReadPath } from "@/src/features/events";
-import { isTraceTargetOnV4 } from "@/src/features/evals/utils/typeHelpers";
+import { isTraceTargetOnV4 } from "../utils/typeHelpers";
 import {
   type EvalPreviewPointer,
   getEvalPreviewPointerFromUrlQuery,
   useFirstEvalPreviewPointer,
-} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
+} from "./useEvalPreviewNavigation";
 
 type EvalConfigMappingData = {
   namesByObject: Map<string, Set<string>>;

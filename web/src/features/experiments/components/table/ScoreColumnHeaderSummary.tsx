@@ -16,11 +16,11 @@ import {
 import {
   type ScoreColumnDataType,
   type ScoreColumnSummary,
-} from "@/src/features/experiments/fns/summariseScoreColumn";
+} from "../../fns/summariseScoreColumn";
 import {
   formatScoreColumnAggregate,
   formatScoreValue,
-} from "@/src/features/experiments/fns/formatScoreColumnAggregate";
+} from "../../fns/formatScoreColumnAggregate";
 
 const DIFF_LABEL_TITLES: Record<ScoreColumnDataType, string> = {
   NUMERIC: "average",

@@ -10,14 +10,14 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { EditRuleDialogContent } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/components/EditRuleDialogContent/EditRuleDialogContent";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import { EditRuleDialogContent } from "./components/EditRuleDialogContent/EditRuleDialogContent";
+import type { RuleEvaluatorOption } from "../../../types/rules";
+import { prepareModernRuleVariableMapping } from "../../../fns/variableMapping/prepareModernRuleVariableMapping";
 import { api } from "@/src/utils/api";
 import {
   getRuleNavigationAction,
   getRuleNavigationUrl,
-} from "@/src/features/evals/v2/utils/ruleNavigation";
+} from "../../../utils/ruleNavigation";
 
 export function EditRuleDialog({
   projectId,

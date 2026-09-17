@@ -63,11 +63,11 @@ import {
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { LazyTraceRow } from "@/src/features/sessions/TraceRow";
+import { LazyTraceRow } from "./TraceRow";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
+import { LazySessionTraceEventsRow } from "./LazySessionTraceEventsRow";
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
@@ -94,18 +94,18 @@ import {
   getSessionDetailPresetToApply,
   findSessionDetailViewByFilters,
   SESSION_DETAIL_VIEW_TRIGGER_ID,
-} from "@/src/features/sessions/session-detail-presets";
-import { downloadSessionAsJson } from "@/src/features/sessions/actions/downloadSessionAsJson";
-import { SessionDetailStoreProvider } from "@/src/features/sessions/SessionDetailStoreProvider";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
-import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
-import { ModernSession } from "@/src/features/sessions/ModernSession";
+} from "./session-detail-presets";
+import { downloadSessionAsJson } from "./actions/downloadSessionAsJson";
+import { SessionDetailStoreProvider } from "./SessionDetailStoreProvider";
+import { SessionVirtualizedRow } from "./SessionVirtualizedRow";
+import { createSessionDetailStore } from "./sessionDetailStore";
+import { ModernSession } from "./ModernSession";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
+import { ModernSessionHeaderActionsController } from "./ModernSessionHeaderActionsController";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
-import { useHistoryEntryRevisit } from "@/src/features/sessions/useHistoryEntryRevisit";
+import { useHistoryEntryRevisit } from "./useHistoryEntryRevisit";
 import {
   areDetailPageListsEqual,
   asCommentCounts,
@@ -115,12 +115,12 @@ import {
   type EventFilterOptions,
   type EventSessionTrace,
   type LegacySessionTrace,
-} from "@/src/features/sessions/sessionDetailPageTypes";
-import { getSessionFilterOptionsStartTimeFilters } from "@/src/features/sessions/sessionFilterOptions";
+} from "./sessionDetailPageTypes";
+import { getSessionFilterOptionsStartTimeFilters } from "./sessionFilterOptions";
 import {
   INITIAL_SESSION_USERS_DISPLAY_COUNT,
   SESSION_USERS_PER_PAGE,
-} from "@/src/features/sessions/sessionUsers";
+} from "./sessionUsers";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 // Keep this near TanStack's default to avoid waking too many lazy row loaders.

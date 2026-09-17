@@ -12,11 +12,8 @@ import {
   SECTION_VALUES,
   type CompletionOption,
   type InputCompletionContext,
-} from "@/src/features/search-bar/lib/completions";
-import {
-  toObservedOptions,
-  type ObservedOptions,
-} from "@/src/features/search-bar/lib/observed-options";
+} from "./completions";
+import { toObservedOptions, type ObservedOptions } from "./observed-options";
 import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
 import { validateQuery } from "./validate";
 

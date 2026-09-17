@@ -12,7 +12,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
+import { mixpanelIntegrationFormSchema } from "./types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";

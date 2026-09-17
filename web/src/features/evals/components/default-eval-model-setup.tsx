@@ -7,9 +7,9 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
+import { useEvaluationModel } from "../hooks/useEvaluationModel";
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "./manage-default-eval-model";
 import { useState } from "react";
 import {
   DialogContent,

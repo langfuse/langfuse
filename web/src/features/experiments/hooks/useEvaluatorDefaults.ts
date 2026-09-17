@@ -5,7 +5,7 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import { type PartialConfig } from "@/src/features/evals/types";
-import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
+import { createDefaultVariableMappings } from "../utils/evaluatorMappingUtils";
 
 const CONFIG_BASE = {
   sampling: new Decimal(1),

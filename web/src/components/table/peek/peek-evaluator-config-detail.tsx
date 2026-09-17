@@ -6,7 +6,7 @@ import {
   EvaluatorForm,
   useEvaluatorFormTemplate,
 } from "@/src/features/evals/components/evaluator-form";
-import { usePeekEvalConfigData } from "@/src/components/table/peek/hooks/usePeekEvalConfigData";
+import { usePeekEvalConfigData } from "./hooks/usePeekEvalConfigData";
 import {
   Tooltip,
   TooltipContent,
@@ -28,7 +28,7 @@ import {
   isLegacyEvalTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekView } from "./";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import { Alert } from "@/src/components/design-system/Alert/Alert";

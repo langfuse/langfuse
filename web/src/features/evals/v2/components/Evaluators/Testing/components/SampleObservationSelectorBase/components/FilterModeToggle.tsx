@@ -1,7 +1,7 @@
 import { Braces, ListFilter } from "lucide-react";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
+import type { EvaluatorFilterExperience } from "../../../../../../types/evaluatorFilterExperience";
 
 export function FilterModeToggle({
   mode,

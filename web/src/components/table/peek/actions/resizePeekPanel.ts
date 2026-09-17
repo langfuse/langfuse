@@ -2,7 +2,7 @@ import { type PointerEvent as ReactPointerEvent } from "react";
 import {
   PEEK_EXPAND_ENTER_FRACTION,
   type PeekPanelStore,
-} from "@/src/components/table/peek/store/peekPanelStore";
+} from "../store/peekPanelStore";
 
 /** Viewport fraction to the RIGHT of the pointer (the panel is docked right). */
 function widthFractionFromClientX(clientX: number): number {

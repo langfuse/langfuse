@@ -5,7 +5,7 @@ import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import {
   planEventFacetQueries,
   splitFacetFilter,
-} from "@/src/features/events/lib/facet-query-plan";
+} from "../lib/facet-query-plan";
 import { sortOptionValues } from "@/src/features/filters";
 
 type EventFilterOptionColumnsInput =

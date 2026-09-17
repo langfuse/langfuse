@@ -16,13 +16,10 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { ListTree } from "lucide-react";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  DatasetItemIOCell,
-  TraceObservationIOCell,
-} from "@/src/features/datasets/components/DatasetIOCells";
+import { DatasetItemIOCell, TraceObservationIOCell } from "./DatasetIOCells";
 import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
-import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
-import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
+import { convertRunItemToItemsByRunUiTableRow } from "../lib/convertRunItemDataToUiTableRow";
+import { type DatasetRunItemByRunRowData } from "../lib/types";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useQueryFilterState } from "@/src/features/filters";

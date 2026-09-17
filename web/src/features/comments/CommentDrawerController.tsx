@@ -5,7 +5,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
-import { CommentList } from "@/src/features/comments/CommentList";
+import { CommentList } from "./CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";

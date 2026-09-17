@@ -1,12 +1,12 @@
 import { useMemo } from "react";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { buildMetricOptions } from "@/src/features/experiments/utils/charts";
-import { pickDefaultStripMetric } from "@/src/features/experiments/fns/pickDefaultStripMetric";
+import { buildMetricOptions } from "../utils/charts";
+import { pickDefaultStripMetric } from "../fns/pickDefaultStripMetric";
 import { api } from "@/src/utils/api";
 import {
   type ScoreCoverageByLevel,
   type ScoreFilterOptions,
-} from "@/src/features/experiments/types/charts";
+} from "../types/charts";
 
 const processCategoricalScoreOptions = (
   categories: Array<{ label: string; values: string[] }>,

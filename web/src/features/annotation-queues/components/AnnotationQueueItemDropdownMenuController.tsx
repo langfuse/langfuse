@@ -5,7 +5,7 @@ import {
 import {
   AnnotationQueueItemMenuContent,
   type AnnotationQueueItemMenuQueue,
-} from "@/src/features/annotation-queues/components/AnnotationQueueItemMenuContent";
+} from "./AnnotationQueueItemMenuContent";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";

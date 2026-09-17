@@ -37,8 +37,8 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
-import { type PromptModelStepProps } from "@/src/features/experiments/types/stepProps";
-import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { type PromptModelStepProps } from "../../types/stepProps";
+import { StepHeader } from "../shared/StepHeader";
 import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 
 export const PromptModelStep: React.FC<PromptModelStepProps> = ({

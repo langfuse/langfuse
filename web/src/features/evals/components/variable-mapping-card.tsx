@@ -21,12 +21,12 @@ import {
   type EvalFormType,
   fieldHasJsonSelectorOption,
   getJsonPathCompatibilityWarning,
-} from "@/src/features/evals/utils/evaluator-form-utils";
-import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
+} from "../utils/evaluator-form-utils";
+import { VariableMappingDescription } from "./eval-form-descriptions";
 import {
   EvaluationPromptPreview,
   getVariableColor,
-} from "@/src/features/evals/components/evaluation-prompt-preview";
+} from "./evaluation-prompt-preview";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,
@@ -34,7 +34,7 @@ import {
   isLegacyEvalTarget,
   isTraceOrDatasetObject,
   shouldShowLegacyTracePreview,
-} from "@/src/features/evals/utils/typeHelpers";
+} from "../utils/typeHelpers";
 import {
   FormControl,
   FormDescription,
@@ -47,11 +47,11 @@ import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
+import { useEvalConfigMappingData } from "../hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertCircle, ExternalLink } from "lucide-react";
-import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
+import { useVariableMappingSync } from "../hooks/useVariableMappingSync";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -61,7 +61,7 @@ import {
   buildEvalPreviewNavigationPath,
   getEvalPreviewDetailPageListKey,
   getEvalPreviewPointerFromDetailPageEntry,
-} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
+} from "../hooks/useEvalPreviewNavigation";
 
 export const VariableMappingCard = ({
   projectId,

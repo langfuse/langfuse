@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { Button } from "@/src/components/ui/button";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayConnection } from "../types/gatewayProvider";
 
 const {
   reportTrpcErrorWithoutToastMock,
@@ -180,8 +180,8 @@ vi.mock("next/router", () => ({
   useRouter: () => ({ query: {}, push: vi.fn() }),
 }));
 
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
-import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
+import { CreateGatewayApiKeyDialogController } from "./GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { ProviderDialogController } from "./GatewayProvidersPage/components/ProviderDialogController/ProviderDialogController";
 
 const testConnection: GatewayConnection = {
   id: "conn-1",

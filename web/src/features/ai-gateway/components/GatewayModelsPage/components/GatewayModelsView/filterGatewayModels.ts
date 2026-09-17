@@ -1,5 +1,5 @@
 import type { FilterState } from "@langfuse/shared";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import type { GatewayProvider } from "../../../../types/gatewayProvider";
 
 export type GatewayModelRow = {
   id: string;

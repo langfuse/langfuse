@@ -1,7 +1,7 @@
 import {
   createStablePublicApiRoute,
   withStablePublicApiMiddlewares,
-} from "@/src/features/public-api/server/stablePublicApiRoute";
+} from "../stablePublicApiRoute";
 import {
   createEvaluationRuleForPublicApi,
   listEvaluationRulesForPublicApi,
@@ -11,7 +11,7 @@ import {
   EvaluationRule,
   ListEvaluationRulesQuery,
   ListEvaluationRulesResponse,
-} from "@/src/features/public-api/types/evaluation/evaluationRules";
+} from "../../types/evaluation/evaluationRules";
 
 export const evaluationRulesApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({

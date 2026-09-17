@@ -6,7 +6,7 @@ import {
   nextCategoryValue,
   resolveCategoricalNumericValue,
   validateNewCategoryLabel,
-} from "@/src/features/scores/lib/annotationFormHelpers";
+} from "./annotationFormHelpers";
 
 describe("nextCategoryValue", () => {
   it("starts at 0 when there are no categories", () => {

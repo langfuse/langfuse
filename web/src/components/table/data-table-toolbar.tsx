@@ -4,8 +4,8 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import {
   DataTableColumnVisibilityFilter,
   type ColumnGroupTogglePayload,
-} from "@/src/components/table/data-table-column-visibility-filter";
-import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
+} from "./data-table-column-visibility-filter";
+import { FilterToggleButton } from "./FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
   type FilterState,
@@ -20,24 +20,24 @@ import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "./types";
 import {
   DataTableRowHeightSwitch,
   type RowHeight,
-} from "@/src/components/table/data-table-row-height-switch";
+} from "./data-table-row-height-switch";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TimeRange,
   TABLE_AGGREGATION_OPTIONS,
 } from "@/src/utils/date-range-utils";
-import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
+import { DataTableSelectAllBanner } from "./data-table-multi-select-actions/data-table-select-all-banner";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   TableViewPresetsDrawer,
   type SystemFilterPreset,
-} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+} from "./table-view-presets/components/data-table-view-presets-drawer";
 import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -46,14 +46,14 @@ import {
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
-import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
+import { DataTableRefreshButton } from "./data-table-refresh-button";
+import { type RefreshInterval } from "./utils/refresh-intervals";
 import {
   getSearchButtonLabel,
   getSearchMode,
   hasFullTextSearchType,
   searchModeToType,
-} from "@/src/components/table/utils/searchUtils";
+} from "./utils/searchUtils";
 
 export interface MultiSelect {
   selectAll: boolean;

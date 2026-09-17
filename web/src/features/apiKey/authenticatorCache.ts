@@ -9,11 +9,8 @@ import {
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { type Credential } from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import {
-  type ApiKeyAuthResults,
-  type Authenticated,
-} from "@/src/features/apiKey/authenticator";
+import { type Credential } from "./helpers/parseAuthorizationHeader";
+import { type ApiKeyAuthResults, type Authenticated } from "./authenticator";
 import {
   unauthorizedError,
   type AuthorizationContext,

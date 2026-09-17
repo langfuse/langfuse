@@ -9,7 +9,7 @@ import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "../utils/checkOrganizationAccess";
 import {
   type FilterState,
   optionalPaginationZod,
@@ -31,10 +31,10 @@ import {
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
-import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
-import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+} from "../utils/checkProjectAccess";
+import { allMembersRoutes } from "./allMembersRoutes";
+import { allInvitesRoutes } from "./allInvitesRoutes";
+import { orderedRoles } from "../constants/orderedRoles";
 import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 

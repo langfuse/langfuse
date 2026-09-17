@@ -4,10 +4,7 @@ import {
   observationVariableMapping,
   type EvalTargetObject,
 } from "@langfuse/shared";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+import { isEventTarget, isExperimentTarget } from "./typeHelpers";
 
 type FormMappingValue = {
   templateVariable: string;

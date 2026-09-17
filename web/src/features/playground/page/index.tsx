@@ -2,14 +2,14 @@ import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Play } from "lucide-react";
-import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
-import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
-import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
-import useCommandEnter from "@/src/features/playground/page/hooks/useCommandEnter";
-import { type MultiWindowState } from "@/src/features/playground/page/types";
+import { ResetPlaygroundButton } from "./components/ResetPlaygroundButton";
+import { useWindowCoordination } from "./hooks/useWindowCoordination";
+import { usePersistedWindowIds } from "./hooks/usePersistedWindowIds";
+import useCommandEnter from "./hooks/useCommandEnter";
+import { type MultiWindowState } from "./types";
 import Page from "@/src/components/layouts/page";
-import MultiWindowPlayground from "@/src/features/playground/page/components/MultiWindowPlayground";
-import { NoModelConfiguredAlert } from "@/src/features/playground/page/components/NoModelConfiguredAlert";
+import MultiWindowPlayground from "./components/MultiWindowPlayground";
+import { NoModelConfiguredAlert } from "./components/NoModelConfiguredAlert";
 import {
   MessageSearchProvider,
   MessageSearchToolbar,

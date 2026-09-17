@@ -4,7 +4,7 @@ import {
   EVENTS_FIELD_REGISTRY,
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 
 import { usersEventsFilterConfig, usersFilterConfig } from "./users-config";
 

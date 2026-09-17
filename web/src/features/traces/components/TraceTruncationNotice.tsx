@@ -13,7 +13,7 @@
 
 import { useState } from "react";
 import { TriangleAlert, X } from "lucide-react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "../contexts/TraceDataContext";
 
 export function TraceTruncationNotice() {
   const {

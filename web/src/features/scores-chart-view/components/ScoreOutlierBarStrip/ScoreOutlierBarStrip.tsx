@@ -3,13 +3,13 @@ import { X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { formatBucketRange } from "@/src/features/events";
-import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
-import { prepareScoreOutlierYTicks } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
+import { SCORE_OUTLIER_STRIP_METRICS } from "../../constants/scoreOutlierStripMetrics";
+import { prepareScoreOutlierYTicks } from "../../fns/binning/scoreOutlierBinning";
 import {
   type ScoreOutlierDenseBin,
   type ScoreOutlierMetricKey,
   type ScoreOutlierTick,
-} from "@/src/features/scores-chart-view/types";
+} from "../../types";
 
 /**
  * ScoreOutlierBarStrip — the scores-table analogue of the observations

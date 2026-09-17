@@ -1,12 +1,6 @@
 import React from "react";
-import {
-  type DataPoint,
-  type MetricFormatterFunction,
-} from "@/src/features/widgets/chart-library/chart-props";
-import {
-  formatMetric,
-  toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
+import { type DataPoint, type MetricFormatterFunction } from "./chart-props";
+import { formatMetric, toFullMetricString } from "./utils";
 import { BarChart, Bar, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,

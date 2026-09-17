@@ -11,7 +11,7 @@ import {
   isEventTarget,
   isExperimentTarget,
   isLegacyEvalTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+} from "../utils/typeHelpers";
 import {
   type VariableMapping,
   type LangfuseObject,

@@ -17,7 +17,7 @@ import { useStore } from "zustand";
 import {
   createDashboardQuerySchedulerStore,
   type DashboardQuerySchedulerStore,
-} from "@/src/features/dashboard/stores/dashboardQuerySchedulerStore";
+} from "../stores/dashboardQuerySchedulerStore";
 import {
   useSSEDashboardQuery,
   type QueryProgress,

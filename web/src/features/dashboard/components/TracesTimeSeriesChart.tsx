@@ -1,19 +1,19 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { DashboardCard } from "./cards/DashboardCard";
+import { TotalMetric } from "./TotalMetric";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { isEmptyTimeSeries } from "@/src/features/dashboard/components/hooks";
+import { isEmptyTimeSeries } from "./hooks";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { TabComponent } from "./TabsComponent";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
+import { DashboardLineTimeSeriesChart } from "./DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const TracesAndObservationsTimeSeriesChart = ({

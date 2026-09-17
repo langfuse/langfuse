@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-margin-on-root-elements */
-import { type MultiSelect } from "@/src/components/table/data-table-toolbar";
+import { type MultiSelect } from "../data-table-toolbar";
 import { Button } from "@/src/components/ui/button";
 import { numberFormatter } from "@/src/utils/numbers";
 

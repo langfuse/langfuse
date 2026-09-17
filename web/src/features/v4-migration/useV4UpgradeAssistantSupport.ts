@@ -1,5 +1,5 @@
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+import { useProjectV4SdkData } from "./hooks/useV4MigrationData";
 import { api } from "@/src/utils/api";
 
 const V4_MIGRATION_SKILL_URL =

@@ -3,8 +3,8 @@
 
 import * as React from "react";
 
-import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Dialog } from "../Dialog/Dialog";
+import { DialogController } from "../DialogController/DialogController";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 

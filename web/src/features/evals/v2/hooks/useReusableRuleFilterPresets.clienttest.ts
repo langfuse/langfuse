@@ -3,9 +3,9 @@
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
 
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
-import { prepareReusableRuleFilterPresets } from "@/src/features/evals/v2/hooks/useReusableRuleFilterPresets";
+import { RULE_FIELD_REGISTRY } from "../constants/ruleSearchRegistry";
+import { RULE_SAMPLE_FIELD_REGISTRY } from "../constants/evaluatorSearchRegistry";
+import { prepareReusableRuleFilterPresets } from "./useReusableRuleFilterPresets";
 import {
   EVENTS_FIELD_REGISTRY,
   withFieldOptions,

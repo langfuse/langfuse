@@ -9,9 +9,9 @@ import {
   getMigrationActionState,
   getMigrationCountState,
   type ProjectMigrationStatus,
-} from "@/src/features/v4-migration/migrationData";
-import { getV4MigrationSdkState } from "@/src/features/v4-migration/sdkVersionStatus";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+} from "../migrationData";
+import { getV4MigrationSdkState } from "../sdkVersionStatus";
+import { useForceV3Experience } from "../useForceV3Experience";
 
 const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 

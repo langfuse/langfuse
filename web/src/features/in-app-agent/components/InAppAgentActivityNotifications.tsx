@@ -6,7 +6,7 @@ import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
   InAppAgentActivityCards,
   type InAppAgentActivityCard,
-} from "@/src/features/in-app-agent/components/InAppAgentActivityCards";
+} from "./InAppAgentActivityCards";
 
 /** Same TTL for results and approvals: toast is heads-up, not a sticky prompt. */
 const CARD_TTL_MS = 8_000;

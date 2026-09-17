@@ -6,7 +6,7 @@ import {
 } from "@langfuse/shared";
 
 import preview from "../../../../../../../.storybook/preview";
-import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
+import { EvaluatorCodeLanguageSelector } from "../Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
 import { EvaluationTypeConfiguration } from "./EvaluationTypeConfiguration";
 
 const meta = preview.meta({ component: EvaluationTypeConfiguration });

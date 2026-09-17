@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "./button";
 import {
   Dialog,
   DialogBody,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/src/components/ui/dialog";
+} from "./dialog";
 
 // Constrained width tokens (no free-form className) — `lg` is for confirms whose
 // body carries longer content, e.g. a type-to-confirm field with a long name.

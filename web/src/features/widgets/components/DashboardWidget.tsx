@@ -13,9 +13,9 @@ import {
   type views,
 } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { Chart } from "../chart-library/Chart";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { isTimeSeriesChart } from "../chart-library/utils";
 import {
   PencilIcon,
   TrashIcon,
@@ -33,14 +33,14 @@ import {
   buildViewAsTableHint,
 } from "@/src/features/dashboard/lib/buildTableFilterHref";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
+import { downloadChartDataCsv } from "../chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
   downloadWidgetJson,
   type WidgetExportSource,
-} from "@/src/features/widgets/utils/import-export-utils";
+} from "../utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
+import { useCaptureWidgetHighCardinalityError } from "../hooks/useWidgetQueryErrorCapture";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,15 +55,15 @@ import {
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
-} from "@/src/features/widgets/utils";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+} from "../utils";
+import { ChartLoadingState } from "../chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
-} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
+} from "../chart-library/chartLoadingStateUtils";
 import type { ResolvedReadPath } from "@/src/features/events";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
-import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
+import { CopyWidgetDialog } from "./CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 

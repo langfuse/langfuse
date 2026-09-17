@@ -5,11 +5,11 @@ import { useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type MetadataFilterActions } from "@/src/components/table/ValueCell";
 import { AttributeRowActions } from "./AttributeRowActions";
-import { LargeJsonFieldFallback } from "@/src/features/traces/components/IOPreview/components/LargeJsonFieldFallback";
+import { LargeJsonFieldFallback } from "../IOPreview/components/LargeJsonFieldFallback";
 import {
   JSON_VIEW_RENDER_CHAR_LIMIT,
   probeJsonField,
-} from "@/src/features/traces/components/IOPreview/fns/jsonViewSizeGate";
+} from "../IOPreview/fns/jsonViewSizeGate";
 
 const SECTION_CLASS =
   "[&_.io-message-content]:px-3 [&_.io-message-header]:px-3";

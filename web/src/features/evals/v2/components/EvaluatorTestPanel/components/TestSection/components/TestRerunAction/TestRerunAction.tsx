@@ -1,6 +1,6 @@
-import { TestRerunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRerunButton/TestRerunButton";
-import { useEvaluatorTestAvailability } from "@/src/features/evals/v2/hooks/useEvaluatorTestAvailability";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { TestRerunButton } from "../../../../../Evaluators/Testing/components/TestRerunButton/TestRerunButton";
+import { useEvaluatorTestAvailability } from "../../../../../../hooks/useEvaluatorTestAvailability";
+import type { EvaluatorSetupStore } from "../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestRerunAction({
   projectId,

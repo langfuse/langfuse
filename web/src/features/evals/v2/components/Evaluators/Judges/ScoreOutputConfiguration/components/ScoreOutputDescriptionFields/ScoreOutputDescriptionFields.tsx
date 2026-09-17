@@ -8,7 +8,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   DEFAULT_REASONING_DESCRIPTION,
   DEFAULT_SCORE_DESCRIPTION,
-} from "@/src/features/evals/v2/scoreOutputDefaults";
+} from "../../../../../../scoreOutputDefaults";
 
 function DescriptionLabel({
   children,

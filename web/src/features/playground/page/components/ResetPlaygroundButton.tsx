@@ -2,7 +2,7 @@ import { ListRestartIcon } from "lucide-react";
 import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
-import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
+import { usePersistedWindowIds } from "../hooks/usePersistedWindowIds";
 
 export const ResetPlaygroundButton: React.FC = () => {
   const router = useRouter();

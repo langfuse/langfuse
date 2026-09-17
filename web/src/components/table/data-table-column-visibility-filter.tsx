@@ -11,7 +11,7 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "lucide-react";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "./types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
@@ -34,7 +34,7 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
 import { PopoverController } from "@/src/components/ui/popover";
-import { ColumnVisibilityHeader } from "@/src/components/table/ColumnVisibilityHeader";
+import { ColumnVisibilityHeader } from "./ColumnVisibilityHeader";
 import {
   Collapsible,
   CollapsibleContent,

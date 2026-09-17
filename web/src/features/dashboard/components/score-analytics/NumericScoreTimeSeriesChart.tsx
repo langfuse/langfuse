@@ -7,8 +7,8 @@ import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
-} from "@/src/features/dashboard/components/hooks";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+} from "../hooks";
+import { createTracesTimeFilter } from "../../lib/dashboard-utils";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
@@ -16,10 +16,10 @@ import {
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "../../lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { DashboardLineTimeSeriesChart } from "../DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "../../hooks/useDashboardQueryScheduler";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;

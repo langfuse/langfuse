@@ -12,11 +12,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
-import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
-import { useVariableMappingController } from "@/src/features/evals/v2/hooks/useVariableMappingController";
-import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+import { VariableMapping } from "../../VariableMapping/VariableMapping";
+import { extractVariableMappingValue } from "../../../fns/variableMapping/extractVariableMappingValue";
+import { useVariableMappingController } from "../../../hooks/useVariableMappingController";
+import type { VariableFieldState } from "../../../types/variableMapping";
+import type { RuleSetupStore } from "../../../types/rules";
 
 export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
   evaluatorId,

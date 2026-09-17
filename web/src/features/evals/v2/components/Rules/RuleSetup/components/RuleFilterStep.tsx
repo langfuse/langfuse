@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useStore } from "zustand";
 
-import { RuleSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
-import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { RuleSampleObservationSelector } from "../../../Evaluators/Testing/components/RuleSampleObservationSelector/RuleSampleObservationSelector";
+import { Stepper } from "../../../Stepper/Stepper";
+import type { RuleSetupStore } from "../../../../types/rules";
+import { RULE_SAMPLE_FIELD_REGISTRY } from "../../../../constants/evaluatorSearchRegistry";
 import { env } from "@/src/env.mjs";
 import { RuleSamplingSection } from "./RuleSamplingSection";
 

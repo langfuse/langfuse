@@ -13,21 +13,21 @@ import { selectTriggerClassName } from "@/src/components/ui/select";
 import {
   EvaluatorSavedDialog,
   type EvaluatorSavedMode,
-} from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedDialog";
-import { EvaluatorSavedCostSummary } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedCostSummary";
-import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
-import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
-import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
-import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
+} from "../EvaluatorSavedDialog/EvaluatorSavedDialog";
+import { EvaluatorSavedCostSummary } from "../EvaluatorSavedDialog/EvaluatorSavedCostSummary";
+import { CreateRuleDialog } from "../../Rules/CreateRuleDialog/CreateRuleDialog";
+import { EvaluationRulePicker } from "../../Rules/EvaluationRulePicker/EvaluationRulePicker";
+import { RuleFilterPills } from "../../Rules/RuleFilterPills/RuleFilterPills";
+import { useActivationConfirmation } from "../../../hooks/useActivationConfirmation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
-import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
-import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
-import { EvaluatorSavedRuleFilterPreview } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
-import { EvaluatorBackfillSettings } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/EvaluatorBackfillSettings";
-import { useEvaluatorSavedBackfill } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/hooks/useEvaluatorSavedBackfill";
+import { classifySampleFiltersForRule } from "../../../fns/rules/classifySampleFiltersForRule";
+import { getFilterAnalyticsProperties } from "../../../fns/getFilterAnalyticsProperties";
+import { EvaluatorSavedRuleFilterPreview } from "../EvaluatorSavedDialog/EvaluatorSavedRuleFilterPreview";
+import { EvaluatorBackfillSettings } from "../EvaluatorBackfillSettings/EvaluatorBackfillSettings";
+import { useEvaluatorSavedBackfill } from "./hooks/useEvaluatorSavedBackfill";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["list"]["rules"][number];
 type DialogPhase = "saved" | "closing-saved" | "create-rule" | "closed";

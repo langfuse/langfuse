@@ -1,7 +1,7 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { EmptyValue } from "../components/EmptyValue/EmptyValue";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { numberFormatter } from "@/src/utils/numbers";
 import {

@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { ErrorNotification } from "@/src/features/notifications/ErrorNotification";
+import { ErrorNotification } from "./ErrorNotification";
 
 const toastErrorStyleProps = {
   border: "1px solid hsl(var(--destructive))",

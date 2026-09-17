@@ -5,7 +5,7 @@ import {
   IOTableCell,
   type IOTableCellMediaRenderer,
   type IOTableCellVariant,
-} from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+} from "../components/IOTableCell/IOTableCell";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { type DataTableCellBackground } from "@/src/components/table/types";
 import {

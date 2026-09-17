@@ -1,7 +1,7 @@
-import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "../utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
-import { useEvalTargetCount } from "@/src/features/evals/hooks/useEvalTargetCount";
+import { useEvalTargetCount } from "../hooks/useEvalTargetCount";
 
 type ExecutionCountTooltipProps = {
   projectId: string;

@@ -3,7 +3,7 @@ import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../../../../../../../.storybook/preview";
 import { PromptEditorContent } from "./PromptEditor";
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { createEvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 
 const meta = preview.meta({ component: PromptEditorContent });

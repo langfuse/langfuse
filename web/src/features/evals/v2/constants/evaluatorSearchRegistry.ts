@@ -1,5 +1,5 @@
-import { DATASET_NAME_FILTER_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { DATASET_NAME_FILTER_COLUMN } from "../utils/datasetNameFilter";
+import { RULE_FIELD_REGISTRY } from "./ruleSearchRegistry";
 import {
   EVENTS_FIELD_REGISTRY,
   extendFieldRegistryWithColumns,

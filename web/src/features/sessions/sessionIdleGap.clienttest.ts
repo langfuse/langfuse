@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  computeIdleGapSeconds,
-  formatIdleGap,
-} from "@/src/features/sessions/sessionIdleGap";
+import { computeIdleGapSeconds, formatIdleGap } from "./sessionIdleGap";
 
 describe("sessionIdleGap", () => {
   it("measures idle time after the previous trace ends", () => {

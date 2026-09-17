@@ -2,7 +2,7 @@
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./button";
 
 import { ImageOff, ExternalLink } from "lucide-react";
 import {
@@ -13,13 +13,13 @@ import {
 import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
-} from "@/src/components/ui/resizable-image";
+} from "./resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
-import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
+import { MediaReferenceTag } from "./media/MediaReferenceTag";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 
 // Above this, "preview" media falls back to the click-to-open icon instead of

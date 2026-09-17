@@ -5,15 +5,15 @@ import {
   EvaluatorRecommendedCardContent,
   EvaluatorRecommendedCardSurface,
   EvaluatorRecommendedTemplateCardContent,
-} from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
-import { EvaluatorRecommendedCards } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
-import { EVALUATOR_ACCENT_BUTTON_CLASSNAME } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
+} from "../../../EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCard/EvaluatorRecommendedCard";
+import { EvaluatorRecommendedCards } from "../../../EvaluatorGalleryView/components/EvaluatorGallerySection/components/EvaluatorRecommendedCards/EvaluatorRecommendedCards";
+import { EVALUATOR_ACCENT_BUTTON_CLASSNAME } from "../../../../constants/evaluatorEmptyState";
 import {
   getGalleryTemplateCategoryKey,
   getGalleryTemplatePresentation,
-} from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+} from "../../../../fns/templateGallery/galleryTemplatePresentation";
+import type { EvaluatorEmptyStateStartingPoint } from "../../../../fns/templateGallery/prepareEvaluatorEmptyState";
+import type { GalleryTemplate } from "../../../../types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
 function DetectTopicsStartingPointCard({

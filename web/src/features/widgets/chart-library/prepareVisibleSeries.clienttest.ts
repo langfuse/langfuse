@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_MAX_RENDERED_SERIES,
   prepareVisibleSeries,
-} from "@/src/features/widgets/chart-library/prepareVisibleSeries";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+} from "./prepareVisibleSeries";
+import { type DataPoint } from "./chart-props";
 
 /** Builds one bucket per value for a dimension, so its summary == sum(values). */
 const series = (dimension: string, values: number[]): DataPoint[] =>

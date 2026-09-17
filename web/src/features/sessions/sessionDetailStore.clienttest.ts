@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
+import { createSessionDetailStore } from "./sessionDetailStore";
 
 describe("createSessionDetailStore", () => {
   it("marks loaded traces idempotently", () => {

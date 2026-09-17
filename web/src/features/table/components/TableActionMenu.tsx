@@ -2,11 +2,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash, Plus } from "lucide-react";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import {
-  type TableAction,
-  type CustomDialogTableAction,
-} from "@/src/features/table/types";
-import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
+import { type TableAction, type CustomDialogTableAction } from "../types";
+import { TableActionDialog } from "./TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import {

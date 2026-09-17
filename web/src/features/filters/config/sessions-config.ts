@@ -2,9 +2,9 @@ import {
   omitFilterFacets,
   type Facet,
   type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
+} from "../lib/filter-config";
 import { sessionsEventsViewCols, sessionsViewCols } from "@langfuse/shared";
-import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
+import type { ColumnToBackendKeyMap } from "../lib/filter-transform";
 
 export type SessionOmittableFilterColumn = "userIds";
 

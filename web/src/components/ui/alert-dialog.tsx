@@ -5,7 +5,7 @@ import * as React from "react";
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/src/utils/tailwind";
-import { buttonVariants } from "@/src/components/ui/button";
+import { buttonVariants } from "./button";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import motionStyles from "./dialog-motion.module.css";
 

@@ -14,7 +14,7 @@ import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
+import { useCommandMenu } from "./CommandMenuProvider";
 import { useProjectSettingsPages } from "@/src/features/projects";
 import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
 import { useAccountSettingsPages } from "@/src/pages/account/settings";

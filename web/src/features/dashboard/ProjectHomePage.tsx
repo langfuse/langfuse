@@ -37,7 +37,7 @@ import {
   DashboardQuerySchedulerProvider,
   getDashboardQuerySchedulerMaxConcurrent,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "./hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -45,7 +45,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
+import { HomeDashboardSelect } from "./components/HomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 

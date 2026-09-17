@@ -2,8 +2,8 @@ import { expect, fn, userEvent } from "storybook/test";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import preview from "../../../../../../../../.storybook/preview";
-import { EVALUATOR_EMPTY_STATE_DOCS_HREF } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
-import type { EvaluatorEmptyStateStartingPoint } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
+import { EVALUATOR_EMPTY_STATE_DOCS_HREF } from "../../../../constants/evaluatorEmptyState";
+import type { EvaluatorEmptyStateStartingPoint } from "../../../../fns/templateGallery/prepareEvaluatorEmptyState";
 import { EvaluatorsEmptyStateView } from "./EvaluatorsEmptyStateView";
 
 const startingPoints = [

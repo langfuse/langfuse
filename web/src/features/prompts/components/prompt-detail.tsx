@@ -58,7 +58,7 @@ import {
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
-import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
+import { DuplicatePromptButton } from "./duplicate-prompt";
 import Page from "@/src/components/layouts/page";
 import {
   DropdownMenu,
@@ -66,9 +66,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
+import { DeletePromptVersion } from "./delete-prompt-version";
 import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
-import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
+import { SetPromptVersionLabels } from "./SetPromptVersionLabels";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
@@ -78,7 +78,7 @@ import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
-import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { PromptVariableListPreview } from "./PromptVariableListPreview";
 import { createBreadcrumbItems } from "@/src/features/folders/utils";
 
 const getPythonCode = (

@@ -6,16 +6,16 @@ import {
 } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
-import { TracesBarListChart } from "@/src/features/dashboard/components/TracesBarListChart";
-import { ModelCostTable } from "@/src/features/dashboard/components/ModelCostTable";
-import { ScoresTable } from "@/src/features/dashboard/components/ScoresTable";
-import { TracesAndObservationsTimeSeriesChart } from "@/src/features/dashboard/components/TracesTimeSeriesChart";
-import { ModelUsageChart } from "@/src/features/dashboard/components/ModelUsageChart";
-import { UserChart } from "@/src/features/dashboard/components/UserChart";
-import { ChartScores } from "@/src/features/dashboard/components/ChartScores";
-import { LatencyTable } from "@/src/features/dashboard/components/LatencyTables";
-import { GenerationLatencyChart } from "@/src/features/dashboard/components/LatencyChart";
-import { ScoreAnalytics } from "@/src/features/dashboard/components/score-analytics/ScoreAnalytics";
+import { TracesBarListChart } from "./TracesBarListChart";
+import { ModelCostTable } from "./ModelCostTable";
+import { ScoresTable } from "./ScoresTable";
+import { TracesAndObservationsTimeSeriesChart } from "./TracesTimeSeriesChart";
+import { ModelUsageChart } from "./ModelUsageChart";
+import { UserChart } from "./UserChart";
+import { ChartScores } from "./ChartScores";
+import { LatencyTable } from "./LatencyTables";
+import { GenerationLatencyChart } from "./LatencyChart";
+import { ScoreAnalytics } from "./score-analytics/ScoreAnalytics";
 
 /**
  * Props bag a "preset" dashboard placement is rendered with. Derived by

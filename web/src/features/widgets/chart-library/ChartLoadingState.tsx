@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { type QueryProgress } from "@/src/hooks/useSSEDashboardQuery";
-import { QueryProgressBar } from "@/src/features/widgets/chart-library/QueryProgressBar";
+import { QueryProgressBar } from "./QueryProgressBar";
 import { Button } from "@/src/components/ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 

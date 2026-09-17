@@ -1,7 +1,7 @@
 import {
   getToolObservationCallId,
   type ToolObservation,
-} from "@/src/features/sessions/SessionConversationTimeline/fns/getToolObservationCallId";
+} from "./getToolObservationCallId";
 
 export function getStandaloneToolCallIds(
   observations: readonly ToolObservation[],

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 import type { FilterState } from "@langfuse/shared";
 
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { RULE_FIELD_REGISTRY } from "../constants/ruleSearchRegistry";
 import {
   type FieldRegistry,
   filterStateToQueryText,

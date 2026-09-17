@@ -1,9 +1,9 @@
 import { useStore } from "zustand";
 
-import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { prepareEvaluatorDraft } from "../fns/evaluators/prepareEvaluatorDraft";
+import { getScoreOutputValidation } from "../fns/scoreOutput/getScoreOutputValidation";
+import { useEvaluatorSetupSample } from "./useEvaluatorSetupSample";
+import type { EvaluatorSetupStore } from "../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function useEvaluatorTestAvailability({
   projectId,

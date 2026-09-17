@@ -7,7 +7,7 @@ import {
   SMALL_OBJECT_THRESHOLD,
   objectFitsInSingleRowPreview,
   type JsonTableRow,
-} from "@/src/components/table/utils/jsonExpansionUtils";
+} from "./utils/jsonExpansionUtils";
 import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { copyTextToClipboard } from "@/src/utils/clipboard";

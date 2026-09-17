@@ -19,8 +19,8 @@ import {
 import { PanelRightOpen } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useViewPreferences } from "../contexts/ViewPreferencesContext";
+import { useSelection } from "../contexts/SelectionContext";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";

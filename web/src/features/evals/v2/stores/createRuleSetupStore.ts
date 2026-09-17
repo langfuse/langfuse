@@ -1,9 +1,6 @@
 import { createStore } from "zustand/vanilla";
 
-import type {
-  RuleDraft,
-  RuleSetupStore,
-} from "@/src/features/evals/v2/types/rules";
+import type { RuleDraft, RuleSetupStore } from "../types/rules";
 
 export function createRuleSetupStore(initialDraft: RuleDraft): RuleSetupStore {
   return createStore<ReturnType<RuleSetupStore["getState"]>>((set) => ({

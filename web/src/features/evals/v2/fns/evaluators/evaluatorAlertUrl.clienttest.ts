@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  evaluatorAlertsListUrl,
-  evaluatorAlertUrl,
-} from "@/src/features/evals/v2/fns/evaluators/evaluatorAlertUrl";
+import { evaluatorAlertsListUrl, evaluatorAlertUrl } from "./evaluatorAlertUrl";
 
 describe("evaluatorAlertUrl", () => {
   it("builds evaluator-specific score and cost alert URLs", () => {

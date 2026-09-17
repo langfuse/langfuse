@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./button";
 import {
   Check,
   ChevronsDownUp,
@@ -14,17 +14,17 @@ import { default as React18JsonView } from "react18-json-view";
 import "react18-json-view/src/dark.css";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Skeleton } from "./skeleton";
 import { useTheme } from "next-themes";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
-import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { LangfuseMediaView } from "./LangfuseMediaView";
+import { classifyMediaValue } from "./media/mediaUtils";
+import { MediaReferenceTag } from "./media/MediaReferenceTag";
+import { MarkdownJsonViewHeader } from "./MarkdownJsonView";
 import {
   renderRichPromptContent,
   usePromptReferenceProjectId,
-} from "@/src/components/ui/PromptReferences";
+} from "./PromptReferences";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 

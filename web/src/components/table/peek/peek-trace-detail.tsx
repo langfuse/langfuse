@@ -1,4 +1,4 @@
-import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import { usePeekData } from "./hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
 import {
@@ -6,11 +6,8 @@ import {
   TraceDetailBody,
   traceDetailTitle,
 } from "@/src/features/traces";
-import {
-  TablePeekView,
-  shouldClosePeekAfterDelete,
-} from "@/src/components/table/peek";
-import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { TablePeekView, shouldClosePeekAfterDelete } from "./";
+import { resolvePeekTraceParams } from "./resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 
 export const TablePeekViewTraceDetail = (

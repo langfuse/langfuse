@@ -8,7 +8,7 @@ import { InAppAgentToolCallDetails } from "./InAppAgentToolCallDetails";
 import {
   getInAppAgentToolDisplayName,
   type InAppAgentToolCallContent,
-} from "@/src/features/in-app-agent/components/utils/utils";
+} from "./utils/utils";
 
 export function InAppAgentToolCallCard({
   tool,

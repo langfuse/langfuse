@@ -32,10 +32,10 @@ import {
   type PivotTableConfig,
   type DatabaseRow,
   DEFAULT_ROW_LIMIT,
-} from "@/src/features/widgets/utils/pivot-table-utils";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
-import { formatMetricName } from "@/src/features/widgets/utils";
+} from "../utils/pivot-table-utils";
+import { type ChartProps } from "./chart-props";
+import { valueFormatter } from "./utils";
+import { formatMetricName } from "../utils";
 
 import { type OrderByState } from "@langfuse/shared";
 

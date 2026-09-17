@@ -22,18 +22,15 @@ import { cn } from "@/src/utils/tailwind";
 import type {
   ObservedOptions,
   ObservedScoreNames,
-} from "@/src/features/search-bar/lib/observed-options";
-import { aiContextObservedOptionsKeys } from "@/src/features/search-bar/lib/ai-context";
-import {
-  EVENTS_FIELD_REGISTRY,
-  type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
-import { ComposerWithPreview } from "@/src/features/search-bar/components/ComposerWithPreview";
-import { SearchBarAiPrompt } from "@/src/features/search-bar/components/SearchBarAiPrompt";
-import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
-import type { SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
-import type { QueryPresetSection } from "@/src/features/search-bar/lib/completions";
+} from "../lib/observed-options";
+import { aiContextObservedOptionsKeys } from "../lib/ai-context";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
+import { ComposerWithPreview } from "./ComposerWithPreview";
+import { SearchBarAiPrompt } from "./SearchBarAiPrompt";
+import { SearchBarStoreProvider } from "../store/SearchBarStoreProvider";
+import type { SearchBarStore } from "../store/searchBarStore";
+import type { SearchCommit } from "../hooks/useEventsSearchBar";
+import type { QueryPresetSection } from "../lib/completions";
 
 type EventsSearchBarRowProps = Omit<
   React.ComponentProps<typeof EventsSearchBarRowContent>,

@@ -8,7 +8,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
+import { RULE_FIELD_REGISTRY } from "../../../constants/ruleSearchRegistry";
 import { InlineFilterState } from "@/src/features/filters";
 import {
   COMPOSER_SURFACE_CLASSES,

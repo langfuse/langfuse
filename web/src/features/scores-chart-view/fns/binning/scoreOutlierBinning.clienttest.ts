@@ -8,8 +8,8 @@ import {
   rowsToScoreOutlierBins,
   scoreOutlierCountQueryMetrics,
   scoreOutlierValueQueryMetrics,
-} from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
-import { type ScoreOutlierBin } from "@/src/features/scores-chart-view/types";
+} from "./scoreOutlierBinning";
+import { type ScoreOutlierBin } from "../../types";
 
 describe("scoreOutlierCountQueryMetrics", () => {
   it("derives one query metric per registered Count aggregation", () => {

@@ -3,7 +3,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItemWithSecondaryAction,
-} from "@/src/components/ui/dropdown-menu";
+} from "./dropdown-menu";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("DropdownMenuItemWithSecondaryAction", () => {

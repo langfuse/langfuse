@@ -13,8 +13,8 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { ActionButton } from "@/src/components/ActionButton";
-import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { CreateProjectMemberDialogController } from "./CreateProjectMemberDialogController";
+import { useHasOrganizationAccess } from "../utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
@@ -24,8 +24,8 @@ import { useSession } from "next-auth/react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
+import { useHasProjectAccess } from "../utils/checkProjectAccess";
+import { RoleSelectItem } from "./RoleSelectItem";
 import {
   HoverCard,
   HoverCardContent,

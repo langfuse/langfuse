@@ -1,4 +1,4 @@
-import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
+import { prepareEvaluatorGallery } from "./prepareEvaluatorGallery";
 
 const customTemplate = {
   id: "evaluator-1",

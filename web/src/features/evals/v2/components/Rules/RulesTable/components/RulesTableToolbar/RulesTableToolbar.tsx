@@ -1,10 +1,7 @@
 import { useStore } from "zustand";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import type {
-  RuleTableRow,
-  RulesTableStore,
-} from "@/src/features/evals/v2/types/rules";
+import type { RuleTableRow, RulesTableStore } from "../../../../../types/rules";
 import type { ColumnOrderState, VisibilityState } from "@tanstack/react-table";
 import { type Dispatch, type SetStateAction, type ComponentProps } from "react";
 import type { RowHeight } from "@/src/components/table/data-table-row-height-switch";

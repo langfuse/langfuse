@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import useColumnVisibility from "./useColumnVisibility";
 
 const columns: LangfuseColumnDef<{ id: string }>[] = [
   { accessorKey: "name", header: "Name", enableHiding: true },

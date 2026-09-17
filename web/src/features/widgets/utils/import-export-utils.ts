@@ -20,11 +20,11 @@ import {
   singleFilterList,
   type FilterState,
 } from "@langfuse/shared";
-import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
+import { dashboardWidgetChartTypeSchema } from "../lib/dashboardWidgetChartTypes";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
-} from "@/src/features/widgets/utils/pivot-table-utils";
+} from "./pivot-table-utils";
 const widgetMetricSchema = MetricSchema.extend({
   agg: metricAggregations,
 });

@@ -1,5 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/server";
-import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
+import { isValidPostgresRegex } from "./isValidPostgresRegex";
 import {
   type DeleteModelV1Query,
   type GetModelV1Query,

@@ -31,7 +31,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import { getFormattedPayload } from "../utils/format";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentSetupSchema = z.object({

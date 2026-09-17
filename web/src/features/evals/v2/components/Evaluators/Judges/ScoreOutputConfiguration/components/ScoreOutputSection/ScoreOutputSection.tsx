@@ -26,13 +26,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
+import { getScoreOutputValidation } from "../../../../../../fns/scoreOutput/getScoreOutputValidation";
 
 import {
   type ScoreOutputChoice,
   type ScoreOutputDataType,
   type ScoreOutputSelectorState,
-} from "@/src/features/evals/v2/scoreOutputTypes";
+} from "../../../../../../scoreOutputTypes";
 
 const DATA_TYPE_OPTIONS: { value: ScoreOutputDataType; label: string }[] = [
   { value: ScoreDataTypeEnum.NUMERIC, label: "number" },

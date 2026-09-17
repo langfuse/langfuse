@@ -1,8 +1,8 @@
 import { type PricingTierInput } from "@langfuse/shared";
 
-import { derivePriorities } from "@/src/features/models/fns/derivePriorities";
-import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
-import { type FormUpsertModel } from "@/src/features/models/validation";
+import { derivePriorities } from "./derivePriorities";
+import { parsePriceInput } from "./parsePriceInput";
+import { type FormUpsertModel } from "../validation";
 
 /** Form values -> the API's per-tier price maps, keyed by usage type name. */
 export const toPricingTierInputs = (

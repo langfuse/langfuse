@@ -1,15 +1,15 @@
 /* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
+import { DashboardCard } from "./cards/DashboardCard";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
+import { TabComponent } from "./TabsComponent";
+import { TotalMetric } from "./TotalMetric";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
-import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
+import { BarListChartArea } from "./cards/BarListChartArea";
+import { traceViewQuery } from "../lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 import { cn } from "@/src/utils/tailwind";
 
 // Cap on bars fetched and rendered; matches TracesBarListChart. The top list

@@ -2,16 +2,16 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { LLMAdapter } from "@langfuse/shared";
 
-import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
-import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
-import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
-import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
-import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
-import { ScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ScoreOutputEditor/ScoreOutputEditor";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
-import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
+import { DefinitionStep } from "../../DefinitionStep";
+import { CodeEditor } from "../CodeEditor/CodeEditor";
+import { CodeLanguageSelector } from "../CodeLanguageSelector/CodeLanguageSelector";
+import { ModelSelector } from "../ModelSelector/ModelSelector";
+import { PromptEditor } from "../PromptEditor/PromptEditor";
+import { ScoreOutputEditor } from "../ScoreOutputEditor/ScoreOutputEditor";
+import type { JudgeModel } from "../../../../../../../judgeModel";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
+import type { ProjectDefaultModelConfig } from "../../../../../../../types/ProjectDefaultModelConfig";
+import type { CodeEvalValidationResult } from "../../../../../../../../utils/code-eval-template-validation";
 
 export function DefinitionStepContainer({
   projectId,

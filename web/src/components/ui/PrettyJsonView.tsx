@@ -10,13 +10,13 @@ import React, {
 import { cn } from "@/src/utils/tailwind";
 import { deepParseJson } from "@langfuse/shared";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Skeleton } from "./skeleton";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { LangfuseMediaView } from "./LangfuseMediaView";
+import { MarkdownJsonViewHeader } from "./MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { Button } from "@/src/components/ui/button";
+import { JSONView } from "./CodeJsonViewer";
+import { Button } from "./button";
 import { useClickWithoutSelection } from "@/src/hooks/useClickWithoutSelection";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import {
@@ -38,12 +38,12 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "./MarkdownViewer";
 import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
   getStandaloneMediaReferenceStrings,
-} from "@/src/components/ui/markdown-media.utils";
+} from "./markdown-media.utils";
 import {
   StringOrMarkdownSchema,
   containsAnyMarkdown,
@@ -62,8 +62,8 @@ import {
   type MetadataFilterActions,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
-import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
-import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
+import { isLargeRenderString } from "./largeStringGate";
+import { LargeStringFallback } from "./LargeStringFallback";
 
 // Constants for table layout
 const INDENTATION_PER_LEVEL = 16;

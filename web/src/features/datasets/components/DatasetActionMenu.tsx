@@ -2,9 +2,9 @@ import { Bot, Copy, Edit, LockIcon, Trash } from "lucide-react";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
-import { DuplicateDatasetDialogController } from "@/src/features/datasets/components/DuplicateDatasetDialogController";
-import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
+import { DeleteDatasetDialogController } from "./DeleteDatasetDialogController";
+import { DuplicateDatasetDialogController } from "./DuplicateDatasetDialogController";
+import { UpdateDatasetDialogController } from "./UpdateDatasetDialogController";
 
 type DatasetActionMenuProps = Omit<
   ComponentProps<typeof UpdateDatasetDialogController>,

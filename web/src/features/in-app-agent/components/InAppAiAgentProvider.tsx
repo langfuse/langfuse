@@ -36,27 +36,27 @@ import {
   deserializeInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
   type InAppAgentDisplayState,
-} from "@/src/features/in-app-agent/lib/display";
-import { useInAppAgentActivity } from "@/src/features/in-app-agent/lib/useInAppAgentActivity";
+} from "../lib/display";
+import { useInAppAgentActivity } from "../lib/useInAppAgentActivity";
 import {
   getInAppAgentPendingNotificationCards,
   type InAppAgentActivityByConversationId,
-} from "@/src/features/in-app-agent/lib/inAppAgentActivity";
-import { InAppAgentActivityNotifications } from "@/src/features/in-app-agent/components/InAppAgentActivityNotifications";
-import { InAppAgentBackgroundClient } from "@/src/features/in-app-agent/lib/backgroundAgentClient";
+} from "../lib/inAppAgentActivity";
+import { InAppAgentActivityNotifications } from "./InAppAgentActivityNotifications";
+import { InAppAgentBackgroundClient } from "../lib/backgroundAgentClient";
 import {
   BackgroundExecutionSessionController,
   isCancellableBackgroundRun,
   type BackgroundExecutionRunView,
   type BackgroundExecutionSession,
   type BackgroundExecutionView,
-} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+} from "../lib/backgroundExecutionSession";
 import {
   type InAppAgentError,
   getInAppAgentError,
   isInAppAgentRateLimited,
   type InAppAiAgentMessage,
-} from "@/src/features/in-app-agent/components/utils/utils";
+} from "./utils/utils";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showErrorToast } from "@/src/features/notifications";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -64,15 +64,15 @@ import { api } from "@/src/utils/api";
 import {
   createInAppAgentScreenContext,
   createInAppAgentUserContext,
-} from "@/src/features/in-app-agent/context";
-import type { InAppAgentSubmitOptions } from "@/src/features/in-app-agent/quickActions";
+} from "../context";
+import type { InAppAgentSubmitOptions } from "../quickActions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { evaluateSetStateAction } from "@/src/utils/evaluate-set-state-action";
-import { InAppAgentDisabledDialog } from "@/src/features/in-app-agent/components/InAppAgentDisabledDialog";
+import { InAppAgentDisabledDialog } from "./InAppAgentDisabledDialog";
 import {
   getCompletedToolCalls,
   performToolSideEffectsForCompletedToolCalls,
-} from "@/src/features/in-app-agent/components/utils/side-effects";
+} from "./utils/side-effects";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";

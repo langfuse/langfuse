@@ -1,34 +1,31 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
+import { TraceDataProvider } from "../contexts/TraceDataContext";
 import {
   ViewPreferencesProvider,
   useViewPreferences,
-} from "@/src/features/traces/contexts/ViewPreferencesContext";
-import {
-  SelectionProvider,
-  useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
-import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
-import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { PlayheadProvider } from "@/src/features/traces/contexts/PlayheadContext";
+} from "../contexts/ViewPreferencesContext";
+import { SelectionProvider, useSelection } from "../contexts/SelectionContext";
+import { useSelectedObservation } from "../hooks/useSelectedObservation";
+import { SearchProvider } from "../contexts/SearchContext";
+import { JsonExpansionProvider } from "../contexts/JsonExpansionContext";
+import { PlayheadProvider } from "../contexts/PlayheadContext";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
-} from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
-import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
-import { TraceSummaryStrip } from "@/src/features/traces/components/TraceSummaryStrip";
-import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
-import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
-import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
-import { TraceTree } from "@/src/features/traces/components/TraceTree";
-import { TraceTimelineCompact } from "@/src/features/traces/components/TraceTimelineDense/TraceTimelineCompact";
+} from "../contexts/TraceGraphDataContext";
+import { TraceLayoutMobile } from "./TraceLayoutMobile";
+import { TraceLayoutDesktop } from "./TraceLayoutDesktop";
+import { TraceSummaryStrip } from "./TraceSummaryStrip";
+import { TracePanelNavigation } from "./TracePanelNavigation";
+import { TracePanelDetail } from "./TracePanelDetail";
+import { TracePanelNavigationLayoutDesktop } from "./TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
+import { TraceTree } from "./TraceTree";
+import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
-import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
+import { useTraceComments } from "../hooks/useTraceComments";
+import { TraceGraphView } from "./TraceGraphView/TraceGraphView";
 
 import { useMemo } from "react";
 

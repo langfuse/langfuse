@@ -4,7 +4,7 @@ import type { ObservedOptions } from "@/src/features/search-bar";
 import {
   INTERNAL_EVALUATION_ENVIRONMENTS,
   INTERNAL_EVALUATION_ENVIRONMENT_FILTERS,
-} from "@/src/features/evals/v2/constants/experimentAndEvalFilters";
+} from "../../../../../../constants/experimentAndEvalFilters";
 
 export function buildSampleQueryFilters(
   visibleFilters: FilterState,

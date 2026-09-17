@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { DialogController, DialogTitle } from "@/src/components/ui/dialog";
+import { DialogController, DialogTitle } from "./dialog";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("DialogController", () => {

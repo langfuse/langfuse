@@ -39,13 +39,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { TableRow } from "@/src/components/ui/table";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import { getProviderReorder } from "@/src/features/ai-gateway/fns/providerReorder/getProviderReorder";
-import { reorderProviderIds } from "@/src/features/ai-gateway/fns/providerReorder/reorderProviderIds";
+import { providerLabels } from "../../../../constants/providerLabels";
+import { getProviderReorder } from "../../../../fns/providerReorder/getProviderReorder";
+import { reorderProviderIds } from "../../../../fns/providerReorder/reorderProviderIds";
 import type {
   GatewayConnection,
   GatewayProvider,
-} from "@/src/features/ai-gateway/types/gatewayProvider";
+} from "../../../../types/gatewayProvider";
 import { cn } from "@/src/utils/tailwind";
 
 const TABLE_NAME = "gateway-provider-credentials";

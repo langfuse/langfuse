@@ -4,8 +4,8 @@ import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { Button } from "@/src/components/ui/button";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
-import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
-import { RulesTable } from "@/src/features/evals/v2/components/Rules/RulesTable/RulesTable";
+import { CreateRuleDialog } from "../components/Rules/CreateRuleDialog/CreateRuleDialog";
+import { RulesTable } from "../components/Rules/RulesTable/RulesTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   EVALS_V2_TABS,

@@ -33,8 +33,8 @@ import {
   type CreateConfig,
   type UpdateConfig,
   updateConfigSchema,
-} from "@/src/features/score-configs/lib/upsertFormTypes";
-import { validateScoreConfigUpsertFormInput } from "@/src/features/score-configs/lib/validateScoreConfigUpsertFormInput";
+} from "../lib/upsertFormTypes";
+import { validateScoreConfigUpsertFormInput } from "../lib/validateScoreConfigUpsertFormInput";
 import { Trash } from "lucide-react";
 
 type SharedUpsertScoreConfigDialogContentProps = {

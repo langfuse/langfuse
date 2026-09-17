@@ -2,13 +2,13 @@ import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./button";
 import { ImageOff, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/src/utils/api";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Skeleton } from "./skeleton";
 import { useSession } from "next-auth/react";
 import { buildResizableImageSrc } from "./resizable-image.utils";
-import { getSafeImageUrl } from "@/src/components/ui/safe-url";
+import { getSafeImageUrl } from "./safe-url";
 
 export const COMPACT_IMAGE_MAX_HEIGHT_REM = 16;
 

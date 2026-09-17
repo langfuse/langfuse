@@ -11,10 +11,7 @@ import {
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
 } from "@langfuse/shared";
-import {
-  isEventTarget,
-  isExperimentTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+import { isEventTarget, isExperimentTarget } from "../utils/typeHelpers";
 import { parseTraceTimestampFromQuery } from "@/src/fns/parseTraceTimestampFromQuery/parseTraceTimestampFromQuery";
 
 export type EvalPreviewPointer = {

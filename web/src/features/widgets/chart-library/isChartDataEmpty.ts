@@ -1,4 +1,4 @@
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { type DataPoint } from "./chart-props";
 
 /**
  * Preparer (data -> visualiser seam): decides whether a chart has nothing

@@ -10,12 +10,12 @@ import {
   type DataPoint,
   getWidgetMissingBucketValue,
 } from "@/src/features/widgets";
-import { getScoreDimensionsForDataset } from "@/src/features/scores-chart-view/constants/scoreDimensions";
+import { getScoreDimensionsForDataset } from "../constants/scoreDimensions";
 import {
   getScoreMetricsForDataset,
   SCORE_METRICS,
-} from "@/src/features/scores-chart-view/constants/scoreMetrics";
-import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
+} from "../constants/scoreMetrics";
+import { VIEW_BY_DATASET } from "../constants/viewByDataset";
 import {
   type ScoreChartDataset,
   type ScoreChartViewConfig,
@@ -23,7 +23,7 @@ import {
   type ScoreDimensionKey,
   type ScoreMetricDef,
   type ScoreMetricKey,
-} from "@/src/features/scores-chart-view/types";
+} from "../types";
 
 /**
  * Everything that reads or derives from a `ScoreChartViewConfig` — one

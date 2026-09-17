@@ -9,12 +9,9 @@ import {
 import { type OrderByState } from "@langfuse/shared";
 import Decimal from "decimal.js";
 
-import {
-  DataTable,
-  type AsyncTableData,
-} from "@/src/components/table/data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import { DataTable, type AsyncTableData } from "./data-table";
+import { type LangfuseColumnDef } from "./types";
+import { type RowHeight } from "./data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

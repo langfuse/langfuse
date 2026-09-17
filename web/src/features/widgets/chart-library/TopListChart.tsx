@@ -1,11 +1,8 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import {
-  formatMetric,
-  toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
+import { type ChartProps } from "./chart-props";
+import { formatMetric, toFullMetricString } from "./utils";
 
 // Row rhythm: rows lay out top-aligned at up to MAX_ROW_PX each, shrink evenly
 // down to MIN_ROW_PX when the tile is tight, and scroll below that. Done with

@@ -11,7 +11,7 @@ import {
   readLegacyApiUsageCache,
   V4_TRANSITION_DETECTION_WINDOW_MS,
   type CachedLegacyApiUsageRow,
-} from "@/src/features/v4/server/v4TransitionCache";
+} from "./v4TransitionCache";
 
 export type LegacyApiUsageSummaryByProjectResultRow = {
   projectId: string;

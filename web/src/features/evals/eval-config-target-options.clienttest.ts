@@ -10,7 +10,7 @@ import {
   DEFAULT_OBSERVATION_FILTER,
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
   DEFAULT_TRACE_FILTER,
-} from "@/src/features/evals/utils/evaluator-constants";
+} from "./utils/evaluator-constants";
 
 describe("eval config target behavior", () => {
   it("should exclude all non-trace targets when selecting trace", () => {

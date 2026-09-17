@@ -1,4 +1,4 @@
-import { APITrace } from "@/src/features/public-api/types/traces";
+import { APITrace } from "./traces";
 import {
   deprecationResponseZod,
   paginationMetaResponseZod,

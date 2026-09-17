@@ -1,9 +1,9 @@
 /* eslint-disable @repo/no-exotic-operators */
 import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { ScoreOutlierBarStrip } from "@/src/features/scores-chart-view/components/ScoreOutlierBarStrip/ScoreOutlierBarStrip";
-import { prepareScoreOutlierSeries } from "@/src/features/scores-chart-view/fns/binning/scoreOutlierBinning";
-import { type ScoreOutlierBin } from "@/src/features/scores-chart-view/types";
+import { ScoreOutlierBarStrip } from "./ScoreOutlierBarStrip";
+import { prepareScoreOutlierSeries } from "../../fns/binning/scoreOutlierBinning";
+import { type ScoreOutlierBin } from "../../types";
 
 /**
  * Design surface for the outlier strip above the scores table — the scores

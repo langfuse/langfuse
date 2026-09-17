@@ -161,19 +161,6 @@ export default [
     },
   },
   {
-    name: "langfuse/web/allow-existing-abstracted-overlay-triggers",
-    files: [
-      "src/components/BatchExportTableButton.tsx",
-      "src/components/date-picker.tsx",
-      "src/components/deleteButton.tsx",
-      "src/components/nav/topbar-account.tsx",
-      "src/components/table/data-table-row-height-switch.tsx",
-    ],
-    rules: {
-      "@repo/no-abstracted-overlay-trigger": "off",
-    },
-  },
-  {
     ...tailwindcssRecommendedConfig,
     ignores: [
       ".storybook/**/*",

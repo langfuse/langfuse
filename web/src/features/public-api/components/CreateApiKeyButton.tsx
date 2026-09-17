@@ -4,8 +4,8 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { ApiKeyCreateDialogContent } from "@/src/features/public-api/components/ApiKeyCreateDialogContent";
+import { useLangfuseBaseUrl } from "../hooks/useLangfuseEnvCode";
+import { ApiKeyCreateDialogContent } from "./ApiKeyCreateDialogContent";
 
 type ApiKeyScope = "project" | "organization";
 

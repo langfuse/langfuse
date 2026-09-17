@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useEvalTemplate } from "@/src/features/evals/v2/hooks/useEvalTemplate";
+import { useEvalTemplate } from "../hooks/useEvalTemplate";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 function requestedEvaluatorType(value: string | string[] | undefined) {

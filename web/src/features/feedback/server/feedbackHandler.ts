@@ -1,4 +1,4 @@
-import { runFeedbackCorsMiddleware } from "@/src/features/feedback/server/corsMiddleware";
+import { runFeedbackCorsMiddleware } from "./corsMiddleware";
 import { sendToSlack } from "@/src/features/slack/server/slack-webhook";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";

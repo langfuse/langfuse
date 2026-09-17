@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   PeekTableStateProvider,
   usePeekTableState,
-} from "@/src/components/table/peek/contexts/PeekTableStateContext";
+} from "../peek/contexts/PeekTableStateContext";
 import { useFullTextSearch } from "./useFullTextSearch";
 
 const h = vi.hoisted(() => ({

@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type ExperimentItemScoreFilterOptions } from "@/src/features/experiments/types/charts";
+import { type ExperimentItemScoreFilterOptions } from "../types/charts";
 
 export type ScoreColumnDef = {
   name: string;

@@ -19,7 +19,7 @@ import {
   type VisibilityState,
   type RowSelectionState,
 } from "@tanstack/react-table";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { useExperimentNames } from "../../hooks/useExperimentNames";
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 

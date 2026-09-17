@@ -1,8 +1,8 @@
 import {
   throwIfNoOrganizationAccess,
   hasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+} from "../utils/checkOrganizationAccess";
+import { hasProjectAccess } from "../utils/checkProjectAccess";
 import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,

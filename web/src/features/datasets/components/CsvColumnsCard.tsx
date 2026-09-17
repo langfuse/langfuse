@@ -7,7 +7,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
-import type { CsvColumnPreview } from "@/src/features/datasets/lib/csv/types";
+import type { CsvColumnPreview } from "../lib/csv/types";
 
 function DraggableColumn({ column }: { column: CsvColumnPreview }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { SectionHeader } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SectionHeader/SectionHeader";
+import { SectionHeader } from "../../../Evaluators/Testing/components/SectionHeader/SectionHeader";
 
 export function TestSection({ content }: { content: ReactNode }) {
   return (

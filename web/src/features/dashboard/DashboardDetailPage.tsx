@@ -39,7 +39,7 @@ import {
   DashboardGrid,
   type DashboardPlacement,
 } from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { CloneFirstDialogController } from "./components/CloneFirstDialogController";
 import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
@@ -48,7 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
+import { EditDialogDashboardContent } from "./components/EditDialogDashboardContent";
 import { DialogController } from "@/src/components/ui/dialog";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
@@ -67,7 +67,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "./hooks/useDashboardQueryScheduler";
 import {
   parsePastedWidget,
   toWidgetCreateFields,
@@ -79,7 +79,7 @@ import {
   parseDashboardImport,
   parsePastedPreset,
   type ParsedDashboardImport,
-} from "@/src/features/dashboard/utils/dashboard-import-export";
+} from "./utils/dashboard-import-export";
 import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
 import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
@@ -87,7 +87,7 @@ import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboa
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
+import { useDashboardDefinitionDraft } from "./hooks/useDashboardDefinitionDraft";
 import {
   RouteParamsPendingFallback,
   useReadyRouteParams,

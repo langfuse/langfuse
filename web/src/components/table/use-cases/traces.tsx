@@ -1,10 +1,10 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { DataTable } from "@/src/components/table/data-table";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { DataTable } from "../data-table";
+import { DataTableToolbar } from "../data-table-toolbar";
 import {
   DataTableControlsProvider,
   DataTableControls,
-} from "@/src/components/table/data-table-controls";
+} from "../data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
@@ -15,8 +15,8 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
-import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { ResizableFilterLayout } from "../resizable-filter-layout";
+import { type LangfuseColumnDef } from "../types";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -53,17 +53,17 @@ import {
   type TracingSearchType,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
 } from "@langfuse/shared";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import { useRowHeightLocalStorage } from "../data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { ConnectedIOTableCell } from "../ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
+import { usePendingRowIds } from "../hooks/usePendingRowIds";
 import {
   isLiveTailTimeSort,
   usePaginationWindowPin,
-} from "@/src/components/table/hooks/usePaginationWindowPin";
-import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+} from "../hooks/usePaginationWindowPin";
+import { joinTableCoreAndMetrics } from "../utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
@@ -89,21 +89,21 @@ import {
 } from "@/src/features/filters/config/traces-config";
 import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TablePeekViewTraceDetail } from "../peek/peek-trace-detail";
+import { usePeekNavigation } from "../peek/hooks/usePeekNavigation";
+import { useTableViewManager } from "../table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "../table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFullTextSearch } from "./useFullTextSearch";
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
-} from "@/src/components/table/utils/refresh-intervals";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+} from "../utils/refresh-intervals";
+import { TableHeaderControls } from "../table-header-controls";
+import { usePeekTableState } from "../peek/contexts/PeekTableStateContext";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";

@@ -4,7 +4,7 @@ import type { Session } from "next-auth";
 import type { SessionContextValue } from "next-auth/react";
 import { useRouter } from "next/router";
 
-import { useAuthGuard } from "@/src/components/layouts/app-layout/hooks/useAuthGuard";
+import { useAuthGuard } from "./useAuthGuard";
 
 vi.mock("next/router", () => ({
   useRouter: vi.fn(),

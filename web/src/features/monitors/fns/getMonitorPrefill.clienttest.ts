@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getMonitorPrefill } from "@/src/features/monitors/fns/getMonitorPrefill";
+import { getMonitorPrefill } from "./getMonitorPrefill";
 
 const evaluatorFilters = [
   {

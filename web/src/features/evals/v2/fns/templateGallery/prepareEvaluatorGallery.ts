@@ -2,10 +2,10 @@ import type {
   CustomEvaluatorTemplate,
   GalleryNavigationItem,
   GallerySection,
-} from "@/src/features/evals/v2/types/templateGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
-import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
-import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+} from "../../types/templateGallery";
+import { getGalleryCategoryPresentation } from "./galleryCategoryPresentation";
+import { managedEvaluatorTemplateService } from "./managedEvaluatorTemplateService";
+import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "../../constants/evaluatorGallery";
 
 const RECOMMENDED_TEMPLATE_ORDER = [
   "topic-classifier",

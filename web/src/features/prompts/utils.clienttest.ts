@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { getPromptDetailHref } from "@/src/features/prompts/utils";
+import { getPromptDetailHref } from "./utils";
 
 describe("getPromptDetailHref", () => {
   it("builds the detail href for a plain prompt name", () => {

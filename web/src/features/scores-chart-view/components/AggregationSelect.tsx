@@ -8,11 +8,8 @@ import {
 } from "@/src/components/ui/select";
 import { AGGREGATION_LABELS } from "@/src/features/chart-view/vocab";
 import { type AggregationFn } from "@/src/features/chart-view/types";
-import { getScoreMetric } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
-import {
-  type ScoreChartDataset,
-  type ScoreMetricKey,
-} from "@/src/features/scores-chart-view/types";
+import { getScoreMetric } from "../fns/scoreChartConfig";
+import { type ScoreChartDataset, type ScoreMetricKey } from "../types";
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
 

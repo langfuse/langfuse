@@ -3,9 +3,9 @@ import {
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
-import { Button } from "@/src/components/ui/button";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { Button } from "./button";
+import { PrettyJsonView } from "./PrettyJsonView";
+import { MarkdownView } from "./MarkdownViewer";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useMemo, useState } from "react";

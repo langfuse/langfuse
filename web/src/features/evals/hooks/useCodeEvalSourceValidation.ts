@@ -5,7 +5,7 @@ import {
   type CodeEvalSourceCodeLanguage,
   type CodeEvalValidationResult,
   validateCodeEvalSourceWithLanguage,
-} from "@/src/features/evals/utils/code-eval-template-validation";
+} from "../utils/code-eval-template-validation";
 
 type UseCodeEvalSourceValidationParams = {
   enabled: boolean;

@@ -1,5 +1,5 @@
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { type PlaygroundSourcePrompt } from "@/src/features/playground/page/types";
+import { type PlaygroundSourcePrompt } from "../types";
 
 type SourcePromptHeadingProps = {
   sourcePrompt: PlaygroundSourcePrompt;

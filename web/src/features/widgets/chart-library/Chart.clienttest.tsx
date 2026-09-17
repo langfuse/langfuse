@@ -1,7 +1,7 @@
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { Chart } from "./Chart";
+import { type DataPoint } from "./chart-props";
 
 /**
  * Dispatcher integration coverage for the LFE-14333 empty-state guard: a unit

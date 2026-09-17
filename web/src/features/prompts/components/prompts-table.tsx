@@ -13,9 +13,9 @@ import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
-import { DeleteFolder } from "@/src/features/prompts/components/delete-folder";
-import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
+import { DeletePrompt } from "./delete-prompt";
+import { DeleteFolder } from "./delete-folder";
+import { DuplicateFolder } from "./duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
@@ -45,7 +45,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { PROMPTS_FIELD_REGISTRY } from "@/src/features/prompts/constants/promptsSearchRegistry";
+import { PROMPTS_FIELD_REGISTRY } from "../constants/promptsSearchRegistry";
 
 type PromptTableRow = {
   id: string;

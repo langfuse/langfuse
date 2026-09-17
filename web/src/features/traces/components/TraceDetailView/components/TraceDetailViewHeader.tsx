@@ -18,7 +18,7 @@ import {
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { DetailHeaderActionsMenuController } from "../../DetailHeaderActionsMenuController";
 import {
   ExistingDatasetItemsDropdownMenuController,
   NewDatasetItemFromExistingObjectDialogController,
@@ -34,9 +34,9 @@ import {
   VersionBadge,
   TargetTraceBadge,
 } from "../../TraceMetadataBadges";
-import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
+import { resolveEvalExecutionMetadata } from "../../../fns/resolveMetadata";
+import { useViewPreferences } from "../../../contexts/ViewPreferencesContext";
+import { CollapsibleBadgeRow } from "../../CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";
 import {

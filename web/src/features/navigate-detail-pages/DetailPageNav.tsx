@@ -7,10 +7,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import {
-  type ListEntry,
-  useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+import { type ListEntry, useDetailPageLists } from "./context";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";

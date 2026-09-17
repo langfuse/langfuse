@@ -25,24 +25,21 @@ import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
 import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
-import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
-import { useExperimentNameValidation } from "@/src/features/experiments/hooks/useExperimentNameValidation";
-import { useExperimentPromptData } from "@/src/features/experiments/hooks/useExperimentPromptData";
-import { getExistingEvaluators } from "@/src/features/experiments/hooks/useExperimentEvaluatorSelection";
-import { useExperimentV2EvaluatorSelection } from "@/src/features/experiments/hooks/useExperimentV2EvaluatorSelection";
+import { useEvaluatorDefaults } from "../hooks/useEvaluatorDefaults";
+import { useExperimentEvaluatorData } from "../hooks/useExperimentEvaluatorData";
+import { useExperimentNameValidation } from "../hooks/useExperimentNameValidation";
+import { useExperimentPromptData } from "../hooks/useExperimentPromptData";
+import { getExistingEvaluators } from "../hooks/useExperimentEvaluatorSelection";
+import { useExperimentV2EvaluatorSelection } from "../hooks/useExperimentV2EvaluatorSelection";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { showErrorToast } from "@/src/features/notifications";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  CreateExperimentData,
-  type CreateExperiment,
-} from "@/src/features/experiments/types";
+import { CreateExperimentData, type CreateExperiment } from "../types";
 import {
   generateDefaultExperimentName,
   generateDefaultExperimentDescription,
   generateDatasetRunName,
-} from "@/src/features/experiments/util";
+} from "../util";
 
 // Import step components
 import { PromptModelStep } from "./steps/PromptModelStep";
@@ -50,8 +47,8 @@ import { DatasetStep } from "./steps/DatasetStep";
 import { EvaluatorsStep } from "./steps/EvaluatorsStep";
 import { ExperimentDetailsStep } from "./steps/ExperimentDetailsStep";
 import { ReviewStep } from "./steps/ReviewStep";
-import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
-import { canNavigateToExperimentStep } from "@/src/features/experiments/fns/canNavigateToExperimentStep";
+import type { ExperimentEvaluatorAssignmentsHandle } from "./ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
+import { canNavigateToExperimentStep } from "../fns/canNavigateToExperimentStep";
 
 // Import step prop types
 import {

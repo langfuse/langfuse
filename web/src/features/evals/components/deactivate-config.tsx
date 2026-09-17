@@ -1,12 +1,12 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { EvaluatorStatus } from "@/src/features/evals/types";
+import { EvaluatorStatus } from "../types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { isLegacyEvalTarget } from "../utils/typeHelpers";
+import { useEvalCapabilities } from "../hooks/useEvalCapabilities";
 
 export function DeactivateEvalConfig({
   projectId,

@@ -1,10 +1,10 @@
 import { type ScoreDomain, type ScoreAggregate } from "@langfuse/shared";
-import { type CachedScore } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { type AnnotationScore } from "@/src/features/scores/types";
+import { type CachedScore } from "../contexts/ScoreCacheContext";
+import { type AnnotationScore } from "../types";
 import {
   composeAggregateScoreKey,
   toBooleanScoreValue,
-} from "@/src/features/scores/lib/aggregateScores";
+} from "./aggregateScores";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 /**

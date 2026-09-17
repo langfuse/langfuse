@@ -50,7 +50,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
-import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
+import { promptChangeEventSourcing } from "../promptChangeEventSourcing";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {

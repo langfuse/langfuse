@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { usePeekNavigation } from "./usePeekNavigation";
 
 const { mockPush, mockPathname, capture } = vi.hoisted(() => ({
   mockPush: vi.fn(),

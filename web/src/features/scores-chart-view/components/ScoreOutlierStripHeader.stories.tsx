@@ -1,6 +1,6 @@
 import { fn } from "storybook/test";
 import preview from "../../../../.storybook/preview";
-import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
+import { ScoreOutlierStripHeader } from "./ScoreOutlierStripHeader";
 
 /**
  * Design surface for the outlier strip's controls row — isolated from

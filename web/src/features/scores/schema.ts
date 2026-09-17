@@ -1,4 +1,4 @@
-import { ANNOTATION_SCORE_DATA_TYPES_ARRAY } from "@/src/features/scores/types";
+import { ANNOTATION_SCORE_DATA_TYPES_ARRAY } from "./types";
 import { z } from "zod";
 
 export const AnnotationScoreDataSchema = z.object({

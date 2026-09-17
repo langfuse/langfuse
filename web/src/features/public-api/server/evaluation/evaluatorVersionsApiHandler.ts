@@ -1,12 +1,12 @@
 import {
   createStablePublicApiRoute,
   withStablePublicApiMiddlewares,
-} from "@/src/features/public-api/server/stablePublicApiRoute";
+} from "../stablePublicApiRoute";
 import { listEvaluatorVersionsForPublicApi } from "./evaluatorApiService";
 import {
   ListEvaluatorVersionsQuery,
   ListEvaluatorVersionsResponse,
-} from "@/src/features/public-api/types/evaluation/evaluators";
+} from "../../types/evaluation/evaluators";
 
 export const evaluatorVersionsApiHandler = withStablePublicApiMiddlewares({
   GET: createStablePublicApiRoute({

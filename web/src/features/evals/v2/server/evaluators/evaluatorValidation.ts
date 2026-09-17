@@ -4,13 +4,13 @@ import {
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
-import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
-import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
+import { getEvaluatorDefinitionConfigurationError } from "../../../server/evaluator-preflight";
+import { getPromptMessagesValidationError } from "../../fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
-} from "@/src/features/evals/server/isCodeEvalEnabled";
-import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
+} from "../../../server/isCodeEvalEnabled";
+import { getJsonPathCompatibilityWarning } from "../../../utils/json-path-compatibility";
 import {
   EvaluatorConfigurationError,
   EvaluatorModelConfigurationError,

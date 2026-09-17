@@ -48,15 +48,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { PromptVariableEditor } from "@/src/features/evals/v2/components/Evaluators/Judges/PromptVariableEditor/PromptVariableEditor";
-import { preparePromptEditorState } from "@/src/features/evals/v2/fns/promptEditor/preparePromptEditorState";
+import { PromptVariableEditor } from "../../../../../Judges/PromptVariableEditor/PromptVariableEditor";
+import { preparePromptEditorState } from "../../../../../../../fns/promptEditor/preparePromptEditorState";
 import {
   EMPTY_PROMPT_MESSAGE_ERROR,
   INVALID_SYSTEM_PROMPT_MESSAGE_ERROR,
-} from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
-import { useEvaluatorSetupSample } from "@/src/features/evals/v2/hooks/useEvaluatorSetupSample";
+} from "../../../../../../../fns/promptMessages/hasInvalidSystemPromptMessage";
+import { useEvaluatorSetupSample } from "../../../../../../../hooks/useEvaluatorSetupSample";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 import { cn } from "@/src/utils/tailwind";
 import type { EvaluatorPromptMessage } from "@langfuse/shared";
 

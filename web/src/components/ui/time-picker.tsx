@@ -6,13 +6,9 @@ import { TimePickerInput } from "./time-picker-input";
 import { TimePeriodSelect } from "./time-period-select";
 import { type Period } from "./time-picker-utils";
 import { getTimezoneDetails, getShortLocalTimezone } from "@/src/utils/dates";
-import { TimeIcon } from "@/src/components/ui/time-icon";
+import { TimeIcon } from "./time-icon";
 import { cn } from "@/src/utils/tailwind";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 
 interface TimePickerProps {
   date: Date | undefined;

@@ -20,7 +20,7 @@ import {
   downloadWidgetJson,
   toWidgetCreateFields,
   type WidgetExportSource,
-} from "@/src/features/widgets/utils/import-export-utils";
+} from "../utils/import-export-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +32,7 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useRouter } from "next/router";
-import { getChartTypeDisplayName } from "@/src/features/widgets/chart-library/utils";
+import { getChartTypeDisplayName } from "../chart-library/utils";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type metricAggregations } from "@langfuse/shared/query";
 import { type z } from "zod";

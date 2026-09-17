@@ -6,15 +6,15 @@ import {
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
-import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
-import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
-import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
+import { RuleDialogFooter } from "../../../RuleDialogFooter/RuleDialogFooter";
+import { RuleSetup } from "../../../RuleSetup/RuleSetup";
+import { createRuleSetupStore } from "../../../../../stores/createRuleSetupStore";
+import { prepareModernRuleVariableMapping } from "../../../../../fns/variableMapping/prepareModernRuleVariableMapping";
+import type { RuleEvaluatorOption } from "../../../../../types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { getFilterAnalyticsProperties } from "../../../../../fns/getFilterAnalyticsProperties";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 

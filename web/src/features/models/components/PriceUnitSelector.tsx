@@ -14,8 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { PriceUnit } from "@/src/features/models/validation";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { PriceUnit } from "../validation";
+import { usePriceUnitMultiplier } from "../hooks/usePriceUnitMultiplier";
 
 export const PriceUnitSelector = () => {
   const { priceUnit, setPriceUnit } = usePriceUnitMultiplier();

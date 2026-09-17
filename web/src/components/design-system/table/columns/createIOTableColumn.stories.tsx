@@ -2,7 +2,7 @@ import preview from "../../../../../.storybook/preview";
 import { expect } from "storybook/test";
 
 import { MediaTag } from "@/src/components/MediaTag/MediaTag";
-import { type IOTableCellVariant } from "@/src/components/design-system/table/components/IOTableCell/IOTableCell";
+import { type IOTableCellVariant } from "../components/IOTableCell/IOTableCell";
 import {
   DataTable,
   type AsyncTableData,

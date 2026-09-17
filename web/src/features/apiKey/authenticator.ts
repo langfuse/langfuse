@@ -11,9 +11,9 @@ import { ContextResolver } from "@/src/features/auth/policy/contextResolver";
 import {
   parseAuthorizationHeader,
   type Credential,
-} from "@/src/features/apiKey/helpers/parseAuthorizationHeader";
-import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
-import { Verifier, invalidCredentials } from "@/src/features/apiKey/verifier";
+} from "./helpers/parseAuthorizationHeader";
+import { AuthenticatorCache } from "./authenticatorCache";
+import { Verifier, invalidCredentials } from "./verifier";
 import {
   forbiddenError,
   unauthorizedError,

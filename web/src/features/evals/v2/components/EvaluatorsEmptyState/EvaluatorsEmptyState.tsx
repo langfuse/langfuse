@@ -3,10 +3,10 @@ import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { DETECT_TOPICS_ASSISTANT_PROMPT } from "@/src/features/evals/v2/constants/evaluatorEmptyState";
+import { DETECT_TOPICS_ASSISTANT_PROMPT } from "../../constants/evaluatorEmptyState";
 import { EvaluatorsEmptyStateView } from "./components/EvaluatorsEmptyStateView/EvaluatorsEmptyStateView";
-import { prepareEvaluatorEmptyState } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorEmptyState";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import { prepareEvaluatorEmptyState } from "../../fns/templateGallery/prepareEvaluatorEmptyState";
+import type { GalleryTemplate } from "../../types/templateGallery";
 
 export function EvaluatorsEmptyState({
   onSelectTemplate,

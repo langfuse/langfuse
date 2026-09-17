@@ -1,4 +1,4 @@
-import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
+import { type ScoreComparisonOperator } from "../fns/scoreComparisonFilter";
 
 /**
  * Experiments-UI PostHog payloads. Metadata only — counts, enums, booleans,

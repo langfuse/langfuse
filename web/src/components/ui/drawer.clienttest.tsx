@@ -1,10 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerController,
-  DrawerTitle,
-} from "@/src/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerController, DrawerTitle } from "./drawer";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("Drawer", () => {

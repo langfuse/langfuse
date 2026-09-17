@@ -13,7 +13,7 @@ import {
   issueIcons,
   issueTextVariants,
   type IssueVariant,
-} from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner";
+} from "./components/IssueBanner";
 
 const STEP_FOR_FIELD: Record<string, DialogStep> = {
   input: "input-mapping",

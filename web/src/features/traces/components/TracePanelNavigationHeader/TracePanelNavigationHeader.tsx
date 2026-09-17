@@ -9,11 +9,11 @@
  * This component has a fixed height and uses shrink-0 to maintain size.
  */
 
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { type GraphUnavailableReason } from "@/src/features/traces/fns/graphAvailability";
+import { useSearch } from "../../contexts/SearchContext";
+import { useSelection } from "../../contexts/SelectionContext";
+import { useTraceData } from "../../contexts/TraceDataContext";
+import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
+import { type GraphUnavailableReason } from "../../fns/graphAvailability";
 import {
   Tooltip,
   TooltipContent,
@@ -51,9 +51,9 @@ import { TracePanelNavigationButton } from "./components/TracePanelNavigationBut
 import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
 import { toast } from "sonner";
-import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
+import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "../../constants/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 interface TracePanelNavigationHeaderProps {

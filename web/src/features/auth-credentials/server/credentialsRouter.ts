@@ -3,7 +3,7 @@ import {
   createTRPCRouter,
   publicProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
-import { consumeEmailOtpAndUpdatePassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
+import { consumeEmailOtpAndUpdatePassword } from "../lib/credentialsServerUtils";
 import { TRPCError } from "@trpc/server";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 

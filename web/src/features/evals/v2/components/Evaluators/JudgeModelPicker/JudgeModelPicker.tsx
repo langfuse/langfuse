@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/command";
 import { Popover, PopoverContent } from "@/src/components/ui/popover";
 import { selectTriggerClassName } from "@/src/components/ui/select";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import type { JudgeModel } from "../../../judgeModel";
 import { cn } from "@/src/utils/tailwind";
 
 type JudgeModelMode = "default" | "custom";

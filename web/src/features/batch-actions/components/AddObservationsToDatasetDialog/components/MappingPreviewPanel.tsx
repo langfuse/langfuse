@@ -7,10 +7,7 @@ import {
 } from "lucide-react";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  IssueList,
-  IssueItem,
-} from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/IssueBanner";
+import { IssueList, IssueItem } from "./IssueBanner";
 import type {
   FieldMappingConfig,
   SourceField,

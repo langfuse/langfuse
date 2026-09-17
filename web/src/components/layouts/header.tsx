@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 import Link from "next/link";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup from "./doc-popup";
 import { Badge } from "@/src/components/ui/badge";
 import {
   type Status,

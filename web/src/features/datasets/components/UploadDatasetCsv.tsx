@@ -7,10 +7,10 @@ import {
 } from "@/src/components/ui/card";
 import { showErrorToast } from "@/src/features/notifications";
 import { z } from "zod";
-import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
+import { parseCsvClient } from "../lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
 import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
-import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
+import type { CsvPreviewResult } from "../lib/csv/types";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
 const ACCEPTED_FILE_TYPES = ["text/csv"] as const;

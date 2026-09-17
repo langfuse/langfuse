@@ -1,7 +1,7 @@
 import { Pause, Play, Trash2 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { OverviewSelectionBar } from "@/src/features/evals/v2/components/OverviewSelectionBar/OverviewSelectionBar";
+import { OverviewSelectionBar } from "../../../../OverviewSelectionBar/OverviewSelectionBar";
 
 export function RulesOverviewSelectionBarView({
   selectedCount,

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { createEvaluatorSetupStore } from "../store/evaluatorSetupStore/evaluatorSetupStore";
 import {
   applyEvaluatorSuggestion,
   getEvaluatorVersionDefinition,

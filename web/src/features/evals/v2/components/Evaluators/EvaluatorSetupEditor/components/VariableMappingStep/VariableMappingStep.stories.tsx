@@ -1,7 +1,7 @@
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
-import { VariableMapping } from "@/src/features/evals/v2/components/VariableMapping/VariableMapping";
+import { VariableMapping } from "../../../../VariableMapping/VariableMapping";
 import { VariableMappingStep } from "./VariableMappingStep";
 
 const meta = preview.meta({ component: VariableMappingStep });

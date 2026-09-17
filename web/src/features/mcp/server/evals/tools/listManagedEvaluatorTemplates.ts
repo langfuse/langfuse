@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 import { managedEvaluatorTemplateService } from "@/src/features/evals";
-import { defineTool } from "@/src/features/mcp/core/define-tool";
-import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
+import { defineTool } from "../../../core/define-tool";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const ListManagedEvaluatorTemplatesInput = z.object({
   search: z.string().trim().max(200).optional(),

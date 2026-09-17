@@ -16,26 +16,26 @@ import {
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
-} from "@/src/features/v4-migration/V4MigrationContent";
+} from "./V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
-import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+import { V4MigrationStatusDot } from "./V4MigrationBadgeContent";
+import { useV4UpgradeUiEnabled } from "./useV4UpgradeUiEnabled";
+import { useOpenV4MigrationPanel } from "./hooks/useOpenV4MigrationPanel";
 import {
   useAccountV4MigrationData,
   type V4MigrationOrganization,
-} from "@/src/features/v4-migration/hooks/useV4MigrationData";
+} from "./hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
   type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
   type ProjectMigrationStatus,
-} from "@/src/features/v4-migration/migrationData";
-import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
-import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
+} from "./migrationData";
+import { PARTNER_INTEGRATION_FAQ_URL } from "./partnerIntegrationDocs";
+import { V4MigrationLoadingState } from "./V4MigrationLoadingState";
 import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";

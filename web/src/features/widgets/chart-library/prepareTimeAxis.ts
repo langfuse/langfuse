@@ -14,7 +14,7 @@
  * The exact date+time always lives in the tooltip, so nothing is lost.
  */
 
-import { getEvenTickInterval } from "@/src/features/widgets/chart-library/utils";
+import { getEvenTickInterval } from "./utils";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;

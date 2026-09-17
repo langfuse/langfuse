@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";
 import { CheckCircle2 } from "lucide-react";
-import { IntroSection } from "@/src/features/support-chat/IntroSection";
+import { IntroSection } from "./IntroSection";
 
 export function SuccessSection({ onAnother }: { onAnother: () => void }) {
   return (

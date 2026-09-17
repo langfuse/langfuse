@@ -1,8 +1,8 @@
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { useActiveCell } from "@/src/features/datasets/contexts/ActiveCellContext";
-import { useDatasetCompareFields } from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+import { useActiveCell } from "../contexts/ActiveCellContext";
+import { useDatasetCompareFields } from "../contexts/DatasetCompareFieldsContext";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
@@ -19,12 +19,12 @@ import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
+import { computeScoreDiffs } from "../lib/computeScoreDiffs";
 import { useMemo } from "react";
-import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
-import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
-import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
+import { type BaselineDiff } from "../lib/calculateBaselineDiff";
+import { DiffLabel } from "./DiffLabel";
+import { useResourceMetricsDiff } from "../hooks/useResourceMetricsDiff";
+import { NotFoundCard } from "./NotFoundCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const DatasetAggregateCellContent = ({

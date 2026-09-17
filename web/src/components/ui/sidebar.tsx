@@ -9,17 +9,17 @@ import { Menu, PanelLeft } from "lucide-react";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import { Separator } from "@/src/components/ui/separator";
-import { Sheet, SheetContent } from "@/src/components/ui/sheet";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Button } from "./button";
+import { Input } from "./input";
+import { Separator } from "./separator";
+import { Sheet, SheetContent } from "./sheet";
+import { Skeleton } from "./skeleton";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+} from "./tooltip";
 
 const SIDEBAR_STORAGE_KEY = "sidebar:state";
 const SIDEBAR_WIDTH = "11.5rem";

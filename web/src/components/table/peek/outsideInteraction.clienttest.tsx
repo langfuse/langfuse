@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { shouldKeepPeekOpenOnOutsideInteraction } from "@/src/components/table/peek";
+import { shouldKeepPeekOpenOnOutsideInteraction } from "./";
 
 // Build a detached element tree and return the deepest child as the event target.
 function targetWith(

@@ -14,6 +14,6 @@
 export {
   usePostHogClientCapture,
   V4_BETA_ENABLED_POSTHOG_PROPERTY,
-} from "@/src/features/posthog-analytics/usePostHogClientCapture";
+} from "./usePostHogClientCapture";
 
-export { isPostHogClientEnabled } from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+export { isPostHogClientEnabled } from "./productAnalyticsAvailability";
