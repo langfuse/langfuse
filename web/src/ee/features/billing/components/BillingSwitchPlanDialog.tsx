@@ -468,14 +468,7 @@ function PlanCardAction({
         </Button>
       );
     }
-    return (
-      <StripeCancellationButton
-        orgId={orgId}
-        variant="secondary"
-        className="w-full"
-        label={downgradeLabel}
-      />
-    );
+    return <div className="h-9" aria-hidden="true" />;
   }
 
   if (!productId) {
@@ -507,20 +500,11 @@ function PlanCardAction({
       );
     }
     return (
-      <div className="flex flex-col gap-2">
-        <Button className="w-full" disabled>
-          {!hasValidPaymentMethod && currentProductId
-            ? "Payment method required"
-            : "Current plan"}
-        </Button>
-        {currentProductId ? (
-          <StripeCancellationButton
-            orgId={orgId}
-            variant="secondary"
-            className="w-full"
-          />
-        ) : null}
-      </div>
+      <Button className="w-full" disabled>
+        {!hasValidPaymentMethod && currentProductId
+          ? "Payment method required"
+          : "Current plan"}
+      </Button>
     );
   }
 

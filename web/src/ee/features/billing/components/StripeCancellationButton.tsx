@@ -20,12 +20,10 @@ export const StripeCancellationButton = ({
   orgId,
   variant,
   className,
-  label,
 }: {
   orgId: string | undefined;
   variant: "secondary" | "default";
   className?: string;
-  label?: string;
 }) => {
   const { cancellation } = useBillingInformation();
   const [loading, setLoading] = useState(false);
@@ -103,7 +101,7 @@ export const StripeCancellationButton = ({
             title="Reactivate Subscription"
             className={className}
           >
-            {loading ? "Working…" : (label ?? "Reactivate Subscription")}
+            {loading ? "Working…" : "Reactivate Subscription"}
           </Button>
         </DialogTrigger>
         <DialogContent>
@@ -146,7 +144,7 @@ export const StripeCancellationButton = ({
           title="Cancel Subscription"
           className={className}
         >
-          {label ?? "Cancel Subscription"}
+          Cancel Subscription
         </Button>
       </DialogTrigger>
       <DialogContent>
