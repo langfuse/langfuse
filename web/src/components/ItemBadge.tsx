@@ -148,7 +148,10 @@ export function ItemBadge({
         // size would apply to the height alone.
         showLabel
           ? "px-1"
-          : cn("max-w-none justify-center p-0", isSmall ? "size-4" : "size-6"),
+          : cn(
+              "max-w-none justify-center border-transparent p-0",
+              isSmall ? "size-4" : "size-6",
+            ),
         isSmall && showLabel && "h-4",
       )}
     >
