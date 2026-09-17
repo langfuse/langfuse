@@ -217,7 +217,11 @@ export function MultiSelect({
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} variant="bottom" />
+          <InputCommandInput
+            placeholder={title}
+            variant="bottom"
+            disabled={isLoading}
+          />
           <InputCommandList>
             {isLoading && (
               <div
@@ -235,7 +239,11 @@ export function MultiSelect({
             <InputCommandGroup>
               {showSelectAll && (
                 <>
-                  <InputCommandItem key="select-all" onSelect={handleSelectAll}>
+                  <InputCommandItem
+                    key="select-all"
+                    onSelect={handleSelectAll}
+                    disabled={isLoading}
+                  >
                     <div
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
@@ -266,6 +274,7 @@ export function MultiSelect({
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    disabled={isLoading}
                     onSelect={() => {
                       if (isSelected) {
                         selectedValues.delete(option.value);
@@ -321,6 +330,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandItem
                   key="freeTextField"
+                  disabled={isLoading}
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
                       isCustomSelectEnabled,
@@ -356,6 +366,7 @@ export function MultiSelect({
                   </div>
                   <Input
                     type="text"
+                    disabled={isLoading}
                     value={freeText}
                     onChange={(e) => {
                       setFreeText(e.target.value);
@@ -380,6 +391,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandGroup>
                   <InputCommandItem
+                    disabled={isLoading}
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >
