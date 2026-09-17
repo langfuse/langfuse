@@ -209,8 +209,6 @@ export const CATALOG: CatalogEntry[] = [
   },
   {
     // Tuple IN-subquery: `(trace_id, observation_id) IN (SELECT …)`.
-    // The same shape the prompt-score aggregator uses to prefilter scores
-    // to prompt-event identifiers before the JOIN.
     id: "tuple_in_subquery",
     tier: 2,
     referenceSql: `
