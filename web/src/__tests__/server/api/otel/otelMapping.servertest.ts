@@ -87,6 +87,268 @@ async function convertOtelSpanToIngestionEvent(
 }
 
 describe("OTel Resource Span Mapping", () => {
+  describe("Mastra model step accounting", () => {
+    const usage = {
+      input_tokens: 30,
+      output_tokens: 10,
+      cache_read_input_tokens: 20,
+      cache_creation_input_tokens: 12,
+      cache_creation: {
+        ephemeral_5m_input_tokens: 7,
+        ephemeral_1h_input_tokens: 5,
+      },
+      output_tokens_details: { thinking_tokens: 3 },
+    };
+
+    function buildSpan(
+      body: unknown = { usage },
+      standardUsage: Record<string, string | number> = {},
+      scopeName = "@mastra/langfuse",
+      modelMetadata = { modelId: "test-model", modelProvider: "anthropic" },
+    ) {
+      const attributes = (values: Record<string, unknown>) =>
+        Object.entries(values).map(([key, value]) => ({
+          key,
+          value:
+            typeof value === "number"
+              ? { intValue: value }
+              : {
+                  stringValue:
+                    typeof value === "string" ? value : JSON.stringify(value),
+                },
+        }));
+      return {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: scopeName, version: "1.5.7" },
+            spans: [
+              {
+                traceId: Buffer.from("2cce18f7e8cd065a0b4e634eef728391", "hex"),
+                spanId: Buffer.from("57f0255417974100", "hex"),
+                name: "model_generation",
+                kind: 1,
+                startTimeUnixNano: "1770000000000000000",
+                endTimeUnixNano: "1770000001000000000",
+                attributes: attributes({
+                  "mastra.span.type": "model_generation",
+                  "gen_ai.operation.name": "chat",
+                  "gen_ai.provider.name": "anthropic",
+                  "gen_ai.request.model": "test-model",
+                  "gen_ai.usage.input_tokens": 62,
+                  "gen_ai.usage.output_tokens": 10,
+                  "langfuse.observation.cost_details": { total: 1 },
+                }),
+                status: {},
+              },
+              {
+                traceId: Buffer.from("2cce18f7e8cd065a0b4e634eef728391", "hex"),
+                spanId: Buffer.from("57f0255417974101", "hex"),
+                parentSpanId: Buffer.from("57f0255417974100", "hex"),
+                name: "model_step",
+                kind: 1,
+                startTimeUnixNano: "1770000000000000000",
+                endTimeUnixNano: "1770000001000000000",
+                attributes: attributes({
+                  "mastra.span.type": "model_step",
+                  "gen_ai.operation.name": "model_step",
+                  "mastra.metadata.modelMetadata": modelMetadata,
+                  "mastra.metadata.body": body,
+                  ...standardUsage,
+                }),
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+    }
+
+    it("counts step usage once and suppresses parent accounting in both ingestion paths", async () => {
+      const resourceSpan = buildSpan();
+      const expectedUsage = {
+        input: 30,
+        output: 7,
+        input_cached_tokens: 20,
+        input_cache_creation: 0,
+        input_cache_creation_5m: 7,
+        input_cache_creation_1h: 5,
+        output_reasoning_tokens: 3,
+      };
+      const eventInputs = createTestOtelProcessor().processToEvent([
+        resourceSpan,
+      ]);
+      expect(eventInputs[0]).toMatchObject({
+        providedUsageDetails: {},
+        providedCostDetails: {},
+      });
+      expect(eventInputs[0].modelName).toBeUndefined();
+      expect(eventInputs[1].providedUsageDetails).toEqual(expectedUsage);
+      const observations = (
+        await convertOtelSpanToIngestionEvent(resourceSpan, new Set())
+      ).filter((event) => event.type !== "trace-create");
+      expect(observations[0].body).toMatchObject({
+        usageDetails: {},
+        costDetails: {},
+      });
+      expect(observations[0].body.model).toBeUndefined();
+      expect(observations[1].body.usageDetails).toEqual(expectedUsage);
+    });
+
+    it.each([
+      {
+        name: "Responses",
+        usage: {
+          input_tokens: 1079,
+          input_tokens_details: { cached_tokens: 0, cache_write_tokens: 0 },
+          output_tokens: 38,
+          output_tokens_details: { reasoning_tokens: 0 },
+          total_tokens: 1117,
+        },
+        expectedUsage: {
+          input: 1079,
+          output: 38,
+          input_cached_tokens: 0,
+          input_cache_creation: 0,
+          output_reasoning_tokens: 0,
+          total: 1117,
+        },
+      },
+      {
+        name: "Responses with cache and reasoning tokens",
+        usage: {
+          input_tokens: 1079,
+          input_tokens_details: { cached_tokens: 100, cache_write_tokens: 50 },
+          output_tokens: 38,
+          output_tokens_details: { reasoning_tokens: 8 },
+          total_tokens: 1117,
+        },
+        expectedUsage: {
+          input: 929,
+          output: 30,
+          input_cached_tokens: 100,
+          input_cache_creation: 50,
+          output_reasoning_tokens: 8,
+          total: 1117,
+        },
+      },
+      {
+        name: "Chat Completions",
+        usage: {
+          prompt_tokens: 1000,
+          prompt_tokens_details: { cached_tokens: 200 },
+          completion_tokens: 100,
+          completion_tokens_details: { reasoning_tokens: 25 },
+          total_tokens: 1100,
+        },
+        expectedUsage: {
+          input: 800,
+          output: 75,
+          input_cached_tokens: 200,
+          output_reasoning_tokens: 25,
+          total: 1100,
+        },
+      },
+    ])(
+      "extracts OpenAI $name step accounting in both ingestion paths",
+      async ({ usage, expectedUsage }) => {
+        const resourceSpan = buildSpan({ usage }, {}, "@mastra/langfuse", {
+          modelId: "gpt-5.4",
+          modelProvider: "openai",
+        });
+        const events = createTestOtelProcessor().processToEvent([resourceSpan]);
+        expect(events[0]).toMatchObject({
+          providedUsageDetails: {},
+          providedCostDetails: {},
+        });
+        expect(events[0].modelName).toBeUndefined();
+        expect(events[1].modelName).toBe("gpt-5.4");
+        expect(events[1].providedUsageDetails).toEqual(expectedUsage);
+
+        const observations = (
+          await convertOtelSpanToIngestionEvent(resourceSpan, new Set())
+        ).filter((event) => event.type !== "trace-create");
+        expect(observations[0].body).toMatchObject({
+          usageDetails: {},
+          costDetails: {},
+        });
+        expect(observations[0].body.model).toBeUndefined();
+        expect(observations[1].body.model).toBe("gpt-5.4");
+        expect(observations[1].body.usageDetails).toEqual(expectedUsage);
+      },
+    );
+
+    it("extracts the Mastra model using the instrumentation scope in both ingestion paths", async () => {
+      const resourceSpan = buildSpan();
+      const events = createTestOtelProcessor().processToEvent([resourceSpan]);
+      expect(events[1].modelName).toBe("test-model");
+      expect(events[0].modelName).toBeUndefined();
+
+      const observations = (
+        await convertOtelSpanToIngestionEvent(resourceSpan, new Set())
+      ).filter((event) => event.type !== "trace-create");
+      expect(observations[1].body.model).toBe("test-model");
+      expect(observations[0].body.model).toBeUndefined();
+    });
+
+    it("prefers standard model and usage over raw response metadata", () => {
+      const events = createTestOtelProcessor().processToEvent([
+        buildSpan(
+          { usage },
+          {
+            "gen_ai.usage.input_tokens": 4,
+            "gen_ai.usage.output_tokens": 2,
+            "gen_ai.response.model": "response-model",
+          },
+        ),
+      ]);
+      expect(events[1].providedUsageDetails).toEqual({ input: 4, output: 2 });
+      expect(events[1].modelName).toBe("response-model");
+    });
+
+    it.each([
+      "not-json",
+      { usage: { input_tokens: "invalid", output_tokens: -1 } },
+    ])("ignores malformed Mastra response usage: %j", (body) => {
+      const events = createTestOtelProcessor().processToEvent([
+        buildSpan(body),
+      ]);
+      expect(events[1].providedUsageDetails ?? {}).toEqual({});
+    });
+
+    it("suppresses aggregate usage for other Mastra providers", () => {
+      const resourceSpan = buildSpan();
+      const provider = resourceSpan.scopeSpans[0].spans[0].attributes.find(
+        ({ key }) => key === "gen_ai.provider.name",
+      )!;
+      provider.value = { stringValue: "openai" };
+      const event = createTestOtelProcessor().processToEvent([resourceSpan])[0];
+      expect(event.modelName).toBeUndefined();
+      expect(event.providedUsageDetails ?? {}).toEqual({});
+    });
+
+    it("retains model-call usage for ordinary chat spans", async () => {
+      const resourceSpan = buildSpan();
+      resourceSpan.scopeSpans[0].scope!.name = "ordinary-sdk";
+      resourceSpan.scopeSpans[0].spans = [resourceSpan.scopeSpans[0].spans[0]];
+      resourceSpan.scopeSpans[0].spans[0].attributes =
+        resourceSpan.scopeSpans[0].spans[0].attributes.filter(
+          ({ key }) => key !== "mastra.span.type",
+        );
+      const event = createTestOtelProcessor().processToEvent([resourceSpan])[0];
+      expect(event.modelName).toBe("test-model");
+      expect(event.providedUsageDetails).toEqual({ input: 62, output: 10 });
+      const observations = (
+        await convertOtelSpanToIngestionEvent(resourceSpan, new Set())
+      ).filter((entry) => entry.type !== "trace-create");
+      expect(observations[0].body.model).toBe("test-model");
+      expect(observations[0].body.usageDetails).toEqual({
+        input: 62,
+        output: 10,
+      });
+    });
+  });
+
   describe("Langfuse OTEL SDK spans", () => {
     const publicKey = "pk-lf-1234567890";
 
