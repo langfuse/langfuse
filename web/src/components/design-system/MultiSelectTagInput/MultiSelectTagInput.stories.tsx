@@ -136,7 +136,8 @@ export const TestSelectsOption = meta.story({
     const canvas = within(canvasElement);
     const body = within(canvasElement.ownerDocument.body);
 
-    await userEvent.click(canvas.getByRole("combobox"));
+    canvas.getByRole("combobox").focus();
+    await userEvent.keyboard("{Enter}");
     await userEvent.click(body.getByRole("option", { name: "Option 2" }));
     await expect(args.onValueChange).toHaveBeenCalledWith([
       "option-1",

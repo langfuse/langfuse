@@ -162,6 +162,15 @@ export function MultiSelectTagInput<V extends string>({
             }}
             onKeyDown={(event) => {
               if (disabled) return;
+
+              if (event.target !== event.currentTarget) return;
+
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setOpen((currentOpen) => !currentOpen);
+                return;
+              }
+
               if (event.key === "Backspace" && value.length > 0) {
                 event.preventDefault();
                 const lastValue = value.at(-1);
@@ -300,7 +309,7 @@ export function MultiSelectTagInput<V extends string>({
                         </InputDropdown.Option>
                       )}
                       {selectAllLabel && options.length > 0 && (
-                        <div className="bg-border my-1 h-px" />
+                        <CommandPrimitive.Separator className="bg-border my-1 h-px" />
                       )}
                       {options.map((option) => {
                         const isSelected = value.includes(option.value);
