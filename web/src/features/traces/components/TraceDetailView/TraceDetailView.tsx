@@ -34,6 +34,7 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
+import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -397,6 +398,12 @@ export function TraceDetailView({
                     : "overflow-auto pb-4"
                 }`}
               >
+                {isAnnotationMode && trace.tags.length > 0 && (
+                  <div className="space-y-1 px-2 pt-1 pb-2">
+                    <div className="text-sm font-bold">Tags</div>
+                    <TagList selectedTags={trace.tags} isLoading={false} />
+                  </div>
+                )}
                 {/* I/O Preview (includes metadata in both views) */}
                 <IOPreview
                   key={trace.id + "-io"}
