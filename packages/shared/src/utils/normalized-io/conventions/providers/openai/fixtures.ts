@@ -1,3 +1,4 @@
+import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
 const toolCallId = "call_weather_001";
@@ -890,3 +891,298 @@ export const openAiResponsesBuiltInToolsAndMediaFixture = {
     ],
   },
 } satisfies NormalizedIOFixture;
+
+// Verbatim stored observation IO from ChatML integration-example exports.
+// Expected messages are authored from source payloads, not normalizer snapshots.
+export const capturedTraceFixtures: NormalizedIOFixture[] = [
+  // Source: trace-0f753b8399bd1b851dbf1cd50c72ae8e.json; observation f70b1fe64fb2914a.
+  // Anonymized gateway Responses capture: structure and IDs preserved; prompt, conversation,
+  // command, reasoning text, and opaque encrypted content replaced with sample values.
+  {
+    name: "anonymized openai-responses trace-0f753b8399bd1b851dbf1cd50c72ae8e.json / f70b1fe64fb2914a",
+    spanIO: {
+      input:
+        '{"input":[{"content":"You are a coding assistant helping with a sample Python project. Read files, inspect code, and explain your findings clearly. Use the available read, bash, edit, and write tools as needed. The project is located at /Users/developer/projects/example-python. Follow the project instructions in AGENTS.md and keep changes focused.","role":"developer"},{"content":[{"text":"Hello","type":"input_text"}],"role":"user"},{"content":[{"annotations":[],"text":"Hello! What would you like to work on?","type":"output_text"}],"id":"msg_01989159bdac1f03016aaac3a0c7e087d29860c072b72b9bc5","phase":"final_answer","role":"assistant","status":"completed","type":"message"},{"content":[{"text":"Explain how the retry decorator works.","type":"input_text"}],"role":"user"}],"tools":[{"description":"Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.","name":"read","parameters":{"properties":{"limit":{"description":"Maximum number of lines to read","type":"number"},"offset":{"description":"Line number to start reading from (1-indexed)","type":"number"},"path":{"description":"Path to the file to read (relative or absolute)","type":"string"}},"required":["path"],"type":"object"},"type":"function"},{"description":"Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.","name":"bash","parameters":{"properties":{"command":{"description":"Shell command to execute","type":"string"},"timeout":{"description":"Timeout in seconds (optional, no default timeout)","type":"number"}},"required":["command"],"type":"object"},"type":"function"},{"description":"Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.","name":"edit","parameters":{"properties":{"edits":{"description":"One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.","items":{"properties":{"newText":{"description":"Replacement text for this targeted edit.","type":"string"},"oldText":{"description":"Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.","type":"string"}},"required":["oldText","newText"],"type":"object"},"type":"array"},"path":{"description":"Path to the file to edit (relative or absolute)","type":"string"}},"required":["path","edits"],"type":"object"},"type":"function"},{"description":"Write content to a file. Creates the file if it doesn\'t exist, overwrites if it does. Automatically creates parent directories.","name":"write","parameters":{"properties":{"content":{"description":"Content to write to the file","type":"string"},"path":{"description":"Path to the file to write (relative or absolute)","type":"string"}},"required":["path","content"],"type":"object"},"type":"function"}]}',
+      output:
+        '[{"content":[],"encrypted_content":"anonymized-encrypted-reasoning","id":"rs_01989159bdac1f03016aaac3e381b887d2ab6730f292a7a587","summary":[{"text":"**Inspecting the implementation**\\n\\nI will search the sample project for the retry decorator and its tests, then explain how it handles failed calls.","type":"summary_text"}],"type":"reasoning"},{"arguments":"{\\"command\\":\\"rg -n \\\\\\"def retry|retry\\\\\\" example_sdk tests/unit | head -80\\",\\"timeout\\":10}","call_id":"call_0mE4wfJ7mEy41Nj9HfXjidem","id":"fc_01989159bdac1f03016aaac3e49de487d29427a84b52330077","name":"bash","status":"completed","type":"function_call"}]',
+      metadata: {
+        "langfuse.gateway.provider.response_id":
+          "resp_01989159bdac1f03016aaac3e2b53887d2bf05419f5a5c9409",
+        "langfuse.gateway.provider.request_id":
+          "req_3bc6e7143cb747cc80876011ee0ac473",
+        "langfuse.gateway.provider.request.prompt_cache_key":
+          "01a0ab0a-84b2-7775-866d-e0a8ddf0e3b8",
+        "langfuse.gateway.provider.connection_id": "cmu3uqinh0004ad0ld88jrfe9",
+        "langfuse.gateway.project_id": "cmtvtpilr0004ad0lxphzbd5i",
+        "langfuse.gateway.organization_id": "cmtvmaywg0000ad0ly0x9tono",
+        "langfuse.gateway.ingestion_mode": "full",
+        "langfuse.gateway.api_format": "openai.responses",
+        "langfuse.gateway.api-key.id": "cmu3uqwsb0007ad0lwaua4ezv",
+        http_status: 200,
+        "scope.version": "0.1.0",
+        "scope.name": "langfuse-ai-gateway",
+        "resourceAttributes.service.name": "langfuse-ai-gateway",
+      },
+    },
+    expected: {
+      messages: [
+        expect.objectContaining({
+          source: "input",
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              text: "You are a coding assistant helping with a sample Python project. Read files, inspect code, and explain your findings clearly. Use the available read, bash, edit, and write tools as needed. The project is located at /Users/developer/projects/example-python. Follow the project instructions in AGENTS.md and keep changes focused.",
+            },
+          ],
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "user",
+          parts: [{ type: "text", text: "Hello" }],
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "assistant",
+          parts: [
+            { type: "text", text: "Hello! What would you like to work on?" },
+          ],
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "user",
+          parts: [
+            { type: "text", text: "Explain how the retry decorator works." },
+          ],
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              content: {
+                kind: "text",
+                text: "**Inspecting the implementation**\n\nI will search the sample project for the retry decorator and its tests, then explain how it handles failed calls.",
+              },
+            },
+            {
+              type: "reasoning",
+              content: {
+                kind: "encrypted",
+                data: "anonymized-encrypted-reasoning",
+              },
+            },
+          ],
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_0mE4wfJ7mEy41Nj9HfXjidem",
+              toolName: "bash",
+              input: {
+                command:
+                  'rg -n "def retry|retry" example_sdk tests/unit | head -80',
+                timeout: 10,
+              },
+              toolType: "function_call",
+              providerMetadata: { status: "completed" },
+            },
+          ],
+        }),
+      ],
+      toolDefinitions: [
+        {
+          name: "read",
+          description:
+            "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+          inputSchema: {
+            properties: {
+              limit: {
+                description: "Maximum number of lines to read",
+                type: "number",
+              },
+              offset: {
+                description: "Line number to start reading from (1-indexed)",
+                type: "number",
+              },
+              path: {
+                description: "Path to the file to read (relative or absolute)",
+                type: "string",
+              },
+            },
+            required: ["path"],
+            type: "object",
+          },
+          type: "function",
+        },
+        {
+          name: "bash",
+          description:
+            "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+          inputSchema: {
+            properties: {
+              command: {
+                description: "Shell command to execute",
+                type: "string",
+              },
+              timeout: {
+                description:
+                  "Timeout in seconds (optional, no default timeout)",
+                type: "number",
+              },
+            },
+            required: ["command"],
+            type: "object",
+          },
+          type: "function",
+        },
+        {
+          name: "edit",
+          description:
+            "Edit a single file using exact text replacement. Every edits[].oldText must match a unique, non-overlapping region of the original file. If two changes affect the same block or nearby lines, merge them into one edit instead of emitting overlapping edits. Do not include large unchanged regions just to connect distant changes.",
+          inputSchema: {
+            properties: {
+              edits: {
+                description:
+                  "One or more targeted replacements. Each edit is matched against the original file, not incrementally. Do not include overlapping or nested edits. If two changes touch the same block or nearby lines, merge them into one edit instead.",
+                items: {
+                  properties: {
+                    newText: {
+                      description: "Replacement text for this targeted edit.",
+                      type: "string",
+                    },
+                    oldText: {
+                      description:
+                        "Exact text for one targeted replacement. It must be unique in the original file and must not overlap with any other edits[].oldText in the same call.",
+                      type: "string",
+                    },
+                  },
+                  required: ["oldText", "newText"],
+                  type: "object",
+                },
+                type: "array",
+              },
+              path: {
+                description: "Path to the file to edit (relative or absolute)",
+                type: "string",
+              },
+            },
+            required: ["path", "edits"],
+            type: "object",
+          },
+          type: "function",
+        },
+        {
+          name: "write",
+          description:
+            "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.",
+          inputSchema: {
+            properties: {
+              content: {
+                description: "Content to write to the file",
+                type: "string",
+              },
+              path: {
+                description: "Path to the file to write (relative or absolute)",
+                type: "string",
+              },
+            },
+            required: ["path", "content"],
+            type: "object",
+          },
+          type: "function",
+        },
+      ],
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/openai-agents-2025-09-30.trace.json; observation 90d94774e8e3724d
+  {
+    name: "verbatim openai-agents-2025-09-30.trace.json / 90d94774e8e3724d",
+    spanIO: {
+      input:
+        '[{"content": "What\'s the weather in Tokyo?", "role": "user"}, {"arguments": "{\\"city\\":\\"Tokyo\\"}", "call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn", "name": "get_weather", "type": "function_call", "id": "fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76", "status": "completed"}, {"call_id": "call_Kud0j0DxWSmLzv9W5m6qVqXn", "output": "The weather in Tokyo is sunny.", "type": "function_call_output"}]',
+      output:
+        '{"id":"resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40","created_at":1759223041.0,"error":null,"incomplete_details":null,"instructions":"You are a helpful agent.","metadata":{},"model":"gpt-4.1-2025-04-14","object":"response","output":[{"id":"msg_0f00ca5b7e22bb4c0068db9d019a78819d9fe1e4d3b6c96b68","content":[{"annotations":[],"text":"The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!","type":"output_text","logprobs":[]}],"role":"assistant","status":"completed","type":"message"}],"parallel_tool_calls":true,"temperature":1.0,"tool_choice":"auto","tools":[{"name":"get_weather","parameters":{"properties":{"city":{"title":"City","type":"string"}},"required":["city"],"title":"get_weather_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":null}],"top_p":1.0,"background":false,"conversation":null,"max_output_tokens":null,"max_tool_calls":null,"previous_response_id":null,"prompt":null,"prompt_cache_key":null,"reasoning":{"effort":null,"generate_summary":null,"summary":null},"safety_identifier":null,"service_tier":"default","status":"completed","text":{"format":{"type":"text"},"verbosity":"medium"},"top_logprobs":0,"truncation":"disabled","usage":{"input_tokens":85,"input_tokens_details":{"cached_tokens":0},"output_tokens":29,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":114},"user":null,"billing":{"payer":"developer"},"store":true}',
+      metadata:
+        '{"attributes":{"llm.system":"openai","output.mime_type":"application/json","output.value":"{\\"id\\":\\"resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40\\",\\"created_at\\":1759223041.0,\\"error\\":null,\\"incomplete_details\\":null,\\"instructions\\":\\"You are a helpful agent.\\",\\"metadata\\":{},\\"model\\":\\"gpt-4.1-2025-04-14\\",\\"object\\":\\"response\\",\\"output\\":[{\\"id\\":\\"msg_0f00ca5b7e22bb4c0068db9d019a78819d9fe1e4d3b6c96b68\\",\\"content\\":[{\\"annotations\\":[],\\"text\\":\\"The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!\\",\\"type\\":\\"output_text\\",\\"logprobs\\":[]}],\\"role\\":\\"assistant\\",\\"status\\":\\"completed\\",\\"type\\":\\"message\\"}],\\"parallel_tool_calls\\":true,\\"temperature\\":1.0,\\"tool_choice\\":\\"auto\\",\\"tools\\":[{\\"name\\":\\"get_weather\\",\\"parameters\\":{\\"properties\\":{\\"city\\":{\\"title\\":\\"City\\",\\"type\\":\\"string\\"}},\\"required\\":[\\"city\\"],\\"title\\":\\"get_weather_args\\",\\"type\\":\\"object\\",\\"additionalProperties\\":false},\\"strict\\":true,\\"type\\":\\"function\\",\\"description\\":null}],\\"top_p\\":1.0,\\"background\\":false,\\"conversation\\":null,\\"max_output_tokens\\":null,\\"max_tool_calls\\":null,\\"previous_response_id\\":null,\\"prompt\\":null,\\"prompt_cache_key\\":null,\\"reasoning\\":{\\"effort\\":null,\\"generate_summary\\":null,\\"summary\\":null},\\"safety_identifier\\":null,\\"service_tier\\":\\"default\\",\\"status\\":\\"completed\\",\\"text\\":{\\"format\\":{\\"type\\":\\"text\\"},\\"verbosity\\":\\"medium\\"},\\"top_logprobs\\":0,\\"truncation\\":\\"disabled\\",\\"usage\\":{\\"input_tokens\\":85,\\"input_tokens_details\\":{\\"cached_tokens\\":0},\\"output_tokens\\":29,\\"output_tokens_details\\":{\\"reasoning_tokens\\":0},\\"total_tokens\\":114},\\"user\\":null,\\"billing\\":{\\"payer\\":\\"developer\\"},\\"store\\":true}","llm.tools.0.tool.json_schema":"{\\"type\\": \\"function\\", \\"function\\": {\\"name\\": \\"get_weather\\", \\"description\\": null, \\"parameters\\": {\\"properties\\": {\\"city\\": {\\"title\\": \\"City\\", \\"type\\": \\"string\\"}}, \\"required\\": [\\"city\\"], \\"title\\": \\"get_weather_args\\", \\"type\\": \\"object\\", \\"additionalProperties\\": false}, \\"strict\\": true}}","llm.token_count.completion":"29","llm.token_count.prompt":"85","llm.token_count.total":"114","llm.token_count.prompt_details.cache_read":"0","llm.token_count.completion_details.reasoning":"0","llm.output_messages.0.message.role":"assistant","llm.output_messages.0.message.contents.0.message_content.type":"text","llm.output_messages.0.message.contents.0.message_content.text":"The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!","llm.input_messages.0.message.role":"system","llm.input_messages.0.message.content":"You are a helpful agent.","llm.model_name":"gpt-4.1-2025-04-14","llm.invocation_parameters":"{\\"id\\": \\"resp_0f00ca5b7e22bb4c0068db9d0110d8819da676bd1f2dd03a40\\", \\"created_at\\": 1759223041.0, \\"instructions\\": \\"You are a helpful agent.\\", \\"metadata\\": {}, \\"model\\": \\"gpt-4.1-2025-04-14\\", \\"parallel_tool_calls\\": true, \\"temperature\\": 1.0, \\"tool_choice\\": \\"auto\\", \\"top_p\\": 1.0, \\"background\\": false, \\"reasoning\\": {}, \\"service_tier\\": \\"default\\", \\"text\\": {\\"format\\": {\\"type\\": \\"text\\"}, \\"verbosity\\": \\"medium\\"}, \\"top_logprobs\\": 0, \\"truncation\\": \\"disabled\\", \\"billing\\": {\\"payer\\": \\"developer\\"}, \\"store\\": true}","input.mime_type":"application/json","input.value":"[{\\"content\\": \\"What\'s the weather in Tokyo?\\", \\"role\\": \\"user\\"}, {\\"arguments\\": \\"{\\\\\\"city\\\\\\":\\\\\\"Tokyo\\\\\\"}\\", \\"call_id\\": \\"call_Kud0j0DxWSmLzv9W5m6qVqXn\\", \\"name\\": \\"get_weather\\", \\"type\\": \\"function_call\\", \\"id\\": \\"fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76\\", \\"status\\": \\"completed\\"}, {\\"call_id\\": \\"call_Kud0j0DxWSmLzv9W5m6qVqXn\\", \\"output\\": \\"The weather in Tokyo is sunny.\\", \\"type\\": \\"function_call_output\\"}]","llm.input_messages.1.message.role":"user","llm.input_messages.1.message.content":"What\'s the weather in Tokyo?","llm.input_messages.2.message.role":"assistant","llm.input_messages.2.message.tool_calls.0.tool_call.id":"call_Kud0j0DxWSmLzv9W5m6qVqXn","llm.input_messages.2.message.tool_calls.0.tool_call.function.name":"get_weather","llm.input_messages.2.message.tool_calls.0.tool_call.function.arguments":"{\\"city\\":\\"Tokyo\\"}","llm.input_messages.3.message.role":"tool","llm.input_messages.3.message.tool_call_id":"call_Kud0j0DxWSmLzv9W5m6qVqXn","llm.input_messages.3.message.content":"The weather in Tokyo is sunny.","openinference.span.kind":"LLM"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.37.0","service.name":"unknown_service"},"scope":{"name":"openinference.instrumentation.openai_agents","version":"1.3.0","attributes":{}}}',
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "input",
+          role: "user",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "What's the weather in Tokyo?",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "The weather in Tokyo is currently sunny. If you need more details like temperature or forecast for the upcoming days, just let me know!",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "tool",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "tool-result",
+              toolCallId: "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              output: "The weather in Tokyo is sunny.",
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/openai-agents-2025-09-30.trace.json; observation 98870087af69bf06
+  {
+    name: "verbatim openai-agents-2025-09-30.trace.json / 98870087af69bf06",
+    spanIO: {
+      input: '[{"content": "What\'s the weather in Tokyo?", "role": "user"}]',
+      output:
+        '{"id":"resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1","created_at":1759223040.0,"error":null,"incomplete_details":null,"instructions":"You are a helpful agent.","metadata":{},"model":"gpt-4.1-2025-04-14","object":"response","output":[{"arguments":"{\\"city\\":\\"Tokyo\\"}","call_id":"call_Kud0j0DxWSmLzv9W5m6qVqXn","name":"get_weather","type":"function_call","id":"fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76","status":"completed"}],"parallel_tool_calls":true,"temperature":1.0,"tool_choice":"auto","tools":[{"name":"get_weather","parameters":{"properties":{"city":{"title":"City","type":"string"}},"required":["city"],"title":"get_weather_args","type":"object","additionalProperties":false},"strict":true,"type":"function","description":null}],"top_p":1.0,"background":false,"conversation":null,"max_output_tokens":null,"max_tool_calls":null,"previous_response_id":null,"prompt":null,"prompt_cache_key":null,"reasoning":{"effort":null,"generate_summary":null,"summary":null},"safety_identifier":null,"service_tier":"default","status":"completed","text":{"format":{"type":"text"},"verbosity":"medium"},"top_logprobs":0,"truncation":"disabled","usage":{"input_tokens":55,"input_tokens_details":{"cached_tokens":0},"output_tokens":15,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":70},"user":null,"billing":{"payer":"developer"},"store":true}',
+      metadata:
+        '{"attributes":{"llm.system":"openai","output.mime_type":"application/json","output.value":"{\\"id\\":\\"resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1\\",\\"created_at\\":1759223040.0,\\"error\\":null,\\"incomplete_details\\":null,\\"instructions\\":\\"You are a helpful agent.\\",\\"metadata\\":{},\\"model\\":\\"gpt-4.1-2025-04-14\\",\\"object\\":\\"response\\",\\"output\\":[{\\"arguments\\":\\"{\\\\\\"city\\\\\\":\\\\\\"Tokyo\\\\\\"}\\",\\"call_id\\":\\"call_Kud0j0DxWSmLzv9W5m6qVqXn\\",\\"name\\":\\"get_weather\\",\\"type\\":\\"function_call\\",\\"id\\":\\"fc_0f00ca5b7e22bb4c0068db9d00d258819d987f4b9b63189e76\\",\\"status\\":\\"completed\\"}],\\"parallel_tool_calls\\":true,\\"temperature\\":1.0,\\"tool_choice\\":\\"auto\\",\\"tools\\":[{\\"name\\":\\"get_weather\\",\\"parameters\\":{\\"properties\\":{\\"city\\":{\\"title\\":\\"City\\",\\"type\\":\\"string\\"}},\\"required\\":[\\"city\\"],\\"title\\":\\"get_weather_args\\",\\"type\\":\\"object\\",\\"additionalProperties\\":false},\\"strict\\":true,\\"type\\":\\"function\\",\\"description\\":null}],\\"top_p\\":1.0,\\"background\\":false,\\"conversation\\":null,\\"max_output_tokens\\":null,\\"max_tool_calls\\":null,\\"previous_response_id\\":null,\\"prompt\\":null,\\"prompt_cache_key\\":null,\\"reasoning\\":{\\"effort\\":null,\\"generate_summary\\":null,\\"summary\\":null},\\"safety_identifier\\":null,\\"service_tier\\":\\"default\\",\\"status\\":\\"completed\\",\\"text\\":{\\"format\\":{\\"type\\":\\"text\\"},\\"verbosity\\":\\"medium\\"},\\"top_logprobs\\":0,\\"truncation\\":\\"disabled\\",\\"usage\\":{\\"input_tokens\\":55,\\"input_tokens_details\\":{\\"cached_tokens\\":0},\\"output_tokens\\":15,\\"output_tokens_details\\":{\\"reasoning_tokens\\":0},\\"total_tokens\\":70},\\"user\\":null,\\"billing\\":{\\"payer\\":\\"developer\\"},\\"store\\":true}","llm.tools.0.tool.json_schema":"{\\"type\\": \\"function\\", \\"function\\": {\\"name\\": \\"get_weather\\", \\"description\\": null, \\"parameters\\": {\\"properties\\": {\\"city\\": {\\"title\\": \\"City\\", \\"type\\": \\"string\\"}}, \\"required\\": [\\"city\\"], \\"title\\": \\"get_weather_args\\", \\"type\\": \\"object\\", \\"additionalProperties\\": false}, \\"strict\\": true}}","llm.token_count.completion":"15","llm.token_count.prompt":"55","llm.token_count.total":"70","llm.token_count.prompt_details.cache_read":"0","llm.token_count.completion_details.reasoning":"0","llm.output_messages.0.message.role":"assistant","llm.output_messages.0.message.tool_calls.0.tool_call.id":"call_Kud0j0DxWSmLzv9W5m6qVqXn","llm.output_messages.0.message.tool_calls.0.tool_call.function.name":"get_weather","llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments":"{\\"city\\":\\"Tokyo\\"}","llm.input_messages.0.message.role":"system","llm.input_messages.0.message.content":"You are a helpful agent.","llm.model_name":"gpt-4.1-2025-04-14","llm.invocation_parameters":"{\\"id\\": \\"resp_0f00ca5b7e22bb4c0068db9d000be4819d824c447c54b65bc1\\", \\"created_at\\": 1759223040.0, \\"instructions\\": \\"You are a helpful agent.\\", \\"metadata\\": {}, \\"model\\": \\"gpt-4.1-2025-04-14\\", \\"parallel_tool_calls\\": true, \\"temperature\\": 1.0, \\"tool_choice\\": \\"auto\\", \\"top_p\\": 1.0, \\"background\\": false, \\"reasoning\\": {}, \\"service_tier\\": \\"default\\", \\"text\\": {\\"format\\": {\\"type\\": \\"text\\"}, \\"verbosity\\": \\"medium\\"}, \\"top_logprobs\\": 0, \\"truncation\\": \\"disabled\\", \\"billing\\": {\\"payer\\": \\"developer\\"}, \\"store\\": true}","input.mime_type":"application/json","input.value":"[{\\"content\\": \\"What\'s the weather in Tokyo?\\", \\"role\\": \\"user\\"}]","llm.input_messages.1.message.role":"user","llm.input_messages.1.message.content":"What\'s the weather in Tokyo?","openinference.span.kind":"LLM"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.37.0","service.name":"unknown_service"},"scope":{"name":"openinference.instrumentation.openai_agents","version":"1.3.0","attributes":{}}}',
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "input",
+          role: "user",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "What's the weather in Tokyo?",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "tool-call",
+              toolCallId: "call_Kud0j0DxWSmLzv9W5m6qVqXn",
+              toolName: "get_weather",
+              input: { city: "Tokyo" },
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+];

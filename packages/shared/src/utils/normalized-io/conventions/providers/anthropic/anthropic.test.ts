@@ -1,3 +1,4 @@
+import { capturedTraceFixtures } from "./fixtures";
 import { describe, expect, it } from "vitest";
 
 import { normalizeSpanIO } from "../../../parser";
@@ -8,6 +9,7 @@ import {
 
 describe("Anthropic normalized I/O", () => {
   it.each([
+    ...capturedTraceFixtures,
     anthropicMessagesRawServerToolsAndMediaFixture,
     anthropicMessagesRichContentFixture,
   ])("$name", ({ spanIO, expected }) => {

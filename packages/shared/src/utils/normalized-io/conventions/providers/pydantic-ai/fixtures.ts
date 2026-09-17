@@ -1,3 +1,4 @@
+import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
 
 export const pydanticAiProductionShapeFixture = {
@@ -2453,3 +2454,425 @@ export const pydanticAiProductionShapeFixture = {
     ],
   },
 } satisfies NormalizedIOFixture;
+
+// Verbatim stored observation IO from ChatML integration-example exports.
+// Expected messages are authored from source payloads, not normalizer snapshots.
+export const capturedTraceFixtures: NormalizedIOFixture[] = [
+  // Source: worker/src/__tests__/chatml/framework-traces/pydantic-ai-2025-06-06.trace.json; observation 5cb389a3bdd21a6e
+  {
+    name: "verbatim pydantic-ai-2025-06-06.trace.json / 5cb389a3bdd21a6e",
+    spanIO: {
+      input:
+        '[{"content":"You are a helpful assistant that answers questions clearly and concisely.","role":"system","gen_ai.system":"openai","gen_ai.message.index":0,"event.name":"gen_ai.system.message"},{"content":"What is Langfuse?","role":"user","gen_ai.system":"openai","gen_ai.message.index":0,"event.name":"gen_ai.user.message"}]',
+      output:
+        '{"index":0,"message":{"role":"assistant","content":"Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions."},"gen_ai.system":"openai","event.name":"gen_ai.choice"}',
+      metadata:
+        '{"attributes":{"gen_ai.operation.name":"chat","gen_ai.system":"openai","gen_ai.request.model":"gpt-4o","server.address":"api.openai.com","model_request_parameters":"{\\"function_tools\\": [], \\"allow_text_output\\": true, \\"output_tools\\": []}","gen_ai.usage.input_tokens":"31","gen_ai.usage.output_tokens":"96","gen_ai.response.model":"gpt-4o-2024-08-06","events":"[{\\"content\\": \\"You are a helpful assistant that answers questions clearly and concisely.\\", \\"role\\": \\"system\\", \\"gen_ai.system\\": \\"openai\\", \\"gen_ai.message.index\\": 0, \\"event.name\\": \\"gen_ai.system.message\\"}, {\\"content\\": \\"What is Langfuse?\\", \\"role\\": \\"user\\", \\"gen_ai.system\\": \\"openai\\", \\"gen_ai.message.index\\": 0, \\"event.name\\": \\"gen_ai.user.message\\"}, {\\"index\\": 0, \\"message\\": {\\"role\\": \\"assistant\\", \\"content\\": \\"Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.\\"}, \\"gen_ai.system\\": \\"openai\\", \\"event.name\\": \\"gen_ai.choice\\"}]","logfire.json_schema":"{\\"type\\": \\"object\\", \\"properties\\": {\\"events\\": {\\"type\\": \\"array\\"}, \\"model_request_parameters\\": {\\"type\\": \\"object\\"}}}"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"pydantic-ai","version":"0.2.15","attributes":{}}}',
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "input",
+          role: "system",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "You are a helpful assistant that answers questions clearly and concisely.",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/pydantic-ai-tools-2025-06-06.trace.json; observation 5cb389a3bdd21a6e
+  {
+    name: "verbatim pydantic-ai-tools-2025-06-06.trace.json / 5cb389a3bdd21a6e",
+    spanIO: {
+      input:
+        '[{"content":"You are a helpful assistant that answers questions clearly and concisely.","role":"system","gen_ai.system":"openai","gen_ai.message.index":0,"event.name":"gen_ai.system.message"},{"content":"What is Langfuse?","role":"user","gen_ai.system":"openai","gen_ai.message.index":0,"event.name":"gen_ai.user.message"}]',
+      output:
+        '{"index":0,"message":{"role":"assistant","content":"Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions."},"gen_ai.system":"openai","event.name":"gen_ai.choice"}',
+      metadata:
+        '{"attributes":{"gen_ai.operation.name":"chat","gen_ai.system":"openai","gen_ai.request.model":"gpt-4o","server.address":"api.openai.com","model_request_parameters":"{\\"function_tools\\": [], \\"allow_text_output\\": true, \\"output_tools\\": []}","gen_ai.usage.input_tokens":"31","gen_ai.usage.output_tokens":"96","gen_ai.response.model":"gpt-4o-2024-08-06","events":"[{\\"content\\": \\"You are a helpful assistant that answers questions clearly and concisely.\\", \\"role\\": \\"system\\", \\"gen_ai.system\\": \\"openai\\", \\"gen_ai.message.index\\": 0, \\"event.name\\": \\"gen_ai.system.message\\"}, {\\"content\\": \\"What is Langfuse?\\", \\"role\\": \\"user\\", \\"gen_ai.system\\": \\"openai\\", \\"gen_ai.message.index\\": 0, \\"event.name\\": \\"gen_ai.user.message\\"}, {\\"index\\": 0, \\"message\\": {\\"role\\": \\"assistant\\", \\"content\\": \\"Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.\\"}, \\"gen_ai.system\\": \\"openai\\", \\"event.name\\": \\"gen_ai.choice\\"}]","logfire.json_schema":"{\\"type\\": \\"object\\", \\"properties\\": {\\"events\\": {\\"type\\": \\"array\\"}, \\"model_request_parameters\\": {\\"type\\": \\"object\\"}}}"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"pydantic-ai","version":"0.2.15","attributes":{}}}',
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "input",
+          role: "system",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "You are a helpful assistant that answers questions clearly and concisely.",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "Langfuse is a tool designed for observability and monitoring of applications that utilize large language models (LLMs). It provides features to trace, log, and visualize requests, helping developers understand the behavior of their LLM-powered applications more effectively. This can be particularly useful for debugging, performance optimization, and ensuring reliable operation of systems that depend on LLMs. Langfuse is designed to integrate easily with existing infrastructure, supporting both self-hosted implementations and cloud-based solutions.",
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/pydantic-ai-tools-2025-12-04.trace.json; observation 00d2804abb764b1b
+  {
+    name: "verbatim pydantic-ai-tools-2025-12-04.trace.json / 00d2804abb764b1b",
+    spanIO: {
+      input: [
+        {
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              content:
+                "You are a creative joke writer. When asked to get inspiration, you will call THREE of the available suggestion tools to gather ideas. When asked to write a joke, create a funny joke based on the suggestions you received.",
+            },
+          ],
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              content:
+                "Select and call THREE of the available tools to get joke suggestions about 'programming'.",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              name: "get_pun_suggestion",
+              arguments: {
+                topic: "programming",
+              },
+            },
+            {
+              type: "tool_call",
+              id: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              name: "get_dad_joke_suggestion",
+              arguments: {
+                topic: "programming",
+              },
+            },
+            {
+              type: "tool_call",
+              id: "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              name: "get_one_liner_suggestion",
+              arguments: {
+                topic: "programming",
+              },
+            },
+          ],
+          finish_reason: "tool_call",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              name: "get_pun_suggestion",
+              result:
+                "Pun idea: Play on words related to 'programming' - think about homophones or double meanings",
+            },
+            {
+              type: "tool_call_response",
+              id: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              name: "get_dad_joke_suggestion",
+              result:
+                "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist",
+            },
+            {
+              type: "tool_call_response",
+              id: "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              name: "get_one_liner_suggestion",
+              result:
+                "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence",
+            },
+          ],
+        },
+      ],
+      output: [
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              content:
+                "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)",
+            },
+          ],
+          finish_reason: "stop",
+        },
+      ],
+      metadata: {
+        attributes: {
+          "gen_ai.operation.name": "chat",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "server.address": "api.openai.com",
+          model_request_parameters: {
+            function_tools: [
+              {
+                name: "get_pun_suggestion",
+                parameters_json_schema: {
+                  additionalProperties: false,
+                  properties: {
+                    topic: {
+                      description: "The topic for the joke",
+                      type: "string",
+                    },
+                  },
+                  required: ["topic"],
+                  type: "object",
+                },
+                description:
+                  "Get a pun-style joke suggestion for the given topic.",
+                outer_typed_dict_key: null,
+                strict: true,
+                sequential: false,
+                kind: "function",
+                metadata: null,
+              },
+              {
+                name: "get_dad_joke_suggestion",
+                parameters_json_schema: {
+                  additionalProperties: false,
+                  properties: {
+                    topic: {
+                      description: "The topic for the joke",
+                      type: "string",
+                    },
+                  },
+                  required: ["topic"],
+                  type: "object",
+                },
+                description:
+                  "Get a dad joke style suggestion for the given topic.",
+                outer_typed_dict_key: null,
+                strict: true,
+                sequential: false,
+                kind: "function",
+                metadata: null,
+              },
+              {
+                name: "get_one_liner_suggestion",
+                parameters_json_schema: {
+                  additionalProperties: false,
+                  properties: {
+                    topic: {
+                      description: "The topic for the joke",
+                      type: "string",
+                    },
+                  },
+                  required: ["topic"],
+                  type: "object",
+                },
+                description:
+                  "Get a one-liner joke suggestion for the given topic.",
+                outer_typed_dict_key: null,
+                strict: true,
+                sequential: false,
+                kind: "function",
+                metadata: null,
+              },
+              {
+                name: "get_car_joke_suggestion",
+                parameters_json_schema: {
+                  additionalProperties: false,
+                  properties: {
+                    topic: {
+                      description: "The topic for the joke",
+                      type: "string",
+                    },
+                  },
+                  required: ["topic"],
+                  type: "object",
+                },
+                description:
+                  "Get a car-themed joke suggestion for the given topic.",
+                outer_typed_dict_key: null,
+                strict: true,
+                sequential: false,
+                kind: "function",
+                metadata: null,
+              },
+              {
+                name: "get_tree_joke_suggestion",
+                parameters_json_schema: {
+                  additionalProperties: false,
+                  properties: {
+                    topic: {
+                      description: "The topic for the joke",
+                      type: "string",
+                    },
+                  },
+                  required: ["topic"],
+                  type: "object",
+                },
+                description:
+                  "Get a tree-themed joke suggestion for the given topic.",
+                outer_typed_dict_key: null,
+                strict: true,
+                sequential: false,
+                kind: "function",
+                metadata: null,
+              },
+            ],
+            builtin_tools: [],
+            output_mode: "text",
+            output_object: null,
+            output_tools: [],
+            prompted_output_template: null,
+            allow_text_output: true,
+            allow_image_output: false,
+          },
+          "gen_ai.request.temperature": "0.7",
+          "logfire.json_schema": {
+            type: "object",
+            properties: {
+              "gen_ai.input.messages": {
+                type: "array",
+              },
+              "gen_ai.output.messages": {
+                type: "array",
+              },
+              model_request_parameters: {
+                type: "object",
+              },
+            },
+          },
+          "gen_ai.usage.input_tokens": "417",
+          "gen_ai.usage.output_tokens": "53",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "operation.cost": "0.00009435",
+          "gen_ai.response.id": "chatcmpl-Cj4xwF0fLMbLL7cj2PpKMa69vdqgM",
+          "gen_ai.response.finish_reasons": ["stop"],
+        },
+        resourceAttributes: {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.38.0",
+          "service.name": "unknown_service",
+        },
+        scope: {
+          name: "pydantic-ai",
+          version: "1.26.0",
+          attributes: {},
+        },
+      },
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: "I gathered some great ideas for a programming joke! Here’s a funny joke combining those suggestions:\n\nWhy do programmers prefer dark mode?  \nBecause light attracts bugs! \n\n(It's a pun on light attracting bugs and programmers having a love-hate relationship with debugging!)",
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "tool-call",
+              toolCallId: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              toolName: "get_pun_suggestion",
+              input: { topic: "programming" },
+            }),
+            expect.objectContaining({
+              type: "tool-call",
+              toolCallId: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              toolName: "get_dad_joke_suggestion",
+              input: { topic: "programming" },
+            }),
+            expect.objectContaining({
+              type: "tool-call",
+              toolCallId: "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              toolName: "get_one_liner_suggestion",
+              input: { topic: "programming" },
+            }),
+          ]),
+        }),
+        expect.objectContaining({
+          source: "input",
+          role: "tool",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "tool-result",
+              toolCallId: "call_X0OSgjUukT5inyEQvuZQnHrk",
+              output:
+                "Pun idea: Play on words related to 'programming' - think about homophones or double meanings",
+            }),
+            expect.objectContaining({
+              type: "tool-result",
+              toolCallId: "call_WxZcCvSDhGT4RJHlcU01k10x",
+              output:
+                "Dad joke idea: Use a classic setup-punchline format about 'programming' with a groan-worthy twist",
+            }),
+            expect.objectContaining({
+              type: "tool-result",
+              toolCallId: "call_aRaObiWKKt6GzgDkkUl3bu1Q",
+              output:
+                "One-liner idea: Make a quick, witty observation about 'programming' in a single sentence",
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/pydantic-ai-with-gemini-2025-12-24.trace.json; observation 8ffb64580a84a3f0
+  {
+    name: "verbatim pydantic-ai-with-gemini-2025-12-24.trace.json / 8ffb64580a84a3f0",
+    spanIO: {
+      input:
+        '[{"role": "user", "parts": [{"type": "text", "content": "what is 1+1?\\nOutput format:\\n```json\\n{\\n    \\"answer\\": your answer,\\n    \\"rationale\\": \\"explanation for answer\\"\\n}\\n```"}]}]',
+      output:
+        '[{"role": "assistant", "parts": [{"type": "text", "content": "{\\"answer\\": \\"2\\", \\"rationale\\": \\"The operation 1+1 is a basic arithmetic addition. Adding the integer 1 to itself results in the integer 2.\\"}"}], "finish_reason": "stop"}]',
+      metadata:
+        '{"attributes":{"gen_ai.operation.name":"chat","gen_ai.system":"google-gla","gen_ai.request.model":"gemini-2.5-flash","server.address":"generativelanguage.googleapis.com","model_request_parameters":"{\\"function_tools\\": [], \\"builtin_tools\\": [], \\"output_mode\\": \\"native\\", \\"output_object\\": {\\"json_schema\\": {\\"properties\\": {\\"answer\\": {\\"type\\": \\"string\\"}, \\"rationale\\": {\\"type\\": \\"string\\"}}, \\"required\\": [\\"answer\\", \\"rationale\\"], \\"type\\": \\"object\\"}, \\"name\\": null, \\"description\\": null, \\"strict\\": true}, \\"output_tools\\": [], \\"allow_text_output\\": true, \\"allow_image_output\\": false}","logfire.json_schema":"{\\"type\\": \\"object\\", \\"properties\\": {\\"gen_ai.input.messages\\": {\\"type\\": \\"array\\"}, \\"gen_ai.output.messages\\": {\\"type\\": \\"array\\"}, \\"model_request_parameters\\": {\\"type\\": \\"object\\"}}}","gen_ai.usage.input_tokens":"40","gen_ai.usage.output_tokens":"159","gen_ai.usage.details.thoughts_tokens":"121","gen_ai.usage.details.text_prompt_tokens":"40","gen_ai.response.model":"gemini-2.5-flash","operation.cost":"0.0004095","gen_ai.response.id":"r4FLad_IHojq1e8Pt6i7GA","gen_ai.response.finish_reasons":"[\\"stop\\"]"},"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.37.0","langfuse.environment":"251216-langfuse-v3-test","service.name":"unknown_service"},"scope":{"name":"pydantic-ai","version":"1.11.0","attributes":{}}}',
+    },
+    expected: {
+      messages: expect.arrayContaining([
+        expect.objectContaining({
+          source: "output",
+          role: "assistant",
+          parts: expect.arrayContaining([
+            expect.objectContaining({
+              type: "text",
+              text: '{"answer": "2", "rationale": "The operation 1+1 is a basic arithmetic addition. Adding the integer 1 to itself results in the integer 2."}',
+            }),
+          ]),
+        }),
+      ]),
+      toolDefinitions: expect.any(Array),
+    },
+  },
+];
