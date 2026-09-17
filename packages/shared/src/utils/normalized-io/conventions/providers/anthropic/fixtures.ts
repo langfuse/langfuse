@@ -1,5 +1,6 @@
 import { expect } from "vitest";
 import type { NormalizedIOFixture } from "../fixture-types";
+import { toJsonValue } from "../../../core/utils/json";
 
 // Docs-derived tool-result variants; the image data is a sample placeholder.
 // https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls
@@ -85,7 +86,7 @@ export const documentedToolResultFixtures: NormalizedIOFixture[] = [
             {
               type: "tool-result",
               toolCallId: "call_weather",
-              output: content ?? null,
+              output: toJsonValue(content ?? null),
             },
           ],
         },
