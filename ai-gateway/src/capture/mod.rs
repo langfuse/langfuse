@@ -27,15 +27,15 @@ enum ProtocolCapture {
 }
 
 impl ProtocolCapture {
-    fn response(&mut self, headers: &HeaderMap) {
+    fn record_response(&mut self, headers: &HeaderMap) {
         match self {
-            Self::OpenAiResponses(capture) => capture.response(headers),
+            Self::OpenAiResponses(capture) => capture.record_response(headers),
         }
     }
 
-    fn bytes(&mut self, bytes: &[u8]) -> bool {
+    fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         match self {
-            Self::OpenAiResponses(capture) => capture.bytes(bytes),
+            Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
         }
     }
 
@@ -84,7 +84,7 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn openai_responses(
+    pub fn for_openai_responses(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         body: &[u8],
@@ -144,20 +144,20 @@ impl ExecutionCapture {
         ));
     }
 
-    pub fn response(&mut self, status: u16, headers: &HeaderMap) {
+    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
-            protocol.response(headers);
+            protocol.record_response(headers);
         }
     }
 
-    pub fn bytes(&mut self, bytes: &[u8]) {
+    pub fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
             if !bytes.is_empty() {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            if protocol.bytes(bytes) {
+            if protocol.push_bytes(bytes) {
                 self.completion_start_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }

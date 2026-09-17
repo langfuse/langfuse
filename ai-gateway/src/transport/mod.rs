@@ -132,7 +132,7 @@ where
             tokio::pin!(upstream);
             while let Some(chunk) = upstream.next().await {
                 let chunk = chunk?;
-                pump_resources.observe(|capture| capture.bytes(&chunk));
+                pump_resources.observe(|capture| capture.push_bytes(&chunk));
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
                     if sender.send(Bytes::copy_from_slice(bytes)).await.is_err() {
