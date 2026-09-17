@@ -59,5 +59,70 @@ export const cumulativeHistoryFixture = {
       }),
     },
   ],
-  expected: undefined,
+  expected: {
+    threads: [
+      {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "Initial request",
+              },
+            ],
+            source: "input",
+            observationId: "cumulative-history-generation-1",
+            traceId: "cumulative-history-trace-1",
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: "First response",
+              },
+            ],
+            source: "output",
+            observationId: "cumulative-history-generation-1",
+            traceId: "cumulative-history-trace-1",
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "Follow-up request",
+              },
+            ],
+            source: "input",
+            observationId: "cumulative-history-generation-2",
+            traceId: "cumulative-history-trace-2",
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: "Second response",
+              },
+            ],
+            source: "output",
+            observationId: "cumulative-history-generation-2",
+            traceId: "cumulative-history-trace-2",
+          },
+        ],
+        observations: [
+          {
+            id: "cumulative-history-generation-1",
+            traceId: "cumulative-history-trace-1",
+          },
+          {
+            id: "cumulative-history-generation-2",
+            traceId: "cumulative-history-trace-2",
+          },
+        ],
+      },
+    ],
+  },
 } satisfies TranscriptFixture;

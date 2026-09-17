@@ -466,5 +466,83 @@ export const openaiAgentsSpanishHandoffFixture = {
       }),
     },
   ],
-  expected: undefined,
+  expected: {
+    threads: [
+      {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "Hola, ¿cómo estás?",
+              },
+            ],
+            source: "input",
+            observationId: "94a1dc00d7067ae8",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "tool-call",
+                toolCallId: "call_i81vsF01rKH8cDZ0SLQQBUA2",
+                toolName: "transfer_to_spanish_agent",
+                input: {},
+                toolType: "function_call",
+                providerMetadata: {
+                  status: "completed",
+                },
+              },
+            ],
+            source: "output",
+            observationId: "94a1dc00d7067ae8",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+          {
+            role: "tool",
+            source: "output",
+            parts: [
+              {
+                type: "tool-result",
+                toolCallId: "call_i81vsF01rKH8cDZ0SLQQBUA2",
+                output: {
+                  assistant: "Spanish agent",
+                },
+              },
+            ],
+            observationId: "a0391ae77593ad0c",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+          {
+            id: "msg_000230c027f4a45e0068db9cf9d14481a3a04289f3f1b0f9a1",
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: "¡Hola! Estoy muy bien, gracias. ¿Y tú, cómo estás?",
+                providerMetadata: {
+                  logprobs: [],
+                },
+              },
+            ],
+            source: "output",
+            observationId: "a0391ae77593ad0c",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+        ],
+        observations: [
+          {
+            id: "94a1dc00d7067ae8",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+          {
+            id: "a0391ae77593ad0c",
+            traceId: "c376e44920527b875add9d97b4ed9312",
+          },
+        ],
+      },
+    ],
+  },
 } satisfies TranscriptFixture;

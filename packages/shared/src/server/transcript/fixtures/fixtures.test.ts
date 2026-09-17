@@ -6,10 +6,7 @@ import { getTranscript } from "../index";
 import { formatTranscript } from "./format-transcript";
 
 /**
- * Structural checks on the fixtures themselves, plus the behavior assertion
- * against the transcript builder. Every fixture's transcript is printed
- * (visible with `--disableConsoleIntercept`) so expectations can be authored
- * from real output; the assertion only runs once `expected` is defined.
+ * Structural checks on fixtures and exact transcript expectations.
  */
 describe("transcript fixtures", () => {
   const generation = (id: string, input: string[], output: string[]) =>
@@ -111,7 +108,6 @@ describe("transcript fixtures", () => {
       );
       console.log("-------------------------------------------------");
 
-      if (fixture.expected === undefined) return;
       expect(transcript).toEqual(fixture.expected);
     });
   });
