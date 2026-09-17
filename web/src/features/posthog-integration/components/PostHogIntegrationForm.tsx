@@ -16,7 +16,7 @@ import { createForm } from "@/src/components/design-system/factories/createForm"
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { SwitchInput } from "@/src/components/design-system/SwitchInput/SwitchInput";
 import {
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
@@ -249,8 +249,9 @@ export function PostHogIntegrationForm({
           ) : null}
           <PostHogForm.Field name="enabled" label="Enabled">
             {(field) => (
-              <Switch
+              <SwitchInput
                 id={field.id}
+                description="Send data to PostHog while this integration is active."
                 name={field.name}
                 checked={field.value}
                 onBlur={field.onBlur}
