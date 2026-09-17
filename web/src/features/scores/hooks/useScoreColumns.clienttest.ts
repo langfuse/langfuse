@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { createScoreColumns } from "./useScoreColumns";
 
 const column = {
   key: "persona_fit-api-NUMERIC",

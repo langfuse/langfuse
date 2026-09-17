@@ -10,7 +10,7 @@ import {
   StateField,
   type Extension,
 } from "@codemirror/state";
-import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
+import { extractTransferFiles } from "./fileDropPaste";
 
 /**
  * "Magic paste" for JSON editors.

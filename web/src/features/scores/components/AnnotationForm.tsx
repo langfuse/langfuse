@@ -40,7 +40,7 @@ import {
   isTextDataType,
   isNumericDataType,
   isScoreUnsaved,
-} from "@/src/features/scores/lib/helpers";
+} from "../lib/helpers";
 import Header from "@/src/components/layouts/header";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
@@ -49,29 +49,26 @@ import {
   type InnerAnnotationFormProps,
   type ScoreTarget,
   type AnnotationForm as AnnotationFormType,
-} from "@/src/features/scores/types";
-import { AnnotateFormSchema } from "@/src/features/scores/schema";
+} from "../types";
+import { AnnotateFormSchema } from "../schema";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 import {
   enrichCategoryOptionsWithStaleScoreValue,
   resolveCategoricalNumericValue,
   resolveConfigValue,
   validateNumericScore,
-} from "@/src/features/scores/lib/annotationFormHelpers";
-import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
-import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
+} from "../lib/annotationFormHelpers";
+import { useMergedAnnotationScores } from "../lib/useMergedAnnotationScores";
+import { transformToAnnotationScores } from "../lib/transformScores";
 import { v4 as uuid } from "uuid";
-import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
+import { useScoreMutations } from "../hooks/useScoreMutations";
+import { MultiSelectKeyValues } from "./multi-select-key-values";
+import { CategoricalScoreInput } from "./CategoricalScoreInput";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
-import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
+import { useScoreConfigSelection } from "../hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import {
-  hasBlockingOverlay,
-  hasModifier,
-} from "@/src/features/scores/lib/keyboardShortcuts";
-import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
+import { hasBlockingOverlay, hasModifier } from "../lib/keyboardShortcuts";
+import { useAnnotationScoreConfigs } from "../hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 

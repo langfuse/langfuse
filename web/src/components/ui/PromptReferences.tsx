@@ -5,8 +5,8 @@ import {
   isValidVariableName,
   type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { Badge } from "./badge";
+import { Button } from "./button";
 import { cn } from "@/src/utils/tailwind";
 import { FileCode } from "lucide-react";
 

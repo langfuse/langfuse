@@ -32,13 +32,13 @@
  */
 
 import { useState, useMemo, useCallback } from "react";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
+import { TRACE_VIEW_CONFIG } from "../../constants/traceViewConfig";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
+import { useTraceData } from "../../contexts/TraceDataContext";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
+import { useJsonExpansion } from "../../contexts/JsonExpansionContext";
+import { JSONTableView } from "../JSONTableView";
 import { type FlatLogItem } from "./log-view-types";
 import { LogViewToolbar } from "./LogViewToolbar";
 import { LogViewExpandedContent } from "./LogViewExpandedContent";
@@ -49,9 +49,9 @@ import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
 import { useLogViewPreferences } from "./useLogViewPreferences";
 import { useLogViewDownload } from "./useLogViewDownload";
 import { useLogViewColumns } from "./useLogViewColumns";
-import { flattenChronological } from "@/src/features/traces/components/TraceLogView/fns/flattenChronological";
-import { filterBySearch } from "@/src/features/traces/components/TraceLogView/fns/filterBySearch";
-import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/fns/flattenTreeOrder";
+import { flattenChronological } from "./fns/flattenChronological";
+import { filterBySearch } from "./fns/filterBySearch";
+import { flattenTreeOrder } from "./fns/flattenTreeOrder";
 
 export interface TraceLogViewProps {
   traceId: string;

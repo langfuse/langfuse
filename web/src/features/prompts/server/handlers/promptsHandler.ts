@@ -1,9 +1,6 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 
-import {
-  createPromptForApi,
-  listPromptsForApi,
-} from "@/src/features/prompts/server/prompt-api-service";
+import { createPromptForApi, listPromptsForApi } from "../prompt-api-service";
 import {
   withMiddlewares,
   RateLimitService,

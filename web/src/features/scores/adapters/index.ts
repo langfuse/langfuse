@@ -6,7 +6,7 @@ import {
   type ChartBin,
   type ChartData,
   type TimeseriesDataTransformer,
-} from "@/src/features/scores/types";
+} from "../types";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 

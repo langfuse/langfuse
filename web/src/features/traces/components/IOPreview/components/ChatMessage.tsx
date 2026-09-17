@@ -6,7 +6,7 @@ import {
   MarkdownJsonView,
   MarkdownJsonViewHeader,
 } from "@/src/components/ui/MarkdownJsonView";
-import { ToolCallInvocationsView } from "@/src/features/traces/components/ToolCallInvocationsView";
+import { ToolCallInvocationsView } from "../../ToolCallInvocationsView";
 import { ListChevronsDownUp, ListChevronsUpDown } from "lucide-react";
 import { stringify } from "@langfuse/shared";
 import { copyTextToClipboard } from "@/src/utils/clipboard";

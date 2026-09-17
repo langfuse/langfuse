@@ -1,8 +1,8 @@
 // @vitest-environment node
 
-import { deriveComposerSegments } from "@/src/features/search-bar/lib/composer-segments";
-import { explainSegment } from "@/src/features/search-bar/lib/explain";
-import { FIELDS } from "@/src/features/search-bar/lib/fields";
+import { deriveComposerSegments } from "./composer-segments";
+import { explainSegment } from "./explain";
+import { FIELDS } from "./fields";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 

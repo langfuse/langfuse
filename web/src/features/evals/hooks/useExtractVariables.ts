@@ -1,5 +1,5 @@
-import { type PreviewData } from "@/src/features/evals/hooks/usePreviewData";
-import { type VariableMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { type PreviewData } from "./usePreviewData";
+import { type VariableMapping } from "../utils/evaluator-form-utils";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";
 import {

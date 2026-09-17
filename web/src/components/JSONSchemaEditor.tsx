@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
 import { ArrowUpRight } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { Button } from "./ui/button";
+import { CodeMirrorEditor } from "./editor";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { assertUnreachable } from "@langfuse/shared";
 

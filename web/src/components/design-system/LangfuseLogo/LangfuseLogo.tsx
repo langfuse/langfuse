@@ -1,4 +1,4 @@
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseIcon } from "../LangfuseIcon/LangfuseIcon";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
 import { PlusIcon } from "lucide-react";

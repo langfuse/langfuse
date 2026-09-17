@@ -1,8 +1,8 @@
 import {
   clearProjectSdkVersionInfo,
   persistProjectSdkVersionInfo,
-} from "@/src/features/sdk-version/lib/sdkVersionStorage";
-import { sdkVersionStorageKeys } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+} from "./sdkVersionStorage";
+import { sdkVersionStorageKeys } from "./sdkVersionCapabilities";
 
 const storageValues = new Map<string, string>();
 const localStorageMock: Storage = {

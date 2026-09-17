@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 
-import { EvaluatorCodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { EvaluatorCodeLanguageSelector } from "../../../../../Code/EvaluatorCodeLanguageSelector/EvaluatorCodeLanguageSelector";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function CodeLanguageSelector({
   store,

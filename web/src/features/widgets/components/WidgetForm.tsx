@@ -7,8 +7,8 @@ import {
   CardFooter,
 } from "@/src/components/ui/card";
 import { api } from "@/src/utils/api";
-import { WidgetImporter } from "@/src/features/widgets/components/WidgetImporter";
-import { type ImportedWidgetFormSnapshot } from "@/src/features/widgets/utils/import-export-utils";
+import { WidgetImporter } from "./WidgetImporter";
+import { type ImportedWidgetFormSnapshot } from "../utils/import-export-utils";
 import {
   buildWidgetOrderBy,
   getResultUnit,
@@ -44,7 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
+import { WidgetPropertySelectItem } from "./WidgetPropertySelectItem";
 import { Label } from "@/src/components/ui/label";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
@@ -60,13 +60,13 @@ import {
   toAbsoluteTimeRange,
   type DashboardDateRangeOptions,
 } from "@/src/utils/date-range-utils";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import { Chart } from "../chart-library/Chart";
+import { type DataPoint } from "../chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { isTimeSeriesChart } from "../chart-library/utils";
 import {
   BarChart,
   PieChart,
@@ -90,18 +90,18 @@ import {
   formatMetricName,
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
-} from "@/src/features/widgets/utils";
+} from "../utils";
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
-} from "@/src/features/widgets/utils/pivot-table-utils";
-import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
+} from "../utils/pivot-table-utils";
+import { ChartLoadingState } from "../chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
-} from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { WIDGET_FILTER_PRESETS } from "@/src/features/widgets/constants/widgetFilterPresets";
-import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
+} from "../chart-library/chartLoadingStateUtils";
+import { WIDGET_FILTER_PRESETS } from "../constants/widgetFilterPresets";
+import { useCaptureWidgetHighCardinalityError } from "../hooks/useWidgetQueryErrorCapture";
 import {
   applyChartTypeChange,
   deriveEffectiveSort,

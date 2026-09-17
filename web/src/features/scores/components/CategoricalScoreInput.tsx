@@ -9,10 +9,10 @@ import { Combobox } from "@/src/components/ui/combobox";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
-import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
-import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";
-import { type AnalyticsData } from "@/src/features/scores/types";
+import { isCategoricalDataType } from "../lib/helpers";
+import { getAddCategoryActionLabel } from "../lib/annotationFormHelpers";
+import { AddScoreCategoryDialog } from "./AddScoreCategoryDialog";
+import { type AnalyticsData } from "../types";
 
 const CHAR_CUTOFF = 6;
 const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;

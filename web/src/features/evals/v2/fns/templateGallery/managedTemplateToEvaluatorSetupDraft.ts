@@ -1,7 +1,7 @@
 import type {
   EvaluatorSetupDraft,
   ManagedTemplate,
-} from "@/src/features/evals/v2/types/templateGallery";
+} from "../../types/templateGallery";
 
 export function managedTemplateToEvaluatorSetupDraft(
   template: ManagedTemplate,

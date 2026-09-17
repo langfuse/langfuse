@@ -3,8 +3,8 @@ import {
   type EvaluatorPromptMessage,
 } from "@langfuse/shared";
 
-import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
-import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
+import { inferDefaultMapping } from "../../../utils/evaluator-form-utils";
+import type { VariableFieldState } from "../../types/variableMapping";
 
 export function buildEvaluatorVariableMappings({
   promptMessages,

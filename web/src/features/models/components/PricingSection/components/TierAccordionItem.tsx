@@ -16,7 +16,7 @@ import {
   type FieldArrayWithId,
 } from "react-hook-form";
 import { TierConditionsEditor } from "./TierConditionsEditor";
-import type { FormUpsertModel } from "@/src/features/models/validation";
+import type { FormUpsertModel } from "../../../validation";
 
 type TierAccordionItemProps = {
   tier: FieldArrayWithId<FormUpsertModel, "pricingTiers", "id">;

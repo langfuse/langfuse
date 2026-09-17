@@ -4,7 +4,7 @@ import {
   stringifyDatasetItemData,
   type DatasetSchema,
 } from "../utils/datasetItemUtils";
-import { DatasetItemFields } from "@/src/features/datasets/components/DatasetItemFields";
+import { DatasetItemFields } from "./DatasetItemFields";
 
 type DatasetItemVersionedContentProps = {
   itemAtVersion: DatasetItemDomain | null;

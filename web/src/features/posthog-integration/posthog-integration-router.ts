@@ -1,18 +1,18 @@
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "../audit-logs/server";
 import {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
 } from "@/src/features/analytics-integrations/server/exportSource";
 import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "../rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
-import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { posthogIntegrationFormSchema } from "./types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";

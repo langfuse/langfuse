@@ -20,13 +20,13 @@ import {
 import {
   blobStorageIntegrationFormSchema,
   type BlobStorageIntegrationFormSchema,
-} from "@/src/features/blobstorage-integration/types";
+} from "../types";
 import { isExportSourceSelectable } from "@/src/features/analytics-integrations/exportSource";
-import { type BlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
-import { StorageProviderFields } from "@/src/features/blobstorage-integration/components/StorageProviderFields";
-import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
-import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";
-import { ExportFieldGroupsField } from "@/src/features/blobstorage-integration/components/ExportFieldGroupsField";
+import { type BlobStorageFormValues } from "./formValues";
+import { StorageProviderFields } from "./StorageProviderFields";
+import { ExportScheduleFields } from "./ExportScheduleFields";
+import { ExportSourceField } from "./ExportSourceField";
+import { ExportFieldGroupsField } from "./ExportFieldGroupsField";
 
 // Disposable draft layer. The container mounts one instance per entity
 // identity (project + config existence, via React key) after all async

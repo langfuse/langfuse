@@ -1,4 +1,4 @@
-import { experimentItemsFilterConfig } from "@/src/features/experiments/config/experiment-items-filter-config";
+import { experimentItemsFilterConfig } from "../config/experiment-items-filter-config";
 import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 const facetColumns = new Set(

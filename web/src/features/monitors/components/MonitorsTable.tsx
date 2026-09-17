@@ -49,7 +49,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
+import { monitorsFieldRegistry } from "../constants/monitorsSearchRegistry";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;

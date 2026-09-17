@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CircleAlert } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 
 type CrashModalProps = {
   description: string;

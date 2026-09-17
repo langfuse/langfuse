@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  classifyMediaValue,
-  splitStringByMediaReferences,
-} from "@/src/components/ui/media/mediaUtils";
+import { classifyMediaValue, splitStringByMediaReferences } from "./mediaUtils";
 
 describe("classifyMediaValue", () => {
   const ref =

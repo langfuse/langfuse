@@ -5,10 +5,10 @@ import { Slider } from "@/src/components/ui/slider";
 import {
   SAMPLING_SLIDER_MIN,
   SAMPLING_SLIDER_STEP,
-} from "@/src/features/evals/v2/constants/ruleSampling";
-import { EvaluatorCostCalculationTooltipContent } from "@/src/features/evals/v2/components/EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
-import type { ActivationEstimate } from "@/src/features/evals/v2/fns/requestRuleActivation";
-import { formatEvaluatorCostCalculation } from "@/src/features/evals/v2/fns/formatEvaluatorCostCalculation";
+} from "../../../constants/ruleSampling";
+import { EvaluatorCostCalculationTooltipContent } from "../../EvaluatorCostCalculationTooltipContent/EvaluatorCostCalculationTooltipContent";
+import type { ActivationEstimate } from "../../../fns/requestRuleActivation";
+import { formatEvaluatorCostCalculation } from "../../../fns/formatEvaluatorCostCalculation";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorSavedCostSummary({

@@ -19,12 +19,12 @@ import {
 import {
   EvaluationRule,
   type CreateEvaluationRuleBodyType,
-} from "@/src/features/public-api/types/evaluation/evaluationRules";
+} from "../../types/evaluation/evaluationRules";
 import {
   Evaluator,
   EvaluatorVersion,
   type EvaluatorDefinitionType,
-} from "@/src/features/public-api/types/evaluation/evaluators";
+} from "../../types/evaluation/evaluators";
 import {
   LegacyPromptVariableMapping,
   PublicEvaluationRuleReadFilter,
@@ -34,7 +34,7 @@ import {
   type PromptVariableMappingInputType,
   type PromptVariableMappingReadType,
   type PublicEvaluatorOutputDefinitionType,
-} from "@/src/features/public-api/types/evaluation/publicEvalsContract";
+} from "../../types/evaluation/publicEvalsContract";
 
 const PUBLIC_MAPPING_SOURCE_TO_INTERNAL_COLUMN: Record<
   PromptVariableMappingInputType["source"],

@@ -1,13 +1,13 @@
 import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { DataTableColumnVisibilityFilter } from "./data-table-column-visibility-filter";
 import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "./types";
 
 const h = vi.hoisted(() => ({
   capture: vi.fn(),

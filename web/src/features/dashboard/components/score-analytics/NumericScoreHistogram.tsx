@@ -5,11 +5,11 @@ import {
   type ScoreDataTypeType,
 } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { createTracesTimeFilter } from "../../lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Chart } from "@/src/features/widgets";
-import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { scoreHistogramToDataPoints } from "../../lib/chart-data-adapters";
 
 export function NumericScoreHistogram(props: {
   projectId: string;

@@ -1,9 +1,6 @@
 import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-import { traceFilterConfig } from "@/src/features/filters/config/traces-config";
-import {
-  omitFilterFacets,
-  type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
+import { traceFilterConfig } from "./traces-config";
+import { omitFilterFacets, type FilterConfig } from "../lib/filter-config";
 
 /**
  * The Users list is the traces/events population grouped by `user_id`, so its

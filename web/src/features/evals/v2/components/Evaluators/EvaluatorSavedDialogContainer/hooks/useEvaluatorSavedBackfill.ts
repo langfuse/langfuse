@@ -4,11 +4,11 @@ import { useCallback, useRef, useState } from "react";
 import type {
   EvaluatorBackfillRange,
   EvaluatorBackfillWindow,
-} from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/EvaluatorBackfillSettings";
+} from "../../EvaluatorBackfillSettings/EvaluatorBackfillSettings";
 import {
   DEFAULT_EVALUATOR_BACKFILL_ITEMS,
   MAX_EVALUATOR_BACKFILL_ITEMS,
-} from "@/src/features/evals/v2/constants/evaluatorBackfill";
+} from "../../../../constants/evaluatorBackfill";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 

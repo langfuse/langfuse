@@ -12,7 +12,7 @@ import { syntaxTree } from "@codemirror/language";
 import {
   CODE_EVAL_COMPLETION_CONTRACT,
   type CodeEvalSourceCodeLanguage,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+} from "./code-eval-template-starter-examples";
 
 // Member paths are read from the syntax tree by hand: lang-javascript's
 // `completionPath` cannot express indexed access (`toolCalls[0].`) and

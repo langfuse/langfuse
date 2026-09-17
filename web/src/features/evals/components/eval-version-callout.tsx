@@ -1,12 +1,12 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
-import { type EvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { type EvalCapabilities } from "../hooks/useEvalCapabilities";
 import {
   isTraceTarget,
   isEventTarget,
   isExperimentTarget,
   isDatasetTarget,
-} from "@/src/features/evals/utils/typeHelpers";
+} from "../utils/typeHelpers";
 
 interface EvalVersionCalloutProps {
   content: CalloutContent;

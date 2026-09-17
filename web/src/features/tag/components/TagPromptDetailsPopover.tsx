@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type RouterOutput } from "@/src/utils/types";
-import TagManager from "@/src/features/tag/components/TagManager";
+import TagManager from "./TagManager";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 
 type TagPromptDetailsPopoverProps = {

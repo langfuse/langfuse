@@ -4,8 +4,8 @@ import { useStore } from "zustand";
 import {
   type SearchBarStore,
   type SearchBarStoreState,
-} from "@/src/features/search-bar/store/searchBarStore";
-import { type SearchCommit } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+} from "./searchBarStore";
+import { type SearchCommit } from "../hooks/useEventsSearchBar";
 
 type SearchBarContextValue = {
   store: SearchBarStore;

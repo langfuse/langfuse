@@ -1,8 +1,5 @@
 import { tracesTableCols } from "@langfuse/shared";
-import {
-  omitFilterFacets,
-  type FilterConfig,
-} from "@/src/features/filters/lib/filter-config";
+import { omitFilterFacets, type FilterConfig } from "../lib/filter-config";
 import { renderLevelIcon } from "@/src/components/level-colors";
 
 export type TraceOmittableFilterColumn = "userId" | "sessionId";

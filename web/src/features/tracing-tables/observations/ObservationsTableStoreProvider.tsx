@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import {
   type ObservationsTableStore,
   type ObservationsTableStoreState,
-} from "@/src/features/tracing-tables/observations/observationsTableStore";
+} from "./observationsTableStore";
 
 const ObservationsTableStoreContext =
   createContext<ObservationsTableStore | null>(null);

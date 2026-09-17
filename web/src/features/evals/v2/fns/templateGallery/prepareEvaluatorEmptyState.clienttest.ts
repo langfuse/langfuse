@@ -1,8 +1,8 @@
 import {
   DETECT_TOPICS_ASSISTANT_PROMPT,
   EVALUATOR_EMPTY_STATE_DOCS_HREF,
-} from "@/src/features/evals/v2/constants/evaluatorEmptyState";
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
+} from "../../constants/evaluatorEmptyState";
+import { MANAGED_TEMPLATES_CATALOG } from "../../constants/managedTemplatesCatalog";
 import { prepareEvaluatorEmptyState } from "./prepareEvaluatorEmptyState";
 
 describe("prepareEvaluatorEmptyState", () => {

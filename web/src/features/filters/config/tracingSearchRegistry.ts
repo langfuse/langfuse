@@ -1,4 +1,4 @@
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 import {
   fieldRegistryFromColumns,
   EVENTS_FIELD_REGISTRY,

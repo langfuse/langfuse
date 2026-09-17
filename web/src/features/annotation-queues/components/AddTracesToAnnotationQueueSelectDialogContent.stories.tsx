@@ -1,6 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
-import { AnnotationQueueFormDialogContent } from "@/src/features/annotation-queues/components/AnnotationQueueFormDialogContent";
+import { AnnotationQueueFormDialogContent } from "./AnnotationQueueFormDialogContent";
 import { type CreateQueueWithAssignments } from "@langfuse/shared";
 import { useState } from "react";
 import { flushSync } from "react-dom";

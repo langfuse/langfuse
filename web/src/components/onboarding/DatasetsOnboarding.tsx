@@ -1,9 +1,6 @@
-import {
-  SplashScreen,
-  type ValueProposition,
-} from "@/src/components/ui/splash-screen";
-import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
-import { DialogTrigger } from "@/src/components/ui/dialog";
+import { SplashScreen, type ValueProposition } from "../ui/splash-screen";
+import { ButtonWithIcon } from "../ButtonWithIcon";
+import { DialogTrigger } from "../ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
 import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
 

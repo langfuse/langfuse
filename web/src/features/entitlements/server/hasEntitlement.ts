@@ -1,7 +1,4 @@
-import {
-  entitlementAccess,
-  type Entitlement,
-} from "@/src/features/entitlements/constants/entitlements";
+import { entitlementAccess, type Entitlement } from "../constants/entitlements";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { type Plan } from "@langfuse/shared";

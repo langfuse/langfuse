@@ -7,38 +7,35 @@
 export {
   CompareViewAdapter,
   DashboardCategoricalScoreAdapter,
-} from "@/src/features/scores/adapters";
-export { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-export { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
-export { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
-export { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-export { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-export { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
-export {
-  createScoreColumns,
-  useScoreColumns,
-} from "@/src/features/scores/hooks/useScoreColumns";
+} from "./adapters";
+export { AnnotateDrawerController } from "./components/AnnotateDrawerController";
+export { AnnotationForm } from "./components/AnnotationForm";
+export { DualAnnotationContent } from "./components/DualAnnotationContent";
+export { ScoreRow } from "./components/ScoreRow";
+export { MultiSelectKeyValues } from "./components/multi-select-key-values";
+export { useEmptyScoreConfigs } from "./hooks/useEmptyConfigs";
+export { createScoreColumns, useScoreColumns } from "./hooks/useScoreColumns";
 export {
   collectScoreNameCoverage,
   composeAggregateScoreKey,
   decomposeAggregateScoreKey,
   getScoreLabelFromKey,
   normalizeScoreName,
-} from "@/src/features/scores/lib/aggregateScores";
+} from "./lib/aggregateScores";
 export {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
   isTextDataType,
-} from "@/src/features/scores/lib/helpers";
+} from "./lib/helpers";
 export {
   hasModifier,
   isCompleteShortcut,
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores/lib/keyboardShortcuts";
-export { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
+} from "./lib/keyboardShortcuts";
+export { useMergeScoreColumns } from "./lib/mergeScoreColumns";
 export {
   addPrefixToScoreKeys,
   collectPresentScoreKeys,
@@ -49,13 +46,13 @@ export {
   scoreFilters,
   splitScoreDataTypeIcon,
   withPresentScoreKeys,
-} from "@/src/features/scores/lib/scoreColumns";
-export { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
-export { useMergedScores } from "@/src/features/scores/lib/useMergedScores";
+} from "./lib/scoreColumns";
+export { useMergedAggregates } from "./lib/useMergedAggregates";
+export { useMergedScores } from "./lib/useMergedScores";
 export type {
   CategoryCounts,
   ChartBin,
   ScoreColumn,
   ScoreData,
   ScoreTarget,
-} from "@/src/features/scores/types";
+} from "./types";

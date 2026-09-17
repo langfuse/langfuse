@@ -13,8 +13,8 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider/registry";
-import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+} from "../registry";
+import { invalidateGatewayResolveCacheForOrganization } from "../../resolve/gatewayResolveCache";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
 

@@ -3,7 +3,7 @@ import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import {
   createObservationsTableStore,
   type ObservationsTableStore,
-} from "@/src/features/tracing-tables/observations/observationsTableStore";
+} from "./observationsTableStore";
 
 export function useObservationsTableView({
   projectId,

@@ -9,8 +9,8 @@ import { compactNumberFormatter } from "@/src/utils/numbers";
 import {
   SampleObservationSelectorBase,
   type SampleObservation,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
-import { EVALUATOR_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+} from "../SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { EVALUATOR_FIELD_REGISTRY } from "../../../../../constants/evaluatorSearchRegistry";
 
 const preserveObservedOptions: Parameters<
   typeof SampleObservationSelectorBase

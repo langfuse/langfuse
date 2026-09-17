@@ -43,17 +43,17 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   getDefaultOutputDefinitionFormValues,
   shouldReplaceDefaultOutputDefinitionField,
-} from "@/src/features/evals/utils/template-form-defaults";
-import { templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
+} from "../utils/template-form-defaults";
+import { templateFormSchema } from "../utils/template-form-schema";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { type RouterInput } from "@/src/utils/types";
-import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationModel";
+import { useEvaluationModel } from "../hooks/useEvaluationModel";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { ManageDefaultEvalModel } from "./manage-default-eval-model";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { AlertCircle, AlertTriangle, PlusIcon, Trash } from "lucide-react";
-import { useValidateCustomModel } from "@/src/features/evals/hooks/useValidateCustomModel";
+import { useValidateCustomModel } from "../hooks/useValidateCustomModel";
 import {
   Select,
   SelectContent,
@@ -61,21 +61,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { CodeEvalTemplateFormBody } from "@/src/features/evals/components/code-eval-template-form-body";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
+import { CodeEvalTemplateFormBody } from "./code-eval-template-form-body";
 import {
   type CodeEvalSourceCodeLanguage,
   getCodeEvalSourceForEditor,
   getDefaultCodeEvalSource,
   formatAndStripCodeEvalSourceForSubmit,
-} from "@/src/features/evals/utils/code-eval-template-validation";
-import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+} from "../utils/code-eval-template-validation";
+import { useCodeEvalSourceValidation } from "../hooks/useCodeEvalSourceValidation";
 import {
   EvalTemplateTypeSelector,
   type EvalTemplateTypeSelectorMode,
-} from "@/src/features/evals/components/eval-template-type-selector";
+} from "./eval-template-type-selector";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
+import { useEvalCapabilities } from "../hooks/useEvalCapabilities";
 
 type PartialEvalTemplate = Partial<EvalTemplate> &
   Pick<EvalTemplate, "name" | "prompt" | "vars" | "outputDefinition">;

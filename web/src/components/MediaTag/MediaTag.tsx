@@ -12,13 +12,13 @@ import {
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 
-import { Button } from "@/src/components/ui/button";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+} from "../ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
 import { getMappedMediaLabel } from "@/src/fns/getMappedMediaLabel";
 

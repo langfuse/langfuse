@@ -17,8 +17,8 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import { Copy, Edit, Trash2, User as UserIcon } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { EditDialogDashboardContent } from "./EditDialogDashboardContent";
+import { CloneFirstDialogController } from "./CloneFirstDialogController";
 import { useRouter } from "next/router";
 import { DialogController } from "@/src/components/ui/dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";

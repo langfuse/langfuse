@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { planCommit } from "./commit";
 
 const experimentAndEvalExclusions = [
   {

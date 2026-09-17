@@ -17,7 +17,7 @@ import { redis } from "@langfuse/shared/src/server";
 
 import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
-import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
+import { getGatewayBaseUrl } from "../fns/gatewayUrls/getGatewayBaseUrl";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import {
   GatewayMetadataSchema,

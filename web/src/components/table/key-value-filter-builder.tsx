@@ -1,19 +1,19 @@
 import { useId, useMemo, useState } from "react";
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "../ui/select";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
-} from "@/src/components/ui/popover";
+} from "../ui/popover";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -21,13 +21,13 @@ import {
   InputCommandInput,
   InputCommandItem,
   InputCommandList,
-} from "@/src/components/ui/input-command";
+} from "../ui/input-command";
 import { MultiSelect } from "@/src/features/filters/components/multi-select";
 import { rankFacetOptions } from "@/src/features/filters/lib/facet-display";
 import { isStringPresenceOperator } from "@/src/features/filters/lib/sidebar-filter-actions";
 import { Plus, X, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "../score-tag";
 import type {
   KeyScoreLevels,
   KeyValueFilterEntry,

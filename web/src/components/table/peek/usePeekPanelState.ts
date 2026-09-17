@@ -15,8 +15,8 @@ import {
   selectDraftExpanded,
   selectIsResizing,
   selectWidgetWidth,
-} from "@/src/components/table/peek/store/peekPanelStore";
-import { beginPeekResize } from "@/src/components/table/peek/actions/resizePeekPanel";
+} from "./store/peekPanelStore";
+import { beginPeekResize } from "./actions/resizePeekPanel";
 
 // A burst of keyboard nudges is one resize action — trailing-debounce it into
 // a single onResized notification.

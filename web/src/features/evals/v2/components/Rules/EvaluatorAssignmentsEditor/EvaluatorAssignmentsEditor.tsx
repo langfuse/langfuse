@@ -17,15 +17,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { EvaluatorMappingRow } from "@/src/features/evals/v2/components/Rules/EvaluatorMappingRow/EvaluatorMappingRow";
-import type {
-  RuleEvaluatorOption,
-  RuleSetupStore,
-} from "@/src/features/evals/v2/types/rules";
+import { EvaluatorMappingRow } from "../EvaluatorMappingRow/EvaluatorMappingRow";
+import type { RuleEvaluatorOption, RuleSetupStore } from "../../../types/rules";
 
-import { EvaluatorPickerOption } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/components/EvaluatorPickerOption/EvaluatorPickerOption";
-import type { RuleCostEstimate } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
-import { RuleEvaluatorCostEstimate } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorCostEstimate";
+import { EvaluatorPickerOption } from "./components/EvaluatorPickerOption/EvaluatorPickerOption";
+import type { RuleCostEstimate } from "../../../hooks/useRuleCostEstimate";
+import { RuleEvaluatorCostEstimate } from "../RuleSetup/components/RuleEvaluatorCostEstimate";
 import { Skeleton } from "@/src/components/ui/skeleton";
 
 export function EvaluatorAssignmentsEditor({

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "../../../../Stepper/Stepper";
 
 export function VariableMappingStep({
   open,

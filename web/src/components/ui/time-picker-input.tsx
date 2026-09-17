@@ -8,7 +8,7 @@ import {
   getDateByType,
   setDateByType,
 } from "./time-picker-utils";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "./input";
 import { cn } from "@/src/utils/tailwind";
 
 interface TimePickerInputProps extends React.InputHTMLAttributes<HTMLInputElement> {

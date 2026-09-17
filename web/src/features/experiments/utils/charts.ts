@@ -8,13 +8,13 @@ import {
   SCORE_LEVEL_FILTERS,
   SCORE_BOOLEAN_FILTER_KEYS,
   SCORE_METRIC_SPECS,
-} from "@/src/features/experiments/constants/charts";
+} from "../constants/charts";
 import type {
   MetricOption,
   ScoreChartDataType,
   ScoreFilterOptions,
   ScoreLevel,
-} from "@/src/features/experiments/types/charts";
+} from "../types/charts";
 
 // Build chart ID from type and score name
 const buildScoreChartId = (

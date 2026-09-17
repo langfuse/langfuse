@@ -46,37 +46,34 @@ import {
 import { useRouter } from "next/router";
 import ScoresTable from "@/src/components/table/use-cases/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
-import { useMedia } from "@/src/features/traces/hooks/useMedia";
-import {
-  type DetailTab,
-  useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+import { useJsonExpansion } from "../../contexts/JsonExpansionContext";
+import { useMedia } from "../../hooks/useMedia";
+import { type DetailTab, useSelection } from "../../contexts/SelectionContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
+import { useTraceData } from "../../contexts/TraceDataContext";
+import { useParsedObservation } from "../../hooks/useParsedObservation";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components
-import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
+import { ObservationDetailViewHeader } from "./components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { useReadPath } from "@/src/features/events";
-import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
+import { TRACE_VIEW_CONFIG } from "../../constants/traceViewConfig";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
-} from "@/src/features/traces/fns/traceAggregation";
+} from "../../fns/traceAggregation";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import { ObservationAttributesTab } from "./ObservationAttributesTab";
-import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
-import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
+import { buildModelParameters } from "../../fns/buildModelParameters";
+import { buildObservationAttributes } from "../../fns/buildObservationAttributes";
 
 export interface ConnectedObservationDetailViewProps {
   observation: ObservationReturnTypeWithMetadata;

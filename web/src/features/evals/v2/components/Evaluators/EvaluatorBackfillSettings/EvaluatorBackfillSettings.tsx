@@ -1,6 +1,6 @@
 import { format, subMonths } from "date-fns";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBackfillSettings/components/DateRangeInput/DateRangeInput";
+import { DateRangeInput } from "./components/DateRangeInput/DateRangeInput";
 import { Input } from "@/src/components/ui/input";
 import {
   Select,

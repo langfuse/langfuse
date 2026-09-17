@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
-import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import { RightAlignedCell } from "./RightAlignedCell";
+import { DashboardCard } from "./cards/DashboardCard";
+import { DashboardTable } from "./cards/DashboardTable";
 import {
   ObservationType,
   type FilterState,
@@ -13,8 +13,8 @@ import { truncate } from "@/src/utils/string";
 import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 
 export type LatencyTableKind = "traces" | "generations" | "observations";
 

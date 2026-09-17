@@ -1,6 +1,6 @@
 import { PlusCircle } from "lucide-react";
 import { IdTableCell } from "@/src/components/design-system/table/components/IdTableCell/IdTableCell";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "./UpsertModelFormDialog/UpsertModelFormDialog";
 
 /**
  * Renders the "Provided Model Name" cell shared by the generations and events

@@ -11,15 +11,15 @@ export {
   hasProjectAccess,
   throwIfNoProjectAccess,
   useHasProjectAccess,
-} from "@/src/features/rbac/utils/checkProjectAccess";
+} from "./utils/checkProjectAccess";
 
 export {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
   useHasOrganizationAccess,
-} from "@/src/features/rbac/utils/checkOrganizationAccess";
+} from "./utils/checkOrganizationAccess";
 
 export {
   organizationRoleAccessRights,
   type OrganizationScope,
-} from "@/src/features/rbac/constants/organizationAccessRights";
+} from "./constants/organizationAccessRights";

@@ -1,14 +1,14 @@
 import { type EvalTargetObject, type FilterState } from "@langfuse/shared";
 import { useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { CreateRuleDialogContent } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/CreateRuleDialogContent/CreateRuleDialogContent";
+import { CreateRuleDialogContent } from "./components/CreateRuleDialogContent/CreateRuleDialogContent";
 import type {
   RuleDraft,
   RuleEvaluatorOption,
   RuleTableRow,
-} from "@/src/features/evals/v2/types/rules";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import { prepareRuleCloneDraft } from "@/src/features/evals/v2/fns/rules/prepareRuleCloneDraft";
+} from "../../../types/rules";
+import { prepareModernRuleVariableMapping } from "../../../fns/variableMapping/prepareModernRuleVariableMapping";
+import { prepareRuleCloneDraft } from "../../../fns/rules/prepareRuleCloneDraft";
 import { api } from "@/src/utils/api";
 
 export function CreateRuleDialog({

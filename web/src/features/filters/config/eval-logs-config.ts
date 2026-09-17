@@ -1,5 +1,5 @@
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 
 export const evalLogFilterConfig: FilterConfig = {
   tableName: "evalLogs",

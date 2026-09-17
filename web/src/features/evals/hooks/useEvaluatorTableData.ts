@@ -9,10 +9,10 @@ import { api } from "@/src/utils/api";
 import {
   getLazyEvaluatorDisplayStatus,
   useLazyEvaluatorExecutionCountsByIds,
-} from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
-import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import { requiresLegacyMigrationAction } from "@/src/features/evals/utils/typeHelpers";
-import { RAGAS_TEMPLATE_PREFIX } from "@/src/features/evals/types";
+} from "./useLazyEvaluatorExecutionCounts";
+import { generateJobExecutionCounts } from "../utils/job-execution-utils";
+import { requiresLegacyMigrationAction } from "../utils/typeHelpers";
+import { RAGAS_TEMPLATE_PREFIX } from "../types";
 
 export type EvaluatorDataRow = {
   id: string;

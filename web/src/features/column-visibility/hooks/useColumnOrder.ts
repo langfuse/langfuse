@@ -10,7 +10,7 @@ import {
   hasRunMigration,
   markMigrationRun,
   type OneTimeMigration,
-} from "@/src/features/column-visibility/lib/one-time-migration";
+} from "../lib/one-time-migration";
 
 // Stable identity, so a missing or unusable stored value does not make a new
 // array on every render (the value is a dependency of the effect below).

@@ -2,7 +2,7 @@
 import { SubHeader } from "@/src/components/layouts/header";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { Label } from "@/src/components/ui/label";
-import { getLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { getLangfuseEnvCode } from "../hooks/useLangfuseEnvCode";
 import { cn } from "@/src/utils/tailwind";
 
 type ApiKeyScope = "project" | "organization";

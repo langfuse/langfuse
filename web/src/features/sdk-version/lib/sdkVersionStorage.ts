@@ -1,7 +1,7 @@
 import {
   sdkVersionStorageKeys,
   type SdkVersionInfo,
-} from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+} from "./sdkVersionCapabilities";
 
 const writeStorageValue = (key: string, value: string | null) => {
   if (value === null) {

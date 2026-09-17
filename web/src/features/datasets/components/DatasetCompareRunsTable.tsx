@@ -5,8 +5,8 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useColumnVisibility } from "@/src/features/column-visibility";
-import { getDatasetRunAggregateColumnProps } from "@/src/features/datasets/components/DatasetRunAggregateColumnHelpers";
-import { useDatasetRunAggregateColumns } from "@/src/features/datasets/hooks/useDatasetRunAggregateColumns";
+import { getDatasetRunAggregateColumnProps } from "./DatasetRunAggregateColumnHelpers";
+import { useDatasetRunAggregateColumns } from "../hooks/useDatasetRunAggregateColumns";
 import { useEffect, useMemo } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
@@ -16,7 +16,7 @@ import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context
 import {
   DatasetCompareFieldsProvider,
   useDatasetCompareFields,
-} from "@/src/features/datasets/contexts/DatasetCompareFieldsContext";
+} from "../contexts/DatasetCompareFieldsContext";
 import { useColumnFilterState } from "@/src/features/filters";
 import { type Prisma } from "@langfuse/shared";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";

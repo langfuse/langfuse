@@ -5,12 +5,12 @@ import { RotateCcw } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
+import { CollapsibleCard } from "../../../../CollapsibleCard/CollapsibleCard";
 import {
   EvaluatorDefinitionView,
   type EvaluatorDefinition,
 } from "../EvaluatorDefinitionView/EvaluatorDefinitionView";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import type { JudgeModel } from "../../../../../judgeModel";
 import type { EvaluatorVersion } from "../../types";
 
 function toEvaluatorDefinition(

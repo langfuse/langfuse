@@ -2,7 +2,7 @@ import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import {
   applyCodeMirrorSearchQuery,
   setActiveSearchMarkCodeMirrorRange,
-} from "../../editor";
+} from "@/src/components/editor";
 
 import { createMessageSearchController } from "./controller";
 

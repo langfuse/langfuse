@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { shouldClosePeekAfterDelete } from "@/src/components/table/peek";
+import { shouldClosePeekAfterDelete } from "./";
 
 /**
  * LFE-10535 (#3): deleting trace A then K/J-navigating to trace B before the

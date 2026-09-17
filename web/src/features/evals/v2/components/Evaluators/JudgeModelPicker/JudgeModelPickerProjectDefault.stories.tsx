@@ -3,7 +3,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../../../.storybook/preview";
 import { PopoverTrigger } from "@/src/components/ui/popover";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import type { JudgeModel } from "../../../judgeModel";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,

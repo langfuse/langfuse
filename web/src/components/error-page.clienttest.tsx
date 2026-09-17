@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import { ErrorPageWithSentry } from "@/src/components/error-page";
+import { ErrorPageWithSentry } from "./error-page";
 
 const { captureExceptionMock, addBreadcrumbMock } = vi.hoisted(() => ({
   captureExceptionMock: vi.fn(),

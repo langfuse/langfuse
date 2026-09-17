@@ -5,7 +5,7 @@ import { act, renderHook } from "@testing-library/react";
 import {
   SupportDrawerProvider,
   useSupportDrawer,
-} from "@/src/features/support-chat/SupportDrawerProvider";
+} from "./SupportDrawerProvider";
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <SupportDrawerProvider>{children}</SupportDrawerProvider>

@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useAllModels } from "@/src/features/dashboard/components/hooks";
+import { useAllModels } from "./hooks";
 import { cn } from "@/src/utils/tailwind";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";

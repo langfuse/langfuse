@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import type React from "react";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "./ui/badge";
 import {
   CircleDot,
   ClipboardPen,
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cva } from "class-variance-authority";
 import { type ObservationType } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
+import { cn } from "../utils/tailwind";
 
 export type LangfuseItemType =
   | ObservationType

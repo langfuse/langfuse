@@ -13,8 +13,8 @@ import {
 import {
   organizationRoleAccessRights,
   orgNoneRoleComment,
-} from "@/src/features/rbac/constants/organizationAccessRights";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
+} from "../constants/organizationAccessRights";
+import { orderedRoles } from "../constants/orderedRoles";
 
 export const RoleSelectItem = ({
   role,

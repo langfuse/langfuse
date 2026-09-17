@@ -8,11 +8,8 @@ import { Bookmark, Check, Clock, Parentheses, Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { ScoreTag } from "@/src/components/score-tag";
-import type {
-  CompletionOption,
-  CompletionPlan,
-} from "@/src/features/search-bar/lib/completions";
-import { optionDomId } from "@/src/features/search-bar/components/presentation";
+import type { CompletionOption, CompletionPlan } from "../lib/completions";
+import { optionDomId } from "./presentation";
 
 function OptionIcon({ kind }: { kind: CompletionOption["kind"] }) {
   const cls = "h-3.5 w-3.5 flex-none opacity-55";

@@ -9,7 +9,7 @@ import {
   resolveDefaultWidthFraction,
   selectDraftExpanded,
   selectWidgetWidth,
-} from "@/src/components/table/peek/store/peekPanelStore";
+} from "./peekPanelStore";
 
 const STORAGE_KEY = "peekViewWidthFraction";
 const pct = (fraction: number) => `${fraction * 100}vw`;

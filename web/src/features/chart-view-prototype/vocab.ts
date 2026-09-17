@@ -1,7 +1,7 @@
 // Re-export the production chart-view vocabulary (labels, query mappings,
 // coerceConfig, describeConfig, chart types, …) so the harness and its tests
 // use the exact same source of truth as the real view.
-export * from "@/src/features/chart-view/vocab";
+export * from "../chart-view/vocab";
 
 import {
   type DimensionKey,

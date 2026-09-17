@@ -7,28 +7,28 @@ import {
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "./chart-props";
 import {
   formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
-import { isolatedPointDot } from "@/src/features/widgets/chart-library/IsolatedPointDot";
-import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
+} from "./utils";
+import { isolatedPointDot } from "./IsolatedPointDot";
+import { useChartTickBudget } from "./useChartTickBudget";
 import {
   prepareDenseSeries,
   prepareIsolatedPoints,
-} from "@/src/features/widgets/chart-library/prepareDenseSeries";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
-import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
-import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
+} from "./prepareDenseSeries";
+import { prepareTimeAxis } from "./prepareTimeAxis";
+import { temporalAxisTickProp } from "./TimeAxisTick";
+import { prepareVisibleSeries } from "./prepareVisibleSeries";
 import {
   seriesColor,
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+} from "./TimeSeriesLegend";
 
 export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   data,

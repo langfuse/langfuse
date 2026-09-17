@@ -10,7 +10,7 @@
  * - UI state (selection, collapsed nodes) - see SelectionContext
  * - Display preferences - see ViewPreferencesContext
  */
-import type { TraceSearchListItem } from "@/src/features/traces/types/traceSearchListItem";
+import type { TraceSearchListItem } from "../types/traceSearchListItem";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
@@ -30,10 +30,10 @@ import {
 import {
   calculateTraceDuration,
   findEarliestStartTime,
-} from "@/src/features/traces/fns/timelineCalculations";
+} from "../fns/timelineCalculations";
 import { useViewPreferences } from "./ViewPreferencesContext";
 import { useMergedScores } from "@/src/features/scores";
-import { traceLevelScoreOwnerIds } from "@/src/features/traces/fns/nodeScores";
+import { traceLevelScoreOwnerIds } from "../fns/nodeScores";
 
 type TraceType = Omit<
   WithStringifiedMetadata<TraceDomain>,

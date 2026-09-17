@@ -12,17 +12,14 @@ import {
 import { type FilterState } from "@langfuse/shared";
 
 import { renderFilterIcon } from "@/src/components/ItemBadge";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+import { SessionVirtualizedRow } from "./SessionVirtualizedRow";
+import { type EventSessionTrace } from "./sessionDetailPageTypes";
 import {
   ModernSessionViewDropdownMenu,
   type ModernSessionViewDropdownMenuControls,
-} from "@/src/features/sessions/ModernSessionViewDropdownMenu";
-import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/sessions/session-detail-presets";
-import {
-  formatIdleGap,
-  IDLE_GAP_THRESHOLD_SECONDS,
-} from "@/src/features/sessions/sessionIdleGap";
+} from "./ModernSessionViewDropdownMenu";
+import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "./session-detail-presets";
+import { formatIdleGap, IDLE_GAP_THRESHOLD_SECONDS } from "./sessionIdleGap";
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {

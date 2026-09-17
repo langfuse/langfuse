@@ -25,7 +25,7 @@ import {
   getExportSourceUnavailableMessage,
   shouldHideExportSourceSelector,
 } from "@/src/features/analytics-integrations/exportSource";
-import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
+import { type BlobStorageFormControl } from "./formValues";
 
 // Export source selector plus the blocked-save alert for a persisted source
 // that is no longer selectable on this deployment.

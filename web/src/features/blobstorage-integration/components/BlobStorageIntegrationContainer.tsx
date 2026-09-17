@@ -10,11 +10,11 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
-import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
+import { type BlobStorageIntegrationFormSchema } from "../types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
-import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
+import { buildBlobStorageFormValues } from "./formValues";
+import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
 
 // State layer. Owns everything async and entity-scoped: availability
 // derivation, the four mutations, and the entity-action buttons. The form

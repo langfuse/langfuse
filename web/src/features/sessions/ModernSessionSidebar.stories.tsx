@@ -5,9 +5,9 @@ import { type ComponentProps, useState } from "react";
 import {
   ModernSessionSidebar,
   type ModernSessionSidebarTrace,
-} from "@/src/features/sessions/ModernSessionSidebar";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
+} from "./ModernSessionSidebar";
+import { type EventSessionTrace } from "./sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "./sessionIdleGap";
 import { type FilterState } from "@langfuse/shared";
 
 const traces = [

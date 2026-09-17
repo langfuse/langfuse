@@ -1,9 +1,9 @@
 import { extractValueFromObjectAsString } from "@langfuse/shared";
 
-import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
-import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
-import { buildInterpolatedPromptPreview } from "@/src/features/evals/v2/fns/promptEditor/buildInterpolatedPromptPreview";
-import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
+import type { VariableFieldState } from "../../types/variableMapping";
+import { buildEvaluatorVariableMappings } from "../variableMapping/buildEvaluatorVariableMappings";
+import { buildInterpolatedPromptPreview } from "./buildInterpolatedPromptPreview";
+import { evalVariableColumnLabel } from "../variableMapping/evalVariableColumnLabel";
 
 export function preparePromptEditorState({
   prompt,

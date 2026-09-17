@@ -2,7 +2,7 @@ import { toast } from "sonner";
 import {
   SuccessNotification,
   type SuccessNotificationProps,
-} from "@/src/features/notifications/SuccessNotification";
+} from "./SuccessNotification";
 
 export const showSuccessToast = ({
   duration = 5000,

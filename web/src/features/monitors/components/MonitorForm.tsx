@@ -44,7 +44,7 @@ import { WidgetPropertySelectItem } from "@/src/features/widgets";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";
+import { resolveMonitorNameForSave } from "../fns/resolveMonitorNameForSave";
 import { cn } from "@/src/utils/tailwind";
 
 import {

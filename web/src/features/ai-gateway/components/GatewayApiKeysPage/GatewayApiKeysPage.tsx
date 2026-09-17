@@ -4,9 +4,9 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
-import { GatewayApiKeysView } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysView/GatewayApiKeysView";
-import { RevokeGatewayApiKeyDialog } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/RevokeGatewayApiKeyDialog";
+import { CreateGatewayApiKeyDialogController } from "./components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { GatewayApiKeysView } from "./components/GatewayApiKeysView/GatewayApiKeysView";
+import { RevokeGatewayApiKeyDialog } from "./components/RevokeGatewayApiKeyDialog";
 import { api } from "@/src/utils/api";
 
 export function GatewayApiKeysPage({

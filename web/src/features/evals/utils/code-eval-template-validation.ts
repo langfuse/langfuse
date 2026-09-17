@@ -5,7 +5,7 @@ import {
   PYTHON_CODE_EVAL_CONTRACT,
   TYPESCRIPT_CODE_EVAL_CONTRACT,
   type CodeEvalSourceCodeLanguage,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+} from "./code-eval-template-starter-examples";
 
 export {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
@@ -19,7 +19,7 @@ export {
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
   type CodeEvalSourceCodeLanguage,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
+} from "./code-eval-template-starter-examples";
 
 const CODE_EVAL_SOURCE_MAX_BYTES = 256 * 1024;
 

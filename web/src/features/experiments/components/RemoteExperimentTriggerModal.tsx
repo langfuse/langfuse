@@ -23,7 +23,7 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { getFormattedPayload } from "@/src/features/experiments/utils/format";
+import { getFormattedPayload } from "../utils/format";
 import { type Prisma } from "@langfuse/shared";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 

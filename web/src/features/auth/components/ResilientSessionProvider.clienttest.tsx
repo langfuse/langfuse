@@ -5,7 +5,7 @@ import type { Session } from "next-auth";
 import { SessionContext, type SessionContextValue } from "next-auth/react";
 import type * as nextAuthReactModule from "next-auth/react";
 
-import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
+import { ResilientSessionProvider } from "./ResilientSessionProvider";
 
 const { useSessionMock } = vi.hoisted(() => ({ useSessionMock: vi.fn() }));
 

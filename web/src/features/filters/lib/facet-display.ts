@@ -1,4 +1,4 @@
-import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
+import type { UIFilter } from "../hooks/useSidebarFilterState";
 import { filterRank } from "@/src/features/search-bar";
 
 // Pure display helpers for the faceted filter sidebar

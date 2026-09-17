@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { useExperimentNames } from "./useExperimentNames";
 
 interface UseExperimentSearchProps {
   projectId: string;

@@ -14,7 +14,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Check, ListFilter } from "lucide-react";
-import { type ScoreComparisonOperator } from "@/src/features/experiments/fns/scoreComparisonFilter";
+import { type ScoreComparisonOperator } from "../../fns/scoreComparisonFilter";
 import { cn } from "@/src/utils/tailwind";
 
 export type ScoreComparisonTarget = {

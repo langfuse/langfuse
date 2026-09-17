@@ -19,14 +19,14 @@ import { signIn, useSession } from "next-auth/react";
 import { ArrowLeft } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
+import { RequestResetPasswordEmailButton } from "./ResetPasswordButton";
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "../lib/credentialsUtils";
 
 const resetPasswordSchema = z
   .object({

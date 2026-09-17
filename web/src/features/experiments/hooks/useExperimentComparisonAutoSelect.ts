@@ -2,8 +2,8 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { type UrlUpdateType } from "use-query-params";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
-import { AUTO_SELECT_COMPARISON_STORAGE_KEY } from "@/src/features/experiments/constants/comparison";
+import { useExperimentNames } from "./useExperimentNames";
+import { AUTO_SELECT_COMPARISON_STORAGE_KEY } from "../constants/comparison";
 
 type UseExperimentComparisonAutoSelectProps = {
   projectId: string;

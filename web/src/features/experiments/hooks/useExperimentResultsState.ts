@@ -5,7 +5,7 @@ import {
   StringParam,
   type UrlUpdateType,
 } from "use-query-params";
-import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
+import { MAX_SELECTED_EXPERIMENTS } from "../constants/comparison";
 import useLocalStorage from "@/src/components/useLocalStorage";
 
 /**

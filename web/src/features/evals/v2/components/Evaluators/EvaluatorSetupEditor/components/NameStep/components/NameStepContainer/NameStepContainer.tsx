@@ -3,8 +3,8 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
 import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
-import { NameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/NameStep";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { NameStep } from "../../NameStep";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function NameStepContainer({
   store,

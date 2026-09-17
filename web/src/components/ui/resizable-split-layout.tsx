@@ -6,8 +6,8 @@ import {
   ResizablePanelGroup,
   useDefaultLayout,
   usePanelRef,
-} from "@/src/components/ui/resizable";
-import { withMountedPanel } from "@/src/components/ui/resizable-panel-imperative";
+} from "./resizable";
+import { withMountedPanel } from "./resizable-panel-imperative";
 import { cn } from "@/src/utils/tailwind";
 
 interface ResizableSplitLayoutProps {

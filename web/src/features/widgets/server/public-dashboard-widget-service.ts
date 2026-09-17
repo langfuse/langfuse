@@ -28,7 +28,7 @@ import {
 import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
-} from "@/src/features/widgets/utils/pivot-table-utils";
+} from "../utils/pivot-table-utils";
 
 // The widget shape used internally after input normalization: the public
 // body with chartConfig and filters fully resolved.

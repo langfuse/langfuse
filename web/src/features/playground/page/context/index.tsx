@@ -11,8 +11,8 @@ import React, {
 import { v4 as uuidv4 } from "uuid";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { useModelParams } from "../hooks/useModelParams";
+import usePlaygroundCache from "../hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
@@ -43,14 +43,14 @@ import {
   type PlaygroundHandle,
   PLAYGROUND_EVENTS,
   MULTI_WINDOW_CONFIG,
-} from "@/src/features/playground/page/types";
+} from "../types";
 import {
   getPlaygroundEventBus,
   useWindowCoordination,
-} from "@/src/features/playground/page/hooks/useWindowCoordination";
+} from "../hooks/useWindowCoordination";
 import { useSyncMessageSearchMessages } from "@/src/components/ChatMessages/MessageSearch";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { STREAMING_PREF_KEY } from "../storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 type PlaygroundContextType = {

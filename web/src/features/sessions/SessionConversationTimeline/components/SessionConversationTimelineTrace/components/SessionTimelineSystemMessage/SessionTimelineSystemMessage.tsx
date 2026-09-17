@@ -1,6 +1,6 @@
-import { type SessionTimelineConversationMessage } from "@/src/features/sessions/SessionConversationTimeline/fns/processTimelineMessages";
-import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
-import { SessionTimelinePart } from "@/src/features/sessions/SessionConversationTimeline/components/SessionTimelinePart/SessionTimelinePart";
+import { type SessionTimelineConversationMessage } from "../../../../fns/processTimelineMessages";
+import { SessionTimelineCollapsiblePart } from "../../../SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
+import { SessionTimelinePart } from "../../../SessionTimelinePart/SessionTimelinePart";
 
 export function SessionTimelineSystemMessage({
   parts,

@@ -4,23 +4,20 @@ import {
   type WebCalloutEndpointInput,
   type WebCalloutInvokeInput,
   type WebCalloutPayload,
-} from "@/src/features/web-callouts/types";
-import {
-  decryptWebCalloutHeaders,
-  processHeadersForStorage,
-} from "@/src/features/web-callouts/server/headers";
-import { assertTargetBelongsToProject } from "@/src/features/web-callouts/server/targetValidation";
+} from "../types";
+import { decryptWebCalloutHeaders, processHeadersForStorage } from "./headers";
+import { assertTargetBelongsToProject } from "./targetValidation";
 import {
   assertValidCalloutUrl,
   validateWebCalloutUrl,
   webCalloutWhitelist,
-} from "@/src/features/web-callouts/server/urlValidation";
+} from "./urlValidation";
 import {
   enforceWebCalloutRateLimit,
   recordWebCalloutInvokeMetric,
   withWebCalloutInFlightLimit,
   type WebCalloutLimitContext,
-} from "@/src/features/web-callouts/server/rateLimit";
+} from "./rateLimit";
 import { LangfuseUserAgent } from "@langfuse/shared";
 import { fetchWithSecureRedirects, logger } from "@langfuse/shared/src/server";
 import {

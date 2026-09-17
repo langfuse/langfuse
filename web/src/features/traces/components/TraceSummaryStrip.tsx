@@ -4,17 +4,11 @@ import { useMemo, useState } from "react";
 
 import { Button } from "@/src/components/ui/button";
 import { TagButton } from "@/src/features/tag/components/TagButton";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
-import { LatencyBadge } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import {
-  CostBadge,
-  UsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { SessionBadge, UserIdBadge } from "./TraceMetadataBadges";
+import { LatencyBadge } from "./ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { CostBadge, UsageBadge } from "./ObservationMetadataBadgesTooltip";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { aggregateTraceMetrics } from "../fns/traceAggregation";
 
 const MAX_VISIBLE_TAGS = 3;
 

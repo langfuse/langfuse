@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "../context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,7 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Settings } from "lucide-react";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
-import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { STREAMING_PREF_KEY } from "../storage/keys";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 import { GenerationOutput } from "./GenerationOutput";

@@ -3,19 +3,16 @@ import { useRouter } from "next/router";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
-import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
+import { usePersistedWindowIds } from "../hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
   type PlaygroundSchema,
   type PlaygroundSourcePrompt,
   type PlaygroundTool,
-} from "@/src/features/playground/page/types";
-import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
-import { resolveJumpTargetWindowId } from "@/src/features/playground/page/utils/resolveJumpTargetWindowId";
-import {
-  getWindowState,
-  setWindowState,
-} from "@/src/features/playground/page/storage/windowStorage";
+} from "../types";
+import { getMessagesFingerprint } from "../utils/messagesFingerprint";
+import { resolveJumpTargetWindowId } from "../utils/resolveJumpTargetWindowId";
+import { getWindowState, setWindowState } from "../storage/windowStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {

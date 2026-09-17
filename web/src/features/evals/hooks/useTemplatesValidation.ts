@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { useIsCodeEvalEnabled } from "./useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+} from "../utils/code-eval-template-utils";
 
 export function useTemplatesValidation({
   projectId,

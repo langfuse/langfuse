@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { type ExperimentsTableStore } from "@/src/features/experiments/store/experimentsTableStore";
+import { type ExperimentsTableStore } from "../store/experimentsTableStore";
 
 /**
  * Bridges React Query page data into the selection store so selection stays

@@ -7,7 +7,7 @@ import {
   getSdkSectionState,
   getV4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
-} from "@/src/features/v4-migration/sdkVersionStatus";
+} from "./sdkVersionStatus";
 
 const sdkSeries = (
   overrides: Partial<V4MigrationSdkUsageSeries> = {},

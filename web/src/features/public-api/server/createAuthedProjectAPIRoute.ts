@@ -14,11 +14,11 @@ import {
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
 import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { RateLimitService } from "./RateLimitService";
+import { type RateLimitUpgradePath } from "./rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
-import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import { isZodError } from "./withMiddlewares";
 import {
   createStructuredPublicApiAuthError,
   createStructuredPublicApiRequestValidationError,
@@ -26,11 +26,11 @@ import {
   structuredPublicApiErrorContract,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
-import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
-import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
-import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { clickHouseRouteForRequest } from "./clickHouseRequestTags";
+import { attachDeprecation } from "./deprecations";
+import { applyLegacyApiOrganizationCutoff } from "./legacyApiOrganizationCutoff";
+import { type RouteAccessLevel } from "./verifyProjectApiKeyAuth";
+import { shadowAuth } from "./shadowAuth";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string

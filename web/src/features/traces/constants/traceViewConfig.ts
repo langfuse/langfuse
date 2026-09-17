@@ -1,4 +1,4 @@
-import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
+import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "./traceDownloadConfig";
 
 /**
  * Configuration constants for trace views.

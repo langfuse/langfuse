@@ -1,7 +1,7 @@
 import {
   isUnmountedResizablePanelGroupError,
   withMountedPanel,
-} from "@/src/components/ui/resizable-panel-imperative";
+} from "./resizable-panel-imperative";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 
 function panelStub(

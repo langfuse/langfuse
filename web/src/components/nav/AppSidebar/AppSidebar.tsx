@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { NavMain, type NavMainItem } from "@/src/components/nav/nav-main";
+import { NavMain, type NavMainItem } from "../nav-main";
 import {
   Sidebar,
   SidebarContent,

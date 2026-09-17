@@ -9,20 +9,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { RuleSetup } from "@/src/features/evals/v2/components/Rules/RuleSetup/RuleSetup";
-import { RuleDialogFooter } from "@/src/features/evals/v2/components/Rules/RuleDialogFooter/RuleDialogFooter";
-import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { RuleSetup } from "../../../RuleSetup/RuleSetup";
+import { RuleDialogFooter } from "../../../RuleDialogFooter/RuleDialogFooter";
+import { createRuleSetupStore } from "../../../../../stores/createRuleSetupStore";
 import type {
   RuleDraft,
   RuleEvaluatorOption,
-} from "@/src/features/evals/v2/types/rules";
+} from "../../../../../types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
-import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
-import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { prepareNameForSave } from "../../../../../fns/prepareNameForSave";
+import { getFilterAnalyticsProperties } from "../../../../../fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
 
 export function CreateRuleDialogContent({

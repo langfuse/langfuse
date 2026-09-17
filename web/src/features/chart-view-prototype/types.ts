@@ -8,7 +8,7 @@ export type {
   AggregationFn,
   TimeGranularity,
   ViewMode,
-} from "@/src/features/chart-view/types";
+} from "../chart-view/types";
 
 export type ObservationLevel = "DEBUG" | "DEFAULT" | "WARNING" | "ERROR";
 export type ObservationKind = "GENERATION" | "SPAN" | "EVENT";

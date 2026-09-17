@@ -1,7 +1,4 @@
-import {
-  type ScoreChartDataset,
-  type ScoreMetricDef,
-} from "@/src/features/scores-chart-view/types";
+import { type ScoreChartDataset, type ScoreMetricDef } from "../types";
 
 /**
  * The measures the three score views expose. `value` is a `number`-typed

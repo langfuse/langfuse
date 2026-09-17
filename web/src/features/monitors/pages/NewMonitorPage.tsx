@@ -2,10 +2,10 @@ import { useRouter } from "next/router";
 
 import Page from "@/src/components/layouts/page";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
-import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
-import { getInitialMonitorTriggerIds } from "@/src/features/monitors/fns/getInitialMonitorTriggerIds";
-import { getMonitorPrefill } from "@/src/features/monitors/fns/getMonitorPrefill";
+import { MonitorForm } from "../components/MonitorForm";
+import { MonitorPagePermissions } from "../components/MonitorPagePermissions";
+import { getInitialMonitorTriggerIds } from "../fns/getInitialMonitorTriggerIds";
+import { getMonitorPrefill } from "../fns/getMonitorPrefill";
 import { api } from "@/src/utils/api";
 import { TriggerEventSource } from "@langfuse/shared";
 

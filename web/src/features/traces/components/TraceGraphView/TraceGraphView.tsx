@@ -9,12 +9,12 @@
 import { useCallback } from "react";
 import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
 import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
-import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
-import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
+import { useActiveObservationIds } from "../../contexts/PlayheadContext";
+import { useViewPreferences } from "../../contexts/ViewPreferencesContext";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useTraceSearchMatches } from "@/src/features/traces/hooks/useTraceSearchMatches";
+import { useTraceAnalyticsDimensions } from "../../hooks/useTraceAnalyticsDimensions";
+import { useTraceSearchMatches } from "../../hooks/useTraceSearchMatches";
 import { useMobileLayoutContextOptional } from "../TraceLayoutMobile";
 
 export function TraceGraphView() {

@@ -17,7 +17,7 @@ import { assertUnreachable } from "@/src/utils/types";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
-} from "@/src/features/evals/server/isCodeEvalEnabled";
+} from "./isCodeEvalEnabled";
 
 const CreateEvalTemplateIntentSchema = z.discriminatedUnion("intent", [
   z.object({ intent: z.literal("new") }),

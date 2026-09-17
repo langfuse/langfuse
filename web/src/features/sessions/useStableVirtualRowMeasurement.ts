@@ -3,7 +3,7 @@ import { type Virtualizer } from "@tanstack/react-virtual";
 import {
   createStableVirtualRowMeasurementState,
   STABLE_VIRTUAL_ROW_MEASUREMENT_CONFIG,
-} from "@/src/features/sessions/stableVirtualRowMeasurementState";
+} from "./stableVirtualRowMeasurementState";
 
 type StableVirtualRowMeasurementOptions = {
   index: number;

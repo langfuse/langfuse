@@ -2,7 +2,7 @@ import { Bot } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { Button } from "../../ui/button";
+import { Button } from "@/src/components/ui/button";
 import { Callout } from "./Callout";
 
 const meta = preview.meta({

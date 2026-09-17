@@ -6,10 +6,10 @@ import {
   TimeScopeSchema,
   wipVariableMapping,
 } from "@langfuse/shared";
-import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
-import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
+import { OUTPUT_MAPPING } from "./evaluator-constants";
+import { getJsonPathCompatibilityWarning } from "./json-path-compatibility";
 
-export { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
+export { getJsonPathCompatibilityWarning } from "./json-path-compatibility";
 
 export const evalConfigFormSchema = z
   .object({

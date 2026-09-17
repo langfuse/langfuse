@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  fillMissingValuesAndTransform,
-  isEmptyTimeSeries,
-} from "@/src/features/dashboard/components/hooks";
+import { fillMissingValuesAndTransform, isEmptyTimeSeries } from "./hooks";
 
 const ts1 = Date.UTC(2026, 6, 1);
 const ts2 = Date.UTC(2026, 6, 2);

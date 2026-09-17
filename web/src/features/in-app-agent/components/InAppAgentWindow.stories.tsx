@@ -12,12 +12,12 @@ import {
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
-import { getInAppAgentQuickActionContext } from "@/src/features/in-app-agent/quickActions";
-import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import { getInAppAgentQuickActionContext } from "../quickActions";
+import type { InAppAgentActivityByConversationId } from "../lib/inAppAgentActivity";
 import {
   createInAppAgentDisplayState,
   projectInAppAgentMessagesForDisplay,
-} from "@/src/features/in-app-agent/lib/display";
+} from "../lib/display";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
@@ -26,7 +26,7 @@ import { getDrawerMessages } from "./utils/utils";
 import {
   getBackgroundRunNotice,
   getSettledActivityOutcome,
-} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+} from "../lib/backgroundExecutionSession";
 
 function InAppAgentWindowStoryShell({
   children,

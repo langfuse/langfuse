@@ -1,5 +1,5 @@
 import { promptsTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "../lib/filter-config";
 
 export const promptFilterConfig: FilterConfig = {
   tableName: "prompts",

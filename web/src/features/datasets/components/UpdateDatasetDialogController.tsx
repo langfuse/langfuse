@@ -3,7 +3,7 @@ import { Dialog } from "@/src/components/ui/dialog";
 import {
   UpdateDatasetDialogContent,
   type UpdateDatasetDialogProps,
-} from "@/src/features/datasets/components/UpdateDatasetDialogContent";
+} from "./UpdateDatasetDialogContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type ReactNode, useState } from "react";
 

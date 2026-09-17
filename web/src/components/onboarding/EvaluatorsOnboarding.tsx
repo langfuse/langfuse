@@ -1,7 +1,7 @@
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
 import { EvaluatorsOnboardingView } from "@/src/components/onboarding/components/EvaluatorsOnboardingView/EvaluatorsOnboardingView";
-import type { ActionConfig } from "@/src/components/ui/splash-screen";
+import type { ActionConfig } from "../ui/splash-screen";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 
 interface EvaluatorsOnboardingProps {

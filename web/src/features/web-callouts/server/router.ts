@@ -6,13 +6,13 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   WebCalloutEndpointUpsertInputSchema,
   WebCalloutInvokeInputSchema,
-} from "@/src/features/web-callouts/types";
+} from "../types";
 import {
   invokeWebCalloutEndpoint,
   toEnabledWebCallout,
   toSafeWebCalloutEndpoint,
   upsertWebCalloutEndpoint,
-} from "@/src/features/web-callouts/server/service";
+} from "./service";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

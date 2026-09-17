@@ -1,12 +1,12 @@
 import Decimal from "decimal.js";
 
-import { matchPatternFor } from "@/src/features/models/fns/matchPatternFor";
+import { matchPatternFor } from "./matchPatternFor";
 import {
   type FormPricingTier,
   type FormUpsertModel,
   type FormUsageType,
   type GetModelResult,
-} from "@/src/features/models/validation";
+} from "../validation";
 
 /** What the dialog knows about the model being created, edited or cloned. */
 export type ModelFormSource =

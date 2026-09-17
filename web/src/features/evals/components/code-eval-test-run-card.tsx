@@ -6,11 +6,8 @@ import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import {
-  type PreviewData,
-  usePreviewData,
-} from "@/src/features/evals/hooks/usePreviewData";
-import { useFirstEvalPreviewPointer } from "@/src/features/evals/hooks/useEvalPreviewNavigation";
+import { type PreviewData, usePreviewData } from "../hooks/usePreviewData";
+import { useFirstEvalPreviewPointer } from "../hooks/useEvalPreviewNavigation";
 import { useReadPath } from "@/src/features/events";
 import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -25,7 +22,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
-import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
+import { type EvalFormType } from "../utils/evaluator-form-utils";
 
 type CodeEvalTestRunResult =
   | RouterOutputs["evals"]["testRunCodeEval"]

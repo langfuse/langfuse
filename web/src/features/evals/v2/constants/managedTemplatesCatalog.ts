@@ -1,4 +1,4 @@
-import type { ManagedTemplate } from "@/src/features/evals/v2/types/templateGallery";
+import type { ManagedTemplate } from "../types/templateGallery";
 
 type ManagedTemplatesCatalog = {
   schemaVersion: 1;

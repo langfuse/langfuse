@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { timeSeriesToDataPoints } from "./chart-data-adapters";
 
 describe("timeSeriesToDataPoints", () => {
   it("passes real values through", () => {

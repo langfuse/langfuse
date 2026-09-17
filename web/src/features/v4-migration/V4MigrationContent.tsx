@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast, showErrorToast } from "../notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -12,8 +12,8 @@ import {
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useLangfuseCloudRegion } from "../organizations/hooks";
+import { useSupportDrawer } from "../support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {
   HoverCard,
@@ -28,7 +28,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "../posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -41,34 +41,34 @@ import {
   isActionableSdkSeries,
   type V4MigrationSdkState,
   type V4MigrationSdkUsageSeries,
-} from "@/src/features/v4-migration/sdkVersionStatus";
-import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
-import { useProjectV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
+} from "./sdkVersionStatus";
+import { V4MigrationStatusDot } from "./V4MigrationBadgeContent";
+import { useProjectV4MigrationData } from "./hooks/useV4MigrationData";
 import {
   getProjectMigrationReadiness,
   V4_MIGRATION_LOOKBACK_DAYS,
   type MigrationActionState,
   type MigrationCountState,
   type ProjectMigrationReadiness,
-} from "@/src/features/v4-migration/migrationData";
-import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
+} from "./migrationData";
+import { useReadPath, V4PreviewToggleRow } from "../events";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "../projects/hooks";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
-} from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useHasProjectAccess } from "@/src/features/rbac";
+} from "./useV4UpgradeAssistantSupport";
+import { useHasProjectAccess } from "../rbac";
 import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
-import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
+import { EvaluatorMigrationDialog } from "./EvaluatorMigrationDialog";
+import { buildDeprecatedRulesUrl } from "./evaluatorMigrationUrls";
 import {
   getApiMigrationGuidance,
   getCodingAgentName,
   type MigrationSdkName,
-} from "@/src/features/v4-migration/apiMigrationGuidance";
+} from "./apiMigrationGuidance";
 
 // Single source of truth for the v4-migration copy and content. Both surfaces
 // (side panel and modal) render these components — edit copy here only.

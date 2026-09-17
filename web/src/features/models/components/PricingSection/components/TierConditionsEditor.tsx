@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import type { FormUpsertModel } from "@/src/features/models/validation";
+import type { FormUpsertModel } from "../../../validation";
 import type { PricingTierCondition } from "@langfuse/shared";
 
 type TierConditionsEditorProps = {

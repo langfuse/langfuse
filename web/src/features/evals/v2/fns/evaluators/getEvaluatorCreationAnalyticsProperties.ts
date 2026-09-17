@@ -3,7 +3,7 @@ import type {
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
 } from "@langfuse/shared";
-import type { ScoreOutputDataType } from "@/src/features/evals/v2/scoreOutputTypes";
+import type { ScoreOutputDataType } from "../../scoreOutputTypes";
 
 export type EvaluatorCreationSource =
   | { type: "managed"; templateKey: string }

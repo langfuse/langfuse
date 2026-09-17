@@ -5,15 +5,15 @@ import React, {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   type ColumnOrderState,
   type VisibilityState,
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "lucide-react";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { type LangfuseColumnDef } from "./types";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import DocPopup from "@/src/components/layouts/doc-popup";
+import DocPopup from "../layouts/doc-popup";
 import {
   closestCenter,
   DndContext,
@@ -33,15 +33,15 @@ import {
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { cn } from "@/src/utils/tailwind";
 import { isString } from "@/src/utils/types";
-import { PopoverController } from "@/src/components/ui/popover";
-import { ColumnVisibilityHeader } from "@/src/components/table/ColumnVisibilityHeader";
+import { PopoverController } from "../ui/popover";
+import { ColumnVisibilityHeader } from "./ColumnVisibilityHeader";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/src/components/ui/collapsible";
+} from "../ui/collapsible";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { Separator } from "@/src/components/ui/separator";
+import { Separator } from "../ui/separator";
 
 /**
  * A whole column GROUP was shown or hidden at once (its "Select All" /

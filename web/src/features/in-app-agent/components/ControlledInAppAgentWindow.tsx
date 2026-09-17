@@ -10,16 +10,16 @@ import {
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
-import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
+import { getInAppAgentScreenContextDescription } from "../context";
 import {
   getInAppAgentFocusedQuickActions,
   getInAppAgentQuickActionContext,
-} from "@/src/features/in-app-agent/quickActions";
+} from "../quickActions";
 import {
   getBackgroundRunNotice,
   getSettledActivityOutcome,
   isCancellableBackgroundRun,
-} from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
+} from "../lib/backgroundExecutionSession";
 import {
   InAppAgentRunStatus,
   isUnsettledInAppAgentRunStatus,

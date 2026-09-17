@@ -7,8 +7,8 @@ import {
   DropdownMenuPortal,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-} from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
+} from "./ui/dropdown-menu";
+import { Button } from "./ui/button";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Download, Info } from "lucide-react";
 import {
@@ -19,7 +19,7 @@ import {
   BatchTableNames,
 } from "@langfuse/shared";
 import React from "react";
-import { api } from "@/src/utils/api";
+import { api } from "../utils/api";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type BatchExportTableButtonProps = {

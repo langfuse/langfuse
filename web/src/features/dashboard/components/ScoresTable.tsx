@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
+import { DashboardCard } from "./cards/DashboardCard";
+import { DashboardTable } from "./cards/DashboardTable";
 import {
   type ScoreDataTypeType,
   type ScoreSourceType,
@@ -10,10 +10,10 @@ import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { RightAlignedCell } from "./RightAlignedCell";
-import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
+import { LeftAlignedCell } from "./LeftAlignedCell";
 import { cn } from "@/src/utils/tailwind";
 import { TotalMetric } from "./TotalMetric";
-import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
+import { createTracesTimeFilter } from "../lib/dashboard-utils";
 import {
   getScoreDataTypeIcon,
   isBooleanDataType,

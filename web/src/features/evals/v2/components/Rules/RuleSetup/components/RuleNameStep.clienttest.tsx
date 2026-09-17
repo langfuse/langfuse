@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createRuleSetupStore } from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { createRuleSetupStore } from "../../../../stores/createRuleSetupStore";
 import { RuleNameStep } from "./RuleNameStep";
 
 describe("RuleNameStep", () => {

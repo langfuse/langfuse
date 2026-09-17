@@ -1,5 +1,5 @@
 import preview from "../../../.storybook/preview";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "./action-button-count-badge";
 
 const meta = preview.meta({
   component: ActionButtonCountBadge,

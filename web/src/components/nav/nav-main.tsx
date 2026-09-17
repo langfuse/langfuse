@@ -8,10 +8,10 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/src/components/ui/sidebar";
+} from "../ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { type RouteGroup } from "@/src/components/layouts/routes";
+import { type RouteGroup } from "../layouts/routes";
 
 export type NavMainItem = {
   title: string;

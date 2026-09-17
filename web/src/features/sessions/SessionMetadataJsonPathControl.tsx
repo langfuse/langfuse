@@ -17,8 +17,8 @@ import {
   metadataJsonPathsStorageKey,
   parseStoredMetadataJsonPaths,
   type SessionMetadataJsonPathState,
-} from "@/src/features/sessions/sessionMetadataJsonPath";
-import { getVisibleSessionObservations } from "@/src/features/sessions/sessionVisibleObservations";
+} from "./sessionMetadataJsonPath";
+import { getVisibleSessionObservations } from "./sessionVisibleObservations";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { api, type RouterOutputs } from "@/src/utils/api";
 

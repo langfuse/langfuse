@@ -1,7 +1,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { Input } from "@/src/components/ui/input";
-import { Button } from "@/src/components/ui/button";
+import { Input } from "./input";
+import { Button } from "./button";
 import { Search, X, MoreHorizontal } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 

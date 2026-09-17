@@ -8,7 +8,7 @@ import {
   sqlInterface,
   type DatabaseRow,
 } from "@/src/server/api/services/sqlInterface";
-import { createHistogramData } from "@/src/features/dashboard/lib/score-analytics-utils";
+import { createHistogramData } from "../lib/score-analytics-utils";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -28,7 +28,7 @@ import {
   viewVersions,
   type QueryType,
 } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
 import {
   paginationZod,
   orderBy,

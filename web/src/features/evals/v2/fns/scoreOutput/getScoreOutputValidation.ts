@@ -6,8 +6,8 @@ import {
 import {
   DUPLICATE_CATEGORY_NAMES_MESSAGE,
   getDuplicateScoreOutputCategoryIndexes,
-} from "@/src/features/evals/v2/fns/scoreOutput/getDuplicateScoreOutputCategoryIndexes";
-import type { ScoreOutputSelectorState } from "@/src/features/evals/v2/scoreOutputTypes";
+} from "./getDuplicateScoreOutputCategoryIndexes";
+import type { ScoreOutputSelectorState } from "../../scoreOutputTypes";
 
 const EMPTY_CATEGORY_NAME_MESSAGE = "Category names cannot be empty.";
 

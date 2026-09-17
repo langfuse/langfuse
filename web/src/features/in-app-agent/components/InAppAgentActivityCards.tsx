@@ -2,7 +2,7 @@ import { BotMessageSquare, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import type { InAppAgentActivityState } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
+import type { InAppAgentActivityState } from "../lib/inAppAgentActivity";
 
 export type InAppAgentActivityCard = {
   conversationId: string;

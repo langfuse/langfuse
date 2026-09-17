@@ -22,10 +22,10 @@ import {
   EvalTemplateType,
   type EvalTemplate,
 } from "@langfuse/shared";
-import { getDefaultCodeEvalSource } from "@/src/features/evals/utils/code-eval-template-starter-examples";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { CODE_EVAL_ESCAPE_CONFIRM_MESSAGE } from "@/src/features/evals/utils/code-eval-template-utils";
-import { InlineDefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
+import { getDefaultCodeEvalSource } from "../utils/code-eval-template-starter-examples";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
+import { CODE_EVAL_ESCAPE_CONFIRM_MESSAGE } from "../utils/code-eval-template-utils";
+import { InlineDefaultEvalModelSetup } from "./default-eval-model-setup";
 import {
   Breadcrumb,
   BreadcrumbItem,

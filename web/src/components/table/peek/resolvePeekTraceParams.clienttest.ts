@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { resolvePeekTraceParams } from "./resolvePeekTraceParams";
 
 // The two peek URL dialects (LFE-11041):
 // - v3 TracesTable:  peek=<trace id>, timestamp=<trace timestamp>

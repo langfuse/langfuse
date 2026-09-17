@@ -52,33 +52,30 @@ import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecu
 import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
-} from "@/src/features/evals/server/evalConfigState";
+} from "./evalConfigState";
 import {
   EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-} from "@/src/features/evals/server/audit-log-resource-types";
-import {
-  CodeEvalTestRunSetupError,
-  runCodeEvalTest,
-} from "@/src/features/evals/server/codeEvalTestRun";
+} from "./audit-log-resource-types";
+import { CodeEvalTestRunSetupError, runCodeEvalTest } from "./codeEvalTestRun";
 import {
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
-} from "@/src/features/evals/server/evalTemplateCreation";
+} from "./evalTemplateCreation";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
-} from "@/src/features/evals/server/isCodeEvalEnabled";
+} from "./isCodeEvalEnabled";
 import {
   assertCodeEvalJobConfigCanRun,
   CodeEvalJobConfigError,
-} from "@/src/features/evals/server/codeEvalJobConfigValidation";
-import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { assertCanCreateLegacyEvalJob } from "@/src/features/evals/server/legacyEvalGate";
-import { LegacyEvalCompatibilityService } from "@/src/features/evals/server/legacyCompatibilityService";
-import { reconcileEvaluatorPromptMessages } from "@/src/features/evals/v2/server/evaluators/evaluatorService";
-export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
+} from "./codeEvalJobConfigValidation";
+import { getEvaluatorDefinitionPreflightError } from "./evaluator-preflight";
+import { assertCanCreateLegacyEvalJob } from "./legacyEvalGate";
+import { LegacyEvalCompatibilityService } from "./legacyCompatibilityService";
+import { reconcileEvaluatorPromptMessages } from "../v2/server/evaluators/evaluatorService";
+export { CreateEvalTemplateInputSchema } from "./evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
 // `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs

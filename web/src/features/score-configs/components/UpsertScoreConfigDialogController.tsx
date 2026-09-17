@@ -8,11 +8,8 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { UpsertScoreConfigDialogContent } from "@/src/features/score-configs/components/UpsertScoreConfigDialogContent";
-import {
-  type CreateConfig,
-  type UpdateConfig,
-} from "@/src/features/score-configs/lib/upsertFormTypes";
+import { UpsertScoreConfigDialogContent } from "./UpsertScoreConfigDialogContent";
+import { type CreateConfig, type UpdateConfig } from "../lib/upsertFormTypes";
 import { api } from "@/src/utils/api";
 
 type UpsertScoreConfigDialogControllerProps = {

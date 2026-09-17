@@ -7,11 +7,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
-import {
-  type ScoreOutlierAggKey,
-  type ScoreOutlierMetricKey,
-} from "@/src/features/scores-chart-view/types";
+import { SCORE_OUTLIER_STRIP_METRICS } from "../constants/scoreOutlierStripMetrics";
+import { type ScoreOutlierAggKey, type ScoreOutlierMetricKey } from "../types";
 
 const MODE_OPTIONS: ScoreOutlierMetricKey[] = ["count", "value"];
 

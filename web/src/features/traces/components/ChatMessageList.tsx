@@ -7,17 +7,14 @@ import {
 } from "@/src/components/ui/markdown-media.utils";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import {
-  ChatMessage,
-  type ViewMode,
-} from "@/src/features/traces/components/IOPreview/components/ChatMessage";
-import { SectionMedia } from "@/src/features/traces/components/IOPreview/components/SectionMedia";
+import { ChatMessage, type ViewMode } from "./IOPreview/components/ChatMessage";
+import { SectionMedia } from "./IOPreview/components/SectionMedia";
 import {
   type ChatMlMessage,
   shouldRenderMessageForContentMode,
-} from "@/src/features/traces/fns/chatMessageUtils";
+} from "../fns/chatMessageUtils";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { type IOPreviewContentMode } from "./IOPreview/IOPreview";
 
 const COLLAPSE_THRESHOLD = 3;
 

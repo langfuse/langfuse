@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { Home, Settings } from "lucide-react";
 
-import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
-import PageHeader from "@/src/components/layouts/page-header";
+import { APP_SHELL_CHROME_ROW_TEST_ID } from "./app-shell-chrome";
+import PageHeader from "./page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
-import { SidebarProvider } from "@/src/components/ui/sidebar";
+import { SidebarPresenceProvider } from "../nav/sidebar-presence";
+import { SidebarProvider } from "../ui/sidebar";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({

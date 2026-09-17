@@ -1,12 +1,12 @@
 import { useStore } from "zustand";
 
-import { TestResultPanelView } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
-import { TestSection } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/TestSection";
-import { TestRerunAction } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRerunAction/TestRerunAction";
-import { TestResultActions } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestResultActions/TestResultActions";
-import { TestRunCard } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/TestSection/components/TestRunCard/TestRunCard";
-import { toTestResultPanelState } from "@/src/features/evals/v2/fns/evaluatorTesting/toTestResultPanelState";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { TestResultPanelView } from "../../../../../Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
+import { TestSection } from "../../TestSection";
+import { TestRerunAction } from "../TestRerunAction/TestRerunAction";
+import { TestResultActions } from "../TestResultActions/TestResultActions";
+import { TestRunCard } from "../TestRunCard/TestRunCard";
+import { toTestResultPanelState } from "../../../../../../fns/evaluatorTesting/toTestResultPanelState";
+import type { EvaluatorSetupStore } from "../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function TestSectionContainer({
   projectId,

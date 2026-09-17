@@ -1,4 +1,4 @@
-import { APIObservation } from "@/src/features/public-api/types/observations";
+import { APIObservation } from "./observations";
 import {
   APIScoreSchemaV1,
   commaSeparatedEnumArray,

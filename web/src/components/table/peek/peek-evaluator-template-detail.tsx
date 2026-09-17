@@ -1,10 +1,10 @@
 import { useRouter } from "next/router";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { usePeekEvalTemplateData } from "@/src/components/table/peek/hooks/usePeekEvalTemplateData";
+import { usePeekEvalTemplateData } from "./hooks/usePeekEvalTemplateData";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { TablePeekView } from "@/src/components/table/peek";
+import { TablePeekView } from "./";
 
 const PeekViewEvaluatorTemplateDetail = ({
   projectId,

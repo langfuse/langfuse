@@ -1,4 +1,4 @@
-import { type FormUsageType } from "@/src/features/models/validation";
+import { type FormUsageType } from "../validation";
 
 /** Row keys are opaque and only need to be unique within one form instance. */
 export const makeUsageTypeKeys = (

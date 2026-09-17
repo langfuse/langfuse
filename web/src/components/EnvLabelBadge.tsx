@@ -2,7 +2,7 @@ import {
   isRegionProduction,
   type CloudRegionName,
 } from "@/src/features/organizations/cloudRegions";
-import { assertUnreachable } from "@/src/utils/types";
+import { assertUnreachable } from "../utils/types";
 import { cva } from "class-variance-authority";
 import { useMemo } from "react";
 

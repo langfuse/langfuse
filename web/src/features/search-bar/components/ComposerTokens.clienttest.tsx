@@ -1,8 +1,5 @@
 import { render } from "@testing-library/react";
-import {
-  ComposerTokens,
-  WORD_JOINER,
-} from "@/src/features/search-bar/components/ComposerTokens";
+import { ComposerTokens, WORD_JOINER } from "./ComposerTokens";
 
 /** Rendered text of the draft, with the layout-only word joiners stripped. */
 function renderedText(draft: string): string {

@@ -2,7 +2,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   DeleteDatasetDialog,
   type DeleteDatasetDialogDataProps,
-} from "@/src/features/datasets/components/DeleteDatasetDialog";
+} from "./DeleteDatasetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { type ReactNode } from "react";
 

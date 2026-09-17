@@ -8,16 +8,16 @@ import {
   type Es256JwtSigner,
 } from "@/src/server/utils/jwt";
 
-import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
-import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
-import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+import type { GatewayApiKeyAuthContext } from "../auth/gatewayApiKeyAuthenticator";
+import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "../auth/ingestionTokenVerifier";
+import { GatewayControlPlaneError as GatewayResolveError } from "../gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   type GatewayProviderId,
   getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider";
+} from "../provider";
 
-export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
+export { GatewayControlPlaneError as GatewayResolveError } from "../gatewayControlPlaneError";
 
 let cachedGatewayIngestionTokenSigner:
   | {

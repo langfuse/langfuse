@@ -7,7 +7,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
+import { useAnalyticsUrlState } from "../lib/analytics-url-state";
 import { Badge } from "@/src/components/ui/badge";
 import {
   HoverCard,

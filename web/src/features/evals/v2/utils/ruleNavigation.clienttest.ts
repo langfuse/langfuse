@@ -3,7 +3,7 @@ import { EvalTargetObject } from "@langfuse/shared";
 import {
   getRuleNavigationAction,
   getRuleNavigationUrl,
-} from "@/src/features/evals/v2/utils/ruleNavigation";
+} from "./ruleNavigation";
 
 describe("getRuleNavigationAction", () => {
   it.each([

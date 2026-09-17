@@ -4,8 +4,8 @@ import {
   formatMetric,
   getDimensionSummaries,
   getEvenTickInterval,
-} from "@/src/features/widgets/chart-library/utils";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+} from "./utils";
+import { type DataPoint } from "./chart-props";
 
 describe("formatMetric", () => {
   it("keeps compact numeric formatting within maxCharacters", () => {

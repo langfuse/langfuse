@@ -9,18 +9,18 @@ import {
 import { Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useRouter } from "next/router";
-import { SelectEvaluatorList } from "@/src/features/evals/components/select-evaluator-list";
-import { RunEvaluatorForm } from "@/src/features/evals/components/run-evaluator-form";
+import { SelectEvaluatorList } from "../components/select-evaluator-list";
+import { RunEvaluatorForm } from "../components/run-evaluator-form";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { getMaintainer } from "../utils/typeHelpers";
+import { MaintainerTooltip } from "../components/maintainer-tooltip";
+import { DefaultEvalModelSetup } from "../components/default-eval-model-setup";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
   shouldShowEvalTemplate,
-} from "@/src/features/evals/utils/code-eval-template-utils";
+} from "../utils/code-eval-template-utils";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { useState } from "react";

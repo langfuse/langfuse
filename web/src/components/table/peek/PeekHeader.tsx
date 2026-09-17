@@ -25,7 +25,7 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planPeekHeaderLayout,
   type PeekHeaderPlan,
-} from "@/src/components/table/peek/peekHeaderOverflow";
+} from "./peekHeaderOverflow";
 
 type PeekHeaderProps = {
   itemType: LangfuseItemType;

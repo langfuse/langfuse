@@ -1,19 +1,19 @@
 import { ChevronDownIcon, PlusCircleIcon } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+} from "../ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import {
   ChatMessageRole,
   ChatMessageType,

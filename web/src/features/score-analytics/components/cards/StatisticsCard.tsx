@@ -19,7 +19,7 @@ import {
   interpretOverallAgreement,
   interpretMAE,
   interpretRMSE,
-} from "@/src/features/score-analytics/lib/statistics-utils";
+} from "../../lib/statistics-utils";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**

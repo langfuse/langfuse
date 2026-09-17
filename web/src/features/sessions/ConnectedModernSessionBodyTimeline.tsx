@@ -4,19 +4,19 @@ import { type FilterState } from "@langfuse/shared";
 import {
   ConnectedSessionConversationTimeline,
   type ConnectedSessionConversationTimelineItem,
-} from "@/src/features/sessions/SessionConversationTimeline/ConnectedSessionConversationTimeline";
+} from "./SessionConversationTimeline/ConnectedSessionConversationTimeline";
 import {
   type SessionConversationTimelineScrollTarget,
   useSessionConversationTimelineController,
-} from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
+} from "./SessionConversationTimeline/SessionConversationTimeline";
+import { type EventSessionTrace } from "./sessionDetailPageTypes";
+import { computeIdleGapSeconds } from "./sessionIdleGap";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   ModernSessionSidebar,
   type ModernSessionSidebarFilterControls,
   type ModernSessionSidebarTrace,
-} from "@/src/features/sessions/ModernSessionSidebar";
+} from "./ModernSessionSidebar";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;

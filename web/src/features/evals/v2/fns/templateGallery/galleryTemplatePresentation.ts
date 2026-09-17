@@ -5,9 +5,9 @@ import type {
   CustomEvaluatorTemplate,
   GalleryTemplate,
   ManagedTemplate,
-} from "@/src/features/evals/v2/types/templateGallery";
-import { sourceCodeLanguageLabel } from "@/src/features/evals/v2/fns/evaluators/sourceCodeLanguageLabel";
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+} from "../../types/templateGallery";
+import { sourceCodeLanguageLabel } from "../evaluators/sourceCodeLanguageLabel";
+import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "../../constants/evaluatorGallery";
 
 export type GalleryTemplatePresentation = {
   description: string | undefined;

@@ -1,11 +1,11 @@
 import { env } from "@/src/env.mjs";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { getMediaStorageServiceClient } from "./getMediaStorageClient";
 import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlQuery,
   GetMediaUploadUrlResponseSchema,
   type PatchMediaBody,
-} from "@/src/features/media/validation";
+} from "../validation";
 import {
   type DatasetItemMediaField,
   InternalServerError,

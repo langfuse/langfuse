@@ -2,11 +2,8 @@ import {
   EvalTemplateType,
   observationVariableMappingList,
 } from "@langfuse/shared";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
-import type {
-  RuleDraft,
-  RuleTableRow,
-} from "@/src/features/evals/v2/types/rules";
+import { prepareModernRuleVariableMapping } from "../variableMapping/prepareModernRuleVariableMapping";
+import type { RuleDraft, RuleTableRow } from "../../types/rules";
 
 export function prepareRuleCloneDraft(
   rule: Pick<RuleTableRow, "name" | "filter" | "sampling" | "assignments">,

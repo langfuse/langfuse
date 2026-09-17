@@ -11,21 +11,21 @@ import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
 import {
   describeScoreChartConfig,
   getScoreMetric,
-} from "@/src/features/scores-chart-view/fns/scoreChartConfig";
+} from "../../fns/scoreChartConfig";
 import {
   type ScoreChartDataset,
   type ScoreChartViewConfig,
   type ScoreDimensionKey,
   type ScoreMetricKey,
-} from "@/src/features/scores-chart-view/types";
+} from "../../types";
 // Shared with the observations chart view: once a metric resolves to a
 // label/unit, rendering an already-aggregated series is identical regardless
 // of which vocabulary (events vs. scores) picked that metric.
 import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
-import { DatasetSelect } from "@/src/features/scores-chart-view/components/DatasetSelect";
-import { MetricSelect } from "@/src/features/scores-chart-view/components/MetricSelect";
-import { AggregationSelect } from "@/src/features/scores-chart-view/components/AggregationSelect";
-import { BreakdownSelect } from "@/src/features/scores-chart-view/components/BreakdownSelect";
+import { DatasetSelect } from "../DatasetSelect";
+import { MetricSelect } from "../MetricSelect";
+import { AggregationSelect } from "../AggregationSelect";
+import { BreakdownSelect } from "../BreakdownSelect";
 
 /**
  * The scores-table chart layout — same "maximized canvas + collapsible config

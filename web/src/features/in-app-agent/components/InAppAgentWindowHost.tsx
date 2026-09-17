@@ -4,18 +4,18 @@
 import { useLayoutEffect, useRef } from "react";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
+import { DialogController } from "./dialog-controller";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
-import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
-import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
+import { ControlledInAppAgentWindow } from "./ControlledInAppAgentWindow";
+import type { InAppAgentWindowConversation } from "./InAppAgentWindow";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
-} from "@/src/features/in-app-agent/components/InAppAgentWindowShell";
+} from "./InAppAgentWindowShell";
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "./InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 function DeleteConversationDialog({

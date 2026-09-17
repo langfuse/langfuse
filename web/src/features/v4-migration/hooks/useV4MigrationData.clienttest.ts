@@ -5,7 +5,7 @@ import {
   useAccountV4MigrationData,
   useProjectV4MigrationData,
   useProjectV4MigrationActions,
-} from "@/src/features/v4-migration/hooks/useV4MigrationData";
+} from "./useV4MigrationData";
 
 const mocks = vi.hoisted(() => ({
   summaryByProject: vi.fn(),

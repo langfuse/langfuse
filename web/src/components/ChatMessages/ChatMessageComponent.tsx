@@ -17,9 +17,9 @@ import {
   type LLMToolCall,
   type PlaceholderMessage,
 } from "@langfuse/shared";
-import { Button } from "@/src/components/ui/button";
-import { Card, CardContent } from "@/src/components/ui/card";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { Button } from "../ui/button";
+import { Card, CardContent } from "../ui/card";
+import { CodeMirrorEditor } from "../editor";
 import type { MessagesContext } from "./types";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/src/utils/tailwind";
@@ -31,7 +31,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/src/components/ui/select";
+} from "../ui/select";
 import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
 import {
   useOptionalMessageSearchActions,

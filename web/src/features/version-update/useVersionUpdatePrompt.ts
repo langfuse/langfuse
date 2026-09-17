@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "../posthog-analytics/usePostHogClientCapture";
 import { useAppSettled } from "./useAppSettled";
 import { useVersionUpdateAvailable } from "./useVersionUpdateAvailable";
 import { versionUpdateStore } from "./versionUpdateStore";

@@ -32,16 +32,16 @@ import {
   isAiSdkFileContentPart,
 } from "@langfuse/shared";
 import { type z } from "zod";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
-import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
+import { ResizableImage } from "./resizable-image";
+import { LangfuseMediaView } from "./LangfuseMediaView";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { JSONView } from "./CodeJsonViewer";
+import { MarkdownJsonViewHeader } from "./MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
-import { Button } from "@/src/components/ui/button";
-import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { Button } from "./button";
+import { getSafeImageUrl, getSafeLinkUrl } from "./safe-url";
 import { env } from "@/src/env.mjs";
 import {
   getPromptReferenceMarkdownHref,
@@ -50,13 +50,13 @@ import {
   parsePromptReferenceMarkdownHref,
   PromptReferenceButton,
   usePromptReferenceProjectId,
-} from "@/src/components/ui/PromptReferences";
+} from "./PromptReferences";
 import {
   filterAlreadyRenderedMedia,
   getRenderedInlineMediaIds,
   getStandaloneMediaReferenceStrings,
-} from "@/src/components/ui/markdown-media.utils";
-import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
+} from "./markdown-media.utils";
+import { exceedsMarkdownRenderLimits } from "./markdown-render-limits";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];

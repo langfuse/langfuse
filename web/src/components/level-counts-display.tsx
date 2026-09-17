@@ -1,7 +1,7 @@
 import React from "react";
-import { Separator } from "@/src/components/ui/separator";
-import { numberFormatter } from "@/src/utils/numbers";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { Separator } from "./ui/separator";
+import { numberFormatter } from "../utils/numbers";
+import { Skeleton } from "./ui/skeleton";
 
 export type LevelCount = {
   level: string;

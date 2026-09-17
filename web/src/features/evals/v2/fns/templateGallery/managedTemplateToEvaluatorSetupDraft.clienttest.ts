@@ -1,5 +1,5 @@
-import { MANAGED_TEMPLATES_CATALOG } from "@/src/features/evals/v2/constants/managedTemplatesCatalog";
-import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
+import { MANAGED_TEMPLATES_CATALOG } from "../../constants/managedTemplatesCatalog";
+import { managedTemplateToEvaluatorSetupDraft } from "./managedTemplateToEvaluatorSetupDraft";
 
 describe("managedTemplateToEvaluatorSetupDraft", () => {
   it("prefills an LLM evaluator without persisting a model choice", () => {

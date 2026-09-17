@@ -5,7 +5,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { PrettyJsonView } from "./PrettyJsonView";
 
 function renderPrettyJson(ui: ReactNode) {
   return render(ui);

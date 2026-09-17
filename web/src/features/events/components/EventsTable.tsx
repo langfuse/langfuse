@@ -92,7 +92,7 @@ import {
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
-import { MobileFiltersSheet } from "@/src/features/events/components/MobileFiltersSheet";
+import { MobileFiltersSheet } from "./MobileFiltersSheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
@@ -115,7 +115,7 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
-} from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
+} from "../lib/demoteViewOnUserFilterEdit";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -123,13 +123,13 @@ import { TableActionMenu } from "@/src/features/table/components/TableActionMenu
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
-import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
+import { useEventsTableData } from "../hooks/useEventsTableData";
 import {
   useAppRootDefault,
   useApplyAppRootFallback,
-} from "@/src/features/events/hooks/useAppRootDefault";
-import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+} from "../hooks/useAppRootDefault";
+import { getAppRootSavedViewComparisonFilters } from "../lib/appRootDefaultFilterPolicy";
+import { useEventsFilterOptions } from "../hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 // Disabled for now because perhaps confusing
 // import {
@@ -148,19 +148,19 @@ import { RunEvaluationDialog } from "@/src/features/batch-actions/components/Run
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
-import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
-import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
+import { MobileFullTextSearch } from "./MobileFullTextSearch";
+import { CategoryPresetChips } from "./CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
-import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
+import { EventsOutlierStrip } from "./outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
   chartSearchFieldReason,
   CHART_SEARCH_QUERY_REASON,
 } from "@/src/features/chart-view/lib/chartFilterCompatibility";
-import { getEventsTableStatePolicy } from "@/src/features/events/lib/eventsTableStatePolicy";
+import { getEventsTableStatePolicy } from "../lib/eventsTableStatePolicy";
 import {
   useFacetOptionsWithObservedMetadata,
   useObservedMetadataPaths,

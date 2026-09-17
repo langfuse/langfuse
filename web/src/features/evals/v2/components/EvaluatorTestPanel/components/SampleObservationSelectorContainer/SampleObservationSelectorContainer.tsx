@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 
-import { EvaluatorSampleObservationSelector } from "@/src/features/evals/v2/components/Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { EvaluatorSampleObservationSelector } from "../../../Evaluators/Testing/components/EvaluatorSampleObservationSelector/EvaluatorSampleObservationSelector";
+import type { EvaluatorSetupStore } from "../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function SampleObservationSelectorContainer({
   store,

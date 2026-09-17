@@ -7,8 +7,8 @@ import { Button } from "@/src/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { Messages } from "@/src/features/playground/page/components/Messages";
-import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
+import { Messages } from "./Messages";
+import { ConfigurationDropdowns } from "./ConfigurationDropdowns";
 import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
 import {
   Tooltip,
@@ -17,7 +17,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
+import { getMessagesFingerprint } from "../utils/messagesFingerprint";
 
 /**
  * MultiWindowPlayground Component

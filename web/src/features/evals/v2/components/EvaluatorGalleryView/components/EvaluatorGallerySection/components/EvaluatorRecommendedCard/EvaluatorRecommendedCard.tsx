@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
 import type { EvalTemplateType } from "@langfuse/shared";
 
-import { EvaluatorGalleryMethodBadge } from "@/src/features/evals/v2/components/EvaluatorGalleryView/components/EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
-import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
+import { EvaluatorGalleryMethodBadge } from "../../../EvaluatorGalleryMethodBadge/EvaluatorGalleryMethodBadge";
+import { EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY } from "../../../../../../constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "../../../../../../fns/templateGallery/galleryCategoryPresentation";
 import {
   getGalleryTemplateCategoryKey,
   getGalleryTemplatePresentation,
-} from "@/src/features/evals/v2/fns/templateGallery/galleryTemplatePresentation";
-import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
+} from "../../../../../../fns/templateGallery/galleryTemplatePresentation";
+import type { GalleryTemplate } from "../../../../../../types/templateGallery";
 import { cn } from "@/src/utils/tailwind";
 
 export function EvaluatorRecommendedCardSurface({

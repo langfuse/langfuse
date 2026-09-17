@@ -4,7 +4,7 @@ import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
   type EventsTraceObservation,
-} from "@/src/features/events/lib/eventsToTraceAdapter";
+} from "../lib/eventsToTraceAdapter";
 import {
   filterAndValidateDbScoreList,
   ScoreDataTypeArray,

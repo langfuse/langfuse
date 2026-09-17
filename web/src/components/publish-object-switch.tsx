@@ -1,24 +1,16 @@
-import { Button } from "@/src/components/ui/button";
-import { Label } from "@/src/components/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Button } from "./ui/button";
+import { Label } from "./ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { env } from "@/src/env.mjs";
-import { api } from "@/src/utils/api";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { cn } from "@/src/utils/tailwind";
-import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { type RouterInput } from "@/src/utils/types";
+import { env } from "../env.mjs";
+import { api } from "../utils/api";
+import { copyTextToClipboard } from "../utils/clipboard";
+import { cn } from "../utils/tailwind";
+import { trpcErrorToast } from "../utils/trpcErrorToast";
+import { type RouterInput } from "../utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
 import { useState } from "react";
 

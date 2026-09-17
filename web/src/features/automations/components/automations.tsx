@@ -1,11 +1,8 @@
 import { useRouter } from "next/router";
-import { AutomationSidebar } from "@/src/features/automations/components/AutomationSidebar";
-import { AutomationDetails } from "@/src/features/automations/components/AutomationDetails";
-import {
-  AutomationForm,
-  parseCreateAutomationPrefill,
-} from "@/src/features/automations/components/automationForm";
-import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
+import { AutomationSidebar } from "./AutomationSidebar";
+import { AutomationDetails } from "./AutomationDetails";
+import { AutomationForm, parseCreateAutomationPrefill } from "./automationForm";
+import { WebhookSecretRender } from "./WebhookSecretRender";
 import { Button } from "@/src/components/ui/button";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState, useCallback } from "react";

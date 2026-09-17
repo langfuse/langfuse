@@ -43,7 +43,7 @@ import {
   enrichAndMapToDatasetItemId,
   fetchDatasetItems,
   getRunItemsByRunIdOrItemId,
-} from "@/src/features/datasets/server/service";
+} from "./service";
 import {
   logger,
   addToDeleteDatasetQueue,
@@ -93,10 +93,7 @@ import {
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import {
-  updateDataset,
-  upsertDataset,
-} from "@/src/features/datasets/server/actions/createDataset";
+import { updateDataset, upsertDataset } from "./actions/createDataset";
 import {
   buildRemoteExperimentRequest,
   ensureRemoteExperimentSecret,
@@ -105,7 +102,7 @@ import {
   parseStoredRemoteExperimentHeaders,
   processRemoteExperimentHeaders,
   RemoteExperimentHeadersSchema,
-} from "@/src/features/datasets/server/remoteExperimentHelpers";
+} from "./remoteExperimentHelpers";
 import { v4 } from "uuid";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 

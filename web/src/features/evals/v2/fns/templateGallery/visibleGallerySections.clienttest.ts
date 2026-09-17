@@ -7,7 +7,7 @@ import type {
   GalleryNavigationItem,
   GallerySection,
   GalleryTemplate,
-} from "@/src/features/evals/v2/types/templateGallery";
+} from "../../types/templateGallery";
 
 const template = {
   source: "managed",

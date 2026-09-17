@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { type NextApiRequest } from "next";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { ApiAuthService } from "./apiAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   redis,

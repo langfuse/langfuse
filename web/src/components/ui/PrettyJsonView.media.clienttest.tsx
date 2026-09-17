@@ -9,8 +9,8 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
   LangfuseMediaView: () => <div data-testid="media-item" />,
 }));
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
+import { PrettyJsonView } from "./PrettyJsonView";
+import { LARGE_STRING_RENDER_CHAR_LIMIT } from "./largeStringGate";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
 describe("PrettyJsonView media layout", () => {

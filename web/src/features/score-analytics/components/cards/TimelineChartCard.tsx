@@ -13,7 +13,7 @@ import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import {
   getScoreCategoryColors,
   getScoreBooleanColors,
-} from "@/src/features/score-analytics/lib/color-scales";
+} from "../../lib/color-scales";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TimelineTab = "score1" | "score2" | "all" | "matched";

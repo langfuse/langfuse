@@ -1,4 +1,4 @@
-import type { FlatLogItem } from "@/src/features/traces/components/TraceLogView/log-view-types";
+import type { FlatLogItem } from "../log-view-types";
 
 /**
  * Filters log items by search query.

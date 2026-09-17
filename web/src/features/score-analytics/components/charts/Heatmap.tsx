@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props */
 import { useMemo, useLayoutEffect, useState, useRef } from "react";
-import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
+import { type HeatmapCell } from "../../lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import {

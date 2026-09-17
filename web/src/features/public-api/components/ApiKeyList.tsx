@@ -9,7 +9,7 @@ import { SimpleDataTable } from "@/src/components/table/simple-data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { CreateApiKeyButton } from "@/src/features/public-api/components/CreateApiKeyButton";
+import { CreateApiKeyButton } from "./CreateApiKeyButton";
 import {
   useHasOrganizationAccess,
   useHasProjectAccess,
@@ -19,7 +19,7 @@ import { Check, Copy, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
-import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
+import { useLangfuseEnvCode } from "../hooks/useLangfuseEnvCode";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { type RouterOutput } from "@/src/utils/types";
 

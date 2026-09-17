@@ -6,11 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { getScoreDimensionsForDataset } from "@/src/features/scores-chart-view/constants/scoreDimensions";
-import {
-  type ScoreChartDataset,
-  type ScoreDimensionKey,
-} from "@/src/features/scores-chart-view/types";
+import { getScoreDimensionsForDataset } from "../constants/scoreDimensions";
+import { type ScoreChartDataset, type ScoreDimensionKey } from "../types";
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";
 

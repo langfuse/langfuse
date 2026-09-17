@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { invalidateMonitorQueriesAfterDelete } from "@/src/features/monitors/fns/invalidateMonitorQueriesAfterDelete";
+import { invalidateMonitorQueriesAfterDelete } from "../fns/invalidateMonitorQueriesAfterDelete";
 import { DeleteMonitorButton } from "./DeleteMonitorButton";
 
 describe("DeleteMonitorButton", () => {

@@ -13,9 +13,9 @@
  */
 import { useMemo } from "react";
 
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
+import { useSearch } from "../contexts/SearchContext";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { matchesSearchQuery } from "../fns/matchesSearchQuery";
 
 export type TraceSearchMatches = {
   /**

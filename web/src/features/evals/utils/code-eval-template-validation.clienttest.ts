@@ -14,7 +14,7 @@ import {
   getDefaultCodeEvalSource,
   isDefaultCodeEvalSource,
   validateCodeEvalSourceWithLanguage,
-} from "@/src/features/evals/utils/code-eval-template-validation";
+} from "./code-eval-template-validation";
 
 vi.mock("@astral-sh/ruff-wasm-web", () => ({
   default: async () => ({}),

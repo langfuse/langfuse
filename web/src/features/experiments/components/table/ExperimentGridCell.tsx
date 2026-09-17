@@ -19,10 +19,7 @@ import {
 } from "@/src/features/datasets";
 import { Separator } from "@/src/components/ui/separator";
 import { type VisibilityState } from "@tanstack/react-table";
-import {
-  type CellRowDef,
-  getVisibleCellRows,
-} from "@/src/features/experiments/components/table/types";
+import { type CellRowDef, getVisibleCellRows } from "./types";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
 import {
@@ -51,7 +48,7 @@ import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import Link from "next/link";
 import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
 import { NotRecordedMetric } from "./NotRecordedMetric";
-import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
+import { describeRunComparison } from "../../fns/describeRunComparison";
 
 type ExperimentGridCellProps = {
   projectId: string;

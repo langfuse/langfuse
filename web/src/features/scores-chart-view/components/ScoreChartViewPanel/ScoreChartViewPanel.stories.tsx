@@ -1,9 +1,9 @@
 import preview from "../../../../../.storybook/preview";
 import { fn } from "storybook/test";
 import type { DataPoint } from "@/src/features/widgets";
-import { DEFAULT_SCORE_CHART_CONFIG } from "@/src/features/scores-chart-view/constants/defaultScoreChartConfig";
-import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
-import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components/ScoreChartViewPanel/ScoreChartViewPanel";
+import { DEFAULT_SCORE_CHART_CONFIG } from "../../constants/defaultScoreChartConfig";
+import { type ScoreChartViewConfig } from "../../types";
+import { ScoreChartViewPanel } from "./ScoreChartViewPanel";
 
 /**
  * Deterministic fixture — average score value per hour, broken down by score

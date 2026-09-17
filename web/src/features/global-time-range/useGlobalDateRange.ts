@@ -6,7 +6,7 @@ import {
   resolveTimeRange,
   type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
+import { useGlobalDateRangeStore } from "./globalDateRangeStore";
 
 export interface UseGlobalDateRangeOutput {
   timeRange: TimeRange;

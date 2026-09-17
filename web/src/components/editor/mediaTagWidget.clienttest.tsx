@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import ReactCodeMirror from "@uiw/react-codemirror";
-import { useMediaTagChips } from "@/src/components/editor/mediaTagWidget";
+import { useMediaTagChips } from "./mediaTagWidget";
 
 vi.mock("@/src/components/ui/media/MediaReferenceTag", () => ({
   MediaReferenceTag: () => <button data-testid="media-tag">DOCX</button>,

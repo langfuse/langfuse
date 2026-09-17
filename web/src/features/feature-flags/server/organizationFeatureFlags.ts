@@ -9,11 +9,11 @@ import {
   filterFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
-} from "@/src/features/feature-flags/available-flags";
+} from "../available-flags";
 import {
   getFeaturePreviewOptOutFlag,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "../utils";
 
 type FeaturePreviewManagementCapability = {
   allowed: boolean;

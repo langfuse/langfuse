@@ -1,10 +1,7 @@
 import startCase from "lodash/startCase";
 import { viewDeclarations } from "@langfuse/shared";
-import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
-import {
-  type ScoreChartDataset,
-  type ScoreDimensionDef,
-} from "@/src/features/scores-chart-view/types";
+import { VIEW_BY_DATASET } from "./viewByDataset";
+import { type ScoreChartDataset, type ScoreDimensionDef } from "../types";
 
 const NO_BREAKDOWN: ScoreDimensionDef = {
   key: "none",

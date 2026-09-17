@@ -8,7 +8,7 @@ import {
   PopoverClose,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { type ScoreOutputChoice } from "@/src/features/evals/v2/scoreOutputTypes";
+import { type ScoreOutputChoice } from "../../../../../../../../scoreOutputTypes";
 import { cn } from "@/src/utils/tailwind";
 
 /** Edits one categorical score option inside a controlled popover. */

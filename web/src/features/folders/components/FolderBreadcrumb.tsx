@@ -6,7 +6,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { createBreadcrumbItems } from "../utils";
 import { Home, Slash } from "lucide-react";
 
 /**

@@ -7,11 +7,11 @@ import { PopoverTrigger } from "@/src/components/ui/popover";
 import {
   JudgeModelPicker,
   JudgeModelPickerTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/JudgeModelPicker/JudgeModelPicker";
-import { JudgeModelConfigurationDialog } from "@/src/features/evals/v2/components/Evaluators/JudgeModelConfigurationDialog/JudgeModelConfigurationDialog";
-import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+} from "../../../../../JudgeModelPicker/JudgeModelPicker";
+import { JudgeModelConfigurationDialog } from "../../../../../JudgeModelConfigurationDialog/JudgeModelConfigurationDialog";
+import type { ProjectDefaultModelConfig } from "../../../../../../../types/ProjectDefaultModelConfig";
+import type { JudgeModel } from "../../../../../../../judgeModel";
+import type { EvaluatorSetupStore } from "../../../../../../../store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function ModelSelector({
   projectId,

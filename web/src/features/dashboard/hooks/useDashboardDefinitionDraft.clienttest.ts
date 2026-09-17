@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 
-import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
+import { useDashboardDefinitionDraft } from "./useDashboardDefinitionDraft";
 
 const definition = (placementId: string) => ({
   widgets: [

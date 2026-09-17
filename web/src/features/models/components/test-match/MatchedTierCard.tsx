@@ -6,9 +6,9 @@ import {
 } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
 import { useMemo } from "react";
-import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
+import { usePriceUnitMultiplier } from "../../hooks/usePriceUnitMultiplier";
 import Decimal from "decimal.js";
-import { getMaxDecimals } from "@/src/features/models/fns/getMaxDecimals";
+import { getMaxDecimals } from "../../fns/getMaxDecimals";
 
 type MatchedTierCardProps = {
   tier: {

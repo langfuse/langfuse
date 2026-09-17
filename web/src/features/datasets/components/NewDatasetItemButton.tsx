@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { useState } from "react";
-import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
+import { NewDatasetItemForm } from "./NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionButton } from "@/src/components/ActionButton";

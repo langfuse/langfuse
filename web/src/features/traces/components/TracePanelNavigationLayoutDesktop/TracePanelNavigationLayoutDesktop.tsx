@@ -14,7 +14,7 @@ import { type ReactNode } from "react";
 import { useDesktopLayoutContext } from "../TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
-import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import { TraceTruncationNotice } from "../TraceTruncationNotice";
 
 export function TracePanelNavigationLayoutDesktop({
   children,

@@ -3,7 +3,7 @@ import { ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { createEvaluatorSetupStore } from "../../../store/evaluatorSetupStore/evaluatorSetupStore";
 import { EvaluatorSetupFooter } from "./EvaluatorSetupFooter";
 
 describe("EvaluatorSetupFooter", () => {

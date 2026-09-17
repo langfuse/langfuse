@@ -1,8 +1,5 @@
 import { render } from "@testing-library/react";
-import {
-  MarkdownView,
-  prependBasePathToInternalHref,
-} from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView, prependBasePathToInternalHref } from "./MarkdownViewer";
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: {} }),

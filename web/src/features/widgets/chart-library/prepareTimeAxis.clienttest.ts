@@ -1,7 +1,4 @@
-import {
-  prepareTimeAxis,
-  parseChartTimestamp,
-} from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import { prepareTimeAxis, parseChartTimestamp } from "./prepareTimeAxis";
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;

@@ -18,7 +18,7 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent";
+import { GeneratedKeyContent } from "../GeneratedKeyContent";
 import {
   api,
   reportNonTrpcError,

@@ -4,23 +4,20 @@ import {
   extractTimeSeriesData,
   fillMissingValuesAndTransform,
   isEmptyTimeSeries,
-} from "@/src/features/dashboard/components/hooks";
-import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+} from "./hooks";
+import { DashboardCard } from "./cards/DashboardCard";
+import { TabComponent } from "./TabsComponent";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  ModelSelectorPopover,
-  useModelSelection,
-} from "@/src/features/dashboard/components/ModelSelector";
+import { ModelSelectorPopover, useModelSelection } from "./ModelSelector";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "../lib/dashboardUiTableToViewMapping";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { DashboardLineTimeSeriesChart } from "./DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "../hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const GenerationLatencyChart = ({

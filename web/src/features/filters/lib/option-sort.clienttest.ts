@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { sortOptionValues } from "./option-sort";
 
 describe("sortOptionValues", () => {
   it("orders values alphabetically, case-insensitively and locale-aware", () => {

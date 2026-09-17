@@ -6,13 +6,13 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+} from "./ui/popover";
+import { Button, type ButtonProps } from "./ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
-import { IconOnlyButton } from "@/src/components/IconOnlyButton";
+import { IconOnlyButton } from "./IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api } from "../utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";

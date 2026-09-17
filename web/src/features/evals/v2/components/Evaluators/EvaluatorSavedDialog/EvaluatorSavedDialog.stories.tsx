@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
-import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
-import { classifySampleFiltersForRule } from "@/src/features/evals/v2/fns/rules/classifySampleFiltersForRule";
+import { RuleFilterPills } from "../../Rules/RuleFilterPills/RuleFilterPills";
+import { classifySampleFiltersForRule } from "../../../fns/rules/classifySampleFiltersForRule";
 import preview from "../../../../../../../.storybook/preview";
 import { fn } from "storybook/test";
 import { EvaluatorSavedCostSummary } from "./EvaluatorSavedCostSummary";

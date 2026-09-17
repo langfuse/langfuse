@@ -21,12 +21,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
-import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
-import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
+import { useSingleTemplateValidation } from "../hooks/useSingleTemplateValidation";
+import { getMaintainer } from "../utils/typeHelpers";
+import { MaintainerTooltip } from "./maintainer-tooltip";
 import Link from "next/link";
-import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
-import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { useIsCodeEvalEnabled } from "../hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "../utils/code-eval-template-utils";
 import { SiPython, SiTypescript } from "react-icons/si";
 
 const CodeTemplateLanguageIcon = ({

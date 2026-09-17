@@ -2,13 +2,13 @@ import type { ComponentProps } from "react";
 import { useStore } from "zustand";
 
 import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
-import { DefinitionStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
-import { NameStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/components/NameStepContainer/NameStepContainer";
-import { VariableMappingStepContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
-import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
-import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import type { ProjectDefaultModelConfig } from "@/src/features/evals/v2/types/ProjectDefaultModelConfig";
-import type { CodeEvalValidationResult } from "@/src/features/evals/utils/code-eval-template-validation";
+import { DefinitionStepContainer } from "./components/DefinitionStep/components/DefinitionStepContainer/DefinitionStepContainer";
+import { NameStepContainer } from "./components/NameStep/components/NameStepContainer/NameStepContainer";
+import { VariableMappingStepContainer } from "./components/VariableMappingStep/components/VariableMappingStepContainer/VariableMappingStepContainer";
+import type { JudgeModel } from "../../../judgeModel";
+import type { EvaluatorSetupStore } from "../../../store/evaluatorSetupStore/evaluatorSetupStore";
+import type { ProjectDefaultModelConfig } from "../../../types/ProjectDefaultModelConfig";
+import type { CodeEvalValidationResult } from "../../../../utils/code-eval-template-validation";
 
 export function EvaluatorSetupEditor({
   projectId,

@@ -8,7 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 
-import { type GetModelResult } from "@/src/features/models/validation";
+import { type GetModelResult } from "../../validation";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
 import { UpsertModelFormDialog } from "./UpsertModelFormDialog";
 

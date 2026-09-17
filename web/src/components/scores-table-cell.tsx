@@ -1,23 +1,19 @@
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./ui/hover-card";
 import {
   type CategoricalAggregate,
   type AggregatedScoreData,
 } from "@langfuse/shared";
 
-import { numberFormatter } from "@/src/utils/numbers";
-import { cn } from "@/src/utils/tailwind";
+import { numberFormatter } from "../utils/numbers";
+import { cn } from "../utils/tailwind";
 import { BracesIcon, MessageCircleMore, Copy, Check } from "lucide-react";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { api } from "@/src/utils/api";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { JSONView } from "./ui/CodeJsonViewer";
+import { api } from "../utils/api";
+import useProjectIdFromURL from "../hooks/useProjectIdFromURL";
+import { Skeleton } from "./ui/skeleton";
 import React from "react";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { Button } from "@/src/components/ui/button";
+import { copyTextToClipboard } from "../utils/clipboard";
+import { Button } from "./ui/button";
 
 // Boolean scores render as `true`/`false`; the capitalised entries keep the same
 // treatment for categorical scores whose category happens to be True/False.

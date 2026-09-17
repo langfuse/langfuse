@@ -2,11 +2,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, traceException } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { GatewayApiKeyAuthenticator } from "../auth/gatewayApiKeyAuthenticator";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+} from "../provider";
 import { GatewayResolveError, GatewayResolveService } from "./resolveService";
 
 export async function gatewayResolveApiHandler({

@@ -12,17 +12,14 @@
 import * as React from "react";
 import { cva } from "class-variance-authority";
 
-import type { ScoreTypeContext } from "@/src/features/search-bar/lib/adapter";
-import {
-  EVENTS_FIELD_REGISTRY,
-  type FieldRegistry,
-} from "@/src/features/search-bar/lib/fields";
+import type { ScoreTypeContext } from "../lib/adapter";
+import { EVENTS_FIELD_REGISTRY, type FieldRegistry } from "../lib/fields";
 import {
   deriveComposerSegments,
   type FilterSegment,
-} from "@/src/features/search-bar/lib/composer-segments";
-import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
-import { deactivationReason } from "@/src/features/search-bar/components/presentation";
+} from "../lib/composer-segments";
+import { indexOfOutsideQuotes } from "../lib/langQ";
+import { deactivationReason } from "./presentation";
 import { FilterToken } from "@/src/features/filters";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens

@@ -8,23 +8,23 @@ import {
   type LegendSummaryMode,
   type LegendInteraction,
   type MissingBucketValue,
-} from "@/src/features/widgets/chart-library/chart-props";
-import { formatMetric } from "@/src/features/widgets/chart-library/utils";
-import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
+} from "./chart-props";
+import { formatMetric } from "./utils";
+import { isChartDataEmpty } from "./isChartDataEmpty";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { CardContent } from "@/src/components/ui/card";
-import { LineChartTimeSeries } from "@/src/features/widgets/chart-library/LineChartTimeSeries";
-import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
-import { VerticalBarChartTimeSeries } from "@/src/features/widgets/chart-library/VerticalBarChartTimeSeries";
-import { TopListChart } from "@/src/features/widgets/chart-library/TopListChart";
-import { VerticalBarChart } from "@/src/features/widgets/chart-library/VerticalBarChart";
-import { PieChart } from "@/src/features/widgets/chart-library/PieChart";
-import HistogramChart from "@/src/features/widgets/chart-library/HistogramChart";
+import { LineChartTimeSeries } from "./LineChartTimeSeries";
+import { AreaChartTimeSeries } from "./AreaChartTimeSeries";
+import { VerticalBarChartTimeSeries } from "./VerticalBarChartTimeSeries";
+import { TopListChart } from "./TopListChart";
+import { VerticalBarChart } from "./VerticalBarChart";
+import { PieChart } from "./PieChart";
+import HistogramChart from "./HistogramChart";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { Button } from "@/src/components/ui/button";
 import { AlertCircle } from "lucide-react";
-import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
-import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
+import { BigNumber } from "./BigNumber";
+import { PivotTable } from "./PivotTable";
 import { type OrderByState } from "@langfuse/shared";
 import { type ChartConfig } from "@/src/components/ui/chart";
 

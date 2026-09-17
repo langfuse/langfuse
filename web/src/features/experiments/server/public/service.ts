@@ -16,7 +16,7 @@ import {
 import {
   queryExperimentItemsForPublicApi,
   queryExperimentSummariesForPublicApi,
-} from "@/src/features/experiments/server/public/repository";
+} from "./repository";
 
 type ExperimentSummaryRow = Awaited<
   ReturnType<typeof queryExperimentSummariesForPublicApi>

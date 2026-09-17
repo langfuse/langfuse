@@ -19,11 +19,11 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
-import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
+import type { FieldRegistry } from "../lib/fields";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { showErrorToast } from "@/src/features/notifications";
-import type { ObservedScoreNames } from "@/src/features/search-bar/lib/observed-options";
-import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
+import type { ObservedScoreNames } from "../lib/observed-options";
+import type { SearchBarStore } from "../store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

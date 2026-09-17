@@ -6,8 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { providerLabels } from "../../../constants/providerLabels";
+import type { GatewayProvider } from "../../../types/gatewayProvider";
 
 export function ProviderSelect({
   value,

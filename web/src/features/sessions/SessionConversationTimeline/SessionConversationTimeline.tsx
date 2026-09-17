@@ -4,15 +4,15 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   prepareSessionTimelineObservations,
   type PreparedSessionTimelineItem,
-} from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+} from "./fns/prepareSessionTimelineObservations";
 import {
   SessionConversationTimelineTrace,
   type PreparedSessionConversationTimelineTraceState,
   type SessionObservation,
   type SessionObservationActions,
-} from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
-import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
+} from "./components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { SessionVirtualizedRow } from "../SessionVirtualizedRow";
+import { type EventSessionTrace } from "../sessionDetailPageTypes";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 

@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
-import { Card } from "@/src/components/ui/card";
+import { Card } from "../ui/card";
 import { cn } from "@/src/utils/tailwind";
 
 export const SettingsTableCard = ({

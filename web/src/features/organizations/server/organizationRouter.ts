@@ -7,7 +7,7 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import {
   organizationFormSchema,
   organizationOptionalNameSchema,
-} from "@/src/features/organizations/utils/organizationNameSchema";
+} from "../utils/organizationNameSchema";
 import * as z from "zod";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
 import { TRPCError } from "@trpc/server";
@@ -20,7 +20,7 @@ import {
 import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { buildAdminOrgContext } from "./adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,

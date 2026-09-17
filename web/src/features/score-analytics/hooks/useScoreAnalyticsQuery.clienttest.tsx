@@ -1,6 +1,6 @@
 import type { Mock } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { api } from "../../../utils/api";
+import { api } from "@/src/utils/api";
 import { useScoreAnalyticsQuery } from "./useScoreAnalyticsQuery";
 
 vi.mock("../../../utils/api", () => ({

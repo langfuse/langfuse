@@ -4,25 +4,25 @@ import { useRouter } from "next/router";
 import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
-} from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
-import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProject } from "@/src/features/projects/hooks";
-import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
+} from "./useV4UpgradeUiEnabled";
+import { useForceV3Experience } from "./useForceV3Experience";
+import { PARTNER_INTEGRATION_FAQ_URL } from "./partnerIntegrationDocs";
+import { usePostHogClientCapture } from "../posthog-analytics";
+import { useQueryProject } from "../projects/hooks";
+import { useOpenV4MigrationPanel } from "./hooks/useOpenV4MigrationPanel";
 import {
   useProjectV4EvalData,
   useProjectV4SdkData,
-} from "@/src/features/v4-migration/hooks/useV4MigrationData";
-import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
+} from "./hooks/useV4MigrationData";
+import { useEvalUpgradeAssistantPlan } from "./useV4UpgradeAssistantSupport";
+import { V4MigrationBadgeContent } from "./V4MigrationBadgeContent";
 import {
   getCustomInstrumentationSectionState,
   getOtelSectionState,
-} from "@/src/features/v4-migration/sdkVersionStatus";
-import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
-import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events";
+} from "./sdkVersionStatus";
+import { EvaluatorMigrationDialog } from "./EvaluatorMigrationDialog";
+import { buildDeprecatedRulesUrl } from "./evaluatorMigrationUrls";
+import { useReadPath } from "../events";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass

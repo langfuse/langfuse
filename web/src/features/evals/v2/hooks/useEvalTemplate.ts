@@ -1,6 +1,6 @@
-import { evaluatorToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/evaluatorToEvaluatorSetupDraft";
-import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
-import { managedTemplateToEvaluatorSetupDraft } from "@/src/features/evals/v2/fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
+import { evaluatorToEvaluatorSetupDraft } from "../fns/templateGallery/evaluatorToEvaluatorSetupDraft";
+import { managedEvaluatorTemplateService } from "../fns/templateGallery/managedEvaluatorTemplateService";
+import { managedTemplateToEvaluatorSetupDraft } from "../fns/templateGallery/managedTemplateToEvaluatorSetupDraft";
 import { api } from "@/src/utils/api";
 
 export function useEvalTemplate({

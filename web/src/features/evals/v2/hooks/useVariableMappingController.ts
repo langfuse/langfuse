@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type MouseEvent } from "react";
 
-import type { ActiveVariableMapping } from "@/src/features/evals/v2/types/variableMapping";
+import type { ActiveVariableMapping } from "../types/variableMapping";
 
 const VARIABLE_MAPPING_ROOT_SELECTOR = "[data-variable-mapping-root]";
 

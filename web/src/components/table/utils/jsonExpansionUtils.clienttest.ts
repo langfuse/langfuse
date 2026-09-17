@@ -5,7 +5,7 @@ import {
   SMALL_ARRAY_THRESHOLD,
   SMALL_OBJECT_THRESHOLD,
   transformJsonToTableData,
-} from "@/src/components/table/utils/jsonExpansionUtils";
+} from "./jsonExpansionUtils";
 
 const DEFAULT_MAX_ROWS = 20;
 

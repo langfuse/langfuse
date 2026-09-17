@@ -9,7 +9,7 @@ import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
-import { InputControl } from "../internal/InputControl/InputControl";
+import { InputControl } from "@/src/components/design-system/internal/InputControl/InputControl";
 
 type SelectOption<V> =
   | {

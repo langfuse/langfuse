@@ -1,10 +1,10 @@
 /* eslint-disable @repo/no-style-props */
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "../ui/badge";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+} from "../ui/hover-card";
 import { api } from "@/src/utils/api";
 import { ListFilter } from "lucide-react";
 import React, { useMemo } from "react";

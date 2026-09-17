@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { useExperimentStripMetric } from "./useExperimentStripMetric";
-import { type ScoreCoverageByLevel } from "@/src/features/experiments/types/charts";
+import { type ScoreCoverageByLevel } from "../types/charts";
 
 const scoreOptionsQuery = vi.fn();
 

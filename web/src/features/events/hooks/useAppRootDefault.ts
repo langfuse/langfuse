@@ -12,13 +12,13 @@ import {
   urlOwnsEventsTableState,
   viewOwnsEventsTableState,
   type AppRootFilterChangeOrigin,
-} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+} from "../lib/appRootDefaultFilterPolicy";
 import {
   appRootPreferenceStorageKey,
   appRootSavedViewSessionStorageKey,
   useBrowserStorageValue,
   writeStorage,
-} from "@/src/features/events/lib/appRootDefaultStorage";
+} from "../lib/appRootDefaultStorage";
 import { getSdkVersionCapability } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
 import { clearProjectSdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionStorage";

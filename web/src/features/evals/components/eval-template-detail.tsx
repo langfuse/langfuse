@@ -1,6 +1,6 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
 import * as React from "react";
-import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
+import { EvalTemplateForm } from "./template-form";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
@@ -17,7 +17,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { DeleteEvalTemplateDialog } from "@/src/features/evals/components/delete-eval-template-dialog";
+import { DeleteEvalTemplateDialog } from "./delete-eval-template-dialog";
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { TrashIcon } from "lucide-react";
 

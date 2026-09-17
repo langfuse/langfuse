@@ -4,7 +4,7 @@ import {
   outlierStripResultColumn,
 } from "@/src/features/events";
 import { parseChartTimestamp } from "@/src/features/widgets";
-import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";
+import { SCORE_OUTLIER_STRIP_METRICS } from "../../constants/scoreOutlierStripMetrics";
 import {
   type ScoreOutlierBin,
   type ScoreOutlierDenseBin,
@@ -12,7 +12,7 @@ import {
   type ScoreOutlierQueryRow,
   type ScoreOutlierTick,
   type ScoreOutlierYTick,
-} from "@/src/features/scores-chart-view/types";
+} from "../../types";
 
 /**
  * The outlier strip's ("Pulse") binning math — one module because every

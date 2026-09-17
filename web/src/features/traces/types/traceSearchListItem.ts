@@ -1,5 +1,5 @@
 import type Decimal from "decimal.js";
-import type { TreeNode } from "@/src/features/traces/types/treeNode";
+import type { TreeNode } from "./treeNode";
 
 export interface TraceSearchListItem {
   node: TreeNode;

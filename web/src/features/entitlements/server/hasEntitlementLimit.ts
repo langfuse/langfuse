@@ -1,7 +1,7 @@
 import {
   entitlementAccess,
   type EntitlementLimit,
-} from "@/src/features/entitlements/constants/entitlements";
+} from "../constants/entitlements";
 import { type Plan } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";

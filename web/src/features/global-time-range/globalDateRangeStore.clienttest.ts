@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { useGlobalDateRangeStore } from "@/src/features/global-time-range/globalDateRangeStore";
+import { useGlobalDateRangeStore } from "./globalDateRangeStore";
 
 describe("globalDateRangeStore", () => {
   beforeEach(() => {

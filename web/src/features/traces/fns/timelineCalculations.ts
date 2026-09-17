@@ -8,7 +8,7 @@
  * narrower than 900px pushed part of the trace off-screen.
  */
 
-import { type TreeNode } from "@/src/features/traces/types/treeNode";
+import { type TreeNode } from "../types/treeNode";
 
 /**
  * Find the earliest start time across the whole tree (roots + all descendants).

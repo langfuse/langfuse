@@ -33,11 +33,11 @@ import {
   PromptDependencyRegex,
   parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { lightTheme } from "@/src/components/editor/light-theme";
-import { darkTheme } from "@/src/components/editor/dark-theme";
-import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
-import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
-import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
+import { lightTheme } from "./light-theme";
+import { darkTheme } from "./dark-theme";
+import { autoScrollOnSelectionDrag } from "./autoScrollOnSelectionDrag";
+import { createJsonMagicPasteExtension } from "./jsonMagicPaste";
+import { tolerateUnstableViewportPosAtCoords } from "./tolerateUnstableViewportPosAtCoords";
 import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags

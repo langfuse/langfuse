@@ -31,29 +31,29 @@ import {
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
-import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
+import { PromptBadge } from "../../../PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
-import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
+} from "../../../ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { ObservationLevelBadge } from "../../../ObservationLevelBadge";
+import { EvaluatorBadge } from "./components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
   UsageBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
-import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
-import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
+} from "../../../ObservationMetadataBadgesTooltip";
+import { resolveObservationCostSource } from "./costSource";
+import { ModelBadge } from "../ModelBadge";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { type AggregatedTraceMetrics } from "../../../../fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { DetailHeaderActionsMenuController } from "../../../DetailHeaderActionsMenuController";
+import { useViewPreferences } from "../../../../contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "../../../../contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import {
@@ -79,10 +79,10 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
+import { CollapsibleBadgeRow } from "../../../CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
-import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
+import { resolveEvaluatorIdMetadata } from "../../../../fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 

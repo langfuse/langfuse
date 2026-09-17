@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { type ScoreAggregate } from "@langfuse/shared";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { mergeAggregatesWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
+import { useScoreCache } from "../contexts/ScoreCacheContext";
+import { mergeAggregatesWithCache } from "./mergeScoresWithCache";
 
 /**
  * Hook for merging server aggregates with cached scores (F3: Compare View)

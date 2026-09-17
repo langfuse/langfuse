@@ -2,7 +2,7 @@ import { BotMessageSquare, Minus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
-import { InAppAgentNotice } from "@/src/features/in-app-agent/components/InAppAgentNotice";
+import { InAppAgentNotice } from "./InAppAgentNotice";
 
 /**
  * Transient nudge that the run keeps going without the drawer. Lives in the

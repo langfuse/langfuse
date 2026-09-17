@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { getHeatmapCellColor } from "@/src/features/score-analytics/lib/color-scales";
+import { getHeatmapCellColor } from "../../lib/color-scales";
 import { cn } from "@/src/utils/tailwind";
 import { useState } from "react";
 import chroma from "chroma-js";

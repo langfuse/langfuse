@@ -1,12 +1,12 @@
 import {
   EVALUATOR_GALLERY_ALL_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
-} from "@/src/features/evals/v2/constants/evaluatorGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
+} from "../../constants/evaluatorGallery";
+import { getGalleryCategoryPresentation } from "./galleryCategoryPresentation";
 import type {
   GalleryNavigationItem,
   GallerySection,
-} from "@/src/features/evals/v2/types/templateGallery";
+} from "../../types/templateGallery";
 
 function isGalleryAllSection(activeSection: string | null) {
   return !activeSection || activeSection === EVALUATOR_GALLERY_ALL_SECTION_KEY;

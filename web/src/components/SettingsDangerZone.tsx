@@ -1,4 +1,4 @@
-import Header from "@/src/components/layouts/header";
+import Header from "./layouts/header";
 import React from "react";
 
 export const SettingsDangerZone: React.FC<{

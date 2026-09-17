@@ -7,23 +7,23 @@ import {
   ChartTooltipPortal,
 } from "@/src/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
+import { type ChartProps } from "./chart-props";
 import {
   formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
-} from "@/src/features/widgets/chart-library/utils";
-import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
-import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
+} from "./utils";
+import { useChartTickBudget } from "./useChartTickBudget";
+import { prepareTimeAxis } from "./prepareTimeAxis";
+import { prepareVisibleSeries } from "./prepareVisibleSeries";
 import {
   seriesColor,
   SeriesOverflowNote,
   TimeSeriesLegend,
   useSeriesLegend,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
-import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
+} from "./TimeSeriesLegend";
+import { temporalAxisTickProp } from "./TimeAxisTick";
 
 /**
  * VerticalBarChartTimeSeries component

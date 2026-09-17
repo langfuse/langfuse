@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { parsePriceInput } from "@/src/features/models/fns/parsePriceInput";
+import { parsePriceInput } from "./fns/parsePriceInput";
 import {
   duplicateNameIndexes,
   PricingTierConditionSchema,

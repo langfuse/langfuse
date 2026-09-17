@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-style-props */
 import React from "react";
-import { cn } from "@/src/utils/tailwind";
-import DocPopup from "@/src/components/layouts/doc-popup";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "../utils/tailwind";
+import DocPopup from "./layouts/doc-popup";
+import { Skeleton } from "./ui/skeleton";
 
 interface NoDataOrLoadingProps {
   isLoading: boolean;

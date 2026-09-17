@@ -2,7 +2,7 @@ import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import {
   TestResultTraceActions,
   TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+} from "../../../../../Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
 
 export function TestResultActions({
   executionTraceId,

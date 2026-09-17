@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +8,8 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem,
-} from "@/src/components/ui/dropdown-menu";
-import useLocalStorage from "@/src/components/useLocalStorage";
+} from "../ui/dropdown-menu";
+import useLocalStorage from "../useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Rows3, Rows2, Rows4 } from "lucide-react";
 

@@ -11,13 +11,13 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { CredentialFields } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/CredentialFields";
-import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewayProvidersPage/components/ProviderSelect";
-import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { CredentialFields } from "../CredentialFields";
+import { ProviderSelect } from "../ProviderSelect";
+import { providerLabels } from "../../../../constants/providerLabels";
 import type {
   GatewayConnection,
   GatewayProvider,
-} from "@/src/features/ai-gateway/types/gatewayProvider";
+} from "../../../../types/gatewayProvider";
 import {
   api,
   reportNonTrpcError,

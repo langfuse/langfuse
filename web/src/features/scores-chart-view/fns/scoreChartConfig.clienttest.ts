@@ -7,9 +7,9 @@ import {
   scoreChartConfigToWidgetInput,
   scoreMetricField,
   scoreRowsToDataPoints,
-} from "@/src/features/scores-chart-view/fns/scoreChartConfig";
-import { DEFAULT_SCORE_CHART_CONFIG } from "@/src/features/scores-chart-view/constants/defaultScoreChartConfig";
-import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
+} from "./scoreChartConfig";
+import { DEFAULT_SCORE_CHART_CONFIG } from "../constants/defaultScoreChartConfig";
+import { type ScoreChartViewConfig } from "../types";
 
 describe("coerceScoreChartConfig", () => {
   it("resets the aggregation when the metric does not support it", () => {

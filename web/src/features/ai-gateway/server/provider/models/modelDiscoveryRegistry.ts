@@ -1,4 +1,4 @@
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+import type { GatewayProviderName } from "../registry";
 import { anthropicModelDiscoveryAdapter } from "./adapters/anthropic";
 import { openAiModelDiscoveryAdapter } from "./adapters/openAi";
 import type { ModelDiscoveryAdapter } from "./types";

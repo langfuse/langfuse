@@ -5,7 +5,7 @@ import { type ComponentProps } from "react";
 import {
   SessionConversationTimeline,
   useSessionConversationTimelineController,
-} from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
+} from "./SessionConversationTimeline";
 
 type TimelineProps = Omit<
   ComponentProps<typeof SessionConversationTimeline>,

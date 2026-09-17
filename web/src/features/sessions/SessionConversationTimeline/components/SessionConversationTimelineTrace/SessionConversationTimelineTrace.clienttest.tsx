@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SessionConversationTimelineTrace } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
-import { prepareSessionTimelineObservations } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
+import { SessionConversationTimelineTrace } from "./SessionConversationTimelineTrace";
+import { prepareSessionTimelineObservations } from "../../fns/prepareSessionTimelineObservations";
 
 type TraceProps = ComponentProps<typeof SessionConversationTimelineTrace>;
 type Observation = Extract<

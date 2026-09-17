@@ -1,7 +1,4 @@
-import {
-  SplashScreen,
-  type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+import { SplashScreen, type ValueProposition } from "../ui/splash-screen";
 import { ThumbsUp, Star, LineChart, Code } from "lucide-react";
 
 export function ScoresOnboarding() {

@@ -1,18 +1,18 @@
 import { RefreshCw, ChevronDown } from "lucide-react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+} from "../ui/dropdown-menu";
 import { cn } from "@/src/utils/tailwind";
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   REFRESH_INTERVALS,
   type RefreshInterval,
-} from "@/src/components/table/utils/refresh-intervals";
+} from "./utils/refresh-intervals";
 
 interface DataTableRefreshButtonProps {
   onRefresh: () => void;

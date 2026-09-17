@@ -3,7 +3,7 @@ import { ScoreOutputSection } from "./components/ScoreOutputSection/ScoreOutputS
 import {
   type ScoreOutputFormState,
   type ScoreOutputSelectorState,
-} from "@/src/features/evals/v2/scoreOutputTypes";
+} from "../../../../scoreOutputTypes";
 
 type ScoreOutputConfigurationProps = { state: ScoreOutputFormState } & (
   | {

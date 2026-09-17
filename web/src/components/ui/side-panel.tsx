@@ -1,8 +1,8 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, @repo/no-null-render */
 import { default as React, useState, useCallback, type ReactNode } from "react";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "./button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { SubHeader } from "@/src/components/layouts/header";
+import { SubHeader } from "../layouts/header";
 import { cn } from "@/src/utils/tailwind";
 import {
   Sheet,
@@ -10,10 +10,10 @@ import {
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/src/components/ui/sheet";
+} from "./sheet";
 import { useIsMobile } from "@/src/hooks/use-mobile";
-import { Separator } from "@/src/components/ui/separator";
-import useSessionStorage from "@/src/components/useSessionStorage";
+import { Separator } from "./separator";
+import useSessionStorage from "../useSessionStorage";
 
 const SidePanelContext = React.createContext<{
   showPanel: boolean;

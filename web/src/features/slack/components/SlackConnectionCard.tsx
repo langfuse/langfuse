@@ -11,8 +11,8 @@ import {
 } from "@/src/components/ui/card";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
-import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
-import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";
+import { SlackConnectButton } from "./SlackConnectButton";
+import { SlackDisconnectButton } from "./SlackDisconnectButton";
 
 /**
  * Props for the SlackConnectionCard component

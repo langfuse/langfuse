@@ -1,6 +1,6 @@
 import { useState, type InputHTMLAttributes, type Ref } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { InputControl } from "../internal/InputControl/InputControl";
+import { InputControl } from "@/src/components/design-system/internal/InputControl/InputControl";
 
 type PasswordInputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,

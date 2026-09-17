@@ -1,5 +1,5 @@
-import { DataTable } from "@/src/components/table/data-table";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { DataTable } from "../data-table";
+import { type LangfuseColumnDef } from "../types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
@@ -7,8 +7,8 @@ import { safeExtract } from "@/src/utils/map-utils";
 import { type Prisma } from "@langfuse/shared/src/db";
 import { useQueryParams, withDefault, StringParam } from "use-query-params";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useRowHeightLocalStorage } from "../data-table-row-height-switch";
+import { DataTableToolbar } from "../data-table-toolbar";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { type GetModelResult } from "@/src/features/models/validation";
 import { DeleteModelButton } from "@/src/features/models/components/DeleteModelButton";

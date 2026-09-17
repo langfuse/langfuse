@@ -8,8 +8,8 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { type ExperimentDetailsStepProps } from "@/src/features/experiments/types/stepProps";
-import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
+import { type ExperimentDetailsStepProps } from "../../types/stepProps";
+import { StepHeader } from "../shared/StepHeader";
 
 export const ExperimentDetailsStep: React.FC<ExperimentDetailsStepProps> = ({
   formState,

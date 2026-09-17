@@ -6,8 +6,8 @@ import { useMediaQuery } from "react-responsive";
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
-import { Button } from "@/src/components/ui/button";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { Button } from "../ui/button";
+import { ResizableSplitLayout } from "../ui/resizable-split-layout";
 
 // --- Toggle Button ---
 

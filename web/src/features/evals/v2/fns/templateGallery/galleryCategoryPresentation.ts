@@ -16,7 +16,7 @@ import {
   EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
   EVALUATOR_GALLERY_RECOMMENDED_SECTION_KEY,
   EVALUATOR_GALLERY_SAFETY_SECTION_KEY,
-} from "@/src/features/evals/v2/constants/evaluatorGallery";
+} from "../../constants/evaluatorGallery";
 
 export type GalleryCategoryPresentation = {
   icon: LucideIcon;

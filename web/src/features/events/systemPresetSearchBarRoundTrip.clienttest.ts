@@ -6,7 +6,7 @@ import {
   getSystemTableViewPresets,
   type FilterState,
 } from "@langfuse/shared";
-import { filterStateToQueryText, planCommit } from "@/src/features/search-bar";
+import { filterStateToQueryText, planCommit } from "../search-bar";
 
 // Catalog guard for the LFE-14699 demote-on-user-edit no-op check
 // (demoteViewOnUserFilterEdit): a user-origin filter write only demotes the

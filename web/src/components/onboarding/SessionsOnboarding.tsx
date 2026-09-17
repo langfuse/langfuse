@@ -1,6 +1,6 @@
 import React from "react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { ActionButton } from "@/src/components/ActionButton";
+import { SplashScreen } from "../ui/splash-screen";
+import { ActionButton } from "../ActionButton";
 
 export function SessionsOnboarding() {
   return (

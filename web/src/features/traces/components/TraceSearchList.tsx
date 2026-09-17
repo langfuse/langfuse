@@ -7,14 +7,14 @@
  */
 
 import { useMemo } from "react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
-import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { useTraceData } from "../contexts/TraceDataContext";
+import { useSearch } from "../contexts/SearchContext";
+import { useSelection } from "../contexts/SelectionContext";
+import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
+import { useTraceAnalyticsDimensions } from "../hooks/useTraceAnalyticsDimensions";
+import { matchesSearchQuery } from "../fns/matchesSearchQuery";
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";

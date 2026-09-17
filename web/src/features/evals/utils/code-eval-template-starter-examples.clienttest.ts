@@ -8,8 +8,8 @@ import {
   DEFAULT_PYTHON_CODE_EVAL_SOURCE,
   DEFAULT_TYPESCRIPT_CODE_EVAL_SOURCE,
   formatAndStripCodeEvalSourceForSubmit,
-} from "@/src/features/evals/utils/code-eval-template-starter-examples";
-import { validateCodeEvalSourceWithPython } from "@/src/features/evals/utils/code-eval-template-validation";
+} from "./code-eval-template-starter-examples";
+import { validateCodeEvalSourceWithPython } from "./code-eval-template-validation";
 
 // This suite runs the real formatters (Prettier and the Ruff wasm build), so
 // the starter sources are guaranteed to be format-canonical: clicking Format

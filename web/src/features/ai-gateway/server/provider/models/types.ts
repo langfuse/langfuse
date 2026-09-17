@@ -1,4 +1,4 @@
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+import type { GatewayProviderName } from "../registry";
 
 export type GatewayModelCatalogEntry = {
   id: string;

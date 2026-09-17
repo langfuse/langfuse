@@ -13,12 +13,9 @@ import DocPopup from "@/src/components/layouts/doc-popup";
 import { ScoreTag, SCORE_LEVEL_LABELS } from "@/src/components/score-tag";
 import { WidgetContent } from "@/src/features/widgets";
 import { type QueryType } from "@langfuse/shared/query";
-import type {
-  MetricOption,
-  ScoreCoverageByLevel,
-} from "@/src/features/experiments/types/charts";
-import { buildWidgetConfigFromId } from "@/src/features/experiments/utils/charts";
-import { SCORE_LEVEL_TAGS } from "@/src/features/experiments/constants/charts";
+import type { MetricOption, ScoreCoverageByLevel } from "../types/charts";
+import { buildWidgetConfigFromId } from "../utils/charts";
+import { SCORE_LEVEL_TAGS } from "../constants/charts";
 import { cn } from "@/src/utils/tailwind";
 import {
   MetricStripBand,
@@ -30,9 +27,9 @@ import {
   METRIC_STRIP_TRIGGER_CLASS,
   metricStripTriggerClasses,
 } from "@/src/components/metric-strip/MetricStripTrigger";
-import { useExperimentStripMetric } from "@/src/features/experiments/hooks/useExperimentStripMetric";
+import { useExperimentStripMetric } from "../hooks/useExperimentStripMetric";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { chartMetricChangedProps } from "@/src/features/experiments/lib/analytics";
+import { chartMetricChangedProps } from "../lib/analytics";
 
 /**
  * Stable node: `Chart` is memoized, so a fresh element on every render would

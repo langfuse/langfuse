@@ -21,14 +21,14 @@ import * as React from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
-import { scoreTypeContextFromObserved } from "@/src/features/search-bar/lib/observed-options";
-import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
-import { useSearchBarStore } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { scoreTypeContextFromObserved } from "../lib/observed-options";
+import { SearchComposer } from "./SearchComposer";
+import { ComposerTokens } from "./ComposerTokens";
+import { useSearchBarStore } from "../store/SearchBarStoreProvider";
 import {
   COMPOSER_SURFACE_CLASSES,
   COMPOSER_TEXT_CLASSES,
-} from "@/src/features/search-bar/components/composer-chrome";
+} from "./composer-chrome";
 
 export function ComposerWithPreview(
   props: React.ComponentProps<typeof SearchComposer>,

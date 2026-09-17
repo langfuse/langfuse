@@ -1,14 +1,10 @@
 import type { ComponentProps } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 
-import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
-import textShimmerStyles from "@/src/components/ui/text-shimmer.module.css";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Button } from "./button";
+import { Input } from "./input";
+import textShimmerStyles from "./text-shimmer.module.css";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 type AIAssistedInputProps = Pick<

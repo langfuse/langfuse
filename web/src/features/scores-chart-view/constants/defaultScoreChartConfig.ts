@@ -1,4 +1,4 @@
-import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
+import { type ScoreChartViewConfig } from "../types";
 
 export const DEFAULT_SCORE_CHART_CONFIG: ScoreChartViewConfig = {
   dataset: "numeric",

@@ -1,13 +1,10 @@
 import type { ComponentProps } from "react";
-import type {
-  RuleEvaluatorOption,
-  RuleSetupStore,
-} from "@/src/features/evals/v2/types/rules";
+import type { RuleEvaluatorOption, RuleSetupStore } from "../../../types/rules";
 
 import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
-import { RuleEvaluatorsStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleEvaluatorsStep";
-import { RuleFilterStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleFilterStep";
-import { RuleNameStep } from "@/src/features/evals/v2/components/Rules/RuleSetup/components/RuleNameStep";
+import { RuleEvaluatorsStep } from "./components/RuleEvaluatorsStep";
+import { RuleFilterStep } from "./components/RuleFilterStep";
+import { RuleNameStep } from "./components/RuleNameStep";
 
 export function RuleSetup({
   projectId,

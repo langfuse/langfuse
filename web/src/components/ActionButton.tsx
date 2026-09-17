@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
 import { Lock, AlertCircle, Sparkle } from "lucide-react";
-import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "./ui/button";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
   HoverCardPortal,
-} from "@/src/components/ui/hover-card";
+} from "./ui/hover-card";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 

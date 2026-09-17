@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
+import { joinSessionCoreAndMetrics } from "./session-row-data";
 
 describe("joinSessionCoreAndMetrics", () => {
   it("keeps filtered core session fields when metrics contain all-time values", () => {

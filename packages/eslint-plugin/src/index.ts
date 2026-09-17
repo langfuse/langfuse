@@ -13,9 +13,11 @@ import { default as noStyleProps } from "./rules/no-style-props.js";
 import { default as noSwitchStatements } from "./rules/no-switch-statements.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 import { default as storybookPlayRequiresTestName } from "./rules/storybook-play-requires-test-name.js";
+import { default as consistentRelativeImports } from "./rules/consistent-relative-imports.js";
 
 const plugin = {
   rules: {
+    "consistent-relative-imports": consistentRelativeImports,
     "filename-matches-export": filenameMatchesExport,
     "no-abstracted-overlay-trigger": noAbstractedOverlayTrigger,
     "no-arbitrary-colors": noArbitraryColors,

@@ -8,7 +8,7 @@ import {
   planEventFacetQueries,
   resolveEventFacetColumnId,
   splitFacetFilter,
-} from "@/src/features/events/lib/facet-query-plan";
+} from "./facet-query-plan";
 
 const START_TIME: FilterState[number] = {
   column: "startTime",

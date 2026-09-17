@@ -14,11 +14,11 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { type templateFormSchema } from "@/src/features/evals/utils/template-form-schema";
+import { type templateFormSchema } from "../utils/template-form-schema";
 import {
   type CodeEvalSourceCodeLanguage,
   getDefaultCodeEvalSource,
-} from "@/src/features/evals/utils/code-eval-template-validation";
+} from "../utils/code-eval-template-validation";
 
 type EvalTemplateFormInput = z.input<typeof templateFormSchema>;
 type EvalTemplateFormOutput = z.output<typeof templateFormSchema>;

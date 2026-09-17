@@ -1,18 +1,18 @@
 import * as React from "react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import EvalLogTable from "@/src/features/evals/components/eval-log";
+import EvalLogTable from "./eval-log";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import Page from "@/src/components/layouts/page";
 import { LevelCountsDisplay } from "@/src/components/level-counts-display";
-import { generateJobExecutionCounts } from "@/src/features/evals/utils/job-execution-utils";
-import { EvaluatorPausedCallout } from "@/src/features/evals/components/evaluator-paused-callout";
+import { generateJobExecutionCounts } from "../utils/job-execution-utils";
+import { EvaluatorPausedCallout } from "./evaluator-paused-callout";
 import {
   type EvalTargetObject,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
-import { useLazyEvaluatorExecutionCounts } from "@/src/features/evals/hooks/useLazyEvaluatorExecutionCounts";
+import { useLazyEvaluatorExecutionCounts } from "../hooks/useLazyEvaluatorExecutionCounts";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { AlertTriangle } from "lucide-react";
 

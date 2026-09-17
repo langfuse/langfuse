@@ -10,7 +10,7 @@ import {
 import { type Prisma } from "@langfuse/shared/src/db";
 
 import { env } from "@/src/env.mjs";
-import { assertExportSourceAllowed } from "@/src/features/analytics-integrations/server/assertExportSourceAllowed";
+import { assertExportSourceAllowed } from "./assertExportSourceAllowed";
 
 /**
  * Write-time export-source handling shared by every integration family's upsert

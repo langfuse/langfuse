@@ -3,7 +3,7 @@ import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { useRouter } from "next/router";
 import { useCallback } from "react";
 import { urlSearchParamsToQuery } from "@/src/utils/navigation";
-import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
+import { resolvePeekTraceParams } from "../resolvePeekTraceParams";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const PEEK_PARAM = "peek";

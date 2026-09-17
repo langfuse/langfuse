@@ -2,11 +2,11 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../../.storybook/preview";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
-import { TestRerunButton } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestRerunButton/TestRerunButton";
+import { TestRerunButton } from "../TestRerunButton/TestRerunButton";
 import {
   TestResultTraceActions,
   TestResultTraceActionsTrigger,
-} from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultTraceActions/TestResultTraceActions";
+} from "../TestResultTraceActions/TestResultTraceActions";
 import { TestResultPanelView } from "./TestResultPanelView";
 
 const meta = preview.meta({ component: TestResultPanelView });

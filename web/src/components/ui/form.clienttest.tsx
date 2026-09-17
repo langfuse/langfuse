@@ -7,7 +7,7 @@ import {
   FormItem,
   FormMessage,
   hasArrayLevelFieldError,
-} from "@/src/components/ui/form";
+} from "./form";
 
 type Values = {
   categories: Array<{ value: string }>;

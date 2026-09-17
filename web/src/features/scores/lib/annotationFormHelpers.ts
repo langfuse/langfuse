@@ -1,4 +1,4 @@
-import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { getScoreDataTypeIcon } from "./scoreColumns";
 import {
   isPresent,
   type ScoreConfigDataType,

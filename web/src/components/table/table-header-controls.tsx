@@ -1,7 +1,7 @@
-import { TimeRangePicker } from "@/src/components/date-picker";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
-import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { TimeRangePicker } from "../date-picker";
+import { DataTableRefreshButton } from "./data-table-refresh-button";
+import { type RefreshInterval } from "./utils/refresh-intervals";
+import { PageHeaderControlsPortal } from "../layouts/page-header-controls-slot";
 import {
   TABLE_AGGREGATION_OPTIONS,
   type TimeRange,

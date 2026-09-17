@@ -10,7 +10,7 @@ import type {
   NumericUIFilter,
   StringUIFilter,
   StringKeyValueUIFilter,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+} from "../hooks/useSidebarFilterState";
 
 const baseFacet = {
   column: "col",

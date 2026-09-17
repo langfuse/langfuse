@@ -7,13 +7,13 @@ import {
 import Link from "next/link";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import { JSONView } from "../ui/CodeJsonViewer";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
-import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
+} from "../ui/hover-card";
+import { ScoreTag, scoreLevelFromScore } from "../score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 

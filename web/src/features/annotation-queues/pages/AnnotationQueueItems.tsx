@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
-import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
+import { AnnotationQueueItemsTable } from "../components/AnnotationQueueItemsTable";
 import { CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { ClipboardPen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import Link from "next/link";
-import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
+import { CreateOrEditAnnotationQueueButton } from "../components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { Skeleton } from "@/src/components/ui/skeleton";

@@ -1,7 +1,7 @@
-import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { parse } from "@/src/features/search-bar/lib/langQ";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import { astToFilterState } from "./adapter";
+import { filterStateToQueryText } from "./filter-state-to-query";
+import { parse } from "./langQ";
+import { validateQuery } from "./validate";
 import type { FilterState } from "@langfuse/shared";
 import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
 import { planCommit } from "./commit";

@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
+import { scoresFieldRegistry } from "../constants/scoresSearchRegistry";
 
 export function ScoresSearchBar({
   projectId,
