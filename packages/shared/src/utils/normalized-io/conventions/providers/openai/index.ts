@@ -383,7 +383,28 @@ function openAiMessages(
   root: Record<string, unknown>,
   kind: "input" | "output",
 ): MessageSource[] {
-  if (kind !== "output") return [];
+  if (kind === "input") {
+    // Responses API uses `input` instead of Chat Completions' `messages`:
+    // https://developers.openai.com/api/docs/guides/migrate-to-responses#simple-message-inputs
+    const responseInput = parseArray(root.input);
+    if (
+      responseInput &&
+      responseInput.some((item) => {
+        const record = asRecord(item);
+        return Boolean(record?.role || record?.type);
+      })
+    ) {
+      return [
+        {
+          kind: "sequence",
+          values: responseInput,
+          fallbackRole: "user",
+        },
+      ];
+    }
+
+    return [];
+  }
 
   const choices = parseArray(root.choices);
   if (choices) {

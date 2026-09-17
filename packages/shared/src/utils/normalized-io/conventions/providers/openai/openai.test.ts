@@ -6,6 +6,7 @@ import {
   openAiChatMultimodalRichResponseFixture,
   openAiResponsesBuiltInToolsAndMediaFixture,
   openAiResponsesFunctionCallFixture,
+  openAiResponsesInputWrapperFixture,
   openAiResponsesReasoningWithParallelCallsFixture,
 } from "./fixtures";
 
@@ -13,6 +14,7 @@ describe("OpenAI normalized I/O", () => {
   it.each([
     openAiChatCompletionToolSequenceFixture,
     openAiChatMultimodalRichResponseFixture,
+    openAiResponsesInputWrapperFixture,
     openAiResponsesFunctionCallFixture,
     openAiResponsesBuiltInToolsAndMediaFixture,
     openAiResponsesReasoningWithParallelCallsFixture,

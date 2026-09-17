@@ -353,6 +353,34 @@ export const openAiResponsesReasoningWithParallelCallsFixture = {
 
 const responsesToolCallId = "call_weather_002";
 
+export const openAiResponsesInputWrapperFixture = {
+  name: "normalizes an OpenAI Responses input wrapper",
+  spanIO: {
+    input: {
+      input: [
+        {
+          content: "Hello. tell me a story about ClickHouse",
+          role: "user",
+        },
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [
+          { type: "text", text: "Hello. tell me a story about ClickHouse" },
+        ],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
 /** Synthetic OpenAI Responses case adapted from the playground suite. */
 export const openAiResponsesFunctionCallFixture = {
   name: "normalizes OpenAI Responses function calls and outputs",
