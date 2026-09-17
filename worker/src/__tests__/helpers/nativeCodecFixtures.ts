@@ -1,21 +1,12 @@
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import type { EventRecordInsertType } from "@langfuse/shared/src/server";
-import type { EventInput } from "../services/IngestionService/index.js";
+import type { EventInput } from "../../services/IngestionService/index.js";
 
-// This script is intentionally test-only. It runs the production event-record preparation path
-// before Rust consumes the rows, without constructing a native buffer or opening a transport.
-
+// Read the existing trace captures and exercise production createEventRecord/writeEventRecord.
+// Model lookup responses are replayed from captures; no fixture JSON is copied into Rust.
 type JsonObject = Record<string, unknown>;
-
-const repoRoot = resolve(__dirname, "../../..");
-const outputArgument = process.argv
-  .slice(2)
-  .find((argument) => argument !== "--");
-const outputPath = resolve(
-  repoRoot,
-  outputArgument ?? "packages/native/target/native-codec-fixtures.json",
-);
+const repoRoot = resolve(__dirname, "../../../..");
 
 const parseObject = (value: unknown): JsonObject => {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -158,16 +149,20 @@ const eventInputFromCapture = (
   };
 };
 
-const main = async (): Promise<void> => {
+export const capturedPreparedRows = async () => {
   const { IngestionService } =
-    await import("../services/IngestionService/index.js");
+    await import("../../services/IngestionService/index.js");
 
   const normalizedRows: EventRecordInsertType[] = [];
   const capturedGenerationUsage = new Map<
     string,
     Pick<
       EventRecordInsertType,
-      "model_id" | "usage_pricing_tier_id" | "usage_pricing_tier_name"
+      | "model_id"
+      | "usage_pricing_tier_id"
+      | "usage_pricing_tier_name"
+      | "usage_details"
+      | "cost_details"
     >
   >();
   const writer = {
@@ -189,8 +184,10 @@ const main = async (): Promise<void> => {
   }: {
     observationRecord: EventRecordInsertType;
   }) => ({
-    usage_details: observationRecord.provided_usage_details,
-    cost_details: observationRecord.provided_cost_details,
+    usage_details: capturedGenerationUsage.get(observationRecord.id)
+      ?.usage_details,
+    cost_details: capturedGenerationUsage.get(observationRecord.id)
+      ?.cost_details,
     internal_model_id: capturedGenerationUsage.get(observationRecord.id)
       ?.model_id,
     usage_pricing_tier_id: capturedGenerationUsage.get(observationRecord.id)
@@ -208,6 +205,8 @@ const main = async (): Promise<void> => {
     for (const observation of fixture.observations ?? []) {
       const eventInput = eventInputFromCapture(observation, trace);
       capturedGenerationUsage.set(eventInput.spanId, {
+        usage_details: eventInput.usageDetails ?? {},
+        cost_details: eventInput.costDetails ?? {},
         model_id: eventInput.modelId,
         usage_pricing_tier_id: eventInput.usagePricingTierId,
         usage_pricing_tier_name: eventInput.usagePricingTierName,
@@ -220,25 +219,5 @@ const main = async (): Promise<void> => {
     }
   }
 
-  mkdirSync(dirname(outputPath), { recursive: true });
-  writeFileSync(
-    outputPath,
-    `${JSON.stringify({
-      fixtureCount: fixturePaths.length,
-      rowCount: normalizedRows.length,
-      rows: normalizedRows,
-      // Keep the exact JavaScript JSONEachRow boundary alongside parsed rows. Rust uses these
-      // lines for the independent ClickHouse comparison instead of reserializing numbers.
-      jsonEachRow:
-        normalizedRows.map((row) => JSON.stringify(row)).join("\n") + "\n",
-    })}\n`,
-  );
-  process.stdout.write(
-    `Wrote ${normalizedRows.length} normalized rows from ${fixturePaths.length} captures to ${outputPath}\n`,
-  );
+  return normalizedRows;
 };
-
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});

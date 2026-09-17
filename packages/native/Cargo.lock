@@ -592,6 +592,7 @@ dependencies = [
 name = "langfuse-native"
 version = "0.0.0"
 dependencies = [
+ "bytes",
  "chrono",
  "clickhouse",
  "clickhouse-types",
@@ -602,6 +603,7 @@ dependencies = [
  "napi-derive",
  "proptest",
  "rust_decimal",
+ "serde",
  "serde_json",
  "tracing",
  "tracing-subscriber",

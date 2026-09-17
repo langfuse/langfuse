@@ -1,10 +1,22 @@
 use super::*;
+use crate::native_schema::{
+    find_column, ColumnKind, DefaultPolicy, PreparedEvent, EVENTS_FULL_INSERT_COLUMNS,
+};
+use proptest::prelude::*;
+use proptest::test_runner::{Config as ProptestConfig, TestRunner};
+use serde_json::json;
+use std::collections::BTreeSet;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use proptest::prelude::*;
-use serde_json::json;
+fn encode_json_rows(rows: &[Value], max_rows: usize) -> Result<Vec<EncodedBlock>, String> {
+    let prepared = rows
+        .iter()
+        .map(PreparedEvent::from_json)
+        .collect::<Result<Vec<_>, _>>()?;
+    encode_v4_native_blocks(&prepared, max_rows)
+}
 
 fn row(input: &str, output: &str, event_bytes: Value) -> Value {
     json!({
@@ -29,75 +41,32 @@ fn row(input: &str, output: &str, event_bytes: Value) -> Value {
 
 #[test]
 fn event_bytes_excludes_the_accounting_field_and_counts_utf8() {
-    let value = row("🔥", "café", json!(123));
-    let mut expected = value.clone();
-    expected
-        .as_object_mut()
-        .expect("object")
-        .remove("event_bytes");
+    let value = json!({"input": "🔥", "event_bytes": 123});
     assert_eq!(
         event_bytes(&value).expect("event bytes"),
-        serde_json::to_vec(&expected).unwrap().len() as u64
+        "{\"input\":\"🔥\"}".len() as u64
     );
-    let mut with_a_different_size = value.clone();
-    with_a_different_size["event_bytes"] = json!(u64::MAX);
-    assert_eq!(
-        event_bytes(&value).unwrap(),
-        event_bytes(&with_a_different_size).unwrap()
-    );
+    for payload in [
+        json!({}),
+        json!({"event_bytes": 99}),
+        json!({"nested": [null, true, {"event_bytes": 7, "text": "\"\n\\🔥"}], "cost": 1e-13}),
+    ] {
+        let mut expected = payload.clone();
+        expected.as_object_mut().unwrap().remove("event_bytes");
+        assert_eq!(
+            event_bytes(&payload).unwrap(),
+            serde_json::to_vec(&expected).unwrap().len() as u64
+        );
+    }
 }
 
 #[test]
-fn zero_block_size_is_rejected() {
-    let error = match encode_v4_native_blocks(&[], 0) {
+fn zero_max_rows_per_block_is_rejected() {
+    let error = match encode_json_rows(&[], 0) {
         Ok(_) => panic!("zero block size must fail"),
         Err(error) => error,
     };
-    assert_eq!(error, "block_size must be greater than zero");
-}
-
-#[test]
-fn blocks_are_split_at_the_requested_boundary_and_are_owned() {
-    let rows = vec![
-        row("one", "two", Value::Null),
-        row("three", "four", json!(1)),
-        row("five", "six", json!(2)),
-    ];
-    let original_rows = rows.clone();
-    let blocks = encode_v4_native_blocks(&rows, 2).expect("encode");
-    assert_eq!(rows, original_rows);
-    assert_eq!(
-        blocks
-            .iter()
-            .map(|block| block.row_count)
-            .collect::<Vec<_>>(),
-        [2, 1]
-    );
-    assert!(blocks.iter().all(|block| !block.bytes.is_empty()));
-}
-
-#[test]
-fn encoded_event_bytes_ignore_the_supplied_accounting_value() {
-    let mut without = row("input", "output", Value::Null);
-    without
-        .as_object_mut()
-        .expect("row object")
-        .remove("event_bytes");
-    let with_one = row("input", "output", json!(1));
-    let with_max = row("input", "output", json!(u64::MAX));
-
-    let without_bytes = encode_v4_native_blocks(&[without], 1).unwrap()[0]
-        .bytes
-        .clone();
-    let with_one_bytes = encode_v4_native_blocks(&[with_one], 1).unwrap()[0]
-        .bytes
-        .clone();
-    let with_max_bytes = encode_v4_native_blocks(&[with_max], 1).unwrap()[0]
-        .bytes
-        .clone();
-
-    assert_eq!(without_bytes, with_one_bytes);
-    assert_eq!(with_one_bytes, with_max_bytes);
+    assert_eq!(error, "max_rows_per_block must be greater than zero");
 }
 
 #[test]
@@ -124,7 +93,6 @@ fn decimal_parser_matches_clickhouse_scale_and_overflow_policy() {
     assert_eq!(parse_decimal("1e2147483647", "cost").unwrap(), 0);
     assert_eq!(parse_decimal("1e-2147483648", "cost").unwrap(), 0);
     assert_eq!(parse_decimal("", "cost").unwrap(), 0);
-    assert!(parse_decimal("not-a-number", "cost").is_err());
     assert_eq!(u16::from_json(&json!(42.0)), Ok(42));
     assert!(u16::from_json(&json!(-1.0)).is_err());
 }
@@ -141,225 +109,108 @@ fn datetime_strings_are_explicitly_utc() {
 }
 
 #[test]
-fn omitted_defaulted_columns_follow_events_full_defaults() {
-    let mut value = row("input", "output", Value::Null);
-    let object = value.as_object_mut().expect("row object");
-    object.remove("environment");
-    object.remove("evaluator_id");
-    object.remove("evaluation_rule_id");
-    object.remove("evaluator_execution_is_test");
-    object["metadata_names"] = json!(["evaluator_id", "job_configuration_id", "evaluator_test"]);
-    object["metadata_values"] = json!(["evaluator", "job", "true"]);
-
-    assert_eq!(value_for(&value, "environment").as_ref(), &json!("default"));
-    assert_eq!(
-        value_for(&value, "evaluator_id").as_ref(),
-        &json!("evaluator")
-    );
-    assert_eq!(
-        value_for(&value, "evaluation_rule_id").as_ref(),
-        &json!("job")
-    );
-    assert_eq!(
-        value_for(&value, "evaluator_execution_is_test").as_ref(),
-        &json!(true)
-    );
-
-    let mut explicit_empty = value.clone();
-    explicit_empty["evaluation_rule_id"] = json!("");
-    assert_eq!(
-        value_for(&explicit_empty, "evaluation_rule_id").as_ref(),
-        &json!("")
-    );
-
-    encode_v4_native_blocks(&[value], 1).expect("encode defaulted row");
-}
-
-#[test]
-fn invalid_decimal_prevents_a_block_from_being_returned() {
+fn invalid_decimal_prevents_a_prepared_event_from_being_returned() {
     let mut value = row("input", "output", Value::Null);
     value["cost_details"] = json!({"output": "definitely-not-a-number"});
 
-    let error = encode_v4_native_blocks(&[value], 1).expect_err("invalid decimal");
+    let error = PreparedEvent::from_json(&value).expect_err("invalid decimal");
     assert!(error.contains("cost_details"));
     assert!(error.contains("invalid decimal"));
 }
 
-#[test]
-fn normalized_ingestion_rows_match_json_each_row_and_native() {
-    let Some((fixture_count, mut rows, mut json_payload)) = normalized_fixture_rows() else {
-        return;
-    };
-    assert!(fixture_count >= 33);
-    assert!(rows.len() >= 229);
-
-    for (probe_row, probe_json) in compatibility_probe_rows() {
-        rows.push(probe_row);
-        json_payload.extend_from_slice(&probe_json);
-    }
-    assert_eq!(
-        json_payload
-            .split(|byte| *byte == b'\n')
-            .filter(|line| !line.is_empty())
-            .count(),
-        rows.len()
-    );
-
-    let blocks = encode_v4_native_blocks(&rows, 16).expect("encode normalized rows");
-    assert_eq!(
-        blocks.iter().map(|block| block.row_count).sum::<usize>(),
-        rows.len()
-    );
-    let payload = blocks
-        .into_iter()
-        .flat_map(|block| block.bytes)
-        .collect::<Vec<_>>();
-    let Some(comparison) = clickhouse_server_round_trip(&json_payload, &payload) else {
-        return;
-    };
-
-    // All stored fields except event_bytes must match. Each serializer owns its accounting
-    // definition, so compare both event_bytes totals with the expected value for that side.
-    assert_eq!(comparison.json_count, rows.len() as u64);
-    assert_eq!(comparison.native_count, rows.len() as u64);
-    assert_eq!(comparison.json_only, 0);
-    assert_eq!(comparison.native_only, 0);
-    assert_eq!(
-        comparison.json_event_bytes,
-        rows.iter()
-            .map(|row| output_u64(&row["event_bytes"]))
-            .sum::<u64>()
-    );
-    assert_eq!(
-        comparison.native_event_bytes,
-        rows.iter()
-            .map(|row| event_bytes(row).expect("computed event bytes"))
-            .sum::<u64>()
-    );
+#[derive(Debug)]
+struct LiveColumn {
+    name: String,
+    column_type: String,
+    default_kind: String,
 }
 
-fn compatibility_probe_rows() -> Vec<(Value, Vec<u8>)> {
-    // These are prepared events_full rows, used only to cover nullable, map, decimal, and
-    // metadata-derived default paths that do not occur in the captured corpus. Keep the precise
-    // decimal as a JSON number so both ClickHouse and Rust consume the same token.
-    let precise: Value = serde_json::from_str("510407.65505697404").unwrap();
-    let tiny: Value = serde_json::from_str("1e-13").unwrap();
-    let negative: Value = serde_json::from_str("-1.9999999999999").unwrap();
-
-    let mut populated = row("🔥", "café", json!(0));
-    populated["name"] = json!("probe");
-    populated["type"] = json!("GENERATION");
-    populated["parent_span_id"] = json!("probe-parent");
-    populated["end_time"] = json!("2026-07-22 00:00:01.000");
-    populated["environment"] = json!("production");
-    populated["version"] = json!("v1");
-    populated["release"] = json!("release");
-    populated["trace_name"] = json!("probe trace");
-    populated["user_id"] = json!("user");
-    populated["session_id"] = json!("session");
-    populated["tags"] = json!(["probe", "🔥"]);
-    populated["level"] = json!("DEFAULT");
-    populated["status_message"] = json!("ok");
-    populated["completion_start_time"] = json!("2026-07-22 00:00:00.123");
-    populated["is_app_root"] = json!(true);
-    populated["bookmarked"] = json!(true);
-    populated["public"] = json!(true);
-    populated["prompt_id"] = json!("prompt");
-    populated["prompt_name"] = json!("prompt-name");
-    populated["prompt_version"] = json!(7);
-    populated["model_id"] = json!("model");
-    populated["provided_model_name"] = json!("provided-model");
-    populated["model_parameters"] = json!("{\"temperature\":0.2}");
-    populated["provided_usage_details"] = json!({"input": 4, "output": 7});
-    populated["usage_details"] = json!({"input": 4, "output": 7});
-    populated["provided_cost_details"] = json!({
-        "precise": precise.clone(),
-        "tiny": tiny.clone(),
-        "negative": negative.clone(),
-    });
-    populated["cost_details"] = json!({
-        "precise": precise,
-        "tiny": tiny,
-        "negative": negative,
-    });
-    populated["usage_pricing_tier_id"] = json!("tier-id");
-    populated["usage_pricing_tier_name"] = json!("Standard");
-    populated["tool_definitions"] = json!({"weather": "{\"type\":\"function\"}"});
-    populated["tool_calls"] = json!(["{\"name\":\"weather\"}"]);
-    populated["tool_call_names"] = json!(["weather"]);
-    populated["input"] = json!("{\"emoji\":\"🔥\"}");
-    populated["output"] = json!("café");
-    populated["metadata_names"] = json!(["source", "nested.value"]);
-    populated["metadata_values"] = json!(["API", "42"]);
-    populated["evaluator_id"] = json!("evaluator");
-    populated["evaluation_rule_id"] = json!("rule");
-    populated["evaluator_execution_is_test"] = json!(true);
-    populated["experiment_id"] = json!("experiment");
-    populated["experiment_name"] = json!("experiment-name");
-    populated["experiment_metadata_names"] = json!(["dataset"]);
-    populated["experiment_metadata_values"] = json!(["test"]);
-    populated["experiment_description"] = json!("description");
-    populated["experiment_dataset_id"] = json!("dataset");
-    populated["experiment_item_id"] = json!("item");
-    populated["experiment_item_version"] = json!("2026-07-22 00:00:00.456");
-    populated["experiment_item_expected_output"] = json!("expected");
-    populated["experiment_item_metadata_names"] = json!(["item.key"]);
-    populated["experiment_item_metadata_values"] = json!(["item-value"]);
-    populated["experiment_item_root_span_id"] = json!("root-span");
-    populated["source"] = json!("API");
-    populated["service_name"] = json!("service");
-    populated["service_version"] = json!("1.2.3");
-    populated["scope_name"] = json!("scope");
-    populated["scope_version"] = json!("1.0");
-    populated["telemetry_sdk_language"] = json!("rust");
-    populated["telemetry_sdk_name"] = json!("opentelemetry");
-    populated["telemetry_sdk_version"] = json!("1.30");
-    populated["blob_storage_file_path"] = json!("fixtures/probe");
-    populated["ingestion_api_key"] = json!("api-key");
-    populated["ingestion_sdk_name"] = json!("sdk");
-    populated["ingestion_sdk_version"] = json!("1.0");
-
-    let mut defaults = row("input", "output", json!(0));
-    defaults["metadata_names"] = json!(["evaluator_id", "job_configuration_id", "evaluator_test"]);
-    defaults["metadata_values"] = json!(["evaluator", "job", "true"]);
-    defaults["source"] = json!("API");
-    defaults["ingestion_api_key"] = json!("");
-    defaults["ingestion_sdk_name"] = json!("");
-    defaults["ingestion_sdk_version"] = json!("");
-    defaults["blob_storage_file_path"] = json!("fixtures/defaults");
-
-    [populated, defaults]
-        .into_iter()
-        .map(|value| {
-            let mut payload = serde_json::to_vec(&value).expect("serialize compatibility probe");
-            payload.push(b'\n');
-            (value, payload)
-        })
-        .collect()
-}
-
-fn normalized_fixture_rows() -> Option<(u64, Vec<Value>, Vec<u8>)> {
-    let Some(path) = std::env::var_os("LANGFUSE_NATIVE_NORMALIZED_FIXTURES") else {
-        if std::env::var_os("LANGFUSE_NATIVE_NORMALIZED_FIXTURES_REQUIRED").is_some() {
-            panic!("LANGFUSE_NATIVE_NORMALIZED_FIXTURES is required");
+fn live_events_full_schema() -> Option<Vec<LiveColumn>> {
+    let output = match run_clickhouse_client(
+        "SELECT name, type, default_kind FROM system.columns WHERE database = currentDatabase() AND table = 'events_full' ORDER BY position FORMAT JSONEachRow",
+        &[],
+    ) {
+        Ok(output) => output,
+        Err(error) => {
+            if clickhouse_is_required() {
+                panic!("ClickHouse schema introspection failed: {error}");
+            }
+            eprintln!("ClickHouse schema unavailable; skipping generated-row test: {error}");
+            return None;
         }
-        eprintln!("normalized TypeScript fixtures not provided; skipping boundary test");
-        return None;
     };
-    let fixture: Value = serde_json::from_str(
-        &std::fs::read_to_string(path).expect("read normalized TypeScript fixtures"),
-    )
-    .expect("valid normalized TypeScript fixtures");
-    let fixture_count = fixture["fixtureCount"]
-        .as_u64()
-        .expect("normalized fixture count");
-    let rows = fixture["rows"].as_array().expect("normalized rows").clone();
-    let json_payload = fixture["jsonEachRow"]
-        .as_str()
-        .expect("JavaScript JSONEachRow payload")
-        .as_bytes()
-        .to_vec();
-    Some((fixture_count, rows, json_payload))
+
+    output
+        .split(|byte| *byte == b'\n')
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            serde_json::from_slice::<Value>(line)
+                .map_err(|error| format!("parse ClickHouse schema row: {error}"))
+                .and_then(|value| {
+                    Ok(LiveColumn {
+                        name: value["name"]
+                            .as_str()
+                            .ok_or_else(|| "schema row has no column name".to_owned())?
+                            .to_owned(),
+                        column_type: value["type"]
+                            .as_str()
+                            .ok_or_else(|| "schema row has no column type".to_owned())?
+                            .to_owned(),
+                        default_kind: value["default_kind"]
+                            .as_str()
+                            .unwrap_or_default()
+                            .to_owned(),
+                    })
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
+        .unwrap_or_else(|error| panic!("invalid ClickHouse schema response: {error}"))
+}
+
+fn assert_live_schema_matches_codec(schema: &[LiveColumn]) {
+    let actual_names = schema
+        .iter()
+        .filter(|column| !is_server_owned(column))
+        .map(|column| column.name.clone())
+        .collect::<BTreeSet<_>>();
+    let expected_names = EVENTS_FULL_INSERT_COLUMNS
+        .iter()
+        .map(|column| column.name.to_owned())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        actual_names, expected_names,
+        "events_full insertable columns differ from the Native codec contract"
+    );
+
+    for column in schema.iter().filter(|column| !is_server_owned(column)) {
+        let kind = ColumnKind::from_clickhouse_type(&column.column_type)
+            .unwrap_or_else(|error| panic!("{}: {error}", column.name));
+        let spec = find_column(&column.name).expect("column set checked above");
+        assert_eq!(
+            spec.kind, kind,
+            "{} changed from {:?} to {}",
+            column.name, spec.kind, column.column_type
+        );
+        if spec.default_policy != DefaultPolicy::None {
+            assert_eq!(
+                column.default_kind, "DEFAULT",
+                "{} no longer has the DEFAULT expression required by the Native adapter",
+                column.name
+            );
+        }
+    }
+}
+
+fn is_server_owned(column: &LiveColumn) -> bool {
+    matches!(column.default_kind.as_str(), "MATERIALIZED" | "ALIAS")
+}
+
+fn clickhouse_is_required() -> bool {
+    std::env::var("LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE")
+        .ok()
+        .as_deref()
+        == Some("1")
 }
 
 #[derive(Debug)]
@@ -376,7 +227,7 @@ fn clickhouse_server_round_trip(
     json_payload: &[u8],
     native_payload: &[u8],
 ) -> Option<ClickhouseComparison> {
-    let required = std::env::var_os("LANGFUSE_NATIVE_CLICKHOUSE_SERVER_REQUIRED").is_some();
+    let required = clickhouse_is_required();
     let suffix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock")
@@ -505,24 +356,7 @@ fn output_u64(value: &Value) -> u64 {
 
 proptest! {
     #[test]
-    fn blocks_preserve_row_count(
-        inputs in prop::collection::vec("[a-zA-Z0-9]{0,32}", 0..12),
-        block_size in 1usize..8,
-    ) {
-        let rows = inputs
-            .iter()
-            .map(|input| row(input, "output", Value::Null))
-            .collect::<Vec<_>>();
-        let blocks = encode_v4_native_blocks(&rows, block_size).unwrap();
-        prop_assert_eq!(
-            blocks.iter().map(|block| block.row_count).sum::<usize>(),
-            rows.len()
-        );
-        prop_assert_eq!(blocks.len(), rows.len().div_ceil(block_size));
-    }
-
-    #[test]
-    fn decimal_inputs_never_panic(
+    fn decimal_inputs_with_extreme_exponents_are_handled(
         integer in -999_999i64..=999_999,
         fraction in "[0-9]{1,24}",
         exponent in -1_000i32..=1_000,
@@ -532,7 +366,7 @@ proptest! {
     }
 
     #[test]
-    fn decimal_scale_truncates_toward_zero(
+    fn decimal_scale_truncates_toward_zero_for_valid_prepared_costs(
         whole in -9i64..=9,
         fraction in 0u64..=9_999_999_999_999,
     ) {
@@ -541,4 +375,165 @@ proptest! {
         let expected = whole * 1_000_000_000_000 + sign * (fraction / 10) as i64;
         prop_assert_eq!(parse_decimal(&value, "cost").unwrap(), expected);
     }
+}
+
+// Derive wire-format properties from the live table, independently of the native field list.
+// The captured-traffic test in TypeScript separately exercises the production preparation path.
+fn generated_row_strategy(schema: &[LiveColumn]) -> BoxedStrategy<Value> {
+    let fields = schema
+        .iter()
+        .filter(|column| !is_server_owned(column))
+        .map(|column| {
+            let name = column.name.clone();
+            let kind = ColumnKind::from_clickhouse_type(&column.column_type).unwrap();
+            let value = match name.as_str() {
+                "type" => {
+                    prop::sample::select(vec![json!("SPAN"), json!("GENERATION"), json!("EVENT")])
+                        .boxed()
+                }
+                "level" => {
+                    prop::sample::select(vec![json!("DEFAULT"), json!("ERROR"), json!("WARNING")])
+                        .boxed()
+                }
+                "source" => Just(json!("API")).boxed(),
+                _ => generated_value_strategy(kind),
+            };
+            (value, any::<bool>()).prop_map(move |(value, omit)| {
+                let defaulted = find_column(&name).unwrap().default_policy != DefaultPolicy::None;
+                (
+                    name.clone(),
+                    if omit && defaulted { None } else { Some(value) },
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+    fields
+        .prop_map(|fields| {
+            let mut object = fields
+                .into_iter()
+                .filter_map(|(name, value)| value.map(|v| (name, v)))
+                .collect::<serde_json::Map<_, _>>();
+            for prefix in [
+                "metadata",
+                "experiment_metadata",
+                "experiment_item_metadata",
+            ] {
+                let values = object[&format!("{prefix}_values")].as_array().unwrap();
+                let names = [
+                    "evaluator_id",
+                    "evaluation_rule_id",
+                    "job_configuration_id",
+                    "evaluator_test",
+                ];
+                object.insert(format!("{prefix}_names"), json!(&names[..values.len()]));
+            }
+            Value::Object(object)
+        })
+        .boxed()
+}
+
+fn generated_value_strategy(kind: ColumnKind) -> BoxedStrategy<Value> {
+    let text = prop_oneof![
+        prop::collection::vec(any::<char>(), 0..24)
+            .prop_map(|chars| chars.into_iter().collect::<String>()),
+        Just("true".to_owned()),
+        Just(String::new()),
+    ]
+    .boxed();
+    let datetime = (0i64..2_000_000_000, 0u32..1_000_000)
+        .prop_map(|(seconds, micros)| {
+            json!(DateTime::<Utc>::from_timestamp(seconds, micros * 1000)
+                .unwrap()
+                .format("%Y-%m-%d %H:%M:%S%.6f")
+                .to_string())
+        })
+        .boxed();
+    match kind {
+        ColumnKind::String => text.prop_map(Value::String).boxed(),
+        ColumnKind::NullableString => prop::option::of(text).prop_map(|v| json!(v)).boxed(),
+        ColumnKind::DateTime64 => datetime,
+        ColumnKind::NullableDateTime64 => prop_oneof![Just(Value::Null), datetime].boxed(),
+        ColumnKind::NullableUInt16 => prop::option::of(any::<u16>())
+            .prop_map(|v| json!(v))
+            .boxed(),
+        ColumnKind::Bool => any::<bool>().prop_map(|v| json!(v)).boxed(),
+        ColumnKind::UInt8 => (0u8..=1).prop_map(|v| json!(v)).boxed(),
+        ColumnKind::UInt16 => any::<u16>().prop_map(|v| json!(v)).boxed(),
+        ColumnKind::UInt64 => (0u64..=9_007_199_254_740_991)
+            .prop_map(|v| json!(v))
+            .boxed(),
+        ColumnKind::Decimal => (-999_999.0f64..999_999.0).prop_map(|v| json!(v)).boxed(),
+        ColumnKind::ArrayString => prop::collection::vec(text, 0..=4)
+            .prop_map(|v| json!(v))
+            .boxed(),
+        ColumnKind::MapStringString => prop::collection::btree_map(text.clone(), text, 0..=4)
+            .prop_map(|v| json!(v))
+            .boxed(),
+        ColumnKind::MapStringUInt64 => {
+            prop::collection::btree_map(text, 0u64..=9_007_199_254_740_991, 0..=4)
+                .prop_map(|v| json!(v))
+                .boxed()
+        }
+        ColumnKind::MapStringDecimal => {
+            prop::collection::btree_map(text, -999_999.0f64..999_999.0, 0..=4)
+                .prop_map(|v| json!(v))
+                .boxed()
+        }
+    }
+}
+
+#[test]
+fn generated_prepared_rows_match_json_each_row_and_native() {
+    let Some(schema) = live_events_full_schema() else {
+        return;
+    };
+    assert_live_schema_matches_codec(&schema);
+    let mut runner = TestRunner::new(ProptestConfig {
+        cases: 32,
+        ..ProptestConfig::default()
+    });
+    runner
+        .run(
+            &(
+                prop::collection::vec(generated_row_strategy(&schema), 1..=8),
+                1usize..=8,
+            ),
+            |(rows, max_rows)| {
+                let blocks = encode_json_rows(&rows, max_rows).map_err(TestCaseError::fail)?;
+                prop_assert_eq!(blocks.len(), rows.len().div_ceil(max_rows));
+                for (block, expected_rows) in blocks.iter().zip(rows.chunks(max_rows)) {
+                    prop_assert_eq!(block.row_count, expected_rows.len());
+                }
+                let native_payload = blocks
+                    .into_iter()
+                    .flat_map(|block| block.bytes)
+                    .collect::<Vec<_>>();
+                let json_payload = rows
+                    .iter()
+                    .flat_map(|row| {
+                        let mut bytes = serde_json::to_vec(row).unwrap();
+                        bytes.push(b'\n');
+                        bytes
+                    })
+                    .collect::<Vec<_>>();
+                let comparison = clickhouse_server_round_trip(&json_payload, &native_payload)
+                    .expect("schema introspection succeeded, so parity server is available");
+                prop_assert_eq!(comparison.json_count, rows.len() as u64);
+                prop_assert_eq!(comparison.native_count, rows.len() as u64);
+                prop_assert_eq!(comparison.json_only, 0);
+                prop_assert_eq!(comparison.native_only, 0);
+                prop_assert_eq!(
+                    comparison.json_event_bytes,
+                    rows.iter()
+                        .map(|r| output_u64(&r["event_bytes"]))
+                        .sum::<u64>()
+                );
+                prop_assert_eq!(
+                    comparison.native_event_bytes,
+                    rows.iter().map(|r| event_bytes(r).unwrap()).sum::<u64>()
+                );
+                Ok(())
+            },
+        )
+        .expect("generated prepared rows match JSONEachRow and Native");
 }

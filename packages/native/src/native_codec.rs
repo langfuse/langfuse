@@ -1,20 +1,25 @@
 //! Rust-only encoding for prepared v4 `events_full` rows.
 //!
-//! Rows stay as JSON at this boundary so the existing ingestion samples can exercise the codec.
-//! The Native builder still receives typed values; the small adapters below only bridge JSON's
-//! nullable and number-like representations to ClickHouse's types.
+//! `PreparedEvent::from_json` accepts the prepared `EventRecordInsertType` shape after
+//! observation-field overflow handling and before the writer's numeric Decimal clamp. Nested
+//! input/output payloads have already been serialized as strings. Native encoding then receives
+//! only typed, owned fields; the adapters below define the JSON conversion policy.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error as StdError;
 
+use bytes::Bytes;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use clickhouse::native::builder::BlockBuilder;
 use clickhouse::native::encode::{Encode, ValueWriter};
 use clickhouse::native::DataTypeNode;
 use clickhouse_types::data_types::{DateTimePrecision, DecimalType};
 use rust_decimal::{Decimal, RoundingStrategy};
+use serde::ser::{SerializeMap, Serializer}; // codespell:ignore ser
 use serde_json::Value;
+
+use crate::native_schema::{ColumnKind, DefaultPolicy, PreparedEvent};
 
 const DECIMAL_SCALE: u32 = 12;
 const DECIMAL_LIMIT: i128 = 1_000_000_000_000_000_000;
@@ -24,7 +29,7 @@ const DECIMAL_OVERFLOW_LIMIT: f64 = 1_000_000.0;
 type EncodeError = Box<dyn StdError + Send + Sync>;
 
 #[derive(Clone, Copy, Debug)]
-struct DateTime64Micros(i64);
+pub(crate) struct DateTime64Micros(pub(crate) i64);
 
 impl Encode for DateTime64Micros {
     fn produces() -> DataTypeNode {
@@ -32,13 +37,15 @@ impl Encode for DateTime64Micros {
     }
 
     fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
+        // clickhouse-rs has no DateTime64 Encode implementation. Keep the DateTime64(6) type tag
+        // while writing ClickHouse's signed microsecond representation as a fixed-width value.
         writer.write_fixed(&self.0.to_le_bytes())?;
         Ok(())
     }
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Decimal64(i64);
+pub(crate) struct Decimal64(pub(crate) i64);
 
 impl Encode for Decimal64 {
     fn produces() -> DataTypeNode {
@@ -46,36 +53,43 @@ impl Encode for Decimal64 {
     }
 
     fn encode(&self, writer: &mut ValueWriter<'_>) -> Result<(), EncodeError> {
+        // rust_decimal supplies the policy and coefficient; clickhouse-rs has no Decimal Encode
+        // implementation, so retain the Decimal(18,12) type tag and write its Int64 coefficient.
         writer.write_fixed(&self.0.to_le_bytes())?;
         Ok(())
     }
 }
 
 /// An owned ClickHouse Native-format block and its row count.
+///
+/// Ownership is part of the transport contract: the later JS transport can retry this complete
+/// block after the encoder and source rows have gone out of scope.
 #[derive(Debug)]
 pub struct EncodedBlock {
-    pub bytes: Vec<u8>,
+    pub bytes: Bytes,
     pub row_count: usize,
 }
 
-/// Encode prepared v4 event rows into caller-sized Native blocks.
+/// Encode prepared v4 event rows into Native blocks containing at most `max_rows_per_block` rows.
+/// The boundary is a row count, not a byte-size or memory limit; the transport can use the returned
+/// owned buffers and counts when it chooses its request boundaries.
 ///
-/// Rows are JSON values here only to make the codec testable against the repository's captured
-/// ingestion samples. The encoder fills the defaults that production-prepared rows rely on when
-/// every insertable column is listed in a Native block. Decimal values use the existing
+/// Prepared rows already contain the defaults that production-prepared rows rely on when every
+/// insertable column is listed in a Native block. Decimal values use the existing
 /// Decimal(18,12) overflow policy and truncate toward zero at twelve fractional digits.
 /// `event_bytes` is the UTF-8 size of the compact Rust JSON serialization of the prepared row
 /// without the accounting field; it is intentionally a logical size metric and need not be
-/// byte-identical to JavaScript's JSON.stringify output.
-pub fn encode_v4_native_blocks(
-    rows: &[Value],
-    block_size: usize,
+/// byte-identical to JavaScript's JSON.stringify output. Preparation stores this value before
+/// applying typed decimal conversion or DEFAULT-backed field filling.
+pub(crate) fn encode_v4_native_blocks(
+    rows: &[PreparedEvent],
+    max_rows_per_block: usize,
 ) -> Result<Vec<EncodedBlock>, String> {
-    if block_size == 0 {
-        return Err("block_size must be greater than zero".to_owned());
+    if max_rows_per_block == 0 {
+        return Err("max_rows_per_block must be greater than zero".to_owned());
     }
 
-    rows.chunks(block_size)
+    rows.chunks(max_rows_per_block)
         .map(|chunk| {
             let bytes = encode_block(chunk)?;
             Ok(EncodedBlock {
@@ -91,143 +105,92 @@ pub fn event_bytes(value: &Value) -> Result<u64, String> {
     let object = value
         .as_object()
         .ok_or_else(|| "event row must be a JSON object".to_owned())?;
-    let mut without_event_bytes = object.clone();
-    without_event_bytes.remove("event_bytes");
-    let serialized = serde_json::to_vec(&Value::Object(without_event_bytes))
-        .map_err(|error| format!("failed to serialize event row: {error}"))?;
-    u64::try_from(serialized.len()).map_err(|_| "serialized event is too large".to_owned())
+    // Borrow the fields and discard serialized bytes immediately: accounting needs the length,
+    // not a cloned row or a second payload buffer.
+    let mut counter = ByteCounter(0);
+    let mut serializer = serde_json::Serializer::new(&mut counter);
+    let result = (|| -> Result<(), serde_json::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        for (key, value) in object {
+            if key != "event_bytes" {
+                map.serialize_entry(key, value)?;
+            }
+        }
+        map.end()
+    })();
+    result.map_err(|error| format!("failed to serialize event row: {error}"))?;
+    Ok(counter.0)
 }
 
-fn encode_block(rows: &[Value]) -> Result<Vec<u8>, String> {
+struct ByteCounter(u64);
+
+impl std::io::Write for ByteCounter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len() as u64)
+            .ok_or_else(|| std::io::Error::other("serialized event is too large"))?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn encode_block(rows: &[PreparedEvent]) -> Result<Bytes, String> {
     let mut builder = BlockBuilder::new();
-    let computed_event_bytes = rows
-        .iter()
-        .map(event_bytes)
-        .collect::<Result<Vec<_>, _>>()?;
-
-    macro_rules! column {
-        ($name:expr, $type:ty, $key:expr) => {
-            add_column::<$type>(
-                &mut builder,
-                $name,
-                rows.iter().map(|row| value_for(row, $key)),
-            )?;
-        };
-    }
-    macro_rules! columns {
-        ($type:ty; $($field:ident),+ $(,)?) => {
-            $(column!(stringify!($field), $type, stringify!($field));)+
-        };
-    }
-
-    // These are the 72 insertable events_full columns. Materialized and alias columns stay
-    // server-owned; the block can list columns in any order because ClickHouse matches by name.
-    columns!(String;
-        project_id, trace_id, span_id, parent_span_id, name, environment, version, release,
-        trace_name, user_id, session_id, level, status_message, prompt_id, prompt_name, model_id,
-        provided_model_name, model_parameters, input, output, evaluator_id, evaluation_rule_id,
-        experiment_id, experiment_name, experiment_description, experiment_dataset_id,
-        experiment_item_id, experiment_item_expected_output, experiment_item_root_span_id, source,
-        service_name, service_version, scope_name, scope_version, telemetry_sdk_language,
-        telemetry_sdk_name, telemetry_sdk_version, blob_storage_file_path, ingestion_api_key,
-        ingestion_sdk_name, ingestion_sdk_version,
-    );
-    column!("type", String, "type");
-
-    columns!(DateTime64Micros; start_time, created_at, updated_at, event_ts);
-    columns!(Option<DateTime64Micros>; end_time, completion_start_time, experiment_item_version);
-    column!("prompt_version", Option<u16>, "prompt_version");
-    columns!(bool; is_app_root, bookmarked, public, evaluator_execution_is_test);
-    column!("is_deleted", u8, "is_deleted");
-    add_column::<u64>(
-        &mut builder,
-        "event_bytes",
-        computed_event_bytes
-            .iter()
-            .map(|value| Cow::Owned(Value::from(*value))),
-    )?;
-    columns!(Vec<String>;
-        tags, tool_calls, tool_call_names, metadata_names, metadata_values,
-        experiment_metadata_names, experiment_metadata_values, experiment_item_metadata_names,
-        experiment_item_metadata_values,
-    );
-    columns!(BTreeMap<String, u64>; provided_usage_details, usage_details);
-    columns!(BTreeMap<String, Decimal64>; provided_cost_details, cost_details);
-    columns!(Option<String>; usage_pricing_tier_id, usage_pricing_tier_name);
-    column!("tool_definitions", BTreeMap<String, String>, "tool_definitions");
+    PreparedEvent::encode_into(&mut builder, rows)?;
 
     builder
         .build()
         .map_err(|error| error.to_string())?
         .encode()
-        .map(|bytes| bytes.to_vec())
         .map_err(|error| error.to_string())
-}
-
-fn add_column<'a, T: FromJson>(
-    builder: &mut BlockBuilder,
-    name: &str,
-    values: impl IntoIterator<Item = Cow<'a, Value>>,
-) -> Result<(), String> {
-    let mut column = builder
-        .upsert_column::<T>(name)
-        .map_err(|error| format!("cannot add column {name}: {error}"))?;
-    for value in values {
-        column
-            .add(T::from_json(value.as_ref()).map_err(|error| format!("{name}: {error}"))?)
-            .map_err(|error| format!("cannot encode column {name}: {error}"))?;
-    }
-    Ok(())
 }
 
 /// Resolve values whose ClickHouse defaults would otherwise be bypassed by listing the column in
 /// the Native block. Ordinary columns stay borrowed from the input row; only synthesized defaults
-/// allocate a JSON value.
-fn value_for<'a>(row: &'a Value, key: &str) -> Cow<'a, Value> {
-    match key {
-        "environment" => value_or_default(row, key, Value::String("default".to_owned())),
-        "evaluator_id" => value_or_default(
-            row,
-            key,
-            Value::String(metadata_value(row, "evaluator_id").unwrap_or_default()),
-        ),
-        "evaluation_rule_id" => {
-            let explicit = row.get(key).filter(|value| !value.is_null());
-            explicit.map_or_else(
-                || {
-                    Cow::Owned(Value::String(
-                        metadata_value(row, "evaluation_rule_id")
-                            .filter(|value| !value.is_empty())
-                            .or_else(|| metadata_value(row, "job_configuration_id"))
-                            .unwrap_or_default(),
-                    ))
-                },
-                Cow::Borrowed,
-            )
-        }
-        "evaluator_execution_is_test" => row.get(key).filter(|value| !value.is_null()).map_or_else(
-            || {
-                Cow::Owned(Value::Bool(
-                    metadata_value(row, "evaluator_test").as_deref() == Some("true"),
-                ))
-            },
-            Cow::Borrowed,
-        ),
-        _ => row
-            .get(key)
+/// allocate a JSON value. This runs once at the JSON-to-typed preparation boundary.
+fn value_for<'a>(row: &'a Value, key: &str, default_policy: DefaultPolicy) -> Cow<'a, Value> {
+    let explicit = row.get(key);
+    if default_policy == DefaultPolicy::None {
+        return explicit
             .map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Owned(Value::Null)),
+            .unwrap_or(Cow::Owned(Value::Null));
     }
+    if let Some(value) = explicit.filter(|value| !value.is_null()) {
+        return Cow::Borrowed(value);
+    }
+    // For example, omitted environment gets DEFAULT 'default' in JSONEachRow. Sending an empty
+    // string in a Native column would instead persist that empty string and bypass the default.
+    Cow::Owned(match default_policy {
+        DefaultPolicy::Literal(value) => Value::String(value.to_owned()),
+        DefaultPolicy::Metadata(key) => Value::String(metadata_value(row, key).unwrap_or_default()),
+        DefaultPolicy::MetadataFallback(key, fallback) => Value::String(
+            metadata_value(row, key)
+                .filter(|value| !value.is_empty())
+                .or_else(|| metadata_value(row, fallback))
+                .unwrap_or_default(),
+        ),
+        DefaultPolicy::MetadataEquals(key, expected) => {
+            Value::Bool(metadata_value(row, key).as_deref() == Some(expected))
+        }
+        DefaultPolicy::None => Value::Null,
+    })
 }
 
-fn value_or_default<'a>(row: &'a Value, key: &str, default: Value) -> Cow<'a, Value> {
-    row.get(key)
-        .filter(|value| !value.is_null())
-        .map(Cow::Borrowed)
-        .unwrap_or(Cow::Owned(default))
+pub(crate) fn from_json_field<T: FromJson>(
+    row: &Value,
+    key: &str,
+    default_policy: DefaultPolicy,
+) -> Result<T, String> {
+    T::from_json(value_for(row, key, default_policy).as_ref())
+        .map_err(|error| format!("{key}: {error}"))
 }
 
 fn metadata_value(row: &Value, name: &str) -> Option<String> {
+    // Ingestion stores metadata as parallel arrays; default expressions look up the same pair.
     let names = row.get("metadata_names")?.as_array()?;
     let values = row.get("metadata_values")?.as_array()?;
     names.iter().zip(values).find_map(|(metadata_name, value)| {
@@ -235,19 +198,25 @@ fn metadata_value(row: &Value, name: &str) -> Option<String> {
     })
 }
 
-// Conversion is separate from wire encoding: upstream Encode implementations own nullable,
-// array, map and primitive layouts.
-trait FromJson: Encode + Sized {
+// Conversion is separate from wire encoding: upstream Encode implementations own nullable, array,
+// map, and primitive layouts, while these implementations define the prepared-row input policy.
+pub(crate) trait FromJson: Encode + Sized {
+    const COLUMN_KIND: ColumnKind;
+
     fn from_json(value: &Value) -> Result<Self, String>;
 }
 
 impl FromJson for String {
+    const COLUMN_KIND: ColumnKind = ColumnKind::String;
+
     fn from_json(value: &Value) -> Result<Self, String> {
         Ok(string_value(value))
     }
 }
 
 impl FromJson for bool {
+    const COLUMN_KIND: ColumnKind = ColumnKind::Bool;
+
     fn from_json(value: &Value) -> Result<Self, String> {
         match value {
             Value::Null => Ok(false),
@@ -263,8 +232,10 @@ impl FromJson for bool {
 }
 
 macro_rules! unsigned {
-    ($($type:ty),+) => {$(
+    ($(($type:ty, $kind:expr)),+ $(,)?) => {$(
         impl FromJson for $type {
+            const COLUMN_KIND: ColumnKind = $kind;
+
             fn from_json(value: &Value) -> Result<Self, String> {
                 <$type>::try_from(json_u64(Some(value), stringify!($type))?)
                     .map_err(|_| format!("expected a {}", stringify!($type)))
@@ -272,21 +243,36 @@ macro_rules! unsigned {
         }
     )+};
 }
-unsigned!(u8, u16, u64);
+unsigned!(
+    (u8, ColumnKind::UInt8),
+    (u16, ColumnKind::UInt16),
+    (u64, ColumnKind::UInt64),
+);
 
 impl FromJson for DateTime64Micros {
+    const COLUMN_KIND: ColumnKind = ColumnKind::DateTime64;
+
     fn from_json(value: &Value) -> Result<Self, String> {
         parse_datetime_value(value, "datetime").map(Self)
     }
 }
 
 impl FromJson for Decimal64 {
+    const COLUMN_KIND: ColumnKind = ColumnKind::Decimal;
+
     fn from_json(value: &Value) -> Result<Self, String> {
         parse_decimal_value(value, "decimal").map(Self)
     }
 }
 
 impl<T: FromJson> FromJson for Option<T> {
+    const COLUMN_KIND: ColumnKind = match T::COLUMN_KIND {
+        ColumnKind::String => ColumnKind::NullableString,
+        ColumnKind::DateTime64 => ColumnKind::NullableDateTime64,
+        ColumnKind::UInt16 => ColumnKind::NullableUInt16,
+        _ => panic!("unsupported nullable events_full column type"),
+    };
+
     fn from_json(value: &Value) -> Result<Self, String> {
         if value.is_null() {
             Ok(None)
@@ -297,6 +283,11 @@ impl<T: FromJson> FromJson for Option<T> {
 }
 
 impl<T: FromJson> FromJson for Vec<T> {
+    const COLUMN_KIND: ColumnKind = match T::COLUMN_KIND {
+        ColumnKind::String => ColumnKind::ArrayString,
+        _ => panic!("unsupported array events_full column type"),
+    };
+
     fn from_json(value: &Value) -> Result<Self, String> {
         match value {
             Value::Null => Ok(Vec::new()),
@@ -307,6 +298,13 @@ impl<T: FromJson> FromJson for Vec<T> {
 }
 
 impl<T: FromJson> FromJson for BTreeMap<String, T> {
+    const COLUMN_KIND: ColumnKind = match T::COLUMN_KIND {
+        ColumnKind::String => ColumnKind::MapStringString,
+        ColumnKind::UInt64 => ColumnKind::MapStringUInt64,
+        ColumnKind::Decimal => ColumnKind::MapStringDecimal,
+        _ => panic!("unsupported map events_full column type"),
+    };
+
     fn from_json(value: &Value) -> Result<Self, String> {
         match value {
             Value::Null => Ok(BTreeMap::new()),
@@ -320,6 +318,8 @@ impl<T: FromJson> FromJson for BTreeMap<String, T> {
 }
 
 fn json_u64(value: Option<&Value>, type_name: &str) -> Result<u64, String> {
+    // JSONEachRow inputs can represent whole numbers as either JSON integers or integral floats;
+    // accept both forms while rejecting signs, fractions, and non-finite values for UInt columns.
     match value {
         None | Some(Value::Null) => Ok(0),
         Some(Value::Number(value)) => value

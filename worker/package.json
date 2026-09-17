@@ -20,7 +20,6 @@
     "build": "tsc",
     "build:test": "tsc",
     "build:check": "tsc",
-    "export-native-codec-fixtures": "DOCKER_BUILD=1 tsx src/scripts/exportNativeCodecFixtures.ts",
     "typecheck": "dotenv -e ../.env -- tsc --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
     "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0 --concurrency 2",
@@ -28,7 +27,8 @@
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts",
-    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts"
+    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts",
+    "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec.integration"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {

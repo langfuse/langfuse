@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+# Apply the local Native encoder patch to the clickhouse-rs client crate.
+
 crate_version=0.15.2
 crate_sha256=7654154fde4d97ec1321bfe4c3965570be6fcd09e091da8afc3166ab5ee27be2
 package_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

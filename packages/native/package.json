@@ -15,12 +15,12 @@
     "node": "24"
   },
   "scripts": {
-    "prepare-clickhouse-source": "sh scripts/prepare-clickhouse-source.sh",
-    "build": "pnpm run prepare-clickhouse-source && napi build --platform --release",
-    "build:debug": "pnpm run prepare-clickhouse-source && napi build --platform",
-    "lint": "pnpm run prepare-clickhouse-source && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
-    "lint:fix": "pnpm run prepare-clickhouse-source && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
-    "test": "pnpm run prepare-clickhouse-source && pnpm --filter worker run export-native-codec-fixtures -- packages/native/target/native-codec-fixtures.json && LANGFUSE_NATIVE_NORMALIZED_FIXTURES=target/native-codec-fixtures.json LANGFUSE_NATIVE_NORMALIZED_FIXTURES_REQUIRED=1 cargo test --locked"
+    "prepare-clickhouse-rs": "sh scripts/prepare-clickhouse-rs.sh",
+    "build": "pnpm run prepare-clickhouse-rs && napi build --platform --release",
+    "build:debug": "pnpm run prepare-clickhouse-rs && napi build --platform",
+    "lint": "pnpm run prepare-clickhouse-rs && cargo fmt --check && cargo clippy --all-targets -- -D warnings",
+    "lint:fix": "pnpm run prepare-clickhouse-rs && cargo fmt && cargo clippy --all-targets --fix --allow-dirty -- -D warnings",
+    "test": "pnpm run prepare-clickhouse-rs && cargo test --locked"
   },
   "napi": {
     "binaryName": "langfuse-native",
