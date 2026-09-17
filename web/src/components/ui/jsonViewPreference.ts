@@ -18,19 +18,16 @@ export function normalizeJsonViewPreference(
     : DEFAULT_JSON_VIEW_PREFERENCE;
 }
 
-/** Panes rather than one full-width viewer; json-beta fills a pane, so it is not. */
 export function isPrettyLikeJsonView(view: JsonViewPreference): boolean {
   return view !== "json" && view !== "json-beta";
 }
 
-/** No advanced viewer in these hosts, so json-beta renders as Formatted. */
 export function toPrettyOrJsonView(
   view: JsonViewPreference,
 ): "pretty" | "json" {
   return view === "json" ? "json" : "pretty";
 }
 
-/** The toggle has no json-beta segment, so json-beta highlights JSON. */
 export function jsonViewToggleTab(
   view: JsonViewPreference,
 ): Exclude<JsonViewPreference, "json-beta"> {
