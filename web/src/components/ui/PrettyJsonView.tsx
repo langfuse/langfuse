@@ -1254,7 +1254,13 @@ export function PrettyJsonView(props: {
           <div
             className={cn(
               "flex items-center",
-              getContainerClasses(props.title, props.scrollable, codeClassName),
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                codeClassName,
+                undefined,
+                tableBorderless,
+              ),
             )}
           >
             <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>

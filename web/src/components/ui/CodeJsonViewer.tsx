@@ -102,8 +102,9 @@ export function JSONView(props: {
           props.title === "assistant" || props.title === "Output"
             ? "bg-accent-light-green dark:border-accent-dark-green/30"
             : "",
-          props.title === "system" || props.title === "Input" ? "bg-card" : "",
-          props.scrollable || props.borderless ? "" : "rounded-sm border",
+          props.scrollable || props.borderless || props.title
+            ? ""
+            : "rounded-sm border",
           props.codeClassName,
         )}
       >
