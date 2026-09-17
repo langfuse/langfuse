@@ -14,7 +14,7 @@ const capturedTraceFixtures: NormalizedIOFixture[] = [
         "system: You are a helpful AI assistant. Solve tasks using your tools. Reply with TERMINATE when the task has been completed.\nuser: Say 'Hello World!'",
       output: "Hello World!",
       metadata:
-        '{"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"langfuse-sdk","version":"3.0.0","attributes":{"public_key":"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"}}}',
+        '{"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.33.1","service.name":"unknown_service"},"scope":{"name":"langfuse-sdk","version":"3.0.0","attributes":{"public_key":"pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc"}}}',
     },
     expected: {
       messages: [
