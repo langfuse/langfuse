@@ -272,13 +272,13 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    /* Text between body and muted: slate-700. Content that is not a heading
+       and not a label, e.g. JSON values. */
+    --foreground-secondary: 215 25% 27%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
-    /* Text between body and muted: slate-700. Content that is not a heading
-       and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 25% 27%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
@@ -463,8 +463,8 @@
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
-    --foreground-tertiary: 0 0% 40%;
     --foreground-secondary: 0 0% 62%;
+    --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
 
