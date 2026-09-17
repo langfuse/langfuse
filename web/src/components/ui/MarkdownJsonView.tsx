@@ -78,7 +78,7 @@ export function MarkdownJsonViewHeader({
   return (
     <div
       className={cn(
-        "io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between py-1 text-sm font-bold capitalize transition-colors",
+        "io-message-header flex flex-row items-center justify-between py-1 text-sm font-bold capitalize",
         inset ? "px-2" : "px-1",
       )}
     >
