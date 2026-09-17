@@ -2781,9 +2781,8 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * AI SDK agent operations and Mastra Anthropic generation parents report
-   * aggregate usage already accounted for by child model calls or steps.
-   * Suppress model, usage, and cost so these parents cannot add inferred tokens.
+   * AI SDK agent spans and Mastra model_generation spans aggregate child usage.
+   * Skip their model, usage, and cost to avoid double counting or inferring tokens.
    */
   private isAggregateUsageSpan(attributes: Record<string, unknown>): boolean {
     const operationName = attributes["gen_ai.operation.name"];
