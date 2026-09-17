@@ -21,6 +21,7 @@ import { isProductFeedbackAvailable } from "@/src/features/feedback/server/Feedb
 import { env } from "@/src/env.mjs";
 import { authorize } from "@/src/features/auth/policy/authorize";
 import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
@@ -156,7 +157,7 @@ function assertToolAuthorized(
     );
     return;
   }
-  if (!decision.success) throw decision.error;
+  if (!decision.success) throw formatErrorForUser(decision.error);
 }
 
 export const __test = { assertToolAuthorized };

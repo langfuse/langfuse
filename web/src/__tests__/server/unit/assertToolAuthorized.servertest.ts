@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 
 import { ForbiddenError } from "@langfuse/shared";
 
@@ -67,13 +68,15 @@ describe("assertToolAuthorized", () => {
     env.API_AUTH_MIGRATION = "enforce";
   });
 
-  it("throws when the resolved context lacks the tool's action", () => {
+  it("throws a formatted InvalidRequest error when the context lacks the tool's action", () => {
     expect(() =>
       assertToolAuthorized(
         tool("prompts:CUD"),
         serverContext(authContext([allowPrompts])),
       ),
-    ).toThrow(ForbiddenError);
+    ).toThrow(
+      expect.objectContaining({ code: ErrorCode.InvalidRequest }) as Error,
+    );
   });
 
   it("passes when the resolved context holds the tool's action", () => {
