@@ -3,17 +3,17 @@ use std::{error::Error, sync::Arc, time::Duration};
 
 use axum::{
     Json, Router,
-    body::{Body, to_bytes},
+    body::{Body, Bytes, to_bytes},
     extract::{Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
 };
 use serde::Serialize;
 
 use crate::{
     inference::{InferenceService, RequestPreparationError},
-    providers::openai::ProviderError,
+    providers::openai::{OpenAiRoute, ProviderError},
     resolution::ResolutionError,
     server::GatewayLifecycleState,
 };
@@ -31,6 +31,11 @@ struct InferenceRouteState {
 pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleState) -> Router {
     Router::new()
         .route("/openai/v1/responses", post(handle_responses))
+        .route(
+            "/openai/v1/responses/compact",
+            post(handle_responses_compact),
+        )
+        .route("/openai/v1/models", get(handle_models))
         .with_state(InferenceRouteState {
             inference: inference.map(Arc::new),
             lifecycle,
@@ -40,6 +45,28 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
 async fn handle_responses(
     State(state): State<InferenceRouteState>,
     request: Request,
+) -> Result<Response, InferenceHttpError> {
+    handle_openai(state, request, OpenAiRoute::Responses).await
+}
+
+async fn handle_responses_compact(
+    State(state): State<InferenceRouteState>,
+    request: Request,
+) -> Result<Response, InferenceHttpError> {
+    handle_openai(state, request, OpenAiRoute::ResponsesCompact).await
+}
+
+async fn handle_models(
+    State(state): State<InferenceRouteState>,
+    request: Request,
+) -> Result<Response, InferenceHttpError> {
+    handle_openai(state, request, OpenAiRoute::Models).await
+}
+
+async fn handle_openai(
+    state: InferenceRouteState,
+    request: Request,
+    route: OpenAiRoute,
 ) -> Result<Response, InferenceHttpError> {
     let inference = state
         .inference
@@ -55,21 +82,26 @@ async fn handle_responses(
             RequestPreparationError::Provider(error) => InferenceHttpError::Provider(error),
         })?;
     let (parts, body) = request.into_parts();
-    let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
-        .await
-        .map_err(|_| InferenceHttpError::RequestTimeout)?
-        .map_err(|error| {
-            if error
-                .source()
-                .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
-            {
-                InferenceHttpError::TooLarge
-            } else {
-                InferenceHttpError::InvalidBody
-            }
-        })?;
+    let bytes = match route {
+        OpenAiRoute::Models => Bytes::new(),
+        OpenAiRoute::Responses | OpenAiRoute::ResponsesCompact => {
+            tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
+                .await
+                .map_err(|_| InferenceHttpError::RequestTimeout)?
+                .map_err(|error| {
+                    if error
+                        .source()
+                        .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
+                    {
+                        InferenceHttpError::TooLarge
+                    } else {
+                        InferenceHttpError::InvalidBody
+                    }
+                })?
+        }
+    };
     inference
-        .forward(permit, context, &parts.headers, bytes)
+        .forward(permit, context, &parts.headers, bytes, route)
         .await
         .map_err(InferenceHttpError::Provider)
 }
