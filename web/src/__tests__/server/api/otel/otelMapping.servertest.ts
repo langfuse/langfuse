@@ -182,6 +182,8 @@ describe("OTel Resource Span Mapping", () => {
         providedUsageDetails: {},
         providedCostDetails: {},
       });
+      expect(eventInputs[0].type).toBe("SPAN");
+      expect(eventInputs[1].type).toBe("GENERATION");
       expect(eventInputs[0].modelName).toBeUndefined();
       expect(eventInputs[1].providedUsageDetails).toEqual(expectedUsage);
       const observations = (
@@ -191,6 +193,8 @@ describe("OTel Resource Span Mapping", () => {
         usageDetails: {},
         costDetails: {},
       });
+      expect(observations[0].type).toBe("span-create");
+      expect(observations[1].type).toBe("generation-create");
       expect(observations[0].body.model).toBeUndefined();
       expect(observations[1].body.usageDetails).toEqual(expectedUsage);
     });
@@ -1918,6 +1922,11 @@ describe("OTel Resource Span Mapping", () => {
             },
           ],
         };
+
+        const events = createTestOtelProcessor().processToEvent([resourceSpan]);
+        expect(events[0].type).toBe(
+          expectedEventType.replace("-create", "").toUpperCase(),
+        );
 
         // When
         const langfuseEvents = await convertOtelSpanToIngestionEvent(

@@ -537,13 +537,19 @@ export class OtelIngestionProcessor {
                     ? normalizedTools.toolCallNames
                     : undefined;
 
-                const observationType =
+                let observationType =
                   observationTypeMapper.mapToObservationType(
                     spanAttributes,
                     resourceAttributes,
                     scopeSpan?.scope,
                     span.name,
                   );
+                if (
+                  isAggregateSpan &&
+                  observationType === ObservationType.GENERATION
+                ) {
+                  observationType = ObservationType.SPAN;
+                }
                 // Prompts can only be linked to GENERATION observations
                 const canLinkPrompt =
                   observationType === ObservationType.GENERATION;
@@ -1225,12 +1231,18 @@ export class OtelIngestionProcessor {
     // to avoid counting it again or inferring additional tokens.
     const isAggregateSpan = this.isAggregateUsageSpan(attributes);
 
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
+    let mappedObservationType = observationTypeMapper.mapToObservationType(
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
       span.name,
     );
+    if (
+      isAggregateSpan &&
+      mappedObservationType === ObservationType.GENERATION
+    ) {
+      mappedObservationType = ObservationType.SPAN;
+    }
     // Prompts can only be linked to GENERATION observations
     const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
 
