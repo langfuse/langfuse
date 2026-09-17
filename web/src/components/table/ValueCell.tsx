@@ -41,6 +41,11 @@ const ARRAY_PREVIEW_ITEMS = 3;
 const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
 const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
 
+const ROW_ACTION_BUTTON_CLASSES =
+  "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
+const ROW_COPY_OFFSET = "-right-0.5";
+const ROW_MENU_OFFSET = "-right-1.5";
+
 function renderStringWithLinks(text: string): React.ReactNode {
   if (text.length >= MAX_STRING_LENGTH_FOR_LINK_DETECTION) {
     return text;
@@ -402,7 +407,7 @@ export const ValueCell = memo(
           return {
             content: (
               <span
-                className={`text-green-600 dark:text-green-400 ${
+                className={`text-json-value-string ${
                   preserveStringWhitespace
                     ? "whitespace-pre-wrap"
                     : "whitespace-pre-line"
@@ -417,37 +422,27 @@ export const ValueCell = memo(
         case "number":
           return {
             content: (
-              <span className="text-blue-600 dark:text-blue-400">
-                {String(value)}
-              </span>
+              <span className="text-json-value-number">{String(value)}</span>
             ),
             needsTruncation: false,
           };
         case "boolean":
           return {
             content: (
-              <span className="text-orange-600 dark:text-orange-400">
-                {String(value)}
-              </span>
+              <span className="text-json-value-boolean">{String(value)}</span>
             ),
             needsTruncation: false,
           };
         case "null":
           return {
             content: (
-              <span className="text-gray-500 italic dark:text-gray-400">
-                null
-              </span>
+              <span className="text-json-value-nullish italic">null</span>
             ),
             needsTruncation: false,
           };
         case "undefined":
           return {
-            content: (
-              <span className="text-gray-500 dark:text-gray-400">
-                undefined
-              </span>
-            ),
+            content: <span className="text-json-value-nullish">undefined</span>,
             needsTruncation: false,
           };
         case "array": {
@@ -550,7 +545,8 @@ export const ValueCell = memo(
                   aria-label="Value actions"
                   title="Actions"
                   className={cn(
-                    "bg-background/80 hover:bg-background absolute top-1/2 right-1 h-4 w-4 -translate-y-1/2 border p-0 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100",
+                    ROW_ACTION_BUTTON_CLASSES,
+                    ROW_MENU_OFFSET,
                     isOpen && "opacity-100",
                   )}
                   onClick={(event) => event.stopPropagation()}
@@ -564,15 +560,15 @@ export const ValueCell = memo(
           <Button
             variant="ghost"
             size="icon"
-            className="bg-background/80 hover:bg-background absolute top-0 right-0 h-5 w-5 border p-0.5 opacity-0 shadow-xs transition-opacity duration-200 group-hover:opacity-100"
+            className={cn(ROW_ACTION_BUTTON_CLASSES, ROW_COPY_OFFSET)}
             onClick={handleCopy}
             title="Copy value"
             aria-label="Copy cell value"
           >
             {showCopySuccess ? (
-              <Check className="h-2.5 w-2.5 text-green-600" />
+              <Check className="h-3 w-3" />
             ) : (
-              <Copy className="h-2.5 w-2.5" />
+              <Copy className="h-3 w-3" />
             )}
           </Button>
         )}

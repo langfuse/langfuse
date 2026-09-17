@@ -25,6 +25,7 @@ type MultiSelectInputProps<V> = {
   selectedLabel: string;
   searchPlaceholder: string;
   emptyMessage: string;
+  error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
   "id" | "aria-describedby" | "aria-invalid"
@@ -39,6 +40,7 @@ function MultiSelectInputInner<V extends string>(
     selectedLabel,
     searchPlaceholder,
     emptyMessage,
+    error,
     ...triggerProps
   }: MultiSelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -51,7 +53,7 @@ function MultiSelectInputInner<V extends string>(
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
-      <InputControl contentLayout="spread">
+      <InputControl contentLayout="spread" error={error}>
         <PopoverPrimitive.Trigger
           ref={ref}
           type="button"

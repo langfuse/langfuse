@@ -482,7 +482,6 @@ export function ConnectedObservationDetailView({
             >
               <ObservationPreview
                 currentView={currentView}
-                tags={isRoot ? observation.traceTags : undefined}
                 previewKey={observation.id}
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{

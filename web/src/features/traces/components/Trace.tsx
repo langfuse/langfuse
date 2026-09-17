@@ -2,10 +2,7 @@ import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
-import {
-  ViewPreferencesProvider,
-  useViewPreferences,
-} from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,
   useSelection,
@@ -192,12 +189,10 @@ function TraceWithSelection({
  *
  * Hooks:
  * - useIsMobile() - for responsive platform detection
- * - useViewPreferences() - for graph toggle state
  * - useTraceGraphData() - for graph availability
  */
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
-  const { isAnnotationMode } = useViewPreferences();
   const { isGraphViewAvailable } = useTraceGraphData();
 
   const panels = isMobile ? (
@@ -205,11 +200,6 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   ) : (
     <DesktopTraceContent desktopLayout={desktopLayout} />
   );
-
-  // Annotation mode shows no trace-level metadata.
-  if (isAnnotationMode) {
-    return panels;
-  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">

@@ -27,12 +27,18 @@ type InputProps = Pick<
   | "value"
 > & {
   allowPasswordManager?: boolean;
+  error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
-export function Input({ allowPasswordManager, ref, ...props }: InputProps) {
+export function Input({
+  allowPasswordManager,
+  error,
+  ref,
+  ...props
+}: InputProps) {
   return (
-    <InputControl contentLayout="text">
+    <InputControl contentLayout="text" error={error}>
       <input
         {...props}
         {...(!allowPasswordManager && { "data-1p-ignore": true })}
