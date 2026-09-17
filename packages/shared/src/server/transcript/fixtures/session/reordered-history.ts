@@ -68,5 +68,82 @@ export const reorderedHistoryFixture = {
       }),
     },
   ],
-  expected: undefined,
+  expected: {
+    threads: [
+      {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "A",
+              },
+            ],
+            source: "input",
+            observationId: "reordered-history-generation-1",
+            traceId: "reordered-history-trace-1",
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "B",
+              },
+            ],
+            source: "input",
+            observationId: "reordered-history-generation-1",
+            traceId: "reordered-history-trace-1",
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "C",
+              },
+            ],
+            source: "input",
+            observationId: "reordered-history-generation-1",
+            traceId: "reordered-history-trace-1",
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                text: "New",
+              },
+            ],
+            source: "input",
+            observationId: "reordered-history-generation-2",
+            traceId: "reordered-history-trace-2",
+          },
+          {
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: "Answer",
+              },
+            ],
+            source: "output",
+            observationId: "reordered-history-generation-2",
+            traceId: "reordered-history-trace-2",
+          },
+        ],
+        observations: [
+          {
+            id: "reordered-history-generation-1",
+            traceId: "reordered-history-trace-1",
+          },
+          {
+            id: "reordered-history-generation-2",
+            traceId: "reordered-history-trace-2",
+          },
+        ],
+      },
+    ],
+  },
 } satisfies TranscriptFixture;

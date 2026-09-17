@@ -213,5 +213,7 @@ export const orderSupportRoutingFixture = {
       }),
     }),
   ],
-  expected: undefined,
+  // Opaque conversation strings do not replay structured message history.
+  // Keep this example for reference; transcript expectations are deferred.
+  expected: null,
 } satisfies TranscriptFixture;

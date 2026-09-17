@@ -86,6 +86,8 @@ and observation provenance are excluded. All fields inside parts are included.
   thread, so replayed history disappears but additional identical copies survive (eg user responds "Thank you" twice).
 - **Outputs:** always append, then count them so subsequent inputs do not repeat them.
 - **Registered tool responses:** use call identity, not message occurrence counts.
+  Across traces, reused call IDs are matched by call occurrence in complete,
+  ordered input history. Ambiguous partial replays remain as input messages.
   Tool-observation responses take precedence over generation-provided responses.
   These responses are excluded from thread matching, irrespective of their source.
 - **References:** each message has a reference to the trace and generation ID of the object that emitted it. Replayed inputs never overwrite references on earlier occurrences.
@@ -119,7 +121,7 @@ and observation provenance are excluded. All fields inside parts are included.
 - **Whole-message matching:** equivalent content split into different messages
   or parts may not match. Reordering parts within a message also changes identity.
   Registered tool responses are the exception: replay is matched by call ID
-  within the same trace, even when grouped with other parts.
+  within the thread (and occurrence for reused IDs), even when grouped with other parts.
 - **Name matching is best-effort:** same-name parallel executions can start in a
   different order from their calls. Names must match exactly. Metadata-only IDs
   are not read by the transcript builder; they require support in normalized IO.

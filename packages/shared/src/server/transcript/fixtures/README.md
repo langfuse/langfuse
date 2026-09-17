@@ -138,8 +138,9 @@ plus a one-line registration in `fixtures/index.ts`. Use
    with stable stand-ins, applied to every occurrence. Seeded demo data needs
    no redaction.
 
-9. **Leave the expectation open.** `expected: undefined`, always. The
-   requester defines the expected transcript by hand.
+9. **Define the expectation.** Review message order, thread boundaries, tool
+   results, and provenance against the input. Store a static `expected`
+   transcript; do not derive it from the transcript builder in the test.
 
 10. **Write the description.** Two to five sentences on what makes this tree
     interesting for transcript semantics: history replay or its absence,
@@ -204,7 +205,7 @@ export const <camelCaseName>Fixture = {
   scope: "trace",
   description: "<step 10>",
   observations,
-  expected: undefined,
+  expected: { threads: [/* reviewed threads and messages */] },
 } satisfies TranscriptFixture;
 ```
 
@@ -217,5 +218,5 @@ export const <camelCaseName>Fixture = {
       of a literal; nested JSON strings are still strings.
 - [ ] Repeated values are hoisted; shortened values are shortened everywhere.
 - [ ] `level`, `statusMessage`, `model` only where the rules say.
-- [ ] `expected: undefined`.
+- [ ] Explicit, reviewed `expected` transcript (or `null` for no transcript).
 - [ ] Registered in `fixtures/index.ts`; integrity test and typecheck pass.
