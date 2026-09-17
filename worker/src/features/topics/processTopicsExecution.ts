@@ -81,7 +81,6 @@ const summaryInvocationHash = (inputHash: string, facet: TopicFacetVersion) =>
   topicHash({
     inputHash,
     facet,
-    pipelineVersion: "1",
     summaryPromptVersion: TOPICS_SUMMARY_PROMPT_VERSION,
   });
 
@@ -92,7 +91,6 @@ const summaryConfigHash = (facet: TopicFacetVersion) =>
     projection: facet.processingConfig.projection,
     maxInputTokens: facet.processingConfig.maxInputTokens,
     maxOutputTokens: facet.processingConfig.maxOutputTokens,
-    assemblerVersion: facet.processingConfig.assemblerVersion,
   });
 
 async function loadCachedSummaries(
@@ -121,8 +119,7 @@ async function loadCachedSummaries(
         await getTopicFacetVersion(projectId, row.facetVersionId),
       );
     const source = versions.get(row.facetVersionId);
-    // Verify the original invocation so older prompt outputs cannot masquerade
-    // as reusable summaries merely because their facet settings match.
+    // Cached summaries must match both facet settings and the current prompt.
     if (
       source &&
       source.facetId === facet.facetId &&
@@ -188,7 +185,7 @@ async function summarizeTrace(
         embeddingModel: TOPICS_EMBEDDING_MODEL,
         processedAt: new Date().toISOString(),
         metadata: {
-          transcriptVersion: transcript.transcriptVersion,
+          evidenceBlockIds: [] as string[],
           coverage: transcript.coverage,
           sourceReferences: transcript.sourceReferences,
         },
@@ -225,7 +222,7 @@ async function summarizeTrace(
           embeddingCostUsd: 0,
           metadata: {
             ...base.metadata,
-            evidenceBlockIds: reusable.metadata.evidenceBlockIds ?? [],
+            evidenceBlockIds: reusable.metadata.evidenceBlockIds,
             summaryReusedFromId: reusable.id,
             ...(reuseEmbedding ? { embeddingReusedFromId: reusable.id } : {}),
           },
@@ -449,9 +446,7 @@ async function assignSummaries(
         topic.centroid.length !==
         execution.input.embeddingConfig.embeddingDimensions,
     ) ||
-    (run.config.embeddingModel &&
-      run.config.embeddingModel !==
-        execution.input.embeddingConfig.embeddingModel)
+    run.config.embeddingModel !== execution.input.embeddingConfig.embeddingModel
   )
     throw new Error("Target map is incompatible with this facet version.");
   const rows = await checkpoint(

@@ -1,9 +1,14 @@
 import { z } from "zod";
 import {
   eventsTableTraceNameSelectSql,
+  InvalidRequestError,
   singleFilterList,
 } from "@langfuse/shared";
-import { topicIdSchema } from "@langfuse/shared/topics";
+import {
+  topicExecutionInputSchema,
+  topicIdSchema,
+  topicTraceIdSchema,
+} from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   applyCommentFilters,
@@ -12,9 +17,8 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
-export const topicTraceSelectionSchema = z
+const traceSelectionCriteriaSchema = z
   .object({
-    projectId: topicIdSchema,
     filter: singleFilterList.refine((filters) => filters.length <= 100, {
       message: "Select at most 100 filters.",
     }),
@@ -41,6 +45,30 @@ export const topicTraceSelectionSchema = z
     },
   );
 
+export const topicTraceSelectionSchema =
+  traceSelectionCriteriaSchema.safeExtend({
+    projectId: topicIdSchema,
+  });
+
+export const topicTriggerInputSchema = z.union([
+  topicExecutionInputSchema,
+  topicExecutionInputSchema.options[0]
+    .omit({ traceIds: true, operation: true })
+    .extend({
+      operation: z.enum(["discover", "refresh", "assign"]),
+      targetRunIds: z.record(topicIdSchema, topicIdSchema).optional(),
+      selection: traceSelectionCriteriaSchema.safeExtend({
+        excludedTraceIds: z.array(topicTraceIdSchema).default([]),
+      }),
+    })
+    .refine(
+      (value) =>
+        value.operation !== "assign" ||
+        value.facetVersionIds.every((id) => value.targetRunIds?.[id]),
+      { message: "Select a target map for every facet." },
+    ),
+]);
+
 type TraceSelectionRow = {
   id: string;
   timestampMs: string;
@@ -50,9 +78,10 @@ type TraceSelectionRow = {
 };
 
 /** Observation filters choose trace identities; the pipeline reads each full trace. */
-export async function previewTopicTraces(
+async function selectTopicTraces(
   input: z.infer<typeof topicTraceSelectionSchema>,
   prisma: PrismaClient,
+  preview: boolean,
 ) {
   const sampledAt = new Date();
   const { filterState, hasNoMatches } = await applyCommentFilters({
@@ -63,7 +92,13 @@ export async function previewTopicTraces(
       filter.column === "tags" ? { ...filter, column: "traceTags" } : filter,
     ),
   });
-  if (hasNoMatches) return { matchedTraceCount: 0, traces: [], sampledAt };
+  if (hasNoMatches)
+    return {
+      matchedTraceCount: 0,
+      selectedTraceCount: 0,
+      traces: [],
+      sampledAt,
+    };
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
@@ -140,7 +175,8 @@ export async function previewTopicTraces(
         : { column: "t.latest_match", direction: "DESC" },
       { column: "t.id", direction: "ASC" },
     ]);
-  if (input.limit !== null) selection.limit(input.limit);
+  const limit = preview ? Math.min(input.limit ?? Infinity, 100) : input.limit;
+  if (limit !== null) selection.limit(limit);
   const selected = selection.buildWithParams();
   const rows = await queryClickhouse<TraceSelectionRow>({
     ...selected,
@@ -153,8 +189,10 @@ export async function previewTopicTraces(
       timeout_overflow_mode: "throw",
     },
   });
+  const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
   return {
-    matchedTraceCount: Number(rows[0]?.matchedTraceCount ?? 0),
+    matchedTraceCount,
+    selectedTraceCount: Math.min(matchedTraceCount, input.limit ?? Infinity),
     traces: rows.map((row) => ({
       id: row.id,
       timestamp: new Date(Number(row.timestampMs)),
@@ -163,4 +201,36 @@ export async function previewTopicTraces(
     })),
     sampledAt,
   };
+}
+
+export function previewTopicTraces(
+  input: z.infer<typeof topicTraceSelectionSchema>,
+  prisma: PrismaClient,
+) {
+  return selectTopicTraces(input, prisma, true);
+}
+
+export async function resolveTopicTraceSelection(
+  input: z.infer<typeof topicTriggerInputSchema>,
+  prisma: PrismaClient,
+) {
+  if (!("selection" in input)) return input;
+  const { selection, ...execution } = input;
+  const result = await selectTopicTraces(
+    { ...selection, projectId: input.projectId },
+    prisma,
+    false,
+  );
+  const excluded = new Set(selection.excludedTraceIds);
+  const traceIds = result.traces
+    .filter((trace) => !excluded.has(trace.id))
+    .map((trace) => trace.id);
+  if (traceIds.length === 0)
+    throw new InvalidRequestError(
+      "No traces match this selection. Refresh the preview.",
+    );
+  return topicExecutionInputSchema.parse({
+    ...execution,
+    traceIds,
+  });
 }

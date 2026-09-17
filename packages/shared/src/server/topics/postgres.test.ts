@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { topicProcessingConfigSchema } from "../../topics";
 import {
   createTopicFacetVersion,
+  createTopicRun,
   getPublishedTopicRun,
   getTopicDefinitions,
   getTopicRun,
@@ -15,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   runFind: vi.fn(),
   runUpdate: vi.fn(),
   runUpdateMany: vi.fn(),
-  deleteTopics: vi.fn(),
+  upsertTopic: vi.fn(),
+  writeArtifact: vi.fn(),
   facetFind: vi.fn(),
   facetUpdate: vi.fn(),
   topicFind: vi.fn(),
@@ -23,7 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../db", () => ({
   Prisma: {},
   prisma: {
-    topicClusteringRun: { findFirst: mocks.runFind },
+    topicClusteringRun: { findFirst: mocks.runFind, update: mocks.runUpdate },
     topicFacet: { findFirst: mocks.facetFind },
     topic: { findMany: mocks.topicFind },
     $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
@@ -34,7 +36,7 @@ vi.mock("../../db", () => ({
           update: mocks.runUpdate,
           updateMany: mocks.runUpdateMany,
         },
-        topic: { deleteMany: mocks.deleteTopics },
+        topic: { upsert: mocks.upsertTopic },
         topicFacet: {
           findFirstOrThrow: mocks.facetFind,
           update: mocks.facetUpdate,
@@ -46,7 +48,10 @@ vi.mock("../../db", () => ({
       }),
   },
 }));
-vi.mock("./journal", () => ({ readTopicArtifact: async () => null }));
+vi.mock("./journal", () => ({
+  readTopicArtifact: async () => null,
+  writeTopicArtifact: mocks.writeArtifact,
+}));
 
 describe("Topics facet version configuration", () => {
   beforeEach(() => {
@@ -107,6 +112,26 @@ describe("Topics facet version configuration", () => {
 });
 
 describe("Topics run start checkpoint", () => {
+  it("configures the trigger-created run without replacing execution metadata", async () => {
+    vi.resetAllMocks();
+    const row = {
+      id: "run-a", projectId: "project-a", executionId: "execution-a",
+      facetVersionId: "facet-v1", runSequence: 1n, status: "pending", phase: "queued",
+      config: {}, metrics: {}, error: null, artifactPath: "", manifestPath: "", topics: [],
+      createdAt: new Date(), startedAt: null, finishedAt: null, publishedAt: null,
+      executionMetadata: { durable: "request" },
+    };
+    mocks.runFind.mockResolvedValue(row);
+    mocks.runUpdate.mockImplementation(async ({ data }) => ({ ...row, ...data }));
+    await createTopicRun({ id: row.id, projectId: row.projectId, facetVersionId: row.facetVersionId,
+      config: { executionId: row.executionId, dimensions: 256 }, summaryIds: ["summary-a"] });
+    expect(mocks.writeArtifact).toHaveBeenCalledWith("project-a", "execution-a", "manifest-run-a", { summaryIds: ["summary-a"] });
+    expect(mocks.runUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: {
+      config: { executionId: "execution-a", dimensions: 256 }, manifestPath: "manifest-run-a", artifactPath: "",
+    } }));
+    await expect(createTopicRun({ id: row.id, projectId: row.projectId, facetVersionId: "another-facet" })).rejects.toThrow("facet version");
+  });
+
   it("round-trips the first start time without resetting it on resume", async () => {
     vi.resetAllMocks();
     let stored = {

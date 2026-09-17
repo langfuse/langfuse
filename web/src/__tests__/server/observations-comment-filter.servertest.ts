@@ -50,6 +50,7 @@ describe("Observations Comment Filtering", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           searchBar: false,

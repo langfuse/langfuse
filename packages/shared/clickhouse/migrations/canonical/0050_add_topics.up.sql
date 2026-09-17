@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     unit_timestamp DateTime64(3, 'UTC'),
     id String,
     facet_summary_id String,
+    execution_id String,
     summary_revision UInt64,
     clustering_run_id String,
     run_sequence UInt64,
@@ -54,6 +55,7 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     runner_up_distance Nullable(Float32),
     rejection_reason LowCardinality(String),
     origin Enum8('initial' = 1, 'online' = 2, 'backfill' = 3),
+    coordinates Array(Float32) DEFAULT [],
     assigned_at DateTime64(3, 'UTC'),
     result_version UInt8 DEFAULT 1
 )

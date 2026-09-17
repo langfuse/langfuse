@@ -47,7 +47,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
       traceTimestamp: "2026-01-01T00:00:00.000Z",
       snapshotHash: traceId + state.sourceSuffix,
       transcript: {
-        transcriptVersion: "2",
         inputHash: traceId + state.sourceSuffix,
         text: JSON.stringify({
           blockId,
@@ -343,6 +342,23 @@ beforeEach(() => {
 
 describe("Topics execution", () => {
   const issues = { ...facet, id: "issues-version", facetId: "issues" };
+
+  it("keeps paid results in their domain tables and resumes accepted cluster labels", async () => {
+    state.executions.set("durable", execution("durable", 100));
+    const naming = state.name.getMockImplementation()!;
+    state.name.mockImplementationOnce(naming).mockRejectedValueOnce(new Error("Naming unavailable"));
+    await processTopicsExecution({ projectId: "project", executionId: "durable" });
+    const run = [...state.runs.values()][0];
+    expect(run.topics).toHaveLength(1);
+    expect(run.topics[0].metadata).not.toHaveProperty("namingEvidence");
+    expect([...state.artifacts.keys()].some((key) => /\/(summary|complete|call|embedding|evidence|continuity|assignments|no-topic)-/.test(key))).toBe(false);
+    state.sourceUnavailable = true;
+    await processTopicsExecution({ projectId: "project", executionId: "durable" });
+    expect(state.name).toHaveBeenCalledTimes(3);
+    expect(state.summarize).toHaveBeenCalledTimes(100);
+    expect(state.executions.get("durable")?.status).toBe("completed");
+    expect([...state.assignments.values()].every((row) => row.executionId === "durable" && row.coordinates?.length === 2)).toBe(true);
+  });
 
   it("accumulates small refresh batches and retains topic identities on a forced refresh", async () => {
     const first = execution("refresh-first", 60, "refresh");
@@ -1136,6 +1152,21 @@ describe("Topics execution", () => {
       executionId: "small",
     });
     expect(state.summarize).toHaveBeenCalledTimes(9);
+  });
+
+  it("rejects a target map without its embedding configuration", async () => {
+    state.executions.set("A", execution("A", 100));
+    await processTopicsExecution({ projectId: "project", executionId: "A" });
+    const run = [...state.runs.values()][0];
+    delete run.config.embeddingModel;
+    state.executions.set("B", execution("B", 1, "assign"));
+
+    await processTopicsExecution({ projectId: "project", executionId: "B" });
+
+    expect(state.executions.get("B")?.facets[0]).toMatchObject({
+      outcome: "failed",
+      error: "Target map is incompatible with this facet version.",
+    });
   });
 
   it("publishes after visible assignments, assigns batch B without rediscovery, and reclusters stored summaries", async () => {

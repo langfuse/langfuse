@@ -78,6 +78,7 @@ async function prepare() {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         searchBar: false,

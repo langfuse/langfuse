@@ -97,6 +97,7 @@ const buildSession = ({
       },
     ],
     featureFlags: {
+      langfuseTopics: false,
       templateFlag: true,
       excludeClickhouseRead: false,
       searchBar: false,

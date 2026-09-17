@@ -60,6 +60,7 @@ function makeSession(
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: false,
         searchBar: false,

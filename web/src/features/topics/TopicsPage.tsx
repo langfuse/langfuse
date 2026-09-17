@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import Page from "@/src/components/layouts/page";
@@ -84,6 +86,12 @@ export default function TopicsPage() {
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
+  const peekNavigation = usePeekNavigation({
+    tableName: "topics-traces",
+    isV4: false,
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+    expandConfig: { basePath: `/project/${projectId}/traces`, reader: "trace" },
+  });
   const router = useRouter();
   const utils = api.useUtils();
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
@@ -115,6 +123,11 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   };
   return (
     <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
+      <TablePeekViewTraceDetail
+        {...peekNavigation}
+        itemType="TRACE"
+        projectId={projectId}
+      />
       {executionId ? (
         <ExecutionPanel
           key={executionId}

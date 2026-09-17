@@ -67,6 +67,7 @@ const buildSession = (orgId: string, projectId: string): Session => ({
       },
     ],
     featureFlags: {
+      langfuseTopics: false,
       searchBar: false,
       templateFlag: true,
       excludeClickhouseRead: false,

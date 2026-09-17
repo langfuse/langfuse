@@ -511,6 +511,7 @@ describe("dashboard v1 vs v2 consistency", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           v4BetaToggleVisible: false,

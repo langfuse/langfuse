@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { env } from "../../env";
 
 export function isTopicsEnabled(): boolean {
@@ -13,15 +11,3 @@ export function isTopicsEnabled(): boolean {
   }
 }
 
-export function getTopicsArtifactRoot(): string {
-  let directory = path.resolve(process.cwd());
-  while (!existsSync(path.join(directory, "pnpm-workspace.yaml"))) {
-    const parent = path.dirname(directory);
-    if (parent === directory)
-      throw new Error(
-        "Cannot locate the Langfuse workspace for Topics artifacts.",
-      );
-    directory = parent;
-  }
-  return path.join(directory, ".topics-data");
-}

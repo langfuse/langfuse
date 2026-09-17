@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -86,6 +86,9 @@ export function TopicEmbeddingMap({
   topics,
   selectedTopic,
   onSelectTopic,
+  headerActions,
+  onSelectTrace,
+  selectedTraceId,
 }: {
   projectId: string;
   executionId: string;
@@ -93,6 +96,9 @@ export function TopicEmbeddingMap({
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
+  headerActions?: ReactNode;
+  onSelectTrace?: (traceId: string | null) => void;
+  selectedTraceId?: string | null;
 }) {
   const query = api.topics.map.useQuery({
     projectId,
@@ -125,6 +131,9 @@ export function TopicEmbeddingMap({
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
+      headerActions={headerActions}
+      onSelectTrace={onSelectTrace}
+      selectedTraceId={selectedTraceId}
     />
   );
 }
@@ -135,12 +144,18 @@ function EmbeddingMapView({
   topics,
   selectedTopic,
   onSelectTopic,
+  headerActions,
+  onSelectTrace,
+  selectedTraceId,
 }: {
   projectId: string;
   data: MapData;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
+  headerActions?: ReactNode;
+  onSelectTrace?: (traceId: string | null) => void;
+  selectedTraceId?: string | null;
 }) {
   const [plotRef, plotSize] = useElementSize<HTMLDivElement>();
   const width = plotSize?.width || 960;
@@ -149,7 +164,12 @@ function EmbeddingMapView({
     selectedTopic === null
       ? data.points
       : data.points.filter((point) => pointGroup(point) === selectedTopic);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localSelectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId =
+    selectedTraceId === undefined
+      ? localSelectedId
+      : (data.points.find((point) => point.traceId === selectedTraceId)
+          ?.summaryId ?? null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const tabStopId = plotted.some((point) => point.summaryId === focusedId)
@@ -187,10 +207,13 @@ function EmbeddingMapView({
             topic to zoom in.
           </p>
         </div>
-        <span className="text-muted-foreground text-xs">
-          {selectedTopic !== null ? `${plotted.length} of ` : ""}
-          {data.points.length} summaries · {topics.length} topics
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-muted-foreground text-xs">
+            {selectedTopic !== null ? `${plotted.length} of ` : ""}
+            {data.points.length} summaries · {topics.length} topics
+          </span>
+          {headerActions}
+        </div>
       </div>
       <div className="px-4 pt-4">
         <div
@@ -234,10 +257,11 @@ function EmbeddingMapView({
               topics.findIndex((topic) => topic.id === point.topicId),
             );
             const isActive = active?.summaryId === point.summaryId;
-            const select = () =>
-              setSelectedId(
-                selectedId === point.summaryId ? null : point.summaryId,
-              );
+            const select = () => {
+              const deselect = selectedId === point.summaryId;
+              setSelectedId(deselect ? null : point.summaryId);
+              onSelectTrace?.(deselect ? null : point.traceId);
+            };
             return (
               <circle
                 key={point.summaryId}

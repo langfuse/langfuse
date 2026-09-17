@@ -209,6 +209,7 @@ async function createPasswordUser({
       canCreateOrganizations: true,
       organizations: [],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         templateFlag: false,
         excludeClickhouseRead: false,

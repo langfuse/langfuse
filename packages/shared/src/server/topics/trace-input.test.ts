@@ -155,14 +155,7 @@ describe("shared in-memory Topics input", () => {
     ).toBe(true);
   });
 
-  it("invalidates legacy projected inputs and retains later requests in large traces", async () => {
-    const current = await loadTopicTranscript({
-      projectId: "project-a",
-      traceId: "trace-a",
-    });
-    expect(current.transcript.inputHash).not.toBe(
-      "7fbac6368652da9346046ca5feafd13eb4a0f5bb2559166fe11b93cfa502c90d",
-    );
+  it("retains later requests in large traces", async () => {
     const rows = Array.from({ length: 20 }, (_, index) => ({
       ...observations[0],
       id: `span-${String(index).padStart(2, "0")}`,

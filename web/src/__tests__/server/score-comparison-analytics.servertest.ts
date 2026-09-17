@@ -44,6 +44,7 @@ describe("Score Comparison Analytics tRPC", () => {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         searchBar: false,

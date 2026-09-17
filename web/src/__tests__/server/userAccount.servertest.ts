@@ -267,6 +267,7 @@ async function createCaller({
         },
       ],
       featureFlags: {
+        langfuseTopics: featureFlags.includes("langfuseTopics"),
         modernSession: featureFlags.includes("modernSession"),
         sessionTimeline: featureFlags.includes("sessionTimeline"),
         searchBar: featureFlags.includes("searchBar"),

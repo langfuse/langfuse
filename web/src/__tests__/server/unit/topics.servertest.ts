@@ -224,6 +224,7 @@ describe("Topics filtered trace preview", () => {
     });
     expect(response).toMatchObject({
       matchedTraceCount: 123,
+      selectedTraceCount: 100,
       traces: [
         {
           id: "trace/a:1",
@@ -258,8 +259,8 @@ describe("Topics filtered trace preview", () => {
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
   });
 
-  it("previews all matching traces without a hidden limit and accepts an explicit large sample", async () => {
-    const traces = Array.from({ length: 1001 }, (_, index) => ({
+  it("bounds preview rows while counting all selected traces and preserving a larger explicit sample", async () => {
+    const traces = Array.from({ length: 100 }, (_, index) => ({
       id: `trace-${index}`,
       timestampMs: "1789430400000",
       name: "Agent",
@@ -271,11 +272,51 @@ describe("Topics filtered trace preview", () => {
       ...selection,
       limit: null,
     });
-    expect(response.traces).toHaveLength(1001);
+    expect(response.traces).toHaveLength(100);
     expect(response.matchedTraceCount).toBe(1001);
-    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
+    expect(response.selectedTraceCount).toBe(1001);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
     await caller().previewTraces({ ...selection, limit: 10000 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(10000);
+    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
+  });
+
+  it("resolves filtered triggers on the server without a trace cap and excludes unchecked traces", async () => {
+    mocks.queryClickhouse.mockResolvedValue(
+      Array.from({ length: 1001 }, (_, index) => ({
+        id: `trace-${index}`,
+        timestampMs: "1789430400000",
+        name: "Agent",
+        environment: "default",
+        matchedTraceCount: "1001",
+      })),
+    );
+    const { projectId: ignoredProject, ...criteria } = selection;
+    void ignoredProject;
+    await caller().trigger({
+      projectId,
+      requestId: "filtered-request",
+      operation: "discover",
+      facetVersionIds: [facetVersionId],
+      selection: { ...criteria, limit: null, excludedTraceIds: ["trace-0"] },
+    });
+    const resolved = mocks.createTopicExecution.mock.calls[0][0];
+    expect(resolved.traceIds).toHaveLength(1000);
+    expect(resolved.traceIds[0]).toBe("trace-1");
+    expect(resolved.traceIds.at(-1)).toBe("trace-1000");
+    expect(resolved).not.toHaveProperty("selection");
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe("sample-seed");
+
+    mocks.createTopicExecution.mockClear();
+    mocks.queryClickhouse.mockResolvedValue([]);
+    await expect(caller().trigger({
+      projectId,
+      requestId: "empty-request",
+      operation: "discover",
+      facetVersionIds: [facetVersionId],
+      selection: criteria,
+    })).rejects.toThrow("No traces match this selection");
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
   it("orders latest traces after deduplication and returns an empty preview when no events match", async () => {
@@ -864,7 +905,6 @@ describe("Topics transcript preview and facet configuration", () => {
     const transcript = {
       text: "Shared transcript",
       inputHash: "canonical",
-      transcriptVersion: "2",
       coverage: { omittedBlockCount: 0, truncatedBlockCount: 0 },
     };
     mocks.loadTopicTranscript.mockResolvedValue({ transcript });
@@ -904,7 +944,7 @@ describe("Topics transcript preview and facet configuration", () => {
       processedAt: "2026-09-16T00:00:00Z",
       revision: "10",
       inputHash: "new-input",
-      metadata: { transcriptVersion: "2" },
+      metadata: {},
       embedding: [1, 2, 3],
     };
     mocks.listTopicSummaries.mockResolvedValue([
@@ -938,12 +978,10 @@ describe("Topics transcript preview and facet configuration", () => {
       id: "latest",
       facetName: "Intent",
       summary: "Cancel the subscription.",
-      transcriptVersion: "2",
     });
     expect(saved[1]).toMatchObject({
       facetName: "Issues",
       state: "not_applicable",
-      transcriptVersion: null,
     });
     expect(saved[0]).not.toHaveProperty("embedding");
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();

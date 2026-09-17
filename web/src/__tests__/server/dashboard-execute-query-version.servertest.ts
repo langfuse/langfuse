@@ -58,6 +58,7 @@ describe("dashboard.executeQuery version contract", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           v4BetaToggleVisible: false,

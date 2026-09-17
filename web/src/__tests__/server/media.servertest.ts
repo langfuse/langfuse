@@ -65,6 +65,7 @@ describe("Media Upload API", () => {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,

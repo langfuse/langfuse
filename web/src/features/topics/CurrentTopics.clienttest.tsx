@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CurrentTopics } from "./CurrentTopics";
@@ -28,7 +29,21 @@ vi.mock("@/src/utils/api", () => ({
 }));
 vi.mock("./TopicEmbeddingMap", () => ({
   topicColor: () => "#000",
-  TopicEmbeddingMap: () => <div>Map</div>,
+  TopicEmbeddingMap: ({
+    headerActions,
+    onSelectTrace,
+  }: {
+    headerActions?: ReactNode;
+    onSelectTrace?: (traceId: string | null) => void;
+  }) => (
+    <div>
+      {headerActions}
+      <button onClick={() => onSelectTrace?.("trace-25")}>
+        Select map trace
+      </button>
+      <button onClick={() => onSelectTrace?.(null)}>Deselect map trace</button>
+    </div>
+  ),
 }));
 
 describe("Current Topics", () => {
@@ -146,5 +161,63 @@ describe("Current Topics", () => {
     expect(
       screen.getByRole("tabpanel", { name: "Intent" }),
     ).toBeInTheDocument();
+  });
+  it("reveals and selects a mapped trace across pages and conflicting filters without opening peek", () => {
+    state.push.mockClear();
+    Element.prototype.scrollIntoView = vi.fn();
+    const topics = [
+      {
+        id: "billing",
+        name: "Billing",
+        description: "Billing tasks",
+        count: 25,
+      },
+    ];
+    state.data = [
+      {
+        facetId: "intent",
+        name: "Intent",
+        facetVersion: 1,
+        rows: Array.from({ length: 41 }, (_, i) => ({
+          traceId: `trace-${i}`,
+          summary: `Summary ${i}`,
+          outcome: i < 25 ? "assigned" : "outlier",
+          topicId: i < 25 ? "billing" : null,
+          topicName: i < 25 ? "Billing" : null,
+          awaitingUpdate: false,
+        })),
+        topics,
+        map: { executionId: "execution", facetVersionId: "version", topics },
+        awaitingCount: 0,
+        usableCount: 41,
+      },
+    ];
+    render(<CurrentTopics projectId="project" running={false} />);
+    const split = screen.getByRole("button", { name: "Split" });
+    fireEvent.click(split);
+    expect(split).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));
+    expect(screen.getByRole("row", { name: /trace-25/ })).toHaveClass(
+      "topics-selected-trace",
+    );
+    expect(state.push).not.toHaveBeenCalled();
+    fireEvent.click(split);
+    expect(screen.getByRole("row", { name: /trace-25/ })).toHaveClass(
+      "topics-selected-trace",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Billing tasks/ }));
+    expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));
+    const selectedRow = screen.getByRole("row", { name: /trace-25/ });
+    expect(selectedRow).toHaveClass("topics-selected-trace");
+    expect(state.push).not.toHaveBeenCalled();
+    fireEvent.click(selectedRow);
+    expect(state.push).toHaveBeenLastCalledWith(
+      { pathname: "/project/project/topics", query: { peek: "trace-25" } },
+      undefined,
+      { shallow: true },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Deselect map trace" }));
+    expect(selectedRow).not.toHaveClass("topics-selected-trace");
   });
 });

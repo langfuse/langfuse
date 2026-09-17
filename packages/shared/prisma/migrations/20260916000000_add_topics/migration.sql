@@ -27,6 +27,8 @@ CREATE TABLE "topic_facet_versions" (
 
 -- CreateTable
 CREATE TABLE "topic_clustering_runs" (
+    "execution_id" TEXT NOT NULL,
+    "execution_metadata" JSONB NOT NULL DEFAULT '{}',
     "id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "facet_version_id" TEXT NOT NULL,
@@ -81,6 +83,9 @@ CREATE INDEX "topic_clustering_runs_project_id_facet_version_id_run_seque_idx" O
 CREATE UNIQUE INDEX "topic_clustering_runs_project_id_id_key" ON "topic_clustering_runs"("project_id", "id");
 
 -- CreateIndex
+CREATE INDEX "topic_clustering_runs_project_id_execution_id_idx" ON "topic_clustering_runs"("project_id", "execution_id");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "topics_project_id_run_id_topic_id_key" ON "topics"("project_id", "run_id", "topic_id");
 
 -- AddForeignKey
@@ -96,5 +101,5 @@ ALTER TABLE "topic_clustering_runs" ADD CONSTRAINT "topic_clustering_runs_projec
 ALTER TABLE "topics" ADD CONSTRAINT "topics_project_id_run_id_fkey" FOREIGN KEY ("project_id", "run_id") REFERENCES "topic_clustering_runs"("project_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- One durable order token per local execution, shared by its trace revisions.
+-- One durable order token per execution, shared by its trace revisions.
 CREATE SEQUENCE "topic_processing_revision_seq";

@@ -52,7 +52,6 @@ export type PreparedTrace = {
   projectId: string;
   traceId: string;
   sourceSnapshotHash: string;
-  assemblerVersion: "1";
   blocks: TranscriptBlock[];
   coverage: TranscriptCoverage;
 };
@@ -462,23 +461,19 @@ export function prepareTrace(
     projectId: first.projectId,
     traceId: first.traceId,
     sourceSnapshotHash: hashTraceSnapshot(rows),
-    assemblerVersion: "1",
     blocks,
     coverage,
   };
 }
 
-/** One versioned model input for every facet; model budgets never alter its evidence. */
+/** One model input for every facet; model budgets never alter its evidence. */
 export function serializeTraceTranscript(prepared: PreparedTrace) {
-  const transcriptVersion = "2";
   const text = [
-    serialize({ transcriptVersion }),
     ...prepared.blocks.map(serialize),
     serialize({ coverage: prepared.coverage }),
   ].join("\n");
   return {
     text,
-    transcriptVersion,
     sourceReferences: prepared.blocks.map(
       ({ blockId, observationId, source, messageIndex, partIndex }) => ({
         blockId,
@@ -488,6 +483,6 @@ export function serializeTraceTranscript(prepared: PreparedTrace) {
       }),
     ),
     coverage: prepared.coverage,
-    inputHash: hash({ transcriptVersion, text }),
+    inputHash: hash(text),
   };
 }

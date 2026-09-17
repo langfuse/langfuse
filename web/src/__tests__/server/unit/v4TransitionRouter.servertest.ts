@@ -428,6 +428,7 @@ const session: Session = {
       },
     ],
     featureFlags: {
+      langfuseTopics: false,
       excludeClickhouseRead: false,
       observationEvals: false,
       templateFlag: false,

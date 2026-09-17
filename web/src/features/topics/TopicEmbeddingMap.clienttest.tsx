@@ -56,6 +56,63 @@ const ready = {
 };
 
 describe("embedding map", () => {
+  it("reports point selection without treating hover as selection", () => {
+    query.data = ready;
+    const onSelectTrace = vi.fn();
+    render(
+      <TopicEmbeddingMap
+        {...props}
+        onSelectTrace={onSelectTrace}
+        headerActions={<button>Split</button>}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Split" })).toBeInTheDocument();
+    const invoice = screen.getByRole("button", {
+      name: "trace-a: An invoice question",
+    });
+    const baking = screen.getByRole("button", {
+      name: "trace-b: A baking question",
+    });
+    fireEvent.mouseEnter(invoice);
+    expect(onSelectTrace).not.toHaveBeenCalled();
+    fireEvent.click(invoice);
+    expect(onSelectTrace).toHaveBeenLastCalledWith("trace-a");
+    fireEvent.mouseLeave(invoice);
+    fireEvent.mouseEnter(baking);
+    expect(onSelectTrace).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(baking, { key: "Enter" });
+    expect(onSelectTrace).toHaveBeenLastCalledWith("trace-b");
+    fireEvent.keyDown(baking, { key: " " });
+    expect(onSelectTrace).toHaveBeenLastCalledWith(null);
+    expect(onSelectTrace).toHaveBeenCalledTimes(3);
+  });
+
+  it("uses the parent trace selection when filters clear the selected row", () => {
+    query.data = ready;
+    const onSelectTrace = vi.fn();
+    const view = render(
+      <TopicEmbeddingMap
+        {...props}
+        selectedTraceId="trace-a"
+        onSelectTrace={onSelectTrace}
+      />,
+    );
+    const invoice = screen.getByRole("button", {
+      name: "trace-a: An invoice question",
+    });
+    expect(invoice).toHaveAttribute("aria-pressed", "true");
+    view.rerender(
+      <TopicEmbeddingMap
+        {...props}
+        selectedTraceId={null}
+        onSelectTrace={onSelectTrace}
+      />,
+    );
+    expect(invoice).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(invoice);
+    expect(onSelectTrace).toHaveBeenLastCalledWith("trace-a");
+  });
+
   it("keeps a keyboard-selected summary after hover leaves and filters by topic", () => {
     query.data = ready;
     const view = render(<TopicEmbeddingMap {...props} />);

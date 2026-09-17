@@ -83,6 +83,7 @@ describe("dashboard widget minVersion", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           v4BetaToggleVisible: false,

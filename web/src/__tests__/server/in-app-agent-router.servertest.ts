@@ -186,6 +186,7 @@ function createCallerForFixture(
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         templateFlag: true,
         excludeClickhouseRead: false,

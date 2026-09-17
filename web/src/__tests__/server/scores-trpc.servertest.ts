@@ -101,6 +101,7 @@ describe("scores trpc", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           searchBar: false,

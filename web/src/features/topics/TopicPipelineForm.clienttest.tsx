@@ -6,15 +6,18 @@ import {
   type TopicFacet,
 } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
+import type { TopicTraceSelection } from "./TopicTraceSelector";
 
-const selection = vi.hoisted(() => ({ ids: null as string[] | null }));
+const selection = vi.hoisted(() => ({
+  value: null as TopicTraceSelection | null,
+}));
 const trigger = vi.hoisted(() => vi.fn());
 vi.mock("./TopicTraceSelector", () => ({
   TopicTraceSelector: ({
     children,
   }: {
-    children: (ids: string[] | null) => ReactNode;
-  }) => children(selection.ids),
+    children: (value: TopicTraceSelection | null) => ReactNode;
+  }) => children(selection.value),
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -62,7 +65,7 @@ describe("Topics pipeline selection handoff", () => {
       canWrite: true,
       onTriggered,
     };
-    selection.ids = null;
+    selection.value = null;
     trigger.mockResolvedValue({ id: "execution" });
     const view = render(<TopicPipelineForm {...props} />);
     expect(
@@ -70,7 +73,10 @@ describe("Topics pipeline selection handoff", () => {
         .getByRole("button", { name: "Run topics" })
         .hasAttribute("disabled"),
     ).toBe(true);
-    selection.ids = ["trace-with/custom-id", "second-trace"];
+    selection.value = {
+      traceIds: ["trace-with/custom-id", "second-trace"],
+      count: 2,
+    };
     view.rerender(<TopicPipelineForm {...props} />);
     fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
       target: { value: "512" },
@@ -91,7 +97,27 @@ describe("Topics pipeline selection handoff", () => {
         forceRefresh: true,
       }),
     );
-    selection.ids = null;
+    selection.value = {
+      count: 10000,
+      selection: {
+        filter: [],
+        from: new Date("2026-09-15T00:00:00Z"),
+        to: new Date("2026-09-16T00:00:00Z"),
+        limit: null,
+        sampling: "random",
+        seed: "preview-seed",
+        excludedTraceIds: ["excluded-trace"],
+      },
+    };
+    view.rerender(<TopicPipelineForm {...props} />);
+    expect(screen.getByText(/Run on 10,000 traces/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(2));
+    expect(trigger.mock.calls[1][0]).toMatchObject({
+      selection: selection.value.selection,
+    });
+    expect(trigger.mock.calls[1][0]).not.toHaveProperty("traceIds");
+    selection.value = null;
     view.rerender(<TopicPipelineForm {...props} />);
     expect(
       screen

@@ -67,7 +67,7 @@ vi.mock("@/src/utils/api", () => ({
               facetVersion: 3,
               summary: "A saved intent summary.",
               processedAt: "2026-09-16T00:00:00Z",
-              transcriptVersion: null,
+              inputHash: "current",
             },
             {
               id: "issues",
@@ -75,7 +75,6 @@ vi.mock("@/src/utils/api", () => ({
               facetVersion: 1,
               summary: "A saved issues summary.",
               processedAt: "2026-09-16T00:00:00Z",
-              transcriptVersion: "2",
               inputHash: "old",
             },
           ],
@@ -87,7 +86,6 @@ vi.mock("@/src/utils/api", () => ({
           return {
             data: {
               text: [
-                { transcriptVersion: "2" },
                 {
                   blockId: `${input.traceId}:input`,
                   text: `Transcript of ${input.traceId}`,
@@ -170,12 +168,7 @@ describe("trace transcript from peek headers", () => {
       expect(screen.queryByRole("combobox")).toBeNull();
       expect(
         screen.getByText(
-          "Generated using the earlier facet-specific transcript.",
-        ),
-      ).toBeTruthy();
-      expect(
-        screen.getByText(
-          "The trace or transcript format has changed since this summary was generated.",
+          "Trace content has changed since this summary was saved.",
         ),
       ).toBeTruthy();
       state.menu = false;

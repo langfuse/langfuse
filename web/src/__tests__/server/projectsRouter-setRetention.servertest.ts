@@ -79,6 +79,7 @@ function makeCaller({
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,

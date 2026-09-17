@@ -51,6 +51,7 @@ describe("annotation queues trpc", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           templateFlag: true,
           excludeClickhouseRead: false,
           experimentsV4Enabled: false,

@@ -681,6 +681,7 @@ function buildOwnerSession(orgId: string): Session {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         excludeClickhouseRead: false,
         templateFlag: true,

@@ -13,8 +13,19 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TopicTraceSelector } from "./TopicTraceSelector";
 
-const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({ fetch: vi.fn(), push: vi.fn() }));
+vi.mock("next/router", () => ({
+  useRouter: () => ({
+    query: {},
+    pathname: "/project/[projectId]/topics",
+    push: mocks.push,
+  }),
+}));
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: vi.fn() }),
+}));
 vi.mock("@/src/utils/api", () => ({
+  getPathnameWithoutBasePath: () => "/project/project/topics",
   api: {
     topics: {
       previewTraces: {
@@ -68,6 +79,7 @@ function setup() {
 function result(...ids: string[]) {
   return {
     matchedTraceCount: ids.length,
+    selectedTraceCount: ids.length,
     sampledAt: new Date(),
     traces: ids.map((id) => ({
       id,
@@ -78,9 +90,14 @@ function result(...ids: string[]) {
   };
 }
 
+function selected() {
+  return JSON.parse(screen.getByTestId("selected").textContent!);
+}
+
 const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
   mocks.fetch.mockReset();
+  mocks.push.mockReset();
   HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => {
@@ -88,6 +105,38 @@ afterEach(() => {
 });
 
 describe("Topics trace selection", () => {
+  it("opens trace peek from preview rows and names without changing the cohort", async () => {
+    mocks.fetch.mockResolvedValue(result("trace-a", "trace-b"));
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Select trace trace-a",
+    });
+    fireEvent.click(checkbox);
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(selected()).toMatchObject({
+      count: 1,
+      selection: { excludedTraceIds: ["trace-a"] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "trace-a" }));
+    expect(mocks.push).toHaveBeenLastCalledWith(
+      { pathname: "/project/project/topics", query: { peek: "trace-a" } },
+      undefined,
+      { shallow: true },
+    );
+    fireEvent.click(screen.getByRole("row", { name: /Select trace trace-b/ }));
+    expect(mocks.push).toHaveBeenLastCalledWith(
+      { pathname: "/project/project/topics", query: { peek: "trace-b" } },
+      undefined,
+      { shallow: true },
+    );
+    expect(mocks.push).toHaveBeenCalledTimes(2);
+    expect(selected()).toMatchObject({
+      count: 1,
+      selection: { excludedTraceIds: ["trace-a"] },
+    });
+  });
+
   it("freezes only the latest preview and invalidates it immediately when criteria change", async () => {
     const pending: Array<(value: ReturnType<typeof result>) => void> = [];
     mocks.fetch.mockImplementation(
@@ -108,16 +157,19 @@ describe("Topics trace selection", () => {
     await waitFor(() => expect(pending).toHaveLength(2));
     await act(async () => pending[1](result("new-trace")));
     await waitFor(() =>
-      expect(screen.getByTestId("selected")).toHaveTextContent('["new-trace"]'),
+      expect(selected()).toMatchObject({
+        count: 1,
+        selection: { limit: 50, seed: mocks.fetch.mock.calls[1][0].seed },
+      }),
     );
     await act(async () => pending[0](result("stale-trace")));
-    expect(screen.getByTestId("selected")).toHaveTextContent('["new-trace"]');
-    expect(screen.queryByRole("link", { name: "stale-trace" })).toBeNull();
+    expect(selected().selection.seed).toBe(mocks.fetch.mock.calls[1][0].seed);
+    expect(screen.queryByRole("button", { name: "stale-trace" })).toBeNull();
     await act(async () => {
       await client.invalidateQueries();
     });
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId("selected")).toHaveTextContent('["new-trace"]');
+    expect(selected().selection.seed).toBe(mocks.fetch.mock.calls[1][0].seed);
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace new-trace" }),
     );
@@ -127,7 +179,10 @@ describe("Topics trace selection", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select all previewed traces" }),
     );
-    expect(screen.getByTestId("selected")).toHaveTextContent('["new-trace"]');
+    expect(selected()).toMatchObject({
+      count: 1,
+      selection: { excludedTraceIds: [] },
+    });
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "100" },
     });
@@ -159,15 +214,17 @@ describe("Topics trace selection", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-20" }),
     );
-    expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
-      traces.slice(1, 20),
-    );
+    expect(selected()).toMatchObject({
+      count: 19,
+      selection: { excludedTraceIds: ["trace-0", "trace-20"] },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Refresh selection" }));
     await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
     await waitFor(() =>
-      expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
-        traces,
-      ),
+      expect(selected()).toMatchObject({
+        count: 21,
+        selection: { excludedTraceIds: [] },
+      }),
     );
     expect(mocks.fetch.mock.calls[0][0].seed).not.toBe(
       mocks.fetch.mock.calls[1][0].seed,
@@ -180,14 +237,19 @@ describe("Topics trace selection", () => {
 
   it("selects every matching trace by default and accepts more than 1,000 pasted IDs", async () => {
     const ids = Array.from({ length: 1001 }, (_, i) => `trace-${i}`);
-    mocks.fetch.mockResolvedValue(result(...ids));
+    mocks.fetch.mockResolvedValue({
+      ...result(...ids.slice(0, 100)),
+      matchedTraceCount: ids.length,
+      selectedTraceCount: ids.length,
+    });
     setup();
     expect(screen.queryByLabelText("Maximum traces")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() =>
-      expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
-        ids,
-      ),
+      expect(selected()).toMatchObject({
+        count: 1001,
+        selection: { limit: null },
+      }),
     );
     expect(mocks.fetch.mock.calls[0][0].limit).toBeNull();
     expect(
@@ -200,9 +262,7 @@ describe("Topics trace selection", () => {
     fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
       target: { value: [...ids, ids[0]].join("\n") },
     });
-    expect(JSON.parse(screen.getByTestId("selected").textContent!)).toEqual(
-      ids,
-    );
+    expect(selected()).toEqual({ count: 1001, traceIds: ids });
     expect(
       screen.getByRole("button", { name: "Trigger topics" }),
     ).not.toBeDisabled();

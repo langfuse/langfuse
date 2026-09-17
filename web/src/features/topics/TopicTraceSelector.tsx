@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
-import Link from "next/link";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { format } from "date-fns";
 import {
   eventsEvalFilterColumns,
@@ -39,6 +40,15 @@ import { parseTraceInput } from "./parse-trace-input";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
+export type TopicTraceSelection = { count: number } & (
+  | { traceIds: string[] }
+  | {
+      selection: Extract<
+        RouterInputs["topics"]["trigger"],
+        { selection: unknown }
+      >["selection"];
+    }
+);
 const DAY = 86_400_000;
 const registry = { ...RULE_FIELD_REGISTRY, aiFilterPrompt: false };
 const windows = [
@@ -60,7 +70,7 @@ export function TopicTraceSelector({
   children,
 }: {
   projectId: string;
-  children: (traceIds: string[] | null) => ReactNode;
+  children: (selection: TopicTraceSelection | null) => ReactNode;
 }) {
   const [mode, setMode] = useState("filters");
   const [filterMode, setFilterMode] = useState<"builder" | "query">("builder");
@@ -110,10 +120,10 @@ export function TopicTraceSelector({
       ? preview.data
       : undefined;
   const excludedIds = new Set(excluded);
-  const selected =
-    ready?.traces
-      .filter((trace) => !excludedIds.has(trace.id))
-      .map((trace) => trace.id) ?? [];
+  const selectedCount = ready
+    ? ready.selectedTraceCount -
+      ready.traces.filter((trace) => excludedIds.has(trace.id)).length
+    : 0;
   let pastedIds: string[] | null = null;
   let pasteError: string | null = null;
   if (mode === "paste" && paste.trim()) {
@@ -381,18 +391,18 @@ export function TopicTraceSelector({
             <>
               <p role="status" className="text-sm">
                 {ready.matchedTraceCount.toLocaleString()} matching traces ·{" "}
-                {selected.length.toLocaleString()} selected
+                {selectedCount.toLocaleString()} selected
                 {request?.limit
-                  ? ` · sample of ${ready.traces.length.toLocaleString()}`
-                  : " · all matches loaded"}
+                  ? ` · sample of ${ready.selectedTraceCount.toLocaleString()}`
+                  : " · all matches selected"}
               </p>
               <p className="text-muted-foreground text-xs">
-                This selection is fixed until you edit the criteria or refresh
-                the selection. Only the selected trace IDs will be submitted.
+                Showing {ready.traces.length.toLocaleString()} preview traces.
+                The matching traces are selected when you run Topics; counts may
+                change as new data arrives. Unchecked traces are excluded.
               </p>
               <TracePreviewTable
                 key={request?.seed}
-                projectId={projectId}
                 traces={ready.traces}
                 excluded={excluded}
                 onExcludedChange={setExcluded}
@@ -430,23 +440,43 @@ export function TopicTraceSelector({
         </label>
       )}
       {children(
-        mode === "paste" ? pastedIds : selected.length > 0 ? selected : null,
+        mode === "paste"
+          ? pastedIds
+            ? { traceIds: pastedIds, count: pastedIds.length }
+            : null
+          : request && selectedCount > 0
+            ? {
+                count: selectedCount,
+                selection: {
+                  filter: request.filter,
+                  from: request.from,
+                  to: request.to,
+                  limit: request.limit,
+                  sampling: request.sampling,
+                  seed: request.seed,
+                  excludedTraceIds: excluded,
+                },
+              }
+            : null,
       )}
     </div>
   );
 }
 
 function TracePreviewTable({
-  projectId,
   traces,
   excluded,
   onExcludedChange,
 }: {
-  projectId: string;
   traces: TracePreview[];
   excluded: string[];
   onExcludedChange: (ids: string[]) => void;
 }) {
+  const { openPeek } = usePeekNavigation({
+    tableName: "topics-traces",
+    isV4: false,
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+  });
   const [page, setPage] = useState(0);
   const excludedIds = new Set(excluded);
   const selectedCount = traces.length - excludedIds.size;
@@ -482,7 +512,14 @@ function TracePreviewTable({
           </TableHeader>
           <TableBody>
             {traces.slice(page * 20, (page + 1) * 20).map((trace) => (
-              <TableRow key={trace.id}>
+              <TableRow
+                key={trace.id}
+                className="cursor-pointer"
+                onClick={(event) => {
+                  if (!shouldIgnoreRowClickTarget(event.target))
+                    openPeek(trace.id);
+                }}
+              >
                 <TableCell density="comfortable">
                   <Checkbox
                     aria-label={`Select trace ${trace.id}`}
@@ -497,13 +534,14 @@ function TracePreviewTable({
                   />
                 </TableCell>
                 <TableCell density="comfortable">
-                  <Link
-                    className="block truncate underline"
+                  <button
+                    type="button"
+                    className="block max-w-full truncate text-left underline"
                     title={trace.name ?? trace.id}
-                    href={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
+                    onClick={() => openPeek(trace.id)}
                   >
                     {trace.name ?? trace.id}
-                  </Link>
+                  </button>
                   {trace.name && (
                     <span
                       title={trace.id}

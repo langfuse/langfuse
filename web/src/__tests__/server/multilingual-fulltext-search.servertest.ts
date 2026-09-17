@@ -113,6 +113,7 @@ describe("multilingual full-text search (issue #11538)", () => {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         v4BetaToggleVisible: false,

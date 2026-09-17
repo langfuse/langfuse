@@ -1978,6 +1978,8 @@ model TopicFacetVersion {
 }
 
 model TopicClusteringRun {
+  executionId       String @map("execution_id")
+  executionMetadata Json   @default("{}") @map("execution_metadata")
   id             String            @id @default(cuid())
   projectId      String            @map("project_id")
   facetVersionId String            @map("facet_version_id")
@@ -1998,6 +2000,7 @@ model TopicClusteringRun {
 
   @@unique([projectId, id])
   @@index([projectId, facetVersionId, runSequence(sort: Desc)])
+  @@index([projectId, executionId])
   @@map("topic_clustering_runs")
 }
 

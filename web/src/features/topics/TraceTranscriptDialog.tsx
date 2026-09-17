@@ -104,17 +104,12 @@ function TraceTranscriptDialog({
                     ? "This facet does not apply to this trace."
                     : "Not enough evidence to summarize this facet.")}
               </p>
-              {summary.transcriptVersion === null ? (
-                <p className="text-muted-foreground text-xs">
-                  Generated using the earlier facet-specific transcript.
-                </p>
-              ) : transcript.data &&
-                summary.inputHash !== transcript.data.inputHash ? (
-                <p className="text-muted-foreground text-xs">
-                  The trace or transcript format has changed since this summary
-                  was generated.
-                </p>
-              ) : null}
+              {transcript.data &&
+                summary.inputHash !== transcript.data.inputHash && (
+                  <p className="text-muted-foreground text-xs">
+                    Trace content has changed since this summary was saved.
+                  </p>
+                )}
             </article>
           ))}
         </section>

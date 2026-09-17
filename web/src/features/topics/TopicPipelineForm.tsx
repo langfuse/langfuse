@@ -11,12 +11,14 @@ import {
 } from "@/src/components/ui/select";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
-  topicExecutionInputSchema,
   topicEmbeddingConfigSchema,
   type TopicFacet,
   type TopicOperation,
 } from "@langfuse/shared/topics";
-import { TopicTraceSelector } from "./TopicTraceSelector";
+import {
+  TopicTraceSelector,
+  type TopicTraceSelection,
+} from "./TopicTraceSelector";
 
 type Run = RouterOutputs["topics"]["runs"][number];
 type Execution = RouterOutputs["topics"]["execution"];
@@ -116,13 +118,11 @@ export function TopicPipelineForm({
     setSelectedFacetIds((current) =>
       checked ? [...current, id] : current.filter((item) => item !== id),
     );
-  async function submit(traceIds: string[] | null) {
+  async function submit(selection: TopicTraceSelection | null) {
     setError(null);
     try {
       if (!facetVersionIds.length)
         throw new Error("Select at least one facet.");
-      if (operation !== "recluster" && !traceIds?.length)
-        throw new Error("Preview and select traces before running Topics.");
       const base = {
         projectId,
         facetVersionIds,
@@ -132,30 +132,31 @@ export function TopicPipelineForm({
           embeddingDimensions: Number(dimensions),
         }),
       };
-      const values =
-        operation === "recluster"
-          ? { ...base, operation, sourceExecutionIds: selectedSourceIds }
-          : operation === "assign"
-            ? {
-                ...base,
-                operation,
-                traceIds,
-                targetRunIds: selectedTargetRunIds,
-              }
-            : {
-                ...base,
-                operation,
-                traceIds,
-              };
+      const values = (() => {
+        if (operation === "recluster")
+          return { ...base, operation, sourceExecutionIds: selectedSourceIds };
+        if (!selection?.count)
+          throw new Error("Preview and select traces before running Topics.");
+        const traceInput =
+          "traceIds" in selection
+            ? { traceIds: selection.traceIds }
+            : { selection: selection.selection };
+        return operation === "assign"
+          ? {
+              ...base,
+              operation,
+              ...traceInput,
+              targetRunIds: selectedTargetRunIds,
+            }
+          : { ...base, operation, ...traceInput };
+      })();
       const key = JSON.stringify(values);
       if (request.current?.key !== key)
         request.current = { key, id: crypto.randomUUID() };
-      const result = await trigger.mutateAsync(
-        topicExecutionInputSchema.parse({
-          ...values,
-          requestId: request.current.id,
-        }),
-      );
+      const result = await trigger.mutateAsync({
+        ...values,
+        requestId: request.current.id,
+      });
       request.current = null;
       onTriggered(result.id);
     } catch (cause) {
@@ -166,7 +167,7 @@ export function TopicPipelineForm({
       );
     }
   }
-  const renderConfiguration = (traceIds: string[] | null) => (
+  const renderConfiguration = (selection: TopicTraceSelection | null) => (
     <>
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-sm font-bold">Facets</legend>
@@ -320,18 +321,18 @@ export function TopicPipelineForm({
             !facetVersionIds.length ||
             (operation === "recluster"
               ? !selectedSourceIds.length
-              : !traceIds?.length) ||
+              : !selection?.count) ||
             (operation === "assign" &&
               facetVersionIds.some((id) => !selectedTargetRunIds[id]))
           }
-          onClick={() => submit(traceIds)}
+          onClick={() => submit(selection)}
         >
           {trigger.isPending ? "Starting…" : "Run topics"}
         </Button>
       </div>
-      {operation !== "recluster" && traceIds?.length ? (
+      {operation !== "recluster" && selection?.count ? (
         <p className="text-muted-foreground text-sm">
-          Run on {traceIds.length.toLocaleString()} traces across{" "}
+          Run on {selection.count.toLocaleString()} traces across{" "}
           {facetVersionIds.length} facets. Existing summaries are reused when
           their inputs match. Uncached inputs and outputs are sent to OpenAI.
         </p>

@@ -66,6 +66,7 @@ async function prepare(projectRole: Role) {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: false,
         searchBar: true,

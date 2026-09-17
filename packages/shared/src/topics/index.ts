@@ -21,7 +21,6 @@ export const topicProcessingConfigSchema = z.object({
   projection: z.enum(["all", "intent", "issues"]).default("all"),
   maxInputTokens: z.number().int().min(256).max(8000).default(8000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
-  assemblerVersion: z.literal("1").default("1"),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
 
@@ -140,6 +139,8 @@ export interface TopicSummary {
 }
 export interface TopicAssignment {
   id: string;
+  executionId: string;
+  coordinates: [number, number] | null;
   projectId: string;
   facetId: string;
   facetVersionId: string;

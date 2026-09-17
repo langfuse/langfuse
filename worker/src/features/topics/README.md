@@ -23,7 +23,7 @@ loader. Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary records set `unit_type=trace`, `unit_id` to the source trace ID, and
 `trigger_type=manual_poc`. Clustering runs record the first start in `started_at`;
-retries preserve it. Existing runs predating this field retain a null start time.
+retries preserve it.
 
 The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
 `gpt-5.6-luna` with reasoning disabled. Embeddings use `text-embedding-3-small`
@@ -101,25 +101,23 @@ vectors remain available for their original maps. Re-embedding accumulated
 summaries never reloads traces or repeats summarization.
 
 Every facet receives identical transcript text and source references for the same
-source snapshot. Facet instructions affect only summarization. Transcript format
-v2 includes system messages, tool evidence, provider status and coverage. It keeps
-all assembled blocks; the old 24k-character projection and facet-dependent token
-slicing are removed. Assembly still shortens individual blocks to 4,000 characters
+source snapshot. Facet instructions affect only summarization. The transcript
+includes system messages, tool evidence, provider status and coverage. It keeps
+all assembled blocks. Assembly shortens individual blocks to 4,000 characters
 with an explicit marker, omits media bytes and reasoning, and preserves available
 audio transcripts. Structural ordering and proven replay-prefix references are
 shared across facets. This is a normalized representation, not a lossless export.
 
 If transcript plus instructions/schema exceeds a facet version's input allowance,
 the worker fails before calling the provider; it does not
-silently change the evidence for that facet. Transcript format participates in
-input identity and is recorded in summary metadata. New executions cannot reuse
-legacy projected summaries accidentally; accepted historical checkpoints and
-reclustering of stored summaries retain their original inputs/provenance.
+silently change the evidence for that facet. The canonical transcript text
+determines input identity. Accepted checkpoints and reclustering of stored
+summaries retain their inputs and provenance.
 
 Extraction prompt versions participate in cache identity. The tested nano prompt
-and schema write the summary and evidence before deciding applicability. Earlier
-status-first variants returned empty results even for clear requests; check one
-trace after changing either prompt or schema before spending on a batch. Input and invocation hashes retain provenance without duplicating the transcript.
+and schema write the summary and evidence before deciding applicability. Check
+one trace after changing either prompt or schema before spending on a batch.
+Input and invocation hashes retain provenance without duplicating the transcript.
 Replaying an accepted summary or embedding does not require its source trace.
 If a retry needs to summarize a missing facet, the regenerated input hash must
 match any accepted facet summaries for that trace in the execution. Changed

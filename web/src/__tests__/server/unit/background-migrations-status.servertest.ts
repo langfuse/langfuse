@@ -20,6 +20,7 @@ const session: Session = {
     name: "Background Migrations Test User",
     organizations: [],
     featureFlags: {
+      langfuseTopics: false,
       searchBar: false,
       excludeClickhouseRead: false,
       templateFlag: true,

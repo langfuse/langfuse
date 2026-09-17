@@ -56,6 +56,7 @@ const session: Session = {
       },
     ],
     featureFlags: {
+      langfuseTopics: false,
       searchBar: false,
       excludeClickhouseRead: false,
       templateFlag: true,

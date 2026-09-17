@@ -48,6 +48,7 @@ describe("Sessions Comment Filtering", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           templateFlag: true,
           searchBar: false,

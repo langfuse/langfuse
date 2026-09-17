@@ -62,6 +62,7 @@ const buildSession = (params: {
       },
     ],
     featureFlags: {
+      langfuseTopics: false,
       searchBar: false,
       templateFlag: false,
       excludeClickhouseRead: false,

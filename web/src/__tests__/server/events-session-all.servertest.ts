@@ -51,6 +51,7 @@ const memberCaller = eventsRouter.createCaller({
         admin: false,
         canCreateOrganizations: true,
         featureFlags: {
+          langfuseTopics: false,
           excludeClickhouseRead: false,
           experimentsV4Enabled: false,
           observationEvals: false,

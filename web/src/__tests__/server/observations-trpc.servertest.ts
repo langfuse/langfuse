@@ -46,6 +46,7 @@ describe("traces trpc", () => {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         searchBar: false,

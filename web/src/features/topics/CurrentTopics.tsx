@@ -1,9 +1,10 @@
-import { useState } from "react";
-import { type PaginationState } from "@tanstack/react-table";
+import { useEffect, useRef, useState } from "react";
+import { Columns2 } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
+import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
@@ -75,6 +76,17 @@ function CurrentFacet({
   facet: Facet;
 }) {
   const [selection, setSelection] = useState<string | null>(null);
+  const [split, setSplit] = useState(false);
+  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  });
+  function selectTopic(topicId: string | null) {
+    setSelection(topicId);
+    setSelectedTraceId(null);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }
   const selected =
     selection === "outliers" ||
     selection === "no_topic" ||
@@ -94,6 +106,20 @@ function CurrentFacet({
             ? row.awaitingUpdate
             : row.topicId === selected),
   );
+  function selectTrace(traceId: string | null) {
+    setSelectedTraceId(traceId);
+    if (traceId === null) return;
+    let index = visible.findIndex((row) => row.traceId === traceId);
+    if (index < 0) {
+      index = facet.rows.findIndex((row) => row.traceId === traceId);
+      if (index < 0) return;
+      setSelection(null);
+    }
+    setPagination((current) => ({
+      ...current,
+      pageIndex: Math.floor(index / current.pageSize),
+    }));
+  }
   const outliers = facet.rows.filter((row) => row.outcome === "outlier").length;
   const noTopic = facet.rows.filter(
     (row) =>
@@ -128,88 +154,122 @@ function CurrentFacet({
           batches remain saved.
         </p>
       )}
-      {facet.map && (
-        <>
-          <TopicEmbeddingMap
-            projectId={projectId}
-            executionId={facet.map.executionId}
-            facetVersionId={facet.map.facetVersionId}
-            topics={facet.map.topics}
-            selectedTopic={selected}
-            onSelectTopic={setSelection}
-          />
-          <p className="text-muted-foreground text-xs">
-            Map: latest discovery cohort. Counts and traces below include the
-            latest assignments across all maps.
-          </p>
-        </>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {facet.topics.map((topic) => (
-          <button
-            key={topic.id}
-            onClick={() => setSelection(topic.id)}
-            className={`hover:bg-muted/50 flex flex-col gap-2 rounded-lg border p-4 text-left ${selected === topic.id ? "border-primary bg-muted/30" : ""}`}
-          >
-            <div className="flex w-full items-start justify-between gap-2">
-              <h4 className="font-bold">
-                <span
-                  className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
-                  style={{
-                    backgroundColor: topicColor(
-                      topics.findIndex((item) => item.id === topic.id),
-                    ),
-                  }}
-                />
-                {topic.name}
-              </h4>
-              <Badge variant="secondary">{topic.count.toLocaleString()}</Badge>
-            </div>
-            <p className="text-muted-foreground text-sm">{topic.description}</p>
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={selected === null ? "secondary" : "ghost"}
-          onClick={() => setSelection(null)}
+      <div className={cn("grid min-w-0 gap-3", split && "lg:grid-cols-2")}>
+        {facet.map && (
+          <div className="flex min-w-0 flex-col gap-3">
+            <TopicEmbeddingMap
+              projectId={projectId}
+              executionId={facet.map.executionId}
+              facetVersionId={facet.map.facetVersionId}
+              topics={facet.map.topics}
+              selectedTopic={selected}
+              onSelectTopic={selectTopic}
+              onSelectTrace={selectTrace}
+              selectedTraceId={selectedTraceId}
+              headerActions={
+                <Button
+                  size="sm"
+                  variant={split ? "secondary" : "outline"}
+                  aria-pressed={split}
+                  onClick={() => setSplit((current) => !current)}
+                >
+                  <Columns2 className="mr-2 h-4 w-4" />
+                  Split
+                </Button>
+              }
+            />
+            <p className="text-muted-foreground text-xs">
+              Map: latest discovery cohort. Counts and traces include the latest
+              assignments across all maps.
+            </p>
+          </div>
+        )}
+        <div
+          className={cn(
+            "grid gap-3 sm:grid-cols-2 lg:grid-cols-3",
+            split && "lg:col-span-2 lg:row-start-2",
+          )}
         >
-          All traces ({facet.rows.length.toLocaleString()})
-        </Button>
-        {outliers > 0 && (
-          <Button
-            size="sm"
-            variant={selected === "outliers" ? "secondary" : "ghost"}
-            onClick={() => setSelection("outliers")}
-          >
-            Outliers ({outliers.toLocaleString()})
-          </Button>
-        )}
-        {noTopic > 0 && (
-          <Button
-            size="sm"
-            variant={selected === "no_topic" ? "secondary" : "ghost"}
-            onClick={() => setSelection("no_topic")}
-          >
-            No topic ({noTopic.toLocaleString()})
-          </Button>
-        )}
-        {facet.awaitingCount > 0 && (
-          <Button
-            size="sm"
-            variant={selected === "awaiting_map" ? "secondary" : "ghost"}
-            onClick={() => setSelection("awaiting_map")}
-          >
-            Awaiting update ({facet.awaitingCount.toLocaleString()})
-          </Button>
-        )}
+          {facet.topics.map((topic) => (
+            <button
+              key={topic.id}
+              onClick={() => selectTopic(topic.id)}
+              className={`hover:bg-muted/50 flex flex-col gap-2 rounded-lg border p-4 text-left ${selected === topic.id ? "border-primary bg-muted/30" : ""}`}
+            >
+              <div className="flex w-full items-start justify-between gap-2">
+                <h4 className="font-bold">
+                  <span
+                    className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
+                    style={{
+                      backgroundColor: topicColor(
+                        topics.findIndex((item) => item.id === topic.id),
+                      ),
+                    }}
+                  />
+                  {topic.name}
+                </h4>
+                <Badge variant="secondary">
+                  {topic.count.toLocaleString()}
+                </Badge>
+              </div>
+              <p className="text-muted-foreground text-sm">
+                {topic.description}
+              </p>
+            </button>
+          ))}
+        </div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-col gap-3",
+            split && "lg:col-start-2 lg:row-start-1 lg:max-h-[42rem]",
+          )}
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={selected === null ? "secondary" : "ghost"}
+              onClick={() => selectTopic(null)}
+            >
+              All traces ({facet.rows.length.toLocaleString()})
+            </Button>
+            {outliers > 0 && (
+              <Button
+                size="sm"
+                variant={selected === "outliers" ? "secondary" : "ghost"}
+                onClick={() => selectTopic("outliers")}
+              >
+                Outliers ({outliers.toLocaleString()})
+              </Button>
+            )}
+            {noTopic > 0 && (
+              <Button
+                size="sm"
+                variant={selected === "no_topic" ? "secondary" : "ghost"}
+                onClick={() => selectTopic("no_topic")}
+              >
+                No topic ({noTopic.toLocaleString()})
+              </Button>
+            )}
+            {facet.awaitingCount > 0 && (
+              <Button
+                size="sm"
+                variant={selected === "awaiting_map" ? "secondary" : "ghost"}
+                onClick={() => selectTopic("awaiting_map")}
+              >
+                Awaiting update ({facet.awaitingCount.toLocaleString()})
+              </Button>
+            )}
+          </div>
+          <CurrentTraceTable
+            projectId={projectId}
+            rows={visible}
+            pagination={pagination}
+            onPaginationChange={setPagination}
+            selectedTraceId={selectedTraceId}
+            split={split}
+          />
+        </div>
       </div>
-      <CurrentTraceTable
-        key={selected ?? "all"}
-        projectId={projectId}
-        rows={visible}
-      />
     </div>
   );
 }
@@ -217,12 +277,20 @@ function CurrentFacet({
 function CurrentTraceTable({
   projectId,
   rows,
+  pagination,
+  onPaginationChange,
+  selectedTraceId,
+  split,
 }: {
   projectId: string;
   rows: Facet["rows"];
+  pagination: PaginationState;
+  onPaginationChange: OnChangeFn<PaginationState>;
+  selectedTraceId: string | null;
+  split: boolean;
 }) {
   const peekNavigation = usePeekNavigation({
-    tableName: "topics-current-traces",
+    tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
     expandConfig: {
@@ -231,19 +299,21 @@ function CurrentTraceTable({
     },
   });
   const peekConfig = { itemType: "TRACE" as const, ...peekNavigation };
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  });
+  const tableRef = useRef<HTMLDivElement>(null);
   const pageIndex = Math.min(
     pagination.pageIndex,
     Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
   );
+  useEffect(() => {
+    tableRef.current
+      ?.querySelector(".topics-selected-trace")
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selectedTraceId, pageIndex, pagination.pageSize, split]);
   const columns: LangfuseColumnDef<Facet["rows"][number]>[] = [
     {
       accessorKey: "traceId",
       header: "Trace ID",
-      size: 220,
+      size: split ? 160 : 220,
       cell: ({ row }) => (
         <button
           type="button"
@@ -277,7 +347,7 @@ function CurrentTraceTable({
     {
       accessorKey: "summary",
       header: "Summary",
-      size: 600,
+      size: split ? 360 : 600,
       cell: ({ row }) => (
         <p className="break-words whitespace-pre-wrap">
           {row.original.summary || "No applicable summary."}
@@ -286,10 +356,15 @@ function CurrentTraceTable({
     },
   ];
   return (
-    <>
+    <div ref={tableRef} className="min-h-0 min-w-0 overflow-auto">
       <DataTable
         tableName="topics-current-traces"
         columns={columns}
+        columnVisibility={{ topicName: !split }}
+        rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+        getRowClassName={(row) =>
+          row.traceId === selectedTraceId ? "topics-selected-trace" : ""
+        }
         data={{
           isLoading: false,
           isError: false,
@@ -303,7 +378,7 @@ function CurrentTraceTable({
         pagination={{
           totalCount: rows.length,
           state: { ...pagination, pageIndex },
-          onChange: setPagination,
+          onChange: onPaginationChange,
           options: [20, 50, 100],
         }}
         topAlignCells
@@ -311,7 +386,6 @@ function CurrentTraceTable({
         noResultsMessage="No traces in this selection."
         peekView={peekConfig}
       />
-      <TablePeekViewTraceDetail {...peekConfig} projectId={projectId} />
-    </>
+    </div>
   );
 }

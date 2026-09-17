@@ -194,6 +194,7 @@ async function createCaller() {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         searchBar: false,
         templateFlag: false,
         excludeClickhouseRead: false,

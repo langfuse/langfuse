@@ -56,6 +56,7 @@ maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
         },
       ],
       featureFlags: {
+        langfuseTopics: false,
         excludeClickhouseRead: false,
         templateFlag: true,
         searchBar: false,

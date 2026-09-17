@@ -61,6 +61,7 @@ describe("project API keys trpc", () => {
           },
         ],
         featureFlags: {
+          langfuseTopics: false,
           searchBar: false,
           excludeClickhouseRead: false,
           templateFlag: true,

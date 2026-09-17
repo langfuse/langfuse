@@ -1,212 +1,153 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { TopicExecutionStore } from "./journal";
-import {
-  topicExecutionInputSchema,
-  type TopicExecutionInput,
-} from "../../topics";
+import { type TopicExecutionInput } from "../../topics";
 
-vi.mock("../../db", () => ({ prisma: {} }));
-
-let root: string;
-let store: TopicExecutionStore;
-const input: TopicExecutionInput = {
-  projectId: "project-a",
-  requestId: "request-1",
-  operation: "discover",
-  facetVersionIds: ["facet-v1"],
-  traceIds: ["trace-a", "trace-b"],
-  exploratory: false,
-  embeddingConfig: {
-    embeddingModel: "text-embedding-3-small",
-    embeddingDimensions: 768,
+const state = vi.hoisted(() => ({
+  rows: new Map<string, Record<string, unknown>>(),
+  objects: new Map<string, string>(),
+  revision: 0,
+  writes: vi.fn(),
+}));
+vi.mock("../../env", () => ({
+  env: {
+    LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "events",
+    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "ingestion/",
   },
-  forceRefresh: false,
+}));
+vi.mock("../s3", () => ({
+  getS3EventStorageClient: () => ({
+    uploadJson: async (key: string, value: unknown) => {
+      state.objects.set(key, JSON.stringify(value));
+    },
+    download: async (key: string) => {
+      if (!state.objects.has(key)) throw new Error("Object unavailable");
+      return state.objects.get(key)!;
+    },
+  }),
+}));
+vi.mock("../../db", () => {
+  const matches = (row: Record<string, unknown>, where: Record<string, unknown>) =>
+    Object.entries(where).every(([key, value]) => row[key] === value);
+  const topicClusteringRun = {
+    findMany: async ({ where, distinct }: {
+      where: Record<string, unknown>;
+      distinct?: string[];
+    }) => {
+      const rows = [...state.rows.values()].filter((row) => matches(row, where));
+      return distinct
+        ? rows.filter((row, index) => rows.findIndex((other) => other.executionId === row.executionId) === index)
+        : rows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    },
+    createMany: async ({ data }: { data: Record<string, unknown>[] }) => {
+      data.forEach((row) => state.rows.set(String(row.id), {
+        config: {}, metrics: {}, manifestPath: "", artifactPath: "", publishedAt: null,
+        createdAt: new Date(), runSequence: BigInt(state.rows.size + 1), ...row,
+      }));
+      return { count: data.length };
+    },
+    update: async ({ where, data }: {
+      where: { projectId_id: { projectId: string; id: string } };
+      data: Record<string, unknown>;
+    }) => {
+      const row = state.rows.get(where.projectId_id.id)!;
+      if (row.projectId !== where.projectId_id.projectId) throw new Error("Scope mismatch");
+      state.writes(data);
+      const updated = { ...row, ...data };
+      state.rows.set(String(row.id), updated);
+      return updated;
+    },
+  };
+  let pending = Promise.resolve<unknown>(undefined);
+  const transaction = {
+    topicClusteringRun,
+    $queryRaw: async (query: TemplateStringsArray) =>
+      query.join("").includes("nextval") ? [{ revision: BigInt(++state.revision) }] : [],
+  };
+  return { prisma: {
+    topicClusteringRun,
+    $transaction: (fn: (tx: typeof transaction) => Promise<unknown>) => {
+      const next = pending.then(() => fn(transaction));
+      pending = next.catch(() => undefined);
+      return next;
+    },
+  } };
+});
+
+const input: TopicExecutionInput = {
+  projectId: "project-a", requestId: "request-1", operation: "discover",
+  facetVersionIds: ["facet-v1", "facet-v2"], traceIds: ["trace-a", "trace-b"],
+  exploratory: false, forceRefresh: false,
+  embeddingConfig: { embeddingModel: "text-embedding-3-small", embeddingDimensions: 768 },
 };
-beforeEach(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), "topics-journal-"));
-  let sequence = 0;
-  store = new TopicExecutionStore(root, async () => String(++sequence));
-});
-afterEach(async () => {
-  await rm(root, { recursive: true, force: true });
+beforeEach(() => {
+  state.rows.clear(); state.objects.clear(); state.revision = 0; state.writes.mockClear();
 });
 
-describe("local Topics execution journal", () => {
-  it("accepts uncapped cohorts and independent embedding settings on refresh", async () => {
-    const traceIds = Array.from(
-      { length: 1001 },
-      (_, index) => `trace-${index}`,
-    );
-    const execution = await store.create(
-      topicExecutionInputSchema.parse({
-        ...input,
-        operation: "refresh",
-        traceIds,
-        embeddingConfig: { embeddingDimensions: 256 },
-        forceRefresh: true,
-      }),
-    );
-    expect(execution.input).toMatchObject({
-      operation: "refresh",
-      traceIds,
-      embeddingConfig: {
-        embeddingModel: "text-embedding-3-small",
-        embeddingDimensions: 256,
-      },
-      forceRefresh: true,
-    });
-    expect(
-      topicExecutionInputSchema.parse({
-        ...input,
-        traceIds,
-        embeddingConfig: undefined,
-        forceRefresh: undefined,
-      }),
-    ).toMatchObject({
-      embeddingConfig: { embeddingDimensions: 768 },
-      forceRefresh: false,
-    });
-    expect(
-      topicExecutionInputSchema.parse({
-        projectId: input.projectId,
-        requestId: "recluster-large",
-        facetVersionIds: input.facetVersionIds,
-        operation: "recluster",
-        sourceExecutionIds: Array.from(
-          { length: 21 },
-          (_, index) => `source-${index}`,
-        ),
-      }).operation,
-    ).toBe("recluster");
-  });
-
-  it("treats external trace IDs as opaque values rather than artifact paths", async () => {
-    const traceIds = [
-      "request:2026/09.16",
-      "../another-project/trace",
-      "x".repeat(1000),
-    ];
+describe("durable Topics execution storage", () => {
+  it("creates one run per facet and keeps uncapped input IDs in chunked object storage", async () => {
+    const traceIds = Array.from({ length: 2001 }, (_, index) => `request:${index}/opaque`);
+    const store = new TopicExecutionStore();
     const execution = await store.create({ ...input, traceIds });
-    expect(
-      (await store.read(input.projectId, execution.id))?.input,
-    ).toMatchObject({
-      traceIds,
-    });
-    expect(await store.list("another-project")).toEqual([]);
-    expect(
-      topicExecutionInputSchema.safeParse({
-        ...input,
-        traceIds: ["x".repeat(1001)],
-      }).success,
-    ).toBe(false);
+    expect(state.rows.size).toBe(2);
+    for (const facetId of input.facetVersionIds) {
+      const id = createHash("sha256").update(JSON.stringify([execution.id, facetId, "run"])).digest("hex").slice(0, 48);
+      expect(state.rows.get(id)).toMatchObject({ executionId: execution.id, facetVersionId: facetId, status: "pending" });
+    }
+    const database = JSON.stringify([...state.rows.values()], (_, value) => typeof value === "bigint" ? String(value) : value);
+    expect(database).not.toContain("request:0/opaque");
+    expect(database).toContain('"selectedTraceCount":2001');
+    expect([...state.objects.values()].filter((value) => value.includes("request:")).map((value) => JSON.parse(value).value.length)).toEqual([1000, 1000, 1]);
+    expect((await new TopicExecutionStore().read(input.projectId, execution.id))?.input).toMatchObject({ traceIds });
   });
 
-  it("accepts all selected facets when a project has more than three", async () => {
-    const facetVersionIds = ["facet-v1", "facet-v2", "facet-v3", "facet-v4"];
-    const execution = await store.create({ ...input, facetVersionIds });
-    expect(execution.input.facetVersionIds).toEqual(facetVersionIds);
-  });
-
-  it("accepts concurrent retries once and rejects changed requests with the same key", async () => {
-    const [a, b] = await Promise.all([
-      store.create(input),
-      store.create(input),
-    ]);
-    expect(a.id).toBe(b.id);
+  it("accepts a concurrent duplicate once and rejects a changed request", async () => {
+    const store = new TopicExecutionStore();
+    const [a, b] = await Promise.all([store.create(input), store.create(input)]);
     expect(a.revision).toBe(b.revision);
+    expect(state.rows.size).toBe(2);
     expect(await store.list(input.projectId)).toHaveLength(1);
-    await expect(
-      store.create({ ...input, traceIds: ["another-trace"] }),
-    ).rejects.toThrow("different Topics request");
+    await expect(store.create({ ...input, traceIds: ["other"] })).rejects.toThrow("different Topics request");
+    expect(await store.read("project-b", a.id)).toBeNull();
+    expect(await store.list("project-b")).toEqual([]);
   });
 
-  it("reopens accepted outputs after restart without allowing replacements", async () => {
+  it("restores progress after restart without storing summary references or errors in Postgres", async () => {
+    const store = new TopicExecutionStore();
     const execution = await store.create(input);
-    const summary = { summary: "An invoice request", sourceHash: "abc" };
-    await store.writeArtifact(
-      input.projectId,
-      execution.id,
-      "summary-trace-a",
-      summary,
-    );
-    const restarted = new TopicExecutionStore(root, async () => "999");
-    expect(
-      await restarted.readArtifact(
-        input.projectId,
-        execution.id,
-        "summary-trace-a",
-      ),
-    ).toEqual(summary);
-    await expect(
-      restarted.writeArtifact(
-        input.projectId,
-        execution.id,
-        "summary-trace-a",
-        summary,
-      ),
-    ).resolves.toBeUndefined();
-    await expect(
-      restarted.writeArtifact(
-        input.projectId,
-        execution.id,
-        "summary-trace-a",
-        { summary: "different" },
-      ),
-    ).rejects.toThrow("cannot be replaced");
-    expect((await restarted.create(input)).revision).toBe(execution.revision);
+    execution.status = "running";
+    execution.phase = "embedding";
+    execution.facets[0].summaryIds = ["paid-summary-id"];
+    execution.traceErrors = [{ traceId: "failed-trace", error: "Read failed" }];
+    await store.write(execution);
+    const restored = await new TopicExecutionStore().read(input.projectId, execution.id);
+    expect(restored).toMatchObject({ status: "running", phase: "embedding", traceErrors: execution.traceErrors });
+    expect(restored?.facets[0].summaryIds).toEqual(["paid-summary-id"]);
+    const database = JSON.stringify([...state.rows.values()], (_, value) => typeof value === "bigint" ? String(value) : value);
+    expect(database).not.toContain("paid-summary-id");
+    expect(database).not.toContain("failed-trace");
+    await expect(store.write({ ...execution, revision: "999" })).rejects.toThrow("revision cannot change");
   });
 
-  it("persists progress while preserving pinned request and revision", async () => {
+  it("keeps accepted numeric results immutable and preserves them during progress updates", async () => {
+    const store = new TopicExecutionStore();
     const execution = await store.create(input);
-    await store.write({
-      ...execution,
-      status: "running",
-      phase: "embedding",
-    });
-    expect(await store.read(input.projectId, execution.id)).toMatchObject({
-      status: "running",
-      phase: "embedding",
-    });
-    await expect(
-      store.write({ ...execution, revision: "999" }),
-    ).rejects.toThrow("revision cannot change");
+    const value = { coordinates: [[1, 2]], labels: [0] };
+    await store.writeArtifact(input.projectId, execution.id, "numeric-fit", value);
+    await store.write(execution);
+    expect(await new TopicExecutionStore().readArtifact(input.projectId, execution.id, "numeric-fit")).toEqual(value);
+    await store.writeArtifact(input.projectId, execution.id, "numeric-fit", value);
+    await expect(store.writeArtifact(input.projectId, execution.id, "numeric-fit", { labels: [1] })).rejects.toThrow("cannot be replaced");
+    expect(await store.readArtifact("project-b", execution.id, "numeric-fit")).toBeNull();
+    await expect(store.writeArtifact(input.projectId, execution.id, "../execution", {})).rejects.toThrow();
   });
 
-  it("isolates projects and rejects artifact path traversal", async () => {
+  it("preserves a published map when writing execution progress", async () => {
+    const store = new TopicExecutionStore();
     const execution = await store.create(input);
-    expect(await store.read("project-b", execution.id)).toBeNull();
-    await expect(
-      store.readArtifact(input.projectId, execution.id, "../execution"),
-    ).rejects.toThrow();
-    await expect(
-      store.writeArtifact(input.projectId, execution.id, "execution", {}),
-    ).rejects.toThrow("not an immutable artifact");
-  });
-
-  it("rejects assign without every target map and recluster with trace inputs", () => {
-    expect(
-      topicExecutionInputSchema.safeParse({
-        ...input,
-        operation: "assign",
-        targetRunIds: {},
-      }).success,
-    ).toBe(false);
-    expect(
-      topicExecutionInputSchema.safeParse({
-        ...input,
-        operation: "recluster",
-        sourceExecutionIds: ["execution-a"],
-      }).success,
-    ).toBe(false);
-    expect(
-      topicExecutionInputSchema.safeParse({
-        ...input,
-        operation: "assign",
-        targetRunIds: { "facet-v1": "run-a" },
-      }).success,
-    ).toBe(true);
+    const row = [...state.rows.values()][0];
+    state.rows.set(String(row.id), { ...row, status: "completed", phase: "published", publishedAt: new Date() });
+    await store.write({ ...execution, status: "running", phase: "processing" });
+    expect(state.rows.get(String(row.id))).toMatchObject({ status: "completed", phase: "published" });
   });
 });

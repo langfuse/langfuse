@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
-  topicExecutionInputSchema,
   topicEmbeddingConfigSchema,
   topicIdSchema,
   topicTraceIdSchema,
@@ -24,7 +23,7 @@ import {
   readTopicSummaries,
   listTopicSummaries,
   readTopicAssignments,
-  readTopicArtifact,
+  readTopicMapAssignments,
   loadTopicTranscript,
   isTopicsEnabled,
   enqueueTopicExecution,
@@ -38,7 +37,9 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import {
   previewTopicTraces,
+  resolveTopicTraceSelection,
   topicTraceSelectionSchema,
+  topicTriggerInputSchema,
 } from "./traceSelection";
 
 import { currentTopicResults } from "./currentResults";
@@ -54,9 +55,6 @@ const processingConfigPatchSchema = z.object({
     .unwrap()
     .optional(),
   maxOutputTokens: topicProcessingConfigSchema.shape.maxOutputTokens
-    .unwrap()
-    .optional(),
-  assemblerVersion: topicProcessingConfigSchema.shape.assemblerVersion
     .unwrap()
     .optional(),
 });
@@ -192,11 +190,6 @@ type TopicMap = {
   points: (MapSummary & { x: number; y: number; inExecution: boolean })[];
   unpositioned: MapSummary[];
 };
-const mapCoordinatesSchema = z.object({
-  status: z.literal("complete"),
-  coordinates: z.array(z.tuple([z.number(), z.number()])),
-});
-
 async function publishedTopicMap(input: {
   projectId: string;
   executionId: string;
@@ -232,17 +225,15 @@ async function publishedTopicMap(input: {
   unavailable.runId = run.id;
   unavailable.discoveryCount = run.summaryIds.length;
   const originId = topicIdSchema.safeParse(run.config.executionId);
-  const artifactKey = topicIdSchema.safeParse(run.artifactPath);
   if (
     !originId.success ||
-    !artifactKey.success ||
     !run.summaryIds.length ||
     new Set(run.summaryIds).size !== run.summaryIds.length
   )
     return {
       ...unavailable,
       reason:
-        "The saved coordinates or discovery manifest are unavailable for this map.",
+        "The discovery cohort is unavailable for this map.",
     };
   const origin = await readTopicExecution(input.projectId, originId.data);
   if (
@@ -258,36 +249,40 @@ async function publishedTopicMap(input: {
       reason: "The discovery execution for this map is unavailable.",
     };
   unavailable.discoveryExecutionId = origin.id;
-  let artifact: unknown;
-  try {
-    artifact = await readTopicArtifact(
-      input.projectId,
-      origin.id,
-      artifactKey.data,
-    );
-  } catch {
-    return {
-      ...unavailable,
-      reason: "The saved coordinates for this map could not be read.",
-    };
-  }
-  const numeric = mapCoordinatesSchema.safeParse(artifact);
+  const discoveryIds = new Set(run.summaryIds);
+  const discoveryAssignments = await readTopicMapAssignments(
+    input.projectId,
+    run.id,
+    origin.id,
+  );
+  const projectedById = new Map(
+    discoveryAssignments
+      .filter((row) =>
+        row.projectId === input.projectId &&
+        row.runId === run.id &&
+        row.executionId === origin.id &&
+        row.facetVersionId === input.facetVersionId &&
+        discoveryIds.has(row.summaryId) &&
+        row.coordinates?.length === 2 &&
+        row.coordinates.every(Number.isFinite),
+      )
+      .map((row) => [row.summaryId, row]),
+  );
   if (
-    !numeric.success ||
-    numeric.data.coordinates.length !== run.summaryIds.length
+    projectedById.size !== discoveryIds.size
   )
     return {
       ...unavailable,
       reason:
-        "Saved coordinates are missing or do not match the discovery cohort.",
+        "Saved coordinates are not fully available for the discovery cohort.",
     };
 
-  const discoveryIds = new Set(run.summaryIds);
   const executionIds = new Set(facet.summaryIds);
   const summaryIds = [...new Set([...run.summaryIds, ...facet.summaryIds])];
+  const additionalIds = [...executionIds].filter((id) => !discoveryIds.has(id));
   const [summaries, assignments] = await Promise.all([
     readTopicSummaries(input.projectId, summaryIds),
-    readTopicAssignments(input.projectId, summaryIds, run.id),
+    readTopicAssignments(input.projectId, additionalIds, run.id),
   ]);
   const byId = new Map(
     summaries
@@ -300,7 +295,7 @@ async function publishedTopicMap(input: {
   );
   const topicIds = new Set(run.topics.map((topic) => topic.topicId));
   const assignedById = new Map(
-    assignments
+    [...projectedById.values(), ...assignments]
       .filter(
         (row) =>
           row.projectId === input.projectId &&
@@ -327,11 +322,10 @@ async function publishedTopicMap(input: {
             : "unassigned",
     };
   };
-  // Coordinates retain manifest indices even if a summary was deleted or a query returns another order.
-  const points = run.summaryIds.flatMap((id, index) => {
+  const points = run.summaryIds.flatMap((id) => {
     const row = byId.get(id);
     if (!row) return [];
-    const [x, y] = numeric.data.coordinates[index];
+    const [x, y] = projectedById.get(id)!.coordinates!;
     return [{ ...publicSummary(row), x, y, inExecution: executionIds.has(id) }];
   });
   const unpositioned = [...executionIds].flatMap((id) => {
@@ -392,8 +386,8 @@ export const topicsRouter = createTRPCRouter({
       executionWithRecovery(input.projectId, input.executionId),
     ),
   trigger: topicsWriteProcedure
-    .input(topicExecutionInputSchema)
-    .mutation(async ({ input }) => {
+    .input(topicTriggerInputSchema)
+    .mutation(async ({ input, ctx }) => {
       for (const id of input.facetVersionIds) {
         if (!(await getTopicFacetVersion(input.projectId, id)))
           throw new InvalidRequestError(
@@ -402,7 +396,7 @@ export const topicsRouter = createTRPCRouter({
         if (input.operation === "assign") {
           const run = await getTopicRun(
             input.projectId,
-            input.targetRunIds[id]!,
+            input.targetRunIds?.[id]!,
           );
           if (!run?.publishedAt || run.facetVersionId !== id)
             throw new InvalidRequestError(
@@ -443,7 +437,8 @@ export const topicsRouter = createTRPCRouter({
             );
         }
       }
-      const execution = await createTopicExecution(input);
+      const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
+      const execution = await createTopicExecution(resolvedInput);
       if (execution.status === "queued")
         await enqueueTopicExecution(input.projectId, execution.id);
       return execution;
@@ -536,10 +531,6 @@ export const topicsRouter = createTRPCRouter({
           state: summary.state,
           processedAt: summary.processedAt,
           inputHash: summary.inputHash,
-          transcriptVersion:
-            typeof summary.metadata.transcriptVersion === "string"
-              ? summary.metadata.transcriptVersion
-              : null,
         }))
         .sort(
           (a, b) =>
@@ -555,7 +546,6 @@ export const topicsRouter = createTRPCRouter({
         text: transcript.text,
         coverage: transcript.coverage,
         inputHash: transcript.inputHash,
-        transcriptVersion: transcript.transcriptVersion,
       };
     }),
   inspect: topicsProcedure
