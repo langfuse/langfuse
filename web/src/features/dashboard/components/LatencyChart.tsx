@@ -46,14 +46,7 @@ export const GenerationLatencyChart = ({
   schedulerId?: string;
   syncId?: string;
 }) => {
-  const {
-    allModels,
-    selectedModels,
-    setSelectedModels,
-    isAllSelected,
-    buttonText,
-    handleSelectAll,
-  } = useModelSelection(
+  const { allModels, selectedModels, setSelectedModels } = useModelSelection(
     projectId,
     globalFilterState,
     fromTimestamp,
@@ -164,9 +157,6 @@ export const GenerationLatencyChart = ({
             allModels={allModels}
             selectedModels={selectedModels}
             setSelectedModels={setSelectedModels}
-            buttonText={buttonText}
-            isAllSelected={isAllSelected}
-            handleSelectAll={handleSelectAll}
           />
         </div>
       }
