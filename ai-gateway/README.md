@@ -243,11 +243,12 @@ Gateway metadata uses `langfuse.gateway.*`: `project_id`, `organization_id`,
 `ingestion_mode`, `api_format`, `api-key.id`, and `provider.connection_id`,
 `provider.request_id`, `provider.response_id`. API-key attribution entries appear
 both as top-level metadata and under `langfuse.gateway.api-key.metadata.*`.
-Gateway and OpenTelemetry fields win collisions; the namespaced attribution copy
-preserves the original value. `http_status` stays top level. Relay outcome, provider
-status, completeness flags and first-byte timing remain internal facts rather than
-generation metadata. Ingestion removes mapped observation-attribute duplicates for
-the gateway scope while preserving custom attributes, scope and resources.
+Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution
+copy preserves the original value. `http_status` stays top level. Relay outcome,
+provider status, completeness flags and first-byte timing remain internal facts
+rather than generation metadata. Ingestion removes mapped observation-attribute
+duplicates for the gateway scope while preserving custom attributes, scope and
+resources.
 
 Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
 with the available HTTP status in its status message. Full mode also includes a
@@ -324,6 +325,34 @@ instrumentation or explicit OTel header injection. Baggage decoding handles Pyth
 `+` space encoding and quoted-list tags, as well as JSON-array tags. Only the keys
 listed above are mapped; other baggage, including `langfuse_trace_id`, does not
 override trace identity or project selection.
+
+The gateway also recognizes correlation headers emitted by coding agents:
+
+| Agent | Session source | Turn source |
+| --- | --- | --- |
+| Claude Code | `x-claude-code-session-id` | Not available |
+| Codex | `thread_id` in `x-codex-turn-metadata` | `turn_id` in `x-codex-turn-metadata` |
+| OpenCode | `x-opencode-session`, falling back to `x-session-id` or `x-session-affinity` for an OpenCode user agent | `x-opencode-request` |
+| Pi | `x-session-id`, `session_id`, `x-session-affinity`, or `x-client-request-id` for a Pi user agent | Not available |
+
+An inferred session becomes `<agent>:<session>` and an inferred turn deterministically
+selects the generation trace ID, grouping the requests made before and after tool
+execution into one trace. A valid `traceparent` always wins trace identity; explicit
+Langfuse session and trace-name headers or baggage always win their respective
+attributes. Agent headers never infer a user ID.
+
+Original identifiers remain searchable in generation metadata under `agent.*`.
+This includes `agent.name`, `agent.project_id`, `agent.session_id`,
+`agent.thread_id`, `agent.turn_id`, `agent.id`, `agent.parent_id`, and
+`agent.parent_session_id` when the source agent provides them. Codex's
+routing-oriented `session_id` is retained as metadata, while its
+conversation-oriented `thread_id` supplies the Langfuse session.
+
+Agent extraction has a separate 8 KiB aggregate header limit. Codex turn metadata is
+limited to 4 KiB, and each extracted identifier uses the same 1 KiB field limit as
+the explicit context headers. Empty, duplicate, malformed, oversized, or
+control-character-bearing values are ignored. Generic affinity/request headers are
+used only after an agent-specific header or user agent identifies the caller.
 
 Caller context is kept outside ambient operational context and operational logs.
 Resolver and ingestion HTTP requests propagate only the gateway's internal trace;

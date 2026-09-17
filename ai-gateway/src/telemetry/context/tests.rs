@@ -160,6 +160,153 @@ fn malformed_fields_and_duplicate_custom_headers_keep_valid_baggage() {
 }
 
 #[test]
+fn coding_agent_headers_group_sessions_and_turns() {
+    let cases = [
+        (
+            "claude-code",
+            vec![
+                ("x-claude-code-session-id", "claude-session"),
+                ("x-claude-code-agent-id", "subagent"),
+                ("x-claude-code-parent-agent-id", "parent"),
+            ],
+            "claude-session",
+            None,
+        ),
+        (
+            "codex",
+            vec![(
+                "x-codex-turn-metadata",
+                r#"{"session_id":"routing-session","thread_id":"codex-thread","turn_id":"codex-turn"}"#,
+            )],
+            "codex-thread",
+            Some("codex-turn"),
+        ),
+        (
+            "opencode",
+            vec![
+                ("user-agent", "opencode/1.0"),
+                ("x-opencode-project", "opencode-project"),
+                ("x-opencode-session", "opencode-session"),
+                ("x-opencode-request", "opencode-turn"),
+            ],
+            "opencode-session",
+            Some("opencode-turn"),
+        ),
+        (
+            "pi",
+            vec![
+                ("user-agent", "pi/0.80.3 (linux; node/v22; x64)"),
+                ("session_id", "pi-session"),
+                ("x-client-request-id", "pi-session"),
+            ],
+            "pi-session",
+            None,
+        ),
+    ];
+
+    for (agent, values, session, turn) in cases {
+        let mut headers = HeaderMap::new();
+        for (name, value) in values {
+            headers.insert(
+                name.parse::<axum::http::HeaderName>().unwrap(),
+                value.parse().unwrap(),
+            );
+        }
+        let first = GenerationContext::from_headers(&headers);
+        let second = GenerationContext::from_headers(&headers);
+        assert_eq!(first.attributes["session.id"], format!("{agent}:{session}"));
+        assert_eq!(first.attributes["langfuse.trace.name"], agent);
+        assert_eq!(first.metadata["agent.name"], agent);
+        if let Some(turn) = turn {
+            assert_eq!(first.metadata["agent.turn_id"], turn);
+            assert_eq!(first.trace_id, second.trace_id);
+        } else {
+            assert_ne!(first.trace_id, second.trace_id);
+        }
+        assert!(!first.attributes.contains_key("user.id"));
+    }
+}
+
+#[test]
+fn agent_metadata_preserves_original_identifiers() {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        "x-codex-turn-metadata",
+        r#"{"session_id":"routing-session","thread_id":"thread","turn_id":"turn"}"#
+            .parse()
+            .unwrap(),
+    );
+    let context = GenerationContext::from_headers(&headers);
+    assert_eq!(
+        context.metadata,
+        json!({
+            "agent.name": "codex",
+            "agent.session_id": "routing-session",
+            "agent.thread_id": "thread",
+            "agent.turn_id": "turn",
+        })
+        .as_object()
+        .unwrap()
+        .clone()
+    );
+}
+
+#[test]
+fn explicit_context_overrides_inferred_agent_context() {
+    let mut headers = HeaderMap::new();
+    headers.insert("traceparent", TRACEPARENT.parse().unwrap());
+    headers.insert("langfuse-session-id", "explicit-session".parse().unwrap());
+    headers.insert("langfuse-trace-name", "explicit-name".parse().unwrap());
+    headers.insert("langfuse-metadata", "agent.name:custom".parse().unwrap());
+    headers.insert("user-agent", "opencode/1.0".parse().unwrap());
+    headers.insert("x-opencode-session", "agent-session".parse().unwrap());
+    headers.insert("x-opencode-request", "agent-turn".parse().unwrap());
+    let context = GenerationContext::from_headers(&headers);
+    assert_eq!(context.trace_id, "0123456789abcdef0123456789abcdef");
+    assert_eq!(context.attributes["session.id"], "explicit-session");
+    assert_eq!(context.attributes["langfuse.trace.name"], "explicit-name");
+    assert_eq!(context.metadata["agent.name"], "opencode");
+    assert_eq!(context.metadata["agent.session_id"], "agent-session");
+    assert_eq!(context.metadata["agent.turn_id"], "agent-turn");
+}
+
+#[test]
+fn ambiguous_malformed_and_oversized_agent_headers_are_ignored() {
+    let mut headers = HeaderMap::new();
+    headers.insert("x-session-id", "ambiguous".parse().unwrap());
+    let context = GenerationContext::from_headers(&headers);
+    assert!(!context.attributes.contains_key("session.id"));
+    assert!(context.metadata.is_empty());
+
+    headers.insert("x-codex-turn-metadata", "{malformed".parse().unwrap());
+    let context = GenerationContext::from_headers(&headers);
+    assert!(!context.attributes.contains_key("session.id"));
+    assert!(context.metadata.is_empty());
+
+    headers.insert(
+        "x-codex-turn-metadata",
+        HeaderValue::from_str(&format!(
+            r#"{{"thread_id":"{}","turn_id":"turn"}}"#,
+            "a".repeat(MAX_AGENT_METADATA_BYTES)
+        ))
+        .unwrap(),
+    );
+    headers.insert("langfuse-session-id", "explicit".parse().unwrap());
+    let context = GenerationContext::from_headers(&headers);
+    assert_eq!(context.attributes["session.id"], "explicit");
+    assert!(context.metadata.is_empty());
+
+    let mut headers = HeaderMap::new();
+    headers.insert("user-agent", "opencode/1.0".parse().unwrap());
+    headers.insert("x-session-id", "fallback-session".parse().unwrap());
+    let context = GenerationContext::from_headers(&headers);
+    assert_eq!(
+        context.attributes["session.id"],
+        "opencode:fallback-session"
+    );
+}
+
+#[test]
 fn oversized_headers_fields_and_entry_counts_are_bounded() {
     let mut headers = HeaderMap::new();
     headers.insert("traceparent", TRACEPARENT.parse().unwrap());
