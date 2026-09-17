@@ -18,7 +18,7 @@
 - Feature processors: `src/features/*`
 - Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
   registered by `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md`
-  for Python setup, frozen execution checkpoints, and the small-model budget.
+  for native numerical setup, frozen execution checkpoints, and the small-model budget.
   Canonical transcript assembly is shared with the web evidence inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
@@ -30,7 +30,8 @@
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`.
+  records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
+  its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
 ## Shared Package Imports

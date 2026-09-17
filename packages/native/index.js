@@ -700,5 +700,6 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.clusterTopicEmbeddings = nativeBinding.clusterTopicEmbeddings
 module.exports.hello = nativeBinding.hello
 module.exports.initTelemetry = nativeBinding.initTelemetry

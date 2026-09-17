@@ -48,7 +48,11 @@ import {
   classifyTopic,
   topicHash,
 } from "./classifier";
-import { runTopicClustering, topicClusterSettings } from "./numeric";
+import {
+  runTopicClustering,
+  topicClusterSettings,
+  TOPICS_NUMERIC_VERSION,
+} from "./numeric";
 import { matchTopicContinuity, decideTopicRefresh } from "./continuity";
 
 const artifactKey = (kind: string, value: unknown) =>
@@ -519,10 +523,11 @@ async function discover(
     progress.outcome = "no_applicable_summaries";
     return;
   }
-  if (
-    summaries.length <
-    topicClusterSettings(execution.input.exploratory).minimumCount
-  ) {
+  const numericConfig = {
+    ...topicClusterSettings(execution.input.exploratory),
+    numericVersion: TOPICS_NUMERIC_VERSION,
+  };
+  if (summaries.length < numericConfig.minimumCount) {
     progress.outcome = "insufficient_data";
     return;
   }
@@ -570,7 +575,7 @@ async function discover(
     facetVersionId: facet.id,
     summaryIds: summaries.map((row) => row.id),
     config: {
-      ...topicClusterSettings(execution.input.exploratory),
+      ...numericConfig,
       exploratory: execution.input.exploratory,
       embeddingModel: TOPICS_EMBEDDING_MODEL,
       dimensions: execution.input.embeddingConfig.embeddingDimensions,
@@ -599,11 +604,21 @@ async function discover(
     const numeric = await checkpoint(
       execution,
       artifactKey("numeric", run.id),
-      () =>
-        runTopicClustering(
+      async () => {
+        // An accepted fit retains its original provenance. A pending fit uses
+        // the installed backend, including when a run resumes after an upgrade.
+        run = await saveTopicRun({
+          ...run,
+          config: {
+            ...run.config,
+            ...numericConfig,
+          },
+        });
+        return runTopicClustering(
           summaries.map((row) => row.embedding),
           execution.input.exploratory,
-        ),
+        );
+      },
     );
     if (numeric.status !== "complete") {
       if (numeric.status === "no_topics") {

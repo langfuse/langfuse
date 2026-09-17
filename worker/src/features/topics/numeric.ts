@@ -1,48 +1,55 @@
 import { spawn } from "node:child_process";
-import { resolve } from "node:path";
+import type { TopicClusteringSettings } from "@langfuse/native";
 import { z } from "zod";
-import { env } from "../../env";
 
 const numericResultSchema = z.object({
   status: z.enum(["complete", "insufficient_data", "no_topics"]),
-  labels: z.array(z.number().int()),
+  labels: z.array(z.number().int().min(-1)),
   coordinates: z.array(z.tuple([z.number(), z.number()])),
 });
-export type NumericResult = z.infer<typeof numericResultSchema>;
+type NumericResult = z.infer<typeof numericResultSchema>;
 
-export const topicClusterSettings = (exploratory: boolean) => ({
+export const TOPICS_NUMERIC_VERSION = "3-holomap-0.3.0-hdbscan-rs-0.6.1";
+
+export const topicClusterSettings = (
+  exploratory: boolean,
+): TopicClusteringSettings => ({
   minimumCount: exploratory ? 10 : 100,
   minClusterSize: exploratory ? 3 : 15,
   minSamples: exploratory ? 2 : 5,
-  seed: 42,
-  allowSingleCluster: false,
-  neighborRule: "min(15,max(3,floor(n/3)))",
-  numericVersion: "2",
 });
+
+// Only this small bootstrap runs in the child. The addon ships with the worker;
+// no source-file path, development loader, or inherited credentials are needed.
+const numericChildProgram = `
+const { clusterTopicEmbeddings } = require(process.argv[1]);
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => { input += chunk; });
+process.stdin.on("end", () => {
+  try {
+    const { embeddings, ...settings } = JSON.parse(input);
+    input = "";
+    process.stdout.write(JSON.stringify(clusterTopicEmbeddings(embeddings, settings)));
+  } catch (error) {
+    process.stderr.write(error instanceof Error ? error.message : "Numerical fit failed");
+    process.exitCode = 1;
+  }
+});
+`;
 
 export async function runTopicClustering(
   embeddings: number[][],
   exploratory: boolean,
 ): Promise<NumericResult> {
   const settings = topicClusterSettings(exploratory);
-  if (embeddings.length < settings.minimumCount)
-    return { status: "insufficient_data", labels: [], coordinates: [] };
-  const python =
-    env.LANGFUSE_TOPICS_PYTHON_PATH ??
-    resolve(__dirname, "../../../.topics-venv/bin/python");
+  const payload = JSON.stringify({ embeddings, ...settings });
   return await new Promise((resolveResult, reject) => {
     const child = spawn(
-      python,
-      [resolve(__dirname, "../../../src/features/topics/numeric/cluster.py")],
+      process.execPath,
+      ["-e", numericChildProgram, require.resolve("@langfuse/native")],
       {
-        env: {
-          NODE_ENV: "development",
-          PATH: "/usr/bin:/bin",
-          PYTHONNOUSERSITE: "1",
-          NUMBA_NUM_THREADS: "1",
-          OMP_NUM_THREADS: "1",
-          OPENBLAS_NUM_THREADS: "1",
-        },
+        env: { NODE_ENV: "production" },
         stdio: ["pipe", "pipe", "pipe"],
       },
     );
@@ -53,8 +60,8 @@ export async function runTopicClustering(
     const maximumOutputLength = 4096 + embeddings.length * 256;
     let outputExceeded = false;
     const timeout = setTimeout(() => {
-      child.kill("SIGKILL");
       reject(new Error("Topics numerical fit exceeded 120 seconds"));
+      child.kill("SIGKILL");
     }, 120_000);
     child.stdout.on("data", (data: Buffer) => {
       if (outputExceeded) return;
@@ -97,6 +104,6 @@ export async function runTopicClustering(
     child.stdin.on("error", () => {
       /* Process errors are reported by close/error. */
     });
-    child.stdin.end(JSON.stringify({ embeddings, ...settings }));
+    child.stdin.end(payload);
   });
 }

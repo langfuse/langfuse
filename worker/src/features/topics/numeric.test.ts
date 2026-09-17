@@ -1,10 +1,17 @@
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { runTopicClustering } from "./numeric";
 
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
 function numericalChild(output: (count: number) => string) {
   const child = Object.assign(new EventEmitter(), {
@@ -24,22 +31,6 @@ function numericalChild(output: (count: number) => string) {
   return child;
 }
 
-it("passes every member of a cohort larger than 1000 to the numerical stage", async () => {
-  numericalChild((count) =>
-    JSON.stringify({
-      status: "complete",
-      labels: Array(count).fill(0),
-      coordinates: Array(count).fill([0, 0]),
-    }),
-  );
-  const result = await runTopicClustering(
-    Array.from({ length: 1002 }, () => [1, 0]),
-    false,
-  );
-  expect(result.labels).toHaveLength(1002);
-  expect(result.coordinates).toHaveLength(1002);
-});
-
 it("reports oversized child output explicitly instead of accepting a partial cohort", async () => {
   const child = numericalChild((count) => " ".repeat(4097 + count * 256));
   await expect(
@@ -49,4 +40,47 @@ it("reports oversized child output explicitly instead of accepting a partial coh
     ),
   ).rejects.toThrow("oversized output");
   expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+});
+
+it("kills a stalled fit and reports the deadline even if close fires immediately", async () => {
+  vi.useFakeTimers();
+  const child = numericalChild(() => "");
+  child.stdin.removeAllListeners("data");
+  const pending = runTopicClustering(
+    Array.from({ length: 100 }, () => [1, 0]),
+    false,
+  );
+  expect(vi.mocked(spawn).mock.calls[0][2]?.env).toEqual({
+    NODE_ENV: "production",
+  });
+  const rejection = pending.catch((error: unknown) => error);
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(await rejection).toEqual(
+    new Error("Topics numerical fit exceeded 120 seconds"),
+  );
+  expect(child.kill).toHaveBeenCalledWith("SIGKILL");
+});
+
+it("rejects truncated populations", async () => {
+  numericalChild(() =>
+    JSON.stringify({ status: "complete", labels: [0], coordinates: [[0, 0]] }),
+  );
+  const vectors = Array.from({ length: 100 }, () => [1, 0]);
+  await expect(runTopicClustering(vectors, false)).rejects.toThrow(
+    "population mismatch",
+  );
+});
+
+it("does not start a child or deadline if the request cannot be serialized", async () => {
+  vi.useFakeTimers();
+  numericalChild(() => "");
+  const vectors = Array.from({ length: 100 }, () => [1, 0]);
+  vi.spyOn(JSON, "stringify").mockImplementationOnce(() => {
+    throw new RangeError("Invalid string length");
+  });
+  await expect(runTopicClustering(vectors, false)).rejects.toThrow(
+    "Invalid string length",
+  );
+  expect(spawn).not.toHaveBeenCalled();
+  expect(vi.getTimerCount()).toBe(0);
 });

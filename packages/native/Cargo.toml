@@ -2,8 +2,8 @@
 name = "langfuse-native"
 version = "0.0.0"
 edition = "2021"
-# napi-rs 3 needs at least Rust 1.88.
-rust-version = "1.88"
+# holomap requires Rust 1.93.
+rust-version = "1.93"
 license = "MIT"
 publish = false
 
@@ -11,10 +11,13 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
+hdbscan-rs = { version = "=0.6.1", default-features = false }
+holomap = { version = "=0.3.0", default-features = false }
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
+ndarray = "0.16"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 

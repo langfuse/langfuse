@@ -120,5 +120,3 @@ web/test-results/*
 .superset/
 
 /.topics-data/
-
-/worker/.topics-venv/

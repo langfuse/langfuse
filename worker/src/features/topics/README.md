@@ -11,15 +11,16 @@ repository's database migrations and regenerate/build shared before starting the
 worker. Topics is enabled only when `NODE_ENV=development` and `NEXTAUTH_URL` has a
 loopback hostname. Web and worker must share this checkout and its local disk.
 
-Install the isolated numerical dependencies from the repository root:
+Build the numerical addon from the repository root (the normal worker build and
+dev commands also build it):
 
 ```sh
-uv venv --python 3.13 worker/.topics-venv
-uv pip install --python worker/.topics-venv/bin/python -r worker/src/features/topics/numeric/requirements.txt
+pnpm --filter @langfuse/native run build
 ```
 
 The worker reads `OPENAI_API_KEY` from its environment through the normal `.env`
-loader. Optional `LANGFUSE_TOPICS_PYTHON_PATH` overrides the Python executable.
+loader. Numerical fitting uses the worker's existing Node runtime and compiled
+`@langfuse/native` addon, with no extra runtime or service.
 Summary records set `unit_type=trace`, `unit_id` to the source trace ID, and
 `trigger_type=manual_poc`. Clustering runs record the first start in `started_at`;
 retries preserve it. Existing runs predating this field retain a null start time.
@@ -130,6 +131,24 @@ fallback to a farther topic. These are provisional heuristics, particularly
 uncertain for small or rare populations.
 
 UMAP uses `min(15, max(3, floor(n/3)))` neighbors, bounded below the cohort size.
+The pinned Rust backend is `holomap` 0.3.0 plus `hdbscan-rs` 0.6.1. Unit-normalized
+embeddings feed seeded cosine UMAP (random initialization, seed 42), separately
+into at most 10 dimensions for Euclidean HDBSCAN/EOM and 2 dimensions for display.
+The Rust adapter adds one to `minSamples` because the library includes the point
+itself in its neighbor count. Rust owns the fixed reduction and cluster-selection
+defaults; the worker passes only minimum population, cluster size, and samples.
+The numerical backend version is recorded per run.
+Accepted numerical checkpoints retain their original version on replay; an
+unfinished fit records the installed backend before retrying.
+
+The synchronous native fit runs in a credential-free Node child process with a
+120-second kill deadline and output limits proportional to cohort size. No trace
+count cap is imposed. Exact neighbor search has quadratic cost; large cohorts
+can exceed the deadline. Map coordinates are repeatable on the same platform
+and build, but are not a compatibility contract across backends or architectures.
+See [numerical validation](NUMERIC_VALIDATION.md) for replacement evidence and
+known quality differences.
+
 HDBSCAN's single root cluster is disabled: accepting it merged three clear themes
 in the 12-trace smoke cohort. The smaller neighborhood separated them offline
 using the same stored embeddings. This example supports the exploratory setting,
@@ -169,8 +188,7 @@ quality checks remain necessary; mocked tests cannot establish summary accuracy.
 `.topics-data/` contains private local journals, accepted inference outputs,
 cohort manifests, numerical results, and `.topics-data/developer-budget.json`.
 Transcripts and raw source snapshots are regenerated from the original trace
-data and are not stored here. This local directory and
-`worker/.topics-venv/` are ignored by git.
+data and are not stored here. This local directory is ignored by git.
 
 Before each provider call, the worker durably reserves its maximum estimated
 cost. **All executions together are capped at $0.25**, also subject to each
@@ -214,9 +232,11 @@ treating these small-sample topics or thresholds as reliable.
 
 ```sh
 pnpm --filter worker run test features/topics
-worker/.topics-venv/bin/python worker/src/features/topics/numeric/test_cluster.py
+pnpm --filter @langfuse/native exec cargo test --features napi/dyn-symbols topics
 ```
 
-The worker tests mock provider calls and storage. The Python integration check
-fits real UMAP/HDBSCAN on synthetic vectors and checks cold-start and identical
-input behavior. Neither command calls a paid model.
+Pipeline tests mock provider calls and storage. `numeric.native.test.ts` runs
+real UMAP/HDBSCAN through the worker's child process on more than 1,000 synthetic
+vectors and checks serving prototypes, cold-start, identical-input and invalid
+vector behavior. Rust tests cover deterministic fitting and validation. Neither
+command calls a paid model.

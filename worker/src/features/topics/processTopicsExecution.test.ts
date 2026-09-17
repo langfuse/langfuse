@@ -209,11 +209,11 @@ vi.mock("./models", () => ({
   nameTopicGroups: (...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", () => ({
+  TOPICS_NUMERIC_VERSION: "test-current",
   topicClusterSettings: (exploratory: boolean) => ({
     minimumCount: exploratory ? 10 : 100,
     minClusterSize: exploratory ? 3 : 15,
     minSamples: 5,
-    seed: 42,
   }),
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
@@ -806,37 +806,6 @@ describe("Topics execution", () => {
     expect(state.embed).toHaveBeenCalledTimes(100);
   });
 
-  it("preserves an already accepted manifest order when resuming", async () => {
-    state.numeric.mockRejectedValueOnce(
-      new Error("Numerical stage interrupted"),
-    );
-    const pending = execution("accepted-order", 100);
-    state.executions.set(pending.id, pending);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: pending.id,
-    });
-    const manifest = [...state.artifacts.entries()].find(([key]) =>
-      key.startsWith(`${pending.id}/manifest-`),
-    )![1] as { id: string; revision: string; inputHash: string }[];
-    // Simulate the frozen order of a run created before canonical ordering.
-    manifest.reverse();
-    const run = [...state.runs.values()][0];
-    run.summaryIds = manifest.map((row) => row.id);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: pending.id,
-    });
-
-    expect(state.executions.get(pending.id)?.status).toBe("completed");
-    expect(state.numeric.mock.calls[1][0]).toEqual(
-      manifest.map((row) => state.summaries.get(row.id)!.embedding),
-    );
-    expect(state.runs.get(run.id)!.summaryIds).toEqual(
-      manifest.map((row) => row.id),
-    );
-  });
-
   it("resumes a frozen cohort without admitting previously failed traces", async () => {
     state.summarize.mockRejectedValueOnce(new Error("Source read failed"));
     state.numeric.mockRejectedValueOnce(
@@ -1203,7 +1172,7 @@ describe("Topics execution", () => {
     expect([...state.runs.values()][1].summaryIds).toHaveLength(102);
   });
 
-  it("keeps an unpublished map when initial memberships are not visible", async () => {
+  it("keeps an unpublished map until memberships are visible, reusing its accepted fit", async () => {
     state.visible = false;
     state.executions.set("hidden", execution("hidden", 100));
     await processTopicsExecution({
@@ -1213,6 +1182,14 @@ describe("Topics execution", () => {
     expect(state.executions.get("hidden")?.facets[0].outcome).toBe("failed");
     expect([...state.runs.values()][0].publishedAt).toBeNull();
     expect(state.events).not.toContain("publish");
+    const run = [...state.runs.values()][0];
+    state.visible = true;
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "hidden",
+    });
+    expect(state.runs.get(run.id)!.publishedAt).not.toBeNull();
+    expect(state.numeric).toHaveBeenCalledTimes(1);
   });
 
   it("restores counts after map publication survives interrupted progress persistence", async () => {

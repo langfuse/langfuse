@@ -6,6 +6,9 @@
 //! values back for Node to record.
 
 mod telemetry;
+mod topics;
+
+pub use topics::{cluster_topic_embeddings, TopicClusteringResult, TopicClusteringSettings};
 
 use std::time::Duration;
 
