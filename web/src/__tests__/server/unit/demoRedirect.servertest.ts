@@ -93,6 +93,7 @@ describe("demo redirect page", () => {
       where: {
         orgId: "demo-org",
         id: "demo-project",
+        deletedAt: null,
       },
       select: {
         id: true,

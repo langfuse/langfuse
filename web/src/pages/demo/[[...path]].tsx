@@ -20,6 +20,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
           where: {
             orgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
             id: env.NEXT_PUBLIC_DEMO_PROJECT_ID,
+            deletedAt: null,
           },
           select: {
             id: true,
