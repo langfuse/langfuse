@@ -576,7 +576,6 @@ export function MarkdownView({
                 : undefined
             }
           />
-          <div className="border-t" />
         </>
       ) : null}
       {afterHeader}
