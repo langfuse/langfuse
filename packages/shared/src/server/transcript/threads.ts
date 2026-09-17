@@ -56,6 +56,18 @@ export function append(
 ) {
   const { thread, messages, shownCounts } = state;
   const inputCounts = new Map<string, number>();
+  const replayCalls = new Map<string, number>();
+  const replayTotals = new Map<string, number>();
+  // Count first so a truncated replay cannot attach a result to the wrong call.
+  for (const { message } of input) {
+    for (const part of message.parts) {
+      if (part.type === "tool-call" && part.toolCallId)
+        replayTotals.set(
+          part.toolCallId,
+          (replayTotals.get(part.toolCallId) ?? 0) + 1,
+        );
+    }
+  }
   for (const { message, key: originalKey } of [...input, ...output]) {
     const isOutput = message.source === "output";
     const emitted: ThreadMessage = {
@@ -67,7 +79,16 @@ export function append(
     // Anchor output calls before attaching any results carried by the same message.
     if (isOutput) thread.messages.push(emitted);
     for (const part of message.parts) {
-      if (!toolCalls.consumePart(observation, part, thread, emitted))
+      if (
+        !toolCalls.consumePart(
+          observation,
+          part,
+          thread,
+          emitted,
+          replayCalls,
+          replayTotals,
+        )
+      )
         emitted.parts.push(part);
     }
     if (!emitted.parts.length) {

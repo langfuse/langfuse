@@ -19,7 +19,7 @@ const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
 
 export function createToolCallRegistry() {
   const calls = new Map<string, Call>();
-  const callsByThread = new WeakMap<Thread, Map<string, Call>>();
+  const callsByThread = new WeakMap<Thread, Map<string, Call[]>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
   const responseTails = new WeakMap<ThreadMessage, ThreadMessage>();
 
@@ -37,7 +37,10 @@ export function createToolCallRegistry() {
     if (id) calls.set(id, call);
     if (part.toolCallId) {
       if (!callsByThread.has(thread)) callsByThread.set(thread, new Map());
-      callsByThread.get(thread)!.set(part.toolCallId, call);
+      const threadCalls = callsByThread.get(thread)!;
+      const matches = threadCalls.get(part.toolCallId) ?? [];
+      matches.push(call);
+      threadCalls.set(part.toolCallId, matches);
     }
     const name = key(observation.traceId, part.toolName);
     if (!pending.has(name)) pending.set(name, { calls: [], next: 0 });
@@ -79,12 +82,39 @@ export function createToolCallRegistry() {
     part: NormalizedMessage["parts"][number],
     thread: Thread,
     message: ThreadMessage,
+    replayCalls: Map<string, number>,
+    replayTotals: Map<string, number>,
   ): boolean {
+    if (
+      part.type === "tool-call" &&
+      message.source === "input" &&
+      part.toolCallId
+    )
+      replayCalls.set(
+        part.toolCallId,
+        (replayCalls.get(part.toolCallId) ?? 0) + 1,
+      );
     if (part.type === "tool-call" && message.source === "output")
       register(observation, part, thread, message);
     if (part.type !== "tool-result" || !part.toolCallId) return false;
-    // Replayed history can refer to calls from an earlier trace in this thread.
-    const call = callsByThread.get(thread)?.get(part.toolCallId);
+    const matches = callsByThread.get(thread)?.get(part.toolCallId);
+    // Reused IDs need complete, ordered call history to disambiguate results.
+    const occurrence = replayCalls.get(part.toolCallId) ?? 0;
+    let call: Call | undefined;
+    if (message.source === "output") {
+      call = calls.get(key(observation.traceId, part.toolCallId));
+    } else if (
+      matches?.length === 1 &&
+      (replayTotals.get(part.toolCallId) ?? 0) <= 1
+    ) {
+      call = matches[0];
+    } else if (
+      matches &&
+      replayTotals.get(part.toolCallId) === matches.length &&
+      occurrence > 0
+    ) {
+      call = matches[occurrence - 1];
+    }
     if (!call) return false;
     setResponse(call, observation, [part]);
     return true;
