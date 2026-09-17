@@ -404,12 +404,12 @@ export function TraceDetailView({
                 {trace.tags.length > 0 && (
                   <>
                     <div
-                      className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
+                      className={`px-2 pt-1 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
                     >
                       Tags
                     </div>
                     <div
-                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
+                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-3 ${!isPrettyLikeView ? "shrink-0" : ""}`}
                     >
                       <TagList selectedTags={trace.tags} isLoading={false} />
                     </div>
