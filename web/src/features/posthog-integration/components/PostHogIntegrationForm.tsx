@@ -18,9 +18,9 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { SwitchInput } from "@/src/components/design-system/SwitchInput/SwitchInput";
 import {
+  getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-  type SelectableExportSourceOption,
 } from "@/src/features/analytics-integrations/exportSource";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 
@@ -42,12 +42,10 @@ type PostHogIntegrationFormProps = {
   defaultValues: Required<PostHogIntegrationFormValues>;
   // Required to validate the selected export source against deployment policy.
   exportSourceContext: ExportSourceContext;
-  exportSourceOptions: SelectableExportSourceOption[];
   onReset: () => void | Promise<void>;
   onSubmit: (values: PostHogIntegrationFormValues) => void;
   projectApiKeyDisplay?: string;
   resetError?: string;
-  showExportSourceField: boolean;
 };
 
 export function PostHogIntegrationForm({
@@ -55,13 +53,13 @@ export function PostHogIntegrationForm({
   configurationState,
   defaultValues,
   exportSourceContext,
-  exportSourceOptions,
   onReset,
   onSubmit,
   projectApiKeyDisplay,
   resetError,
-  showExportSourceField,
 }: PostHogIntegrationFormProps) {
+  const { options: exportSourceOptions, showField: showExportSourceField } =
+    getExportSourceFieldState(defaultValues.exportSource, exportSourceContext);
   const formSchema = useMemo(
     () =>
       posthogIntegrationFormSchema.superRefine((data, ctx) => {

@@ -17,7 +17,7 @@ import {
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
-  getExportSourceFieldState,
+  getExportSourceFormValue,
 } from "@/src/features/analytics-integrations/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -149,11 +149,10 @@ const ConnectedPostHogIntegrationForm = ({
       }),
     [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
   );
-  const {
-    options: exportSourceOptions,
-    showField: showExportSourceField,
-    defaultValue: defaultExportSource,
-  } = getExportSourceFieldState(state?.exportSource, exportSourceCtx);
+  const defaultExportSource = getExportSourceFormValue(
+    state?.exportSource,
+    exportSourceCtx,
+  );
 
   const utils = api.useUtils();
   const mut = api.posthogIntegration.update.useMutation({
@@ -188,8 +187,6 @@ const ConnectedPostHogIntegrationForm = ({
         exportSource: defaultExportSource,
       }}
       exportSourceContext={exportSourceCtx}
-      exportSourceOptions={exportSourceOptions}
-      showExportSourceField={showExportSourceField}
       projectApiKeyDisplay={state?.posthogApiKeyDisplay}
       resetError={mutDelete.error?.message}
       onSubmit={onSubmit}
