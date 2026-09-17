@@ -4,15 +4,7 @@ import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -48,7 +40,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { Info, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
@@ -239,95 +231,91 @@ const PostHogIntegrationSettings = ({
   }
 
   return (
-    <Form {...posthogForm}>
+    <>
       <form className="space-y-3" onSubmit={posthogForm.handleSubmit(onSubmit)}>
         <FormField
           control={posthogForm.control}
           name="posthogHostname"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Hostname</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormDescription>
-                US region: https://us.posthog.com; EU region:
-                https://eu.posthog.com
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+          label="Posthog Hostname"
+          description="US region: https://us.posthog.com; EU region: https://eu.posthog.com"
+        >
+          {(field) => (
+            <Input
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onBlur={field.onBlur}
+              onChange={field.onChange}
+              ref={field.ref}
+              aria-describedby={field.inputDescribedById}
+              aria-invalid={Boolean(field.error)}
+            />
           )}
-        />
+        </FormField>
         <FormField
           control={posthogForm.control}
           name="posthogProjectApiKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Project API Key</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  {...field}
-                  placeholder={state?.posthogApiKeyDisplay}
-                />
-              </FormControl>
-              {state && (
-                <FormDescription>
-                  Leave blank to keep the current API key.
-                </FormDescription>
-              )}
-              <FormMessage />
-            </FormItem>
+          label="Posthog Project API Key"
+          description={
+            state ? "Leave blank to keep the current API key." : undefined
+          }
+        >
+          {(field) => (
+            <PasswordInput
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onBlur={field.onBlur}
+              onChange={field.onChange}
+              ref={field.ref}
+              aria-describedby={field.inputDescribedById}
+              aria-invalid={Boolean(field.error)}
+              placeholder={state?.posthogApiKeyDisplay}
+            />
           )}
-        />
+        </FormField>
         {showExportSourceField && (
-          <FormField
-            control={posthogForm.control}
-            name="exportSource"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
-                  <CustomTooltip
-                    placement="bottom"
-                    content={
-                      <div className="space-y-2 py-1.5">
-                        {exportSourceOptions.map((option) => (
-                          <div key={option.value} className="space-y-0.5">
-                            <div className="font-bold">{option.label}</div>
-                            <div className="text-muted-foreground text-xs">
-                              {option.description}
-                            </div>
-                          </div>
-                        ))}
-                        <div className="border-t pt-2">
-                          <a
-                            href="https://langfuse.com/docs/integrations/export-sources"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                          >
-                            For further information see
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                      </div>
-                    }
+          <CustomTooltip
+            placement="bottom"
+            content={
+              <div className="space-y-2 py-1.5">
+                {exportSourceOptions.map((option) => (
+                  <div key={option.value} className="space-y-0.5">
+                    <div className="font-bold">{option.label}</div>
+                    <div className="text-muted-foreground text-xs">
+                      {option.description}
+                    </div>
+                  </div>
+                ))}
+                <div className="border-t pt-2">
+                  <a
+                    href="https://langfuse.com/docs/integrations/export-sources"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                   >
-                    {({ getTriggerProps }) => (
-                      <button
-                        type="button"
-                        aria-label="About export sources"
-                        {...getTriggerProps()}
-                      >
-                        <Info className="text-muted-foreground h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </CustomTooltip>
-                </FormLabel>
-                <FormControl>
+                    For further information see
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <FormField
+                control={posthogForm.control}
+                name="exportSource"
+                label="Export Source"
+                description="Choose which data sources to export to PostHog. Scores are always included."
+                registerLabelTooltip={getTriggerProps}
+              >
+                {(field) => (
                   <SelectInput
-                    onValueChange={field.onChange}
+                    id={field.id}
                     value={field.value}
+                    onValueChange={field.onChange}
+                    aria-describedby={field.inputDescribedById}
+                    aria-invalid={Boolean(field.error)}
                     placeholder="Select data to export"
                     options={exportSourceOptions.map((option) => {
                       if (option.unavailable) {
@@ -342,15 +330,10 @@ const PostHogIntegrationSettings = ({
                       return { value: option.value, label: option.label };
                     })}
                   />
-                </FormControl>
-                <FormDescription>
-                  Choose which data sources to export to PostHog. Scores are
-                  always included.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
+                )}
+              </FormField>
             )}
-          />
+          </CustomTooltip>
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
@@ -362,27 +345,20 @@ const PostHogIntegrationSettings = ({
             </Alert.Description>
           </Alert>
         )}
-        <FormField
-          control={posthogForm.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <div className="mt-1 ml-4">
-                  <Switch
-                    id="posthog-integration-enabled"
-                    checked={field.value}
-                    onCheckedChange={() => {
-                      field.onChange(!field.value);
-                    }}
-                  />
-                </div>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+        <FormField control={posthogForm.control} name="enabled" label="Enabled">
+          {(field) => (
+            <Switch
+              id={field.id}
+              name={field.name}
+              checked={field.value}
+              onBlur={field.onBlur}
+              onCheckedChange={field.onChange}
+              ref={field.ref}
+              aria-describedby={field.inputDescribedById}
+              aria-invalid={Boolean(field.error)}
+            />
           )}
-        />
+        </FormField>
       </form>
       <div className="mt-8 flex gap-2">
         <Button
@@ -410,6 +386,6 @@ const PostHogIntegrationSettings = ({
           )}
         </ConfirmationDialogController>
       </div>
-    </Form>
+    </>
   );
 };
