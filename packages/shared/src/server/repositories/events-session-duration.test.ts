@@ -7,6 +7,8 @@ import {
   substituteNamedParams,
 } from "../query-ast/goldenHarness";
 
+let charCounter = 0;
+
 vi.mock("./clickhouse", () => ({
   queryClickhouse: vi.fn().mockResolvedValue([]),
   queryClickhouseStream: vi.fn(),
@@ -15,12 +17,15 @@ vi.mock("./clickhouse", () => ({
   commandClickhouse: vi.fn(),
   upsertClickhouse: vi.fn(),
   parseClickhouseUTCDateTimeFormat: vi.fn(),
-  clickhouseCompliantRandomCharacters: vi.fn(() => "x"),
+  clickhouseCompliantRandomCharacters: vi.fn(() => `x${++charCounter}`),
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: {},
 }));
 vi.mock("../redis/redis", () => ({ redis: null }));
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  charCounter = 0;
+  vi.clearAllMocks();
+});
 
 type Options = Parameters<
   typeof getObservationsV2FromEventsTableForPublicApi
@@ -95,13 +100,19 @@ describe("public observations session duration filter", () => {
     },
   );
 
-  it.each([{ fields: ["basic"] }, { fields: ["basic", "io"] }] satisfies {
+  it.each([
+    { fields: ["basic"], contentFilter: false },
+    { fields: ["basic", "io"], contentFilter: false },
+    { fields: ["basic", "io", "metadata"], contentFilter: true },
+  ] satisfies {
     fields: Options["fields"];
+    contentFilter: boolean;
   }[])(
-    "aggregates the whole project session before paginating $fields fields",
-    async ({ fields }) => {
+    "aggregates the whole session before paginating $fields with content filter $contentFilter",
+    async ({ fields, contentFilter }) => {
       const { query, params } = await captureQuery({
         fields,
+        expandMetadataKeys: contentFilter ? ["payload"] : undefined,
         minSessionDuration: 17.5,
         sessionId: "requested-session",
         fromStartTime: "2026-02-01T00:00:00.000Z",
@@ -113,6 +124,16 @@ describe("public observations session duration filter", () => {
             operator: "any of",
             value: ["requested-tag"],
           },
+          ...(contentFilter
+            ? [
+                {
+                  column: "input",
+                  type: "string",
+                  operator: "=",
+                  value: "needle",
+                } as const,
+              ]
+            : []),
         ],
         cursor: {
           lastStartTimeTo: new Date("2026-02-01T12:00:00.000Z"),
@@ -149,6 +170,16 @@ describe("public observations session duration filter", () => {
       });
       expect(Object.values(params ?? {})).toContain("requested-session");
       expect(Object.values(params ?? {})).toContainEqual(["requested-tag"]);
+      if (contentFilter) {
+        expect(query).not.toContain("FROM base");
+        expect(query).not.toContain("_io_start_time");
+        expect(query.match(/events_full/g)).toHaveLength(1);
+        expect(query).toContain("e.input");
+        expect(query).toContain("e.output");
+        expect(query).toContain("e.metadata_values");
+        expect(aggregation).toContain("FROM events_core");
+        expect(Object.values(params ?? {})).toContain("needle");
+      }
     },
   );
 

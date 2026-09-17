@@ -108,7 +108,7 @@ trace sampling. `trace` is not an accepted gateway log level.
 | `OTEL_SERVICE_NAME` | `ai-gateway` | Operational service name |
 | `DD_ENV` | `development` | Deployment environment resource attribute |
 | `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
-| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for root traces; incoming W3C sampling decisions are respected |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for independent operational root traces |
 
 Tower's `TraceLayer` keeps the server span alive through the response body.
 The HTTP response log and `http.server.request.duration` measure time to response
@@ -118,9 +118,11 @@ timeout, or transport error. HTTP status and stream outcome are separate: a 200
 response can still fail while streaming.
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
-Only trusted Web calls receive W3C trace context; baggage and operational trace
-headers are not sent to the external provider. Inference generations retain their
-separate identity. Client spans measure the HTTP send through response headers;
+Each request starts a fresh operational trace, independent of incoming trace IDs,
+tracestate, baggage, Langfuse headers and sampling decisions. Only trusted Web calls
+receive this internal W3C trace context; the external provider receives no tracing
+or Langfuse headers. Inference generations use the caller context described below.
+Client spans measure the HTTP send through response headers;
 streaming execution and inference-telemetry delivery are tracked separately.
 
 A small Axum middleware records `http.server.request.duration` through the
@@ -227,14 +229,30 @@ and never sends the provider credential or the client's gateway key to ingestion
 Ingestion JWTs stay outside serializable capture facts and debug logs. Expired grants
 are dropped without re-resolving the execution. Requests explicitly select v4 ingestion.
 
-Each execution becomes one root generation with generated trace/observation IDs,
+Each execution becomes one generation with a new observation ID and either the
+caller's trace/parent IDs or a generated root trace ID,
 actual/requested model, model parameters, native usage, and trusted key/connection
-attribution. Full mode includes the captured native input/output; usage mode omits
-content. First-byte timing supplies Langfuse's completion-start time as the gateway's
-first-token approximation. Relay outcome, provider status and capture completeness
-remain separate metadata fields. The exporter projects native OpenAI usage into the
-receiver's supported shape for pricing and preserves the untouched usage object as
-`native_usage` metadata. Missing usage is not reported as zero.
+attribution. Full mode includes the captured input/output; usage mode omits content.
+Completion-start time is emitted only for upstream `text/event-stream` responses,
+on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
+and streams without a captured content delta have no completion-start time or TTFT.
+The exporter projects native OpenAI usage into the receiver's supported shape for
+pricing without duplicating it in metadata. Missing usage is not reported as zero.
+
+Gateway metadata uses `langfuse.gateway.*`: `project_id`, `organization_id`,
+`ingestion_mode`, `api_format`, `api-key.id`, and `provider.connection_id`,
+`provider.request_id`, `provider.response_id`. API-key attribution entries appear
+both as top-level metadata and under `langfuse.gateway.api-key.metadata.*`.
+Gateway and OpenTelemetry fields win collisions; the namespaced attribution copy
+preserves the original value. `http_status` stays top level. Relay outcome, provider
+status, completeness flags and first-byte timing remain internal facts rather than
+generation metadata. Ingestion removes mapped observation-attribute duplicates for
+the gateway scope while preserving custom attributes, scope and resources.
+
+Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
+with the available HTTP status in its status message. Full mode also includes a
+bounded provider error code/message; usage mode omits these details because provider
+errors may echo request content.
 
 Provisional upload limits are 32 concurrent tasks, 4 MiB serialized facts per record,
 16 MiB total retained serialized-fact/credential bytes, 8 MiB encoded payloads, and
@@ -256,6 +274,62 @@ a span collection; future project batching can replace immediate scheduling whil
 retaining each execution's original attribution/content policy and selecting a valid
 compatible grant. Capture and provider byte forwarding do not need to change.
 
+## Caller tracing context
+
+Incoming `traceparent` and `tracestate` apply only to the Langfuse generation.
+A valid `traceparent` supplies its trace ID and parent observation ID; the generation
+always gets a new observation ID. Missing or malformed context starts a new root.
+Valid `tracestate` is included in the generation's OTLP `traceState` field; it is not
+copied into generation metadata. An unsampled caller still produces a generation.
+Operational trace sampling and best-effort ingestion remain independent.
+
+The following optional headers enrich the generation, including in usage mode:
+
+| Header | Format | Python SDK baggage key |
+| --- | --- | --- |
+| `langfuse-trace-name` | String | `langfuse_trace_name` |
+| `langfuse-session-id` | String | `langfuse_session_id` |
+| `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
+| `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
+
+For example:
+
+```text
+langfuse-trace-name: support-workflow
+langfuse-session-id: conversation-123
+langfuse-user-id: user-456
+langfuse-tags: support,production
+langfuse-metadata: team:search,variant:B,note:hello%2C%20world
+```
+
+Percent-encode literal commas and other escaped characters in individual custom
+header values, and colons inside metadata keys. Metadata splits at the first colon;
+values remain strings. A literal `+` stays `+` in custom headers. Tags are trimmed
+and deduplicated. Valid explicit headers override baggage for the same field;
+metadata merges by key with explicit entries winning. Invalid entries are ignored
+independently, and invalid overrides leave valid baggage intact. Caller metadata
+cannot replace protected gateway facts or trusted API-key attribution.
+
+Extraction is bounded to 8 KiB across the eight context header values above
+(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+limit, context is ignored and a fresh generation trace is created. Decoded fields
+are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
+Repeated list header lines are combined in order within that same entry limit.
+Empty values, control characters, invalid encoding and duplicate scalar headers
+are ignored without rejecting inference.
+
+Python callers can use `propagate_attributes(..., as_baggage=True)` with HTTP
+instrumentation or explicit OTel header injection. Baggage decoding handles Python's
+`+` space encoding and quoted-list tags, as well as JSON-array tags. Only the keys
+listed above are mapped; other baggage, including `langfuse_trace_id`, does not
+override trace identity or project selection.
+
+Caller context is kept outside ambient operational context and operational logs.
+Resolver and ingestion HTTP requests propagate only the gateway's internal trace;
+the generation's caller context travels in the ingestion payload. Provider requests
+receive neither tracing context nor these custom headers.
+
 ## Response capture
 
 Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
@@ -265,11 +339,22 @@ including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per l
 
 Web's resolved ingestion mode controls content capture:
 
-- `full`: input is the native request JSON object, including `input`, `instructions`,
-  tools, parameters, context references and unknown fields. Output is an ordered
-  array of native completed items. Content is sent only through Langfuse ingestion.
+- `full`: input retains native `input`, `instructions`, tools, prompt/context
+  references and unknown fields. Model and configuration are projected out of input.
+  Output is an ordered array of native completed items. Content is sent only through
+  Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
+
+Full-mode model parameters include sampling/token limits, service tier, reasoning,
+text formatting, tool choice/limits, context management, truncation, streaming options,
+background/store/include flags, moderation and cache options/retention. Capture retains
+JSON types; ingestion applies Langfuse's existing model-parameter normalization
+(booleans and structured values become JSON strings). Omitted request parameters
+are not filled with assumed defaults.
+The response model and service tier take precedence over requested values when present.
+Request `metadata`, `prompt_cache_key`, `safety_identifier` and deprecated `user` are
+stored under `langfuse.gateway.provider.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
@@ -286,10 +371,11 @@ output array at EOF. Missing usage remains null, rather than invented zeros.
 `outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
 `provider_status` is separate. For example, a completed provider response can
 still end with downstream cancellation. `first_byte_ms` measures the first body
-bytes observed by the gateway. Telemetry uses this as the first-token approximation
-for Langfuse completion-start time; it does not wait for completed output items.
+bytes observed by the gateway for operational metrics. `completion_start_ms` measures
+the first captured SSE content delta independently; it ignores response-created
+events and keepalives and does not retain or reconstruct delta content.
 
-`input_complete` means the full native request was captured; it is false when
+`input_complete` means request input was captured and configuration projected; it is false when
 content is omitted in usage mode. `output_complete` means response inspection
 finished without capture gaps for the configured mode (including a terminal event
 and all expected completed items for full-mode SSE). It does not promise that the
