@@ -2142,12 +2142,10 @@ export function buildEventsFullTableSplitQuery(opts: {
   // request filter) so it also tightens lookups that arrive without a time
   // filter, and the values are never re-serialized as params.
   //
-  // Both bounds read the same byte-identical scalar subquery over base. A
-  // dedicated io_bounds CTE selected io_min/io_max separately, which inline to
-  // two distinct scalar subqueries — ClickHouse's scalar cache keys on subquery
-  // text, so it evaluated (and re-scanned base) twice. One (min, max) tuple with
-  // .1/.2 applied outside collapses to a single cached evaluation: base's
-  // bounds pass drops from two scans to one.
+  // Both bounds read one byte-identical (min, max) scalar subquery over base,
+  // with .1/.2 applied outside. ClickHouse's scalar cache keys on subquery
+  // text, so the identical text is evaluated once and base is scanned once for
+  // both bounds.
   const ioBounds = "(SELECT (min(start_time), max(start_time)) FROM base)";
   const ioQuery = [
     `SELECT ${ioSelectParts.join(", ")}`,

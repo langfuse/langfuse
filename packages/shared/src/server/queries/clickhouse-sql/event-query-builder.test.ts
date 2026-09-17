@@ -180,8 +180,7 @@ describe("buildEventsFullTableSplitQuery", () => {
     // The bound is derived from base (no re-serialized params) so events_full
     // can prune partitions/primary key; the semi-join stays for join exactness.
     // Both bounds read one byte-identical (min, max) scalar subquery so
-    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice —
-    // no io_bounds CTE.
+    // ClickHouse's scalar cache evaluates base's bounds pass once, not twice.
     expect(query).not.toContain("io_bounds");
     expect(query).toContain(
       "AND e.start_time >= (SELECT (min(start_time), max(start_time)) FROM base).1",
