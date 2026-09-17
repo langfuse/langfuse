@@ -4,11 +4,16 @@ import {
   type RootOperationNode,
 } from "kysely";
 
-import type { ExecutionContext } from "../executionContext";
 import { ClickHouseQueryCompiler } from "./compiler";
 import { DedupLoweringPlugin } from "./dedup";
-import { TenancyInjectionPlugin, requireExecutionContext } from "./tenancy";
+import {
+  type ExecutionContext,
+  TenancyInjectionPlugin,
+  requireExecutionContext,
+} from "./tenancy";
 import { validateTypeCompatibility } from "./typecheck";
+
+export type { ExecutionContext } from "./tenancy";
 
 export type CompiledClickhouseQuery = {
   sql: string;

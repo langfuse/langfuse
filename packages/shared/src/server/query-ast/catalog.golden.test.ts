@@ -7,7 +7,7 @@ import {
   formatSql,
   normalizeParams,
   substituteNamedParams,
-} from "../goldenHarness";
+} from "../repositories/goldenHarness";
 import { CATALOG, CATALOG_PROJECT_ID } from "./catalog";
 import { compileClickhouseQuery } from "./compile";
 

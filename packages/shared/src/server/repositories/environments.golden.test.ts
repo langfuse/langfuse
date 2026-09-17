@@ -11,14 +11,13 @@ import {
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
 // store is a module singleton shared with the assertions below.
-vi.mock("../repositories/clickhouse", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../repositories/clickhouse")>();
+vi.mock("./clickhouse", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./clickhouse")>();
   const { buildClickhouseMock } = await import("./goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
-import { getEnvironmentsForProject } from "../repositories/environments";
+import { getEnvironmentsForProject } from "./environments";
 
 const FIXED_PROJECT_ID = "golden-project";
 // Fixed so the captured params are deterministic across runs.

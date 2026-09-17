@@ -28,26 +28,27 @@
 //                      column, sortKey (the count/alpha/boolean rank), then value.
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { env } from "../../env";
-import type { EventFilterOptionColumn } from "../queries/clickhouse-sql/event-filter-options";
+import { env } from "../../../env";
+import type { EventFilterOptionColumn } from "./event-filter-options";
 import {
   capturedQueries,
   clickhouseFormatAvailable,
   normalizeCapturedQueries,
   resetCaptures,
-} from "./goldenHarness";
+} from "../../repositories/goldenHarness";
 
 // Record the exec seam instead of hitting ClickHouse. The factory is hoisted
 // above imports, so it pulls the harness in via dynamic import; the captured
 // store is a module singleton shared with the assertions below.
-vi.mock("../repositories/clickhouse", async (importOriginal) => {
+vi.mock("../../repositories/clickhouse", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../repositories/clickhouse")>();
-  const { buildClickhouseMock } = await import("./goldenHarness.js");
+    await importOriginal<typeof import("../../repositories/clickhouse")>();
+  const { buildClickhouseMock } =
+    await import("../../repositories/goldenHarness.js");
   return buildClickhouseMock(actual);
 });
 
-import { getEventsExactFilterOptionsForColumns } from "../repositories/events";
+import { getEventsExactFilterOptionsForColumns } from "../../repositories/events";
 
 const FIXED_PROJECT_ID = "golden-project";
 // Fixed so the captured scope-window params are deterministic across runs.
