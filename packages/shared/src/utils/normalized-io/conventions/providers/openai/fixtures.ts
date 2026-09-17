@@ -54,6 +54,3032 @@ export const documentedResponsesFixtures: NormalizedIOFixture[] = [
   },
 ];
 
+// Anonymized customer payload; prose, names, IDs, and preview content replaced.
+export const customerFixtures: NormalizedIOFixture[] = [
+  {
+    name: "anonymized customer Responses tool history",
+    spanIO: {
+      input: {
+        input: [
+          {
+            type: "message",
+            role: "system",
+            content: [
+              {
+                type: "input_text",
+                text: "Sample text",
+              },
+            ],
+          },
+          {
+            name: "sample_tool_21",
+            type: "function_call",
+            call_id: "sample_id_1",
+            arguments: "{}",
+          },
+          {
+            type: "function_call_output",
+            output:
+              '{"parts":{"org":{"country":"Sample country","is_multi_entity":true,"name":"Sample name","plan_label":"Sample plan_label","plan_tier_internal":"Sample plan_tier_internal","size_bucket":"Sample size_bucket"},"products":{"enabled_entitlements_at_session_start_internal":["Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal","Sample enabled_entitlements_at_session_start_internal"]},"session":{"session_started_at":"Sample session_started_at"},"setup":{"erp_provider_internal":"Sample erp_provider_internal","erp_provider_label":"Sample erp_provider_label"},"user":{"department":"Sample department","first_name":"Sample first_name","is_manager":true,"role_internal":"Sample role_internal","role_label":"Sample role_label"}},"unavailable":[]}',
+            call_id: "sample_id_1",
+          },
+          {
+            name: "sample_tool_22",
+            type: "function_call",
+            call_id: "sample_id_2",
+            arguments: "{}",
+          },
+          {
+            type: "function_call_output",
+            output:
+              '{"instructions":"Sample instructions","skills":[{"name":"Sample name","description":"Sample description"}]}',
+            call_id: "sample_id_2",
+          },
+          {
+            name: "sample_tool_19",
+            type: "function_call",
+            call_id: "sample_id_3",
+            arguments: '{"query":"Sample query"}',
+          },
+          {
+            type: "function_call_output",
+            output: "Sample tool result",
+            call_id: "sample_id_3",
+          },
+          {
+            role: "user",
+            type: "message",
+            content: [
+              {
+                text: "Sample text",
+                type: "input_text",
+              },
+            ],
+          },
+          {
+            id: "sample_id_4",
+            type: "reasoning",
+            content: [],
+            summary: [
+              {
+                text: "Sample text",
+                type: "summary_text",
+              },
+            ],
+            encrypted_content: "sample-encrypted-content",
+          },
+          {
+            id: "sample_id_5",
+            name: "sample_tool_17",
+            type: "function_call",
+            status: "Sample status",
+            call_id: "sample_id_6",
+            arguments:
+              '{"query":"Sample query","query_variants":["Sample query_variants","Sample query_variants","Sample query_variants","Sample query_variants"],"top_k":5}',
+          },
+          {
+            type: "function_call_output",
+            output:
+              '{"output_path":"Sample output_path","output_bytes":41556,"output_summary":{"format":"json","shape":{"snippets":[{"snippet":"Sample snippet","title":"Sample title","url":"Sample url","links":[{"label":"Sample label","url":"Sample url"},"Sample links"],"similarity_score":"Sample similarity_score"},"Sample snippets"],"query":"Sample query"},"summary_truncated":true},"output_head":"Sample output_head","truncated":true,"hint":"Sample hint"}',
+            call_id: "sample_id_6",
+          },
+        ],
+        tools: [
+          {
+            type: "function",
+            name: "sample_tool_1",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                sandbox_id: {
+                  anyOf: [
+                    {
+                      format: "uuid",
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                command: {
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                timeout_seconds: {
+                  default: 300,
+                  exclusiveMinimum: 0,
+                  maximum: 1800,
+                  title: "Sample title",
+                  type: "integer",
+                },
+                description: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["command"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_2",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                sandbox_id: {
+                  anyOf: [
+                    {
+                      format: "uuid",
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                filesystem_id: {
+                  anyOf: [
+                    {
+                      format: "uuid",
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                source_path: {
+                  description: "Sample description",
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                dest_path: {
+                  description: "Sample description",
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                content_type: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["source_path", "dest_path"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_3",
+            description: "Sample description",
+            parameters: {
+              $defs: {
+                AskQuestionItem: {
+                  properties: {
+                    text: {
+                      description: "Sample description",
+                      title: "Sample title",
+                      type: "string",
+                    },
+                    description: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    type: {
+                      default: "sample-value",
+                      description: "Sample description",
+                      enum: [
+                        "sample-value",
+                        "sample-value",
+                        "sample-value",
+                        "sample-value",
+                        "sample-value",
+                      ],
+                      title: "Sample title",
+                      type: "string",
+                    },
+                    options: {
+                      anyOf: [
+                        {
+                          items: {
+                            anyOf: [
+                              {
+                                type: "string",
+                              },
+                              {
+                                $ref: "#/$defs/AskQuestionOption",
+                              },
+                            ],
+                          },
+                          type: "array",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      maxItems: 6,
+                      title: "Sample title",
+                    },
+                    allow_freeform: {
+                      default: false,
+                      description: "Sample description",
+                      title: "Sample title",
+                      type: "boolean",
+                    },
+                    freeform_placeholder: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    placeholder: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    multiline: {
+                      default: false,
+                      description: "Sample description",
+                      title: "Sample title",
+                      type: "boolean",
+                    },
+                    max_length: {
+                      anyOf: [
+                        {
+                          exclusiveMinimum: 0,
+                          type: "integer",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    accept: {
+                      anyOf: [
+                        {
+                          items: {
+                            type: "string",
+                          },
+                          minItems: 1,
+                          type: "array",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    multiple: {
+                      default: false,
+                      description: "Sample description",
+                      title: "Sample title",
+                      type: "boolean",
+                    },
+                  },
+                  required: ["text"],
+                  title: "Sample title",
+                  type: "object",
+                },
+                AskQuestionOption: {
+                  properties: {
+                    id: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                    label: {
+                      description: "Sample description",
+                      title: "Sample title",
+                      type: "string",
+                    },
+                    description: {
+                      anyOf: [
+                        {
+                          type: "string",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      description: "Sample description",
+                      title: "Sample title",
+                    },
+                  },
+                  required: ["label"],
+                  title: "Sample title",
+                  type: "object",
+                },
+              },
+              properties: {
+                questions: {
+                  items: {
+                    $ref: "#/$defs/AskQuestionItem",
+                  },
+                  minItems: 1,
+                  title: "Sample title",
+                  type: "array",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["questions"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_4",
+            description: "Sample description",
+            parameters: {
+              $defs: {
+                PageRange: {
+                  additionalProperties: false,
+                  description: "Sample description",
+                  properties: {
+                    start: {
+                      minimum: 1,
+                      title: "Sample title",
+                      type: "integer",
+                    },
+                    end: {
+                      anyOf: [
+                        {
+                          minimum: 1,
+                          type: "integer",
+                        },
+                        {
+                          type: "null",
+                        },
+                      ],
+                      default: null,
+                      title: "Sample title",
+                    },
+                  },
+                  required: ["start"],
+                  title: "Sample title",
+                  type: "object",
+                },
+              },
+              properties: {
+                question: {
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                path: {
+                  description: "Sample description",
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                pages: {
+                  anyOf: [
+                    {
+                      items: {
+                        $ref: "#/$defs/PageRange",
+                      },
+                      minItems: 1,
+                      type: "array",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                output_schema: {
+                  anyOf: [
+                    {
+                      additionalProperties: true,
+                      type: "object",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["question", "path"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_5",
+            description: "Sample description",
+            parameters: {
+              $defs: {
+                WebSearchProvider: {
+                  enum: ["sample-value", "sample-value", "sample-value"],
+                  type: "string",
+                },
+              },
+              properties: {
+                objective: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                search_queries: {
+                  items: {
+                    maxLength: 256,
+                    minLength: 1,
+                    type: "string",
+                  },
+                  maxItems: 5,
+                  minItems: 1,
+                  title: "Sample title",
+                  type: "array",
+                },
+                provider: {
+                  anyOf: [
+                    {
+                      $ref: "#/$defs/WebSearchProvider",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: "sample-value",
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["search_queries"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_6",
+            description: "Sample description",
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                session_id: {
+                  format: "uuid",
+                  title: "Sample title",
+                  type: "string",
+                },
+                message: {
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                },
+                wait_for_idle: {
+                  default: false,
+                  title: "Sample title",
+                  type: "boolean",
+                },
+                timeout_seconds: {
+                  anyOf: [
+                    {
+                      exclusiveMinimum: 0,
+                      maximum: 3600,
+                      type: "integer",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["session_id", "message"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_7",
+            description: "Sample description",
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                session_id: {
+                  format: "uuid",
+                  title: "Sample title",
+                  type: "string",
+                },
+                before: {
+                  anyOf: [
+                    {
+                      exclusiveMinimum: 0,
+                      type: "integer",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  title: "Sample title",
+                },
+                limit: {
+                  default: 20,
+                  exclusiveMinimum: 0,
+                  maximum: 100,
+                  title: "Sample title",
+                  type: "integer",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["session_id"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_8",
+            description: "Sample description",
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_9",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_10",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              properties: {
+                initial_message: {
+                  type: "string",
+                },
+                name: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                sandboxes: {
+                  type: "array",
+                  description: "Sample description",
+                  items: {
+                    type: "object",
+                    properties: {
+                      sandbox_id: {
+                        type: "string",
+                        format: "uuid",
+                      },
+                      access: {
+                        type: "string",
+                        enum: ["sample-value", "sample-value", "sample-value"],
+                      },
+                    },
+                    required: ["sandbox_id", "access"],
+                    additionalProperties: false,
+                  },
+                },
+                auto_reply_on_idle: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: [],
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_11",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                query: {
+                  default: "sample-value",
+                  title: "Sample title",
+                  type: "string",
+                  description: "Sample description",
+                },
+                client_id: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  title: "Sample title",
+                },
+                top_k: {
+                  minimum: 1,
+                  title: "Sample title",
+                  type: "integer",
+                  default: 5,
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_12",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              properties: {
+                client_id: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                tool_name: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                arguments: {
+                  type: "object",
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["client_id", "tool_name", "arguments"],
+              additionalProperties: false,
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_13",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                call_ids: {
+                  description: "Sample description",
+                  items: {
+                    type: "string",
+                  },
+                  minItems: 1,
+                  title: "Sample title",
+                  type: "array",
+                },
+                reason: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["call_ids"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_14",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                call_ids: {
+                  description: "Sample description",
+                  items: {
+                    type: "string",
+                  },
+                  minItems: 1,
+                  title: "Sample title",
+                  type: "array",
+                },
+                reason: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                  title: "Sample title",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["call_ids"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_15",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              title: "sample_tool_15",
+              required: ["description"],
+              properties: {
+                top_k: {
+                  type: "integer",
+                  title: "Sample title",
+                  default: 5,
+                  description: "Sample description",
+                },
+                entity_id: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      format: "uuid",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  title: "Sample title",
+                  default: null,
+                  description: "Sample description",
+                },
+                description: {
+                  type: "string",
+                  title: "Sample title",
+                  pattern: "\\S",
+                  description: "Sample description",
+                },
+                entity_type: {
+                  anyOf: [
+                    {
+                      type: "string",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  title: "Sample title",
+                  default: null,
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              dependentRequired: {
+                entity_id: ["Sample entity_id"],
+                entity_type: ["Sample entity_type"],
+              },
+            },
+            strict: false,
+            annotations: {
+              title: "sample_tool_15",
+              readOnlyHint: true,
+              idempotentHint: true,
+              destructiveHint: false,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_16",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              title: "sample_tool_16",
+              required: ["name"],
+              properties: {
+                name: {
+                  type: "string",
+                  title: "Sample title",
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+            },
+            strict: false,
+            annotations: {
+              title: "sample_tool_16",
+              readOnlyHint: true,
+              idempotentHint: true,
+              destructiveHint: false,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_17",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              $defs: {
+                HelpCenterQuery: {
+                  type: "string",
+                  pattern: "\\S",
+                },
+                HelpCenterQueryVariantList: {
+                  type: "array",
+                  items: {
+                    $ref: "#/$defs/HelpCenterQuery",
+                  },
+                  maxItems: 4,
+                  minItems: 1,
+                },
+              },
+              title: "sample_tool_17",
+              required: ["query"],
+              properties: {
+                query: {
+                  type: "string",
+                  title: "Sample title",
+                  description: "Sample description",
+                },
+                top_k: {
+                  type: "integer",
+                  title: "Sample title",
+                  default: 5,
+                  description: "Sample description",
+                },
+                query_variants: {
+                  anyOf: [
+                    {
+                      $ref: "#/$defs/HelpCenterQuery",
+                    },
+                    {
+                      $ref: "#/$defs/HelpCenterQueryVariantList",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  title: "Sample title",
+                  default: null,
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+            },
+            strict: false,
+            annotations: {
+              title: "sample_tool_17",
+              readOnlyHint: true,
+              openWorldHint: true,
+              idempotentHint: false,
+              destructiveHint: false,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_18",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              $defs: {
+                ProductFeedbackArea: {
+                  enum: [
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                  ],
+                  type: "string",
+                  title: "Sample title",
+                  description: "Sample description",
+                },
+                ProductFeedbackType: {
+                  enum: [
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                  ],
+                  type: "string",
+                  title: "Sample title",
+                },
+                ProductFeedbackImpact: {
+                  enum: [
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                    "sample-value",
+                  ],
+                  type: "string",
+                  title: "Sample title",
+                },
+              },
+              title: "sample_tool_18",
+              required: ["summary", "feedback_type", "product_area"],
+              properties: {
+                impact: {
+                  anyOf: [
+                    {
+                      $ref: "#/$defs/ProductFeedbackImpact",
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  default: null,
+                  description: "Sample description",
+                },
+                summary: {
+                  type: "string",
+                  title: "Sample title",
+                  maxLength: 500,
+                  minLength: 1,
+                  description: "Sample description",
+                },
+                product_area: {
+                  $ref: "#/$defs/ProductFeedbackArea",
+                  description: "Sample description",
+                },
+                feedback_type: {
+                  $ref: "#/$defs/ProductFeedbackType",
+                  description: "Sample description",
+                },
+                desired_outcome: {
+                  anyOf: [
+                    {
+                      type: "string",
+                      maxLength: 1000,
+                      minLength: 1,
+                    },
+                    {
+                      type: "null",
+                    },
+                  ],
+                  title: "Sample title",
+                  default: null,
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+            },
+            strict: false,
+            annotations: {
+              title: "sample_tool_18",
+              readOnlyHint: false,
+              idempotentHint: false,
+              destructiveHint: true,
+            },
+          },
+          {
+            type: "function",
+            name: "sample_tool_19",
+            description: "Sample description",
+            parameters: {
+              properties: {
+                query: {
+                  minLength: 1,
+                  title: "Sample title",
+                  type: "string",
+                  description: "Sample description",
+                },
+                top_k: {
+                  minimum: 1,
+                  title: "Sample title",
+                  type: "integer",
+                  default: 5,
+                  description: "Sample description",
+                },
+                refresh: {
+                  default: false,
+                  description: "Sample description",
+                  title: "Sample title",
+                  type: "boolean",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["query"],
+              title: "Sample title",
+              type: "object",
+            },
+            strict: false,
+          },
+          {
+            type: "function",
+            name: "sample_tool_20",
+            description: "Sample description",
+            parameters: {
+              type: "object",
+              properties: {
+                name: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                input: {
+                  type: "object",
+                  description: "Sample description",
+                },
+                l_input_from_bash: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_path: {
+                  type: "string",
+                  description: "Sample description",
+                },
+                l_output_to_file: {
+                  type: "boolean",
+                  description: "Sample description",
+                },
+              },
+              required: ["name"],
+              additionalProperties: false,
+            },
+            strict: false,
+          },
+        ],
+      },
+      output: [
+        {
+          id: "sample_id_7",
+          summary: [
+            {
+              text: "Sample text",
+              type: "summary_text",
+            },
+          ],
+          type: "reasoning",
+          content: [],
+          encrypted_content: "sample-encrypted-content",
+          status: null,
+        },
+        {
+          id: "sample_id_8",
+          content: [
+            {
+              annotations: [],
+              text: "Sample text",
+              type: "output_text",
+              logprobs: [],
+            },
+          ],
+          role: "assistant",
+          status: "Sample status",
+          type: "message",
+          phase: null,
+        },
+      ],
+      metadata: undefined,
+    },
+    expected: {
+      messages: [
+        {
+          source: "input",
+          role: "system",
+          parts: [
+            {
+              type: "text",
+              text: "Sample text",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "sample_id_1",
+              toolName: "sample_tool_21",
+              input: {},
+              toolType: "function_call",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "sample_id_1",
+              output: {
+                parts: {
+                  org: {
+                    country: "Sample country",
+                    is_multi_entity: true,
+                    name: "Sample name",
+                    plan_label: "Sample plan_label",
+                    plan_tier_internal: "Sample plan_tier_internal",
+                    size_bucket: "Sample size_bucket",
+                  },
+                  products: {
+                    enabled_entitlements_at_session_start_internal: [
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                      "Sample enabled_entitlements_at_session_start_internal",
+                    ],
+                  },
+                  session: {
+                    session_started_at: "Sample session_started_at",
+                  },
+                  setup: {
+                    erp_provider_internal: "Sample erp_provider_internal",
+                    erp_provider_label: "Sample erp_provider_label",
+                  },
+                  user: {
+                    department: "Sample department",
+                    first_name: "Sample first_name",
+                    is_manager: true,
+                    role_internal: "Sample role_internal",
+                    role_label: "Sample role_label",
+                  },
+                },
+                unavailable: [],
+              },
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "sample_id_2",
+              toolName: "sample_tool_22",
+              input: {},
+              toolType: "function_call",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "sample_id_2",
+              output: {
+                instructions: "Sample instructions",
+                skills: [
+                  {
+                    name: "Sample name",
+                    description: "Sample description",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "sample_id_3",
+              toolName: "sample_tool_19",
+              input: {
+                query: "Sample query",
+              },
+              toolType: "function_call",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "sample_id_3",
+              output: "Sample tool result",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Sample text",
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              content: {
+                kind: "text",
+                text: "Sample text",
+              },
+            },
+            {
+              type: "reasoning",
+              content: {
+                kind: "encrypted",
+                data: "sample-encrypted-content",
+              },
+            },
+          ],
+          id: "sample_id_4",
+        },
+        {
+          source: "input",
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "sample_id_6",
+              toolName: "sample_tool_17",
+              input: {
+                query: "Sample query",
+                query_variants: [
+                  "Sample query_variants",
+                  "Sample query_variants",
+                  "Sample query_variants",
+                  "Sample query_variants",
+                ],
+                top_k: 5,
+              },
+              toolType: "function_call",
+              providerMetadata: {
+                status: "Sample status",
+              },
+            },
+          ],
+        },
+        {
+          source: "input",
+          role: "tool",
+          parts: [
+            {
+              type: "tool-result",
+              toolCallId: "sample_id_6",
+              output: {
+                output_path: "Sample output_path",
+                output_bytes: 41556,
+                output_summary: {
+                  format: "json",
+                  shape: {
+                    snippets: [
+                      {
+                        snippet: "Sample snippet",
+                        title: "Sample title",
+                        url: "Sample url",
+                        links: [
+                          {
+                            label: "Sample label",
+                            url: "Sample url",
+                          },
+                          "Sample links",
+                        ],
+                        similarity_score: "Sample similarity_score",
+                      },
+                      "Sample snippets",
+                    ],
+                    query: "Sample query",
+                  },
+                  summary_truncated: true,
+                },
+                output_head: "Sample output_head",
+                truncated: true,
+                hint: "Sample hint",
+              },
+            },
+          ],
+        },
+        {
+          source: "output",
+          id: "sample_id_7",
+          role: "assistant",
+          parts: [
+            {
+              type: "reasoning",
+              content: {
+                kind: "text",
+                text: "Sample text",
+              },
+            },
+            {
+              type: "reasoning",
+              content: {
+                kind: "encrypted",
+                data: "sample-encrypted-content",
+              },
+            },
+          ],
+        },
+        {
+          source: "output",
+          role: "assistant",
+          id: "sample_id_8",
+          parts: [
+            {
+              type: "text",
+              text: "Sample text",
+              providerMetadata: {
+                logprobs: [],
+              },
+            },
+          ],
+        },
+      ],
+      toolDefinitions: [
+        {
+          type: "function",
+          name: "sample_tool_1",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              sandbox_id: {
+                anyOf: [
+                  {
+                    format: "uuid",
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              command: {
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              timeout_seconds: {
+                default: 300,
+                exclusiveMinimum: 0,
+                maximum: 1800,
+                title: "Sample title",
+                type: "integer",
+              },
+              description: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["command"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_2",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              sandbox_id: {
+                anyOf: [
+                  {
+                    format: "uuid",
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              filesystem_id: {
+                anyOf: [
+                  {
+                    format: "uuid",
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              source_path: {
+                description: "Sample description",
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              dest_path: {
+                description: "Sample description",
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              content_type: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["source_path", "dest_path"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_3",
+          description: "Sample description",
+          inputSchema: {
+            $defs: {
+              AskQuestionItem: {
+                properties: {
+                  text: {
+                    description: "Sample description",
+                    title: "Sample title",
+                    type: "string",
+                  },
+                  description: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  type: {
+                    default: "sample-value",
+                    description: "Sample description",
+                    enum: [
+                      "sample-value",
+                      "sample-value",
+                      "sample-value",
+                      "sample-value",
+                      "sample-value",
+                    ],
+                    title: "Sample title",
+                    type: "string",
+                  },
+                  options: {
+                    anyOf: [
+                      {
+                        items: {
+                          anyOf: [
+                            {
+                              type: "string",
+                            },
+                            {
+                              $ref: "#/$defs/AskQuestionOption",
+                            },
+                          ],
+                        },
+                        type: "array",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    maxItems: 6,
+                    title: "Sample title",
+                  },
+                  allow_freeform: {
+                    default: false,
+                    description: "Sample description",
+                    title: "Sample title",
+                    type: "boolean",
+                  },
+                  freeform_placeholder: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  placeholder: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  multiline: {
+                    default: false,
+                    description: "Sample description",
+                    title: "Sample title",
+                    type: "boolean",
+                  },
+                  max_length: {
+                    anyOf: [
+                      {
+                        exclusiveMinimum: 0,
+                        type: "integer",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  accept: {
+                    anyOf: [
+                      {
+                        items: {
+                          type: "string",
+                        },
+                        minItems: 1,
+                        type: "array",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  multiple: {
+                    default: false,
+                    description: "Sample description",
+                    title: "Sample title",
+                    type: "boolean",
+                  },
+                },
+                required: ["text"],
+                title: "Sample title",
+                type: "object",
+              },
+              AskQuestionOption: {
+                properties: {
+                  id: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                  label: {
+                    description: "Sample description",
+                    title: "Sample title",
+                    type: "string",
+                  },
+                  description: {
+                    anyOf: [
+                      {
+                        type: "string",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    description: "Sample description",
+                    title: "Sample title",
+                  },
+                },
+                required: ["label"],
+                title: "Sample title",
+                type: "object",
+              },
+            },
+            properties: {
+              questions: {
+                items: {
+                  $ref: "#/$defs/AskQuestionItem",
+                },
+                minItems: 1,
+                title: "Sample title",
+                type: "array",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["questions"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_4",
+          description: "Sample description",
+          inputSchema: {
+            $defs: {
+              PageRange: {
+                additionalProperties: false,
+                description: "Sample description",
+                properties: {
+                  start: {
+                    minimum: 1,
+                    title: "Sample title",
+                    type: "integer",
+                  },
+                  end: {
+                    anyOf: [
+                      {
+                        minimum: 1,
+                        type: "integer",
+                      },
+                      {
+                        type: "null",
+                      },
+                    ],
+                    default: null,
+                    title: "Sample title",
+                  },
+                },
+                required: ["start"],
+                title: "Sample title",
+                type: "object",
+              },
+            },
+            properties: {
+              question: {
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              path: {
+                description: "Sample description",
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              pages: {
+                anyOf: [
+                  {
+                    items: {
+                      $ref: "#/$defs/PageRange",
+                    },
+                    minItems: 1,
+                    type: "array",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              output_schema: {
+                anyOf: [
+                  {
+                    additionalProperties: true,
+                    type: "object",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["question", "path"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_5",
+          description: "Sample description",
+          inputSchema: {
+            $defs: {
+              WebSearchProvider: {
+                enum: ["sample-value", "sample-value", "sample-value"],
+                type: "string",
+              },
+            },
+            properties: {
+              objective: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              search_queries: {
+                items: {
+                  maxLength: 256,
+                  minLength: 1,
+                  type: "string",
+                },
+                maxItems: 5,
+                minItems: 1,
+                title: "Sample title",
+                type: "array",
+              },
+              provider: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/WebSearchProvider",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: "sample-value",
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["search_queries"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_6",
+          description: "Sample description",
+          inputSchema: {
+            additionalProperties: false,
+            properties: {
+              session_id: {
+                format: "uuid",
+                title: "Sample title",
+                type: "string",
+              },
+              message: {
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+              },
+              wait_for_idle: {
+                default: false,
+                title: "Sample title",
+                type: "boolean",
+              },
+              timeout_seconds: {
+                anyOf: [
+                  {
+                    exclusiveMinimum: 0,
+                    maximum: 3600,
+                    type: "integer",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["session_id", "message"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_7",
+          description: "Sample description",
+          inputSchema: {
+            additionalProperties: false,
+            properties: {
+              session_id: {
+                format: "uuid",
+                title: "Sample title",
+                type: "string",
+              },
+              before: {
+                anyOf: [
+                  {
+                    exclusiveMinimum: 0,
+                    type: "integer",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                title: "Sample title",
+              },
+              limit: {
+                default: 20,
+                exclusiveMinimum: 0,
+                maximum: 100,
+                title: "Sample title",
+                type: "integer",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["session_id"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_8",
+          description: "Sample description",
+          inputSchema: {
+            additionalProperties: false,
+            properties: {
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              readOnlyHint: true,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_9",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_10",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            properties: {
+              initial_message: {
+                type: "string",
+              },
+              name: {
+                type: "string",
+                description: "Sample description",
+              },
+              sandboxes: {
+                type: "array",
+                description: "Sample description",
+                items: {
+                  type: "object",
+                  properties: {
+                    sandbox_id: {
+                      type: "string",
+                      format: "uuid",
+                    },
+                    access: {
+                      type: "string",
+                      enum: ["sample-value", "sample-value", "sample-value"],
+                    },
+                  },
+                  required: ["sandbox_id", "access"],
+                  additionalProperties: false,
+                },
+              },
+              auto_reply_on_idle: {
+                type: "boolean",
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: [],
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_11",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              query: {
+                default: "sample-value",
+                title: "Sample title",
+                type: "string",
+                description: "Sample description",
+              },
+              client_id: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                title: "Sample title",
+              },
+              top_k: {
+                minimum: 1,
+                title: "Sample title",
+                type: "integer",
+                default: 5,
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_12",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            properties: {
+              client_id: {
+                type: "string",
+                description: "Sample description",
+              },
+              tool_name: {
+                type: "string",
+                description: "Sample description",
+              },
+              arguments: {
+                type: "object",
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["client_id", "tool_name", "arguments"],
+            additionalProperties: false,
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_13",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              call_ids: {
+                description: "Sample description",
+                items: {
+                  type: "string",
+                },
+                minItems: 1,
+                title: "Sample title",
+                type: "array",
+              },
+              reason: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["call_ids"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_14",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              call_ids: {
+                description: "Sample description",
+                items: {
+                  type: "string",
+                },
+                minItems: 1,
+                title: "Sample title",
+                type: "array",
+              },
+              reason: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+                title: "Sample title",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["call_ids"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_15",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            title: "sample_tool_15",
+            required: ["description"],
+            properties: {
+              top_k: {
+                type: "integer",
+                title: "Sample title",
+                default: 5,
+                description: "Sample description",
+              },
+              entity_id: {
+                anyOf: [
+                  {
+                    type: "string",
+                    format: "uuid",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                title: "Sample title",
+                default: null,
+                description: "Sample description",
+              },
+              description: {
+                type: "string",
+                title: "Sample title",
+                pattern: "\\S",
+                description: "Sample description",
+              },
+              entity_type: {
+                anyOf: [
+                  {
+                    type: "string",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                title: "Sample title",
+                default: null,
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            dependentRequired: {
+              entity_id: ["Sample entity_id"],
+              entity_type: ["Sample entity_type"],
+            },
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              title: "sample_tool_15",
+              readOnlyHint: true,
+              idempotentHint: true,
+              destructiveHint: false,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_16",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            title: "sample_tool_16",
+            required: ["name"],
+            properties: {
+              name: {
+                type: "string",
+                title: "Sample title",
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              title: "sample_tool_16",
+              readOnlyHint: true,
+              idempotentHint: true,
+              destructiveHint: false,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_17",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            $defs: {
+              HelpCenterQuery: {
+                type: "string",
+                pattern: "\\S",
+              },
+              HelpCenterQueryVariantList: {
+                type: "array",
+                items: {
+                  $ref: "#/$defs/HelpCenterQuery",
+                },
+                maxItems: 4,
+                minItems: 1,
+              },
+            },
+            title: "sample_tool_17",
+            required: ["query"],
+            properties: {
+              query: {
+                type: "string",
+                title: "Sample title",
+                description: "Sample description",
+              },
+              top_k: {
+                type: "integer",
+                title: "Sample title",
+                default: 5,
+                description: "Sample description",
+              },
+              query_variants: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/HelpCenterQuery",
+                  },
+                  {
+                    $ref: "#/$defs/HelpCenterQueryVariantList",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                title: "Sample title",
+                default: null,
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              title: "sample_tool_17",
+              readOnlyHint: true,
+              openWorldHint: true,
+              idempotentHint: false,
+              destructiveHint: false,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_18",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            $defs: {
+              ProductFeedbackArea: {
+                enum: [
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                ],
+                type: "string",
+                title: "Sample title",
+                description: "Sample description",
+              },
+              ProductFeedbackType: {
+                enum: [
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                ],
+                type: "string",
+                title: "Sample title",
+              },
+              ProductFeedbackImpact: {
+                enum: [
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                  "sample-value",
+                ],
+                type: "string",
+                title: "Sample title",
+              },
+            },
+            title: "sample_tool_18",
+            required: ["summary", "feedback_type", "product_area"],
+            properties: {
+              impact: {
+                anyOf: [
+                  {
+                    $ref: "#/$defs/ProductFeedbackImpact",
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                default: null,
+                description: "Sample description",
+              },
+              summary: {
+                type: "string",
+                title: "Sample title",
+                maxLength: 500,
+                minLength: 1,
+                description: "Sample description",
+              },
+              product_area: {
+                $ref: "#/$defs/ProductFeedbackArea",
+                description: "Sample description",
+              },
+              feedback_type: {
+                $ref: "#/$defs/ProductFeedbackType",
+                description: "Sample description",
+              },
+              desired_outcome: {
+                anyOf: [
+                  {
+                    type: "string",
+                    maxLength: 1000,
+                    minLength: 1,
+                  },
+                  {
+                    type: "null",
+                  },
+                ],
+                title: "Sample title",
+                default: null,
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+          },
+          providerMetadata: {
+            strict: false,
+            annotations: {
+              title: "sample_tool_18",
+              readOnlyHint: false,
+              idempotentHint: false,
+              destructiveHint: true,
+            },
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_19",
+          description: "Sample description",
+          inputSchema: {
+            properties: {
+              query: {
+                minLength: 1,
+                title: "Sample title",
+                type: "string",
+                description: "Sample description",
+              },
+              top_k: {
+                minimum: 1,
+                title: "Sample title",
+                type: "integer",
+                default: 5,
+                description: "Sample description",
+              },
+              refresh: {
+                default: false,
+                description: "Sample description",
+                title: "Sample title",
+                type: "boolean",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["query"],
+            title: "Sample title",
+            type: "object",
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+        {
+          type: "function",
+          name: "sample_tool_20",
+          description: "Sample description",
+          inputSchema: {
+            type: "object",
+            properties: {
+              name: {
+                type: "string",
+                description: "Sample description",
+              },
+              input: {
+                type: "object",
+                description: "Sample description",
+              },
+              l_input_from_bash: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_path: {
+                type: "string",
+                description: "Sample description",
+              },
+              l_output_to_file: {
+                type: "boolean",
+                description: "Sample description",
+              },
+            },
+            required: ["name"],
+            additionalProperties: false,
+          },
+          providerMetadata: {
+            strict: false,
+          },
+        },
+      ],
+    },
+  },
+];
+
 const toolCallId = "call_weather_001";
 const customToolCallId = "call_custom_002";
 
