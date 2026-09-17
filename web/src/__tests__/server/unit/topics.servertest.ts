@@ -11,6 +11,7 @@ import {
 const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecution: vi.fn(),
+  readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
   writeTopicExecution: vi.fn(),
   listTopicFacets: vi.fn(),
@@ -27,7 +28,7 @@ const mocks = vi.hoisted(() => ({
   readTopicSummaries: vi.fn(),
   listTopicSummaries: vi.fn(),
   readTopicAssignments: vi.fn(),
-  readTopicArtifact: vi.fn(),
+  readTopicMapAssignments: vi.fn(),
   loadTopicTranscript: vi.fn(),
   isTopicsEnabled: vi.fn(),
   enqueueTopicExecution: vi.fn(),
@@ -158,6 +159,7 @@ beforeEach(() => {
     projectId,
   });
   mocks.readTopicExecution.mockResolvedValue(execution());
+  mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
   mocks.listTopicRuns.mockResolvedValue([run]);
@@ -290,8 +292,14 @@ describe("Topics filtered trace preview", () => {
         matchedTraceCount: "1001",
       })),
     );
-    const { projectId: ignoredProject, ...criteria } = selection;
-    void ignoredProject;
+    const criteria = {
+      filter: selection.filter,
+      from: selection.from,
+      to: selection.to,
+      limit: selection.limit,
+      sampling: selection.sampling,
+      seed: selection.seed,
+    };
     await caller().trigger({
       projectId,
       requestId: "filtered-request",
@@ -305,17 +313,21 @@ describe("Topics filtered trace preview", () => {
     expect(resolved.traceIds.at(-1)).toBe("trace-1000");
     expect(resolved).not.toHaveProperty("selection");
     expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe("sample-seed");
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
+      "sample-seed",
+    );
 
     mocks.createTopicExecution.mockClear();
     mocks.queryClickhouse.mockResolvedValue([]);
-    await expect(caller().trigger({
-      projectId,
-      requestId: "empty-request",
-      operation: "discover",
-      facetVersionIds: [facetVersionId],
-      selection: criteria,
-    })).rejects.toThrow("No traces match this selection");
+    await expect(
+      caller().trigger({
+        projectId,
+        requestId: "empty-request",
+        operation: "discover",
+        facetVersionIds: [facetVersionId],
+        selection: criteria,
+      }),
+    ).rejects.toThrow("No traces match this selection");
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
@@ -326,6 +338,35 @@ describe("Topics filtered trace preview", () => {
     const query = mocks.queryClickhouse.mock.calls[0][0].query;
     expect(query).toContain("ORDER BY t.latest_match DESC, t.id ASC");
     expect(query).not.toContain("cityHash64");
+  });
+
+  it("reuses the frozen cohort for a retried filtered request without querying the selection again", async () => {
+    const request = {
+      projectId,
+      requestId: "filtered-retry",
+      operation: "discover" as const,
+      facetVersionIds: [facetVersionId],
+      selection: {
+        filter: selection.filter,
+        from: selection.from,
+        to: selection.to,
+        limit: null,
+        sampling: selection.sampling,
+        seed: selection.seed,
+      },
+    };
+    mocks.readTopicExecutionForRequest.mockResolvedValue(execution());
+    expect(await caller().trigger(request)).toEqual({ id: "execution-a" });
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+    const firstHash = mocks.readTopicExecutionForRequest.mock.calls[0][2];
+    await caller().trigger({
+      ...request,
+      selection: { ...request.selection, limit: 50 },
+    });
+    expect(mocks.readTopicExecutionForRequest.mock.calls[1][2]).not.toBe(
+      firstHash,
+    );
   });
 
   it("rejects invalid or foreign-project selection before querying storage", async () => {
@@ -362,6 +403,8 @@ describe("Topics published scatter map", () => {
     projectId,
     facetVersionId,
     runId: "run-a",
+    executionId: "discovery-a",
+    coordinates: [10, 11],
     summaryId: "summary-a",
     topicId: "topic-a",
     outcome: "assigned",
@@ -371,37 +414,29 @@ describe("Topics published scatter map", () => {
       ...run,
       summaryIds: ["summary-b", "summary-a"],
       config: { executionId: "discovery-a" },
-      artifactPath: "numeric-a",
     });
     mocks.readTopicExecution.mockImplementation(async (_projectId, id) => ({
       ...execution(),
       id,
     }));
-    mocks.readTopicArtifact.mockResolvedValue({
-      status: "complete",
-      labels: [-1, 0],
-      coordinates: [
-        [20, 21],
-        [10, 11],
-      ],
-      embeddings: [[123, 456]],
-    });
-    mocks.readTopicSummaries.mockResolvedValue([
-      summary,
-      { ...summary, id: "summary-b", traceId: "trace-b" },
-    ]);
-    mocks.readTopicAssignments.mockResolvedValue([
+    mocks.readTopicMapAssignments.mockResolvedValue([
       firstAssignment,
       {
         ...firstAssignment,
         summaryId: "summary-b",
         topicId: null,
         outcome: "outlier",
+        coordinates: [20, 21],
       },
     ]);
+    mocks.readTopicSummaries.mockResolvedValue([
+      summary,
+      { ...summary, id: "summary-b", traceId: "trace-b" },
+    ]);
+    mocks.readTopicAssignments.mockResolvedValue([]);
   });
 
-  it("maps coordinates in immutable manifest order for a viewer without exposing vectors or artifact fields", async () => {
+  it("joins coordinates by summary identity in manifest order without exposing embeddings", async () => {
     const map = await caller("VIEWER").map(mapInput);
     expect(map.status).toBe("ready");
     expect(map.points).toEqual([
@@ -428,10 +463,10 @@ describe("Topics published scatter map", () => {
         inExecution: true,
       },
     ]);
-    expect(mocks.readTopicArtifact).toHaveBeenCalledWith(
+    expect(mocks.readTopicMapAssignments).toHaveBeenCalledWith(
       projectId,
+      "run-a",
       "discovery-a",
-      "numeric-a",
     );
     expect(JSON.stringify(map)).not.toContain("embedding");
     expect(map).not.toHaveProperty("artifactPath");
@@ -482,7 +517,7 @@ describe("Topics published scatter map", () => {
     expect(map.unpositioned[0]).not.toHaveProperty("x");
     expect(mocks.readTopicAssignments).toHaveBeenCalledWith(
       projectId,
-      ["summary-b", "summary-a", "summary-c", "summary-d"],
+      ["summary-c", "summary-d"],
       "run-a",
     );
   });
@@ -493,12 +528,14 @@ describe("Topics published scatter map", () => {
       ...run,
       summaryIds: ids,
       config: { executionId: "discovery-a" },
-      artifactPath: "numeric-a",
     });
-    mocks.readTopicArtifact.mockResolvedValue({
-      status: "complete",
-      coordinates: ids.map((_, index) => [index, index]),
-    });
+    mocks.readTopicMapAssignments.mockResolvedValue(
+      ids.map((id, index) => ({
+        ...firstAssignment,
+        summaryId: id,
+        coordinates: [index, index],
+      })),
+    );
     mocks.readTopicSummaries.mockResolvedValue(
       ids.map((id, index) => ({ ...summary, id, traceId: `trace-${index}` })),
     );
@@ -524,24 +561,38 @@ describe("Topics published scatter map", () => {
     const map = await caller().map(mapInput);
     expect(map.missingSummaryCount).toBe(1);
     expect(map.points).toMatchObject([
-      { summaryId: "summary-a", x: 10, y: 11, outcome: "unassigned" },
+      { summaryId: "summary-a", x: 10, y: 11, outcome: "assigned" },
     ]);
   });
 
   it.each([
-    null,
-    { status: "complete", coordinates: [[1, 2]] },
+    { rows: [] },
+    { rows: [firstAssignment] },
     {
-      status: "complete",
-      coordinates: [
-        [1, 2],
-        [Infinity, 3],
+      rows: [
+        firstAssignment,
+        {
+          ...firstAssignment,
+          summaryId: "summary-b",
+          coordinates: [Infinity, 3],
+        },
+      ],
+    },
+    {
+      rows: [
+        firstAssignment,
+        {
+          ...firstAssignment,
+          summaryId: "summary-b",
+          executionId: "online-execution",
+          coordinates: [20, 21],
+        },
       ],
     },
   ])(
-    "returns unavailable for missing or invalid coordinate artifacts",
-    async (artifact) => {
-      mocks.readTopicArtifact.mockResolvedValue(artifact);
+    "returns unavailable for missing, invalid, or foreign-origin coordinates",
+    async ({ rows }) => {
+      mocks.readTopicMapAssignments.mockResolvedValue(rows);
       const map = await caller().map(mapInput);
       expect(map.status).toBe("unavailable");
       expect(map.points).toEqual([]);
@@ -549,7 +600,28 @@ describe("Topics published scatter map", () => {
     },
   );
 
-  it("does not read unpublished artifacts or accept another facet's map", async () => {
+  it("keeps discovery coordinates and labels when later online assignments reuse the map", async () => {
+    mocks.readTopicAssignments.mockResolvedValue([
+      {
+        ...firstAssignment,
+        executionId: "online-execution",
+        topicId: null,
+        outcome: "outlier",
+        coordinates: null,
+      },
+    ]);
+    const map = await caller().map(mapInput);
+    expect(
+      map.points.find((point) => point.summaryId === "summary-a"),
+    ).toMatchObject({
+      x: 10,
+      y: 11,
+      topicId: "topic-a",
+      outcome: "assigned",
+    });
+  });
+
+  it("does not read unpublished coordinates or accept another facet's map", async () => {
     mocks.getTopicRun.mockResolvedValue({ ...run, publishedAt: null });
     expect((await caller().map(mapInput)).status).toBe("unavailable");
     mocks.getTopicRun.mockResolvedValue({
@@ -559,7 +631,7 @@ describe("Topics published scatter map", () => {
     await expect(caller().map(mapInput)).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
-    expect(mocks.readTopicArtifact).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
     expect(mocks.readTopicSummaries).not.toHaveBeenCalled();
   });
 
@@ -568,7 +640,7 @@ describe("Topics published scatter map", () => {
       id === "execution-a" ? execution() : null,
     );
     expect((await caller().map(mapInput)).status).toBe("unavailable");
-    expect(mocks.readTopicArtifact).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
     await expect(
       caller().map({ ...mapInput, projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
@@ -722,7 +794,7 @@ describe("Topics local execution access and publication", () => {
       }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(mocks.readTopicSummaries).not.toHaveBeenCalled();
-    expect(mocks.readTopicArtifact).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
   });
 
   it("regenerates inspection input from the source trace without loading artifacts", async () => {
@@ -740,7 +812,7 @@ describe("Topics local execution access and publication", () => {
       projectId,
       traceId: "trace-a",
     });
-    expect(mocks.readTopicArtifact).not.toHaveBeenCalled();
+    expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
     expect(response.projection).toEqual(projection);
     expect(response.projectionStatus).toBe("matching");
     expect(response).not.toHaveProperty("embedding");

@@ -1,10 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { TopicExecution } from "@langfuse/shared/topics";
 
 const state = vi.hoisted(() => ({
   call: vi.fn(),
-  artifacts: new Map<string, unknown>(),
 }));
 vi.mock("../../env", () => ({
   env: { OPENAI_API_KEY: "unit-test-placeholder" },
@@ -19,28 +17,11 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   countTopicTokens: (text: string) => Math.ceil(text.length / 4),
-  readTopicArtifact: async (
-    _project: string,
-    _execution: string,
-    key: string,
-  ) => state.artifacts.get(key) ?? null,
-  writeTopicArtifact: async (
-    _project: string,
-    _execution: string,
-    key: string,
-    value: unknown,
-  ) => {
-    state.artifacts.set(key, value);
-  },
 }));
 
 import { nameTopicGroups, summarizeTopicTrace } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
-const execution = {
-  projectId: "project",
-  id: "execution",
-} as TopicExecution;
 const evidence = {
   groups: [
     {
@@ -57,12 +38,11 @@ const evidence = {
 };
 
 beforeEach(() => {
-  state.artifacts.clear();
   state.call.mockReset();
 });
 
 describe("Topics naming boundary", () => {
-  it("persists accepted summaries without retaining transcript request bodies", async () => {
+  it("validates summary evidence at the provider boundary", async () => {
     state.call.mockResolvedValue({
       output: {
         summary: "A billing request.",
@@ -80,18 +60,7 @@ describe("Topics naming boundary", () => {
       processingConfig: topicProcessingConfigSchema.parse({}),
       createdAt: "2026-09-16T00:00:00Z",
     };
-    await summarizeTopicTrace(
-      { execution, key: "summary" },
-      facet,
-      "RAW_TRANSCRIPT_SENTINEL",
-      ["block-a"],
-    );
-    await summarizeTopicTrace(
-      { execution, key: "summary" },
-      facet,
-      "RAW_TRANSCRIPT_SENTINEL",
-      ["block-a"],
-    );
+    await summarizeTopicTrace(facet, "RAW_TRANSCRIPT_SENTINEL", ["block-a"]);
     expect(state.call).toHaveBeenCalledTimes(1);
     expect(state.call.mock.calls[0][0].model.id).toBe("gpt-4.1-nano");
     const providerSchema = state.call.mock.calls[0][0].output;
@@ -109,12 +78,6 @@ describe("Topics naming boundary", () => {
         status: "applicable",
       }).success,
     ).toBe(true);
-    expect(JSON.stringify([...state.artifacts.values()])).not.toContain(
-      "RAW_TRANSCRIPT_SENTINEL",
-    );
-    expect(
-      [...state.artifacts.keys()].some((key) => key.startsWith("call-")),
-    ).toBe(true);
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
     const facet = {
@@ -129,12 +92,7 @@ describe("Topics naming boundary", () => {
       createdAt: "2026-09-16T00:00:00Z",
     };
     await expect(
-      summarizeTopicTrace(
-        { execution, key: "oversized" },
-        facet,
-        "Trace evidence. ".repeat(1000),
-        ["block-a"],
-      ),
+      summarizeTopicTrace(facet, "Trace evidence. ".repeat(1000), ["block-a"]),
     ).rejects.toThrow("transcript is never shortened per facet");
     expect(state.call).not.toHaveBeenCalled();
   });
@@ -152,7 +110,6 @@ describe("Topics naming boundary", () => {
       usage: { inputTokens: 100, outputTokens: 30 },
     });
     await summarizeTopicTrace(
-      { execution, key: "many-blocks" },
       {
         id: "facet-version",
         projectId: "project",
@@ -170,7 +127,7 @@ describe("Topics naming boundary", () => {
       outputSchema.properties?.evidenceBlockIds?.items?.enum ?? [];
     expect(enumValues.join("").length).toBeLessThanOrEqual(15_000);
   });
-  it("attaches the known identity and replays the accepted provider output", async () => {
+  it("attaches the known group identity to its provider label", async () => {
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
@@ -179,18 +136,14 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    const result = await nameTopicGroups({ execution, key: "one" }, evidence);
+    const result = await nameTopicGroups(evidence);
     expect(result.output.labels[0]).toMatchObject({
       id: "stable-topic-id",
       evidenceSummaryIds: ["member-a"],
     });
-    await nameTopicGroups({ execution, key: "one" }, evidence);
     expect(state.call).toHaveBeenCalledTimes(1);
     expect(state.call.mock.calls[0][0].model.id).toBe("gpt-5.6-luna");
     expect(result.costUsd).toBeCloseTo(0.000056, 10);
-    expect(
-      [...state.artifacts.keys()].some((key) => key.startsWith("request-")),
-    ).toBe(false);
   });
 
   it("names the complete cohort without shortening member summaries", async () => {
@@ -206,12 +159,9 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    await nameTopicGroups(
-      { execution, key: "all-members" },
-      {
-        groups: [{ id: "group", members, contrasts: [] }],
-      },
-    );
+    await nameTopicGroups({
+      groups: [{ id: "group", members, contrasts: [] }],
+    });
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,
     );
@@ -231,9 +181,7 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    await expect(
-      nameTopicGroups({ execution, key: "contrast" }, evidence),
-    ).rejects.toThrow();
+    await expect(nameTopicGroups(evidence)).rejects.toThrow();
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
@@ -242,11 +190,6 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    await expect(
-      nameTopicGroups({ execution, key: "too-many" }, evidence),
-    ).rejects.toThrow();
-    expect(
-      [...state.artifacts.keys()].some((key) => key.startsWith("call-")),
-    ).toBe(false);
+    await expect(nameTopicGroups(evidence)).rejects.toThrow();
   });
 });

@@ -1978,25 +1978,25 @@ model TopicFacetVersion {
 }
 
 model TopicClusteringRun {
-  executionId       String @map("execution_id")
-  executionMetadata Json   @default("{}") @map("execution_metadata")
-  id             String            @id @default(cuid())
-  projectId      String            @map("project_id")
-  facetVersionId String            @map("facet_version_id")
-  facetVersion   TopicFacetVersion @relation(fields: [projectId, facetVersionId], references: [projectId, id], onDelete: Cascade)
-  runSequence    BigInt            @default(autoincrement()) @map("run_sequence")
-  status         String            @default("pending")
-  phase          String            @default("snapshot")
-  config         Json              @default("{}")
-  manifestPath   String            @default("") @map("manifest_path")
-  artifactPath   String            @default("") @map("artifact_path")
-  metrics        Json              @default("{}")
-  error          String?
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  startedAt      DateTime?         @map("started_at") @db.Timestamptz(3)
-  finishedAt     DateTime?         @map("finished_at") @db.Timestamptz(3)
-  publishedAt    DateTime?         @map("published_at") @db.Timestamptz(3)
-  topics         Topic[]
+  executionId       String            @map("execution_id")
+  executionMetadata Json              @default("{}") @map("execution_metadata")
+  id                String            @id @default(cuid())
+  projectId         String            @map("project_id")
+  facetVersionId    String            @map("facet_version_id")
+  facetVersion      TopicFacetVersion @relation(fields: [projectId, facetVersionId], references: [projectId, id], onDelete: Cascade)
+  runSequence       BigInt            @default(autoincrement()) @map("run_sequence")
+  status            String            @default("pending")
+  phase             String            @default("snapshot")
+  config            Json              @default("{}")
+  manifestPath      String            @default("") @map("manifest_path")
+  artifactPath      String            @default("") @map("artifact_path")
+  metrics           Json              @default("{}")
+  error             String?
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt         DateTime?         @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?         @map("finished_at") @db.Timestamptz(3)
+  publishedAt       DateTime?         @map("published_at") @db.Timestamptz(3)
+  topics            Topic[]
 
   @@unique([projectId, id])
   @@index([projectId, facetVersionId, runSequence(sort: Desc)])

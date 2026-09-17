@@ -115,21 +115,59 @@ describe("Topics run start checkpoint", () => {
   it("configures the trigger-created run without replacing execution metadata", async () => {
     vi.resetAllMocks();
     const row = {
-      id: "run-a", projectId: "project-a", executionId: "execution-a",
-      facetVersionId: "facet-v1", runSequence: 1n, status: "pending", phase: "queued",
-      config: {}, metrics: {}, error: null, artifactPath: "", manifestPath: "", topics: [],
-      createdAt: new Date(), startedAt: null, finishedAt: null, publishedAt: null,
+      id: "run-a",
+      projectId: "project-a",
+      executionId: "execution-a",
+      facetVersionId: "facet-v1",
+      runSequence: 1n,
+      status: "pending",
+      phase: "queued",
+      config: {},
+      metrics: {},
+      error: null,
+      artifactPath: "",
+      manifestPath: "",
+      topics: [],
+      createdAt: new Date(),
+      startedAt: null,
+      finishedAt: null,
+      publishedAt: null,
       executionMetadata: { durable: "request" },
     };
     mocks.runFind.mockResolvedValue(row);
-    mocks.runUpdate.mockImplementation(async ({ data }) => ({ ...row, ...data }));
-    await createTopicRun({ id: row.id, projectId: row.projectId, facetVersionId: row.facetVersionId,
-      config: { executionId: row.executionId, dimensions: 256 }, summaryIds: ["summary-a"] });
-    expect(mocks.writeArtifact).toHaveBeenCalledWith("project-a", "execution-a", "manifest-run-a", { summaryIds: ["summary-a"] });
-    expect(mocks.runUpdate).toHaveBeenCalledWith(expect.objectContaining({ data: {
-      config: { executionId: "execution-a", dimensions: 256 }, manifestPath: "manifest-run-a", artifactPath: "",
-    } }));
-    await expect(createTopicRun({ id: row.id, projectId: row.projectId, facetVersionId: "another-facet" })).rejects.toThrow("facet version");
+    mocks.runUpdate.mockImplementation(async ({ data }) => ({
+      ...row,
+      ...data,
+    }));
+    await createTopicRun({
+      id: row.id,
+      projectId: row.projectId,
+      facetVersionId: row.facetVersionId,
+      config: { executionId: row.executionId, dimensions: 256 },
+      summaryIds: ["summary-a"],
+    });
+    expect(mocks.writeArtifact).toHaveBeenCalledWith(
+      "project-a",
+      "execution-a",
+      "manifest-run-a",
+      { summaryIds: ["summary-a"] },
+    );
+    expect(mocks.runUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          config: { executionId: "execution-a", dimensions: 256 },
+          manifestPath: "manifest-run-a",
+          artifactPath: "",
+        },
+      }),
+    );
+    await expect(
+      createTopicRun({
+        id: row.id,
+        projectId: row.projectId,
+        facetVersionId: "another-facet",
+      }),
+    ).rejects.toThrow("facet version");
   });
 
   it("round-trips the first start time without resetting it on resume", async () => {
@@ -196,6 +234,68 @@ describe("Topics run start checkpoint", () => {
 
 describe("Topics published results", () => {
   beforeEach(() => vi.resetAllMocks());
+
+  it("keeps accepted labels and only upserts the next completed topic", async () => {
+    const topic = {
+      topicVersionId: "topic-a",
+      topicId: "topic-a",
+      projectId: "project-a",
+      runId: "run-a",
+      name: "Billing",
+      description: "Invoice requests",
+      centroid: [1, 0],
+      radius: 0.1,
+      representativeSummaryIds: ["summary-a"],
+      metadata: { namingModel: "model" },
+    };
+    const row = {
+      id: "run-a",
+      projectId: "project-a",
+      executionId: "execution-a",
+      facetVersionId: "facet-v1",
+      runSequence: 1n,
+      status: "running",
+      phase: "naming",
+      config: {},
+      metrics: {},
+      error: null,
+      artifactPath: "",
+      manifestPath: "",
+      topics: [topic],
+      createdAt: new Date(),
+      startedAt: new Date(),
+      finishedAt: null,
+      publishedAt: null,
+    };
+    mocks.runFind.mockResolvedValue(row);
+    mocks.runUpdate.mockResolvedValue(row);
+    const run = (await getTopicRun(row.projectId, row.id))!;
+    const next = {
+      ...topic,
+      topicVersionId: "topic-b",
+      topicId: "topic-b",
+      name: "Travel",
+    };
+    await saveTopicRun({ ...run, topics: [topic, next] });
+    expect(mocks.upsertTopic).toHaveBeenCalledTimes(1);
+    expect(mocks.upsertTopic).toHaveBeenCalledWith({
+      where: {
+        topicVersionId: "topic-b",
+        projectId: "project-a",
+        runId: "run-a",
+      },
+      create: next,
+      update: next,
+    });
+    mocks.upsertTopic.mockClear();
+    mocks.runFind.mockResolvedValue({
+      ...row,
+      publishedAt: new Date(),
+      status: "completed",
+    });
+    await saveTopicRun({ ...run, topics: [next] });
+    expect(mocks.upsertTopic).not.toHaveBeenCalled();
+  });
 
   it("resolves only the selected project's published facet map and exact topic versions", async () => {
     mocks.facetFind.mockResolvedValue({ publishedRunId: "run-a" });

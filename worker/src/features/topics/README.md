@@ -6,10 +6,11 @@ current local Langfuse instance (normally `http://localhost:3000`).
 
 ## Setup
 
-Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
+Use the normal local Postgres, ClickHouse, Redis, object storage, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
 worker. Topics is enabled only when `NODE_ENV=development` and `NEXTAUTH_URL` has a
-loopback hostname. Web and worker must share this checkout and its local disk.
+loopback hostname. Web and worker use the same databases and event-upload bucket;
+no shared filesystem is needed.
 
 Build the numerical addon from the repository root (the normal worker build and
 dev commands also build it):
@@ -89,7 +90,7 @@ processing the next trace. Loading is lazy: accepted summaries and frozen cohort
 replay without reading the source. It does not persist source
 snapshots, transcripts, projections, or model request bodies. Shared deterministic
 assembly is used by the worker and the on-demand summary inspector. Accepted
-model outputs are immutable local artifacts, written before ClickHouse results.
+summaries and embeddings are saved in ClickHouse; accepted names are saved in Postgres.
 Successful extraction writes the summary and embedding together to ClickHouse.
 If embedding fails, the summary is saved without a vector; a successful resume
 writes the complete result under the same row identity with a higher result version.
@@ -186,10 +187,19 @@ Model outputs still undergo semantic contract checks: a non-applicable result
 containing a summary or evidence is rejected, not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
-`.topics-data/` contains private local journals, accepted inference outputs,
-cohort manifests, and numerical results.
-Transcripts and raw source snapshots are regenerated from the original trace
-data and are not stored here. This local directory is ignored by git.
+Postgres creates one `topic_clustering_runs` row per selected facet at trigger
+and stores aggregate execution progress. Selected trace IDs, summary references,
+and numerical fits use content-addressed objects under the event-upload bucket's
+`topics/` prefix. ID lists are chunked; their contents never enter Postgres.
+ClickHouse stores summary text, embeddings, assignment outcomes, and map coordinates.
+Postgres stores each accepted cluster label separately, with evidence IDs only.
+Transcripts stay in memory. There are no per-call output files or shared-disk state.
+
+Processing reads cached summaries in batches of 100 traces and flushes accepted
+results before saving batch progress. ClickHouse writes are additionally bounded
+by 10,000 rows / 8 MiB with awaited async inserts. Successful summary+embedding
+work produces one combined row; embedding failures preserve a summary-only row.
+The batch size is an internal work unit, not a selected-trace cap.
 
 Provider usage and calculated model costs are recorded with accepted results.
 Calculations use $0.10/M input and
@@ -203,7 +213,7 @@ calling the provider; member summaries are never silently discarded. Embedding
 input remains capped at 1,024 tokens.
 Provider retries are disabled.
 
-An accepted call checkpoint can replay without another charge. If a worker
+A persisted summary, embedding, or cluster name can be reused without another charge. If a worker
 stops after a provider call succeeds but before saving its result, a manual
 resume may repeat that call.
 
@@ -212,8 +222,11 @@ Once extraction finishes, the accepted summary cohort and its failed-trace count
 are frozen before clustering or assignment. Downstream retries reuse that cohort
 without loading traces again, including when some traces failed.
 To process those traces later, create a new execution; do not reinterpret a
-published map's initial manifest. This local PoC has one queue owner and no
-automatic discovery schedule, arrival catch-up, retention, or multi-host journal.
+published map's initial manifest. This PoC has one queue owner per execution and no automatic discovery schedule,
+arrival catch-up, or object-retention job. The planned six-hour scheduler should
+invoke the same refresh path as the manual button. Large per-project discovery,
+all-member naming, and distributed stream processing remain follow-up work;
+these changes are not a 100-million-traces/day throughput validation.
 
 ### Observed small-sample limitation
 

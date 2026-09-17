@@ -10,4 +10,3 @@ export function isTopicsEnabled(): boolean {
     return false;
   }
 }
-

@@ -90,18 +90,29 @@ const assignmentFixture: TopicAssignment = {
 
 describe("Topics summary provenance storage", () => {
   it("bounds embedding-heavy inserts by serialized bytes and waits for durable async writes", async () => {
-    const rows = Array.from({ length: 70 }, (_, index) => ({
+    const rows = Array.from({ length: 512 }, (_, index) => ({
       ...summaryFixture,
       id: `summary-${index}`,
-      embedding: Array.from({ length: 16_384 }, () => 0.123456789),
+      embedding: Array.from({ length: 1536 }, () => 0.123456789),
     }));
     await writeTopicSummaries(rows);
     expect(mocks.insert.mock.calls.length).toBeGreaterThan(1);
-    expect(mocks.insert.mock.calls.flatMap(([request]) => request.values.map((row: {id: string}) => row.id))).toEqual(rows.map((row) => row.id));
+    expect(
+      mocks.insert.mock.calls.flatMap(([request]) =>
+        request.values.map((row: { id: string }) => row.id),
+      ),
+    ).toEqual(rows.map((row) => row.id));
     for (const [request] of mocks.insert.mock.calls) {
-      const bytes = request.values.reduce((sum: number, row: unknown) => sum + Buffer.byteLength(JSON.stringify(row)) + 1, 0);
+      const bytes = request.values.reduce(
+        (sum: number, row: unknown) =>
+          sum + Buffer.byteLength(JSON.stringify(row)) + 1,
+        0,
+      );
       expect(bytes).toBeLessThanOrEqual(8 * 1024 * 1024);
-      expect(request.clickhouse_settings).toMatchObject({ async_insert: 1, wait_for_async_insert: 1 });
+      expect(request.clickhouse_settings).toMatchObject({
+        async_insert: 1,
+        wait_for_async_insert: 1,
+      });
     }
   });
 
@@ -217,8 +228,14 @@ describe("Topics assignment outcomes", () => {
       id: `assignment-${index}`,
     }));
     await writeTopicAssignments(rows);
-    expect(mocks.insert.mock.calls.map(([request]) => request.values.length)).toEqual([10_000, 1]);
-    expect(mocks.insert.mock.calls.flatMap(([request]) => request.values.map((row: {id: string}) => row.id))).toEqual(rows.map((row) => row.id));
+    expect(
+      mocks.insert.mock.calls.map(([request]) => request.values.length),
+    ).toEqual([10_000, 1]);
+    expect(
+      mocks.insert.mock.calls.flatMap(([request]) =>
+        request.values.map((row: { id: string }) => row.id),
+      ),
+    ).toEqual(rows.map((row) => row.id));
   });
 
   it("stores terminal no-map results without retaining topic identities", async () => {
@@ -256,7 +273,11 @@ describe("Topics assignment outcomes", () => {
     mocks.query.mockResolvedValue([]);
     await readTopicMapAssignments("project-a", "run-a", "discovery-a");
     const { query, params } = mocks.query.mock.calls[0][0];
-    expect(params).toEqual({ projectId: "project-a", runId: "run-a", executionId: "discovery-a" });
+    expect(params).toEqual({
+      projectId: "project-a",
+      runId: "run-a",
+      executionId: "discovery-a",
+    });
     for (const filter of [
       "project_id = {projectId:String}",
       "clustering_run_id = {runId:String}",

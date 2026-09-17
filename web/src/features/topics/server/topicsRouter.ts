@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   topicEmbeddingConfigSchema,
@@ -12,6 +13,7 @@ import {
 import {
   createTopicExecution,
   readTopicExecution,
+  readTopicExecutionForRequest,
   listTopicExecutions,
   listTopicFacets,
   ensureDefaultTopicFacets,
@@ -232,8 +234,7 @@ async function publishedTopicMap(input: {
   )
     return {
       ...unavailable,
-      reason:
-        "The discovery cohort is unavailable for this map.",
+      reason: "The discovery cohort is unavailable for this map.",
     };
   const origin = await readTopicExecution(input.projectId, originId.data);
   if (
@@ -257,20 +258,19 @@ async function publishedTopicMap(input: {
   );
   const projectedById = new Map(
     discoveryAssignments
-      .filter((row) =>
-        row.projectId === input.projectId &&
-        row.runId === run.id &&
-        row.executionId === origin.id &&
-        row.facetVersionId === input.facetVersionId &&
-        discoveryIds.has(row.summaryId) &&
-        row.coordinates?.length === 2 &&
-        row.coordinates.every(Number.isFinite),
+      .filter(
+        (row) =>
+          row.projectId === input.projectId &&
+          row.runId === run.id &&
+          row.executionId === origin.id &&
+          row.facetVersionId === input.facetVersionId &&
+          discoveryIds.has(row.summaryId) &&
+          row.coordinates?.length === 2 &&
+          row.coordinates.every(Number.isFinite),
       )
       .map((row) => [row.summaryId, row]),
   );
-  if (
-    projectedById.size !== discoveryIds.size
-  )
+  if (projectedById.size !== discoveryIds.size)
     return {
       ...unavailable,
       reason:
@@ -295,7 +295,10 @@ async function publishedTopicMap(input: {
   );
   const topicIds = new Set(run.topics.map((topic) => topic.topicId));
   const assignedById = new Map(
-    [...projectedById.values(), ...assignments]
+    [
+      ...projectedById.values(),
+      ...assignments.filter((row) => !discoveryIds.has(row.summaryId)),
+    ]
       .filter(
         (row) =>
           row.projectId === input.projectId &&
@@ -437,11 +440,26 @@ export const topicsRouter = createTRPCRouter({
             );
         }
       }
-      const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
-      const execution = await createTopicExecution(resolvedInput);
+      const requestHash =
+        "selection" in input
+          ? createHash("sha256").update(JSON.stringify(input)).digest("hex")
+          : undefined;
+      const existing = requestHash
+        ? await readTopicExecutionForRequest(
+            input.projectId,
+            input.requestId,
+            requestHash,
+          )
+        : null;
+      const execution =
+        existing ??
+        (await createTopicExecution(
+          await resolveTopicTraceSelection(input, ctx.prisma),
+          requestHash,
+        ));
       if (execution.status === "queued")
         await enqueueTopicExecution(input.projectId, execution.id);
-      return execution;
+      return { id: execution.id };
     }),
   retry: topicsWriteProcedure
     .input(executionInput)

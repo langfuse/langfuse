@@ -30,7 +30,10 @@ async function insertTopicRows<T extends { projectId: string }>(
         wait_for_async_insert: 1,
         log_comment: buildClickHouseLogComment({
           surface: "worker",
-          route: table === "topic_facet_summaries" ? "topics-summaries" : "topics-assignments",
+          route:
+            table === "topic_facet_summaries"
+              ? "topics-summaries"
+              : "topics-assignments",
           projectId: rows[0].projectId,
         }),
       },
@@ -184,35 +187,35 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
       throw new Error("Invalid Topics summary checkpoint.");
   }
   await insertTopicRows("topic_facet_summaries", rows, (row) => ({
-      id: row.id,
-      project_id: row.projectId,
-      facet_id: row.facetId,
-      facet_version_id: row.facetVersionId,
-      facet_version: row.facetVersion,
-      unit_id: row.traceId,
-      unit_type: "trace",
-      trigger_type: "manual_poc",
-      unit_timestamp: convertDateToClickhouseDateTime(
-        new Date(row.traceTimestamp),
-      ),
-      revision: row.revision,
-      execution_id: row.executionId,
-      result_version: row.resultVersion,
-      processing_state: row.state,
-      summary: row.summary,
-      embedding: row.embedding,
-      input_hash: row.inputHash,
-      snapshot_hash: row.snapshotHash,
-      invocation_hash: row.invocationHash,
-      summary_model: row.summaryModel,
-      embedding_model: row.embeddingModel,
-      input_tokens: row.inputTokens,
-      output_tokens: row.outputTokens,
-      embedding_tokens: row.embeddingTokens,
-      summary_cost_usd: row.summaryCostUsd,
-      embedding_cost_usd: row.embeddingCostUsd,
-      processed_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
-      metadata: JSON.stringify(row.metadata),
+    id: row.id,
+    project_id: row.projectId,
+    facet_id: row.facetId,
+    facet_version_id: row.facetVersionId,
+    facet_version: row.facetVersion,
+    unit_id: row.traceId,
+    unit_type: "trace",
+    trigger_type: "manual_poc",
+    unit_timestamp: convertDateToClickhouseDateTime(
+      new Date(row.traceTimestamp),
+    ),
+    revision: row.revision,
+    execution_id: row.executionId,
+    result_version: row.resultVersion,
+    processing_state: row.state,
+    summary: row.summary,
+    embedding: row.embedding,
+    input_hash: row.inputHash,
+    snapshot_hash: row.snapshotHash,
+    invocation_hash: row.invocationHash,
+    summary_model: row.summaryModel,
+    embedding_model: row.embeddingModel,
+    input_tokens: row.inputTokens,
+    output_tokens: row.outputTokens,
+    embedding_tokens: row.embeddingTokens,
+    summary_cost_usd: row.summaryCostUsd,
+    embedding_cost_usd: row.embeddingCostUsd,
+    processed_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
+    metadata: JSON.stringify(row.metadata),
   }));
 }
 
@@ -230,39 +233,41 @@ export async function writeTopicAssignments(
         (!row.runId || !row.runSequence)) ||
       (row.runId === null) !== (row.runSequence === null) ||
       (row.distance !== null && !Number.isFinite(row.distance)) ||
-      (row.runnerUpDistance !== null && !Number.isFinite(row.runnerUpDistance)) ||
+      (row.runnerUpDistance !== null &&
+        !Number.isFinite(row.runnerUpDistance)) ||
       (row.coordinates !== null &&
-        (!row.runId || row.coordinates.length !== 2 ||
+        (!row.runId ||
+          row.coordinates.length !== 2 ||
           !row.coordinates.every(Number.isFinite)))
     )
       throw new Error("Invalid Topics assignment.");
   }
   await insertTopicRows("topic_assignments", rows, (row) => ({
-      id: row.id,
-      project_id: row.projectId,
-      facet_id: row.facetId,
-      facet_version_id: row.facetVersionId,
-      facet_version: row.facetVersion,
-      unit_id: row.traceId,
-      unit_type: row.unitType,
-      unit_timestamp: convertDateToClickhouseDateTime(
-        new Date(row.traceTimestamp),
-      ),
-      facet_summary_id: row.summaryId,
-      execution_id: row.executionId,
-      summary_revision: row.summaryRevision,
-      clustering_run_id: row.runId ?? "",
-      run_sequence: row.runSequence ?? "0",
-      topic_id: row.topicId ?? "",
-      topic_version_id: row.topicVersionId ?? "",
-      outcome: row.outcome,
-      distance: row.distance,
-      runner_up_distance: row.runnerUpDistance,
-      rejection_reason: row.rejectionReason,
-      origin: row.origin,
-      coordinates: row.coordinates ?? [],
-      assigned_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
-      result_version: 1,
+    id: row.id,
+    project_id: row.projectId,
+    facet_id: row.facetId,
+    facet_version_id: row.facetVersionId,
+    facet_version: row.facetVersion,
+    unit_id: row.traceId,
+    unit_type: row.unitType,
+    unit_timestamp: convertDateToClickhouseDateTime(
+      new Date(row.traceTimestamp),
+    ),
+    facet_summary_id: row.summaryId,
+    execution_id: row.executionId,
+    summary_revision: row.summaryRevision,
+    clustering_run_id: row.runId ?? "",
+    run_sequence: row.runSequence ?? "0",
+    topic_id: row.topicId ?? "",
+    topic_version_id: row.topicVersionId ?? "",
+    outcome: row.outcome,
+    distance: row.distance,
+    runner_up_distance: row.runnerUpDistance,
+    rejection_reason: row.rejectionReason,
+    origin: row.origin,
+    coordinates: row.coordinates ?? [],
+    assigned_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
+    result_version: 1,
   }));
 }
 
@@ -297,7 +302,10 @@ function assignmentResult({
     runSequence: row.runSequence === "0" ? null : row.runSequence,
     topicId: row.topicId || null,
     topicVersionId: row.topicVersionId || null,
-    coordinates: row.coordinates.length === 2 ? [row.coordinates[0], row.coordinates[1]] : null,
+    coordinates:
+      row.coordinates.length === 2
+        ? [row.coordinates[0], row.coordinates[1]]
+        : null,
     traceTimestamp: new Date(Number(traceTimestampMs)).toISOString(),
     assignedAt: new Date(Number(assignedAtMs)).toISOString(),
   };

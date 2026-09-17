@@ -141,14 +141,16 @@ export function TopicPipelineForm({
           "traceIds" in selection
             ? { traceIds: selection.traceIds }
             : { selection: selection.selection };
-        return operation === "assign"
-          ? {
-              ...base,
-              operation,
-              ...traceInput,
-              targetRunIds: selectedTargetRunIds,
-            }
-          : { ...base, operation, ...traceInput };
+        if (operation === "assign")
+          return {
+            ...base,
+            operation,
+            ...traceInput,
+            targetRunIds: selectedTargetRunIds,
+          };
+        if (operation === "discover")
+          return { ...base, operation, ...traceInput };
+        return { ...base, operation, ...traceInput };
       })();
       const key = JSON.stringify(values);
       if (request.current?.key !== key)

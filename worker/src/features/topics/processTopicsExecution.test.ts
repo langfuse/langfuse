@@ -281,7 +281,7 @@ beforeEach(() => {
   state.sourceSuffix = "";
   state.summarize
     .mockReset()
-    .mockImplementation(async (_context, _facet, text: string) => {
+    .mockImplementation(async (_facet, text: string) => {
       const block = text
         .split("\n")
         .map((line) => JSON.parse(line))
@@ -299,18 +299,16 @@ beforeEach(() => {
     });
   state.embed
     .mockReset()
-    .mockImplementation(
-      async (_context, summary: string, dimensions: number) => {
-        const i = Number(summary.replace("trace", ""));
-        const embedding = Array.from({ length: dimensions }, () => 0);
-        if (i === 101) embedding[2] = 1;
-        else {
-          embedding[i < 50 || i === 100 ? 0 : 1] = 1;
-          embedding[3] = Math.sin(i) * 0.03;
-        }
-        return { embedding, inputTokens: 10, costUsd: 0.000001 };
-      },
-    );
+    .mockImplementation(async (summary: string, dimensions: number) => {
+      const i = Number(summary.replace("trace", ""));
+      const embedding = Array.from({ length: dimensions }, () => 0);
+      if (i === 101) embedding[2] = 1;
+      else {
+        embedding[i < 50 || i === 100 ? 0 : 1] = 1;
+        embedding[3] = Math.sin(i) * 0.03;
+      }
+      return { embedding, inputTokens: 10, costUsd: 0.000001 };
+    });
   state.numeric.mockReset().mockImplementation(async (vectors: number[][]) => ({
     status: "complete",
     labels: vectors.map((vector) =>
@@ -321,10 +319,9 @@ beforeEach(() => {
   state.name
     .mockReset()
     .mockImplementation(
-      async (
-        _context,
-        input: { groups: { id: string; members: { id: string }[] }[] },
-      ) => ({
+      async (input: {
+        groups: { id: string; members: { id: string }[] }[];
+      }) => ({
         output: {
           labels: input.groups.map((group) => ({
             id: group.id,
@@ -346,18 +343,36 @@ describe("Topics execution", () => {
   it("keeps paid results in their domain tables and resumes accepted cluster labels", async () => {
     state.executions.set("durable", execution("durable", 100));
     const naming = state.name.getMockImplementation()!;
-    state.name.mockImplementationOnce(naming).mockRejectedValueOnce(new Error("Naming unavailable"));
-    await processTopicsExecution({ projectId: "project", executionId: "durable" });
+    state.name
+      .mockImplementationOnce(naming)
+      .mockRejectedValueOnce(new Error("Naming unavailable"));
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "durable",
+    });
     const run = [...state.runs.values()][0];
     expect(run.topics).toHaveLength(1);
     expect(run.topics[0].metadata).not.toHaveProperty("namingEvidence");
-    expect([...state.artifacts.keys()].some((key) => /\/(summary|complete|call|embedding|evidence|continuity|assignments|no-topic)-/.test(key))).toBe(false);
+    expect(
+      [...state.artifacts.keys()].some((key) =>
+        /\/(summary|complete|call|embedding|evidence|continuity|assignments|no-topic)-/.test(
+          key,
+        ),
+      ),
+    ).toBe(false);
     state.sourceUnavailable = true;
-    await processTopicsExecution({ projectId: "project", executionId: "durable" });
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "durable",
+    });
     expect(state.name).toHaveBeenCalledTimes(3);
     expect(state.summarize).toHaveBeenCalledTimes(100);
     expect(state.executions.get("durable")?.status).toBe("completed");
-    expect([...state.assignments.values()].every((row) => row.executionId === "durable" && row.coordinates?.length === 2)).toBe(true);
+    expect(
+      [...state.assignments.values()].every(
+        (row) => row.executionId === "durable" && row.coordinates?.length === 2,
+      ),
+    ).toBe(true);
   });
 
   it("accumulates small refresh batches and retains topic identities on a forced refresh", async () => {
@@ -456,7 +471,7 @@ describe("Topics execution", () => {
       executionId: second.id,
     });
     expect(state.summarize).toHaveBeenCalledTimes(1);
-    expect(state.embed.mock.calls.map((call) => call[2])).toEqual([16, 32]);
+    expect(state.embed.mock.calls.map((call) => call[1])).toEqual([16, 32]);
     expect(
       state.events.filter((event) => event.startsWith("write-summary:")),
     ).toEqual(["write-summary:complete", "write-summary:complete"]);
@@ -658,7 +673,7 @@ describe("Topics execution", () => {
     ]);
     expect(state.summarize).toHaveBeenCalledTimes(4);
     const calls = state.summarize.mock.calls;
-    expect(calls.map((call) => JSON.parse(call[2]).observationId)).toEqual([
+    expect(calls.map((call) => JSON.parse(call[1]).observationId)).toEqual([
       "trace0",
       "trace0",
       "trace1",
@@ -675,7 +690,7 @@ describe("Topics execution", () => {
     }
     const persisted = JSON.stringify([...state.artifacts.values()]);
     for (const call of calls)
-      expect(persisted).not.toContain(JSON.stringify(call[2]));
+      expect(persisted).not.toContain(JSON.stringify(call[1]));
   });
 
   it("shares a failed source read across facets and still processes the next trace", async () => {
@@ -971,7 +986,7 @@ describe("Topics execution", () => {
     });
 
     expect(state.summarize).toHaveBeenCalledTimes(1);
-    expect(state.embed.mock.calls.map((call) => call[2])).toEqual([16, 32]);
+    expect(state.embed.mock.calls.map((call) => call[1])).toEqual([16, 32]);
     const target = [...state.summaries.values()].find(
       (row) => row.facetVersionId === updated.id,
     )!;

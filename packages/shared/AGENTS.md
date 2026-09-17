@@ -54,8 +54,9 @@
 
 - `@langfuse/shared/topics`: client-safe local Topics execution and result contracts.
 - `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
-  queue access and durable execution journals under the shared workspace
-  `.topics-data` directory. Available only on a loopback development server.
+  queue access and Postgres run progress with object-storage input/cohort manifests.
+  Summaries, embeddings, assignments and map coordinates live in ClickHouse.
+  Available only on a loopback development server.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
   in memory for the worker and evidence inspector; transcript/source I/O is
   not part of the execution journal. Facet versions own summary settings; executions

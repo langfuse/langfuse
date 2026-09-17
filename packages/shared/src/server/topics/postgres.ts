@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { prisma, Prisma } from "../../db";
 import {
   topicProcessingConfigSchema,
@@ -9,7 +8,7 @@ import {
   type TopicDefinition,
 } from "../../topics";
 import { readTopicArtifact, writeTopicArtifact } from "./journal";
-import { chunk } from "lodash";
+import { chunk, isEqual } from "lodash";
 
 type FacetVersionRow = Prisma.TopicFacetVersionGetPayload<object>;
 type RunRow = Prisma.TopicClusteringRunGetPayload<{
@@ -170,11 +169,13 @@ export async function ensureDefaultTopicFacets(
 }
 
 async function runResult(row: RunRow): Promise<TopicRun> {
-  const manifest = await readTopicArtifact<{ summaryIds: string[] }>(
-    row.projectId,
-    "runs",
-    row.id,
-  );
+  const manifest = row.manifestPath
+    ? await readTopicArtifact<{ summaryIds: string[] }>(
+        row.projectId,
+        row.executionId,
+        row.manifestPath,
+      )
+    : null;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -265,7 +266,7 @@ export async function listTopicRuns(
 }
 
 export async function createTopicRun(input: {
-  id?: string;
+  id: string;
   projectId: string;
   facetVersionId: string;
   config?: Record<string, unknown>;
@@ -273,26 +274,26 @@ export async function createTopicRun(input: {
   manifestPath?: string;
   artifactPath?: string;
 }): Promise<TopicRun> {
-  const id = input.id ?? randomUUID();
-  const existing = await getTopicRun(input.projectId, id);
-  if (existing) {
-    if (existing.facetVersionId !== input.facetVersionId)
-      throw new Error("Run facet version cannot change.");
-    return existing;
-  }
-  if (!(await getTopicFacetVersion(input.projectId, input.facetVersionId)))
-    throw new Error("Facet version not found.");
-  if (input.summaryIds?.length)
-    await writeTopicArtifact(input.projectId, "runs", id, {
+  const { id, projectId } = input;
+  const existing = await prisma.topicClusteringRun.findFirst({
+    where: { projectId, id },
+    include: { topics: true },
+  });
+  if (!existing)
+    throw new Error("Create the Topics execution before configuring its run.");
+  if (existing.facetVersionId !== input.facetVersionId)
+    throw new Error("Run facet version cannot change.");
+  if (existing.publishedAt || existing.manifestPath) return runResult(existing);
+  const manifestPath = input.manifestPath ?? `manifest-${id}`;
+  if (input.summaryIds)
+    await writeTopicArtifact(projectId, existing.executionId, manifestPath, {
       summaryIds: input.summaryIds,
     });
-  const row = await prisma.topicClusteringRun.create({
+  const row = await prisma.topicClusteringRun.update({
+    where: { projectId_id: { projectId, id } },
     data: {
-      id,
-      projectId: input.projectId,
-      facetVersionId: input.facetVersionId,
       config: (input.config ?? {}) as Prisma.InputJsonValue,
-      manifestPath: input.manifestPath ?? `runs/${id}.json`,
+      manifestPath: input.summaryIds ? manifestPath : "",
       artifactPath: input.artifactPath ?? "",
     },
     include: { topics: true },
@@ -301,11 +302,8 @@ export async function createTopicRun(input: {
 }
 
 export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
-  if (run.summaryIds.length)
-    await writeTopicArtifact(run.projectId, "runs", run.id, {
-      summaryIds: run.summaryIds,
-    });
   const row = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM topic_clustering_runs WHERE project_id = ${run.projectId} AND id = ${run.id} FOR UPDATE`;
     const existing = await tx.topicClusteringRun.findFirst({
       where: { projectId: run.projectId, id: run.id },
       include: { topics: true, facetVersion: true },
@@ -332,16 +330,30 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
         data: { startedAt: new Date(run.startedAt) },
       });
     }
-    await tx.topic.deleteMany({
-      where: { projectId: run.projectId, runId: run.id },
-    });
-    if (run.topics.length)
-      await tx.topic.createMany({
-        data: run.topics.map((topic) => ({
-          ...topic,
-          metadata: topic.metadata as Prisma.InputJsonValue,
-        })),
+    for (const topic of run.topics) {
+      if (
+        isEqual(
+          existing.topics.find(
+            (saved) => saved.topicVersionId === topic.topicVersionId,
+          ),
+          topic,
+        )
+      )
+        continue;
+      const data = {
+        ...topic,
+        metadata: topic.metadata as Prisma.InputJsonValue,
+      };
+      await tx.topic.upsert({
+        where: {
+          topicVersionId: topic.topicVersionId,
+          projectId: run.projectId,
+          runId: run.id,
+        },
+        create: data,
+        update: data,
       });
+    }
     const updated = await tx.topicClusteringRun.update({
       where: { projectId_id: { projectId: run.projectId, id: run.id } },
       data: {
