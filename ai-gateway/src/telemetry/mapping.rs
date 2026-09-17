@@ -383,7 +383,9 @@ mod tests {
         });
         facts.inference.provider_response_id = Some("response".into());
         let mut context = context();
-        context.metadata["agent.name"] = json!("opencode");
+        context
+            .metadata
+            .insert("agent.name".into(), json!("opencode"));
         let attrs = attributes(&span(facts, &context));
         let metadata = metadata(&attrs);
         assert_eq!(metadata["team"], "search");
