@@ -352,7 +352,8 @@ export function IOPreviewPretty({
           )}
         </div>
       ) : showData ? (
-        <>
+        // Grouped so the correction hugs Output instead of taking a section gap.
+        <div>
           <JsonInputOutputView {...jsonViewProps} />
           <div className="[&_.io-message-content]:px-2 [&_.io-message-header]:px-2">
             {showCorrections && (
@@ -366,7 +367,7 @@ export function IOPreviewPretty({
               />
             )}
           </div>
-        </>
+        </div>
       ) : null}
 
       {/* Metadata Section */}
