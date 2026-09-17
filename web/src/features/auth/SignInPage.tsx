@@ -164,7 +164,7 @@ export function SSOButtons({
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
 
-    signIn(provider, signInOptions)
+    (signInOptions ? signIn(provider, signInOptions) : signIn(provider))
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
       })

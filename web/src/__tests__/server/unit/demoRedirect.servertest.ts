@@ -236,5 +236,4 @@ describe("demo redirect page", () => {
     });
     expect(prismaMock.organizationMembership.upsert).not.toHaveBeenCalled();
   });
-
 });
