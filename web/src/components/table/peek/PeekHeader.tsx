@@ -11,6 +11,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { cn } from "@/src/utils/tailwind";
 import {
   ItemBadge,
   getItemTypeLabels,
@@ -212,11 +213,16 @@ export function PeekHeader({
         ref={headerRef}
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
-        <div className="flex min-w-0 flex-row items-center gap-2">
+        <div
+          className={cn(
+            "flex min-w-0 flex-row gap-2",
+            plan.badgeShowLabel ? "items-baseline" : "items-center",
+          )}
+        >
           {/* Type never truncates: the word when it fits, the icon when not. */}
           <div ref={badgeRef} className="shrink-0">
             {plan.badgeShowLabel ? (
-              <span className="text-muted-foreground text-sm">
+              <span className="text-muted-foreground font-mono text-xs">
                 {getItemTypeLabels(itemType).displayLabel}
               </span>
             ) : (
