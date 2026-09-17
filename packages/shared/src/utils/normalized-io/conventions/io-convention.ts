@@ -21,7 +21,7 @@ export const claimed = <T>(value: T | null): ConventionResult<T> => ({
 export const dropped = { matched: true, value: null } as const;
 
 export type PartHandlerContext = {
-  normalizePart(value: unknown): NormalizedMessagePart | null;
+  normalizeParts(value: unknown): NormalizedMessagePart[];
   normalizePartList(values: unknown[]): NormalizedMessagePart[];
 };
 
@@ -89,7 +89,7 @@ export type ToolDefinitionCarrier = {
 export type PartHandler = (
   value: Record<string, unknown>,
   context: PartHandlerContext,
-) => ConventionResult<NormalizedMessagePart>;
+) => ConventionResult<NormalizedMessagePart | NormalizedMessagePart[]>;
 
 export interface IOConvention {
   readonly name: string;

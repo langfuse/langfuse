@@ -49,9 +49,21 @@ export const langchainSerializedGenerationResultFixture = {
               content: [
                 {
                   id: "rs_099776",
-                  summary: [],
+                  // Schema-derived reasoning fields, not captured model output:
+                  // https://github.com/openai/openai-python/blob/main/src/openai/types/responses/response_reasoning_item.py
+                  summary: [
+                    {
+                      type: "summary_text",
+                      text: "Checking whether current office hours are available.",
+                    },
+                  ],
                   type: "reasoning",
-                  content: [],
+                  content: [
+                    {
+                      type: "reasoning_text",
+                      text: "The provided context does not contain current opening times.",
+                    },
+                  ],
                   index: 0,
                   encrypted_content: "encrypted",
                 },
@@ -126,7 +138,24 @@ export const langchainSerializedGenerationResultFixture = {
         parts: [
           {
             type: "reasoning",
+            content: {
+              kind: "text",
+              text: "Checking whether current office hours are available.",
+            },
+            providerMetadata: { id: "rs_099776", index: 0 },
+          },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "The provided context does not contain current opening times.",
+            },
+            providerMetadata: { id: "rs_099776", index: 0 },
+          },
+          {
+            type: "reasoning",
             content: { kind: "encrypted", data: "encrypted" },
+            providerMetadata: { id: "rs_099776", index: 0 },
           },
           { type: "text", text: "I don't have the latest opening times." },
         ],
