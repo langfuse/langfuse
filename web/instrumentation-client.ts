@@ -77,10 +77,10 @@ Sentry.init({
 
     // Stale-deploy / truncated script parse errors: collapse into ONE issue
     // instead of one per content-hashed chunk filename or per-project
-    // document URL (Safari attributes the same parse to the page).
-    // Deliberately grouped, NOT dropped — a deploy that ships a genuinely
-    // unparsable chunk still surfaces as a spike on the single grouped
-    // issue. See isStaleChunkParseErrorEvent for the rationale.
+    // document URL (Safari and Chrome both attribute some parses to the
+    // page). Deliberately grouped, NOT dropped — a deploy that ships a
+    // genuinely unparsable chunk still surfaces as a spike on the single
+    // grouped issue. See isStaleChunkParseErrorEvent for the rationale.
     if (isStaleChunkParseErrorEvent(event)) {
       event.fingerprint = [STALE_CHUNK_PARSE_FINGERPRINT];
     }

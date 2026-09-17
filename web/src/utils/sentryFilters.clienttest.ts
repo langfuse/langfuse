@@ -2078,6 +2078,19 @@ describe("isStaleChunkParseErrorEvent", () => {
         ),
       ).toBe(true);
     });
+
+    it("matches Chrome appendChild script-parse SyntaxError on the document (LANGFUSE-61V)", () => {
+      // Chrome attributes an unparsable inline script to the document URL
+      // (here a session page) with this appendChild wording, not
+      // `/_next/static/chunks/…`. Same grouping hole as LANGFUSE-617.
+      // Synthetic path only — never a real project or session id.
+      const event = chunkParseErrorEvent(
+        "Failed to execute 'appendChild' on 'Node': Unexpected token ')'",
+        "app:///project/synthetic-project-id/sessions/synthetic-session-id",
+      );
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
   });
 
   describe("NEVER matches a user-authored or app-code SyntaxError", () => {
