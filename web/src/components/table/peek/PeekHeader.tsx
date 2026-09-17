@@ -222,7 +222,7 @@ export function PeekHeader({
           {/* Type never truncates: the word when it fits, the icon when not. */}
           <div ref={badgeRef} className="shrink-0">
             {plan.badgeShowLabel ? (
-              <span className="text-muted-foreground font-mono text-xs">
+              <span className="text-muted-foreground text-xs">
                 {getItemTypeLabels(itemType).displayLabel}
               </span>
             ) : (
