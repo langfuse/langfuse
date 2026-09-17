@@ -71,6 +71,21 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
   {
+    name: "langfuse/web/consistent-relative-imports",
+    files: ["src/components/**/*.{ts,tsx}", "src/features/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/consistent-relative-imports": [
+        "warn",
+        {
+          alias: "@/src",
+          directoryModuleRoots: ["features"],
+          fileModuleRoots: ["components"],
+          importRoots: ["*", "components/*", "features/*"],
+        },
+      ],
+    },
+  },
+  {
     name: "langfuse/web/storybook-test-story-names",
     files: ["src/**/*.stories.{ts,tsx}"],
     rules: {
@@ -143,6 +158,19 @@ export default [
           ],
         },
       ],
+    },
+  },
+  {
+    name: "langfuse/web/allow-existing-abstracted-overlay-triggers",
+    files: [
+      "src/components/BatchExportTableButton.tsx",
+      "src/components/date-picker.tsx",
+      "src/components/deleteButton.tsx",
+      "src/components/nav/topbar-account.tsx",
+      "src/components/table/data-table-row-height-switch.tsx",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": "off",
     },
   },
   {
