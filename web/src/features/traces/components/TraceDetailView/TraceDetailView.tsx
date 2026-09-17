@@ -34,7 +34,6 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
-import TagList from "@/src/features/tag/components/TagList";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -400,22 +399,6 @@ export function TraceDetailView({
                     : "overflow-auto pb-4"
                 }`}
               >
-                {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
-                {trace.tags.length > 0 && (
-                  <>
-                    <div
-                      className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      Tags
-                    </div>
-                    <div
-                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      <TagList selectedTags={trace.tags} isLoading={false} />
-                    </div>
-                  </>
-                )}
-
                 {/* I/O Preview (includes metadata in both views) */}
                 <IOPreview
                   key={trace.id + "-io"}
