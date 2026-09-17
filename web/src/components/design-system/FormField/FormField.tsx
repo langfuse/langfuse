@@ -53,8 +53,8 @@ export function FormField<
       render={({ field, fieldState }) => {
         const errorMessage = fieldState.error?.message;
         const inputDescribedById = [
-          description ? descriptionId : undefined,
           errorMessage ? errorId : undefined,
+          description ? descriptionId : undefined,
         ]
           .filter((value) => value !== undefined)
           .join(" ");
@@ -63,11 +63,7 @@ export function FormField<
             <div className="flex items-center gap-1.5">
               <label
                 htmlFor={controlId}
-                className={
-                  errorMessage
-                    ? "text-destructive text-sm leading-none font-bold"
-                    : "text-sm leading-none font-bold"
-                }
+                className="text-sm leading-none font-bold"
               >
                 {label}
               </label>
@@ -84,20 +80,22 @@ export function FormField<
                 </button>
               ) : null}
             </div>
-            {children({
-              ...field,
-              error: fieldState.error,
-              id: controlId,
-              inputDescribedById: inputDescribedById || undefined,
-            })}
+            <div className="space-y-1">
+              {children({
+                ...field,
+                error: fieldState.error,
+                id: controlId,
+                inputDescribedById: inputDescribedById || undefined,
+              })}
+              {errorMessage ? (
+                <p id={errorId} className="text-destructive text-sm">
+                  {errorMessage}
+                </p>
+              ) : null}
+            </div>
             {description ? (
               <p id={descriptionId} className="text-muted-foreground text-sm">
                 {description}
-              </p>
-            ) : null}
-            {errorMessage ? (
-              <p id={errorId} className="text-destructive text-sm font-bold">
-                {errorMessage}
               </p>
             ) : null}
           </div>

@@ -39,6 +39,7 @@ type SelectInputProps<V> = {
   options: SelectInputNode<V>[];
   onValueChange: (newValue: V) => void;
   placeholder: string;
+  error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
@@ -54,6 +55,7 @@ function SelectInputInner<V extends string>(
     options,
     onValueChange,
     placeholder,
+    error,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -124,7 +126,7 @@ function SelectInputInner<V extends string>(
       open={open}
       onOpenChange={setOpen}
     >
-      <InputControl contentLayout="spread">
+      <InputControl contentLayout="spread" error={error}>
         <SelectPrimitive.Trigger
           ref={ref}
           title={selectedOption?.label}

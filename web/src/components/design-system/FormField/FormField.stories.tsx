@@ -41,6 +41,7 @@ function FormFieldExample({
           ref={field.ref}
           aria-describedby={field.inputDescribedById}
           aria-invalid={Boolean(field.error)}
+          error={Boolean(field.error)}
         />
       )}
     </FormField>
@@ -107,6 +108,7 @@ export const WithLabelInfo = meta.story({
                 ref={field.ref}
                 aria-describedby={field.inputDescribedById}
                 aria-invalid={Boolean(field.error)}
+                error={Boolean(field.error)}
               />
             )}
           </FormField>

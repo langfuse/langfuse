@@ -112,6 +112,7 @@ export function PostHogIntegrationForm({
               ref={field.ref}
               aria-describedby={field.inputDescribedById}
               aria-invalid={Boolean(field.error)}
+              error={Boolean(field.error)}
             />
           )}
         </FormField>
@@ -135,6 +136,7 @@ export function PostHogIntegrationForm({
               ref={field.ref}
               aria-describedby={field.inputDescribedById}
               aria-invalid={Boolean(field.error)}
+              error={Boolean(field.error)}
               placeholder={
                 configurationState === "configured"
                   ? projectApiKeyDisplay
@@ -185,6 +187,7 @@ export function PostHogIntegrationForm({
                     onValueChange={field.onChange}
                     aria-describedby={field.inputDescribedById}
                     aria-invalid={Boolean(field.error)}
+                    error={Boolean(field.error)}
                     placeholder="Select data to export"
                     options={exportSourceOptions.map((option) => {
                       if (option.unavailable) {
