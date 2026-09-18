@@ -18,6 +18,8 @@ const {
   nameOrPlaceholder,
   resolveViewChangePatch,
   monitorCreateAnalyticsProperties,
+  getMonitorThresholdUnitPresentation,
+  formatThresholdDescription,
 } = __test;
 
 describe("createDefaults", () => {
@@ -179,5 +181,105 @@ describe("monitorToDefaults", () => {
     };
     const defaults = monitorToDefaults(monitor);
     expect(defaults.triggerIds).toEqual(["t-a", "t-b"]);
+  });
+});
+
+describe("getMonitorThresholdUnitPresentation", () => {
+  it("resolves millisecond unit and 'ms' label for latency measure", () => {
+    expect(
+      getMonitorThresholdUnitPresentation({
+        view: "observations",
+        metric: { measure: "latency", aggregation: "p95" },
+      }),
+    ).toEqual({
+      unit: "millisecond",
+      unitLabel: "ms",
+    });
+  });
+
+  it("resolves USD unit for totalCost measure", () => {
+    expect(
+      getMonitorThresholdUnitPresentation({
+        view: "observations",
+        metric: { measure: "totalCost", aggregation: "sum" },
+      }),
+    ).toEqual({
+      unit: "USD",
+      unitLabel: "USD",
+    });
+  });
+
+  it("returns empty object for count aggregation", () => {
+    expect(
+      getMonitorThresholdUnitPresentation({
+        view: "observations",
+        metric: { measure: "latency", aggregation: "count" },
+      }),
+    ).toEqual({});
+  });
+
+  it("returns empty object for uniq aggregation", () => {
+    expect(
+      getMonitorThresholdUnitPresentation({
+        view: "observations",
+        metric: { measure: "user", aggregation: "uniq" },
+      }),
+    ).toEqual({});
+  });
+});
+
+describe("formatThresholdDescription", () => {
+  it("formats millisecond guidance when empty", () => {
+    expect(
+      formatThresholdDescription({
+        value: null,
+        unit: "millisecond",
+      }),
+    ).toBe("Threshold is measured in milliseconds (ms).");
+  });
+
+  it("formats millisecond equivalent for sub-second values", () => {
+    expect(
+      formatThresholdDescription({
+        value: 500,
+        unit: "millisecond",
+      }),
+    ).toBe("Measured in milliseconds (ms) — equivalent to 500ms");
+  });
+
+  it("formats millisecond equivalent for second values", () => {
+    expect(
+      formatThresholdDescription({
+        value: 50000,
+        unit: "millisecond",
+      }),
+    ).toBe("Measured in milliseconds (ms) — equivalent to 50s");
+  });
+
+  it("formats USD guidance when empty", () => {
+    expect(
+      formatThresholdDescription({
+        value: null,
+        unit: "USD",
+      }),
+    ).toBe("Threshold is measured in USD ($).");
+  });
+
+  it("formats USD equivalent for monetary values", () => {
+    expect(
+      formatThresholdDescription({
+        value: 5,
+        unit: "USD",
+      }),
+    ).toBe("Measured in USD ($) — equivalent to $5.00");
+  });
+
+  it("returns undefined when no unit is present", () => {
+    expect(
+      formatThresholdDescription({
+        value: 10,
+        unit: undefined,
+      }),
+    ).toBeUndefined();
   });
 });
