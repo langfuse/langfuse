@@ -208,6 +208,12 @@ export function prepareTrace(
     ]),
   );
   const blocks: TranscriptBlock[] = [];
+  const focusedObservations = new Set(
+    rows
+      .filter((row) => row.type === "GENERATION" || row.type === "TOOL")
+      .map((row) => row.id),
+  );
+  const seenContext = new Set<string>();
   const coverage: TranscriptCoverage = {
     observationCount: rows.length,
     missingParentIds: [
@@ -249,11 +255,23 @@ export function prepareTrace(
     row: TopicsObservation,
     block: Omit<TranscriptBlock, "observationId" | "parentObservationId">,
   ) => {
-    const text = boundText(redactInlineMedia(block.text), 4_000);
-    if (text !== block.text) coverage.truncatedBlockCount++;
+    // Wrapper payloads add little to this PoC; keep their errors and status.
+    if (
+      focusedObservations.size > 0 &&
+      !focusedObservations.has(row.id) &&
+      block.source !== "status"
+    )
+      return;
+    if (block.kind === "context-reference") return;
+    if (block.kind === "text" || block.kind === "tool-definitions") {
+      const key = serialize({ role: block.role, text: block.text });
+      // Repeated outputs remain visible; only repeated input context is skipped.
+      if (block.source === "input" && seenContext.has(key)) return;
+      seenContext.add(key);
+    }
     blocks.push({
       ...block,
-      text,
+      text: redactInlineMedia(block.text),
       observationId: row.id,
       parentObservationId: row.parentObservationId,
     });
@@ -466,15 +484,88 @@ export function prepareTrace(
   };
 }
 
-/** One model input for every facet; model budgets never alter its evidence. */
+/** One compact JSON input for every facet, including JSON escaping in its limit. */
 export function serializeTraceTranscript(prepared: PreparedTrace) {
-  const text = [
-    ...prepared.blocks.map(serialize),
-    serialize({ coverage: prepared.coverage }),
-  ].join("\n");
+  const maxCharacters = 10_000;
+  const selectBlocks = (count: number) =>
+    count >= prepared.blocks.length
+      ? prepared.blocks
+      : [
+          ...prepared.blocks.slice(0, Math.ceil(count / 2)),
+          ...prepared.blocks.slice(
+            prepared.blocks.length - Math.floor(count / 2),
+          ),
+        ];
+  const render = (blocks: TranscriptBlock[], textLimit: number) => {
+    let truncatedBlockCount = 0;
+    const entries = blocks.map((block) => {
+      const text = boundText(block.text, textLimit);
+      const role =
+        block.role === undefined ? undefined : boundText(block.role, 64);
+      if (text !== block.text || role !== block.role) truncatedBlockCount++;
+      return { source: block.source, ...(role ? { role } : {}), text };
+    });
+    const coverage = {
+      ...prepared.coverage,
+      truncatedBlockCount,
+      omittedBlockCount: prepared.blocks.length - blocks.length,
+    };
+    const records: unknown[] = [...entries];
+    if (coverage.omittedBlockCount)
+      records.splice(Math.ceil(blocks.length / 2), 0, {
+        source: "truncation",
+        text: `${coverage.omittedBlockCount} middle blocks omitted.`,
+      });
+    records.push({
+      coverage: Object.fromEntries(
+        Object.entries({
+          observationCount: coverage.observationCount,
+          missingParentCount: coverage.missingParentIds.length,
+          cycleCount: coverage.cycleObservationIds.length,
+          unfinishedObservationCount: coverage.unfinishedObservationCount,
+          overlappingSiblingPairs: coverage.overlappingSiblingPairs,
+          mediaPartCount: coverage.mediaPartCount,
+          truncatedBlockCount,
+          omittedBlockCount: coverage.omittedBlockCount,
+        }).filter(([, count]) => count > 0),
+      ),
+    });
+    return { text: serialize(records), coverage };
+  };
+  const largestFit = (
+    min: number,
+    max: number,
+    fits: (value: number) => boolean,
+  ) => {
+    while (min < max) {
+      const mid = Math.ceil((min + max) / 2);
+      if (fits(mid)) min = mid;
+      else max = mid - 1;
+    }
+    return min;
+  };
+  let blocks = prepared.blocks;
+  let result = render(blocks, maxCharacters);
+  if (result.text.length > maxCharacters) {
+    // Keep short messages intact; shorten verbose messages before omitting blocks.
+    if (render(blocks, 64).text.length > maxCharacters) {
+      const count = largestFit(
+        1,
+        blocks.length,
+        (count) => render(selectBlocks(count), 64).text.length <= maxCharacters,
+      );
+      blocks = selectBlocks(count);
+    }
+    const textLimit = largestFit(
+      64,
+      maxCharacters,
+      (limit) => render(blocks, limit).text.length <= maxCharacters,
+    );
+    result = render(blocks, textLimit);
+  }
   return {
-    text,
-    sourceReferences: prepared.blocks.map(
+    ...result,
+    sourceReferences: blocks.map(
       ({ blockId, observationId, source, messageIndex, partIndex }) => ({
         blockId,
         observationId,
@@ -482,7 +573,6 @@ export function serializeTraceTranscript(prepared: PreparedTrace) {
         ...(messageIndex !== undefined ? { messageIndex, partIndex } : {}),
       }),
     ),
-    coverage: prepared.coverage,
-    inputHash: hash(text),
+    inputHash: hash(result.text),
   };
 }

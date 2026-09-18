@@ -48,12 +48,12 @@ vi.mock("@langfuse/shared/topics/server", () => ({
       snapshotHash: traceId + state.sourceSuffix,
       transcript: {
         inputHash: traceId + state.sourceSuffix,
-        text: JSON.stringify({
-          blockId,
-          observationId: traceId,
-          source: "input",
-          text: traceId + state.sourceSuffix,
-        }),
+        text: JSON.stringify([
+          {
+            source: "input",
+            text: traceId + state.sourceSuffix,
+          },
+        ]),
         sourceReferences: [{ blockId, source: "input" }],
         coverage: {},
       },
@@ -282,15 +282,13 @@ beforeEach(() => {
   state.summarize
     .mockReset()
     .mockImplementation(async (_facet, text: string) => {
-      const block = text
-        .split("\n")
-        .map((line) => JSON.parse(line))
-        .find((line) => line.source === "input");
+      const block = JSON.parse(text).find(
+        (entry: { source: string }) => entry.source === "input",
+      );
       return {
         output: {
           status: "applicable",
-          summary: block.observationId,
-          evidenceBlockIds: [block.blockId],
+          summary: block.text.replace(state.sourceSuffix, ""),
         },
         inputTokens: 50,
         outputTokens: 20,
@@ -434,7 +432,7 @@ describe("Topics execution", () => {
     expect(before.topicId).toBeTruthy();
     state.sourceSuffix = "changed";
     state.summarize.mockResolvedValueOnce({
-      output: { status: "not_applicable", summary: "", evidenceBlockIds: [] },
+      output: { status: "not_applicable", summary: "" },
       inputTokens: 10,
       outputTokens: 10,
       costUsd: 0,
@@ -673,14 +671,12 @@ describe("Topics execution", () => {
     ]);
     expect(state.summarize).toHaveBeenCalledTimes(4);
     const calls = state.summarize.mock.calls;
-    expect(calls.map((call) => JSON.parse(call[1]).observationId)).toEqual([
+    expect(calls.map((call) => JSON.parse(call[1])[0].text)).toEqual([
       "trace0",
       "trace0",
-      "trace1",
-      "trace1",
+      "trace1changedchanged",
+      "trace1changedchanged",
     ]);
-    expect(calls[0].slice(2)).toEqual(calls[1].slice(2));
-    expect(calls[2].slice(2)).toEqual(calls[3].slice(2));
     for (const traceId of ["trace0", "trace1"]) {
       const summaries = [...state.summaries.values()].filter(
         (row) => row.traceId === traceId,
@@ -1003,7 +999,6 @@ describe("Topics execution", () => {
       summaryCostUsd: 0,
       metadata: {
         summaryReusedFromId: original.id,
-        evidenceBlockIds: original.metadata.evidenceBlockIds,
       },
     });
     expect(target.embedding).toHaveLength(32);
@@ -1068,7 +1063,7 @@ describe("Topics execution", () => {
 
   it("reuses non-applicable summaries after a dimension change without embedding", async () => {
     state.summarize.mockResolvedValueOnce({
-      output: { status: "not_applicable", summary: "", evidenceBlockIds: [] },
+      output: { status: "not_applicable", summary: "" },
       inputTokens: 50,
       outputTokens: 20,
       costUsd: 0.00002,

@@ -10,6 +10,7 @@ import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   Select,
   SelectContent,
@@ -654,8 +655,8 @@ function TopicResults({
                 }
               >
                 {inspecting === summary.id
-                  ? "Hide evidence"
-                  : "Inspect transcript and evidence"}
+                  ? "Hide transcript"
+                  : "Inspect transcript"}
               </Button>
               {inspecting === summary.id && (
                 <SummaryInspector
@@ -778,48 +779,8 @@ function SummaryInspector({
     summaryId,
   });
   if (query.error) return <ErrorMessage message={query.error.message} />;
-  if (!query.data) return <p className="text-xs">Loading evidence…</p>;
-  const projection = query.data.projection;
-  const text =
-    projection &&
-    typeof projection === "object" &&
-    "text" in projection &&
-    typeof projection.text === "string"
-      ? projection.text
-      : "";
-  const evidence =
-    query.data.projectionStatus === "matching" &&
-    Array.isArray(query.data.metadata.evidenceBlockIds)
-      ? query.data.metadata.evidenceBlockIds
-      : [];
-  const blocks = text
-    .split("\n")
-    .filter(Boolean)
-    .map((line, index) => {
-      try {
-        const value: unknown = JSON.parse(line);
-        if (
-          value &&
-          typeof value === "object" &&
-          "text" in value &&
-          typeof value.text === "string"
-        ) {
-          const id =
-            "blockId" in value && typeof value.blockId === "string"
-              ? value.blockId
-              : String(index);
-          const role =
-            "role" in value && typeof value.role === "string"
-              ? value.role
-              : "context";
-          return { id, role, text: value.text, cited: evidence.includes(id) };
-        }
-        return null;
-      } catch {
-        return { id: String(index), role: "context", text: line, cited: false };
-      }
-    })
-    .filter((block) => block !== null);
+  if (!query.data) return <p className="text-xs">Loading transcript…</p>;
+  const transcript = query.data.projection;
   return (
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-xs break-all">
@@ -829,36 +790,16 @@ function SummaryInspector({
         {query.data.projectionStatus === "matching"
           ? "Transcript regenerated from trace data; matches the summarized input."
           : query.data.projectionStatus === "changed"
-            ? "Trace data or transcript processing has changed. Showing the current transcript; historical evidence highlights are unavailable."
+            ? "Trace data or transcript processing has changed. Showing the current transcript, which differs from the summarized input."
             : "Source transcript unavailable. The stored summary is still retained."}
       </p>
-      <div className="bg-muted/30 flex max-h-96 flex-col gap-2 overflow-auto rounded p-3">
-        {blocks.map((block) => (
-          <div
-            key={block.id}
-            className={`flex flex-col gap-1 rounded border p-2 ${block.cited ? "border-primary/40" : "border-transparent"}`}
-          >
-            <div className="flex items-center gap-2 text-xs">
-              <span className="capitalize">{block.role}</span>
-              {block.cited && <Badge variant="outline">Cited evidence</Badge>}
-            </div>
-            <p className="text-sm break-words whitespace-pre-wrap">
-              {block.text}
-            </p>
-            <span className="text-muted-foreground font-mono text-xs break-all">
-              {block.id}
-            </span>
-          </div>
-        ))}
-      </div>
-      <details>
-        <summary className="text-muted-foreground cursor-pointer text-xs">
-          Coverage and source references
-        </summary>
-        <pre className="max-h-48 overflow-auto text-xs break-words whitespace-pre-wrap">
-          {JSON.stringify(query.data.metadata, null, 2)}
-        </pre>
-      </details>
+      {transcript && (
+        <JSONView
+          title="Transcript"
+          json={JSON.parse(transcript.text)}
+          preserveStrings
+        />
+      )}
     </div>
   );
 }

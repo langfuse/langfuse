@@ -42,13 +42,9 @@ beforeEach(() => {
 });
 
 describe("Topics naming boundary", () => {
-  it("validates summary evidence at the provider boundary", async () => {
+  it("summarizes a trace for its facet without requiring citations", async () => {
     state.call.mockResolvedValue({
-      output: {
-        summary: "A billing request.",
-        evidenceBlockIds: ["block-a"],
-        status: "applicable",
-      },
+      output: { summary: "A billing request.", status: "applicable" },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
     const facet = {
@@ -60,24 +56,15 @@ describe("Topics naming boundary", () => {
       processingConfig: topicProcessingConfigSchema.parse({}),
       createdAt: "2026-09-16T00:00:00Z",
     };
-    await summarizeTopicTrace(facet, "RAW_TRANSCRIPT_SENTINEL", ["block-a"]);
-    expect(state.call).toHaveBeenCalledTimes(1);
-    expect(state.call.mock.calls[0][0].model.id).toBe("gpt-4.1-nano");
-    const providerSchema = state.call.mock.calls[0][0].output;
-    expect(
-      providerSchema.safeParse({
-        summary: "A billing request.",
-        evidenceBlockIds: ["invented-block"],
-        status: "applicable",
-      }).success,
-    ).toBe(false);
-    expect(
-      providerSchema.safeParse({
-        summary: "A billing request.",
-        evidenceBlockIds: ["block-a"],
-        status: "applicable",
-      }).success,
-    ).toBe(true);
+    const result = await summarizeTopicTrace(facet, "RAW_TRANSCRIPT_SENTINEL");
+    expect(result.output).toEqual({
+      summary: "A billing request.",
+      status: "applicable",
+    });
+    const request = state.call.mock.calls[0][0];
+    expect(request.model.id).toBe("gpt-4.1-nano");
+    expect(request.messages[0].content).toContain(facet.prompt);
+    expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
     const facet = {
@@ -92,41 +79,11 @@ describe("Topics naming boundary", () => {
       createdAt: "2026-09-16T00:00:00Z",
     };
     await expect(
-      summarizeTopicTrace(facet, "Trace evidence. ".repeat(1000), ["block-a"]),
+      summarizeTopicTrace(facet, "Trace evidence. ".repeat(1000)),
     ).rejects.toThrow("transcript is never shortened per facet");
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("keeps the summary provider schema bounded for traces with many evidence blocks", async () => {
-    const blockIds = Array.from({ length: 400 }, (_, index) =>
-      String(index).padStart(48, "0"),
-    );
-    state.call.mockResolvedValue({
-      output: {
-        summary: "A billing request.",
-        evidenceBlockIds: [blockIds[0]],
-        status: "applicable",
-      },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    await summarizeTopicTrace(
-      {
-        id: "facet-version",
-        projectId: "project",
-        facetId: "facet",
-        version: 1,
-        prompt: "Describe intent.",
-        processingConfig: topicProcessingConfigSchema.parse({}),
-        createdAt: "2026-09-16T00:00:00Z",
-      },
-      "Trace evidence.",
-      blockIds,
-    );
-    const outputSchema = z.toJSONSchema(state.call.mock.calls[0][0].output);
-    const enumValues =
-      outputSchema.properties?.evidenceBlockIds?.items?.enum ?? [];
-    expect(enumValues.join("").length).toBeLessThanOrEqual(15_000);
-  });
   it("attaches the known group identity to its provider label", async () => {
     state.call.mockResolvedValue({
       output: {

@@ -43,7 +43,7 @@ events; legacy-only traces are unsupported.
    summaries per facet, with HDBSCAN minimum cluster size 15 and minimum samples 5. This minimum does not establish quality. Explicit exploratory mode uses
    10 / 3 / 2 so a tiny smoke test can exercise the full path.
 3. Inspect the resulting summaries, names, representative examples, and outliers.
-   The summary inspector regenerates the shared transcript from current trace data. It checks the stored input hash before highlighting cited evidence; changed or unavailable source data is shown explicitly.
+   The summary inspector regenerates the shared transcript from current trace data. It checks the stored input hash and explicitly marks changed or unavailable source data.
    Non-applicable and insufficient-input results remain separate from outliers.
 4. Assign later batch B to the selected published map. This performs summary and
    embedding inference for uncached traces and the existing classifier; it does
@@ -101,13 +101,21 @@ with source-summary provenance and zero new summarization usage. Historical
 vectors remain available for their original maps. Re-embedding accumulated
 summaries never reloads traces or repeats summarization.
 
-Every facet receives identical transcript text and source references for the same
-source snapshot. Facet instructions affect only summarization. The transcript
-includes system messages, tool evidence, provider status and coverage. It keeps
-all assembled blocks. Assembly shortens individual blocks to 4,000 characters
-with an explicit marker, omits media bytes and reasoning, and preserves available
-audio transcripts. Structural ordering and proven replay-prefix references are
-shared across facets. This is a normalized representation, not a lossless export.
+Every facet receives identical transcript text for the same source snapshot.
+Facet instructions affect only summarization. This PoC focuses on generations
+and tools when present, falling back to other observations otherwise. Wrapper
+errors/status remain visible. Repeated input text and tool definitions are omitted,
+including assistant replies replayed as input; repeated outputs are retained.
+The transcript is a compact JSON array containing source direction, message role
+and text, plus coverage counts.
+Internal block/observation IDs, parent IDs, message/part indices and kinds are
+excluded from model input. The entire serialized JSON is limited to 10,000
+characters, including escaping. Long entries are shortened first, preserving
+both ends. If too many entries remain, keep the beginning and end of the trace
+and explicitly mark the omitted middle. Coverage reports shortened and omitted
+blocks. Assembly omits media bytes and reasoning, and preserves available audio
+transcripts. Structural ordering and replayed-context deduplication are shared
+across facets. This is a normalized representation, not a lossless export.
 
 If transcript plus instructions/schema exceeds a facet version's input allowance,
 the worker fails before calling the provider; it does not
@@ -116,7 +124,7 @@ determines input identity. Accepted checkpoints and reclustering of stored
 summaries retain their inputs and provenance.
 
 Extraction prompt versions participate in cache identity. The tested nano prompt
-and schema write the summary and evidence before deciding applicability. Check
+and schema write the summary before deciding applicability. Check
 one trace after changing either prompt or schema before spending on a batch.
 Input and invocation hashes retain provenance without duplicating the transcript.
 Replaying an accepted summary or embedding does not require its source trace.
@@ -181,10 +189,11 @@ summary selection and trace links. It does not recompute clusters or charge a
 model. Later assigned traces remain unpositioned until a new discovery map;
 the numerical worker does not retain a UMAP transform.
 
-The summary prompt distinguishes evidence about a task from whether that task
-succeeded. Evidence IDs are constrained to blocks in the shared transcript.
-Model outputs still undergo semantic contract checks: a non-applicable result
-containing a summary or evidence is rejected, not silently repaired. Real model
+The summary prompt distinguishes the requested task from whether that task
+succeeded. Each call receives the shared transcript and facet instruction and
+returns summary text plus applicability status. No citations or block IDs are
+requested from the model. A non-applicable result containing a summary is rejected,
+not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
 Postgres creates one `topic_clustering_runs` row per selected facet at trigger

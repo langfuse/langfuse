@@ -90,7 +90,7 @@ describe("Topics trace input", () => {
     );
   });
 
-  it("references replayed history and preserves repeated ID-less tool calls", () => {
+  it("deduplicates replayed prompts and preserves repeated ID-less tool calls", () => {
     const user = { role: "user", content: "Search again" };
     const assistant = { role: "assistant", content: "Found two results" };
     const call = {
@@ -109,14 +109,13 @@ describe("Topics trace input", () => {
       }),
     ]);
     const input = serializeTraceTranscript(prepared);
-    expect(input.text.match(/Search again/g)).toHaveLength(2);
-    expect(input.text).toContain("Replayed context");
+    expect(input.text.match(/Search again/g)).toHaveLength(1);
     expect(input.text.match(/\\"name\\":\\"search\\"/g)).toHaveLength(2);
   });
 
   it("keeps parallel branches, emits parent output last, and reports missing parents", () => {
     const prepared = prepareTrace([
-      observation("root", { type: "SPAN", output: "All branches finished" }),
+      observation("root", { output: "All branches finished" }),
       observation("a", { parentObservationId: "root", output: "same answer" }),
       observation("b", { parentObservationId: "root", output: "same answer" }),
       observation("orphan", { parentObservationId: "missing", output: 0 }),
@@ -149,9 +148,6 @@ describe("Topics trace input", () => {
       }),
     ]);
     const input = serializeTraceTranscript(prepared);
-    expect(prepared.blocks.every((block) => block.text.length <= 4_000)).toBe(
-      true,
-    );
     expect(input.text).not.toContain("SECRET_IMAGE");
     expect(input.coverage.truncatedBlockCount).toBeGreaterThan(0);
     expect(input.coverage.mediaPartCount).toBe(1);

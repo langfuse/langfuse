@@ -85,14 +85,12 @@ vi.mock("@/src/utils/api", () => ({
           state.transcript(input);
           return {
             data: {
-              text: [
+              text: JSON.stringify([
                 {
-                  blockId: `${input.traceId}:input`,
+                  source: "trace_input",
                   text: `Transcript of ${input.traceId}`,
                 },
-              ]
-                .map((block) => JSON.stringify(block))
-                .join("\n"),
+              ]),
               inputHash: "current",
               coverage: { omittedBlockCount: 0, truncatedBlockCount: 0 },
             },

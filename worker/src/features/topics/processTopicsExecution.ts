@@ -192,9 +192,7 @@ async function summarizeTrace(
       embeddingModel: TOPICS_EMBEDDING_MODEL,
       processedAt: new Date().toISOString(),
       metadata: {
-        evidenceBlockIds: [] as string[],
         coverage: transcript.coverage,
-        sourceReferences: transcript.sourceReferences,
       },
     };
     if (reusable) {
@@ -229,7 +227,6 @@ async function summarizeTrace(
         embeddingCostUsd: 0,
         metadata: {
           ...base.metadata,
-          evidenceBlockIds: reusable.metadata.evidenceBlockIds,
           summaryReusedFromId: reusable.id,
           ...(reuseEmbedding ? { embeddingReusedFromId: reusable.id } : {}),
         },
@@ -252,35 +249,17 @@ async function summarizeTrace(
         summaryCostUsd: 0,
         embeddingCostUsd: 0,
       };
-    const result = await summarizeTopicTrace(
-      facet,
-      transcript.text,
-      transcript.sourceReferences.map((reference) => reference.blockId),
-    );
-    const evidence = new Set(
-      transcript.sourceReferences.map((reference) => reference.blockId),
-    );
-    if (result.output.evidenceBlockIds.some((id) => !evidence.has(id)))
-      throw new Error(
-        "Facet summary cited a block absent from the trace transcript.",
-      );
+    const result = await summarizeTopicTrace(facet, transcript.text);
     const applicable = result.output.status === "applicable";
     if (
       applicable &&
-      (!result.output.summary.trim() ||
-        !result.output.evidenceBlockIds.length ||
-        result.output.summary.length > 2000)
+      (!result.output.summary.trim() || result.output.summary.length > 2000)
     )
       throw new Error(
-        "Applicable facet summary lacks concise supported evidence.",
+        "Applicable facet summary must contain a concise summary.",
       );
-    if (
-      !applicable &&
-      (result.output.summary.trim() || result.output.evidenceBlockIds.length)
-    )
-      throw new Error(
-        "Non-applicable facet result contains a summary or evidence.",
-      );
+    if (!applicable && result.output.summary.trim())
+      throw new Error("Non-applicable facet result contains a summary.");
     return {
       ...base,
       resultVersion: applicable ? 1 : 2,
@@ -295,10 +274,6 @@ async function summarizeTrace(
       embeddingTokens: 0,
       summaryCostUsd: result.costUsd,
       embeddingCostUsd: 0,
-      metadata: {
-        ...base.metadata,
-        evidenceBlockIds: result.output.evidenceBlockIds,
-      },
     };
   })();
   if (
