@@ -5,7 +5,7 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
 import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
-import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
+import { peekTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
@@ -130,8 +130,11 @@ const runDrainAndClose = async () => {
 
   // Shutdown tokenization worker threads
   try {
-    await getTokenCountWorkerManager().terminate();
-    logger.info("Token count worker threads have been terminated.");
+    const tokenCountWorkerManager = peekTokenCountWorkerManager();
+    if (tokenCountWorkerManager) {
+      await tokenCountWorkerManager.terminate();
+      logger.info("Token count worker threads have been terminated.");
+    }
   } catch (error) {
     logger.error("Error terminating token count worker threads", error);
   }
