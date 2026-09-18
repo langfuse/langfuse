@@ -1,15 +1,26 @@
-import Header from "@/src/components/layouts/header";
 import {
   DrawerContent,
   DrawerController,
   DrawerHeader,
   DrawerTitle,
+  DrawerClose,
 } from "@/src/components/ui/drawer";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { type ReactNode, useRef, useState } from "react";
+import { X } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import {
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogBody,
+} from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { api } from "@/src/utils/api";
+import { CommentComposer } from "./components/CommentComposer";
 import { type SelectionData } from "./contexts/InlineCommentSelectionContext";
 
 type CommentDrawerContentProps = {
@@ -21,6 +32,7 @@ type CommentDrawerContentProps = {
   onSelectionUsed: () => void;
   onCommentChange?: () => void | Promise<void>;
   onMentionDropdownChange: (isOpen: boolean) => void;
+  onDraftChange: (hasDraft: boolean) => void;
 };
 
 function CommentDrawerContent({
@@ -32,45 +44,35 @@ function CommentDrawerContent({
   onSelectionUsed,
   onCommentChange,
   onMentionDropdownChange,
+  onDraftChange,
 }: CommentDrawerContentProps) {
-  const hasFocusedRef = useRef(false);
-
   return (
     <DrawerContent
       overlayClassName="bg-primary/10"
-      className="h-screen-with-banner max-h-screen-with-banner overflow-hidden"
+      className="h-screen-with-banner max-h-screen-with-banner overflow-hidden outline-hidden"
     >
-      <div
-        className="mx-auto flex h-full w-full flex-col overflow-hidden focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:outline-hidden md:max-h-full"
-        tabIndex={-1}
-        ref={(element) => {
-          if (element && !hasFocusedRef.current) {
-            hasFocusedRef.current = true;
-            setTimeout(() => element.focus({ preventScroll: true }), 100);
-          }
-        }}
-      >
-        <DrawerHeader className="bg-background sr-only shrink-0 rounded-sm">
-          <DrawerTitle>
-            <Header title="Comments" />
-          </DrawerTitle>
-        </DrawerHeader>
-        <div
-          data-vaul-no-drag
-          className="min-h-0 flex-1 overflow-hidden px-2 py-2"
-        >
-          <CommentList
-            projectId={projectId}
-            objectId={objectId}
-            objectType={objectType}
-            objectStartTime={objectStartTime}
-            onMentionDropdownChange={onMentionDropdownChange}
-            isDrawerOpen
-            pendingSelection={pendingSelection}
-            onSelectionUsed={onSelectionUsed}
-            onCommentChange={onCommentChange}
-          />
-        </div>
+      <DrawerHeader className="flex shrink-0 flex-row items-center justify-between border-b text-left">
+        <DrawerTitle>Comments</DrawerTitle>
+        <DrawerClose asChild>
+          <Button variant="ghost" size="icon" title="Close comments">
+            <X className="size-4" />
+          </Button>
+        </DrawerClose>
+      </DrawerHeader>
+      <div data-vaul-no-drag className="min-h-0 flex-1 overflow-hidden">
+        <CommentList
+          key={`${projectId}-${objectType}-${objectId}`}
+          projectId={projectId}
+          objectId={objectId}
+          objectType={objectType}
+          objectStartTime={objectStartTime}
+          onMentionDropdownChange={onMentionDropdownChange}
+          onDraftChange={onDraftChange}
+          isDrawerOpen
+          pendingSelection={pendingSelection}
+          onSelectionUsed={onSelectionUsed}
+          onCommentChange={onCommentChange}
+        />
       </div>
     </DrawerContent>
   );
@@ -144,7 +146,20 @@ export function CommentDrawerController({
   onCommentChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
-  const [isMentionDropdownOpen, setIsMentionDropdownOpen] = useState(false);
+  const utils = api.useUtils();
+  const [isResolving, setIsResolving] = useState(false);
+  const draftRef = useRef(false);
+  const mentionDropdownRef = useRef(false);
+  const setDraft = (hasDraft: boolean) => {
+    draftRef.current = hasDraft;
+  };
+  const setMentionDropdown = (isOpen: boolean) => {
+    mentionDropdownRef.current = isOpen;
+  };
+  const canClose = () => {
+    if (mentionDropdownRef.current) return false;
+    return !draftRef.current || window.confirm("Discard your unsent comment?");
+  };
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -157,9 +172,8 @@ export function CommentDrawerController({
   const disabled =
     !hasReadAccess || (mode === "read-write" && !hasWriteAccess && !count);
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && isMentionDropdownOpen) return false;
-    if (!open && router.query.comments === "open") {
+  const clearCommentUrl = () => {
+    if (router.query.comments === "open") {
       const { comments, commentObjectType, commentObjectId, ...rest } =
         router.query;
       router.replace({ pathname: router.pathname, query: rest }, undefined, {
@@ -167,33 +181,98 @@ export function CommentDrawerController({
       });
     }
   };
+  const handleOpenChange = (open: boolean) => {
+    if (!open && !canClose()) return false;
+    if (!open) clearCommentUrl();
+  };
 
   return (
-    <DrawerController<CommentDrawerState>
-      initialState={disabled ? undefined : initialState}
-      key={`${disabled ? "disabled" : "enabled"}-${router.isReady ? "ready" : "pending"}`}
-      blockTextSelection={false}
-      onOpenChange={handleOpenChange}
-      renderContent={({ state, replaceState }) => (
-        <CommentDrawerContent
-          projectId={projectId}
-          objectId={state.objectId}
-          objectType={state.objectType}
-          objectStartTime={state.objectStartTime}
-          pendingSelection={
-            state.type === "inline-comment" ? state.selection : null
-          }
-          onSelectionUsed={() => replaceState({ ...state, type: "comments" })}
-          onCommentChange={onCommentChange}
-          onMentionDropdownChange={setIsMentionDropdownOpen}
-        />
+    <DialogController<CommentDrawerState>
+      onBeforeClose={canClose}
+      onDismiss={clearCommentUrl}
+      renderDialog={({ state, closeDialog }) => (
+        <DialogContent className="overflow-visible" closeOnInteractionOutside>
+          <DialogHeader>
+            <DialogTitle>Add a comment</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <CommentComposer
+              key={`${projectId}-${state.objectType}-${state.objectId}`}
+              projectId={projectId}
+              objectId={state.objectId}
+              objectType={state.objectType}
+              objectStartTime={state.objectStartTime}
+              pendingSelection={
+                state.type === "inline-comment" ? state.selection : null
+              }
+              onDraftChange={setDraft}
+              onMentionDropdownChange={setMentionDropdown}
+              onCommentCreated={async () => {
+                await utils.comments.invalidate();
+                Promise.resolve()
+                  .then(() => onCommentChange?.())
+                  .catch(() => undefined);
+                closeDialog();
+                clearCommentUrl();
+              }}
+            />
+          </DialogBody>
+        </DialogContent>
       )}
     >
-      {({ openDrawer }) => (
-        <CommentDrawerTriggers disabled={disabled} openDrawer={openDrawer}>
-          {children}
-        </CommentDrawerTriggers>
+      {({ openDialog }) => (
+        <DrawerController<CommentDrawerState>
+          initialState={disabled ? undefined : initialState}
+          key={`${disabled ? "disabled" : "enabled"}-${router.isReady ? "ready" : "pending"}`}
+          blockTextSelection={false}
+          onOpenChange={handleOpenChange}
+          renderContent={({ state, replaceState }) => (
+            <CommentDrawerContent
+              projectId={projectId}
+              objectId={state.objectId}
+              objectType={state.objectType}
+              objectStartTime={state.objectStartTime}
+              pendingSelection={
+                state.type === "inline-comment" ? state.selection : null
+              }
+              onSelectionUsed={() =>
+                replaceState({ ...state, type: "comments" })
+              }
+              onCommentChange={onCommentChange}
+              onDraftChange={setDraft}
+              onMentionDropdownChange={setMentionDropdown}
+            />
+          )}
+        >
+          {({ openDrawer }) => (
+            <CommentDrawerTriggers
+              disabled={disabled || isResolving}
+              openDrawer={async (state) => {
+                setIsResolving(true);
+                try {
+                  const comments = await utils.comments.getByObjectId.fetch({
+                    projectId,
+                    objectId: state.objectId,
+                    objectType: state.objectType,
+                  });
+                  draftRef.current = false;
+                  mentionDropdownRef.current = false;
+                  if (comments.length === 0 && hasWriteAccess)
+                    openDialog(state);
+                  else openDrawer(state);
+                } catch {
+                  // The thread owns the query error and retry action.
+                  openDrawer(state);
+                } finally {
+                  setIsResolving(false);
+                }
+              }}
+            >
+              {children}
+            </CommentDrawerTriggers>
+          )}
+        </DrawerController>
       )}
-    </DrawerController>
+    </DialogController>
   );
 }

@@ -17,17 +17,32 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
-  const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const { activeCell, clearActiveCell } = useActiveCell();
+  if (!activeCell) return <Skeleton className="h-full w-full" />;
+  return (
+    <ActiveAnnotationPanel
+      key={`${projectId}-${activeCell.traceId}-${activeCell.observationId}`}
+      projectId={projectId}
+      activeCell={activeCell}
+      clearActiveCell={clearActiveCell}
+    />
+  );
+};
 
+function ActiveAnnotationPanel({
+  projectId,
+  activeCell,
+  clearActiveCell,
+}: {
+  projectId: string;
+  activeCell: NonNullable<ReturnType<typeof useActiveCell>["activeCell"]>;
+  clearActiveCell: ReturnType<typeof useActiveCell>["clearActiveCell"];
+}) {
+  const [hasCommentDraft, setHasCommentDraft] = useState(false);
   const [verticalSize, setVerticalSize] = useSessionStorage(
     `annotationQueueDrawerVertical-compare-${projectId}`,
     60,
   );
-
-  if (!activeCell) {
-    return <Skeleton className="h-full w-full" />;
-  }
 
   const hasNonAnnotationScores = Object.keys(activeCell.scoreAggregates).some(
     (key) => {
@@ -110,4 +125,4 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
       </ResizablePanel>
     </ResizablePanelGroup>
   );
-};
+}
