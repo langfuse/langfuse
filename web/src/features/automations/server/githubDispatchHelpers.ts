@@ -143,6 +143,10 @@ export async function processGitHubDispatchActionConfig({
       githubToken: returnToken !== undefined ? encrypt(tokenToUse) : tokenToUse,
       displayGitHubToken: displayToken,
       lastFailingExecutionId: existingActionConfig?.lastFailingExecutionId,
+      includePromptContent:
+        gitHubDispatchConfig.includePromptContent ??
+        existingActionConfig?.includePromptContent ??
+        true,
     },
     githubToken: returnToken,
   };
