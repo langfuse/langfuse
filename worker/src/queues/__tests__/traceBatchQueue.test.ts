@@ -11,6 +11,8 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
+import { tokenCount } from "../../features/tokenisation/usage";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -22,6 +24,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
+}));
+
+// Exercise real tokenization without starting the compiled worker-thread pool.
+vi.mock("../../features/tokenisation/async-usage", () => ({
+  tokenCountAsync: vi.fn(async (params) => tokenCount(params)),
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
@@ -40,6 +47,191 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it.each([false, true])(
+    "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
+    async (streamFails) => {
+      let resolveFirst!: (tokens: number) => void;
+      let rejectSecond!: (error: Error) => void;
+      let cleaningUp = false;
+      vi.mocked(tokenCountAsync)
+        .mockImplementationOnce(
+          () => new Promise<number>((resolve) => (resolveFirst = resolve)),
+        )
+        .mockImplementationOnce(() =>
+          cleaningUp
+            ? Promise.resolve(0)
+            : new Promise<number>((_, reject) => (rejectSecond = reject)),
+        );
+      let suppliedThirdTrace = false;
+      let reachedEnd = false;
+      let settled = false;
+      const failure = new Error("stream failed");
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const [index, traceId] of ["a", "b", "b", "c"].entries()) {
+            if (traceId === "c") suppliedThirdTrace = true;
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              span_id: `span-${index}`,
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: traceId === "c" ? "SPAN" : "GENERATION",
+              name: "generation",
+              input: "hello",
+              output: "world",
+              metadata: {},
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+          }
+          reachedEnd = true;
+          if (streamFails) throw failure;
+        },
+      );
+      const job = {
+        data: {
+          id: "bounded-tokenization",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b", "c"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      const processing = traceBatchQueueProcessor(job, undefined).then(
+        (result) => ({ result, error: undefined }),
+        (error: unknown) => ({ result: undefined, error }),
+      );
+      void processing.then(() => (settled = true));
+      try {
+        // While a is being tokenized, all of b can arrive. At c's boundary,
+        // processing waits for a before submitting b to the tokenizer pool.
+        await vi.waitFor(() => expect(suppliedThirdTrace).toBe(true));
+        expect(reachedEnd).toBe(false);
+        expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+        resolveFirst(100);
+        await vi.waitFor(() => expect(reachedEnd).toBe(true));
+        expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+        expect(settled).toBe(false);
+        // An unavailable token estimate must not retry a whole batch or mask
+        // the original stream failure; its promise is drained before returning.
+        rejectSecond(new Error("token count timed out"));
+        const outcome = await processing;
+        expect(outcome.error).toBe(streamFails ? failure : undefined);
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.trace_batch.token_estimation_failed",
+          1,
+        );
+        expect(
+          vi
+            .mocked(recordDistribution)
+            .mock.calls.filter(
+              ([name]) =>
+                name === "langfuse.trace_batch.transcript_assembly_duration_ms",
+            ),
+        ).toHaveLength(streamFails ? 2 : 3);
+      } finally {
+        cleaningUp = true;
+        resolveFirst?.(100);
+        rejectSecond?.(new Error("test cleanup"));
+        await processing;
+      }
+    },
+  );
+  it("assembles each tenant's trace at the boundary and EOF, tokenizing only the transcript", async () => {
+    const userMessage = { role: "user", content: "first question" };
+    const answer = { role: "assistant", content: "first answer" };
+    const row = {
+      project_id: "a",
+      trace_id: "shared-trace",
+      span_id: "first",
+      parent_span_id: null,
+      start_time: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000000",
+      type: "GENERATION",
+      name: "generation",
+      input: JSON.stringify([userMessage]),
+      output: JSON.stringify(answer),
+      metadata: {},
+      tool_definitions: {},
+      tool_calls: [],
+      tool_call_names: [],
+    };
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      // SQL groups traces but does not order observations within a trace.
+      yield {
+        ...row,
+        span_id: "second",
+        start_time: "2026-09-11 00:01:00.000000",
+        input: JSON.stringify([
+          userMessage,
+          answer,
+          { role: "user", content: "second question" },
+        ]),
+        output: JSON.stringify({ role: "assistant", content: "second answer" }),
+      };
+      yield row;
+      expect(tokenCountAsync).not.toHaveBeenCalled();
+      yield { ...row, project_id: "b", type: "SPAN" };
+      // The first trace is processed before requesting more stream rows.
+      expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+      yield { ...row, project_id: "b", type: "SPAN", span_id: "second" };
+    });
+    const job = {
+      data: {
+        id: "transcripts",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b"].map((projectId) => ({
+            projectId,
+            traceId: "shared-trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    await traceBatchQueueProcessor(job, undefined);
+    const estimates = vi.mocked(tokenCountAsync).mock.calls;
+    expect(estimates).toHaveLength(1);
+    const serializedTranscript = JSON.stringify(estimates[0][0].text);
+    for (const content of [
+      "first question",
+      "first answer",
+      "second question",
+      "second answer",
+    ]) {
+      expect(serializedTranscript.split(content)).toHaveLength(2);
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      tokenCount(estimates[0][0]),
+      { tokenizer: "o200k_base" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      0,
+      { tokenizer: "o200k_base" },
+    );
+    for (const hasTranscript of ["true", "false"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.transcript_assembly_duration_ms",
+        expect.any(Number),
+        { has_transcript: hasTranscript },
+      );
+    }
+  });
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const job = {
@@ -167,6 +359,7 @@ describe("trace batch queue", () => {
       await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
         failure,
       );
+      expect(tokenCountAsync).not.toHaveBeenCalled();
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
         maxThreads: 1,
         maxBlockSize: 512,
