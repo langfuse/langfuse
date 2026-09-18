@@ -15,6 +15,18 @@ type RestrictedFlag = (typeof restrictedFlags)[number];
 export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
   restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
 
+/**
+ * Flags for Langfuse-internal surfaces. They are on for Langfuse admins and
+ * for deployments with experimental features enabled, and for nobody else:
+ * they are not feature previews, cannot be granted, and are never persisted.
+ */
+export const internalFlags = ["traceMessages"] as const;
+
+type InternalFlag = (typeof internalFlags)[number];
+
+export const isInternalFlag = (flag: string): flag is InternalFlag =>
+  internalFlags.some((internalFlag) => internalFlag === flag);
+
 export const isFeaturePreviewFlag = (
   flag: string,
 ): flag is FeaturePreviewFlag =>
@@ -52,6 +64,7 @@ export const isFeaturePreviewAvailable = (
 export const availableFlags = [
   ...featurePreviewFlags,
   ...restrictedFlags,
+  ...internalFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
