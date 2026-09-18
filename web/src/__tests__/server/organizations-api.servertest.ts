@@ -2,7 +2,7 @@ import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { prisma, type Prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma, Role } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
@@ -59,6 +59,19 @@ const ApiKeyListSchema = z.object({
       note: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string(),
+    }),
+  ),
+});
+
+const UserOrganizationsSchema = z.object({
+  email: z.string(),
+  organizations: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      role: z.string(),
+      createdAt: z.iso.datetime(),
+      metadata: z.record(z.string(), z.unknown()),
     }),
   ),
 });
@@ -813,6 +826,58 @@ describe("Admin Organizations API", () => {
     );
     expect(result.status).toBe(405);
     expect(result.body.error).toContain("Method Not Allowed");
+  });
+
+  describe("GET /api/admin/users/[email]/organizations", () => {
+    const seededUserEmail = "demo@langfuse.com";
+
+    it("should return organizations for a user by email", async () => {
+      const response = await makeZodVerifiedAPICall(
+        UserOrganizationsSchema,
+        "GET",
+        `/api/admin/users/${encodeURIComponent(seededUserEmail)}/organizations`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+        200,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.email).toBe(seededUserEmail);
+      expect(response.body.organizations.length).toBeGreaterThan(0);
+      expect(response.body.organizations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: expect.any(String),
+            name: expect.any(String),
+            role: expect.any(String),
+            createdAt: expect.any(String),
+            metadata: expect.any(Object),
+          }),
+        ]),
+      );
+    });
+
+    it("should return 404 when the user does not exist", async () => {
+      const response = await makeAPICall<{ error: string }>(
+        "GET",
+        `/api/admin/users/${encodeURIComponent(`missing-${randomUUID()}@example.com`)}/organizations`,
+        undefined,
+        `Bearer ${ADMIN_API_KEY}`,
+      );
+
+      expect(response.status).toBe(404);
+      expect(response.body.error).toBe("User not found");
+    });
+
+    it("should return 401 when no authorization header is provided", async () => {
+      const response = await makeAPICall<{ error: string }>(
+        "GET",
+        `/api/admin/users/${encodeURIComponent(seededUserEmail)}/organizations`,
+      );
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toContain("Unauthorized");
+    });
   });
 });
 
