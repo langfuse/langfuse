@@ -12,6 +12,7 @@ import {
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   topicEmbeddingConfigSchema,
+  topicMinimumTraceCountSchema,
   type TopicFacet,
   type TopicOperation,
 } from "@langfuse/shared/topics";
@@ -53,6 +54,14 @@ export function TopicPipelineForm({
   const [targetRunIds, setTargetRunIds] = useState<Record<string, string>>({});
   const [sourceExecutionIds, setSourceExecutionIds] = useState<string[]>([]);
   const [exploratory, setExploratory] = useState(false);
+  const [minimumTraceCount, setMinimumTraceCount] = useState<string | null>(
+    null,
+  );
+  const minimumTraceCountValue =
+    minimumTraceCount ?? (exploratory ? "10" : "100");
+  const minimumTraceCountResult = topicMinimumTraceCountSchema.safeParse(
+    Number(minimumTraceCountValue),
+  );
   const [dimensions, setDimensions] = useState("768");
   const [forceRefresh, setForceRefresh] = useState(false);
   const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
@@ -127,6 +136,11 @@ export function TopicPipelineForm({
         projectId,
         facetVersionIds,
         exploratory,
+        ...(operation !== "assign" && {
+          minimumTraceCount: topicMinimumTraceCountSchema.parse(
+            Number(minimumTraceCountValue),
+          ),
+        }),
         forceRefresh: operation === "refresh" && forceRefresh,
         embeddingConfig: topicEmbeddingConfigSchema.parse({
           embeddingDimensions: Number(dimensions),
@@ -284,6 +298,21 @@ export function TopicPipelineForm({
         </fieldset>
       )}
       <div className="flex flex-wrap items-end gap-5">
+        {operation !== "assign" && (
+          <label className="flex flex-col gap-1 text-sm">
+            Minimum traces for clustering
+            <Input
+              aria-label="Minimum traces for clustering"
+              aria-invalid={!minimumTraceCountResult.success}
+              className="w-28"
+              type="number"
+              min={3}
+              step={1}
+              value={minimumTraceCountValue}
+              onChange={(event) => setMinimumTraceCount(event.target.value)}
+            />
+          </label>
+        )}
         <label className="flex flex-col gap-1 text-sm">
           Embedding dimensions
           <Input
@@ -312,13 +341,14 @@ export function TopicPipelineForm({
               checked={exploratory}
               onCheckedChange={(value) => setExploratory(value === true)}
             />
-            Small sample mode (10+ summaries; provisional topics)
+            Small sample mode (smaller, provisional topics)
           </label>
         )}
         <Button
           disabled={
             !canWrite ||
             !embeddingConfig.success ||
+            (operation !== "assign" && !minimumTraceCountResult.success) ||
             trigger.isPending ||
             !facetVersionIds.length ||
             (operation === "recluster"
@@ -348,13 +378,14 @@ export function TopicPipelineForm({
             ` ${retainedCohort.size.toLocaleString()} previously processed traces across the selected facet versions.`}
         </p>
       )}
-      {(operation === "discover" || operation === "refresh") &&
-        !exploratory && (
-          <p className="text-muted-foreground text-xs">
-            Standard discovery requires 100 usable summaries per facet. Smaller
-            batches still produce inspectable summaries.
-          </p>
-        )}
+      {operation !== "assign" && (
+        <p className="text-muted-foreground text-xs">
+          {minimumTraceCountResult.success
+            ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} usable trace summaries per facet. Below this minimum, summaries are saved for a later run.`
+            : "Enter a whole number of at least 3 traces."}{" "}
+          Small sample mode lowers the minimum topic size from 15 to 3 traces.
+        </p>
+      )}
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}

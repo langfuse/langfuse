@@ -386,6 +386,17 @@ function ExecutionPanel({
                 </dd>
                 <dt className="text-muted-foreground">Embedding dimensions</dt>
                 <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
+                {execution.input.operation !== "assign" && (
+                  <>
+                    <dt className="text-muted-foreground">
+                      Minimum traces for clustering
+                    </dt>
+                    <dd>
+                      {execution.input.minimumTraceCount ??
+                        (execution.input.exploratory ? 10 : 100)}
+                    </dd>
+                  </>
+                )}
               </dl>
             </div>
           )}
@@ -487,8 +498,11 @@ function ExecutionPanel({
             {progress.error && <ErrorMessage message={progress.error} />}
             {progress.outcome === "insufficient_data" && (
               <p className="text-sm">
-                Summaries are saved. Add more traces, then recluster the
-                combined batches.
+                Discovery needs at least{" "}
+                {execution.input.minimumTraceCount ??
+                  (execution.input.exploratory ? 10 : 100)}{" "}
+                usable trace summaries for this facet. Summaries are saved. Add
+                more traces or lower the minimum when starting a new run.
               </p>
             )}
             {progress.outcome === "no_topics" && (

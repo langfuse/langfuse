@@ -203,13 +203,9 @@ vi.mock("./models", () => ({
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
   nameTopicGroups: (...args: unknown[]) => state.name(...args),
 }));
-vi.mock("./numeric", () => ({
+vi.mock("./numeric", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./numeric")>()),
   TOPICS_NUMERIC_VERSION: "test-current",
-  topicClusterSettings: (exploratory: boolean) => ({
-    minimumCount: exploratory ? 10 : 100,
-    minClusterSize: exploratory ? 3 : 15,
-    minSamples: 5,
-  }),
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
 
@@ -1176,6 +1172,33 @@ describe("Topics execution", () => {
     });
     expect(state.summarize).toHaveBeenCalledTimes(9);
   });
+
+  it.each([30, 31])(
+    "applies the configured clustering minimum to %i summaries",
+    async (count) => {
+      const pending = execution("threshold", count);
+      pending.input.minimumTraceCount = 31;
+      state.executions.set(pending.id, pending);
+      await processTopicsExecution({
+        projectId: "project",
+        executionId: pending.id,
+      });
+      if (count < 31) {
+        expect(pending.facets[0].outcome).toBe("insufficient_data");
+        expect(state.numeric).not.toHaveBeenCalled();
+      } else {
+        expect(state.numeric).toHaveBeenCalledWith(
+          expect.any(Array),
+          expect.objectContaining({
+            minimumCount: 31,
+            minClusterSize: 15,
+            minSamples: 5,
+          }),
+        );
+        expect([...state.runs.values()][0].config.minimumCount).toBe(31);
+      }
+    },
+  );
 
   it("rejects a target map without its embedding configuration", async () => {
     state.executions.set("A", execution("A", 100));

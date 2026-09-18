@@ -133,7 +133,11 @@ describe("durable Topics execution storage", () => {
       (_, index) => `request:${index}/opaque`,
     );
     const store = new TopicExecutionStore();
-    const execution = await store.create({ ...input, traceIds });
+    const execution = await store.create({
+      ...input,
+      traceIds,
+      minimumTraceCount: 31,
+    });
     expect(state.rows.size).toBe(2);
     for (const facetId of input.facetVersionIds) {
       const id = createHash("sha256")
@@ -159,7 +163,7 @@ describe("durable Topics execution storage", () => {
     expect(
       (await new TopicExecutionStore().read(input.projectId, execution.id))
         ?.input,
-    ).toMatchObject({ traceIds });
+    ).toMatchObject({ traceIds, minimumTraceCount: 31 });
   });
 
   it("accepts a concurrent duplicate once and rejects a changed request", async () => {

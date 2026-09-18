@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { buildTopicPrototypes, classifyTopic } from "./classifier";
-import { runTopicClustering } from "./numeric";
+import { runTopicClustering, topicClusterSettings } from "./numeric";
 
 it("fits every member through the native child and builds usable serving prototypes", async () => {
   let seed = 42;
@@ -16,7 +16,10 @@ it("fits every member through the native child and builds usable serving prototy
         (random() - 0.5) * 0.05,
     ),
   );
-  const result = await runTopicClustering(embeddings, false);
+  const result = await runTopicClustering(
+    embeddings,
+    topicClusterSettings(false),
+  );
   expect(result.status).toBe("complete");
   expect(result.labels).toHaveLength(1002);
   expect(result.coordinates).toHaveLength(1002);
@@ -49,20 +52,22 @@ it("fits every member through the native child and builds usable serving prototy
 }, 30_000);
 
 it("preserves insufficient-data and identical-input outcomes through the worker adapter", async () => {
-  expect(await runTopicClustering([[1, 0]], false)).toEqual({
+  expect(
+    await runTopicClustering([[1, 0]], topicClusterSettings(false)),
+  ).toEqual({
     status: "insufficient_data",
     labels: [],
     coordinates: [],
   });
   expect(
     await runTopicClustering(
-      Array.from({ length: 100 }, () => [1, 0]),
-      false,
+      Array.from({ length: 31 }, () => [1, 0]),
+      topicClusterSettings(false, 31),
     ),
   ).toEqual({
     status: "no_topics",
-    labels: Array(100).fill(-1),
-    coordinates: Array(100).fill([0, 0]),
+    labels: Array(31).fill(-1),
+    coordinates: Array(31).fill([0, 0]),
   });
 });
 
@@ -70,7 +75,7 @@ it("surfaces invalid vectors from the native child without crashing the worker",
   await expect(
     runTopicClustering(
       Array.from({ length: 10 }, () => [0, 0]),
-      true,
+      topicClusterSettings(true),
     ),
   ).rejects.toThrow("nonzero embedding");
 });

@@ -556,7 +556,10 @@ async function discover(
     return;
   }
   const numericConfig = {
-    ...topicClusterSettings(execution.input.exploratory),
+    ...topicClusterSettings(
+      execution.input.exploratory,
+      execution.input.minimumTraceCount,
+    ),
     numericVersion: TOPICS_NUMERIC_VERSION,
   };
   if (summaries.length < numericConfig.minimumCount) {
@@ -654,7 +657,7 @@ async function discover(
           () =>
             runTopicClustering(
               summaries.map((row) => row.embedding),
-              execution.input.exploratory,
+              numericConfig,
             ),
           "numerical",
         );

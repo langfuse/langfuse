@@ -39,9 +39,12 @@ events; legacy-only traces are unsupported.
 1. Initialize facets, inspect/edit their instructions, and select trace IDs for
    batch A. Topic names emerge from the descriptions; the facet is not a list of
    topic classes. `Intent` and `Issues` are editable starting points.
-2. Discover on batch A. The standard operational minimum is 100 applicable
+2. Discover on batch A. Set **Minimum traces for clustering** to control how many
+   applicable summaries each facet needs before discovery (at least 3). This is
+   saved with the execution and reused on retry. The standard default is 100
    summaries per facet, with HDBSCAN minimum cluster size 15 and minimum samples 5. This minimum does not establish quality. Explicit exploratory mode uses
-   10 / 3 / 2 so a tiny smoke test can exercise the full path.
+   defaults of 10 / 3 / 2 so a tiny smoke test can exercise the full path. Changing
+   the trace minimum does not change the cluster-size or density settings.
 3. Inspect the resulting summaries, names, representative examples, and outliers.
    The summary inspector regenerates the shared transcript from current trace data. It checks the stored input hash and explicitly marks changed or unavailable source data.
    Non-applicable and insufficient-input results remain separate from outliers.

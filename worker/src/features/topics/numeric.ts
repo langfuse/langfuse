@@ -13,8 +13,9 @@ export const TOPICS_NUMERIC_VERSION = "3-holomap-0.3.0-hdbscan-rs-0.6.1";
 
 export const topicClusterSettings = (
   exploratory: boolean,
+  minimumCount = exploratory ? 10 : 100,
 ): TopicClusteringSettings => ({
-  minimumCount: exploratory ? 10 : 100,
+  minimumCount,
   minClusterSize: exploratory ? 3 : 15,
   minSamples: exploratory ? 2 : 5,
 });
@@ -40,9 +41,8 @@ process.stdin.on("end", () => {
 
 export async function runTopicClustering(
   embeddings: number[][],
-  exploratory: boolean,
+  settings: TopicClusteringSettings,
 ): Promise<NumericResult> {
-  const settings = topicClusterSettings(exploratory);
   const payload = JSON.stringify({ embeddings, ...settings });
   return await new Promise((resolveResult, reject) => {
     const child = spawn(

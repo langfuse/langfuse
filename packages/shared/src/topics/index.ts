@@ -23,12 +23,14 @@ export const topicProcessingConfigSchema = z.object({
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
+export const topicMinimumTraceCountSchema = z.number().int().min(3);
 
 const executionBase = {
   projectId: topicIdSchema,
   requestId: topicIdSchema,
   facetVersionIds: z.array(topicIdSchema).min(1),
   exploratory: z.boolean().default(false),
+  minimumTraceCount: topicMinimumTraceCountSchema.optional(),
   embeddingConfig: topicEmbeddingConfigSchema.default(() =>
     topicEmbeddingConfigSchema.parse({}),
   ),

@@ -305,10 +305,12 @@ describe("Topics filtered trace preview", () => {
       requestId: "filtered-request",
       operation: "discover",
       facetVersionIds: [facetVersionId],
+      minimumTraceCount: 31,
       selection: { ...criteria, limit: null, excludedTraceIds: ["trace-0"] },
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.traceIds).toHaveLength(1000);
+    expect(resolved.minimumTraceCount).toBe(31);
     expect(resolved.traceIds[0]).toBe("trace-1");
     expect(resolved.traceIds.at(-1)).toBe("trace-1000");
     expect(resolved).not.toHaveProperty("selection");
