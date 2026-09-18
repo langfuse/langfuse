@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -15,7 +16,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { Trash, Folder, FileText } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 export function DeleteFolder({ folderPath }: { folderPath: string }) {
   const projectId = useProjectIdFromURL();

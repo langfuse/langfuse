@@ -52,7 +52,7 @@ export function TimelineItem({
       {/* Timeline dot */}
       <div
         className={cn(
-          "fill bg-border-contrast absolute top-3 -left-[11.5px] h-2 w-2 rounded-full",
+          "bg-border-contrast absolute top-3 left-[-11.5px] h-2 w-2 rounded-full",
           isActive ? "border-primary" : "border-muted-foreground",
         )}
       />

@@ -613,7 +613,7 @@ describe("executeCodeBasedEvaluation", () => {
       "Function.TimedOut: Task timed out after 2 seconds";
     const error = new CodeEvalDispatcherError(rawTimeoutMessage, {
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
-      retryable: true,
+      retryable: false,
     });
     mocks.dispatcher.dispatch.mockRejectedValue(error);
 
@@ -645,7 +645,7 @@ describe("executeCodeBasedEvaluation", () => {
     await expect(promise).rejects.toThrow(CodeEvalExecutionError);
     await expect(promise).rejects.toMatchObject({
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
-      retryable: true,
+      retryable: false,
     });
     await expect(promise).rejects.toThrow("Evaluator timed out.");
 

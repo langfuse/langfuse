@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -12,6 +13,7 @@ import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import type { IOPreviewParserComparisonOutcome } from "../../hooks/useIOPreviewParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
@@ -254,6 +256,7 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -281,6 +284,7 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -316,6 +320,9 @@ export function IOPreview({
             improvedRenderingEnabled && chatMLParserResult === undefined
               ? "normalized"
               : "legacy"
+          }
+          onParserComparison={(outcome: IOPreviewParserComparisonOutcome) =>
+            capture("trace_detail:io_parser_comparison", { outcome })
           }
           observationName={observationName}
           showMetadata={showMetadata}

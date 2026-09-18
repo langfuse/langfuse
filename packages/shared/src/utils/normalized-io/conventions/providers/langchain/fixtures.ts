@@ -122,6 +122,150 @@ export const langchainSerializedEnvelopeFixture = {
 } satisfies NormalizedIOFixture;
 
 /**
+ * OpenInference LangChain instrumentation: chat-model runs record the
+ * callback's `messages: List[List[BaseMessage]]` verbatim, so the message
+ * list is nested one level under the batch dimension, with each message a
+ * `dumpd()` constructor envelope and the tool declarations alongside under a
+ * top-level `tools` array. The batch level must be flattened so the inner
+ * messages normalize, and the tool declarations land as tool definitions.
+ */
+export const langchainBatchedMessagesFixture = {
+  name: "normalizes OpenInference LangChain batched (list-of-lists) messages",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: {
+              content: "You are a helpful support assistant.",
+              type: "system",
+            },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "SystemMessage"],
+            kwargs: { content: "## Overview", type: "system" },
+          },
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: {
+              content: "do you offer obseravility of the moon",
+              type: "human",
+              id: "73mm861f-fe05-4dd1-8c6f-b1321067a231",
+            },
+          },
+        ],
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "get_callback_details",
+            description: "Initiates the callback flow for a customer.",
+            parameters: {
+              type: "object",
+              properties: { phone: { type: "string" } },
+              required: ["phone"],
+            },
+          },
+        },
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "system",
+        parts: [{ type: "text", text: "You are a helpful support assistant." }],
+        source: "input",
+      },
+      {
+        role: "system",
+        parts: [{ type: "text", text: "## Overview" }],
+        source: "input",
+      },
+      {
+        id: "73mm861f-fe05-4dd1-8c6f-b1321067a231",
+        role: "user",
+        parts: [
+          { type: "text", text: "do you offer obseravility of the moon" },
+        ],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [
+      {
+        name: "get_callback_details",
+        description: "Initiates the callback flow for a customer.",
+        inputSchema: {
+          type: "object",
+          properties: { phone: { type: "string" } },
+          required: ["phone"],
+        },
+        type: "function",
+      },
+    ],
+  },
+} satisfies NormalizedIOFixture;
+
+/**
+ * Multiple batches (`[[convA], [convB]]`) hardly occur in practice —
+ * LangChain fans each prompt into its own run/span — but if one appears, the
+ * flat transcript has no batch boundary, so conversations concatenate in
+ * order. Locked as best-effort: visible beats the pre-flatten drop.
+ */
+export const langchainMultiBatchMessagesFixture = {
+  name: "flattens multiple LangChain batches into one transcript",
+  spanIO: {
+    input: {
+      messages: [
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question A", type: "human" },
+          },
+        ],
+        [
+          {
+            lc: 1,
+            type: "constructor",
+            id: ["langchain", "schema", "messages", "HumanMessage"],
+            kwargs: { content: "Question B", type: "human" },
+          },
+        ],
+      ],
+    },
+    output: undefined,
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question A" }],
+        source: "input",
+      },
+      {
+        role: "user",
+        parts: [{ type: "text", text: "Question B" }],
+        source: "input",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;
+
+/**
  * LangChain dict serialization (`.dict()` / LangSmith-style): messages carry
  * `type: "tool"` instead of a `role` key. A ToolMessage dict with a
  * tool_call_id must become a tool-result part — not a text part titled by
@@ -536,3 +680,139 @@ export const langgraphProductionShapeFixture = {
     toolDefinitions: [],
   },
 } satisfies NormalizedIOFixture;
+
+// Verbatim stored observation IO from ChatML integration-example exports.
+export const capturedTraceFixtures: NormalizedIOFixture[] = [
+  // Source: worker/src/__tests__/chatml/framework-traces/langgraph-js-2025-10-30.trace.json; observation 0856a1825ccee968
+  // Host and user identifiers in metadata resourceAttributes replaced with
+  // placeholders; input and output are unmodified.
+  {
+    name: "verbatim langgraph-js-2025-10-30.trace.json / 0856a1825ccee968",
+    spanIO: {
+      input:
+        '[{"content":"What\'s the weather in San Francisco?","role":"user"},{"content":"","role":"assistant","tool_calls":[{"id":"call_VEZJgIQLgzcb80IIyQJm7JCi","type":"function","function":{"name":"get_weather","arguments":"{\\"city\\":\\"San Francisco\\"}"}}]},{"content":"It\'s always sunny in San Francisco!","additional_kwargs":{},"role":"get_weather"}]',
+      output:
+        '{"content":"It\'s always sunny in San Francisco! \\n\\nWould you like more details (current temperature, hourly forecast, or a multi-day outlook)?","role":"assistant"}',
+      metadata:
+        '{"tags":["seq:step:2"],"langgraph_step":3,"langgraph_node":"model_request","langgraph_triggers":["branch:to:model_request"],"langgraph_path":["__pregel_pull","model_request"],"langgraph_checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb|model_request:c51cebc4-7aca-5acb-951c-245ef0a1809c","__pregel_task_id":"3d72c0f6-1849-5286-bc3f-b198da3bc9cb","checkpoint_ns":"model_request:3d72c0f6-1849-5286-bc3f-b198da3bc9cb","ls_provider":"openai","ls_model_name":"gpt-5-mini","ls_model_type":"chat","resourceAttributes":{"host.name":"dev-machine.local","host.arch":"arm64","host.id":"00000000-0000-0000-0000-000000000000","process.pid":97650,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/dev/Documents/GitHub/playground/js/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/dev/Documents/GitHub/playground/js/$deno$jupyter.mts","process.owner":"dev","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"langfuse-sdk","version":"4.3.0","attributes":{}}}',
+    },
+    expected: {
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "What's the weather in San Francisco?",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_VEZJgIQLgzcb80IIyQJm7JCi",
+              toolName: "get_weather",
+              input: {
+                city: "San Francisco",
+              },
+              toolType: "function",
+            },
+          ],
+          source: "input",
+        },
+        {
+          senderName: "get_weather",
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "It's always sunny in San Francisco!",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "It's always sunny in San Francisco! \n\nWould you like more details (current temperature, hourly forecast, or a multi-day outlook)?",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
+  // Source: worker/src/__tests__/chatml/framework-traces/langgraph-python-2025-08-22.trace.json; observation 4f6535aaebcda355
+  {
+    name: "verbatim langgraph-python-2025-08-22.trace.json / 4f6535aaebcda355",
+    spanIO: {
+      input:
+        '[{"role": "user", "content": "Be helpful!"}, {"role": "user", "content": "Search the web for \'example\' and summarize."}, {"role": "tool", "content": {"type": "function", "function": {"name": "Web-Search", "description": "Dummy web search tool.", "parameters": {"properties": {"query": {"type": "string"}}, "required": ["query"], "type": "object"}}}}]',
+      output:
+        '{"role": "assistant", "content": "", "additional_kwargs": {"tool_calls": [{"id": "call_1oGK863sxQHlPreFhDdEs3yl", "function": {"arguments": "{\\"query\\":\\"example\\"}", "name": "Web-Search"}, "type": "function"}], "refusal": null}}',
+      metadata:
+        '{"tags":["seq:step:1","demo","langfuse","langgraph"],"thread_id":"demo-thread-1","langgraph_step":1,"langgraph_node":"agent","langgraph_triggers":["branch:to:agent"],"langgraph_path":["__pregel_pull","agent"],"langgraph_checkpoint_ns":"agent:d507d231-6dad-b926-076f-0644c0a0134e","checkpoint_ns":"agent:d507d231-6dad-b926-076f-0644c0a0134e","ls_provider":"openai","ls_model_name":"gpt-4o","ls_model_type":"chat","ls_temperature":0,"resourceAttributes":{"telemetry.sdk.language":"python","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"1.36.0","service.name":"unknown_service"},"scope":{"name":"langfuse-sdk","version":"3.3.0","attributes":{"public_key":"KJGLKJGLJG"}}}',
+    },
+    expected: {
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Be helpful!",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "Search the web for 'example' and summarize.",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_1oGK863sxQHlPreFhDdEs3yl",
+              toolName: "Web-Search",
+              input: {
+                query: "example",
+              },
+              toolType: "function",
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [
+        {
+          name: "Web-Search",
+          description: "Dummy web search tool.",
+          inputSchema: {
+            properties: {
+              query: {
+                type: "string",
+              },
+            },
+            required: ["query"],
+            type: "object",
+          },
+          type: "function",
+        },
+      ],
+    },
+  },
+];

@@ -1,12 +1,12 @@
 {
   "name": "langfuse",
-  "version": "4.32.0",
+  "version": "4.38.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.3.1"
+    "pnpm": "12.4.1"
   },
   "scripts": {
     "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
@@ -33,7 +33,7 @@
     "typecheck": "turbo run typecheck",
     "tc": "turbo run typecheck",
     "start": "turbo run start",
-    "dev": "turbo run dev",
+    "dev": "turbo watch dev",
     "dev:worker": "turbo run dev --filter=worker",
     "dev:web": "turbo run dev --filter=web",
     "dev:web-webpack": "turbo run dev --filter=web -- --webpack",
@@ -41,7 +41,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
-    "openapi:export": "npx fern-api export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && npx fern-api export --api client web/public/generated/api-client/openapi.yml && npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml",
+    "openapi:export": "npx fern-api@3.88.0 export --api server web/public/generated/api/openapi.yml && pnpm --filter web exec tsx scripts/openapi/postprocess-openapi.ts && npx fern-api@3.88.0 export --api client web/public/generated/api-client/openapi.yml && npx fern-api@3.88.0 export --api organizations web/public/generated/organizations-api/openapi.yml",
     "openapi:check": "pnpm run openapi:export && bash scripts/openapi/assert-generated-current.sh",
     "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
@@ -109,5 +109,5 @@
       }
     }
   },
-  "packageManager": "pnpm@12.3.1"
+  "packageManager": "pnpm@12.4.1"
 }

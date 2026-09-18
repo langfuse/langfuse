@@ -13,9 +13,25 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
+import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { getSessionFilterConfig } from "@/src/features/filters/config/sessions-config";
+import { usersEventsFilterConfig } from "@/src/features/filters/config/users-config";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import {
+  SCORES_FIELD_REGISTRY,
+  scoresFieldRegistry,
+} from "@/src/features/scores/constants/scoresSearchRegistry";
+import {
+  getScoreFilterConfig,
+  type ScoresTableHiddenColumn,
+} from "@/src/features/filters/config/scores-config";
+import type { FilterState } from "@langfuse/shared";
 import { validateQuery } from "./validate";
-import { planCommit } from "./commit";
+import { DEFAULT_SEARCH_TYPE, planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
 import {
   applyPick,
@@ -27,6 +43,273 @@ import {
   runSearchBarInvariants,
   type RegistryUnderTest,
 } from "./searchBarInvariants";
+
+describe("search bar invariants — Scores registry", () => {
+  it("preserves parent-owned filters as skipped and rejects conflicting scoped fields", () => {
+    const hiddenColumns: ScoresTableHiddenColumn[] = [
+      "traceId",
+      "observationId",
+      "traceName",
+      "userId",
+      "traceTags",
+      "jobConfigurationId",
+    ];
+    const registry = scoresFieldRegistry(getScoreFilterConfig(hiddenColumns));
+    const parentFilters: FilterState = [
+      { column: "traceId", type: "string", operator: "=", value: "trace" },
+      {
+        column: "observationId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["", "observation"],
+      },
+      {
+        column: "traceName",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["parent"],
+      },
+      {
+        column: "userId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["user"],
+      },
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["parent"],
+      },
+    ];
+    const visibleFilter: FilterState = [
+      {
+        column: "name",
+        type: "string",
+        operator: "contains",
+        value: "quality",
+      },
+    ];
+    expect(
+      filterStateToQueryText(
+        [...parentFilters, ...visibleFilter],
+        {},
+        registry,
+      ),
+    ).toMatchObject({ text: "name:quality", skippedFilters: parentFilters });
+    for (const query of [
+      "trace_id:other",
+      "observation_id:other",
+      "trace_name:other",
+      "user:other",
+      "traceTags:other",
+      "has:userId",
+    ]) {
+      expect(planCommit(query, undefined, registry).status, query).toBe(
+        "invalid",
+      );
+    }
+    expect(planCommit("quality", undefined, registry)).toMatchObject({
+      status: "committed",
+      filters: visibleFilter,
+    });
+    expect(registry.hasExample).toBeNull();
+  });
+
+  it("searches within a score name", () => {
+    const result = planCommit("Rouge Score", undefined, SCORES_FIELD_REGISTRY);
+    expect(result).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "name",
+          type: "string",
+          operator: "contains",
+          value: "Rouge Score",
+        },
+      ],
+    });
+  });
+
+  it("round-trips exact names, repeated ranges, values, metadata, and tag filters", () => {
+    const sidebarFilters: FilterState[] = [
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score"],
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score", "confidence"],
+        },
+      ],
+      [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["Rouge Score"],
+        },
+      ],
+      [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: "<", value: 0.8 },
+      ],
+      [
+        {
+          column: "booleanValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+      ],
+      [
+        {
+          column: "stringValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true", "needs review"],
+        },
+      ],
+      [
+        {
+          column: "metadata",
+          type: "stringObject",
+          key: "review team",
+          operator: "=",
+          value: "quality",
+        },
+      ],
+      [
+        {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "all of",
+          value: ["billing", "urgent"],
+        },
+      ],
+      [
+        {
+          column: "evaluatorId",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["legacy-evaluator"],
+        },
+      ],
+    ];
+    const view: RegistryUnderTest = {
+      name: "scores",
+      registry: SCORES_FIELD_REGISTRY,
+      extraKeys: ["metadata.region", 'metadata."review team"', "has:userId"],
+      scoreContexts: [],
+      fieldValues: ["x", "true", "false", "0.5", "Rouge Score", "or", "a,b"],
+      freeTextValues: [],
+      sidebarFilters,
+    };
+    expect(runSearchBarInvariants(view)).toEqual([]);
+
+    const exactName = filterStateToQueryText(
+      sidebarFilters[0],
+      {},
+      SCORES_FIELD_REGISTRY,
+    );
+    expect(
+      planCommit(exactName.text, undefined, SCORES_FIELD_REGISTRY),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Rouge Score"],
+        },
+      ],
+    });
+
+    for (const filters of sidebarFilters.slice(1, -1)) {
+      const projection = filterStateToQueryText(
+        filters,
+        {},
+        SCORES_FIELD_REGISTRY,
+      );
+      expect(projection.skippedFilters).toEqual([]);
+      expect(
+        planCommit(projection.text, undefined, SCORES_FIELD_REGISTRY),
+      ).toMatchObject({
+        status: "committed",
+        filters,
+      });
+    }
+  });
+
+  it("keeps boolean score values distinct from categorical text", () => {
+    expect(
+      planCommit(
+        "booleanValue:true stringValue:true",
+        undefined,
+        SCORES_FIELD_REGISTRY,
+      ),
+    ).toMatchObject({
+      status: "committed",
+      filters: [
+        {
+          column: "booleanValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+        {
+          column: "stringValue",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["true"],
+        },
+      ],
+    });
+  });
+
+  it("offers only fields owned by the sidebar and rejects aggregate-score namespaces", () => {
+    const facets = new Set(
+      getScoreFilterConfig().facets.map((facet) => facet.column),
+    );
+    for (const field of SCORES_FIELD_REGISTRY.fields) {
+      expect(facets.has(field.id), field.id).toBe(true);
+    }
+    for (const query of [
+      "scores.accuracy:>0.5",
+      "traceScores.grade:A",
+      "latency:>2",
+      "evaluatorId:abc",
+    ]) {
+      expect(
+        planCommit(query, undefined, SCORES_FIELD_REGISTRY).status,
+        query,
+      ).toBe("invalid");
+    }
+    const completion = planInputCompletions(
+      {
+        input: "name:",
+        caret: 5,
+        observed: { name: [{ value: "Rouge Score" }] },
+        recents: [],
+        currentQueryText: "",
+      },
+      SCORES_FIELD_REGISTRY,
+    );
+    const options =
+      completion?.sections.flatMap((section) => section.options) ?? [];
+    expect(options.some((option) => option.label.includes("Rouge Score"))).toBe(
+      true,
+    );
+  });
+});
 
 // Per-view wiring of the property harness. A second filterable view adopts the
 // bar by adding its own block here with its registry — the harness is unchanged.
@@ -484,6 +767,24 @@ const sessionsView: RegistryUnderTest = {
 };
 
 describe("search bar invariants — sessions registry", () => {
+  it.each([false, true])(
+    "offers only executable examples inside a user detail table (events: %s)",
+    (fromEvents) => {
+      const registry = sessionsFieldRegistry(
+        getSessionFilterConfig(["userIds"], fromEvents),
+      );
+      const examples = [
+        ...registry.searchExamples,
+        ...(registry.hasExample ? [`has:${registry.hasExample}`] : []),
+      ];
+      for (const example of examples) {
+        expect(planCommit(example, undefined, registry).status, example).toBe(
+          "committed",
+        );
+      }
+    },
+  );
+
   it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
     const failures = runSearchBarInvariants(sessionsView);
     expect(
@@ -756,6 +1057,200 @@ describe("search bar invariants — sessions registry", () => {
   });
 });
 
+const usersView: RegistryUnderTest = {
+  name: "users v4",
+  registry: USERS_FIELD_REGISTRY,
+  extraKeys: [
+    "metadata.region",
+    'metadata."my key"',
+    "has:latency",
+    "has:sessionId",
+  ],
+  // The users queries group `events_core` with no score join, so `scores.` is
+  // closed at both levels and there is no context to vary.
+  scoreContexts: [],
+  fieldValues: ["x", "ERROR", "5", "0.8", "true", "a b", "gpt-4"],
+  // Free text is its own lane here (it lowers to `user_id ILIKE`), so the same
+  // reserved-token quoting the events bar needs has to hold.
+  freeTextValues: [
+    "hello",
+    "alice smith",
+    "or",
+    "and",
+    "NOT",
+    "!important",
+    "-foo",
+    "key:value",
+  ],
+  sidebarFilters: [
+    // Trace-score columns reach this page only from an older saved view. The
+    // bar does not own them, so it must skip rather than emit a token that
+    // renders as an unknown field.
+    [
+      {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        key: "nps",
+        operator: ">",
+        value: 5,
+      },
+    ],
+  ],
+};
+
+describe("search bar invariants — users registry", () => {
+  it("preserves legacy user metadata while rejecting fields that require joins", () => {
+    const registry = LEGACY_USERS_FIELD_REGISTRY;
+    const filters: FilterState = [
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "region",
+        operator: "=",
+        value: "eu",
+      },
+    ];
+    const projection = filterStateToQueryText(filters, {}, registry);
+    expect(projection.skippedFilters).toEqual([]);
+    expect(planCommit(projection.text, undefined, registry)).toMatchObject({
+      status: "committed",
+      filters,
+    });
+    expect(
+      runSearchBarInvariants({
+        ...usersView,
+        name: "users legacy",
+        registry,
+        sidebarFilters: [filters],
+      }),
+    ).toEqual([]);
+    for (const query of [
+      "level:ERROR",
+      "latency:>1",
+      "scores.quality:>0.8",
+      "traceScores.nps:>5",
+      "comment:test",
+      "input:test",
+    ]) {
+      expect(planCommit(query, undefined, registry).status).toBe("invalid");
+    }
+    expect(planCommit("alice smith", undefined, registry)).toMatchObject({
+      status: "committed",
+      searchQuery: "alice smith",
+      filters: [],
+    });
+  });
+
+  it("holds all three invariants (parity, round-trip, serialize symmetry)", () => {
+    const failures = runSearchBarInvariants(usersView);
+    expect(
+      failures,
+      failures.length === 0
+        ? "ok"
+        : `\n${failures
+            .slice(0, 25)
+            .map((f) => `  [${f.invariant}] ${f.case} — ${f.detail}`)
+            .join(
+              "\n",
+            )}${failures.length > 25 ? `\n  …and ${failures.length - 25} more` : ""}`,
+    ).toEqual([]);
+  });
+
+  it("is the events grammar minus what the users query cannot answer", () => {
+    // Users groups `events_core` alone: no score join, no comments join. Those
+    // facets are excluded from the sidebar, so the bar must not resolve them
+    // either — a `scores.` token here would commit a filter that 500s.
+    expect(USERS_FIELD_REGISTRY.resolveField("scores.accuracy")).toBeNull();
+    expect(USERS_FIELD_REGISTRY.resolveField("traceScores.nps")).toBeNull();
+    for (const key of ["comment", "commentCount", "commentContent"]) {
+      expect(USERS_FIELD_REGISTRY.resolveField(key)).toBeNull();
+    }
+    // Everything else the events bar offers survives, and is exactly the
+    // sidebar's facet set (metadata excepted — it resolves by dot-path, not as
+    // a plain field).
+    const facetColumns = new Set(
+      usersEventsFilterConfig.facets.map((f) => f.column),
+    );
+    for (const field of USERS_FIELD_REGISTRY.fields) {
+      expect(facetColumns.has(field.filterColumn ?? field.id)).toBe(true);
+    }
+    expect(USERS_FIELD_REGISTRY.resolveField("metadata.region")).toEqual({
+      type: "metadata",
+      key: "region",
+    });
+    // The two aliases that make the events grammar worth reusing rather than
+    // re-deriving: `env:` and `tag:` are overlay-only, absent from the columns.
+    expect(USERS_FIELD_REGISTRY.resolveField("env")).toMatchObject({
+      type: "field",
+      field: { id: "environment" },
+    });
+    expect(USERS_FIELD_REGISTRY.resolveField("user")).toMatchObject({
+      type: "field",
+      field: { id: "userId" },
+    });
+  });
+
+  it("keeps a bare word in the free-text lane rather than rewriting it", () => {
+    // Unlike sessions (`id contains`), the users backend already has a search
+    // lane: `searchQuery` lowers to `user_id ILIKE %q%`. Rewriting a bare word
+    // onto the userId column would turn a substring search into an exact
+    // any-of match against the facet list.
+    const committed = planCommit("alice", undefined, USERS_FIELD_REGISTRY);
+    expect(committed).toMatchObject({
+      status: "committed",
+      searchQuery: "alice",
+      filters: [],
+    });
+    // …and it renders back as the same bare word, so the bar does not churn.
+    expect(
+      filterStateToQueryText(
+        [],
+        { searchQuery: "alice", searchType: DEFAULT_SEARCH_TYPE },
+        USERS_FIELD_REGISTRY,
+      ).text,
+    ).toBe("alice");
+  });
+
+  it("describes the free-text lane as user ids, and offers no other scope", () => {
+    // The generic copy claims a bare word matches "ids, names, input and
+    // output". On this page it matches user ids and nothing else, and there is
+    // no `input:`/`output:` field to switch into — offering the rewrite would
+    // hand the user a token the parser rejects.
+    expect(USERS_FIELD_REGISTRY.freeTextScopeLabel).toBe("user IDs");
+    expect(USERS_FIELD_REGISTRY.resolveField("input")).toBeNull();
+    expect(USERS_FIELD_REGISTRY.resolveField("output")).toBeNull();
+
+    const scopeOptionIds = (registry: FieldRegistry) =>
+      (
+        planInputCompletions(
+          {
+            input: "alice",
+            caret: 5,
+            observed: {},
+            recents: [],
+            currentQueryText: "alice",
+          },
+          registry,
+        )?.sections ?? []
+      )
+        .flatMap((section) => section.options)
+        .map((option) => option.id)
+        .filter((id) => id.startsWith("scope:"));
+
+    expect(scopeOptionIds(USERS_FIELD_REGISTRY)).toEqual([]);
+    // The same input on a registry that does have the columns still offers them.
+    expect(scopeOptionIds(EVENTS_FIELD_REGISTRY)).toEqual(
+      expect.arrayContaining(["scope:input", "scope:output"]),
+    );
+  });
+
+  it("does not offer Ask AI until the view has its own prompt", () => {
+    // buildFilterSystemPrompt falls back to the EVENTS prompt, whose worked
+    // examples filter on score columns this page cannot reach.
+    expect(USERS_FIELD_REGISTRY.aiFilterPrompt).toBe(false);
+  });
+});
+
 const experimentsView: RegistryUnderTest = {
   name: "experiments",
   registry: EXPERIMENTS_FIELD_REGISTRY,
@@ -763,9 +1258,9 @@ const experimentsView: RegistryUnderTest = {
   scoreContexts: [],
   fieldValues: ["x", "sonnet", "5", "0.8", "a b"],
   freeTextValues: ["hello", "run 12", "or", "!important"],
-  // Scores stay in the sidebar on this view, and after the score unification
-  // they sit on the SAME canonical columns the bar's `scores.` path recognizes —
-  // so the serializer has to be told they are not the bar's to render.
+  // Score filters are the bar's to render on this view, so these must derive to
+  // valid text rather than being skipped. The `trace_*` columns are not, and
+  // stay sidebar-only.
   sidebarFilters: [
     [
       {
@@ -846,20 +1341,47 @@ describe("search bar invariants — experiments registry", () => {
     ).toBeNull();
   });
 
-  it("keeps score dot-paths closed until the columns are unified", () => {
-    // The adapter lowers `scores.<name>` onto the canonical scores_avg /
-    // score_categories / score_booleans columns. Experiments names its score
-    // columns obs_* / trace_*, so an open `scores.` here would emit a filter on
-    // a column this view does not have.
+  it("opens `scores.` and keeps `traceScores.` closed", () => {
+    // `scores.<name>` lowers onto the canonical scores_avg / score_categories /
+    // score_booleans columns, which is what this view filters on. Those columns
+    // already match at trace level, so a separate `traceScores.` namespace would
+    // offer a second way to say the same thing — against `trace_*` columns the
+    // sidebar no longer offers.
     expect(
       EXPERIMENTS_FIELD_REGISTRY.resolveField("scores.groundedness"),
-    ).toBeNull();
+    ).toEqual({
+      type: "scores",
+      key: "groundedness",
+      level: "observation",
+    });
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("traceScores.x")).toBeNull();
     // Metadata is unaffected — that column exists under its canonical name.
     expect(EXPERIMENTS_FIELD_REGISTRY.resolveField("metadata.owner")).toEqual({
       type: "metadata",
       key: "owner",
     });
+  });
+
+  it("renders a score filter the sidebar set", () => {
+    // The sidebar and the bar edit ONE filter state, so a score filter added in
+    // the sidebar has to show up as a token — otherwise the bar reads as though
+    // no score filter were applied.
+    const derived = filterStateToQueryText(
+      [
+        {
+          type: "numberObject",
+          column: "scores_avg",
+          key: "citation_usable_rate",
+          operator: "=",
+          value: 4,
+        },
+      ],
+      {},
+      EXPERIMENTS_FIELD_REGISTRY,
+    );
+
+    expect(derived.text).toBe("scores.citation_usable_rate:4");
+    expect(derived.skippedFilters).toEqual([]);
   });
 
   it("rewrites a bare word onto the experiment name", () => {

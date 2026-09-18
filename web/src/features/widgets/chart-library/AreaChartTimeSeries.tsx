@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,

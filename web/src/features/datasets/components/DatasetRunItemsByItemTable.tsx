@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -73,7 +74,6 @@ export function DatasetRunItemsByItemTable(props: {
       header: "Run Name",
       size: 150,
       isPinnedLeft: true,
-      emptyValue: "-",
     }),
     createDateTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "runAt",

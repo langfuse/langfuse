@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -176,7 +177,7 @@ const DatasetAggregateCellContent = ({
           <ConnectedIOTableCell isLoading variant="output" />
         ) : (
           <ConnectedIOTableCell
-            data={data.output ?? "null"}
+            data={data.output ?? null}
             variant="output"
             enableExpandOnHover
           />

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";

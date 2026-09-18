@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import { randomUUID } from "crypto";
 
 import {
@@ -1505,7 +1507,10 @@ export class OtelIngestionProcessor {
       }
     }
 
-    logger.warn("OTEL oversized span detected", {
+    // The `langfuse.ingestion.otel.oversized_span` metric below carries the
+    // aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-span customer-data condition.
+    logger.debug("OTEL oversized span detected", {
       spanId: context.spanId,
       traceId: context.traceId,
       projectId: this.projectId,
@@ -1828,13 +1833,22 @@ export class OtelIngestionProcessor {
       "prompt",
       "all_messages_events",
       "events",
-      // LiveKit
+      // LiveKit (livekit-agents >= 1.8 marks content attributes with `lk.pii.`)
       "lk.input_text",
       "lk.user_transcript",
       "lk.chat_ctx",
       "lk.user_input",
       "lk.function_tool.output",
       "lk.response.text",
+      "lk.pii.input_text",
+      "lk.pii.user_transcript",
+      "lk.pii.chat_ctx",
+      "lk.pii.user_input",
+      "lk.pii.instructions",
+      "lk.pii.function_tool.arguments",
+      "lk.pii.function_tool.output",
+      "lk.pii.response.text",
+      "lk.pii.response.function_calls",
       // MLFlow
       "mlflow.spanInputs",
       "mlflow.spanOutputs",
@@ -1876,6 +1890,16 @@ export class OtelIngestionProcessor {
     potentialInputOutputKeys.forEach((key) => {
       delete rawFilteredAttributes[key];
     });
+
+    // Gateway observation attributes are represented by canonical fields.
+    // Keep unknown attributes available for diagnostics.
+    if (instrumentationScopeName === "langfuse-ai-gateway") {
+      for (const key of Object.values(LangfuseOtelSpanAttributes)) {
+        if (key.startsWith("langfuse.observation.")) {
+          delete rawFilteredAttributes[key];
+        }
+      }
+    }
 
     // Delete gen_ai.prompt.*, gen_ai.completion.*, llm.input_messages.*, llm.output_messages.*,
     // and metadata blob keys (already extracted into top-level metadata by extractMetadata())
@@ -2154,13 +2178,42 @@ export class OtelIngestionProcessor {
       return { input, output, filteredAttributes };
     }
 
-    // LiveKit
+    // LiveKit. livekit-agents >= 1.8 marks content attributes with a `pii`
+    // segment (`lk.pii.<name>`); older versions use the bare `lk.<name>`.
+    const livekitInstructions = attributes["lk.pii.instructions"] || undefined;
+    // the agent may speak first, in which case user_input is empty
+    const livekitUserInput =
+      attributes["lk.user_input"] ||
+      attributes["lk.pii.user_input"] ||
+      undefined;
     input =
       attributes["lk.input_text"] ??
+      attributes["lk.pii.input_text"] ??
       attributes["lk.user_transcript"] ??
-      attributes["lk.chat_ctx"];
+      attributes["lk.pii.user_transcript"] ??
+      attributes["lk.chat_ctx"] ??
+      attributes["lk.pii.chat_ctx"] ??
+      // agent_turn spans carry the system instructions and the user message
+      // separately; combine whatever is present into a chat-style input
+      (livekitInstructions
+        ? [
+            { role: "system", content: livekitInstructions },
+            ...(livekitUserInput
+              ? [{ role: "user", content: livekitUserInput }]
+              : []),
+          ]
+        : livekitUserInput) ??
+      attributes["lk.pii.function_tool.arguments"];
+    const livekitFunctionCalls = attributes["lk.pii.response.function_calls"];
     output =
-      attributes["lk.function_tool.output"] || attributes["lk.response.text"];
+      attributes["lk.function_tool.output"] ||
+      attributes["lk.pii.function_tool.output"] ||
+      attributes["lk.response.text"] ||
+      attributes["lk.pii.response.text"] ||
+      // a turn that only produced tool calls has no response text
+      (livekitFunctionCalls && livekitFunctionCalls !== "[]"
+        ? livekitFunctionCalls
+        : undefined);
     if (input || output) {
       return { input, output, filteredAttributes };
     }

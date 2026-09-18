@@ -367,6 +367,35 @@ describe("Authenticate API calls", () => {
       warnSpy.mockRestore();
     });
 
+    it("redacts a secret key submitted in the public key slot from the mismatch warning", async () => {
+      await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const auth = await new ApiAuthService(
+        prisma,
+        null,
+      ).verifyAuthHeaderAndReturnScope(
+        createBasicAuthHeader(testApiKey.secretKey, testApiKey.secretKey),
+      );
+
+      expect(auth.validKey).toBe(true);
+
+      const mismatchWarning = warnSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((message) => message.includes("Public key mismatch"));
+      expect(mismatchWarning).toBeDefined();
+      expect(mismatchWarning).not.toContain(testApiKey.secretKey);
+      expect(mismatchWarning).toContain(
+        getDisplaySecretKey(testApiKey.secretKey),
+      );
+      expect(mismatchWarning).toContain(testApiKey.publicKey);
+
+      warnSpy.mockRestore();
+    });
+
     it("does not warn when the submitted public key matches", async () => {
       await new ApiAuthService(prisma, null).verifyAuthHeaderAndReturnScope(
         getValidAuthHeader(),
@@ -484,6 +513,9 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: legacyPublicKey },
       });
+      const organization = await prisma.organization.findUniqueOrThrow({
+        where: { id: testApiKey.orgId },
+      });
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
@@ -523,6 +555,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -639,6 +672,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -769,6 +803,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        organizationCreatedAt: expect.any(String),
       });
     });
 
@@ -856,6 +891,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
         isIngestionSuspended: expect.anything(),
       });

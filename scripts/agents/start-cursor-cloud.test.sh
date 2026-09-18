@@ -67,7 +67,6 @@ chmod +x \
 # Leave $test_docker_socket missing so ensure_docker_socket_reachable must
 # repair the parent directory before the daemon probe loop.
 PATH="$tmpdir/bin:$PATH" \
-LANGFUSE_CONFIG_DIR="$tmpdir/identity" \
 LINEAR_API_KEY="" \
 LINEAR_TOKEN="" \
 LINEAR_API_TOKEN="" \

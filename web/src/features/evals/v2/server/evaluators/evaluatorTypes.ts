@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   EvalOutputDefinitionSchema,
   EvalTemplateType,
@@ -9,7 +10,7 @@ import {
   ZodModelConfig,
   jsonSchema,
   paginationLimitZod,
-  singleFilter,
+  singleFilterList,
   type ObservationVariableMapping,
   type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
@@ -141,7 +142,7 @@ export const EvaluatorIdsSchema = z.object({
 });
 
 export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   sampling: z.number().min(0).max(1),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
@@ -168,8 +169,7 @@ export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
 );
 
-const EvaluatorListFilterSchema = z
-  .array(singleFilter)
+const EvaluatorListFilterSchema = singleFilterList
   .superRefine((filters, ctx) => {
     for (const [index, filter] of filters.entries()) {
       const valid =

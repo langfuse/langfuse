@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for GitHub issue #11538 — "Full-text search fails for non-English text".
  *

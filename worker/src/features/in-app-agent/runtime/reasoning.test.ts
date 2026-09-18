@@ -166,7 +166,7 @@ describe("OpenAI Responses request shape", () => {
       modelId: "claude-opus-5",
       titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
-      baseURL: "https://llm-gateway.internal/v1",
+      baseURL: "https://ai-gateway.internal/v1",
     };
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
@@ -187,7 +187,7 @@ describe("OpenAI Responses request shape", () => {
       }),
     );
 
-    expect(calls[0]?.url).toBe("https://llm-gateway.internal/v1/responses");
+    expect(calls[0]?.url).toBe("https://ai-gateway.internal/v1/responses");
     expect(calls[0]?.body.input).toEqual([
       {
         role: "system",
@@ -249,7 +249,7 @@ describe("OpenAI Responses request shape", () => {
       modelId: "claude-opus-5",
       titleModelId: "gpt-5.6-luna",
       apiKey: "sk-test",
-      baseURL: "https://llm-gateway.internal/v1",
+      baseURL: "https://ai-gateway.internal/v1",
     };
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);
@@ -282,7 +282,7 @@ describe("OpenAI Responses request shape", () => {
       modelId: "custom-chat-model",
       titleModelId: "custom-chat-model",
       apiKey: "sk-test",
-      baseURL: "https://llm-gateway.internal/v1",
+      baseURL: "https://ai-gateway.internal/v1",
     };
     const { calls, fetch } = createCaptureFetch(OPENAI_RESPONSES_RESPONSE);
     vi.stubGlobal("fetch", fetch);

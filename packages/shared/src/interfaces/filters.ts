@@ -21,6 +21,8 @@ export const filterOperators = {
     "does not contain",
     "starts with",
     "ends with",
+    "is set",
+    "is not set",
   ],
   numberObject: ["=", ">", "<", ">=", "<="],
   booleanObject: ["=", "<>"],
@@ -74,6 +76,17 @@ export const arrayOptionsFilter = z
         "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
     },
   );
+// A substring operator with an empty value skips the ngram prefilter and
+// degrades to a full-scan key-existence check over the whole time window — the
+// same semantics the `is set` presence operator now expresses cleanly. Empty
+// substrings are the legacy spelling of presence, so callers coerce them to
+// `is set` (see `coerceLegacyEmptyMetadataFilters`) rather than reject them.
+const LEGACY_EMPTY_SUBSTRING_STRING_OBJECT_OPERATORS = new Set<string>([
+  "contains",
+  "starts with",
+  "ends with",
+]);
+
 export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
@@ -81,6 +94,29 @@ export const stringObjectFilter = z.object({
   operator: z.enum(filterOperators.stringObject),
   value: z.string(),
 });
+
+// Metadata `contains ""` / `starts with ""` / `ends with ""` was the historical
+// way to express key presence before `is set` / `is not set` existed. Rewrite
+// that shape to the equivalent `is set` at every parse boundary — fresh API
+// input and persisted reads alike — so it never reaches the SQL layer as an
+// empty substring and never throws on parse.
+export const coerceLegacyEmptyMetadataFilters = (filters: unknown): unknown => {
+  if (!Array.isArray(filters)) return filters;
+  return filters.map((filter) => {
+    if (
+      filter &&
+      typeof filter === "object" &&
+      (filter as { type?: unknown }).type === "stringObject" &&
+      (filter as { value?: unknown }).value === "" &&
+      LEGACY_EMPTY_SUBSTRING_STRING_OBJECT_OPERATORS.has(
+        (filter as { operator?: unknown }).operator as string,
+      )
+    ) {
+      return { ...(filter as object), operator: "is set" };
+    }
+    return filter;
+  });
+};
 export const numberObjectFilter = z.object({
   type: z.literal("numberObject"),
   column: z.string(),
@@ -147,6 +183,20 @@ export const singleFilter = z.discriminatedUnion("type", [
   positionInTraceFilter,
 ]);
 
+// Single choke point for parsing arrays of filters. `z.preprocess` runs the
+// legacy-empty-substring coercion before validation, so both fresh API/tRPC
+// input and persisted reads route through one place instead of remembering to
+// wrap each call site. Prefer this over a bare `z.array(singleFilter)`.
+// The cast pins the input type to `SingleFilter[]`. Without it `z.preprocess`
+// infers `unknown` input (the coercer takes `unknown`), which would surface as
+// `unknown` on tRPC mutation variables and form values that consume `z.input`.
+// A legacy `contains ""` filter is itself a valid `singleFilter`, so the coerced
+// shape is fully within this input type.
+export const singleFilterList = z.preprocess(
+  coerceLegacyEmptyMetadataFilters,
+  z.array(singleFilter),
+) as z.ZodType<z.output<typeof singleFilter>[], z.input<typeof singleFilter>[]>;
+
 const eventsTableStringOperator = z.union([
   z.enum(filterOperators.string),
   z.literal(FTS_MATCH_OPERATOR),
@@ -181,3 +231,15 @@ export const eventsTableSingleFilter = z.discriminatedUnion("type", [
 ]);
 
 export const eventsTableFilterState = z.array(eventsTableSingleFilter);
+
+// Coercing choke point for the events-table filter variant, mirroring
+// `singleFilterList`. Prefer this over a bare `z.array(eventsTableSingleFilter)`
+// when parsing external input so legacy empty-substring metadata filters are
+// rewritten to `is set` instead of throwing at the SQL layer.
+export const eventsTableSingleFilterList = z.preprocess(
+  coerceLegacyEmptyMetadataFilters,
+  eventsTableFilterState,
+) as z.ZodType<
+  z.output<typeof eventsTableSingleFilter>[],
+  z.input<typeof eventsTableSingleFilter>[]
+>;

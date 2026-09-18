@@ -3,6 +3,170 @@ import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-sta
 import { parse } from "@/src/features/search-bar/lib/langQ";
 import { validateQuery } from "@/src/features/search-bar/lib/validate";
 import type { FilterState } from "@langfuse/shared";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import { planCommit } from "./commit";
+import {
+  USERS_FIELD_REGISTRY,
+  LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
+
+const scopedRegistry = createFieldRegistry({
+  ...EVENTS_FIELD_REGISTRY,
+  defaultSearchType: ["id"],
+  fields: EVENTS_FIELD_REGISTRY.fields.filter(
+    (field) => field.id !== "input" && field.id !== "output",
+  ),
+  searchScopes: {
+    content: {
+      searchType: ["content"],
+      label: "Content",
+      description: "Input and output",
+    },
+    all: {
+      searchType: ["id", "content"],
+      label: "All fields",
+      description: "IDs, names, input and output",
+    },
+    input: {
+      searchType: ["input"],
+      label: "Input",
+      description: "Input payload",
+    },
+    output: {
+      searchType: ["output"],
+      label: "Output",
+      description: "Output payload",
+    },
+  },
+});
+
+describe("declared search scopes", () => {
+  it("does not interpret inherited object properties as search scopes", () => {
+    for (const name of ["constructor", "toString", "__proto__"]) {
+      expect(scopedRegistry.resolveField(name)).toBeNull();
+    }
+  });
+  it.each([USERS_FIELD_REGISTRY, LEGACY_USERS_FIELD_REGISTRY])(
+    "does not expose scopes on fixed-lane Users registries",
+    (registry) => {
+      expect(registry.resolveField("in")).toBeNull();
+      expect(planCommit("in:content refund", undefined, registry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+  it.each([
+    ["refund policy", "refund policy", ["id"]],
+    ['content:"refund policy" env:prod', "refund policy", ["content"]],
+    ["all:refund", "refund", ["id", "content"]],
+    ["input:refund", "refund", ["input"]],
+    ['in:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+    ['IN:(id OR input) "refund policy"', "refund policy", ["id", "input"]],
+  ])("lowers %s to one backend search lane", (text, query, type) => {
+    expect(planCommit(text as string, undefined, scopedRegistry)).toMatchObject(
+      {
+        status: "committed",
+        searchQuery: query,
+        searchType: type,
+      },
+    );
+  });
+
+  it.each([
+    "content:refund output:policy",
+    "content:refund refund",
+    "content:(refund OR policy)",
+    "-content:refund",
+    "content:=refund",
+    "content:refund*",
+    "in:(id AND input) refund",
+    "in:unsupported refund",
+    "in:input content:refund",
+    "in:input in:output refund",
+  ])("rejects unsupported scope composition: %s", (text) => {
+    const parsed = parse(text, scopedRegistry);
+    const lowered = astToFilterState(parsed.ast, undefined, scopedRegistry);
+    expect(lowered.errors.length).toBeGreaterThan(0);
+    expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+    expect(planCommit(text, undefined, scopedRegistry).status).toBe("invalid");
+  });
+
+  it("reports only the phrase conflict when a scoped phrase has a compatibility scope", () => {
+    const { ast } = parse("content:refund in:id", scopedRegistry);
+    expect(astToFilterState(ast, undefined, scopedRegistry).errors).toEqual([
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    ]);
+    const { ast: missingPhrase } = parse("in:id", scopedRegistry);
+    expect(
+      astToFilterState(missingPhrase, undefined, scopedRegistry).errors,
+    ).toEqual(["Add search text after in:"]);
+  });
+
+  it.each([
+    ["id"],
+    ["content"],
+    ["input"],
+    ["output"],
+    ["id", "content"],
+    ["id", "input"],
+    ["id", "output"],
+    ["input", "output"],
+  ] as const)("round-trips the existing search scope %j", (...searchType) => {
+    const text = filterStateToQueryText(
+      [],
+      {
+        searchQuery: "refund policy",
+        searchType: [...searchType],
+      },
+      scopedRegistry,
+    ).text;
+    expect(planCommit(text, undefined, scopedRegistry)).toMatchObject({
+      status: "committed",
+      searchQuery: "refund policy",
+      searchType,
+    });
+  });
+
+  it("keeps Events input/output as independent column filters", () => {
+    expect(planCommit("input:refund output:policy")).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [
+        { column: "input", operator: "contains", value: "refund" },
+        { column: "output", operator: "contains", value: "policy" },
+      ],
+    });
+  });
+
+  it.each(['content:""', 'content:" "'])(
+    "rejects an empty scoped phrase: %s",
+    (text) => {
+      expect(validateQuery(text, undefined, scopedRegistry).valid).toBe(false);
+      expect(planCommit(text, undefined, scopedRegistry).status).toBe(
+        "invalid",
+      );
+    },
+  );
+
+  it("preserves spaces inside an explicit scoped phrase on projection", () => {
+    const committed = planCommit(
+      'content:" refund policy "',
+      undefined,
+      scopedRegistry,
+    );
+    expect(committed.status).toBe("committed");
+    if (committed.status !== "committed") return;
+    const projected = filterStateToQueryText(
+      [],
+      committed,
+      scopedRegistry,
+    ).text;
+    expect(planCommit(projected, undefined, scopedRegistry)).toMatchObject({
+      searchQuery: " refund policy ",
+      searchType: ["content"],
+    });
+  });
+});
 
 function lower(text: string) {
   return astToFilterState(parse(text).ast);
@@ -966,14 +1130,13 @@ describe("filterStateToQueryText", () => {
     ).toBe("-input:refund");
   });
 
-  it("rejects content: as an unknown field (the pseudo-field was removed)", () => {
-    // `content:` is no longer a field, so a value form errors as "Unknown field".
-    const r = lower('content:"refund"');
-    expect(r.errors).toEqual(['Unknown field "content"']);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
-    // Bare `content:` (no value) is left to the parser — the adapter stays silent
-    // (empty-value FilterNode returns before resolveField), so no double.
+  it("lowers content to the payload-only search lane", () => {
+    expect(lower('content:"refund"')).toMatchObject({
+      errors: [],
+      searchQuery: "refund",
+      searchType: ["content"],
+      filters: [],
+    });
     expect(lower("content:").errors).toEqual([]);
   });
 
@@ -1004,45 +1167,39 @@ describe("filterStateToQueryText", () => {
     }
   });
 
-  it("normalizes a residual input scope to an input: column filter", () => {
-    // A residual input/output searchType (legacy URL or the legacy toolbar)
-    // renders as the scoped token, which reparses to a real column filter — the
-    // deliberate canonicalization (searchType → column filter on next commit).
+  it("keeps a residual input search in its backend lane", () => {
     const { text } = filterStateToQueryText([], {
       searchQuery: "refund policy",
       searchType: ["input"],
     });
-    const r = astToFilterState(validateQuery(text).ast);
-    expect(r.errors).toEqual([]);
-    expect(r.filters).toEqual([
-      {
-        type: "string",
-        column: "input",
-        operator: "contains",
-        value: "refund policy",
-      },
-    ]);
-    expect(r.searchQuery).toBeNull();
-    expect(r.searchType).toBeNull();
+    expect(text).toBe('in:input "refund policy"');
+    expect(planCommit(text)).toMatchObject({
+      status: "committed",
+      filters: [],
+      searchQuery: "refund policy",
+      searchType: ["input"],
+    });
   });
 
-  it("renders the default scope (ids+names+input+output) as bare free text", () => {
-    // Any subset of {id, content} is the default scope — no scope token, so it
-    // round-trips to bare free text (and the caller re-applies the default).
-    for (const searchType of [
-      ["id"],
-      ["id", "content"],
-      ["content"],
-    ] as const) {
-      const { text } = filterStateToQueryText([], {
+  it("only renders the exact default scope as bare text", () => {
+    expect(
+      filterStateToQueryText([], {
         searchQuery: "hello",
-        searchType: [...searchType],
-      });
-      expect(text, `${searchType}`).toBe("hello");
-      const r = astToFilterState(validateQuery(text).ast);
-      expect(r.searchType).toBeNull();
-      expect(r.searchQuery).toBe("hello");
-    }
+        searchType: ["id", "content"],
+      }).text,
+    ).toBe("hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["content"],
+      }).text,
+    ).toBe("content:hello");
+    expect(
+      filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: ["id"],
+      }).text,
+    ).toBe("in:id hello");
   });
 
   it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {

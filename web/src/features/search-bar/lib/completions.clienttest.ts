@@ -17,6 +17,8 @@ import {
   toObservedOptions,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import { validateQuery } from "./validate";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -47,6 +49,52 @@ function plan(
 }
 
 describe("planInputCompletions", () => {
+  it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      fields: [],
+      defaultSearchType: ["id"],
+      freeTextScopeLabel: "prompt names and tags",
+      searchScopes: {
+        content: {
+          searchType: ["content"],
+          label: "Content",
+          description: "search prompt content",
+        },
+      },
+    });
+    const optionsFor = (input: string) =>
+      flattenOptions(
+        planInputCompletions(
+          {
+            input,
+            caret: input.length,
+            currentQueryText: input,
+            observed: {},
+            recents: [],
+          },
+          registry,
+        ),
+      );
+    const fields = optionsFor("").filter((option) => option.kind === "field");
+    expect(fields.some((option) => option.label === "content")).toBe(true);
+    expect(fields.some((option) => option.label === "in")).toBe(false);
+    const rewrites = optionsFor("refund policy").filter(
+      (option) => option.kind === "pattern" && option.id.startsWith("scope:"),
+    );
+    expect(rewrites.map((option) => option.label)).toEqual([
+      '"refund policy"',
+      'content:"refund policy"',
+    ]);
+    for (const option of rewrites)
+      expect(validateQuery(option.label, undefined, registry).valid).toBe(true);
+    expect(
+      optionsFor('content:"refund policy"').some(
+        (option) => option.kind === "pattern" && option.id === "scope:default",
+      ),
+    ).toBe(true);
+  });
+
   it("plans the empty stage with fields and recents", () => {
     const p = plan("", 0, { recents: ["level:ERROR"] });
     expect(p?.stage).toBe("empty");
@@ -491,8 +539,15 @@ describe("planInputCompletions", () => {
     const labels = opts.map((o) => o.label);
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");
-    // content: was removed — the default already searches input + output.
-    expect(labels).not.toContain("content:refund");
+    // Explicit content excludes IDs/names; all preserves the complete scope.
+    expect(labels).toContain("content:refund");
+    expect(labels).not.toContain("all:refund");
+    expect(
+      flattenOptions(plan("", 0)).some(
+        (option) => option.kind === "field" && option.fieldId === "all",
+      ),
+    ).toBe(false);
+    expect(validateQuery("all:refund").valid).toBe(true);
   });
 
   it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
@@ -577,7 +632,7 @@ describe("planInputCompletions", () => {
     );
     expect(ids).not.toContain("scope:input");
     // content: was removed — never offered as a switch target.
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
     const toOutput = opts.find((o) => o.id === "scope:output");
     expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
       "output:abc",
@@ -739,7 +794,7 @@ describe("planInputCompletions", () => {
       expect.arrayContaining(["scope:input", "scope:default"]),
     );
     expect(ids).not.toContain("scope:output");
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
   });
 
   it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {

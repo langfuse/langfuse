@@ -4,9 +4,11 @@ import {
 } from "@langfuse/shared";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
-import { SessionIO } from "@/src/features/annotation-queues/components/session";
-import { LazyTraceEventsRow } from "@/src/features/annotation-queues/components/session/TraceEventsRow";
-import { asCommentCounts } from "@/src/features/annotation-queues/components/session/sessionDetailPageTypes";
+import {
+  SessionIO,
+  LazyTraceEventsRow,
+  asCommentCounts,
+} from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -136,8 +138,6 @@ export const SessionAnnotationProcessor: React.FC<
           </div>
           <CommentDrawerController
             projectId={projectId}
-            objectId={item.objectId}
-            objectType="SESSION"
             count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
           >
             {({ disabled, openDrawer }) => (
@@ -145,7 +145,13 @@ export const SessionAnnotationProcessor: React.FC<
                 type="button"
                 variant="outline"
                 disabled={disabled}
-                onClick={openDrawer}
+                onClick={() =>
+                  openDrawer({
+                    type: "comments",
+                    objectId: item.objectId,
+                    objectType: "SESSION",
+                  })
+                }
                 className="gap-1"
               >
                 {disabled ? (

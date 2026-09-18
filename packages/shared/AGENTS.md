@@ -18,21 +18,33 @@
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- CloudWatch metrics: `recordGauge` batches values; windowed measurements can
+  call `flushMetricsToCloudWatch` from the server barrel after recording to
+  submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
+- Internal trace-batch queue: `src/server/redis/traceBatch.ts` (cloud-gated);
+  payloads in `src/server/queues.ts` accept persisted single-project jobs.
+  Full-event streaming reads live in `src/server/repositories/trace-batch.ts`;
+  the worker owns experiment enablement and lifecycle. Reader options control
+  per-query threads/block size and experiment attribution; retain exact tenant
+  pairs and per-trace time windows when changing parameter chunking.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
-- Query-builder AST (server half, WIP): `src/server/query-ast/*` — golden-SQL
-  recording/diff harness that captures the current SQL at the
-  `src/server/repositories/clickhouse.ts` exec seam and normalizes it via
-  `clickhouse format` for snapshot comparison. Every migrated call site is
-  proven against its baseline here. The Kysely ClickHouse dialect (ARRAY JOIN /
-  LIMIT BY / metadata indexOf nodes, `ExecutionContext` tenancy injection,
-  typed selection, virtual views, catalog parity) lives under
-  `src/server/query-ast/kysely/`.
+- Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely
+  ClickHouse dialect (ARRAY JOIN / LIMIT BY / metadata indexOf nodes,
+  `ExecutionContext` tenancy injection, per-table dedup lowering, virtual views,
+  catalog parity). Compile only through `compileClickhouseQuery` in
+  `src/server/query-ast/compile.ts`. SQL correctness is proven by a golden-SQL
+  harness (`src/server/repositories/goldenHarness.ts`, capturing at the
+  `src/server/repositories/clickhouse.ts` exec seam and normalizing via
+  `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
+  baseline next to the call site (e.g.
+  `src/server/repositories/environments.golden.test.ts`,
+  `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
@@ -57,6 +69,10 @@
   AI SDK-native LLM execution helpers (`generateLLMText` and
   `streamLLMText`), Bedrock default-credential provider auth
   (`createDefaultBedrockProviderAuth`), and server test utilities.
+- `@langfuse/shared/src/server/clickhouse` via `src/server/clickhouse/index.ts`:
+  ClickHouse clients and helpers without loading the full server barrel. Use this
+  entry point for test cleanup so built and source-aliased clients retain the same
+  module identity.
 - `@langfuse/shared/src/db` via `src/db.ts`: Prisma client singleton plus
   Prisma namespace/types for direct database access. Never route this into
   frontend-safe code.

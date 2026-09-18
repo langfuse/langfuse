@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -118,7 +119,6 @@ export function MembershipInvitesPage({
       accessorKey: "invitedByUser",
       header: "Invited By",
       variant: "avatar",
-      emptyValue: "-",
     }),
     {
       accessorKey: "meta",

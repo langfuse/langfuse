@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -98,7 +99,7 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
 
   if (availableProviders.length === 0) {
     return (
-      <div className="flex flex-col space-y-4 pr-1">
+      <div className="flex flex-col pr-1">
         {customHeader ? (
           customHeader
         ) : (
@@ -106,7 +107,6 @@ export const ModelParameters: React.FC<ModelParamsContext> = ({
             <p className="font-bold">Model</p>
           </div>
         )}
-        <p className="text-xs">No LLM API key set in project. </p>
         <CreateLLMApiKeyDialog
           open={createLlmApiKeyDialogOpen}
           setOpen={setCreateLlmApiKeyDialogOpen}

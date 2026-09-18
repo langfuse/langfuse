@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { useEffect, useRef, useState } from "react";
 
 export type AnimatedBusy = {

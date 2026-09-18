@@ -100,8 +100,11 @@ describe("Create and get comments", () => {
     });
   });
 
-  it("should create an observation comment when objectStartTime bounds the lookup", async () => {
+  it("should create an observation comment when objectStartTime is in the observation's minute", async () => {
     const startTime = new Date("2024-05-15T12:00:00.000Z");
+    // Same minute, different second: the lookup floors to the minute, so this
+    // still resolves the observation.
+    const sameMinuteStartTime = new Date("2024-05-15T12:00:45.000Z");
     const observationId = randomUUID();
     // Seed both tables so the lookup resolves regardless of the v4 write-mode
     // routing the test environment happens to use.
@@ -134,7 +137,7 @@ describe("Create and get comments", () => {
         objectId: observationId,
         objectType: "OBSERVATION",
         projectId: seedProjectId,
-        objectStartTime: startTime.toISOString(),
+        objectStartTime: sameMinuteStartTime.toISOString(),
         authorUserId: orgMemberUserId,
       },
     );
@@ -159,10 +162,12 @@ describe("Create and get comments", () => {
 
   it("should still create an observation comment when objectStartTime is a wrong/stale hint", async () => {
     const actualStartTime = new Date("2024-05-15T12:00:00.000Z");
-    // A day the observation does NOT live on: the bounded lookup misses and
-    // must fall back to an unbounded lookup instead of surfacing a false 404.
-    const wrongStartTime = new Date("2024-05-20T12:00:00.000Z");
+    // A different minute than the observation: the bounded lookup misses, but the
+    // hint falls back to an unbounded lookup, so the comment is still created.
+    const wrongStartTime = new Date("2024-05-15T12:02:00.000Z");
     const observationId = randomUUID();
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
     await Promise.all([
       createEventsCh([
         createEvent({

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "../../../errors";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
 import {
@@ -7,6 +8,7 @@ import {
   eventsTableTraceNameSql,
 } from "../../../eventsTable";
 import type { FilterState } from "../../../types";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { eventsTableUiColumnDefinitions } from "../../tableMappings/mapEventsTable";
 import { FilterList } from "./clickhouse-filter";
 import { EventsAggQueryBuilder } from "./event-query-builder";
@@ -18,8 +20,20 @@ export const EVENTS_FILTER_OPTION_TOP_N = 1000;
 // Sentinel "column" carrying the approx total observation count in the facet result.
 export const EVENTS_APPROX_TOTAL_COUNT_MARKER = "__approxTotalCount__";
 
-// Facet tuple format: (option name, option value, value-occurrence count, sort order, display value).
-const EVENTS_APPROX_TOTAL_COUNT_TUPLE = `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0), '')`;
+// Named row tuple emitted per facet option. Casting to a named Tuple lets the
+// final projection read option.column / option.sortKey etc. instead of opaque
+// positional tupleElement(option, N) reads, and forces every facet — plus the
+// approx-total sentinel below — to arrayConcat with a structurally identical
+// shape (arrayConcat rejects mismatched element types).
+const EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE =
+  "Tuple(column String, value String, count UInt64, sortKey Int64, displayValue String)";
+
+const castEventFilterOptionRowTuple = (tupleExpression: string): string =>
+  `CAST(${tupleExpression} AS ${EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE})`;
+
+const EVENTS_APPROX_TOTAL_COUNT_TUPLE = castEventFilterOptionRowTuple(
+  `tuple('${EVENTS_APPROX_TOTAL_COUNT_MARKER}', '', toUInt64(approx_total_count), toInt64(0), '')`,
+);
 
 const EVENTS_FILTER_OPTION_TOP_K_MAX_N = 65_536;
 
@@ -230,7 +244,16 @@ export type EventFilterOptionRow = {
   displayValue?: string;
 };
 
-export type EventFilterOptionScope = "scoredTraces";
+// scoredTraces restricts events to traces that carry a score. The optional
+// time bounds mirror the scores list view's both-sided window on
+// scores.timestamp, so offered options match what the windowed view can
+// actually display (and the subquery prunes by partition/PK instead of
+// scanning all history).
+export type EventFilterOptionScope = {
+  type: "scoredTraces";
+  fromTime?: { operator: ">=" | ">"; value: Date };
+  toTime?: { operator: "<=" | "<"; value: Date };
+};
 
 const EVENTS_FILTER_OPTION_COLUMN_IDENTIFIER_PATTERN = /^[A-Za-z]+$/;
 
@@ -283,26 +306,22 @@ const eventFilterOptionColumnSqlLiteral = (column: EventFilterOptionColumn) =>
 const stringValueExpression = (expression: string) =>
   `toString(ifNull(${expression}, ''))`;
 
-const optionValuesArrayExpression = (
-  column: EventFilterOptionColumn,
+// Shared by the sumMap keys and the parallel "ones" counts array so both derive
+// their length from one filter and cannot drift apart.
+const optionValuesFilteredExpression = (
+  definition: Extract<EventFilterOptionDefinition, { kind: "array" }>,
 ): string => {
-  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const valuesExpression = definition.distinct
+    ? `arrayDistinct(${definition.expression})`
+    : definition.expression;
 
-  if (definition.kind === "scalar" || definition.kind === "labeledScalar") {
-    return `if(${definition.includeWhen}, [${stringValueExpression(definition.expression)}], CAST([], 'Array(String)'))`;
-  }
-
-  if (definition.kind === "boolean") {
-    return `[if(${definition.expression}, 'true', 'false')]`;
-  }
-
-  const valuesExpression =
-    "distinct" in definition && definition.distinct
-      ? `arrayDistinct(${definition.expression})`
-      : definition.expression;
-
-  return `arrayMap(value -> toString(value), arrayFilter(value -> length(toString(value)) > 0, ${valuesExpression}))`;
+  return `arrayFilter(value -> length(toString(value)) > 0, ${valuesExpression})`;
 };
+
+const optionValuesArrayExpression = (
+  definition: Extract<EventFilterOptionDefinition, { kind: "array" }>,
+): string =>
+  `arrayMap(value -> toString(value), ${optionValuesFilteredExpression(definition)})`;
 
 const optionPresenceCondition = (column: EventFilterOptionColumn): string => {
   const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
@@ -346,7 +365,7 @@ const optionTopKSelectExpression = (column: EventFilterOptionColumn) => {
     return `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${optionTopAlias(column)}`;
   }
 
-  return `approx_top_kArray({optionLimit: UInt64})(${optionValuesArrayExpression(column)}) AS ${optionTopAlias(column)}`;
+  return `approx_top_kArray({optionLimit: UInt64})(${optionValuesArrayExpression(definition)}) AS ${optionTopAlias(column)}`;
 };
 
 const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
@@ -370,15 +389,39 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
     ? "tupleElement(tupleElement(option, 1), 2)"
     : "''";
 
-  return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression}), ${topAlias})`;
+  return `arrayMap(option -> ${castEventFilterOptionRowTuple(
+    `tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression})`,
+  )}, ${topAlias})`;
 };
 
 const eventFilterOptionScopeCondition = (
   scope: EventFilterOptionScope,
-): string => {
-  switch (scope) {
-    case "scoredTraces":
-      return "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+): { condition: string; params: Record<string, unknown> } => {
+  switch (scope.type) {
+    case "scoredTraces": {
+      const clauses = ["project_id = {projectId: String}"];
+      const params: Record<string, unknown> = {};
+      if (scope.fromTime) {
+        clauses.push(
+          `timestamp ${scope.fromTime.operator} {scoredTracesFromTime: DateTime64(3, 'UTC')}`,
+        );
+        params.scoredTracesFromTime = convertDateToClickhouseDateTime(
+          scope.fromTime.value,
+        );
+      }
+      if (scope.toTime) {
+        clauses.push(
+          `timestamp ${scope.toTime.operator} {scoredTracesToTime: DateTime64(3, 'UTC')}`,
+        );
+        params.scoredTracesToTime = convertDateToClickhouseDateTime(
+          scope.toTime.value,
+        );
+      }
+      return {
+        condition: `e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE ${clauses.join(" AND ")})`,
+        params,
+      };
+    }
   }
 };
 
@@ -412,7 +455,7 @@ export const buildEventsFilterOptionColumnQuery = (params: {
       ? `toString(${definition.expression})`
       : definition.kind === "boolean"
         ? `if(${definition.expression}, 'true', 'false')`
-        : `arrayJoin(${optionValuesArrayExpression(column)})`;
+        : `arrayJoin(${optionValuesArrayExpression(definition)})`;
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,
@@ -426,7 +469,8 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     .sampleRows(sampleRows);
 
   if (params.scope) {
-    queryBuilder.whereRaw(eventFilterOptionScopeCondition(params.scope));
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
+    queryBuilder.whereRaw(scopeCondition.condition, scopeCondition.params);
   }
 
   return queryBuilder.buildWithParams();
@@ -466,8 +510,10 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   aggregatedOptionsBuilder.sampleRows(sampleRows);
 
   if (params.scope) {
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
     aggregatedOptionsBuilder.whereRaw(
-      eventFilterOptionScopeCondition(params.scope),
+      scopeCondition.condition,
+      scopeCondition.params,
     );
   }
 
@@ -482,8 +528,8 @@ export const buildEventsFilterOptionsForColumnsQuery = (params: {
   // approx_top_k counts live inside the tuple, so scale in the outer projection.
   const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
   const countExpression = sampled
-    ? "toUInt64(round(tupleElement(option, 3) * sample_factor))"
-    : "tupleElement(option, 3)";
+    ? "toUInt64(round(option.count * sample_factor))"
+    : "option.count";
 
   const query = `
 WITH aggregated_options AS (
@@ -497,12 +543,185 @@ option_rows AS (
   FROM aggregated_options
 )
 SELECT
-  tupleElement(option, 1) AS column,
-  tupleElement(option, 2) AS value,
+  option.column AS column,
+  option.value AS value,
   ${countExpression} AS count,
-  tupleElement(option, 5) AS displayValue
+  option.displayValue AS displayValue
 FROM option_rows
-ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC
+ORDER BY column ASC, option.sortKey ASC, option.value ASC
+`.trim();
+
+  return {
+    query,
+    params: {
+      ...aggregatedOptionsParams,
+      optionLimit,
+    },
+  };
+};
+
+// Per-column exact aggregate state, computed in the single base scan. Every
+// kind resolves to the same alias shape — Array((key, count)) ranked and capped
+// to the top-N — so the rows builder below can map any facet uniformly.
+// Scalars/arrays aggregate an exact value→count Map (sumMap), then zip it into
+// (key, count) pairs; booleans build that pair array directly from two countIf
+// branches. The full histogram is held in aggregate-function state, so unlike a
+// GROUP BY it does not spill to disk — scan cost is bounded by the base scan's
+// sampleRows.
+//
+// countDesc ranks by (count DESC, value ASC): the value tie-breaker must be
+// applied before the optionLimit cap so the top-N stays deterministic at the
+// boundary, matching the single-column ORDER BY count() DESC, value ASC. Booleans
+// carry only two buckets, always under the cap, so they skip the rank/slice.
+//
+// Non-boolean facets emit the pipeline as three named columns of the one-row
+// aggregate — `<column>_hist` (the value→count Map), `<column>_ranked` (zipped
+// and sorted), and `<column>TopOptions` (capped) — so the SQL reads as named
+// stages and the histogram is written once instead of inlined per tupleElement
+// read. The intermediate columns are only consumed by the next stage's alias;
+// the rows builder reads `<column>TopOptions`.
+const exactOptionAggSelectExpressions = (
+  column: EventFilterOptionColumn,
+): string[] => {
+  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const topAlias = optionTopAlias(column);
+
+  if (definition.kind === "boolean") {
+    return [
+      `arrayFilter(option -> tupleElement(option, 2) > 0, [tuple('false', countIf(NOT (${definition.expression})), toUInt64(0)), tuple('true', countIf(${definition.expression}), toUInt64(0))]) AS ${topAlias}`,
+    ];
+  }
+
+  const histAlias = `${column}_hist`;
+  const rankedAlias = `${column}_ranked`;
+
+  // The array values expression stays inlined here: it is a per-row (non-
+  // aggregate) array, so it cannot be projected as its own CTE column without a
+  // GROUP BY. `<column>_hist` is aggregate state and is projectable.
+  const histogram =
+    definition.kind === "scalar"
+      ? `sumMapIf([${stringValueExpression(definition.expression)}], [toUInt64(1)], ${definition.includeWhen})`
+      : definition.kind === "labeledScalar"
+        ? `sumMapIf([tuple(${stringValueExpression(definition.expression)}, ${stringValueExpression(definition.labelExpression)})], [toUInt64(1)], ${definition.includeWhen})`
+        : (() => {
+            const filtered = optionValuesFilteredExpression(definition);
+            const keys = `arrayMap(value -> toString(value), ${filtered})`;
+            const ones = `arrayMap(value -> toUInt64(1), ${filtered})`;
+            return `sumMap(${keys}, ${ones})`;
+          })();
+
+  const zipped = `arrayZip(tupleElement(${histAlias}, 1), tupleElement(${histAlias}, 2))`;
+  const ranked =
+    definition.sort === "countDesc"
+      ? `arraySort(pair -> tuple(-toInt64(tupleElement(pair, 2)), tupleElement(pair, 1)), ${zipped})`
+      : `arraySort(pair -> tupleElement(pair, 1), ${zipped})`;
+
+  return [
+    `${histogram} AS ${histAlias}`,
+    `${ranked} AS ${rankedAlias}`,
+    `arraySlice(${rankedAlias}, 1, {optionLimit: UInt64}) AS ${topAlias}`,
+  ];
+};
+
+const exactOptionRowsArrayExpression = (
+  column: EventFilterOptionColumn,
+): string => {
+  const definition = EVENTS_FILTER_OPTION_DEFINITIONS[column];
+  const alias = optionTopAlias(column);
+  const isLabeled = definition.kind === "labeledScalar";
+
+  // alias = array of option tuples, option = (key, count)
+  // key = value              (scalar / array / boolean)
+  // key = (value, label)     (labeledScalar)
+  // Output row is cast to the named EVENTS_FILTER_OPTION_ROW_TUPLE_TYPE.
+  const sortKeyExpression =
+    definition.sort === "countDesc"
+      ? "-toInt64(tupleElement(option, 2))"
+      : definition.sort === "booleanAsc"
+        ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
+        : "toInt64(0)";
+  const valueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 1)"
+    : "tupleElement(option, 1)";
+  const displayValueExpression = isLabeled
+    ? "tupleElement(tupleElement(option, 1), 2)"
+    : "''";
+
+  return `arrayMap(option -> ${castEventFilterOptionRowTuple(
+    `tuple(${eventFilterOptionColumnSqlLiteral(column)}, ${valueExpression}, tupleElement(option, 2), ${sortKeyExpression}, ${displayValueExpression})`,
+  )}, ${alias})`;
+};
+
+/**
+ * One events_core scan that materializes the given filter-option facets with
+ * exact value→count aggregation (sumMap / countIf), then fans the per-column
+ * top-N out with arrayJoin. Used where facet values must stay exact
+ * (scores-view facets) instead of the approx_top_k multi-column sketch, without
+ * re-scanning or re-evaluating the scope semi-join once per facet.
+ */
+export const buildEventsExactFilterOptionsForColumnsQuery = (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  limit: number;
+  scope?: EventFilterOptionScope;
+  sampleRows?: number;
+}): { query: string; params: Record<string, unknown> } | null => {
+  const columns = uniqueEventFilterOptionColumns(params.columns);
+  if (columns.length === 0 || params.limit <= 0) {
+    return null;
+  }
+
+  const optionLimit = Math.min(params.limit, EVENTS_FILTER_OPTION_TOP_K_MAX_N);
+  const { queryBuilder: aggregatedOptionsBuilder } =
+    buildEventsObservationRowSelection({
+      projectId: params.projectId,
+      filter: params.filter,
+    });
+
+  const sampleRows = params.sampleRows ?? 0;
+  const sampled = sampleRows > 0;
+
+  aggregatedOptionsBuilder.selectRaw(
+    ...columns.flatMap(exactOptionAggSelectExpressions),
+    ...(sampled ? [EVENTS_SAMPLE_FACTOR_SELECT] : []),
+  );
+  aggregatedOptionsBuilder.sampleRows(sampleRows);
+
+  if (params.scope) {
+    const scopeCondition = eventFilterOptionScopeCondition(params.scope);
+    aggregatedOptionsBuilder.whereRaw(
+      scopeCondition.condition,
+      scopeCondition.params,
+    );
+  }
+
+  const { query: aggregatedOptionsQuery, params: aggregatedOptionsParams } =
+    aggregatedOptionsBuilder.buildWithParams();
+
+  const sampleFactorRow = sampled ? ",\n    sample_factor" : "";
+  const countExpression = sampled
+    ? "toUInt64(round(option.count * sample_factor))"
+    : "option.count";
+
+  const query = `
+WITH aggregated_options AS (
+${aggregatedOptionsQuery}
+),
+option_rows AS (
+  SELECT
+    arrayJoin(arrayConcat(
+      ${columns.map(exactOptionRowsArrayExpression).join(",\n      ")}
+    )) AS option${sampleFactorRow}
+  FROM aggregated_options
+)
+SELECT
+  option.column AS column,
+  option.value AS value,
+  ${countExpression} AS count,
+  option.displayValue AS displayValue
+FROM option_rows
+ORDER BY column ASC, option.sortKey ASC, option.value ASC
 `.trim();
 
   return {

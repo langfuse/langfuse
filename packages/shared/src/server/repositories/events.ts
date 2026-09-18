@@ -1,5 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../db";
-import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
+import {
+  TupleParam,
+  type ClickHouseClientConfigOptions,
+  type ClickHouseSettings,
+} from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -114,6 +119,7 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
@@ -137,6 +143,7 @@ import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 
 export type EventBatchIOStringOutput = {
   id: string;
+  traceId: string;
   input: string | null;
   output: string | null;
   metadata: MetadataDomain;
@@ -1017,10 +1024,17 @@ async function getObservationByIdFromEventsTableInternal({
       ),
     )
     .whereRaw("span_id = {id: String}", { id })
+    // Matched at minute resolution: minute is the finest the events_full primary
+    // key (project_id, toStartOfMinute(start_time), ...) can prune on, and
+    // flooring absorbs sub-minute precision differences in the caller-supplied
+    // start time.
     .when(Boolean(startTime), (b) =>
-      b.whereRaw("toDate(start_time) = toDate({startTime: DateTime64(3)})", {
-        startTime: convertDateToClickhouseDateTime(startTime!),
-      }),
+      b.whereRaw(
+        "toStartOfMinute(start_time) = toStartOfMinute({startTime: DateTime64(3)})",
+        {
+          startTime: convertDateToClickhouseDateTime(startTime!),
+        },
+      ),
     )
     // Lower-bound start_time on an anchor (e.g. the parent trace's timestamp) so
     // the lookup can prune events_full parts/partitions. Subtract the skew
@@ -1365,6 +1379,7 @@ type PublicApiObservationsQuery = {
 
 type BuildObservationsQueryComponentsOptions = {
   allowUnindexedIoFilters?: boolean;
+  clickhouseSettings?: ClickHouseSettings;
 };
 
 const EVENTS_IO_FILTER_TYPE_ERROR =
@@ -1424,6 +1439,7 @@ function buildObservationsQueryComponents(
     name: string;
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
+  filtersNeedFullTable: boolean;
 } {
   const { projectId, advancedFilters, ...filterParams } = opts;
 
@@ -1450,7 +1466,6 @@ function buildObservationsQueryComponents(
   );
   const filtersNeedFullTable = filtersRequireEventsFull(observationsFilter);
 
-  // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
   const appliedFilter = observationsFilter.apply();
 
@@ -1480,7 +1495,7 @@ function buildObservationsQueryComponents(
     )
     .where(appliedFilter);
 
-  return { queryBuilder, externalCTEs };
+  return { queryBuilder, externalCTEs, filtersNeedFullTable };
 }
 
 function buildObservationsQueryBase(
@@ -1569,6 +1584,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   extraTags: Record<string, string> = {},
+  clickhouseSettings?: ClickHouseSettings,
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1577,6 +1593,7 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings,
   });
 }
 
@@ -1666,36 +1683,50 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     expandMetadataKeys != null &&
     expandMetadataKeys.length > 0;
   const needsIOCTE = needsIO || needsExpandedMetadata;
-  // Metadata goes to io CTE when in CTE mode and metadata is requested
-  const metadataFromFullTable =
-    needsIOCTE && requestedFields.includes("metadata");
 
   // Shared: build base query with field sets, ordering, pagination
-  const { queryBuilder: baseBuilder, externalCTEs } =
-    buildObservationsQueryComponents(
-      opts,
-      eventsTableNativeUiColumnDefinitions,
-      options,
-    );
+  const {
+    queryBuilder: baseBuilder,
+    externalCTEs,
+    filtersNeedFullTable,
+  } = buildObservationsQueryComponents(
+    opts,
+    eventsTableNativeUiColumnDefinitions,
+    options,
+  );
+
+  // The io lane only pays off when base reads the cheap truncated table
+  // (events_core) and the split defers the heavy input/output/metadata columns
+  // to a page-size lookup on events_full. When a filter touches input/output,
+  // `filtersNeedFullTable` already forces base onto events_full to evaluate that
+  // filter, so there is nothing left to defer — the split just re-scans
+  // events_full several times (base is referenced from the io lane and the final
+  // join, and ClickHouse inlines CTEs). Read io/metadata inline on base instead.
+  const useSplit = needsIOCTE && !filtersNeedFullTable;
+
+  // Metadata goes to the io CTE only when we actually split; on the simple path
+  // base already reads events_full (forced by the filter) so metadata is
+  // untruncated there.
+  const metadataFromIoCte = useSplit && requestedFields.includes("metadata");
 
   // Shared steps: ordering and pagination apply to every path and are
   // independent of which columns each path projects.
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  // Pick the query shape. When IO/expanded metadata is requested, use the
-  // CTE+JOIN split query that fetches those columns from events_full for the
-  // matched rows only; otherwise everything comes from events_core directly.
-  const queryPath: "simple" | "cte-join" = needsIOCTE ? "cte-join" : "simple";
+  const queryPath: "simple" | "cte-join" = useSplit ? "cte-join" : "simple";
 
-  // Field groups projected on the base builder.
-  // `io` (and `metadata` when it must come untruncated from events_full) is
-  // fetched by the io CTE instead; selecting it on events_core would return
-  // truncated values.
+  // Field groups projected on the base builder. In the split, `io` (and
+  // `metadata`) is fetched by the io CTE instead; selecting it on events_core
+  // would return truncated values. On the simple path base is on events_full
+  // whenever io/metadata is requested (filter-forced), so it is selected inline.
   const selectBaseFieldSets = () => {
     baseBuilder.selectFieldSet("core");
-    const excludeFromBase = new Set<string>(["core", "io"]);
-    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    const excludeFromBase = new Set<string>(["core"]);
+    if (useSplit) {
+      excludeFromBase.add("io");
+      if (metadataFromIoCte) excludeFromBase.add("metadata");
+    }
     requestedFields
       .filter((fg) => !excludeFromBase.has(fg))
       .forEach((fg) => baseBuilder.selectFieldSet(fg));
@@ -1718,7 +1749,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
         projectId,
         baseBuilder,
         includeIO: needsIO,
-        includeMetadata: metadataFromFullTable,
+        includeMetadata: metadataFromIoCte,
         externalCTEs,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
@@ -1728,6 +1759,8 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
       projectId,
       builder,
+      {},
+      options.clickhouseSettings,
     );
 
   return await enrichObservationsWithModelData(
@@ -2054,12 +2087,16 @@ type BuiltEventsFilterOptionColumnQuery = NonNullable<
 type BuiltEventsFilterOptionsForColumnsQuery = NonNullable<
   ReturnType<typeof buildEventsFilterOptionsForColumnsQuery>
 >;
+type BuiltEventsExactFilterOptionsForColumnsQuery = NonNullable<
+  ReturnType<typeof buildEventsExactFilterOptionsForColumnsQuery>
+>;
 
 const queryEventsFilterOptionRows = async (
   projectId: string,
   queryWithParams:
     | BuiltEventsFilterOptionColumnQuery
-    | BuiltEventsFilterOptionsForColumnsQuery,
+    | BuiltEventsFilterOptionsForColumnsQuery
+    | BuiltEventsExactFilterOptionsForColumnsQuery,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
@@ -2133,6 +2170,30 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
+/** Exact per-column facets in one events_core scan: sumMap/countIf aggregate state fanned out with arrayJoin (no GROUP BY / UNION ALL). */
+export const getEventsExactFilterOptionsForColumns = async (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  topN?: number;
+  scope?: EventFilterOptionScope;
+}) => {
+  const queryWithParams = buildEventsExactFilterOptionsForColumnsQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    columns: params.columns,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    scope: params.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+};
+
 // Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {
   projectId: string;
@@ -2193,20 +2254,6 @@ const getSingleEventsFilterOptionColumn = async (
     scope: opts?.scope,
     sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
-
-export const getEventsGroupedByTraceName = async (
-  projectId: string,
-  filter: FilterState,
-  opts?: GroupedEventsFilterOptions,
-) => {
-  const rows = await getSingleEventsFilterOptionColumn(
-    projectId,
-    filter,
-    "traceName",
-    opts,
-  );
-  return rows.map((row) => ({ traceName: row.value, count: row.count }));
-};
 
 export const getEventsGroupedByTraceTags = async (
   projectId: string,
@@ -2549,6 +2596,8 @@ export const getObservationsBatchIOFromEventsTable = async <
    * the payload. Ignored for truncated reads (events_core caps far tighter).
    */
   ioCharLimit?: number;
+  /** Restricts every requested observation to an already-authorized session. */
+  sessionId?: string;
   includeExperimentFields?: TIncludeExperiment;
   /** Opt-in: tool-call arrays can be large; only eval consumers need them. */
   includeToolCallFields?: TIncludeToolCalls;
@@ -2567,9 +2616,13 @@ export const getObservationsBatchIOFromEventsTable = async <
       ? Math.max(1, Math.trunc(opts.ioCharLimit))
       : undefined;
 
-  // Extract IDs and trace IDs for filtering
+  // Keep the individual filters for primary-key pruning and the tuple filter
+  // for exact trace/observation matching.
   const observationIds = opts.observations.map((o) => o.id);
-  const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
+  const traceIds = Array.from(new Set(opts.observations.map((o) => o.traceId)));
+  const observationTuples = opts.observations.map(
+    (observation) => new TupleParam([observation.traceId, observation.id]),
+  );
 
   // Use provided timestamp range with buffer for efficient filtering
   const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
@@ -2605,12 +2658,24 @@ export const getObservationsBatchIOFromEventsTable = async <
     ? `
       e.tool_calls as tool_calls,
       e.tool_call_names as tool_call_names,
-    `
+      `
     : "";
+  const sessionTraceFilter =
+    opts.sessionId !== undefined
+      ? `AND e.trace_id IN (
+          SELECT trace_id
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id IN {traceIds: Array(String)}
+          GROUP BY trace_id
+          HAVING argMaxIf(session_id, event_ts, session_id <> '') = {sessionId: String}
+        )`
+      : "";
 
   const query = `
-    SELECT
-      e.span_id as id,
+      SELECT
+        e.span_id as id,
+        e.trace_id as trace_id,
       ${inputSelect},
       ${outputSelect},
       ${experimentFieldsSelect}
@@ -2618,14 +2683,17 @@ export const getObservationsBatchIOFromEventsTable = async <
       mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(${metadataValues})) as metadata
     FROM ${tableName} e
     WHERE e.project_id = {projectId: String}
-      AND e.span_id IN {observationIds: Array(String)}
-      AND e.trace_id IN {traceIds: Array(String)}
+        AND e.span_id IN {observationIds: Array(String)}
+        AND e.trace_id IN {traceIds: Array(String)}
+        AND (e.trace_id, e.span_id) IN {observationTuples: Array(Tuple(String, String))}
+        ${sessionTraceFilter}
       AND e.start_time >= {minTimestamp: DateTime64(3)}
       AND e.start_time <= {maxTimestamp: DateTime64(3)}
   `;
 
   const results = await queryClickhouse<{
     id: string;
+    trace_id: string;
     input: string | null;
     output: string | null;
     metadata: Record<string, string>;
@@ -2639,6 +2707,8 @@ export const getObservationsBatchIOFromEventsTable = async <
       projectId: opts.projectId,
       observationIds,
       traceIds,
+      observationTuples,
+      sessionId: opts.sessionId,
       minTimestamp: convertDateToClickhouseDateTime(minTimestamp),
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
@@ -2648,6 +2718,7 @@ export const getObservationsBatchIOFromEventsTable = async <
 
   return results.map((r) => ({
     id: r.id,
+    traceId: r.trace_id,
     input: applyBatchIOStringRendering(r.input),
     output: applyBatchIOStringRendering(r.output),
     metadata:
