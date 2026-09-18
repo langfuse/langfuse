@@ -131,6 +131,9 @@ impl OpenAiResponsesCapture {
     }
 
     pub fn into_facts(mut self) -> ProviderFacts {
+        if matches!(self.body, ResponseBody::Sse(_)) {
+            self.end_body();
+        }
         if self.mode == IngestionMode::Full {
             self.facts.output = Some(Value::Array(self.items.into_values().collect()));
         }

@@ -802,8 +802,13 @@ async fn capture_regression_preserves_native_request_and_usage() {
 
 #[tokio::test]
 async fn downstream_cancellation_does_not_erase_completed_capture() {
-    for streaming in [false, true] {
-        let mut execution = observer("full").await;
+    for (streaming, upstream_eof, mode) in [
+        (false, true, "full"),
+        (true, true, "full"),
+        (true, false, "full"),
+        (true, false, "usage"),
+    ] {
+        let mut execution = observer(mode).await;
         record_response(
             &mut execution,
             if streaming {
@@ -813,12 +818,14 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
             },
         );
         let body = if streaming {
-            terminal("completed", 0)
+            format!("{}{}", completed_item(0, "hello"), terminal("completed", 1))
         } else {
             json!({"status":"completed","output":[]}).to_string()
         };
         execution.push_bytes(body.as_bytes());
-        execution.end_body();
+        if upstream_eof {
+            execution.end_body();
+        }
         let writer = LogWriter::default();
         let subscriber = tracing_subscriber::fmt()
             .json()

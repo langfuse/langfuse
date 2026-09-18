@@ -179,7 +179,9 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
             message.push_str(error);
         }
         ("ERROR", Some(message))
-    } else if facts.outcome == RelayOutcome::Cancelled {
+    } else if facts.outcome == RelayOutcome::Cancelled
+        && facts.inference.provider_status.as_deref() != Some("completed")
+    {
         ("WARNING", Some("Client cancelled the response".into()))
     } else if facts.inference.provider_status.as_deref() == Some("incomplete") {
         ("WARNING", Some("Provider response incomplete".into()))
@@ -552,6 +554,41 @@ mod tests {
             (Some(200), None, RelayOutcome::Cancelled, "WARNING", 0),
             (
                 Some(200),
+                Some("completed"),
+                RelayOutcome::Cancelled,
+                "DEFAULT",
+                0,
+            ),
+            (
+                Some(200),
+                Some("failed"),
+                RelayOutcome::Cancelled,
+                "ERROR",
+                2,
+            ),
+            (
+                Some(200),
+                Some("incomplete"),
+                RelayOutcome::Cancelled,
+                "WARNING",
+                0,
+            ),
+            (
+                Some(200),
+                Some("completed"),
+                RelayOutcome::Timeout,
+                "ERROR",
+                2,
+            ),
+            (
+                Some(200),
+                Some("completed"),
+                RelayOutcome::TransportError,
+                "ERROR",
+                2,
+            ),
+            (
+                Some(200),
                 Some("incomplete"),
                 RelayOutcome::Eof,
                 "WARNING",
@@ -566,6 +603,10 @@ mod tests {
             let attrs = attributes(&span);
             assert_eq!(attrs["langfuse.observation.level"], level);
             assert_eq!(span["status"]["code"], code);
+            assert_eq!(
+                attrs.contains_key("langfuse.observation.status_message"),
+                level != "DEFAULT"
+            );
             assert!(metadata(&attrs).get("relay_outcome").is_none());
         }
     }
