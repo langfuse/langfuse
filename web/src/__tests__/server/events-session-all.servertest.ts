@@ -54,7 +54,6 @@ const memberCaller = eventsRouter.createCaller({
           excludeClickhouseRead: false,
           experimentsV4Enabled: false,
           observationEvals: false,
-          searchBar: false,
           templateFlag: false,
           v4BetaToggleVisible: false,
         },
