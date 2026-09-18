@@ -9,6 +9,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { BillingUsageChart } from "./BillingUsageChart";
 import { BillingActionButtons } from "./BillingActionButtons";
+import { BillingSwitchPlanDialogController } from "./BillingSwitchPlanDialog";
 import { BillingScheduleNotification } from "./BillingScheduleNotification";
 import { BillingInvoiceTable } from "./BillingInvoiceTable";
 import { BillingDiscountView } from "./BillingDiscountView";
@@ -21,15 +22,6 @@ import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
-  const orgId = router.query.organizationId as string | undefined;
-  const hasAccess = useHasOrganizationAccess({
-    organizationId: orgId,
-    scope: "langfuseCloudBilling:CRUD",
-  });
-
-  const isCloudBillingAvailable = useIsCloudBillingAvailable();
-  const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
-  const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
   const {
     organization,
     billingProvider,
@@ -38,6 +30,16 @@ export const BillingSettings = () => {
     cancellation,
     scheduledPlanSwitch,
   } = useBillingInformation();
+  const orgId =
+    organization?.id ?? (router.query.organizationId as string | undefined);
+  const hasAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "langfuseCloudBilling:CRUD",
+  });
+
+  const isCloudBillingAvailable = useIsCloudBillingAvailable();
+  const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
+  const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
   const usage = api.cloudBilling.getUsage.useQuery(
     { orgId: organization?.id ?? "" },
     {
@@ -98,6 +100,9 @@ export const BillingSettings = () => {
       ) : null}
 
       <Header title="Usage & Billing" />
+      <BillingSwitchPlanDialogController source="sidebar" autoOpenFromQuery>
+        {() => null}
+      </BillingSwitchPlanDialogController>
       <div className="space-y-6">
         {usage.data !== null && (
           <BillingUsageChart
