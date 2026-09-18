@@ -32,6 +32,7 @@ async fn grant() -> DeliveryContext {
     DeliveryContext::from_resolved(
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
+        None,
     )
 }
 
@@ -301,6 +302,7 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
     let second = DeliveryContext::from_resolved(
         &resolved_request_context("provider-secret").await,
         &HeaderMap::new(),
+        None,
     );
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);

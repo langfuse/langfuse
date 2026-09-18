@@ -138,8 +138,8 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     );
     metadata.insert("http_status".into(), json!(facts.http_status));
     for (key, value) in [
-        ("response_id", &facts.inference.provider_response_id),
-        ("request_id", &facts.inference.provider_request_id),
+        ("response.id", &facts.inference.provider_response_id),
+        ("request.id", &facts.inference.provider_request_id),
     ] {
         if let Some(value) = value {
             metadata.insert(format!("langfuse.gateway.provider.{key}"), json!(value));
@@ -375,7 +375,7 @@ mod tests {
             "team": "search", "enabled": true, "cost_center": 42,
             "http_status": 500,
             "langfuse.gateway.api-key.id": "spoofed-key",
-            "langfuse.gateway.provider.request_id": "spoofed-request",
+            "langfuse.gateway.provider.request.id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
             "langfuse.gateway.api-key.metadata.team": "spoofed-team",
             "agent.name": "spoofed-agent",
@@ -405,7 +405,7 @@ mod tests {
             "connection"
         );
         assert_eq!(
-            metadata["langfuse.gateway.provider.response_id"],
+            metadata["langfuse.gateway.provider.response.id"],
             "response"
         );
         assert_eq!(metadata["langfuse.gateway.organization_id"], "org");
@@ -424,7 +424,7 @@ mod tests {
             assert!(metadata.get(key).is_none(), "{key}");
         }
         assert_ne!(
-            metadata["langfuse.gateway.provider.request_id"],
+            metadata["langfuse.gateway.provider.request.id"],
             "spoofed-request"
         );
         assert_eq!(
