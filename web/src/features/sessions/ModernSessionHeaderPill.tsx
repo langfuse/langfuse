@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react";
 
+import { cn } from "@/src/utils/tailwind";
+
 const PILL_CLASS_NAME =
-  "text-muted-foreground inline-flex h-[22px] shrink-0 items-center rounded-sm border px-2 py-0 font-mono text-[11px] leading-none whitespace-nowrap";
+  "text-muted-foreground inline-flex h-6 shrink-0 items-center rounded-sm border px-2 py-0 font-mono text-[11px] leading-none whitespace-nowrap transition-colors hover:border-ring";
 
 type ModernSessionHeaderPillProps = {
   children: ReactNode;
@@ -37,7 +39,7 @@ export function ModernSessionHeaderPill(props: ModernSessionHeaderPillProps) {
       <span
         title={props.title}
         data-session-header-pill="true"
-        className={`${PILL_CLASS_NAME} gap-1.5`}
+        className={cn(PILL_CLASS_NAME, "gap-1.5")}
       >
         {props.children}
       </span>
@@ -49,7 +51,10 @@ export function ModernSessionHeaderPill(props: ModernSessionHeaderPillProps) {
       <Link
         href={props.href}
         data-session-header-pill="true"
-        className={`${PILL_CLASS_NAME} hover:border-link hover:text-link group max-w-[280px] min-w-0 gap-1.5`}
+        className={cn(
+          PILL_CLASS_NAME,
+          "hover:border-link hover:text-link group max-w-[280px] min-w-0 gap-1.5",
+        )}
       >
         {props.children}
       </Link>
@@ -64,7 +69,7 @@ export function ModernSessionHeaderPill(props: ModernSessionHeaderPillProps) {
       type="button"
       aria-label={ariaLabel}
       data-session-header-pill="true"
-      className={`${PILL_CLASS_NAME} hover:bg-accent justify-center`}
+      className={cn(PILL_CLASS_NAME, "hover:bg-accent justify-center")}
     >
       {children}
     </button>

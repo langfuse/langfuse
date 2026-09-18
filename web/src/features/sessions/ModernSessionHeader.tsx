@@ -144,8 +144,12 @@ const SessionHeaderDetailWithVisibilityControl = ({
   return (
     <span
       className={cn(
-        "group relative flex items-center",
-        detail.type === "metadata" ? "pr-6" : "[@media(hover:none)]:pr-6",
+        "group/detail relative inline-flex items-center",
+        "hover:[&_[data-session-header-pill]]:border-ring",
+        "focus-within:[&_[data-session-header-pill]]:border-ring",
+        "hover:[&_a[data-session-header-pill]]:border-link",
+        "focus-within:[&_a[data-session-header-pill]]:border-link",
+        "[&_[data-session-header-pill]]:pr-6",
       )}
     >
       {detail.content}
@@ -153,7 +157,15 @@ const SessionHeaderDetailWithVisibilityControl = ({
         type="button"
         aria-label={`${action} ${detail.visibilityLabel} in session header`}
         title={`${action} in session header`}
-        className="bg-header hover:bg-muted focus-visible:ring-ring absolute right-0 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-sm border opacity-0 shadow-sm transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:ring-1 focus-visible:outline-none [@media(hover:none)]:opacity-100"
+        className={cn(
+          "text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring",
+          "pointer-events-none absolute inset-y-0 right-0 inline-flex h-6 w-6 shrink-0",
+          "items-center justify-center rounded-sm opacity-0 transition-opacity",
+          "group-focus-within/detail:pointer-events-auto group-focus-within/detail:opacity-100",
+          "group-hover/detail:pointer-events-auto group-hover/detail:opacity-100",
+          "focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-1 focus-visible:outline-none",
+          "[@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100",
+        )}
         onClick={(event) =>
           onVisibilityChange(detail, !isHidden, location, event.currentTarget)
         }
