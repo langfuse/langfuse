@@ -34,6 +34,22 @@ service:
         ## Filters
         Multiple filtering options are available via query parameters or the structured `filter` parameter.
         When using the `filter` parameter, it takes precedence over individual query parameter filters.
+
+        ## Session Duration Prefilter
+        Set `minSessionDuration` to return observations from sessions lasting at least that many seconds. This additional condition applies alongside existing filters (including structured `filter`) before cursor pagination.
+
+        Duration uses the Sessions UI calculation: second boundaries between the earliest observation start and latest end (or start when end is missing), across all traces, including idle gaps. It is not trace latency. Only retained data within the project's plan data-access window contributes.
+
+        Duration is calculated from the latest stored version of each observation, excluding deleted observations. Updates to end times or session membership take effect without waiting for background storage merges. This does not deduplicate the returned observation rows.
+
+        `fromStartTime` (inclusive) and `toStartTime` (exclusive) still select observations by start time, not sessions by creation time. Session members outside these bounds contribute to duration. Existing `tags`/`traceTags` filters match individual observations; `all of` requires all tags on one matching observation, not a union across the session. These row filters do not narrow the duration calculation.
+
+        Request `fields=basic`, collect and deduplicate `sessionId` across cursor pages, then fetch each session's observations using `sessionId` and an appropriate time range. Pagination remains observation based, not distinct-session based. Supplying `minSessionDuration`, including zero, excludes observations without a session ID.
+
+        Omitting the parameter preserves behavior and query cost. When supplied, each page selects the latest observation versions and aggregates all retained, accessible project session history; a narrow returned-row time range does not bound this work. Results can change as sessions grow or are updated.
+
+        Example query parameters (URL-encode the JSON `filter` value):
+        `fields=basic&minSessionDuration=60&fromStartTime=2026-09-01T00:00:00Z&toStartTime=2026-09-02T00:00:00Z&filter=[{"type":"arrayOptions","column":"tags","operator":"all of","value":["review"]}]`.
       method: GET
       path: /v2/observations
       request:
@@ -70,6 +86,9 @@ service:
           sessionId:
             type: optional<string>
             docs: Filter by session ID.
+          minSessionDuration:
+            type: optional<double>
+            docs: Inclusive minimum whole-session duration in seconds. Must be finite and nonnegative. Fractional thresholds are accepted; the UI calculation counts whole second boundaries. Applied before pagination alongside all other filters. See Session Duration Prefilter above for time-range, tags, data-access, and session-ID discovery semantics.
           type:
             type: optional<string>
             docs: Filter by observation type (e.g., "GENERATION", "SPAN", "EVENT", "AGENT", "TOOL", "CHAIN", "RETRIEVER", "EVALUATOR", "EMBEDDING", "GUARDRAIL")
