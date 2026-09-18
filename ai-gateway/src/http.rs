@@ -10,6 +10,7 @@ use axum::{
     routing::{get, post},
 };
 use serde::Serialize;
+use tracing::Instrument;
 
 use crate::{
     inference::{InferenceService, RequestPreparationError},
@@ -84,26 +85,48 @@ async fn handle_openai(
     let (parts, body) = request.into_parts();
     let bytes = match route {
         OpenAiRoute::Models => Bytes::new(),
-        OpenAiRoute::Responses | OpenAiRoute::ResponsesCompact => {
-            tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
-                .await
-                .map_err(|_| InferenceHttpError::RequestTimeout)?
-                .map_err(|error| {
-                    if error
-                        .source()
-                        .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
-                    {
-                        InferenceHttpError::TooLarge
-                    } else {
-                        InferenceHttpError::InvalidBody
-                    }
-                })?
-        }
+        OpenAiRoute::Responses | OpenAiRoute::ResponsesCompact => read_request_body(body).await?,
     };
     inference
         .forward(permit, context, &parts.headers, bytes, route)
         .await
         .map_err(InferenceHttpError::Provider)
+}
+
+/// Buffer the client body. The wait is mostly the caller's upload, so it gets its
+/// own span and the measured size lands on the server span for aggregation.
+async fn read_request_body(body: Body) -> Result<Bytes, InferenceHttpError> {
+    let server = tracing::Span::current();
+    let span = tracing::info_span!(
+        "request.body",
+        otel.kind = "internal",
+        http.request.body.size = tracing::field::Empty
+    );
+    let bytes = async {
+        let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
+            .await
+            .map_err(|_| InferenceHttpError::RequestTimeout)?
+            .map_err(|error| {
+                if error
+                    .source()
+                    .is_some_and(<dyn Error + 'static>::is::<http_body_util::LengthLimitError>)
+                {
+                    InferenceHttpError::TooLarge
+                } else {
+                    InferenceHttpError::InvalidBody
+                }
+            })?;
+        tracing::Span::current().record("http.request.body.size", byte_count(bytes.len()));
+        Ok::<_, InferenceHttpError>(bytes)
+    }
+    .instrument(span)
+    .await?;
+    server.record("http.request.body.size", byte_count(bytes.len()));
+    Ok(bytes)
+}
+
+fn byte_count(len: usize) -> i64 {
+    i64::try_from(len).unwrap_or(i64::MAX)
 }
 
 fn gateway_key(headers: &HeaderMap) -> Result<&str, InferenceHttpError> {

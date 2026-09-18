@@ -114,10 +114,25 @@ trace sampling. `trace` is not an accepted gateway log level.
 
 Tower's `TraceLayer` keeps the server span alive through the response body.
 The HTTP response log and `http.server.request.duration` measure time to response
-headers, not full SSE duration. Execution summaries and `gateway.phase.duration`
-with `phase=execution` measure the provider relay through completion, cancellation,
-timeout, or transport error. HTTP status and stream outcome are separate: a 200
-response can still fail while streaming.
+headers, not full SSE duration; the `gateway response completed` log reports the
+stream duration once the body reaches end of stream. Execution summaries and
+`gateway.phase.duration` with `phase=execution` measure the provider relay through
+completion, cancellation, timeout, or transport error. HTTP status and stream
+outcome are separate: a 200 response can still fail while streaming. The server
+span carries `http.request.body.size`, `gateway.outcome`, and
+`gateway.first_byte_ms` once they are known.
+
+Each inference request phase has a child span of the server span so a waterfall
+has no unattributed wall time:
+
+| Span | Covers |
+| --- | --- |
+| `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
+| `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
+| `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
+| `provider.headers` | The provider HTTP send through response headers, including connection setup |
+| `provider.stream` | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
+| `ingestion` | The inference-telemetry upload, scheduled after the relay finishes |
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
 Each request starts a fresh operational trace, independent of incoming trace IDs,

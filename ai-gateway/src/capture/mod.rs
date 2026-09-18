@@ -110,11 +110,17 @@ impl ExecutionCapture {
             })
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
+        let span = tracing::Span::current();
+        // Parsing the whole request is CPU-bound and scales with the body.
+        let protocol = tracing::info_span!(
+            "request.capture",
+            otel.kind = "internal",
+            http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
+        )
+        .in_scope(|| OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()));
         Self {
-            span: tracing::Span::current(),
-            protocol: Some(ProtocolCapture::OpenAiResponses(
-                OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()),
-            )),
+            span,
+            protocol: Some(ProtocolCapture::OpenAiResponses(protocol)),
             started,
             start_time_unix_ms,
             first_byte_ms: None,
