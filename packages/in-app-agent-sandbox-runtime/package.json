@@ -7,10 +7,10 @@
     "node": "24"
   },
   "scripts": {
-    "build": "tsc",
-    "build:test": "tsc",
-    "build:docker-image": "tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
-    "start": "node ./dist/server.js",
+    "build": "node init && tsc",
+    "build:test": "node init && tsc",
+    "build:docker-image": "node init && tsc && docker build . -t langfuse-in-app-agent-sandbox:latest && touch .local-image-built",
+    "start": "node init && node ./dist/server.js",
     "test": "vitest run src",
     "test:e2e": "pnpm run build && docker build . -t langfuse-in-app-agent-sandbox:e2e && vitest run tests",
     "typecheck": "tsc --noEmit -p tsconfig.test.json",

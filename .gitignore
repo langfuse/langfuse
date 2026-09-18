@@ -45,7 +45,6 @@ yarn-error.log*
 
 # local env files
 # do not commit any .env files to git, except for the .env.example file. https://create.t3.gg/en/usage/env-variables#using-environment-variables
-.env*
 !.env.dev.example
 !.env.dev-azure.example
 !.env.dev-redis-cluster.example
@@ -92,7 +91,6 @@ web/test-results/*
 .claude/skills/
 .claude/launch.json
 .cursor/mcp.json
-.vscode/mcp.json
 .codex/config.toml
 .codex/environments/environment.toml
 
@@ -118,3 +116,7 @@ web/test-results/*
 
 # Superset config
 .superset/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+config.bat

@@ -2,9 +2,9 @@
   "name": "ai-gateway",
   "private": true,
   "scripts": {
-    "dev": "dotenv -e ../.env -v LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT=true -- bash scripts/run-dev.sh",
-    "build": "cargo build --release --locked",
-    "build:dev": "cargo build --locked",
+    "dev": "node init && dotenv -e ../.env -v LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT=true -- bash scripts/run-dev.sh",
+    "build": "node init && cargo build --release --locked",
+    "build:dev": "node init && cargo build --locked",
     "typecheck": "cargo check --locked --all-targets",
     "lint": "cargo fmt --all -- --check && cargo clippy --locked --all-targets -- -D warnings",
     "test": "cargo test --locked",
