@@ -34,7 +34,7 @@ const ScoreConfigCreateInput = z.object({
   dataType: z.enum(ScoreConfigDataType),
   minValue: z.number().optional(),
   maxValue: z.number().optional(),
-  categories: z.array(ScoreConfigCategory).optional(),
+  categories: z.array(ScoreConfigCategory).nullish(),
   description: z.string().nullish(),
 });
 

@@ -959,6 +959,23 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scoreConfigs.create", () => {
+    it("accepts null categories for a numeric config", async () => {
+      const config = await caller.scoreConfigs.create({
+        projectId,
+        name: `numeric-null-categories-${randomUUID().slice(0, 8)}`,
+        dataType: ScoreConfigDataType.NUMERIC,
+        categories: null,
+      });
+
+      expect(config).toMatchObject({
+        projectId,
+        dataType: ScoreConfigDataType.NUMERIC,
+        categories: null,
+      });
+    });
+  });
+
   describe("scoreConfigs.appendCategory", () => {
     it("keeps both categories when two appends race", async () => {
       const config = await prisma.scoreConfig.create({
