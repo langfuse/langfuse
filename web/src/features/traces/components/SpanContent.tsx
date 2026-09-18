@@ -30,6 +30,7 @@ import { getSubtreeDurationOverflowMs } from "@/src/features/traces/fns/getSubtr
 import { heatMapTextColor } from "@/src/features/traces/fns/heatMapTextColor";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 import type Decimal from "decimal.js";
 
@@ -53,6 +54,7 @@ export function SpanContent({
   className,
 }: SpanContentProps) {
   const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
+  const { setSelectedNodeId, setSelectedTab } = useSelection();
   const {
     showDuration,
     showCostTokens,
@@ -220,7 +222,14 @@ export function SpanContent({
             pill that opens a table of all scores. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges compact scores={nodeScores} />
+            <GroupedScoreBadges
+              compact
+              scores={nodeScores}
+              onShowAll={() => {
+                setSelectedNodeId(node.id);
+                setSelectedTab("scores");
+              }}
+            />
           </div>
         )}
       </div>
