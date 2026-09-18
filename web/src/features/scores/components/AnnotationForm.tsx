@@ -9,6 +9,7 @@ import {
   Archive,
   Check,
   Trash,
+  Settings2,
 } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -48,7 +49,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type AnnotationScoreFormData,
-  type InnerAnnotationFormProps,
+  type PreparedAnnotationTarget,
   type ScoreTarget,
   type AnnotationForm as AnnotationFormType,
 } from "@/src/features/scores/types";
@@ -72,7 +73,10 @@ import {
   createAnnotationAnalytics,
   getAnnotationTargetType,
 } from "@/src/features/scores/lib/annotationAnalytics";
-import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
+import {
+  annotationFieldKey,
+  getScoreConfigSelection,
+} from "@/src/features/scores/lib/annotationConfigSelection";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   hasBlockingOverlay,
@@ -81,6 +85,7 @@ import {
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Badge } from "@/src/components/ui/badge";
 
 function CommentField({
   savedComment,
@@ -167,11 +172,11 @@ function CommentField({
 }
 
 function AnnotateHeader({
-  showSaving,
+  saveStatus,
   actionButtons,
   description,
 }: {
-  showSaving: boolean;
+  saveStatus: "idle" | "saving" | "saved" | "error";
   actionButtons: React.ReactNode;
   description: string;
 }) {
@@ -184,18 +189,29 @@ function AnnotateHeader({
         className: "leading-relaxed",
       }}
       actionButtons={[
-        <div className="flex items-center justify-end" key="saving-spinner">
-          <div className="mr-1 items-center justify-center">
-            {showSaving ? (
-              <Spinner size="xxs" />
-            ) : (
-              <Check className="h-3 w-3" />
-            )}
+        saveStatus !== "idle" ? (
+          <div
+            role="status"
+            aria-label="Score save status"
+            className="flex items-center justify-end"
+            key="saving-spinner"
+          >
+            <div className="mr-1 items-center justify-center">
+              {saveStatus === "saving" ? (
+                <Spinner size="xxs" />
+              ) : saveStatus === "saved" ? (
+                <Check className="h-3 w-3" />
+              ) : null}
+            </div>
+            <span className="text-muted-foreground text-xs">
+              {saveStatus === "saving"
+                ? "Saving…"
+                : saveStatus === "saved"
+                  ? "Saved"
+                  : "Could not save"}
+            </span>
           </div>
-          <span className="text-muted-foreground text-xs">
-            {showSaving ? "Saving score data" : "Score data saved"}
-          </span>
-        </div>,
+        ) : null,
         actionButtons,
       ]}
     />
@@ -216,35 +232,69 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
     : "emptySelectedConfigIds:trace";
 };
 
-function InnerAnnotationForm<Target extends ScoreTarget>({
-  scoreTarget,
-  initialFormData,
-  scoreMetadata,
-  analyticsData,
+export function AnnotationFormContent({
+  targets,
   actionButtons,
-  configControl,
-}: InnerAnnotationFormProps<Target>) {
+}: {
+  targets: PreparedAnnotationTarget[];
+  actionButtons?: React.ReactNode;
+}) {
   const capture = usePostHogClientCapture();
-  const { configs, allowManualSelection } = configControl;
+  const primaryTarget = targets[0]!;
+  const { scoreMetadata, analyticsData } = primaryTarget;
+  const configs = targets.flatMap((target) => target.configControl.configs);
+  const allowManualSelection = targets.some(
+    (target) => target.configControl.allowManualSelection,
+  );
+  const initialFormData = targets
+    .flatMap((target) =>
+      target.initialFormData.map((field) => ({
+        ...field,
+        targetKey: target.key,
+      })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const targetFor = (field: AnnotationScoreFormData) =>
+    targets.find((target) => target.key === field.targetKey)!;
+  const configFor = (field: AnnotationScoreFormData | undefined) =>
+    field
+      ? targetFor(field).configControl.configs.find(
+          (config) => config.id === field.configId,
+        )
+      : undefined;
 
   // Initialize form with initial data (never updates)
   const form = useForm({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: { scoreData: initialFormData },
   });
-  const [analytics] = useState(() =>
-    createAnnotationAnalytics(
-      capture,
-      { ...analyticsData, targetType: getAnnotationTargetType(scoreTarget) },
-      initialFormData,
-    ),
+  const [analytics] = useState(
+    () =>
+      new Map(
+        targets.map((target) => [
+          target.key,
+          createAnnotationAnalytics(
+            capture,
+            {
+              ...target.analyticsData,
+              targetType: getAnnotationTargetType(target.scoreTarget),
+            },
+            target.initialFormData,
+          ),
+        ]),
+      ),
   );
   const { getValues } = form;
 
   // Connect the visible form lifetime to the analytics session.
   useEffect(() => {
-    analytics.open();
-    return () => analytics.close(getValues("scoreData"));
+    analytics.forEach((tracker) => tracker.open());
+    return () =>
+      analytics.forEach((tracker, key) =>
+        tracker.close(
+          getValues("scoreData").filter((field) => field.targetKey === key),
+        ),
+      );
   }, [analytics, getValues]);
 
   const { fields, update, remove, insert } = useFieldArray({
@@ -260,52 +310,135 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       ...watchedScoreData[index],
     };
   });
-  const selectedConfigIds = fields.flatMap((field) =>
-    field.configId ? [field.configId] : [],
-  );
+  const selectedConfigIds = fields.map(annotationFieldKey);
+  const showOptionTargets =
+    new Set(
+      targets.map((target) => getAnnotationTargetType(target.scoreTarget)),
+    ).size > 1;
+  const showSelectedTargets =
+    new Set(
+      controlledFields.map((field) =>
+        getAnnotationTargetType(targetFor(field).scoreTarget),
+      ),
+    ).size > 1;
 
-  const description = formatAnnotateDescription(scoreTarget);
+  const description =
+    targets.length > 1
+      ? "Annotate the trace and observation with scores to capture human evaluation across different dimensions."
+      : formatAnnotateDescription(primaryTarget.scoreTarget);
 
   // Mutations - write to cache but form doesn't consume cache updates
-  const { createMutation, updateMutation, deleteMutation } = useScoreMutations({
-    scoreTarget,
-    scoreMetadata,
-  });
+  const { createMutation, updateMutation, deleteMutation } =
+    useScoreMutations();
 
   // Config selection
-  const { selectionOptions, handleSelectionChange } = useScoreConfigSelection({
-    configs,
+  const { selectionOptions, handleSelectionChange } = getScoreConfigSelection({
+    targets,
     controlledFields,
-    isInputDisabled,
     insert,
     remove,
-    emptySelectedConfigIdsStorageKey:
-      configControl.emptySelectedConfigIdsStorageKey,
   });
 
-  const showSaving =
-    createMutation.isPending ||
-    updateMutation.isPending ||
-    deleteMutation.isPending;
+  const [saveState, setSaveState] = useState({
+    pending: 0,
+    failed: false,
+    saved: false,
+  });
+  const [confirmedFields, setConfirmedFields] = useState<
+    Map<string, { field: AnnotationScoreFormData; sequence: number }>
+  >(
+    () =>
+      new Map(
+        initialFormData.map((field) => [
+          annotationFieldKey(field),
+          { field, sequence: 0 },
+        ]),
+      ),
+  );
+  const saveSequence = useRef(0);
+  const latestSaves = useRef(new Map<string, number>());
+  const hasUnsavedChanges = controlledFields.some((field) => {
+    const confirmed = confirmedFields.get(annotationFieldKey(field))?.field;
+    return (
+      (field.value ?? null) !== (confirmed?.value ?? null) ||
+      (field.stringValue ?? "") !== (confirmed?.stringValue ?? "") ||
+      (field.comment ?? "") !== (confirmed?.comment ?? "")
+    );
+  });
+  const saveStatus =
+    saveState.pending > 0
+      ? "saving"
+      : saveState.failed
+        ? "error"
+        : saveState.saved && !hasUnsavedChanges
+          ? "saved"
+          : "idle";
+  const trackSave = (
+    operation: Promise<unknown>,
+    tracked: ReturnType<
+      ReturnType<typeof createAnnotationAnalytics>["beginSave"]
+    >,
+    field: AnnotationScoreFormData,
+    onFailure: () => void,
+  ) => {
+    const sequence = ++saveSequence.current;
+    const key = annotationFieldKey(field);
+    const confirmed = confirmedFields.get(key)?.field;
+    const changed =
+      (field.id ?? null) !== (confirmed?.id ?? null) ||
+      (field.value ?? null) !== (confirmed?.value ?? null) ||
+      (field.stringValue ?? "") !== (confirmed?.stringValue ?? "") ||
+      (field.comment ?? "") !== (confirmed?.comment ?? "");
+    latestSaves.current.set(key, sequence);
+    setSaveState((state) => ({
+      pending: state.pending + 1,
+      failed: state.pending ? state.failed : false,
+      saved: state.saved,
+    }));
+    operation.then(
+      () => {
+        setConfirmedFields((current) => {
+          if ((current.get(key)?.sequence ?? 0) > sequence) return current;
+          const next = new Map(current);
+          next.set(key, { field: { ...field }, sequence });
+          return next;
+        });
+        tracked?.success();
+        setSaveState((state) => ({
+          ...state,
+          pending: state.pending - 1,
+          saved: state.saved || changed,
+        }));
+      },
+      () => {
+        if (latestSaves.current.get(key) === sequence) onFailure();
+        tracked?.failure();
+        setSaveState((state) => ({
+          ...state,
+          pending: state.pending - 1,
+          failed: true,
+        }));
+      },
+    );
+  };
+  const currentIndex = (field: AnnotationScoreFormData) =>
+    getValues("scoreData").findIndex(
+      (current) => annotationFieldKey(current) === annotationFieldKey(field),
+    );
 
-  // LFE-7628 — root of this form, used to scope the global keydown listener so
-  // it doesn't double-fire across multiple mounted forms (DualAnnotationContent
-  // mounts an observation form and a trace form side-by-side).
+  // Keyboard navigation stays inside the focused annotation form.
   const formRootRef = useRef<HTMLDivElement | null>(null);
 
-  // LFE-7628 — keyboard-first scoring. Real DOM focus is the single source of
+  // Real DOM focus is the single source of
   // truth: `↑`/`↓` (and `Tab`) move focus between fields, `1`-`9` pick an option
   // on the *focused* row, and the focused row is highlighted via `:focus-within`.
-  // There is deliberately no parallel "active row" state — it previously fought
-  // the browser's own focus (a focused True/False toggle showed two outlines and
-  // arrows moved both the field and the toggle at once).
   const isKeyboardSelectable = (
     field: (typeof controlledFields)[number] | undefined,
   ) => {
     if (!field) return false;
     if (isTextDataType(field.dataType) || isNumericDataType(field.dataType))
       return false;
-    const config = configs.find((c) => c.id === field.configId);
+    const config = configFor(field);
     return (
       !!config && !config.isArchived && (config.categories?.length ?? 0) > 0
     );
@@ -325,7 +458,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   );
 
   const rollbackDeleteError = (
-    index: number,
     field: (typeof controlledFields)[number],
     previousScore: {
       id: string | null;
@@ -335,11 +467,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       timestamp?: Date | null;
     },
   ) => {
+    const index = currentIndex(field);
+    if (index < 0) return;
     // Rollback field array
     update(index, {
       name: field.name,
       dataType: field.dataType,
       configId: field.configId,
+      targetKey: field.targetKey,
       ...previousScore,
     });
     // Rollback form values directly to ensure sync
@@ -371,10 +506,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       stringValue: null,
       comment: null,
     };
-    const tracked = analytics.beginSave(
+    const tracked = analytics.get(field.targetKey!)!.beginSave(
       "delete",
       cleared,
-      controlledFields.map((current, i) => (i === index ? cleared : current)),
+      controlledFields
+        .filter((current) => current.targetKey === field.targetKey)
+        .map((current) =>
+          annotationFieldKey(current) === annotationFieldKey(field)
+            ? cleared
+            : current,
+        ),
     );
 
     // Capture previous state for rollback
@@ -396,6 +537,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       name: field.name,
       dataType: field.dataType,
       configId: field.configId,
+      targetKey: field.targetKey,
       id: null,
       value: null,
       stringValue: null,
@@ -404,31 +546,28 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
     // Fire mutation with rollback
     if (previousScore.id) {
-      deleteMutation
-        .mutateAsync(
-          {
-            id: previousScore.id,
-            projectId: scoreMetadata.projectId,
-          },
-          {
-            onError: () => rollbackDeleteError(index, field, previousScore),
-          },
-        )
-        .then(
-          () => tracked?.success(),
-          () => tracked?.failure(),
-        );
+      trackSave(
+        deleteMutation.mutateAsync({
+          id: previousScore.id,
+          projectId: targetFor(field).scoreMetadata.projectId,
+        }),
+        tracked,
+        cleared,
+        () => rollbackDeleteError(field, previousScore),
+      );
     }
   };
 
   const rollbackUpdateError = (
-    index: number,
+    field: AnnotationScoreFormData,
     previousValue?: number | null,
     previousStringValue?: string | null,
   ) => {
+    const index = currentIndex(field);
+    if (index < 0) return;
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    if (isTextDataType(controlledFields[index]?.dataType)) {
+    if (isTextDataType(field.dataType)) {
       form.setError(`scoreData.${index}.stringValue`, {
         type: "server",
         message: "Failed to update score",
@@ -442,17 +581,19 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   };
 
   const rollbackCreateError = (
-    index: number,
+    field: AnnotationScoreFormData,
     previousValue?: number | null,
     previousStringValue?: string | null,
     previousId?: string | null,
     previousTimestamp?: Date | null,
   ) => {
+    const index = currentIndex(field);
+    if (index < 0) return;
     form.setValue(`scoreData.${index}.id`, previousId);
     form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    if (isTextDataType(controlledFields[index]?.dataType)) {
+    if (isTextDataType(field.dataType)) {
       form.setError(`scoreData.${index}.stringValue`, {
         type: "server",
         message: "Failed to create score",
@@ -478,7 +619,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const previousStringValue = field.stringValue;
     const previousId = field.id;
     const previousTimestamp = field.timestamp;
-    const config = configs.find((config) => config.id === field.configId);
+    const config = configFor(field);
     const next = {
       ...field,
       value,
@@ -497,10 +638,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         : shouldUseCombobox(categories)
           ? "select"
           : "segmented";
-    const tracked = analytics.beginSave(
+    const tracked = analytics.get(field.targetKey!)!.beginSave(
       field.id ? "update" : "create",
       next,
-      controlledFields.map((current, i) => (i === index ? next : current)),
+      controlledFields
+        .filter((current) => current.targetKey === field.targetKey)
+        .map((current) =>
+          annotationFieldKey(current) === annotationFieldKey(field)
+            ? next
+            : current,
+        ),
       { control, optionCount: config?.categories?.length ?? 0 },
     );
 
@@ -513,66 +660,57 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const {
       id: scoreId,
       timestamp: scoreTimestamp,
+      targetKey,
       ...fieldWithoutIdAndTimestamp
     } = field;
+    const target = targets.find((target) => target.key === targetKey)!;
 
     const baseScoreData = {
       ...fieldWithoutIdAndTimestamp,
-      ...scoreMetadata,
+      ...target.scoreMetadata,
       value,
       stringValue,
-      scoreTarget,
+      scoreTarget: target.scoreTarget,
     };
 
     if (scoreId) {
-      updateMutation
-        .mutateAsync(
-          {
-            ...baseScoreData,
-            id: scoreId,
-            timestamp: scoreTimestamp ?? undefined,
-          } as UpdateAnnotationScoreData,
-          {
-            onError: () =>
-              rollbackUpdateError(index, previousValue, previousStringValue),
-          },
-        )
-        .then(
-          () => tracked?.success(),
-          () => tracked?.failure(),
-        );
+      trackSave(
+        updateMutation.mutateAsync({
+          ...baseScoreData,
+          id: scoreId,
+          timestamp: scoreTimestamp ?? undefined,
+        } as UpdateAnnotationScoreData),
+        tracked,
+        next,
+        () => rollbackUpdateError(field, previousValue, previousStringValue),
+      );
     } else {
       const { id, timestamp } = next;
       form.setValue(`scoreData.${index}.id`, id);
       form.setValue(`scoreData.${index}.timestamp`, timestamp);
-      createMutation
-        .mutateAsync(
-          {
-            ...baseScoreData,
-            id,
-            timestamp,
-          } as CreateAnnotationScoreData,
-          {
-            onError: () =>
-              rollbackCreateError(
-                index,
-                previousValue,
-                previousStringValue,
-                previousId,
-                previousTimestamp,
-              ),
-          },
-        )
-        .then(
-          () => tracked?.success(),
-          () => tracked?.failure(),
-        );
+      trackSave(
+        createMutation.mutateAsync({
+          ...baseScoreData,
+          id,
+          timestamp,
+        } as CreateAnnotationScoreData),
+        tracked,
+        next,
+        () =>
+          rollbackCreateError(
+            field,
+            previousValue,
+            previousStringValue,
+            previousId,
+            previousTimestamp,
+          ),
+      );
     }
   };
 
   const handleNumericUpsert = (index: number) => {
     const field = controlledFields[index];
-    const config = configs.find((c) => c.id === field.configId);
+    const config = configFor(field);
 
     if (!config || !field) return;
 
@@ -608,7 +746,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     numericValue?: number,
   ) => {
     const field = controlledFields[index];
-    const config = configs.find((c) => c.id === field.configId);
+    const config = field ? configFor(field) : undefined;
 
     if (!config || !field) return;
 
@@ -625,7 +763,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
   const handleTextUpsert = (index: number) => {
     const field = controlledFields[index];
-    const config = configs.find((c) => c.id === field.configId);
+    const config = field ? configFor(field) : undefined;
 
     if (!config || !field) return;
     if (!field.stringValue) {
@@ -639,10 +777,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   };
 
   const rollbackCommentError = (
-    index: number,
     field: (typeof controlledFields)[number],
     previousComment?: string | null,
   ) => {
+    const index = currentIndex(field);
+    if (index < 0) return;
     update(index, {
       ...field,
       comment: previousComment,
@@ -657,10 +796,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const field = controlledFields[index];
     if (!field || !field.id) return;
     const next = { ...field, comment: newComment };
-    const tracked = analytics.beginSave(
+    const tracked = analytics.get(field.targetKey!)!.beginSave(
       newComment ? "update_comment" : "delete_comment",
       next,
-      controlledFields.map((current, i) => (i === index ? next : current)),
+      controlledFields
+        .filter((current) => current.targetKey === field.targetKey)
+        .map((current) =>
+          annotationFieldKey(current) === annotationFieldKey(field)
+            ? next
+            : current,
+        ),
     );
 
     const previousComment = field.comment;
@@ -672,25 +817,22 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     });
 
     // Fire mutation
-    updateMutation
-      .mutateAsync(
-        {
-          ...field,
-          ...scoreMetadata,
-          scoreTarget,
-          comment: newComment,
-        } as UpdateAnnotationScoreData,
-        {
-          onError: () => rollbackCommentError(index, field, previousComment),
-        },
-      )
-      .then(
-        () => tracked?.success(),
-        () => tracked?.failure(),
-      );
+    const { targetKey, ...score } = field;
+    const target = targets.find((target) => target.key === targetKey)!;
+    trackSave(
+      updateMutation.mutateAsync({
+        ...score,
+        ...target.scoreMetadata,
+        scoreTarget: target.scoreTarget,
+        comment: newComment,
+      } as UpdateAnnotationScoreData),
+      tracked,
+      next,
+      () => rollbackCommentError(field, previousComment),
+    );
   };
 
-  // LFE-7628 — keyboard-first scoring, driven by real DOM focus with a
+  // Keyboard navigation uses real DOM focus with a
   // spreadsheet-style navigate-vs-edit split (single source of truth, one
   // outline, never trapped):
   //  - `↑` / `↓` move focus between *rows* (the row container, never into a text
@@ -751,8 +893,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       if (editing) return;
       if (rowCount === 0) return;
 
-      // Scope to a single form (DualAnnotationContent mounts two): the form that
-      // contains focus acts; if focus is on the body (nothing focused) the first
+      // The form containing focus acts; if focus is on the body the first
       // form acts. A control focused *outside* any form (e.g. the Mark Completed
       // / Skip / Back / "?" page buttons) must NOT drive the form — otherwise
       // ↑/↓ would hijack focus off that button into the score rows.
@@ -846,7 +987,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         const rowIndex = Number(currentRow.getAttribute("data-score-row"));
         const field = controlledFields[rowIndex];
         if (!isKeyboardSelectable(field)) return;
-        const config = configs.find((c) => c.id === field?.configId);
+        const config = field ? configFor(field) : undefined;
         const category = (config?.categories ?? [])[Number(event.key) - 1];
         if (!category) return;
         event.preventDefault();
@@ -858,7 +999,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledFields, configs, rowCount]);
 
-  // LFE-7628 — `Esc` leaves a focused score field (back to its row) WITHOUT
+  // `Esc` leaves a focused score field (back to its row) without
   // dismissing a wrapping drawer. Vaul/Radix DismissableLayer listens for Esc on
   // `document` with `{capture:true}`; a window capture-phase listener runs first
   // (window is the ancestor), so stopping propagation here prevents the drawer
@@ -890,11 +1031,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     <div
       ref={formRootRef}
       data-annotation-form
-      className="mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
+      className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
       <div className="sticky top-0 z-10 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))]">
         <AnnotateHeader
-          showSaving={showSaving}
+          saveStatus={saveStatus}
           actionButtons={actionButtons}
           description={description}
         />
@@ -902,7 +1043,12 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           <div className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm font-bold">Score fields</span>
-              <Button variant="link" size="xs" asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-accent gap-1.5 text-xs"
+                asChild
+              >
                 <Link
                   href={`/project/${scoreMetadata.projectId}/settings/scores`}
                   target="_blank"
@@ -921,6 +1067,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                     }
                   }}
                 >
+                  <Settings2 className="size-3" aria-hidden="true" />
                   Manage score configs
                 </Link>
               </Button>
@@ -930,7 +1077,23 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               placeholder="Choose score fields"
               searchPlaceholder="Search score fields..."
               emptyMessage="No score fields found."
-              options={selectionOptions}
+              options={selectionOptions.map((option) => ({
+                ...option,
+                accessibleLabel: showOptionTargets
+                  ? `${option.label} (${option.targetLabel})`
+                  : option.label,
+                keywords: [option.targetLabel],
+                optionSuffix: showOptionTargets ? (
+                  <Badge variant="outline-solid" size="sm">
+                    {option.targetLabel}
+                  </Badge>
+                ) : undefined,
+                selectedSuffix: showSelectedTargets ? (
+                  <Badge variant="outline-solid" size="sm">
+                    {option.targetLabel}
+                  </Badge>
+                ) : undefined,
+              }))}
               onValueChange={handleSelectionChange}
               value={selectedConfigIds}
             />
@@ -952,9 +1115,8 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               render={() => (
                 <>
                   {controlledFields.map((score, index) => {
-                    const config = configs.find(
-                      (config) => config.id === score.configId,
-                    );
+                    const target = targetFor(score);
+                    const config = configFor(score);
                     if (!config) return null;
                     const categories = enrichCategoryOptionsWithStaleScoreValue(
                       config.categories ?? [],
@@ -973,95 +1135,106 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                         // clip it), and `group` shows the option badges only on it.
                         tabIndex={-1}
                         role="group"
-                        aria-label={score.name}
+                        aria-label={
+                          showSelectedTargets
+                            ? `${score.name} (${target.label})`
+                            : score.name
+                        }
                         className={cn(
                           "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
                           "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
                         )}
                       >
-                        <div className="flex h-full min-w-0 items-center">
-                          {config.description ||
-                          isPresent(config.maxValue) ||
-                          isPresent(config.minValue) ? (
-                            <HoverCard>
-                              <HoverCardTrigger asChild>
-                                <span
-                                  className={cn(
-                                    "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
-                                    config.isArchived
-                                      ? "text-foreground/40"
-                                      : "",
-                                  )}
-                                >
-                                  {score.name}
-                                </span>
-                              </HoverCardTrigger>
-                              <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
-                                <ScoreConfigDetails config={config} />
-                              </HoverCardContent>
-                            </HoverCard>
-                          ) : (
-                            <span
-                              className={cn(
-                                "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
-                                config.isArchived ? "text-foreground/40" : "",
-                              )}
-                              title={score.name}
-                            >
-                              {score.name}
-                            </span>
-                          )}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="link"
-                                type="button"
-                                size="xs"
-                                title="Add or view score comment"
-                                // LFE-7628: center the comment icon vertically
-                                // against the score label instead of stretching
-                                // to the full (possibly multi-line) row height,
-                                // and keep it hugging the label (shrink-0) rather
-                                // than floating in the middle of the row.
-                                className="disabled:text-primary/50 flex h-auto shrink-0 items-center self-center px-0 pl-1 disabled:opacity-100"
-                                disabled={
-                                  isScoreUnsaved(score.id) ||
-                                  (config.isArchived && !score.comment)
-                                }
+                        <div className="flex h-full min-w-0 flex-col items-start justify-center gap-1">
+                          <div className="flex max-w-full min-w-0 items-center gap-1">
+                            {config.description ||
+                            isPresent(config.maxValue) ||
+                            isPresent(config.minValue) ? (
+                              <HoverCard>
+                                <HoverCardTrigger asChild>
+                                  <span
+                                    className={cn(
+                                      "decoration-muted-gray line-clamp-2 min-w-0 text-xs font-bold wrap-break-word underline decoration-dashed underline-offset-2",
+                                      config.isArchived
+                                        ? "text-foreground/40"
+                                        : "",
+                                    )}
+                                  >
+                                    {score.name}
+                                  </span>
+                                </HoverCardTrigger>
+                                <HoverCardContent className="z-20 max-h-[60vh] max-w-64 overflow-y-auto rounded border">
+                                  <ScoreConfigDetails config={config} />
+                                </HoverCardContent>
+                              </HoverCard>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "line-clamp-2 min-w-0 text-xs font-bold wrap-break-word",
+                                  config.isArchived ? "text-foreground/40" : "",
+                                )}
+                                title={score.name}
                               >
-                                {score.comment ? (
-                                  <MessageCircleMore className="h-4 w-4" />
-                                ) : (
-                                  <MessageCircle className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent>
-                              <FormField
-                                control={form.control}
-                                name={`scoreData.${index}.comment`}
-                                render={() => (
-                                  <FormItem className="space-y-4">
-                                    <FormControl>
-                                      <CommentField
-                                        savedComment={score.comment ?? null}
-                                        disabled={isInputDisabled(config)}
-                                        loading={updateMutation.isPending}
-                                        onSave={(newComment) => {
-                                          const trimmed = newComment?.trim();
-                                          handleCommentUpdate(
-                                            index,
-                                            trimmed || null,
-                                          );
-                                        }}
-                                      />
-                                    </FormControl>
-                                    <FormMessage className="text-xs" />
-                                  </FormItem>
-                                )}
-                              />
-                            </PopoverContent>
-                          </Popover>
+                                {score.name}
+                              </span>
+                            )}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="link"
+                                  type="button"
+                                  size="xs"
+                                  title="Add or view score comment"
+                                  // Center the comment icon vertically
+                                  // against the score label instead of stretching
+                                  // to the full (possibly multi-line) row height,
+                                  // and keep it hugging the label (shrink-0) rather
+                                  // than floating in the middle of the row.
+                                  className="disabled:text-primary/50 flex h-auto shrink-0 items-center self-center px-0 pl-1 disabled:opacity-100"
+                                  disabled={
+                                    isScoreUnsaved(score.id) ||
+                                    (config.isArchived && !score.comment)
+                                  }
+                                >
+                                  {score.comment ? (
+                                    <MessageCircleMore className="h-4 w-4" />
+                                  ) : (
+                                    <MessageCircle className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent>
+                                <FormField
+                                  control={form.control}
+                                  name={`scoreData.${index}.comment`}
+                                  render={() => (
+                                    <FormItem className="space-y-4">
+                                      <FormControl>
+                                        <CommentField
+                                          savedComment={score.comment ?? null}
+                                          disabled={isInputDisabled(config)}
+                                          loading={updateMutation.isPending}
+                                          onSave={(newComment) => {
+                                            const trimmed = newComment?.trim();
+                                            handleCommentUpdate(
+                                              index,
+                                              trimmed || null,
+                                            );
+                                          }}
+                                        />
+                                      </FormControl>
+                                      <FormMessage className="text-xs" />
+                                    </FormItem>
+                                  )}
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                          {showSelectedTargets ? (
+                            <Badge variant="outline-solid" size="sm">
+                              {target.label}
+                            </Badge>
+                          ) : null}
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
                           {/* data-score-control wraps only the value control so
@@ -1140,18 +1313,19 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                   <FormItem>
                                     <FormControl>
                                       <CategoricalScoreInput
-                                        projectId={scoreMetadata.projectId}
+                                        projectId={
+                                          target.scoreMetadata.projectId
+                                        }
                                         config={config}
                                         categories={categories}
                                         name={field.name}
                                         value={field.value ?? ""}
                                         disabled={isInputDisabled(config)}
                                         analyticsData={{
-                                          ...analyticsData,
-                                          targetType:
-                                            getAnnotationTargetType(
-                                              scoreTarget,
-                                            ),
+                                          ...target.analyticsData,
+                                          targetType: getAnnotationTargetType(
+                                            target.scoreTarget,
+                                          ),
                                         }}
                                         onValueChange={(
                                           value,
@@ -1235,7 +1409,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           {rowCount > 0 && (
             // This legend only exists to advertise keyboard shortcuts, so hide
             // the whole strip on touch viewports rather than just the kbd
-            // chips inside it (LFE-11067) — the shortcuts themselves still
+            // chips inside it — the shortcuts themselves still
             // work if a physical keyboard is attached.
             <div className="text-muted-foreground hidden flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px] md:flex">
               {rowCount > 1 && (
@@ -1267,23 +1441,26 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   );
 }
 
-export function AnnotationForm<Target extends ScoreTarget>({
+export function usePreparedAnnotationFormTarget<Target extends ScoreTarget>({
   scoreTarget,
   serverScores,
   scoreMetadata,
   analyticsData,
-  actionButtons,
   configSelection = { mode: "selectable" },
 }: AnnotationFormType<Target>) {
   const { projectId } = scoreMetadata;
   const emptySelectedConfigIdsStorageKey =
     getEmptySelectedConfigIdsStorageKey(scoreTarget);
-  const { isLoading, availableConfigs, selectedConfigIds } =
-    useAnnotationScoreConfigs({
-      projectId,
-      configSelection,
-      emptySelectedConfigIdsStorageKey,
-    });
+  const {
+    isLoading,
+    availableConfigs,
+    selectedConfigIds,
+    setSelectedConfigIds,
+  } = useAnnotationScoreConfigs({
+    projectId,
+    configSelection,
+    emptySelectedConfigIdsStorageKey,
+  });
 
   // Step 1: Transform server scores to annotation scores
   const serverAnnotationScores = useMemo(() => {
@@ -1343,27 +1520,48 @@ export function AnnotationForm<Target extends ScoreTarget>({
     a.name.localeCompare(b.name),
   );
 
-  return isLoading ? (
-    <Skeleton className="h-full w-full" />
-  ) : (
-    <InnerAnnotationForm
-      key={JSON.stringify([
+  return {
+    isLoading,
+    target: {
+      key: JSON.stringify([
         scoreMetadata.projectId,
         scoreMetadata.queueId,
         scoreTarget,
         analyticsData.source,
         analyticsData.isV4,
-      ])}
-      scoreTarget={scoreTarget}
-      initialFormData={sortedInitialFormData}
-      scoreMetadata={scoreMetadata}
-      analyticsData={analyticsData}
-      actionButtons={actionButtons}
-      configControl={{
+      ]),
+      label:
+        getAnnotationTargetType(scoreTarget) === "observation"
+          ? "Observation"
+          : scoreTarget.type === "session"
+            ? "Session"
+            : "Trace",
+      scoreTarget,
+      initialFormData: sortedInitialFormData,
+      scoreMetadata,
+      analyticsData,
+      configControl: {
         configs: availableConfigs,
         allowManualSelection: configSelection.mode === "selectable",
         emptySelectedConfigIdsStorageKey,
-      }}
+        selectedConfigIds,
+        setSelectedConfigIds,
+      },
+    } satisfies PreparedAnnotationTarget,
+  };
+}
+
+export function AnnotationForm<Target extends ScoreTarget>(
+  props: AnnotationFormType<Target>,
+) {
+  const { isLoading, target } = usePreparedAnnotationFormTarget(props);
+  return isLoading ? (
+    <Skeleton className="h-full w-full" />
+  ) : (
+    <AnnotationFormContent
+      key={target.key}
+      targets={[target]}
+      actionButtons={props.actionButtons}
     />
   );
 }
