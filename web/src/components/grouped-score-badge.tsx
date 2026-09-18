@@ -69,8 +69,7 @@ export const GroupedScoreBadges = <
   // Level tags only when this selection MIXES levels (LFE-10596): a row whose
   // scores all share one level (the common case — e.g. a span's own
   // observation-level scores) needs no per-chip disambiguation; a mixed row
-  // (e.g. the root carrying trace-level and observation-level scores) tags
-  // each group so the levels are tellable apart.
+  // tags each group so the levels are tellable apart.
   const showLevels =
     new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
 

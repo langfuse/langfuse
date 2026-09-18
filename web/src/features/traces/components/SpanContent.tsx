@@ -57,7 +57,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
+  const { mergedScores } = useTraceData();
   const {
     showDuration,
     showCostTokens,
@@ -99,11 +99,7 @@ export function SpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 

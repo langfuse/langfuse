@@ -6,6 +6,7 @@
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
  * - Metadata badges (timestamp, environment, release, version, target trace)
+ * - Trace-level score chips
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
@@ -19,6 +20,7 @@ import {
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import {
   ExistingDatasetItemsDropdownMenuController,
@@ -486,6 +488,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             )}
             {trace.release && <ReleaseBadge release={trace.release} />}
             {trace.version && <VersionBadge version={trace.version} />}
+            {traceScores.length > 0 && (
+              <GroupedScoreBadges scores={traceScores} />
+            )}
           </CollapsibleBadgeRow>
         )}
       </div>

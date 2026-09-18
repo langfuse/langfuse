@@ -150,8 +150,8 @@ export function ConnectedObservationDetailView({
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
 
-  // Without a TRACE row (v4) this span stands in for the trace, so its badge and
-  // its Scores tab both cover the trace-level scores.
+  // Without a TRACE row (v4) this span stands in for the trace, so its Scores
+  // tab covers the trace-level scores.
   const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
 
   // For root observations, compute subtree metrics for badge tooltips.
