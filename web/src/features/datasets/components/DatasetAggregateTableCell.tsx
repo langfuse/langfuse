@@ -142,7 +142,13 @@ const DatasetAggregateCellContent = ({
   };
 
   const handleOpenReview = () => {
-    if (!isActiveCell) {
+    const opened = setActiveCell({
+      traceId: value.trace.id,
+      observationId: value.observation?.id,
+      scoreAggregates: scores,
+      environment: data?.environment,
+    });
+    if (opened && !isActiveCell) {
       capture("annotation:entry_click", {
         type: "trace",
         entryPoint: "annotate_button",
@@ -151,12 +157,6 @@ const DatasetAggregateCellContent = ({
         isV4: false,
       });
     }
-    setActiveCell({
-      traceId: value.trace.id,
-      observationId: value.observation?.id,
-      scoreAggregates: scores,
-      environment: data?.environment,
-    });
   };
 
   const isActiveCell =

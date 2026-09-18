@@ -16,11 +16,13 @@ import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import {
   useState,
   useMemo,
-  useEffect,
+  useId,
   useRef,
   useCallback,
   type RefObject,
 } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import { showErrorToast } from "@/src/features/notifications";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
@@ -105,7 +107,7 @@ const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
   return JSON.stringify(value, null, 2);
 };
 
-export const NewDatasetItemForm = (props: {
+type NewDatasetItemFormProps = {
   projectId: string;
   traceId?: string;
   observationId?: string;
@@ -116,18 +118,114 @@ export const NewDatasetItemForm = (props: {
   className?: string;
   onFormSuccess?: () => void;
   currentDatasetId?: string;
-}) => {
+};
+
+const schemaFields = ["input", "expectedOutput"] as const;
+type SchemaField = (typeof schemaFields)[number];
+
+function hasSourceValues(props: NewDatasetItemFormProps) {
+  return Boolean(props.input || props.output || props.metadata);
+}
+
+async function fillEmptySchemaFields({
+  dataset,
+  canFill,
+  fill,
+}: {
+  dataset: DatasetWithSchema;
+  canFill: (field: SchemaField) => boolean;
+  fill: (field: SchemaField, value: string) => void;
+}) {
+  await Promise.all(
+    schemaFields.map(async (field) => {
+      const schema =
+        field === "input" ? dataset.inputSchema : dataset.expectedOutputSchema;
+      if (!schema || !canFill(field)) return;
+      const example = await generateSchemaExample(schema);
+      if (example && canFill(field)) fill(field, example);
+    }),
+  );
+}
+
+async function prepareInitialValues(
+  props: NewDatasetItemFormProps,
+  datasets: DatasetWithSchema[],
+): Promise<NewDatasetItemFormValues> {
+  const values = {
+    datasetIds: props.datasetId ? [props.datasetId] : [],
+    input: formatJsonValue(props.input),
+    expectedOutput: formatJsonValue(props.output),
+    metadata: formatJsonValue(props.metadata),
+  };
+  const dataset = datasets.find(({ id }) => id === props.datasetId);
+  if (dataset && !hasSourceValues(props)) {
+    await fillEmptySchemaFields({
+      dataset,
+      canFill: (field) => !values[field],
+      fill: (field, value) => {
+        values[field] = value;
+      },
+    });
+  }
+  return values;
+}
+
+export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
+  const formId = useId();
+  const datasets = api.datasets.allDatasetMeta.useQuery({
+    projectId: props.projectId,
+  });
+  // Initial examples belong to this form instance. Metadata refetches must not
+  // seed its editable values again, including values the user has cleared.
+  const initialValues = useQuery({
+    queryKey: ["dataset-item-form-defaults", formId],
+    queryFn: () => prepareInitialValues(props, datasets.data ?? []),
+    enabled: datasets.data !== undefined,
+    staleTime: Infinity,
+    gcTime: 0,
+  });
+
+  if (datasets.isError && !datasets.data) {
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p>Datasets could not be loaded.</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => datasets.refetch()}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+  if (!initialValues.data) return <Skeleton className="h-72 w-full" />;
+
+  return (
+    <InitializedNewDatasetItemForm
+      {...props}
+      initialValues={initialValues.data}
+      datasets={datasets.data ?? []}
+    />
+  );
+}
+
+function InitializedNewDatasetItemForm({
+  initialValues,
+  datasets,
+  ...props
+}: NewDatasetItemFormProps & {
+  initialValues: NewDatasetItemFormValues;
+  datasets: DatasetWithSchema[];
+}) {
   const [formError, setFormError] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
   const form = useForm({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      datasetIds: props.datasetId ? [props.datasetId] : [],
-      input: formatJsonValue(props.input),
-      expectedOutput: formatJsonValue(props.output),
-      metadata: formatJsonValue(props.metadata),
-    },
+    defaultValues: initialValues,
   });
+  const editedFields = useRef(new Set<SchemaField>());
+  const selectionVersion = useRef(0);
 
   // Only `datasetIds` is watched at the form level: it changes on dataset
   // selection (rare), not per keystroke. The input/expectedOutput/metadata
@@ -198,9 +296,7 @@ export const NewDatasetItemForm = (props: {
     [mediaChipExtension],
   );
 
-  const hasInitialValues = Boolean(
-    props.input || props.output || props.metadata,
-  );
+  const hasInitialValues = hasSourceValues(props);
 
   // Track if fields have been touched or modified
   const { touchedFields, dirtyFields } = form.formState;
@@ -208,65 +304,28 @@ export const NewDatasetItemForm = (props: {
   const hasInteractedWithExpectedOutput =
     touchedFields.expectedOutput || dirtyFields.expectedOutput;
 
-  const datasets = api.datasets.allDatasetMeta.useQuery({
-    projectId: props.projectId,
-  });
-
-  // Get selected datasets with their schemas
-  const selectedDatasets = useMemo(() => {
-    if (!datasets.data) return [];
-    return datasets.data.filter((d) => selectedDatasetIds.includes(d.id));
-  }, [datasets.data, selectedDatasetIds]);
+  const selectedDatasets = datasets.filter((dataset) =>
+    selectedDatasetIds.includes(dataset.id),
+  );
 
   // Check if any selected dataset has schemas
   const hasInputSchema = selectedDatasets.some((d) => d.inputSchema);
   const hasOutputSchema = selectedDatasets.some((d) => d.expectedOutputSchema);
 
-  // Generate placeholders from schema when dataset is selected
-  useEffect(() => {
-    // Only generate if form has no initial values
-    if (hasInitialValues) return;
-
-    // Only generate if single dataset selected
-    if (selectedDatasets.length !== 1) return;
-
-    const dataset = selectedDatasets[0];
+  function selectDatasets(datasetIds: string[]) {
+    const version = ++selectionVersion.current;
+    if (hasInitialValues || datasetIds.length !== 1) return;
+    const dataset = datasets.find(({ id }) => id === datasetIds[0]);
     if (!dataset) return;
-
-    let cancelled = false;
-
-    // Generate input placeholder if schema exists and field is empty
-    if (dataset.inputSchema && !form.getValues("input")) {
-      generateSchemaExample(dataset.inputSchema).then((placeholder) => {
-        if (!cancelled && placeholder && !form.getValues("input")) {
-          form.setValue("input", placeholder, {
-            shouldValidate: false,
-            shouldDirty: false,
-            shouldTouch: false,
-          });
-        }
-      });
-    }
-
-    // Generate expectedOutput placeholder if schema exists and field is empty
-    if (dataset.expectedOutputSchema && !form.getValues("expectedOutput")) {
-      generateSchemaExample(dataset.expectedOutputSchema).then(
-        (placeholder) => {
-          if (!cancelled && placeholder && !form.getValues("expectedOutput")) {
-            form.setValue("expectedOutput", placeholder, {
-              shouldValidate: false,
-              shouldDirty: false,
-              shouldTouch: false,
-            });
-          }
-        },
-      );
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedDatasets, hasInitialValues, form]);
+    return fillEmptySchemaFields({
+      dataset,
+      canFill: (field) =>
+        version === selectionVersion.current &&
+        !editedFields.current.has(field) &&
+        !form.getValues(field),
+      fill: (field, value) => form.setValue(field, value),
+    });
+  }
 
   const utils = api.useUtils();
   const createManyDatasetItemsMutation =
@@ -308,6 +367,8 @@ export const NewDatasetItemForm = (props: {
       .then((result) => {
         if (result.success) {
           props.onFormSuccess?.();
+          selectionVersion.current += 1;
+          editedFields.current.clear();
           form.reset();
 
           return;
@@ -341,7 +402,7 @@ export const NewDatasetItemForm = (props: {
                     <MultiSelectTagInput
                       aria-label="Target datasets"
                       value={field.value}
-                      options={(datasets.data ?? []).map((dataset) => ({
+                      options={datasets.map((dataset) => ({
                         value: dataset.id,
                         label: dataset.name,
                         optionSuffix:
@@ -351,7 +412,10 @@ export const NewDatasetItemForm = (props: {
                             </span>
                           ) : undefined,
                       }))}
-                      onValueChange={field.onChange}
+                      onValueChange={(datasetIds) => {
+                        field.onChange(datasetIds);
+                        selectDatasets(datasetIds);
+                      }}
                       placeholder="Select datasets"
                       searchPlaceholder="Search datasets..."
                       emptyMessage="No datasets found."
@@ -391,7 +455,10 @@ export const NewDatasetItemForm = (props: {
                       <CodeMirrorEditor
                         mode="json"
                         value={field.value}
-                        onChange={field.onChange}
+                        onChange={(value) => {
+                          editedFields.current.add("input");
+                          field.onChange(value);
+                        }}
                         editorRef={inputEditorRef}
                         minHeight={200}
                         extensions={mediaDropPasteExtensions}
@@ -437,7 +504,10 @@ export const NewDatasetItemForm = (props: {
                       <CodeMirrorEditor
                         mode="json"
                         value={field.value}
-                        onChange={field.onChange}
+                        onChange={(value) => {
+                          editedFields.current.add("expectedOutput");
+                          field.onChange(value);
+                        }}
                         editorRef={expectedOutputEditorRef}
                         minHeight={200}
                         extensions={mediaDropPasteExtensions}
@@ -512,7 +582,7 @@ export const NewDatasetItemForm = (props: {
       </form>
     </Form>
   );
-};
+}
 
 /**
  * Per-field schema error display, isolated so it re-renders from its own

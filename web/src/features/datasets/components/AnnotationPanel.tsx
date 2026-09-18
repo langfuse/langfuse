@@ -13,18 +13,22 @@ import {
   decomposeAggregateScoreKey,
 } from "@/src/features/scores";
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { useCallback } from "react";
 
 export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
-  const { activeCell, clearActiveCell } = useActiveCell();
+  const { activeCell, clearActiveCell, setCommentDraft } = useActiveCell();
   if (!activeCell) return <Skeleton className="h-full w-full" />;
   return (
     <ActiveAnnotationPanel
-      key={`${projectId}-${activeCell.traceId}-${activeCell.observationId}`}
+      key={JSON.stringify([
+        projectId,
+        activeCell.traceId,
+        activeCell.observationId,
+      ])}
       projectId={projectId}
       activeCell={activeCell}
       clearActiveCell={clearActiveCell}
+      setCommentDraft={setCommentDraft}
     />
   );
 };
@@ -33,12 +37,19 @@ function ActiveAnnotationPanel({
   projectId,
   activeCell,
   clearActiveCell,
+  setCommentDraft,
 }: {
   projectId: string;
   activeCell: NonNullable<ReturnType<typeof useActiveCell>["activeCell"]>;
   clearActiveCell: ReturnType<typeof useActiveCell>["clearActiveCell"];
+  setCommentDraft: ReturnType<typeof useActiveCell>["setCommentDraft"];
 }) {
-  const [hasCommentDraft, setHasCommentDraft] = useState(false);
+  const { traceId, observationId } = activeCell;
+  const handleDraftChange = useCallback(
+    (hasDraft: boolean) =>
+      setCommentDraft({ traceId, observationId }, hasDraft),
+    [traceId, observationId, setCommentDraft],
+  );
   const [verticalSize, setVerticalSize] = useSessionStorage(
     `annotationQueueDrawerVertical-compare-${projectId}`,
     60,
@@ -89,13 +100,8 @@ function ActiveAnnotationPanel({
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={() => {
-                    if (hasCommentDraft)
-                      toast.error(
-                        "Please save or discard your comment before proceeding",
-                      );
-                    else clearActiveCell();
-                  }}
+                  aria-label="Close annotation panel"
+                  onClick={clearActiveCell}
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -118,9 +124,7 @@ function ActiveAnnotationPanel({
           projectId={projectId}
           objectId={activeCell.observationId ?? activeCell.traceId}
           objectType={activeCell.observationId ? "OBSERVATION" : "TRACE"}
-          onDraftChange={(draft) => {
-            setHasCommentDraft(draft);
-          }}
+          onDraftChange={handleDraftChange}
         />
       </ResizablePanel>
     </ResizablePanelGroup>

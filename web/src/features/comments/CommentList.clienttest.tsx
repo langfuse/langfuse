@@ -2,8 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { type RouterOutputs } from "@/src/utils/api";
 import { CommentList } from "./CommentList";
 
-const { useCommentsQuery } = vi.hoisted(() => ({
+const { useCommentsQuery, composerRenders } = vi.hoisted(() => ({
   useCommentsQuery: vi.fn(),
+  composerRenders: vi.fn(),
 }));
 
 vi.mock("@/src/utils/api", () => ({
@@ -17,7 +18,12 @@ vi.mock("@/src/utils/api", () => ({
       remove: { useMutation: () => ({ mutate: vi.fn() }) },
     },
     useUtils: () => ({
-      comments: { invalidate: vi.fn() },
+      comments: {
+        getByObjectId: { invalidate: vi.fn() },
+        getCountByObjectId: { invalidate: vi.fn() },
+        getCountByObjectType: { invalidate: vi.fn() },
+        getTraceCommentCountsBySessionId: { invalidate: vi.fn() },
+      },
       commentReactions: { invalidate: vi.fn() },
     }),
   },
@@ -48,6 +54,7 @@ vi.mock("./components/CommentComposer", async () => {
   const { useState } = await import("react");
   return {
     CommentComposer: function MockCommentComposer() {
+      composerRenders();
       const [draft, setDraft] = useState("");
       return (
         <input
@@ -95,6 +102,12 @@ describe("CommentList draft lifecycle", () => {
     expect(screen.getByText("Existing discussion")).toBeInTheDocument();
     const composer = screen.getByRole("textbox", { name: "New comment" });
     fireEvent.change(composer, { target: { value: "Unsent review" } });
+
+    const renderCount = composerRenders.mock.calls.length;
+    fireEvent.change(screen.getByRole("textbox", { name: "Search comments" }), {
+      target: { value: "discussion" },
+    });
+    expect(composerRenders).toHaveBeenCalledTimes(renderCount);
 
     useCommentsQuery.mockReturnValue({ ...queryResult, isError: true });
     rerender(

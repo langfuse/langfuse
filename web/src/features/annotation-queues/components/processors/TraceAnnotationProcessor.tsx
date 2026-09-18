@@ -2,11 +2,8 @@ import { useReadPath } from "@/src/features/events";
 import { Trace } from "@/src/features/traces";
 import {
   type AnnotationQueueItem,
-  AnnotationQueueObjectType,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { useEffect } from "react";
-import { StringParam, useQueryParam } from "use-query-params";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 
@@ -25,17 +22,6 @@ export const TraceAnnotationProcessor: React.FC<
 > = ({ item, data, configs, projectId }) => {
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
-
-  const [, setCurrentObservationId] = useQueryParam("observation", StringParam);
-
-  // If annotating an observation, set it as selected so the tree highlights it
-  useEffect(() => {
-    if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-      setCurrentObservationId(item.objectId);
-    } else {
-      setCurrentObservationId(undefined);
-    }
-  }, [item, setCurrentObservationId]);
 
   if (!data) return <div className="p-3">Loading...</div>;
 

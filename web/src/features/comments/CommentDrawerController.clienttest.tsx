@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { vi } from "vitest";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   CommentDrawerController,
+  type CommentDrawerControllerProps,
   getCommentDrawerInitialStateFromUrl,
 } from "@/src/features/comments/CommentDrawerController";
 
@@ -24,8 +31,10 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
       comments: {
-        getByObjectId: { fetch: fetchComments },
-        invalidate: invalidateComments,
+        getByObjectId: { fetch: fetchComments, invalidate: invalidateComments },
+        getCountByObjectId: { invalidate: vi.fn() },
+        getCountByObjectType: { invalidate: vi.fn() },
+        getTraceCommentCountsBySessionId: { invalidate: vi.fn() },
       },
     }),
   },
@@ -60,6 +69,7 @@ describe("CommentDrawerController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     router.query = {};
+    router.isReady = true;
     fetchComments.mockResolvedValue([]);
     invalidateComments.mockResolvedValue(undefined);
   });
@@ -101,6 +111,11 @@ describe("CommentDrawerController", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     expect(onCommentChange).toHaveBeenCalledOnce();
+    expect(invalidateComments).toHaveBeenCalledWith({
+      projectId: "project-id",
+      objectId: target.objectId,
+      objectType: target.objectType,
+    });
 
     rerender(controller(0));
     fireEvent.click(screen.getByRole("button", { name: "Open comments" }));
@@ -113,21 +128,101 @@ describe("CommentDrawerController", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the owning view stable while resolving, opening, and closing comments", async () => {
+    let resolveComments!: (comments: { id: string }[]) => void;
+    fetchComments.mockReturnValue(
+      new Promise((resolve) => {
+        resolveComments = resolve;
+      }),
+    );
+    const renderView = vi.fn(
+      ({
+        openDrawer,
+      }: Parameters<CommentDrawerControllerProps["children"]>[0]) => (
+        <button onClick={() => openDrawer(target)}>Open comments</button>
+      ),
+    );
+    render(
+      <CommentDrawerController projectId="project-id">
+        {renderView}
+      </CommentDrawerController>,
+      { wrapper: LayerProvider },
+    );
+    const initialRenders = renderView.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Open comments" }));
+    expect(renderView).toHaveBeenCalledTimes(initialRenders);
+    await act(async () => resolveComments([{ id: "existing" }]));
+    expect(
+      await screen.findByRole("dialog", { name: "Comments" }),
+    ).toBeVisible();
+    expect(renderView).toHaveBeenCalledTimes(initialRenders);
+    fireEvent.click(screen.getByRole("button", { name: "Close comments" }));
+    expect(screen.getByRole("dialog", { name: "Comments" })).toHaveAttribute(
+      "data-state",
+      "closed",
+    );
+    expect(renderView).toHaveBeenCalledTimes(initialRenders);
+  });
+
+  it("ignores an obsolete lookup instead of opening a second overlay", async () => {
+    let resolveFirst!: (comments: { id: string }[]) => void;
+    fetchComments.mockImplementation(({ objectId }) =>
+      objectId === "first"
+        ? new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+        : Promise.resolve([{ id: "existing" }]),
+    );
+    render(
+      <CommentDrawerController projectId="project-id">
+        {({ openDrawer }) => (
+          <>
+            <button
+              onClick={() => openDrawer({ ...target, objectId: "first" })}
+            >
+              First
+            </button>
+            <button
+              onClick={() => openDrawer({ ...target, objectId: "second" })}
+            >
+              Second
+            </button>
+          </>
+        )}
+      </CommentDrawerController>,
+      { wrapper: LayerProvider },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "First" }));
+    fireEvent.click(screen.getByRole("button", { name: "Second" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Comments" }),
+    ).toBeVisible();
+    await act(async () => resolveFirst([]));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog", { name: "Comments" })).toHaveAttribute(
+      "data-state",
+      "open",
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Add a comment" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens a deep-linked discussion without a cached count", async () => {
     router.query = {
       comments: "open",
       commentObjectId: target.objectId,
       commentObjectType: target.objectType,
     };
-    render(
+    const view = () => (
       <CommentDrawerController
         projectId="project-id"
         initialState={() => getCommentDrawerInitialStateFromUrl(router.query)}
       >
         {() => <span>Trace</span>}
-      </CommentDrawerController>,
-      { wrapper: LayerProvider },
+      </CommentDrawerController>
     );
+    const { rerender } = render(view(), { wrapper: LayerProvider });
 
     expect(
       await screen.findByRole("dialog", { name: "Comments" }),
@@ -135,6 +230,18 @@ describe("CommentDrawerController", () => {
     expect(screen.getByText("Existing discussion")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Post comment" }),
+    ).not.toBeInTheDocument();
+    const openDialog = screen.getByRole("dialog", { name: "Comments" });
+    rerender(view());
+    expect(screen.getByRole("dialog", { name: "Comments" })).toBe(openDialog);
+    fireEvent.click(screen.getByRole("button", { name: "Close comments" }));
+    expect(openDialog).toHaveAttribute("data-state", "closed");
+    router.isReady = false;
+    rerender(view());
+    router.isReady = true;
+    rerender(view());
+    expect(
+      screen.queryByRole("dialog", { name: "Comments" }),
     ).not.toBeInTheDocument();
   });
 });

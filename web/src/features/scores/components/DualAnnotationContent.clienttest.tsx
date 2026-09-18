@@ -14,7 +14,9 @@ import {
 import type {
   CreateAnnotationScoreData,
   ScoreConfigDomain,
+  ScoreDomain,
 } from "@langfuse/shared";
+import type HeaderComponent from "@/src/components/layouts/header";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   ScoreCacheProvider,
@@ -28,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   capture: vi.fn(),
+  headerRender: vi.fn(),
 }));
 const configs = [
   {
@@ -44,6 +47,18 @@ const configs = [
     updatedAt: new Date(),
   },
 ] satisfies ScoreConfigDomain[];
+
+vi.mock("@/src/components/layouts/header", async (importOriginal) => {
+  const { default: Header } = await importOriginal<{
+    default: typeof HeaderComponent;
+  }>();
+  return {
+    default: (props: React.ComponentProps<typeof Header>) => {
+      mocks.headerRender();
+      return <Header {...props} />;
+    },
+  };
+});
 
 vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => false }));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
@@ -107,7 +122,7 @@ function renderContent(children = content) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
-  return render(
+  const wrap = (children: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>
       <LayerProvider>
         <ScoreCacheProvider>
@@ -115,8 +130,13 @@ function renderContent(children = content) {
           <CacheProbe />
         </ScoreCacheProvider>
       </LayerProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const rendered = render(wrap(children));
+  return {
+    ...rendered,
+    rerenderContent: (next: React.ReactNode) => rendered.rerender(wrap(next)),
+  };
 }
 
 describe("unified annotation targets", () => {
@@ -142,6 +162,61 @@ describe("unified annotation targets", () => {
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it("keeps draft edits local, preserves them through refetch, and resets only for another target", () => {
+    const text = {
+      ...configs[0]!,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT" as const,
+      categories: null,
+    };
+    const score = (sessionId: string, stringValue: string): ScoreDomain => ({
+      id: `score-${sessionId}`,
+      projectId: "project",
+      environment: "default",
+      name: "Feedback",
+      value: 0,
+      dataType: "TEXT",
+      stringValue,
+      longStringValue: "",
+      source: "ANNOTATION",
+      authorUserId: null,
+      comment: null,
+      metadata: {},
+      configId: "feedback",
+      queueId: null,
+      executionTraceId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      timestamp: new Date(),
+      traceId: null,
+      sessionId,
+      datasetRunId: null,
+      observationId: null,
+    });
+    const contentFor = (sessionId: string, value: string) => (
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId }}
+        serverScores={[{ ...score(sessionId, value), metadata: "{}" }]}
+        scoreMetadata={{ projectId: "project" }}
+        analyticsData={{ type: "session", source: "SessionDetail", isV4: true }}
+        configSelection={{ mode: "fixed", configs: [text] }}
+      />
+    );
+    const view = renderContent(contentFor("session", "Original"));
+    const input = screen.getByRole("textbox");
+    mocks.headerRender.mockClear();
+    fireEvent.change(input, { target: { value: "My unsaved draft" } });
+    expect(mocks.headerRender).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    view.rerenderContent(contentFor("session", "Background refetch"));
+    expect(screen.getByRole("textbox")).toBe(input);
+    expect(input).toHaveValue("My unsaved draft");
+    view.rerenderContent(contentFor("next-session", "Other session score"));
+    expect(screen.getByRole("textbox")).toHaveValue("Other session score");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
 
   it("navigates one form and saves the same config independently for observation and trace", async () => {
     mocks.create.mockResolvedValue({});
@@ -292,10 +367,10 @@ describe("unified annotation targets", () => {
       name: "Quality (Observation)",
     });
     const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
-    act(() => observationRow.focus());
-    fireEvent.keyDown(observationRow, { key: "1" });
-    act(() => traceRow.focus());
-    fireEvent.keyDown(traceRow, { key: "2" });
+    fireEvent.click(
+      within(observationRow).getByRole("radio", { name: /False/ }),
+    );
+    fireEvent.click(within(traceRow).getByRole("radio", { name: /True/ }));
     await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
     expect(
       screen.getByRole("status", { name: "Score save status" }),
@@ -324,6 +399,37 @@ describe("unified annotation targets", () => {
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
+  });
+
+  it("rolls back the same target after an earlier empty row is removed during its save", async () => {
+    const pending = deferred();
+    mocks.create.mockReturnValueOnce(pending.promise).mockResolvedValue({});
+    renderContent();
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
+        "radio",
+        { name: /True/ },
+      ),
+    );
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Remove .*Quality \(Observation\)/ }),
+    );
+    await act(async () => pending.reject(new Error("Trace save failed")));
+    const remaining = screen.getByRole("group", { name: "Quality" });
+    expect(
+      within(remaining).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(within(remaining).getByText("Failed to create score")).toBeVisible();
+    fireEvent.click(within(remaining).getByRole("radio", { name: /False/ }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+    expect(mocks.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        scoreTarget: { type: "trace", traceId: "trace" },
+        value: 0,
+      }),
+    );
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("keeps a single-target numeric form untagged and hides Saved while its next draft is invalid", async () => {
