@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
