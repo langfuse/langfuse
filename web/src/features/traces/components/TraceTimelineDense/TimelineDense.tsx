@@ -60,7 +60,10 @@ import {
 } from "react";
 import { useTheme } from "next-themes";
 import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  ItemTypeIcon,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
 import {
   tooltipPlacement,
   type TooltipPlacement,
@@ -2039,11 +2042,14 @@ function GutterContent({
           />
         </>
       ) : null}
-      {/* This row's own spine, descending from its icon to its children. */}
+      {/* This row's own spine, descending from below its icon to its children. */}
       {showName && node.hasChildren && !node.isCollapsed ? (
         <div
-          className="bg-border-contrast absolute top-1/2 bottom-0 w-px"
-          style={{ left: `${railX}px` }}
+          className="bg-border-contrast absolute bottom-0 w-px"
+          style={{
+            left: `${railX}px`,
+            top: `calc(50% + ${GUTTER_ICON / 2}px)`,
+          }}
         />
       ) : null}
       {/* The connector rails above deliberately do NOT dim: each row draws only
@@ -2064,7 +2070,10 @@ function GutterContent({
           }}
         >
           <span className="shrink-0">
-            <ItemBadge type={node.type as LangfuseItemType} isSmall />
+            <ItemTypeIcon
+              type={node.type as LangfuseItemType}
+              className="size-4"
+            />
           </span>
           <span
             className="text-foreground truncate"
