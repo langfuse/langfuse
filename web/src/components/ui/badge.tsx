@@ -21,6 +21,20 @@ const badgeVariants = cva(
         success: "border-transparent bg-light-green text-dark-green",
         error: "border-transparent bg-light-red text-dark-red",
         warning: "border-transparent bg-light-yellow text-dark-yellow",
+        blue: "border-transparent bg-light-blue text-dark-blue",
+        violet: "border-transparent bg-light-violet text-dark-violet",
+        teal: "border-transparent bg-light-teal text-dark-teal",
+        emerald:
+          "border-transparent bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+        purple:
+          "border-transparent bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-200",
+        pink: "border-transparent bg-pink-100 text-pink-800 dark:bg-pink-950 dark:text-pink-200",
+        orange:
+          "border-transparent bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-200",
+        amber:
+          "border-transparent bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
+        green:
+          "border-transparent bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200",
       },
     },
     defaultVariants: {

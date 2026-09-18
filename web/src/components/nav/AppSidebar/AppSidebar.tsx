@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 

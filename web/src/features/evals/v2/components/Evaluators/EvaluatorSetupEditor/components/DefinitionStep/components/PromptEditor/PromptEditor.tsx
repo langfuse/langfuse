@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Fragment, useState, type CSSProperties } from "react";
 import {
   Check,

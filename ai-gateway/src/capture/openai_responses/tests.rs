@@ -218,6 +218,50 @@ async fn request_configuration_is_projected_out_of_input() {
 }
 
 #[tokio::test]
+async fn agent_client_metadata_is_projected_out_of_input_in_both_modes() {
+    let codex = json!({
+        "model": "requested", "input": "hello", "future_field": {"keep": true},
+        "client_metadata": {
+            "thread_id": "thread-1", "turn_id": "turn-1",
+            "x-codex-installation-id": "install-1",
+            "x-codex-turn-metadata": "{\"thread_id\":\"thread-1\",\"turn_id\":\"turn-1\",\"agent_name\":\"/root\"}"
+        }
+    });
+    for mode in [IngestionMode::Full, IngestionMode::Usage] {
+        let capture =
+            OpenAiResponsesCapture::new(&HeaderMap::new(), codex.to_string().as_bytes(), mode);
+        assert_eq!(
+            capture.client_metadata().unwrap()["x-codex-installation-id"],
+            "install-1"
+        );
+        let facts = capture.into_facts();
+        if mode == IngestionMode::Full {
+            assert_eq!(
+                facts.input.unwrap(),
+                json!({"input": "hello", "future_field": {"keep": true}})
+            );
+        } else {
+            assert!(facts.input.is_none());
+        }
+    }
+
+    let unknown = json!({
+        "model": "requested", "input": "hello",
+        "client_metadata": {"team": "search"}
+    });
+    let capture = OpenAiResponsesCapture::new(
+        &HeaderMap::new(),
+        unknown.to_string().as_bytes(),
+        IngestionMode::Full,
+    );
+    assert!(capture.client_metadata().is_none());
+    assert_eq!(
+        capture.into_facts().input.unwrap(),
+        json!({"input": "hello", "client_metadata": {"team": "search"}})
+    );
+}
+
+#[tokio::test]
 async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode() {
     for mode in ["full", "usage"] {
         for (kind, field) in [
@@ -707,7 +751,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         assert!(metadata.get("output_complete").is_none());
         assert!(metadata.get("provider_status").is_none());
         assert!(metadata.get("native_usage").is_none());
-        assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+        assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
         assert!(
             uploaded_attribute(&upload, "langfuse.observation.usage_details")["input_tokens"]
                 .is_number()
@@ -717,6 +761,93 @@ async fn client_compression_preferences_do_not_disable_capture() {
             "captured output"
         );
     }
+}
+
+#[tokio::test]
+async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
+    let upstream = FakeServer::start(|_| async move {
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(
+                json!({"id":"resp-1","status":"completed","model":"actual","output":[],"usage":{"input_tokens":10,"output_tokens":21,"total_tokens":31}}).to_string(),
+            ))
+            .unwrap()
+    })
+    .await;
+    let uploaded = Arc::new(Mutex::new(Value::Null));
+    let received = uploaded.clone();
+    let collector = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            *received.lock().unwrap() = serde_json::from_slice(&bytes).unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry = crate::telemetry::Telemetry::new(
+        &crate::resolution::ControlPlaneConfig::new(&collector.url, "test-service-key").unwrap(),
+    )
+    .unwrap();
+    let context = resolved_request_context_with_mode("provider-secret", "full").await;
+    let provider =
+        OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
+            .with_telemetry(telemetry.clone());
+    let turn_metadata = json!({
+        "installation_id": "install-1", "session_id": "routing-session",
+        "thread_id": "thread-1", "agent_name": "/root", "turn_id": "turn-1",
+        "request_kind": "turn", "root_turn_id": "turn-1", "sandbox_mode": "workspace-write",
+        "tool_namespaces_info": {"functions": {"name": "functions", "functions": {}}}
+    });
+    let body = json!({
+        "model": "requested", "input": "hello",
+        "client_metadata": {
+            "session_id": "routing-session", "thread_id": "thread-1", "turn_id": "turn-1",
+            "x-codex-installation-id": "install-1", "x-codex-window-id": "thread-1:1",
+            "x-codex-turn-metadata": turn_metadata.to_string()
+        }
+    });
+    let forwarded = provider
+        .forward(
+            provider.try_admit().unwrap(),
+            context,
+            &HeaderMap::new(),
+            Bytes::from(body.to_string()),
+        )
+        .await
+        .unwrap();
+    to_bytes(forwarded.into_body(), 4096).await.unwrap();
+    telemetry
+        .shutdown(tokio::time::Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(collector.calls(), 1);
+    let upload = uploaded.lock().unwrap();
+    let attributes = upload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+        .as_array()
+        .unwrap();
+    let attribute = |key: &str| {
+        attributes
+            .iter()
+            .find(|attribute| attribute["key"] == key)
+            .map(|attribute| attribute["value"]["stringValue"].clone())
+    };
+    assert_eq!(attribute("session.id").unwrap(), "codex:thread-1");
+    assert_eq!(attribute("langfuse.trace.name").unwrap(), "codex");
+    assert!(attribute("user.id").is_none());
+    let metadata = uploaded_attribute(&upload, "langfuse.observation.metadata");
+    assert_eq!(metadata["agent.name"], "codex");
+    assert_eq!(metadata["agent.id"], "/root");
+    assert_eq!(metadata["agent.installation_id"], "install-1");
+    assert_eq!(metadata["agent.root_turn_id"], "turn-1");
+    assert_eq!(metadata["agent.window_id"], "thread-1:1");
+    assert_eq!(metadata["agent.request_kind"], "turn");
+    assert_eq!(metadata["agent.sandbox_mode"], "workspace-write");
+    assert!(metadata.get("agent.tool_namespaces_info").is_none());
+    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(
+        uploaded_attribute(&upload, "langfuse.observation.input"),
+        json!({"input": "hello"})
+    );
 }
 
 #[tokio::test]
@@ -802,8 +933,13 @@ async fn capture_regression_preserves_native_request_and_usage() {
 
 #[tokio::test]
 async fn downstream_cancellation_does_not_erase_completed_capture() {
-    for streaming in [false, true] {
-        let mut execution = observer("full").await;
+    for (streaming, upstream_eof, mode) in [
+        (false, true, "full"),
+        (true, true, "full"),
+        (true, false, "full"),
+        (true, false, "usage"),
+    ] {
+        let mut execution = observer(mode).await;
         record_response(
             &mut execution,
             if streaming {
@@ -813,12 +949,14 @@ async fn downstream_cancellation_does_not_erase_completed_capture() {
             },
         );
         let body = if streaming {
-            terminal("completed", 0)
+            format!("{}{}", completed_item(0, "hello"), terminal("completed", 1))
         } else {
             json!({"status":"completed","output":[]}).to_string()
         };
         execution.push_bytes(body.as_bytes());
-        execution.end_body();
+        if upstream_eof {
+            execution.end_body();
+        }
         let writer = LogWriter::default();
         let subscriber = tracing_subscriber::fmt()
             .json()

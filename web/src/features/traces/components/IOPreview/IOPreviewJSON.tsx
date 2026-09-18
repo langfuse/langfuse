@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";

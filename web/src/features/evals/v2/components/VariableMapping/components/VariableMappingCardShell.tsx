@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Pencil, Trash2, TriangleAlert, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";

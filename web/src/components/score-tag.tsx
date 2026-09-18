@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { cva } from "class-variance-authority";
 
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";

@@ -24,7 +24,7 @@ const filters = {
    * Filter routes that require a project ID when none is available
    */
   projectScope: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!ctx.routerProjectId && route.pathname.includes("[projectId]")) {
+    if (!ctx.routerProjectId && route.href.includes("[projectId]")) {
       return null;
     }
     return route;
@@ -37,10 +37,7 @@ const filters = {
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
-    if (
-      !ctx.routerOrganizationId &&
-      route.pathname.includes("[organizationId]")
-    ) {
+    if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
     return route;

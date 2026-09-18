@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Input } from "@/src/components/ui/input";

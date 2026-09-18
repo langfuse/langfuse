@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonList — the virtualized body of the lazy JSON viewer. It positions row

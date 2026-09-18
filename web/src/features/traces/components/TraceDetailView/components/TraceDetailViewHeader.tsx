@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *
@@ -5,6 +6,7 @@
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
  * - Metadata badges (timestamp, environment, release, version, target trace)
+ * - Trace-level score chips
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */

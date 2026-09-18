@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * PlaybackControls - transport for the trace playhead, in the navigation

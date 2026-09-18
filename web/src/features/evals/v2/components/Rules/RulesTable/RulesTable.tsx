@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";

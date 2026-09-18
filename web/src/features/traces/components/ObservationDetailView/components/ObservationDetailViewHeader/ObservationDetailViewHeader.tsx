@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *

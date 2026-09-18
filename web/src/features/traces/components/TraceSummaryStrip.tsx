@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Button } from "@/src/components/ui/button";
 import { TagButton } from "@/src/features/tag/components/TagButton";
 import {
@@ -19,12 +20,17 @@ import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregatio
 const MAX_VISIBLE_TAGS = 3;
 
 export function TraceSummaryStrip() {
-  const { trace, observations } = useTraceData();
+  const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
     () => aggregateTraceMetrics(observations),
     [observations],
+  );
+
+  const traceScores = useMemo(
+    () => mergedScores.filter((score) => score.observationId === null),
+    [mergedScores],
   );
 
   const visibleTags = showAllTags
@@ -61,6 +67,7 @@ export function TraceSummaryStrip() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
+        {traceScores.length > 0 && <GroupedScoreBadges scores={traceScores} />}
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {visibleTags.map((tag) => (

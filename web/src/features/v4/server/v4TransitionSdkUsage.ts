@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * SDK / events_core usage checks for the v4 transition.
  *

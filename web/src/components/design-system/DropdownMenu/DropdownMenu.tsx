@@ -50,6 +50,18 @@ const menuBodyVariants = cva(
 
 const menuItemVariants = cva(
   "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  {
+    variants: {
+      variant: {
+        default: "",
+        destructive:
+          "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
 );
 
 const primaryActionVariants = cva(
@@ -70,6 +82,7 @@ type DropdownMenuItem = {
   title: string;
   icon?: LucideIcon;
   type: "item";
+  variant?: "default" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
     icon: LucideIcon;
@@ -138,6 +151,7 @@ function DropdownMenu({
       {children({
         getTriggerProps: () =>
           getReferenceProps({
+            "aria-expanded": isOpen,
             ref: refs.setReference,
           }),
       })}
@@ -267,7 +281,7 @@ function DropdownMenu({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants()}
+                      className={menuItemVariants({ variant: item.variant })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;

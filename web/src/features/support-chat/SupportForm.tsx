@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
