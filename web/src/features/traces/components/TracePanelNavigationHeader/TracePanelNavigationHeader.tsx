@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useReadPath } from "@/src/features/events";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -102,6 +103,7 @@ function TracePanelNavigationHeaderExpanded({
     isLoading: isGraphLoading,
   } = useTraceGraphData();
   const { isV4 } = useReadPath();
+  const messagesEnabled = useIsFeatureEnabled("traceMessages");
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -195,7 +197,9 @@ function TracePanelNavigationHeaderExpanded({
       ? "timeline"
       : viewMode === "graph" && graphResolved
         ? "graph"
-        : "tree";
+        : viewMode === "messages" && messagesEnabled
+          ? "messages"
+          : "tree";
 
   return (
     <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
@@ -325,6 +329,7 @@ function TracePanelNavigationHeaderExpanded({
           <ViewModeSwitch
             activeView={activeView}
             graphDisabledReason={graphDisabledReason}
+            showMessages={messagesEnabled}
             onSelect={(view) => {
               // Clicking the already-active segment is a no-op — don't count it.
               if (view !== activeView) {
@@ -334,6 +339,10 @@ function TracePanelNavigationHeaderExpanded({
                 });
               }
               setViewMode(view === "tree" ? null : view);
+              // The transcript wants the width; the rail's "Show detail
+              // panel" button and selecting an observation bring it back.
+              if (view === "messages")
+                layout?.detailPanelRef.current?.collapse();
             }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
@@ -352,16 +361,19 @@ const GRAPH_UNAVAILABLE_COPY: Record<GraphUnavailableReason, string> = {
   "no-structure": "Nothing to graph. This trace has only one node.",
 };
 
-type TraceViewMode = "tree" | "timeline" | "graph";
+type TraceViewMode = "tree" | "timeline" | "graph" | "messages";
 
 function ViewModeSwitch({
   activeView,
   graphDisabledReason,
+  showMessages,
   onSelect,
 }: {
   activeView: TraceViewMode;
   /** Present when the trace has no graph: the segment renders disabled. */
   graphDisabledReason?: string;
+  /** Internal preview: the Messages segment exists only for internal users. */
+  showMessages: boolean;
   onSelect: (view: TraceViewMode) => void;
 }) {
   return (
@@ -386,6 +398,13 @@ function ViewModeSwitch({
         disabled={Boolean(graphDisabledReason)}
         title={graphDisabledReason}
       />
+      {showMessages && (
+        <ViewModeSegment
+          active={activeView === "messages"}
+          onClick={() => onSelect("messages")}
+          label="Messages"
+        />
+      )}
     </div>
   );
 }
