@@ -96,7 +96,7 @@ export function Badge({
               color !== "ghost" && "text-muted-foreground",
             )}
           >
-            {label}
+            {color === "ghost" ? label : `${label}:`}
           </span>
         )
       )}
