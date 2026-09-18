@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     execution_id String,
     trigger_type LowCardinality(String) DEFAULT 'manual_poc',
     result_version UInt8,
-    processing_state Enum8('summarized' = 1, 'complete' = 2, 'not_applicable' = 3, 'insufficient_input' = 4),
+    processing_state Enum8('complete' = 2, 'not_applicable' = 3, 'insufficient_input' = 4),
     summary String CODEC(ZSTD(3)),
     embedding Array(Float32),
     input_hash String,

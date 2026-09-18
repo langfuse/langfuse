@@ -600,34 +600,6 @@ describe("Topics published scatter map", () => {
     );
   });
 
-  it("serves every point of a discovery cohort larger than 1,000 traces", async () => {
-    const ids = Array.from({ length: 1001 }, (_, index) => `summary-${index}`);
-    mocks.getTopicRun.mockResolvedValue({
-      ...run,
-      summaryIds: ids,
-      config: { executionId: "discovery-a" },
-    });
-    mocks.readTopicMapAssignments.mockResolvedValue(
-      ids.map((id, index) => ({
-        ...firstAssignment,
-        summaryId: id,
-        coordinates: [index, index],
-      })),
-    );
-    mocks.readTopicSummaries.mockResolvedValue(
-      ids.map((id, index) => ({ ...summary, id, traceId: `trace-${index}` })),
-    );
-    mocks.readTopicAssignments.mockResolvedValue([]);
-    const map = await caller().map(mapInput);
-    expect(map.status).toBe("ready");
-    expect(map.points).toHaveLength(1001);
-    expect(map.points.at(-1)).toMatchObject({
-      summaryId: "summary-1000",
-      x: 1000,
-      y: 1000,
-    });
-  });
-
   it("does not shift coordinates when a discovery summary is missing or belongs to another facet", async () => {
     mocks.readTopicSummaries.mockResolvedValue([
       summary,

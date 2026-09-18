@@ -58,10 +58,8 @@ export async function processTopicEmbeddingBatch(
       const durable = stored.get(ref.summaryId);
       if (durable) {
         validateSummary(batch, ref, durable, false);
-        if (durable.state !== "summarized") {
-          acknowledged.push(ref);
-          continue;
-        }
+        acknowledged.push(ref);
+        continue;
       }
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);

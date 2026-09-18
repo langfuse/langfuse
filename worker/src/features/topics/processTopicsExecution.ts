@@ -434,12 +434,7 @@ async function resumeSummaryBatch(
     "storage",
   );
   const byId = new Map(stored.map((row) => [row.id, row]));
-  if (
-    !batch.summaries.every((ref) => {
-      const row = byId.get(ref.summaryId);
-      return row && row.state !== "summarized";
-    })
-  ) {
+  if (!batch.summaries.every((ref) => byId.has(ref.summaryId))) {
     try {
       pendingEmbeddingBatchIds.add(batchId);
       await enqueueTopicEmbeddingBatch(
@@ -524,11 +519,7 @@ async function completedSummaries(
         summaries.map((summary) => summary.id),
       )
     : [];
-  const byId = new Map(
-    visible
-      .filter((row) => row.state !== "summarized")
-      .map((row) => [row.id, row]),
-  );
+  const byId = new Map(visible.map((row) => [row.id, row]));
   if (summaries.some((summary) => !byId.has(summary.id)))
     throw new PendingTopicEmbeddings();
   return summaries.map((summary) => byId.get(summary.id)!);

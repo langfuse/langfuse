@@ -60,7 +60,7 @@ export async function currentTopicResults(projectId: string) {
           const awaitingUpdate = Boolean(
             latest &&
             latest.id !== assignment?.summaryId &&
-            (latest.state === "complete" || latest.state === "summarized"),
+            latest.state === "complete",
           );
           const topic = assignment?.topicVersionId
             ? topicByVersion.get(assignment.topicVersionId)

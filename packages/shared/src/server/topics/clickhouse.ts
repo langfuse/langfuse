@@ -133,46 +133,21 @@ export async function listTopicSummaries(
 export const readTopicSummaries = (projectId: string, summaryIds: string[]) =>
   listTopicSummaries(projectId, { ids: summaryIds });
 
-/** Incomplete replacements leave the last terminal summary available for clustering. */
 export async function getLatestFacetSummaries(
   projectId: string,
   facetId: string,
   facetVersionId: string,
 ): Promise<TopicSummary[]> {
   const rows = await queryClickhouse<SummaryRow>({
-    query: `SELECT * FROM (
-      SELECT ${summaryColumns} FROM topic_facet_summaries
+    query: `SELECT ${summaryColumns} FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
         AND facet_version_id = {facetVersionId:String}
-      ORDER BY result_version DESC LIMIT 1 BY project_id, id
-    ) WHERE state != 'summarized'
-    ORDER BY toUInt64(revision) DESC, processedAtMs DESC, id DESC
-    LIMIT 1 BY projectId, facetId, unitType, traceId`,
+      ORDER BY toUInt64(revision) DESC, processedAtMs DESC, id DESC
+      LIMIT 1 BY projectId, facetId, unitType, traceId`,
     params: { projectId, facetId, facetVersionId },
     tags: { route: "topics-latest-summaries", projectId },
   });
   return rows.map(summaryResult);
-}
-
-export async function findCachedTopicSummary(
-  projectId: string,
-  filter: {
-    traceId: string;
-    facetVersionId: string;
-    inputHash: string;
-    invocationHash: string;
-  },
-): Promise<TopicSummary | null> {
-  const rows = await queryClickhouse<SummaryRow>({
-    query: `SELECT ${summaryColumns} FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND unit_id = {traceId:String}
-        AND facet_version_id = {facetVersionId:String} AND input_hash = {inputHash:String}
-        AND invocation_hash = {invocationHash:String}
-      ORDER BY toUInt64(revision) DESC, result_version DESC LIMIT 1`,
-    params: { projectId, ...filter },
-    tags: { route: "topics-summary-cache", projectId },
-  });
-  return rows[0] ? summaryResult(rows[0]) : null;
 }
 
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
@@ -181,10 +156,10 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
     if (
       !row.embedding.every(Number.isFinite) ||
       (row.state === "complete" && !row.embedding.length) ||
-      (row.resultVersion === 1 && row.state !== "summarized") ||
-      (row.resultVersion === 2 && row.state === "summarized")
+      row.resultVersion !== 2 ||
+      row.state === "summarized"
     )
-      throw new Error("Invalid Topics summary checkpoint.");
+      throw new Error("Invalid Topics summary result.");
   }
   await insertTopicRows("topic_facet_summaries", rows, (row) => ({
     id: row.id,

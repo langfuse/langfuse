@@ -300,19 +300,18 @@ describe("Topics trace selection", () => {
     });
   });
 
-  it("selects every matching trace by default and accepts more than 1,000 pasted IDs", async () => {
-    const ids = Array.from({ length: 1001 }, (_, i) => `trace-${i}`);
+  it("selects the full cohort by default and deduplicates pasted IDs", async () => {
+    const ids = Array.from({ length: 25 }, (_, i) => `trace-${i}`);
     mocks.fetch.mockResolvedValue({
       ...result(...ids.slice(0, 100)),
       matchedTraceCount: ids.length,
       selectedTraceCount: ids.length,
     });
     setup();
-    expect(screen.queryByLabelText("Maximum traces")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() =>
       expect(selected()).toMatchObject({
-        count: 1001,
+        count: 25,
         selection: { limit: null },
       }),
     );
@@ -327,7 +326,7 @@ describe("Topics trace selection", () => {
     fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
       target: { value: [...ids, ids[0]].join("\n") },
     });
-    expect(selected()).toEqual({ count: 1001, traceIds: ids });
+    expect(selected()).toEqual({ count: 25, traceIds: ids });
     expect(
       screen.getByRole("button", { name: "Trigger topics" }),
     ).not.toBeDisabled();

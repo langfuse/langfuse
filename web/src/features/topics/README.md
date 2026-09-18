@@ -63,8 +63,8 @@ existing local-development and project-access checks still apply.
 - `TopicEmbeddingMap.tsx` loads the published map and renders its saved 2D UMAP
   coordinates. Clicking a point pins its summary until another selection; only
   split view synchronizes selection and pagination with the trace list. Trace IDs
-  in the map summary open the shared trace peek. The summary area has a fixed
-  height with overflow scrolling so hovering never moves the cards. Cards own
+  in the map summary open the shared trace peek. The summary area collapses when
+  inactive and fits its content up to a scrollable maximum height. Cards own
   topic filtering, with All topics in the map header to reset it. Topic selection is
   shared with the cards and list and fits the plot to that topic's points, making
   overlapping groups easier to inspect. Arrow keys navigate a single roving tab

@@ -89,6 +89,22 @@ const assignmentFixture: TopicAssignment = {
 };
 
 describe("Topics summary provenance storage", () => {
+  it("rejects an unfinished summary before sending any rows to ClickHouse", async () => {
+    await expect(
+      writeTopicSummaries([
+        summaryFixture,
+        {
+          ...summaryFixture,
+          id: "unfinished-summary",
+          state: "summarized",
+          resultVersion: 1,
+          embedding: [],
+        },
+      ]),
+    ).rejects.toThrow("Invalid Topics summary");
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
   it("bounds embedding-heavy inserts by serialized bytes and waits for durable async writes", async () => {
     const rows = Array.from({ length: 512 }, (_, index) => ({
       ...summaryFixture,
@@ -116,7 +132,7 @@ describe("Topics summary provenance storage", () => {
     }
   });
 
-  it("accumulates the latest terminal result per unit without letting pending replacements hide it", async () => {
+  it("selects the latest result per trace within its project and facet version", async () => {
     mocks.query.mockResolvedValue([]);
     await getLatestFacetSummaries("project-a", "facet-a", "version-a");
     const { query, params } = mocks.query.mock.calls[0][0];
@@ -125,14 +141,10 @@ describe("Topics summary provenance storage", () => {
       facetId: "facet-a",
       facetVersionId: "version-a",
     });
-    const checkpointSelection = query.indexOf("LIMIT 1 BY project_id, id");
-    const completedSelection = query.indexOf("WHERE state != 'summarized'");
-    const unitSelection = query.indexOf(
-      "LIMIT 1 BY projectId, facetId, unitType, traceId",
-    );
-    expect(checkpointSelection).toBeGreaterThan(0);
-    expect(completedSelection).toBeGreaterThan(checkpointSelection);
-    expect(unitSelection).toBeGreaterThan(completedSelection);
+    expect(query).toContain("project_id = {projectId:String}");
+    expect(query).toContain("facet_id = {facetId:String}");
+    expect(query).toContain("facet_version_id = {facetVersionId:String}");
+    expect(query).toContain("LIMIT 1 BY projectId, facetId, unitType, traceId");
     expect(query).toContain(
       "ORDER BY toUInt64(revision) DESC, processedAtMs DESC, id DESC",
     );

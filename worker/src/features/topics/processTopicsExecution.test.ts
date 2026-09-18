@@ -218,11 +218,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   ) => {
     const latest = new Map<string, TopicSummary>();
     for (const row of state.summaries.values()) {
-      if (
-        row.facetId !== facetId ||
-        row.facetVersionId !== facetVersionId ||
-        row.state === "summarized"
-      )
+      if (row.facetId !== facetId || row.facetVersionId !== facetVersionId)
         continue;
       const prior = latest.get(row.traceId);
       if (!prior || BigInt(row.revision) >= BigInt(prior.revision))
@@ -651,32 +647,6 @@ describe("Topics execution", () => {
     );
     expect(cleared).toMatchObject({ topicId: null, topicVersionId: null });
     expect(state.assignments.get(before.id)).toEqual(before);
-  });
-
-  it("changes embedding dimensions without changing the facet or repeating summary inference", async () => {
-    state.executions.set("dims-first", execution("dims-first", 1));
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "dims-first",
-    });
-    expect(
-      state.events.filter((event) => event.startsWith("write-summary:")),
-    ).toEqual(["write-summary:complete"]);
-    const second = execution("dims-second", 1);
-    second.input.embeddingConfig.embeddingDimensions = 32;
-    state.executions.set(second.id, second);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: second.id,
-    });
-    expect(state.summarize).toHaveBeenCalledTimes(1);
-    expect(state.embed.mock.calls.map((call) => call[1])).toEqual([16, 32]);
-    expect(
-      state.events.filter((event) => event.startsWith("write-summary:")),
-    ).toEqual(["write-summary:complete", "write-summary:complete"]);
-    expect(
-      new Set([...state.summaries.values()].map((row) => row.facetVersionId)),
-    ).toEqual(new Set([facet.id]));
   });
 
   it("processes more than 1000 traces without losing assignments", async () => {
@@ -1338,16 +1308,18 @@ describe("Topics execution", () => {
     ).toBe(1);
   });
 
-  it.each([
-    { label: "prompt", change: { prompt: "Describe the issue." } },
-    { label: "facet", change: { facetId: "different-facet" } },
-  ])("does not reuse a summary after changing $label", async ({ change }) => {
+  it("does not reuse another facet's summary for an identical prompt", async () => {
     state.executions.set("recipe-source", execution("recipe-source", 1));
     await processTopicsExecution({
       projectId: "project",
       executionId: "recipe-source",
     });
-    const updated = { ...facet, ...change, id: "recipe-v2", version: 2 };
+    const updated = {
+      ...facet,
+      facetId: "different-facet",
+      id: "recipe-v2",
+      version: 2,
+    };
     state.executions.set(
       "recipe-updated",
       execution("recipe-updated", 1, "discover", [updated]),
