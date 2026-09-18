@@ -20,7 +20,6 @@ import {
 } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import {
   ExistingDatasetItemsDropdownMenuController,
@@ -488,9 +487,6 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             )}
             {trace.release && <ReleaseBadge release={trace.release} />}
             {trace.version && <VersionBadge version={trace.version} />}
-            {traceScores.length > 0 && (
-              <GroupedScoreBadges scores={traceScores} />
-            )}
           </CollapsibleBadgeRow>
         )}
       </div>
