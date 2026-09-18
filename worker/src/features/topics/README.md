@@ -125,8 +125,11 @@ The embedding worker caches a completed vector alongside its summary before the
 combined ClickHouse write. It removes the Redis payload only after the insert is
 acknowledged. A database retry therefore reuses the vector while its payload is
 available. No incomplete summary rows are written to ClickHouse.
-The coordinator releases its worker slot while waiting, then resumes from frozen
-batch references. Missing/expired payloads fail the batch explicitly; start a new
+The coordinator releases its worker slot while waiting. Its BullMQ job records
+pending embedding batch IDs; unchanged polls read only Redis queue states, with
+no Postgres, S3 or ClickHouse work. Completed batches are removed from the wait
+list. When pending jobs finish or need recovery, the coordinator resumes from
+frozen batch references without rewriting earlier progress prefixes. Missing/expired payloads fail the batch explicitly; start a new
 execution to regenerate them. Redis staging is temporary, not a durable archive:
 Redis data loss or expiry before persistence can require repeating inference.
 Unchanged effective input and summary recipe reuse accepted summary text. Embedding
@@ -259,7 +262,8 @@ input remains capped at 1,024 tokens.
 Provider SDK retries are disabled. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
-while its Redis payload still exists.
+while its Redis payload still exists; each manual resume resets the three-attempt
+retry budget.
 
 A persisted summary, embedding, or cluster name can be reused without another charge. If a worker
 stops after a provider call succeeds but before saving its result, a manual

@@ -1,5 +1,14 @@
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+} from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {
@@ -32,6 +41,8 @@ export function TopicPipelineForm({
   executions,
   canWrite,
   onTriggered,
+  facetEditor,
+  render,
 }: {
   projectId: string;
   facets: TopicFacet[];
@@ -39,7 +50,10 @@ export function TopicPipelineForm({
   executions: Execution[];
   canWrite: boolean;
   onTriggered: (id: string) => void;
+  facetEditor: ReactNode;
+  render: (actions: ReactNode, configuration: ReactNode) => ReactNode;
 }) {
+  const [configurationOpen, setConfigurationOpen] = useState(false);
   const [operation, setOperation] = useState<TopicOperation>("refresh");
   const rules = api.topics.rules.useQuery({ projectId });
   const [ruleId, setRuleId] = useState<string | null>(null);
@@ -210,6 +224,7 @@ export function TopicPipelineForm({
         requestId: request.current.id,
       });
       request.current = null;
+      setConfigurationOpen(false);
       onTriggered(result.id);
     } catch (cause) {
       setError(
@@ -222,222 +237,20 @@ export function TopicPipelineForm({
   const renderConfiguration = (
     selection: TopicTraceSelection | null,
     criteria: TopicTraceCriteria | null,
-  ) => (
-    <>
-      <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 text-sm font-bold">Facets</legend>
-        {facetChoices.map(({ facet, version, selected }) => (
-          <div
-            key={facet.id}
-            className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
-                <Checkbox
-                  checked={selected}
-                  onCheckedChange={(value) =>
-                    toggleFacet(facet.id, value === true)
-                  }
-                />
-                {facet.name}
-              </label>
-              <Select
-                value={version.id}
-                onValueChange={(value) =>
-                  setFacetVersions((current) => ({
-                    ...current,
-                    [facet.id]: value,
-                  }))
-                }
-              >
-                <SelectTrigger
-                  className="w-24"
-                  aria-label={`Version for ${facet.name}`}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="ph-no-capture">
-                  {facet.versions.map((candidate) => (
-                    <SelectItem key={candidate.id} value={candidate.id}>
-                      v{candidate.version}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-muted-foreground text-sm">{version.prompt}</p>
-            {operation === "assign" && selected && (
-              <Select
-                value={selectedTargetRunIds[version.id] ?? ""}
-                onValueChange={(value) =>
-                  setTargetRunIds((current) => ({
-                    ...current,
-                    [version.id]: value,
-                  }))
-                }
-              >
-                <SelectTrigger
-                  className="w-full sm:w-64"
-                  aria-label={`Map for ${facet.name} v${version.version}`}
-                >
-                  <SelectValue placeholder="Select compatible published map" />
-                </SelectTrigger>
-                <SelectContent className="ph-no-capture">
-                  {compatibleRuns
-                    .filter(
-                      (run) =>
-                        run.facetVersionId === version.id && run.publishedAt,
-                    )
-                    .map((run) => (
-                      <SelectItem key={run.id} value={run.id}>
-                        Map {run.runSequence} · {run.topics.length} topics
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        ))}
-      </fieldset>
-      {operation !== "recluster" && criteria && (
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="flex flex-col gap-1 text-sm">
-              Rule name
-              <Input
-                aria-label="Topic rule name"
-                className="w-64"
-                placeholder="Save these filters and facets"
-                value={ruleName}
-                onChange={(event) => setRuleName(event.target.value)}
-              />
-            </label>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={
-                !canWrite ||
-                !ruleName.trim() ||
-                !activeFacetIds.length ||
-                saveRule.isPending
-              }
-              onClick={() =>
-                saveRule.mutate({
-                  projectId,
-                  ...(selectedRule ? { id: selectedRule.id } : {}),
-                  name: ruleName,
-                  ...criteria,
-                  facetIds: activeFacetIds,
-                })
-              }
-            >
-              {saveRule.isPending
-                ? "Saving…"
-                : selectedRule
-                  ? "Update rule"
-                  : "Save rule"}
-            </Button>
-          </div>
-          <p className="text-muted-foreground text-xs">
-            Rules save filters, sampling and selected facets. Choose the time
-            range for each run. Changing a rule reuses existing summaries and
-            embeddings when the trace and facet prompt match.
-            {selectedRule && !matchesRule(criteria)
-              ? " Unsaved changes apply only to this run until you update the rule."
-              : ""}
-          </p>
-          {saveRule.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {saveRule.error.message}
-            </p>
-          )}
-        </div>
-      )}
-      {operation === "recluster" && (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 text-sm font-bold">
-            Completed batches to combine
-          </legend>
-          {reclusterSources.map((execution) => (
-            <label
-              key={execution.id}
-              className="flex items-center gap-2 text-sm"
-            >
-              <Checkbox
-                checked={sourceExecutionIds.includes(execution.id)}
-                onCheckedChange={(checked) =>
-                  setSourceExecutionIds((current) =>
-                    checked
-                      ? [...current, execution.id]
-                      : current.filter((id) => id !== execution.id),
-                  )
-                }
-              />
-              {execution.input.operation} ·{" "}
-              {new Date(execution.createdAt).toLocaleString()}
-            </label>
-          ))}
-          <p className="text-muted-foreground text-xs">
-            Only completed batches containing every selected facet version are
-            shown. Reuses retained summaries and embeddings; naming can make a
-            model call.
-          </p>
-          {reclusterSources.length === 0 && (
-            <p className="text-sm">
-              No compatible batches. Select the facet versions used by a
-              previous batch, or discover topics with new traces first.
-            </p>
-          )}
-        </fieldset>
-      )}
-      <div className="flex flex-wrap items-end gap-5">
-        {operation !== "assign" && (
-          <label className="flex flex-col gap-1 text-sm">
-            Minimum traces for clustering
-            <Input
-              aria-label="Minimum traces for clustering"
-              aria-invalid={!minimumTraceCountResult.success}
-              className="w-28"
-              type="number"
-              min={3}
-              step={1}
-              value={minimumTraceCountValue}
-              onChange={(event) => setMinimumTraceCount(event.target.value)}
-            />
-          </label>
-        )}
-        <label className="flex flex-col gap-1 text-sm">
-          Embedding dimensions
-          <Input
-            aria-label="Embedding dimensions"
-            className="w-28"
-            type="number"
-            min={16}
-            max={1536}
-            step={1}
-            value={dimensions}
-            onChange={(event) => setDimensions(event.target.value)}
-          />
-        </label>
-        {operation === "refresh" && (
-          <label className="flex h-8 items-center gap-2 text-sm">
-            <Checkbox
-              checked={forceRefresh}
-              onCheckedChange={(value) => setForceRefresh(value === true)}
-            />
-            Force refresh
-          </label>
-        )}
-        {operation !== "assign" && (
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={exploratory}
-              onCheckedChange={(value) => setExploratory(value === true)}
-            />
-            Small sample mode (smaller, provisional topics)
-          </label>
-        )}
+    traceControls: ReactNode,
+  ) =>
+    render(
+      <>
         <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setConfigurationOpen(true)}
+        >
+          Configure topics
+        </Button>
+
+        <Button
+          size="sm"
           disabled={
             !canWrite ||
             !embeddingConfig.success ||
@@ -454,42 +267,290 @@ export function TopicPipelineForm({
         >
           {trigger.isPending ? "Starting…" : "Run topics"}
         </Button>
-      </div>
-      {operation !== "recluster" && selection?.count ? (
-        <p className="text-muted-foreground text-sm">
-          Run on {selection.count.toLocaleString()} traces across{" "}
-          {facetVersionIds.length} facets. Existing summaries are reused when
-          their inputs match. Uncached inputs and outputs are sent to OpenAI.
-        </p>
-      ) : null}
-      {operation === "refresh" && (
-        <p className="text-muted-foreground text-xs">
-          Selected traces join the existing cohort. Topics refresh when the
-          cohort changes enough; force refresh rebuilds the map from cached
-          summaries.
-          {retainedCohort &&
-            ` ${retainedCohort.size.toLocaleString()} previously processed traces across the selected facet versions.`}
-        </p>
-      )}
-      {operation !== "assign" && (
-        <p className="text-muted-foreground text-xs">
-          {minimumTraceCountResult.success
-            ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} usable trace summaries per facet. Below this minimum, summaries are saved for a later run.`
-            : "Enter a whole number of at least 3 traces."}{" "}
-          Small sample mode lowers the minimum topic size from 15 to 3 traces.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-destructive text-sm">
-          {error}
-        </p>
-      )}
-    </>
-  );
-  return (
-    <section className="flex flex-col gap-5 border-t pt-6">
+        {error && (
+          <p role="alert" className="text-destructive text-sm">
+            {error}
+          </p>
+        )}
+      </>,
+      <Dialog open={configurationOpen} onOpenChange={setConfigurationOpen}>
+        <DialogContent
+          size="xl"
+          className="ph-no-capture max-w-6xl"
+          closeOnInteractionOutside
+        >
+          <DialogHeader>
+            <DialogTitle>Configure topics</DialogTitle>
+            <DialogDescription>
+              Choose traces, facets, and processing settings for your next run.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="gap-6">
+            {operationControls}
+            {traceControls}
+            <fieldset className="flex flex-col gap-3">
+              <legend className="mb-2 text-sm font-bold">Facets</legend>
+              {facetChoices.map(({ facet, version, selected }) => (
+                <div
+                  key={facet.id}
+                  className="bg-muted/30 flex flex-col gap-2 rounded-md p-3"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <label className="flex min-w-0 items-center gap-2 text-sm font-bold">
+                      <Checkbox
+                        checked={selected}
+                        onCheckedChange={(value) =>
+                          toggleFacet(facet.id, value === true)
+                        }
+                      />
+                      {facet.name}
+                    </label>
+                    <Select
+                      value={version.id}
+                      onValueChange={(value) =>
+                        setFacetVersions((current) => ({
+                          ...current,
+                          [facet.id]: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        className="w-24"
+                        aria-label={`Version for ${facet.name}`}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="ph-no-capture">
+                        {facet.versions.map((candidate) => (
+                          <SelectItem key={candidate.id} value={candidate.id}>
+                            v{candidate.version}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <p className="text-muted-foreground text-sm">
+                    {version.prompt}
+                  </p>
+                  {operation === "assign" && selected && (
+                    <Select
+                      value={selectedTargetRunIds[version.id] ?? ""}
+                      onValueChange={(value) =>
+                        setTargetRunIds((current) => ({
+                          ...current,
+                          [version.id]: value,
+                        }))
+                      }
+                    >
+                      <SelectTrigger
+                        className="w-full sm:w-64"
+                        aria-label={`Map for ${facet.name} v${version.version}`}
+                      >
+                        <SelectValue placeholder="Select compatible published map" />
+                      </SelectTrigger>
+                      <SelectContent className="ph-no-capture">
+                        {compatibleRuns
+                          .filter(
+                            (run) =>
+                              run.facetVersionId === version.id &&
+                              run.publishedAt,
+                          )
+                          .map((run) => (
+                            <SelectItem key={run.id} value={run.id}>
+                              Map {run.runSequence} · {run.topics.length} topics
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              ))}
+            </fieldset>
+            {operation !== "recluster" && criteria && (
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-sm">
+                    Rule name
+                    <Input
+                      aria-label="Topic rule name"
+                      className="w-64"
+                      placeholder="Save these filters and facets"
+                      value={ruleName}
+                      onChange={(event) => setRuleName(event.target.value)}
+                    />
+                  </label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      !canWrite ||
+                      !ruleName.trim() ||
+                      !activeFacetIds.length ||
+                      saveRule.isPending
+                    }
+                    onClick={() =>
+                      saveRule.mutate({
+                        projectId,
+                        ...(selectedRule ? { id: selectedRule.id } : {}),
+                        name: ruleName,
+                        ...criteria,
+                        facetIds: activeFacetIds,
+                      })
+                    }
+                  >
+                    {saveRule.isPending
+                      ? "Saving…"
+                      : selectedRule
+                        ? "Update rule"
+                        : "Save rule"}
+                  </Button>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Rules save filters, sampling and selected facets. Choose the
+                  time range for each run. Changing a rule reuses existing
+                  summaries and embeddings when the trace and facet prompt
+                  match.
+                  {selectedRule && !matchesRule(criteria)
+                    ? " Unsaved changes apply only to this run until you update the rule."
+                    : ""}
+                </p>
+                {saveRule.error && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {saveRule.error.message}
+                  </p>
+                )}
+              </div>
+            )}
+            {operation === "recluster" && (
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-2 text-sm font-bold">
+                  Completed batches to combine
+                </legend>
+                {reclusterSources.map((execution) => (
+                  <label
+                    key={execution.id}
+                    className="flex items-center gap-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={sourceExecutionIds.includes(execution.id)}
+                      onCheckedChange={(checked) =>
+                        setSourceExecutionIds((current) =>
+                          checked
+                            ? [...current, execution.id]
+                            : current.filter((id) => id !== execution.id),
+                        )
+                      }
+                    />
+                    {execution.input.operation} ·{" "}
+                    {new Date(execution.createdAt).toLocaleString()}
+                  </label>
+                ))}
+                <p className="text-muted-foreground text-xs">
+                  Only completed batches containing every selected facet version
+                  are shown. Reuses retained summaries and embeddings; naming
+                  can make a model call.
+                </p>
+                {reclusterSources.length === 0 && (
+                  <p className="text-sm">
+                    No compatible batches. Select the facet versions used by a
+                    previous batch, or discover topics with new traces first.
+                  </p>
+                )}
+              </fieldset>
+            )}
+            <div className="flex flex-wrap items-end gap-5">
+              {operation !== "assign" && (
+                <label className="flex flex-col gap-1 text-sm">
+                  Minimum traces for clustering
+                  <Input
+                    aria-label="Minimum traces for clustering"
+                    aria-invalid={!minimumTraceCountResult.success}
+                    className="w-28"
+                    type="number"
+                    min={3}
+                    step={1}
+                    value={minimumTraceCountValue}
+                    onChange={(event) =>
+                      setMinimumTraceCount(event.target.value)
+                    }
+                  />
+                </label>
+              )}
+              <label className="flex flex-col gap-1 text-sm">
+                Embedding dimensions
+                <Input
+                  aria-label="Embedding dimensions"
+                  className="w-28"
+                  type="number"
+                  min={16}
+                  max={1536}
+                  step={1}
+                  value={dimensions}
+                  onChange={(event) => setDimensions(event.target.value)}
+                />
+              </label>
+              {operation === "refresh" && (
+                <label className="flex h-8 items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={forceRefresh}
+                    onCheckedChange={(value) => setForceRefresh(value === true)}
+                  />
+                  Force refresh
+                </label>
+              )}
+              {operation !== "assign" && (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={exploratory}
+                    onCheckedChange={(value) => setExploratory(value === true)}
+                  />
+                  Small sample mode (smaller, provisional topics)
+                </label>
+              )}
+            </div>
+            {operation !== "recluster" && selection?.count ? (
+              <p className="text-muted-foreground text-sm">
+                Run on {selection.count.toLocaleString()} traces across{" "}
+                {facetVersionIds.length} facets. Existing summaries are reused
+                when their inputs match. Uncached inputs and outputs are sent to
+                OpenAI.
+              </p>
+            ) : null}
+            {operation === "refresh" && (
+              <p className="text-muted-foreground text-xs">
+                Selected traces join the existing cohort. Topics refresh when
+                the cohort changes enough; force refresh rebuilds the map from
+                cached summaries.
+                {retainedCohort &&
+                  ` ${retainedCohort.size.toLocaleString()} previously processed traces across the selected facet versions.`}
+              </p>
+            )}
+            {operation !== "assign" && (
+              <p className="text-muted-foreground text-xs">
+                {minimumTraceCountResult.success
+                  ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} usable trace summaries per facet. Below this minimum, summaries are saved for a later run.`
+                  : "Enter a whole number of at least 3 traces."}{" "}
+                Small sample mode lowers the minimum topic size from 15 to 3
+                traces.
+              </p>
+            )}
+            {facetEditor}
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              className="self-end"
+              variant="outline"
+              onClick={() => setConfigurationOpen(false)}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+  const operationControls = (
+    <>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-bold">Run the pipeline</h2>
         <Select
           value={operation}
           onValueChange={(value) => {
@@ -571,17 +632,18 @@ export function TopicPipelineForm({
           )}
         </label>
       )}
-      {operation === "recluster" ? (
-        renderConfiguration(null, null)
-      ) : (
-        <TopicTraceSelector
-          key={selector.key}
-          projectId={projectId}
-          initialCriteria={selector.initialCriteria}
-        >
-          {renderConfiguration}
-        </TopicTraceSelector>
-      )}
-    </section>
+    </>
+  );
+  return operation === "recluster" ? (
+    renderConfiguration(null, null, null)
+  ) : (
+    <TopicTraceSelector
+      key={selector.key}
+      projectId={projectId}
+      initialCriteria={selector.initialCriteria}
+      onOpenTrace={() => setConfigurationOpen(false)}
+    >
+      {renderConfiguration}
+    </TopicTraceSelector>
   );
 }

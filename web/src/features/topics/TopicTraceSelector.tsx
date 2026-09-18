@@ -73,13 +73,16 @@ function calendarRange(from: string, to: string) {
 export function TopicTraceSelector({
   projectId,
   initialCriteria,
+  onOpenTrace,
   children,
 }: {
   projectId: string;
   initialCriteria?: TopicTraceCriteria;
+  onOpenTrace: () => void;
   children: (
     selection: TopicTraceSelection | null,
     criteria: TopicTraceCriteria | null,
+    controls: ReactNode,
   ) => ReactNode;
 }) {
   const [mode, setMode] = useState("filters");
@@ -206,7 +209,7 @@ export function TopicTraceSelector({
     });
   };
 
-  return (
+  const controls = (
     <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <Tabs
         value={mode}
@@ -420,6 +423,7 @@ export function TopicTraceSelector({
                 traces={ready.traces}
                 excluded={excluded}
                 onExcludedChange={setExcluded}
+                onOpenTrace={onOpenTrace}
               />
             </>
           ) : (
@@ -453,30 +457,31 @@ export function TopicTraceSelector({
           )}
         </label>
       )}
-      {children(
-        mode === "paste"
-          ? pastedIds
-            ? { traceIds: pastedIds, count: pastedIds.length }
-            : null
-          : request && selectedCount > 0
-            ? {
-                count: selectedCount,
-                selection: {
-                  filter: request.filter,
-                  from: request.from,
-                  to: request.to,
-                  limit: request.limit,
-                  sampling: request.sampling,
-                  seed: request.seed,
-                  excludedTraceIds: excluded,
-                },
-              }
-            : null,
-        mode === "filters" && validLimit
-          ? { filter, sampling, limit: sample ? Number(limit) : null }
-          : null,
-      )}
     </div>
+  );
+  return children(
+    mode === "paste"
+      ? pastedIds
+        ? { traceIds: pastedIds, count: pastedIds.length }
+        : null
+      : request && selectedCount > 0
+        ? {
+            count: selectedCount,
+            selection: {
+              filter: request.filter,
+              from: request.from,
+              to: request.to,
+              limit: request.limit,
+              sampling: request.sampling,
+              seed: request.seed,
+              excludedTraceIds: excluded,
+            },
+          }
+        : null,
+    mode === "filters" && validLimit
+      ? { filter, sampling, limit: sample ? Number(limit) : null }
+      : null,
+    controls,
   );
 }
 
@@ -484,16 +489,22 @@ function TracePreviewTable({
   traces,
   excluded,
   onExcludedChange,
+  onOpenTrace,
 }: {
   traces: TracePreview[];
   excluded: string[];
   onExcludedChange: (ids: string[]) => void;
+  onOpenTrace: () => void;
 }) {
   const { openPeek } = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
+  const openTrace = (traceId: string) => {
+    onOpenTrace();
+    openPeek(traceId);
+  };
   const [page, setPage] = useState(0);
   const excludedIds = new Set(excluded);
   const selectedCount = traces.length - excludedIds.size;
@@ -534,7 +545,7 @@ function TracePreviewTable({
                 className="cursor-pointer"
                 onClick={(event) => {
                   if (!shouldIgnoreRowClickTarget(event.target))
-                    openPeek(trace.id);
+                    openTrace(trace.id);
                 }}
               >
                 <TableCell density="comfortable">
@@ -555,7 +566,7 @@ function TracePreviewTable({
                     type="button"
                     className="block max-w-full truncate text-left underline"
                     title={trace.name ?? trace.id}
-                    onClick={() => openPeek(trace.id)}
+                    onClick={() => openTrace(trace.id)}
                   >
                     {trace.name ?? trace.id}
                   </button>

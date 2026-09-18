@@ -45,7 +45,7 @@ export function CurrentTopics({
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {result.data?.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          Run topics below to discover patterns in your traces.
+          Run topics to discover patterns in your traces.
         </p>
       )}
       {selectedFacet && (
@@ -106,9 +106,9 @@ function CurrentFacet({
             ? row.awaitingUpdate
             : row.topicId === selected),
   );
-  function selectTrace(traceId: string | null) {
+  function selectTrace(traceId: string | null, syncTable = split) {
     setSelectedTraceId(traceId);
-    if (traceId === null) return;
+    if (traceId === null || !syncTable) return;
     let index = visible.findIndex((row) => row.traceId === traceId);
     if (index < 0) {
       index = facet.rows.findIndex((row) => row.traceId === traceId);
@@ -134,19 +134,16 @@ function CurrentFacet({
         ),
       ]
     : facet.topics;
+  const counts = (
+    <p className="text-muted-foreground text-sm">
+      {facet.rows.length.toLocaleString()} traces · {facet.topics.length} topics
+      {facet.awaitingCount > 0 &&
+        ` · ${facet.awaitingCount.toLocaleString()} awaiting a map or updated assignment`}
+    </p>
+  );
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {facet.map?.exploratory && (
-        <Badge variant="outline" className="self-start">
-          Provisional topics
-        </Badge>
-      )}
-      <p className="text-muted-foreground text-sm">
-        {facet.rows.length.toLocaleString()} traces · {facet.topics.length}{" "}
-        topics
-        {facet.awaitingCount > 0 &&
-          ` · ${facet.awaitingCount.toLocaleString()} awaiting a map or updated assignment`}
-      </p>
+      {!facet.map && counts}
       {!facet.map && (
         <p className="text-muted-foreground text-sm">
           {facet.usableCount.toLocaleString()} usable summaries collected for v
@@ -166,22 +163,22 @@ function CurrentFacet({
               onSelectTopic={selectTopic}
               onSelectTrace={selectTrace}
               selectedTraceId={selectedTraceId}
+              headerStats={counts}
               headerActions={
                 <Button
                   size="sm"
                   variant={split ? "secondary" : "outline"}
                   aria-pressed={split}
-                  onClick={() => setSplit((current) => !current)}
+                  onClick={() => {
+                    if (!split) selectTrace(selectedTraceId, true);
+                    setSplit(!split);
+                  }}
                 >
                   <Columns2 className="mr-2 h-4 w-4" />
                   Split
                 </Button>
               }
             />
-            <p className="text-muted-foreground text-xs">
-              Map: latest discovery cohort. Counts and traces include the latest
-              assignments across all maps.
-            </p>
           </div>
         )}
         <div
@@ -265,7 +262,7 @@ function CurrentFacet({
             rows={visible}
             pagination={pagination}
             onPaginationChange={setPagination}
-            selectedTraceId={selectedTraceId}
+            selectedTraceId={split ? selectedTraceId : null}
             split={split}
           />
         </div>
@@ -305,6 +302,7 @@ function CurrentTraceTable({
     Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
   );
   useEffect(() => {
+    if (!split) return;
     tableRef.current
       ?.querySelector(".topics-selected-trace")
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });

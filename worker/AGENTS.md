@@ -21,7 +21,9 @@
   with a three-hour TTL; `src/queues/topicsEmbeddingQueue.ts` delegates to
   `src/features/topics/processTopicEmbeddingBatch.ts` to embed and persist combined
   results in ClickHouse before deleting the payload. The coordinator delays its
-  queue job while waiting for embeddings. Read `src/features/topics/README.md`
+  queue job while waiting for embeddings. Pending batch IDs stay in that BullMQ
+  job; unchanged polls read Redis queue states without loading execution storage.
+  Read `src/features/topics/README.md`
   for native numerical setup, database results, object-storage manifests, and model configuration.
   Canonical transcript assembly is shared with the web evidence inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.

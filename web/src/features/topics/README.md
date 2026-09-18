@@ -7,14 +7,21 @@ existing local-development and project-access checks still apply.
 
 - `TopicsPage.tsx` owns facet configuration, execution
   selection, historical topic filters, summary lists, and transcript inspection.
-  Results appear first at full width, then pipeline controls and past executions.
+  The main workspace shows results and topic cards. Configure topics and History
+  open a centered configuration dialog and a history drawer from the toolbar;
+  Run topics submits the retained configuration. Overlay owners stay outside the
+  responsive header menu, which closes before configuration or history opens.
   Without an execution URL parameter, `CurrentTopics.tsx` displays current per-trace
   assignments across runs and facets; explicit execution links remain historical.
   A single run-status label sits alongside the heading; stage and operation
   live in Run details. Facet outcomes use result-oriented labels and
   omit zero-valued exception counts. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.
-- `TopicPipelineForm.tsx` owns operation, facet versions and submission.
+- `TopicPipelineForm.tsx` owns the configuration dialog, operation, facet versions
+  and submission. Its state stays mounted when the dialog closes; Run topics
+  remains outside the dialog and uses the reviewed selection. The render prop
+  separates header actions from the mounted dialog. Preview trace clicks close
+  configuration before opening the trace peek in the panel layer.
   Every available facet starts selected. Update topics is the default operation,
   accumulating traces into the existing cohort, with an explicit force-refresh
   option. Embedding dimensions are configured per execution. Reclustering offers only completed
@@ -27,7 +34,9 @@ existing local-development and project-access checks still apply.
 - `TopicTraceSelector.tsx` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
   sampling with a user-chosen size. Rule criteria initialize a keyed selector;
-  dates stay specific to each execution. Explicit preview counts the cohort;
+  dates stay specific to each execution. The render prop supplies selection,
+  criteria and controls so the dialog can unmount without losing the reviewed
+  cohort. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
@@ -52,7 +61,11 @@ existing local-development and project-access checks still apply.
   the local-development and project-access gates. Content is marked `ph-no-capture`;
   this local diagnostic control intentionally adds no product analytics event.
 - `TopicEmbeddingMap.tsx` loads the published map and renders its saved 2D UMAP
-  coordinates. Point hover/selection is local to the map; topic selection is
+  coordinates. Clicking a point pins its summary until another selection; only
+  split view synchronizes selection and pagination with the trace list. Trace IDs
+  in the map summary open the shared trace peek. The summary area has a fixed
+  height with overflow scrolling so hovering never moves the cards. Cards own
+  topic filtering, with All topics in the map header to reset it. Topic selection is
   shared with the cards and list and fits the plot to that topic's points, making
   overlapping groups easier to inspect. Arrow keys navigate a single roving tab
   stop; Enter or Space keeps a point selected. The plot uses the measured viewport

@@ -32,11 +32,12 @@ vi.mock("./TopicTraceSelector", () => ({
     children: (
       value: TopicTraceSelection | null,
       criteria: TopicTraceCriteria | null,
+      controls: ReactNode,
     ) => ReactNode;
     initialCriteria?: TopicTraceCriteria;
   }) => {
     selection.initialCriteria = initialCriteria;
-    return children(selection.value, selection.criteria);
+    return children(selection.value, selection.criteria, null);
   },
 }));
 vi.mock("@/src/utils/api", () => ({
@@ -99,6 +100,13 @@ describe("Topics pipeline selection handoff", () => {
       executions: [],
       canWrite: true,
       onTriggered,
+      facetEditor: null,
+      render: (actions: ReactNode, configuration: ReactNode) => (
+        <>
+          {actions}
+          {configuration}
+        </>
+      ),
     };
     selection.value = null;
     selection.criteria = null;
@@ -114,10 +122,19 @@ describe("Topics pipeline selection handoff", () => {
       count: 2,
     };
     view.rerender(<TopicPipelineForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
       target: { value: "512" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: "Force refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByLabelText("Embedding dimensions")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
+    expect(screen.getByLabelText("Embedding dimensions")).toHaveValue(512);
+    expect(
+      screen.getByRole("checkbox", { name: "Force refresh" }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
     await waitFor(() => expect(onTriggered).toHaveBeenCalledWith("execution"));
     expect(trigger).toHaveBeenCalledWith(
@@ -146,7 +163,9 @@ describe("Topics pipeline selection handoff", () => {
       },
     };
     view.rerender(<TopicPipelineForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     expect(screen.getByText(/Run on 10,000 traces/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(2));
     expect(trigger.mock.calls[1][0]).toMatchObject({
@@ -161,6 +180,7 @@ describe("Topics pipeline selection handoff", () => {
         .hasAttribute("disabled"),
     ).toBe(true);
 
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     // Reusing filters selects stable facets; runtime settings do not detach the rule.
     fireEvent.keyDown(screen.getByLabelText("Topic rule"), {
       key: "ArrowDown",
@@ -190,6 +210,7 @@ describe("Topics pipeline selection handoff", () => {
     fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
       target: { value: "256" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(3));
     expect(trigger.mock.calls[2][0]).toMatchObject({
@@ -208,6 +229,7 @@ describe("Topics pipeline selection handoff", () => {
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(4));
     expect(trigger.mock.calls[3][0]).not.toHaveProperty("ruleId");
     expect(saveRule).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     fireEvent.click(screen.getByRole("button", { name: "Update rule" }));
     expect(saveRule).toHaveBeenCalledWith({
       projectId: "project",

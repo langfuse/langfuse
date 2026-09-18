@@ -59,7 +59,8 @@
   `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
   enqueues reference-only embedding batches. Consumers persist completed results
   to ClickHouse before deleting staged payloads; queue job retention is separate
-  from the payload TTL.
+  from the payload TTL. The Topics coordinator job tracks pending embedding batch
+  IDs so its queue-state polling does not read or rewrite domain storage.
   Available only on a loopback development server.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
   in memory for the worker and evidence inspector; transcript/source I/O is

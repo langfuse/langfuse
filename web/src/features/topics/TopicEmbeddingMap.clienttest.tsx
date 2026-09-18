@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { TopicEmbeddingMap } from "./TopicEmbeddingMap";
 
 const query = vi.hoisted(() => ({ data: undefined as unknown }));
+const peek = vi.hoisted(() => ({ openPeek: vi.fn() }));
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => peek,
+}));
 vi.mock("@/src/utils/api", () => ({
   api: { topics: { map: { useQuery: () => query } } },
 }));
@@ -113,7 +117,8 @@ describe("embedding map", () => {
     expect(onSelectTrace).toHaveBeenLastCalledWith("trace-a");
   });
 
-  it("keeps a keyboard-selected summary after hover leaves and filters by topic", () => {
+  it("pins a selected summary through hover and opens its trace in peek", () => {
+    peek.openPeek.mockClear();
     query.data = ready;
     const view = render(<TopicEmbeddingMap {...props} />);
     const invoice = screen.getByRole("button", {
@@ -124,15 +129,15 @@ describe("embedding map", () => {
       name: "trace-b: A baking question",
     });
     fireEvent.mouseEnter(baking);
-    expect(
-      screen.getByRole("link", { name: /trace-b/ }).getAttribute("href"),
-    ).toBe("/project/project/traces/trace-b");
+    expect(screen.getByText("An invoice question")).toBeInTheDocument();
+    expect(screen.queryByText("A baking question")).toBeNull();
+    expect(invoice).toHaveAttribute("aria-pressed", "true");
+    const trace = screen.getByRole("button", { name: /^trace-a(?: ↗)?$/ });
+    fireEvent.click(trace);
+    expect(peek.openPeek).toHaveBeenCalledWith("trace-a");
+    expect(screen.queryByRole("link", { name: /trace-a/ })).toBeNull();
     fireEvent.mouseLeave(baking);
-    expect(
-      screen.getByRole("link", { name: /trace-a/ }).getAttribute("href"),
-    ).toBe("/project/project/traces/trace-a");
-    fireEvent.click(screen.getByRole("button", { name: "Billing 1" }));
-    expect(props.onSelectTopic).toHaveBeenCalledWith("billing");
+    expect(screen.getByText("An invoice question")).toBeInTheDocument();
     fireEvent.keyDown(invoice, { key: "ArrowRight" });
     expect(document.activeElement).toBe(baking);
     expect(
@@ -149,6 +154,8 @@ describe("embedding map", () => {
         .getByRole("button", { name: "trace-a: An invoice question" })
         .getAttribute("tabindex"),
     ).toBe("0");
+    fireEvent.click(screen.getByRole("button", { name: "All topics" }));
+    expect(props.onSelectTopic).toHaveBeenLastCalledWith(null);
   });
 
   it("fits a tall cohort across the landscape plot while preserving pairwise distances", () => {

@@ -162,7 +162,7 @@ describe("Current Topics", () => {
       screen.getByRole("tabpanel", { name: "Intent" }),
     ).toBeInTheDocument();
   });
-  it("reveals and selects a mapped trace across pages and conflicting filters without opening peek", () => {
+  it("only reveals mapped traces in the table when split, including across pages and conflicting filters", () => {
     state.push.mockClear();
     Element.prototype.scrollIntoView = vi.fn();
     const topics = [
@@ -194,17 +194,18 @@ describe("Current Topics", () => {
     ];
     render(<CurrentTopics projectId="project" running={false} />);
     const split = screen.getByRole("button", { name: "Split" });
+    fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));
+    expect(screen.getByRole("row", { name: /trace-0 / })).toBeInTheDocument();
+    expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
+    expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
+    expect(state.push).not.toHaveBeenCalled();
     fireEvent.click(split);
     expect(split).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));
     expect(screen.getByRole("row", { name: /trace-25/ })).toHaveClass(
       "topics-selected-trace",
     );
     expect(state.push).not.toHaveBeenCalled();
-    fireEvent.click(split);
-    expect(screen.getByRole("row", { name: /trace-25/ })).toHaveClass(
-      "topics-selected-trace",
-    );
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Billing tasks/ }));
     expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));

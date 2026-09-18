@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import Link from "next/link";
+import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { Button } from "@/src/components/ui/button";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { api, type RouterOutputs } from "@/src/utils/api";
@@ -87,6 +87,7 @@ export function TopicEmbeddingMap({
   selectedTopic,
   onSelectTopic,
   headerActions,
+  headerStats,
   onSelectTrace,
   selectedTraceId,
 }: {
@@ -97,6 +98,7 @@ export function TopicEmbeddingMap({
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
   headerActions?: ReactNode;
+  headerStats?: ReactNode;
   onSelectTrace?: (traceId: string | null) => void;
   selectedTraceId?: string | null;
 }) {
@@ -126,12 +128,12 @@ export function TopicEmbeddingMap({
   return (
     <EmbeddingMapView
       key={query.data.runId}
-      projectId={projectId}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
       onSelectTopic={onSelectTopic}
       headerActions={headerActions}
+      headerStats={headerStats}
       onSelectTrace={onSelectTrace}
       selectedTraceId={selectedTraceId}
     />
@@ -139,24 +141,29 @@ export function TopicEmbeddingMap({
 }
 
 function EmbeddingMapView({
-  projectId,
   data,
   topics,
   selectedTopic,
   onSelectTopic,
   headerActions,
+  headerStats,
   onSelectTrace,
   selectedTraceId,
 }: {
-  projectId: string;
   data: MapData;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
   headerActions?: ReactNode;
+  headerStats?: ReactNode;
   onSelectTrace?: (traceId: string | null) => void;
   selectedTraceId?: string | null;
 }) {
+  const { openPeek } = usePeekNavigation({
+    tableName: "topics-traces",
+    isV4: false,
+    queryParams: ["observation", "display", "timestamp", "traceId"],
+  });
   const [plotRef, plotSize] = useElementSize<HTMLDivElement>();
   const width = plotSize?.width || 960;
   const height = plotSize?.height || 320;
@@ -175,9 +182,9 @@ function EmbeddingMapView({
   const tabStopId = plotted.some((point) => point.summaryId === focusedId)
     ? focusedId
     : plotted[0]?.summaryId;
-  const active = plotted.find(
-    (point) => point.summaryId === (hoveredId ?? selectedId),
-  );
+  const active =
+    plotted.find((point) => point.summaryId === selectedId) ??
+    plotted.find((point) => point.summaryId === hoveredId);
   const groups = [
     ...topics.map((topic, index) => ({
       id: topic.id,
@@ -186,10 +193,7 @@ function EmbeddingMapView({
     })),
     { id: "outliers", name: "Outliers", color: topicColor(-1) },
     { id: "unassigned", name: "Assignment unavailable", color: topicColor(-1) },
-  ].map((group) => ({
-    ...group,
-    count: data.points.filter((point) => pointGroup(point) === group.id).length,
-  }));
+  ];
   const positioned = fitMapPoints(plotted, data.points, width, height);
   const activeGroup = active
     ? groups.find((group) => group.id === pointGroup(active))
@@ -201,38 +205,20 @@ function EmbeddingMapView({
     >
       <div className="flex flex-wrap items-start justify-between gap-3 border-b p-4">
         <div>
-          <h4 className="font-bold">Embedding map</h4>
-          <p className="text-muted-foreground mt-1 text-xs">
-            Each dot is one trace’s facet summary. Select a dot to read it, or a
-            topic to zoom in.
-          </p>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h4 className="font-bold">Embedding map</h4>
+            {headerStats}
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-muted-foreground text-xs">
-            {selectedTopic !== null ? `${plotted.length} of ` : ""}
-            {data.points.length} summaries · {topics.length} topics
-          </span>
+          <Button
+            size="sm"
+            variant={selectedTopic === null ? "secondary" : "ghost"}
+            onClick={() => onSelectTopic(null)}
+          >
+            All topics
+          </Button>
           {headerActions}
-        </div>
-      </div>
-      <div className="px-4 pt-4">
-        <div
-          className="flex h-2 overflow-hidden rounded-full"
-          aria-label="Topic distribution in discovery cohort"
-        >
-          {groups
-            .filter((group) => group.count > 0)
-            .map((group) => (
-              <button
-                key={group.id}
-                style={{ backgroundColor: group.color, flexGrow: group.count }}
-                aria-label={`${group.name}: ${group.count} summaries`}
-                title={`${group.name}: ${group.count}`}
-                onClick={() =>
-                  onSelectTopic(selectedTopic === group.id ? null : group.id)
-                }
-              />
-            ))}
         </div>
       </div>
       <div ref={plotRef} className="h-48 w-full sm:h-72 lg:h-80">
@@ -330,58 +316,32 @@ function EmbeddingMapView({
           })}
         </svg>
       </div>
-      <div className="flex flex-wrap items-center gap-1 px-4 pb-3">
-        <Button
-          size="sm"
-          variant={selectedTopic === null ? "secondary" : "ghost"}
-          onClick={() => onSelectTopic(null)}
-        >
-          All topics
-        </Button>
-        {groups
-          .filter((group) => group.count > 0)
-          .map((group) => (
-            <Button
-              key={group.id}
-              size="sm"
-              variant={selectedTopic === group.id ? "secondary" : "ghost"}
-              onClick={() =>
-                onSelectTopic(selectedTopic === group.id ? null : group.id)
-              }
-              className="h-auto max-w-full gap-2 py-2 text-left whitespace-normal"
-            >
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: group.color }}
-              />
-              {group.name}{" "}
-              <span className="text-muted-foreground">{group.count}</span>
-            </Button>
-          ))}
-      </div>
-      <div className="bg-muted/20 border-t px-4 py-3" aria-live="polite">
+      <div
+        className={
+          active
+            ? "bg-muted/20 max-h-32 overflow-y-auto border-t px-4 py-3"
+            : undefined
+        }
+        aria-live="polite"
+      >
         {active ? (
           <>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
               <span className="font-bold" style={{ color: activeGroup?.color }}>
                 {activeGroup?.name ?? "Unassigned"}
               </span>
-              <Link
-                href={`/project/${projectId}/traces/${encodeURIComponent(active.traceId)}`}
+              <button
+                type="button"
+                onClick={() => openPeek(active.traceId)}
                 title={active.traceId}
                 className="max-w-full truncate font-mono underline"
               >
-                {active.traceId} ↗
-              </Link>
+                {active.traceId}
+              </button>
             </div>
             <p className="text-sm">{active.summary}</p>
           </>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Hover or select a dot to read its summary. Use arrow keys to move
-            between dots.
-          </p>
-        )}
+        ) : null}
       </div>
       {(data.unpositioned.length > 0 || data.missingSummaryCount > 0) && (
         <p className="text-muted-foreground border-t px-4 py-3 text-xs">

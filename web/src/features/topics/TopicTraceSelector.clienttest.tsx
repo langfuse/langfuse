@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   act,
   fireEvent,
@@ -61,22 +62,35 @@ vi.mock(
 );
 
 function setup(initialCriteria?: TopicTraceCriteria) {
+  const onOpenTrace = vi.fn();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const view = render(
-    <QueryClientProvider client={client}>
-      <TopicTraceSelector projectId="project" initialCriteria={initialCriteria}>
-        {(ids) => (
+  function ConfigurableSelector() {
+    const [open, setOpen] = useState(true);
+    return (
+      <TopicTraceSelector
+        projectId="project"
+        initialCriteria={initialCriteria}
+        onOpenTrace={onOpenTrace}
+      >
+        {(ids, _criteria, controls) => (
           <>
+            <button onClick={() => setOpen(!open)}>Configure selection</button>
+            {open && controls}
             <button disabled={!ids}>Trigger topics</button>
             <output data-testid="selected">{JSON.stringify(ids)}</output>
           </>
         )}
       </TopicTraceSelector>
+    );
+  }
+  const view = render(
+    <QueryClientProvider client={client}>
+      <ConfigurableSelector />
     </QueryClientProvider>,
   );
-  return { ...view, client };
+  return { ...view, client, onOpenTrace };
 }
 
 function result(...ids: string[]) {
@@ -139,17 +153,35 @@ describe("Topics trace selection", () => {
 
   it("opens trace peek from preview rows and names without changing the cohort", async () => {
     mocks.fetch.mockResolvedValue(result("trace-a", "trace-b"));
-    setup();
+    const { onOpenTrace } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     const checkbox = await screen.findByRole("checkbox", {
       name: "Select trace trace-a",
     });
     fireEvent.click(checkbox);
     expect(mocks.push).not.toHaveBeenCalled();
+    expect(onOpenTrace).not.toHaveBeenCalled();
     expect(selected()).toMatchObject({
       count: 1,
       selection: { excludedTraceIds: ["trace-a"] },
     });
+    const reviewedSelection = selected();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Configure selection" }),
+    );
+    expect(screen.queryByRole("button", { name: "Preview traces" })).toBeNull();
+    expect(selected()).toEqual(reviewedSelection);
+    expect(
+      screen.getByRole("button", { name: "Trigger topics" }),
+    ).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Configure selection" }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Select trace trace-a" }),
+    ).not.toBeChecked();
+    expect(selected()).toEqual(reviewedSelection);
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "trace-a" }));
     expect(mocks.push).toHaveBeenLastCalledWith(
       { pathname: "/project/project/topics", query: { peek: "trace-a" } },
@@ -163,6 +195,7 @@ describe("Topics trace selection", () => {
       { shallow: true },
     );
     expect(mocks.push).toHaveBeenCalledTimes(2);
+    expect(onOpenTrace).toHaveBeenCalledTimes(2);
     expect(selected()).toMatchObject({
       count: 1,
       selection: { excludedTraceIds: ["trace-a"] },

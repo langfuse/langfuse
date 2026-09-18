@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useRouter } from "next/router";
@@ -6,9 +6,16 @@ import Link from "next/link";
 import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
 import { Button } from "@/src/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/src/components/ui/sheet";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { PopoverController } from "@/src/components/ui/popover";
+import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
@@ -58,7 +65,6 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
 
 export default function TopicsPage() {
   const router = useRouter();
-  const utils = api.useUtils();
   const projectId =
     typeof router.query.projectId === "string" ? router.query.projectId : "";
   const topicsEnabled = useIsFeatureEnabled("langfuseTopics", { projectId });
@@ -67,33 +73,17 @@ export default function TopicsPage() {
       <ErrorPage title="Not found" message="This page is not available." />
     );
   }
-  return (
-    <Page
-      headerProps={{
-        title: "Topics",
-        help: {
-          description:
-            "Explore recurring themes across traces, one facet at a time.",
-        },
-        actionButtonsRight: projectId && !router.query.executionId && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => utils.topics.currentResults.refetch({ projectId })}
-          >
-            Refresh results
-          </Button>
-        ),
-      }}
-      scrollable
-      withPadding
-    >
-      {projectId && <TopicsWorkspace key={projectId} projectId={projectId} />}
+  return projectId ? (
+    <TopicsWorkspace key={projectId} projectId={projectId} />
+  ) : (
+    <Page headerProps={{ title: "Topics" }} withPadding>
+      <p>Loading topics…</p>
     </Page>
   );
 }
 
 function TopicsWorkspace({ projectId }: { projectId: string }) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const peekNavigation = usePeekNavigation({
     tableName: "topics-traces",
     isV4: false,
@@ -122,6 +112,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
       ? router.query.executionId
       : null;
   const openExecution = (id: string) => {
+    setHistoryOpen(false);
     router.push(
       { pathname: router.pathname, query: { projectId, executionId: id } },
       undefined,
@@ -129,113 +120,165 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     );
     utils.topics.executions.invalidate({ projectId });
   };
-  return (
-    <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
-      <TablePeekViewTraceDetail
-        {...peekNavigation}
-        itemType="TRACE"
-        projectId={projectId}
-      />
-      {executionId ? (
-        <ExecutionPanel
-          key={executionId}
-          projectId={projectId}
-          executionId={executionId}
-          facets={facets.data ?? []}
-          canWrite={canWrite}
-        />
-      ) : (
-        <CurrentTopics
-          projectId={projectId}
-          running={
-            executions.data?.some((execution) => busy(execution.status)) ??
-            false
-          }
-        />
-      )}
-      {executionId && (
-        <Button
-          variant="outline"
-          className="self-start"
-          onClick={() =>
-            router.push(
-              { pathname: router.pathname, query: { projectId } },
-              undefined,
-              { shallow: true },
-            )
-          }
-        >
-          Show current topics
+  const renderWorkspace = (
+    pipelineActions: ReactNode,
+    configuration: ReactNode,
+  ) => {
+    const actions = (
+      <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
+        {pipelineActions}
+        <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
+          History
         </Button>
-      )}
-      {facets.isLoading && <p>Loading facets…</p>}
-      {facets.error && <ErrorMessage message={facets.error.message} />}
-      {facets.data?.length === 0 && (
-        <section className="flex flex-col items-start gap-3 border-t pt-6">
-          <h2 className="font-bold">Start with a question</h2>
-          <p className="text-muted-foreground text-sm">
-            Create starter facets for intent, outcome, and issues. You can edit
-            the questions or add your own.
-          </p>
+        {!executionId && (
           <Button
-            disabled={!canWrite || initialize.isPending}
-            onClick={() => initialize.mutate({ projectId })}
-          >
-            Create starter facets
-          </Button>
-          {initialize.error && (
-            <ErrorMessage message={initialize.error.message} />
-          )}
-        </section>
-      )}
-      {facets.data && facets.data.length > 0 && (
-        <TopicPipelineForm
-          projectId={projectId}
-          facets={facets.data}
-          runs={runs.data ?? []}
-          executions={executions.data ?? []}
-          canWrite={canWrite}
-          onTriggered={openExecution}
-        />
-      )}
-      {facets.data && canWrite && (
-        <FacetEditor projectId={projectId} facets={facets.data} />
-      )}
-      <section className="flex flex-col gap-3 border-t pt-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-bold">Past executions</h2>
-          <Button
-            size="sm"
             variant="ghost"
-            onClick={() => executions.refetch()}
+            size="sm"
+            onClick={() => utils.topics.currentResults.refetch({ projectId })}
           >
-            Refresh
+            Refresh results
           </Button>
+        )}
+      </div>
+    );
+    return (
+      <Page
+        headerProps={{
+          title: "Topics",
+          help: {
+            description:
+              "Explore recurring themes across traces, one facet at a time.",
+          },
+          actionButtonsRight: actions,
+          actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
+        }}
+        scrollable
+        withPadding
+      >
+        {configuration}
+        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+          <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
+            <SheetHeader>
+              <SheetTitle>Past executions</SheetTitle>
+              <SheetDescription>
+                Review previous runs and their results.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="self-end"
+                onClick={() => executions.refetch()}
+              >
+                Refresh
+              </Button>
+              {executions.error && (
+                <ErrorMessage message={executions.error.message} />
+              )}
+              {!executions.data?.length && (
+                <p className="text-muted-foreground text-sm">
+                  Your triggered batches will appear here.
+                </p>
+              )}
+              {executions.data?.map((execution) => (
+                <button
+                  key={execution.id}
+                  onClick={() => openExecution(execution.id)}
+                  className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                >
+                  <span className="capitalize">
+                    {execution.input.operation} ·{" "}
+                    {new Date(execution.createdAt).toLocaleString()}
+                  </span>
+                  <span>{execution.facets.length} facets</span>
+                  <Badge variant="outline">
+                    {executionLabels[execution.status]}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <div className="ph-no-capture flex w-full min-w-0 flex-col gap-6 pb-12">
+          <TablePeekViewTraceDetail
+            {...peekNavigation}
+            itemType="TRACE"
+            projectId={projectId}
+          />
+          {executionId ? (
+            <ExecutionPanel
+              key={executionId}
+              projectId={projectId}
+              executionId={executionId}
+              facets={facets.data ?? []}
+              canWrite={canWrite}
+            />
+          ) : (
+            <CurrentTopics
+              projectId={projectId}
+              running={
+                executions.data?.some((execution) => busy(execution.status)) ??
+                false
+              }
+            />
+          )}
+          {executionId && (
+            <Button
+              variant="outline"
+              className="self-start"
+              onClick={() =>
+                router.push(
+                  { pathname: router.pathname, query: { projectId } },
+                  undefined,
+                  { shallow: true },
+                )
+              }
+            >
+              Show current topics
+            </Button>
+          )}
+          {facets.isLoading && <p>Loading facets…</p>}
+          {facets.error && <ErrorMessage message={facets.error.message} />}
+          {facets.data?.length === 0 && (
+            <section className="flex flex-col items-start gap-3 border-t pt-6">
+              <h2 className="font-bold">Start with a question</h2>
+              <p className="text-muted-foreground text-sm">
+                Create starter facets for intent, outcome, and issues. You can
+                edit the questions or add your own.
+              </p>
+              <Button
+                disabled={!canWrite || initialize.isPending}
+                onClick={() => initialize.mutate({ projectId })}
+              >
+                Create starter facets
+              </Button>
+              {initialize.error && (
+                <ErrorMessage message={initialize.error.message} />
+              )}
+            </section>
+          )}
         </div>
-        {executions.error && (
-          <ErrorMessage message={executions.error.message} />
-        )}
-        {!executions.data?.length && (
-          <p className="text-muted-foreground text-sm">
-            Your triggered batches will appear here.
-          </p>
-        )}
-        {executions.data?.map((execution) => (
-          <button
-            key={execution.id}
-            onClick={() => openExecution(execution.id)}
-            className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-          >
-            <span className="capitalize">
-              {execution.input.operation} ·{" "}
-              {new Date(execution.createdAt).toLocaleString()}
-            </span>
-            <span>{execution.facets.length} facets</span>
-            <Badge variant="outline">{executionLabels[execution.status]}</Badge>
-          </button>
-        ))}
-      </section>
-    </div>
+      </Page>
+    );
+  };
+  return facets.data?.length ? (
+    <TopicPipelineForm
+      projectId={projectId}
+      facets={facets.data}
+      runs={runs.data ?? []}
+      executions={executions.data ?? []}
+      canWrite={canWrite}
+      onTriggered={openExecution}
+      facetEditor={
+        canWrite ? (
+          <FacetEditor projectId={projectId} facets={facets.data} />
+        ) : null
+      }
+      render={renderWorkspace}
+    />
+  ) : (
+    renderWorkspace(null, null)
   );
 }
 
@@ -254,8 +297,8 @@ function FacetEditor({
     onSuccess: () => utils.topics.facets.invalidate({ projectId }),
   });
   return (
-    <details className="border-t pt-4">
-      <summary className="cursor-pointer text-sm font-bold">
+    <details className="border-t pt-6">
+      <summary className="cursor-pointer font-bold">
         Add a facet or revise a question
       </summary>
       <div className="mt-4 flex flex-col gap-3">
