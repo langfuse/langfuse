@@ -18,9 +18,6 @@ type MarkdownJsonViewHeaderProps = {
   titleIcon?: React.ReactNode;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   controlButtons?: React.ReactNode;
-  /** When set, the header hosts expand/collapse so a long body is not the
-      only place to find the control. `subject` names what collapses in the
-      accessible labels (defaults to "system prompt", its original use). */
   inset?: boolean;
   /** Hosts that render their own copy control (e.g. inside the content box)
       suppress the header's. */
