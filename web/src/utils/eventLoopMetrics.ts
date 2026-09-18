@@ -1,7 +1,10 @@
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { recordGauge } from "@langfuse/shared/src/server";
+import {
+  flushMetricsToCloudWatch,
+  recordGauge,
+} from "@langfuse/shared/src/server";
 
 let stopMonitoring: (() => void) | undefined;
 
@@ -28,6 +31,8 @@ export function startEventLoopMetrics() {
       delayMs,
       { unit: "millisecond" },
     );
+    // Publish this window before a later gauge can replace it in the cache.
+    flushMetricsToCloudWatch();
   }, 30_000);
   timer.unref();
 

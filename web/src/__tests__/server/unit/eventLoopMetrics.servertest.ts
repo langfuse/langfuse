@@ -1,75 +1,67 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
+import { afterEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  histogram: {
-    count: 1,
-    enable: vi.fn(),
-    disable: vi.fn(),
-    percentile: vi.fn(() => 900_000_000),
-    reset: vi.fn(),
-  },
-  recordGauge: vi.fn(),
-  sharedEnv: { ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING: "true" },
-}));
-
+const percentile = vi.hoisted(() => vi.fn(() => 1_800_000_000));
 vi.mock("node:perf_hooks", () => ({
-  monitorEventLoopDelay: () => mocks.histogram,
+  monitorEventLoopDelay: () => ({
+    count: 1,
+    enable() {},
+    disable() {},
+    reset() {},
+    percentile,
+  }),
 }));
-vi.mock("@/src/env.mjs", () => ({ env: { OTEL_SERVICE_NAME: "web-test" } }));
-vi.mock("@langfuse/shared/src/env", () => ({ env: mocks.sharedEnv }));
-vi.mock("@langfuse/shared/src/server", () => ({
-  recordGauge: mocks.recordGauge,
-}));
+// Use the real metric cache and publisher without loading unrelated server clients.
+vi.mock(
+  "@langfuse/shared/src/server",
+  () => import("../../../../../packages/shared/src/server/instrumentation"),
+);
 
-import {
-  startEventLoopMetrics,
-  stopEventLoopMetrics,
-} from "@/src/utils/eventLoopMetrics";
+let stop: (() => void) | undefined;
+afterEach(() => {
+  stop?.();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
 
-describe("event-loop metrics", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.clearAllMocks();
-    mocks.histogram.count = 1;
-    mocks.sharedEnv.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING = "true";
-  });
+it("delivers a stalled window even when another metric just flushed, then delivers recovery", async () => {
+  vi.stubEnv("ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING", "true");
+  vi.stubEnv("OTEL_SERVICE_NAME", "web-test");
+  vi.resetModules();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  const requireFromShared = createRequire(
+    new URL("../../../../../packages/shared/package.json", import.meta.url),
+  );
+  const { CloudWatchClient } = requireFromShared("@aws-sdk/client-cloudwatch");
+  const send = vi
+    .spyOn(CloudWatchClient.prototype, "send")
+    .mockResolvedValue({});
+  const { recordGauge } = await import("@langfuse/shared/src/server");
+  const { startEventLoopMetrics, stopEventLoopMetrics } =
+    await import("@/src/utils/eventLoopMetrics");
+  stop = stopEventLoopMetrics;
+  startEventLoopMetrics();
 
-  afterEach(() => {
-    stopEventLoopMetrics();
-    vi.useRealTimers();
-  });
+  vi.advanceTimersByTime(29_999);
+  recordGauge("unrelated", 1);
+  vi.advanceTimersByTime(1);
+  percentile.mockReturnValue(20_000_000);
+  vi.advanceTimersByTime(30_000);
 
-  it("publishes service-specific milliseconds once per window and resets the histogram", () => {
-    startEventLoopMetrics();
-    startEventLoopMetrics();
-    vi.advanceTimersByTime(30_000);
-    expect(mocks.histogram.enable).toHaveBeenCalledTimes(1);
-    expect(mocks.histogram.percentile).toHaveBeenCalledWith(95);
-    expect(mocks.recordGauge).toHaveBeenCalledExactlyOnceWith(
-      "langfuse.web-test.event_loop.delay.p95",
-      900,
-      { unit: "millisecond" },
+  for (const value of [1800, 20]) {
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          MetricData: expect.arrayContaining([
+            {
+              MetricName: "langfuse.web-test.event_loop.delay.p95",
+              Value: value,
+            },
+          ]),
+        }),
+      }),
     );
-    expect(mocks.histogram.reset).toHaveBeenCalledTimes(1);
-
-    stopEventLoopMetrics();
-    vi.advanceTimersByTime(30_000);
-    expect(mocks.histogram.disable).toHaveBeenCalledTimes(1);
-    expect(mocks.recordGauge).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not turn an empty histogram into a healthy autoscaling signal", () => {
-    mocks.histogram.count = 0;
-    startEventLoopMetrics();
-    vi.advanceTimersByTime(30_000);
-    expect(mocks.recordGauge).not.toHaveBeenCalled();
-  });
-
-  it("does not start monitoring when CloudWatch publishing is disabled", () => {
-    mocks.sharedEnv.ENABLE_AWS_CLOUDWATCH_METRIC_PUBLISHING = "false";
-    startEventLoopMetrics();
-    vi.advanceTimersByTime(60_000);
-    expect(mocks.histogram.enable).not.toHaveBeenCalled();
-    expect(mocks.recordGauge).not.toHaveBeenCalled();
-  });
+  }
 });
