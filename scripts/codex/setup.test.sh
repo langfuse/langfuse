@@ -122,4 +122,13 @@ assert_file_contains \
   "--filter web exec playwright install-deps chromium" \
   "Cursor Cloud setup should install Playwright's Linux dependencies"
 
+# shellcheck source=/dev/null
+unset MINIO_API_PORT
+source "$repo_root/scripts/codex/cloud_services.sh"
+
+if [ "$MINIO_API_PORT" != "4566" ]; then
+  echo "cloud setup should match the default local S3 endpoint"
+  exit 1
+fi
+
 echo "setup.sh example bootstrap regression test passed"
