@@ -55,6 +55,10 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -206,7 +210,7 @@ export function ConnectedObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const selectedViewTab = jsonViewToggleTab(currentView);
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
@@ -219,11 +223,11 @@ export function ConnectedObservationDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         // When switching to JSON, use beta preference
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [

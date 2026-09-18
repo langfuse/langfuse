@@ -43,6 +43,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
+import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
@@ -105,8 +109,7 @@ export function TraceDetailView({
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
 
-  const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+  const selectedViewTab = jsonViewToggleTab(jsonViewPreference);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -118,10 +121,10 @@ export function TraceDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [
