@@ -51,9 +51,9 @@ function HeaderTitle({
         <h3 className="text-primary text-lg leading-7 font-bold">{title}</h3>
       );
     case "h4":
-      return <h4 className="text-lg leading-6">{title}</h4>;
+      return <h4 className="text-lg">{title}</h4>;
     case "h5":
-      return <h5 className="text-base leading-6">{title}</h5>;
+      return <h5 className="text-base">{title}</h5>;
   }
 }
 

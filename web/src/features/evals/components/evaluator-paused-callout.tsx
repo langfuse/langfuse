@@ -97,11 +97,11 @@ export function EvaluatorPausedCallout({
         <AlertTriangle className="text-dark-yellow mt-0.5 h-4 w-4 shrink-0" />
 
         <div className="min-w-0 flex-1">
-          <h3 className="text-foreground text-base leading-5 font-bold">
+          <h3 className="text-foreground text-base font-bold">
             Evaluator paused
           </h3>
 
-          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm leading-5">
+          <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted-foreground font-bold">
               {blockMetadata.shortLabel}
             </span>
@@ -115,7 +115,7 @@ export function EvaluatorPausedCallout({
             ) : null}
           </div>
 
-          <p className="text-muted-foreground mt-2 max-w-3xl text-sm leading-5">
+          <p className="text-muted-foreground mt-2 max-w-3xl text-sm">
             {blockMessage}
           </p>
 
