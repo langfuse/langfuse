@@ -46,19 +46,21 @@ const formatScoreValue = (score: ChipScore) =>
   score.stringValue ?? score.value?.toFixed(2) ?? "";
 
 const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
-  const sortedScores = [...scores].sort((a, b) => a.name.localeCompare(b.name));
+  const groups = Object.entries(groupScoresByName(scores)).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
 
   return (
     <div className="p-2 text-xs">
       <div className="text-foreground mb-1 font-bold">Scores</div>
       <ul className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1">
-        {sortedScores.map((score) => (
-          <li key={score.id} className="contents">
+        {groups.map(([name, groupScores]) => (
+          <li key={name} className="contents">
             <span className="text-muted-foreground whitespace-nowrap">
-              {score.name}
+              {name}
             </span>
             <span className="text-foreground whitespace-nowrap">
-              {formatScoreValue(score)}
+              {groupScores.map(formatScoreValue).join(", ")}
             </span>
           </li>
         ))}
@@ -114,7 +116,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
                   "cursor-pointer text-xs font-bold",
                   compact ? "px-0.5 py-0 leading-tight" : "px-1",
                 )}
-                aria-label={`Show all ${scores.length} scores`}
+                aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
                 // Chips render inside clickable rows; opening must not select the row.
                 onClick={(event) => event.stopPropagation()}
               >
