@@ -62,6 +62,34 @@ export function ScoreAnalytics(props: {
     selectedDashboardScoreKeys.includes(option.key),
   );
 
+  const scoreSelectorOptions = useMemo(() => {
+    const scoreNameCounts = new Map<string, number>();
+    scoreKeyToData.forEach(({ name }) => {
+      scoreNameCounts.set(name, (scoreNameCounts.get(name) ?? 0) + 1);
+    });
+
+    return scoreAnalyticsOptions.map(({ key }) => {
+      const scoreData = scoreKeyToData.get(key);
+      if (!scoreData) return { value: key, label: key };
+
+      // Scores with the same name can differ by type or source, so only disambiguate duplicates to keep unique labels concise.
+      const hasDuplicateName = (scoreNameCounts.get(scoreData.name) ?? 0) > 1;
+      if (!hasDuplicateName) return { value: key, label: scoreData.name };
+
+      const suffix = [
+        getScoreDataTypeIcon(scoreData.dataType),
+        scoreData.source.toLowerCase(),
+      ]
+        .filter(Boolean)
+        .join(" · ");
+
+      return {
+        value: key,
+        label: `${scoreData.name} (${suffix})`,
+      };
+    });
+  }, [scoreAnalyticsOptions, scoreKeyToData]);
+
   return (
     <DashboardCard
       className={props.className}
@@ -76,14 +104,7 @@ export function ScoreAnalytics(props: {
           <div className="w-80 max-w-full">
             <MultiSelectTagInput
               value={scoreAnalyticsValues.map(({ key }) => key)}
-              options={scoreAnalyticsOptions.map(({ key }) => {
-                const scoreData = scoreKeyToData.get(key);
-
-                return {
-                  value: key,
-                  label: scoreData?.name ?? key,
-                };
-              })}
+              options={scoreSelectorOptions}
               onValueChange={setSelectedDashboardScoreKeys}
               placeholder="Select scores"
               searchPlaceholder="Search scores..."
