@@ -998,6 +998,58 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("J. drops Cursor computer-use stale snapshot refs", () => {
+    // Real shape: Electron computer-use throws when a snapshotted element id
+    // is reused after the page re-rendered. Global onerror, Electron sandbox
+    // frames only (`assertDescriptionMatches`), no Langfuse frames. Distinct
+    // from Selenium/Playwright stale-element wording.
+    const CURSOR_STALE_ELEMENT =
+      'Stale element reference: e21 now points to (button, text="1 → 2 (∑ 3)") but was expected to be "first row token count". The page may have changed. Take a new snapshot.';
+
+    const cursorStaleElementEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: Array<{ filename?: string; function?: string }>,
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              stacktrace: frames ? { frames } : undefined,
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the Electron snapshot-ref throw", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cursorStaleElementEvent(CURSOR_STALE_ELEMENT, undefined, [
+            {
+              filename: "node:electron/js2c/sandbox_bundle",
+              function: "Object.onMessage",
+            },
+            {
+              filename: "<anonymous>",
+              function: "assertDescriptionMatches",
+            },
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording without a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          cursorStaleElementEvent(CURSOR_STALE_ELEMENT.replace(/\.$/, "")),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1495,6 +1547,95 @@ describe("isDenylistedNoiseEvent", () => {
               mechanism: {
                 type: "auto.browser.global_handlers.onunhandledrejection",
                 handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured Cursor snapshot phrase (not a Sentry browser wrap)", () => {
+      const snapshotPhrase =
+        'Stale element reference: e21 now points to (button, text="1 → 2 (∑ 3)") but was expected to be "first row token count". The page may have changed. Take a new snapshot.';
+      expect(isDenylistedNoiseEvent(exceptionEvent(snapshotPhrase))).toBe(
+        false,
+      );
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value: snapshotPhrase,
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the snapshot phrase", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "Table refresh failed: The page may have changed. Take a new snapshot.",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Selenium/Playwright stale-element wording", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                "stale element reference: element is not attached to the page document",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps the Cursor snapshot phrase when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "Error",
+              value:
+                'Stale element reference: e21 now points to (button, text="1 → 2 (∑ 3)") but was expected to be "first row token count". The page may have changed. Take a new snapshot.',
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+                    function: "handleClick",
+                  },
+                ],
               },
             },
           ],
