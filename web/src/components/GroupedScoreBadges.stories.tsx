@@ -1,5 +1,5 @@
 import { type LastUserScore } from "@langfuse/shared";
-import { expect } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../.storybook/preview";
 import { GroupedScoreBadges } from "./grouped-score-badge";
@@ -47,6 +47,7 @@ export const Compact = meta.story({
 });
 
 export const WithOverflow = meta.story({
+  name: "(Test) With Overflow",
   args: {
     scores: [
       ...scores,
@@ -58,6 +59,21 @@ export const WithOverflow = meta.story({
       },
     ],
     maxVisible: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      body.getByRole("button", { name: "Show all 3 scores" }),
+    );
+
+    await waitFor(async () => {
+      await expect(
+        canvasElement.ownerDocument.body.querySelectorAll(
+          '[role="dialog"][data-state="open"] tbody tr',
+        ),
+      ).toHaveLength(3);
+    });
   },
 });
 
