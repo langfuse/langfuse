@@ -9,12 +9,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* App font tokens. The typeface is deliberately DEFERRED: the app ships the
-   system stacks while the token system (families here, weight roles below,
-   text-* size+weight tokens) stays fully font-relative. Adopting a webfont
-   later = load it via next/font in a src/styles/fonts.ts (declare its vars on
-   :root from _app — next/font CSS is silently dropped in _document), prepend
-   its var to the stacks below, and retune the two weight-role numbers
+/* App font tokens. Inter and IBM Plex Mono are self-hosted via next/font in
+   src/styles/fonts.ts (vars declared from _app — next/font CSS is silently
+   dropped in _document) and prepended to the system stacks below; the token
+   system (families here, weight roles below, text-* size+weight tokens) stays
+   fully font-relative. Swapping a typeface = swap the files in fonts.ts and
+   retune the two weight-role numbers
    (history: IBM Plex wanted bold 500, Inter bold 600). The theme-lab panel
    can preview typefaces live without shipping them. Deliberately a plain
    @theme block (not `inline`): preflight reads var(--font-sans) at runtime,
@@ -23,8 +23,8 @@
    inline styles read them at runtime. */
 @theme static {
   --font-sans:
-    ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
-    "Segoe UI Symbol", "Noto Color Emoji";
+    var(--font-inter, "Inter"), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
     var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
     Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
