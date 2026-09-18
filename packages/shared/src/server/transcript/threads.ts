@@ -1,6 +1,6 @@
 import type { Observation } from "../../domain";
 import type { NormalizedMessage } from "../../utils/normalized-io";
-import type { Thread, ThreadMessage } from "./types";
+import type { Thread, ThreadMessage, Turn } from "./types";
 import type { createToolCallRegistry } from "./tool-calls";
 
 export type TranscriptObservation = Observation & { traceId: string };
@@ -10,7 +10,8 @@ export type KeyedMessage = {
   key: string;
 };
 export type ThreadState = {
-  thread: Thread;
+  /** Every message of the thread in one list; `splitTurn` derives the public shape. */
+  thread: Turn;
   messages: KeyedMessage[];
   shownCounts: Map<string, number>;
 };
@@ -112,7 +113,7 @@ export function append(
 }
 
 export function addContributor(
-  thread: Thread,
+  thread: Turn,
   observation: TranscriptObservation,
 ) {
   if (
@@ -126,4 +127,40 @@ export function addContributor(
       traceId: observation.traceId,
     });
   }
+}
+
+/** Split a thread into replayed history and the turn the last trace added. */
+export function splitTurn(thread: Turn): Thread {
+  const { messages, observations } = thread;
+  // Earlier traces of a session are history; the last contributing trace is
+  // the current turn.
+  const currentTraceId = observations.at(-1)?.traceId;
+  const traceStart =
+    messages.findLastIndex(({ traceId }) => traceId !== currentTraceId) + 1;
+  // Within that trace, input replayed before the first output is history up
+  // to the previous turn's last assistant or tool message. What follows is new.
+  const trace = messages.slice(traceStart);
+  const firstOutput = trace.findIndex(({ source }) => source === "output");
+  const replayed = trace.slice(0, firstOutput === -1 ? undefined : firstOutput);
+  const turnStart =
+    traceStart +
+    replayed.findLastIndex(
+      ({ role }) => role === "assistant" || role === "tool",
+    ) +
+    1;
+  const current = messages.slice(turnStart);
+  return {
+    conversationHistory: messages
+      .slice(0, turnStart)
+      .map(({ observationId, traceId, ...message }) => message),
+    currentTurn: {
+      messages: current,
+      observations: observations.filter(({ id, traceId }) =>
+        current.some(
+          (message) =>
+            message.observationId === id && message.traceId === traceId,
+        ),
+      ),
+    },
+  };
 }

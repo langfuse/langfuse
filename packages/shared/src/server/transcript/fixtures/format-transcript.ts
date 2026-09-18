@@ -1,5 +1,6 @@
 import type { Observation } from "../../../domain";
 import type {
+  NormalizedMessage,
   NormalizedMessagePart,
   NormalizedMessageRole,
 } from "../../../utils/normalized-io";
@@ -65,8 +66,9 @@ function partLines(part: NormalizedMessagePart): string[] {
 
 /**
  * Chat-shaped rendering of a transcript for eyeballing during development:
- * one block per message with a role label and the emitting generation, tool
- * calls and results as parameter lists, everything else as text.
+ * conversation history first, then one block per current-turn message with a
+ * role label and the emitting generation; tool calls and results as parameter
+ * lists, everything else as text.
  */
 export function formatTranscript(
   title: string,
@@ -87,26 +89,35 @@ export function formatTranscript(
     return lines.join("\n");
   }
 
-  transcript.threads.forEach((thread, threadIndex) => {
+  const pushMessage = (message: NormalizedMessage, origin: string) => {
+    const parts = options.hideReasoning
+      ? message.parts.filter((part) => part.type !== "reasoning")
+      : message.parts;
+    if (options.hideReasoning && parts.length === 0) return;
+    const sender = message.senderName ? ` (${message.senderName})` : "";
+    lines.push(
+      "│",
+      `│ ${ROLE_LABEL[message.role]}${sender} · ${origin} · ${message.source}`,
+    );
+    for (const part of parts) {
+      for (const line of partLines(part)) lines.push(`│   ${line}`);
+    }
+  };
+
+  transcript.threads.forEach(({ conversationHistory, currentTurn }, index) => {
     lines.push(
       "",
-      `┌ thread ${threadIndex + 1} · trace(s) ${[...new Set(thread.observations.map(({ traceId }) => traceId))].join(", ")}`,
-      `│ generations: ${thread.observations.map(({ id }) => label(id)).join(", ")}`,
+      `┌ thread ${index + 1} · trace(s) ${[...new Set(currentTurn.observations.map(({ traceId }) => traceId))].join(", ")}`,
+      `│ generations: ${currentTurn.observations.map(({ id }) => label(id)).join(", ")}`,
     );
-
-    for (const message of thread.messages) {
-      const parts = options.hideReasoning
-        ? message.parts.filter((part) => part.type !== "reasoning")
-        : message.parts;
-      if (options.hideReasoning && parts.length === 0) continue;
-      const sender = message.senderName ? ` (${message.senderName})` : "";
-      lines.push(
-        "│",
-        `│ ${ROLE_LABEL[message.role]}${sender} · ${label(message.observationId)} · ${message.source}`,
-      );
-      for (const part of parts) {
-        for (const line of partLines(part)) lines.push(`│   ${line}`);
-      }
+    if (conversationHistory.length) {
+      lines.push("│", "│ ── conversation history ──");
+      for (const message of conversationHistory)
+        pushMessage(message, "history");
+      lines.push("│", "│ ── current turn ──");
+    }
+    for (const message of currentTurn.messages) {
+      pushMessage(message, label(message.observationId));
     }
     lines.push("└");
   });

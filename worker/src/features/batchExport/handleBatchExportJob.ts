@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
   BatchExportFileFormat,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type RouterOutputs } from "@/src/utils/api";
 import { type SdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
 

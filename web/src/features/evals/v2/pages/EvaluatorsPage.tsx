@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
 import { formatDistanceToNowStrict } from "date-fns";
 import {

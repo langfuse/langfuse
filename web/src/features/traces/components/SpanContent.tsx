@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * SpanContent - Pure span/observation content renderer.
@@ -37,7 +38,6 @@ import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 // How many distinct score groups to show inline on a tree/search row before
 // collapsing the rest into a "+N" pill. Keeps dense-score rows compact; the
 // full set is always on the node's Scores tab. (The timeline caps at 3.)
-const MAX_INLINE_SCORE_GROUPS = 3;
 
 interface SpanContentProps {
   node: TreeNode;
@@ -56,7 +56,7 @@ export function SpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores, traceLevelScoreOwnerIds } = useTraceData();
+  const { mergedScores } = useTraceData();
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -99,11 +99,7 @@ export function SpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(
-    mergedScores,
-    node.id,
-    traceLevelScoreOwnerIds,
-  );
+  const nodeScores = selectNodeScores(mergedScores, node.id);
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -217,11 +213,7 @@ export function SpanContent({
             one/two-line row instead of a tall wrapping grid. */}
         {showScores && nodeScores.length > 0 && (
           <div className="flex flex-wrap gap-1">
-            <GroupedScoreBadges
-              compact
-              scores={nodeScores}
-              maxVisible={MAX_INLINE_SCORE_GROUPS}
-            />
+            <GroupedScoreBadges compact scores={nodeScores} />
           </div>
         )}
       </div>

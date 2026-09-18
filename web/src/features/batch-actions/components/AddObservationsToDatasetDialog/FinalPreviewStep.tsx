@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";

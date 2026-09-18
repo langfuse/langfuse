@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,

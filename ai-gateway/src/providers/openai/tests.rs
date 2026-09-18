@@ -359,17 +359,12 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
     };
     use serde_json::Value;
 
-    for (content_type, native, sink_status) in [
-        (
-            "application/json",
-            r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#,
-            200,
-        ),
-        (
-            "text/event-stream",
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
-            503,
-        ),
+    const JSON: &str = r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#;
+    const SSE: &str = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n";
+    for (content_type, native, sink_status, close_before_eof) in [
+        ("application/json", JSON, 200, false),
+        ("text/event-stream", SSE, 503, false),
+        ("text/event-stream", SSE, 200, true),
     ] {
         let (sent, mut received) = tokio::sync::mpsc::channel(2);
         let release = Arc::new(Notify::new());
@@ -393,14 +388,22 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         let telemetry =
             Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
         let upstream = FakeServer::start(move |_| async move {
+            let body = if close_before_eof {
+                Body::from_stream(
+                    stream::iter([Ok::<_, Infallible>(Bytes::from_static(native.as_bytes()))])
+                        .chain(stream::pending()),
+                )
+            } else {
+                Body::from(native)
+            };
             Response::builder()
                 .header("content-type", content_type)
-                .body(Body::from(native))
+                .header("x-request-id", "req-1")
+                .body(body)
                 .unwrap()
         })
         .await;
         let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
-        let context = resolved_request_context_with_mode("provider-secret", "full").await;
         let headers = HeaderMap::from_iter([
             (
                 axum::http::HeaderName::from_static("traceparent"),
@@ -418,20 +421,26 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         let response = relay
             .forward(
                 relay.try_admit().unwrap(),
-                context,
+                resolved_request_context_with_mode("provider-secret", "full").await,
                 &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
             )
             .await
             .unwrap();
         // Neither the last byte nor the provider permit waits for the sink response.
-        assert_eq!(
-            tokio::time::timeout(Duration::from_secs(1), to_bytes(response.into_body(), 4096))
-                .await
-                .unwrap()
-                .unwrap(),
-            native
-        );
+        let mut body = response.into_body().into_data_stream();
+        let mut forwarded = Vec::new();
+        while let Some(chunk) = tokio::time::timeout(Duration::from_secs(1), body.next())
+            .await
+            .unwrap()
+        {
+            forwarded.extend_from_slice(&chunk.unwrap());
+            if close_before_eof && forwarded.len() == native.len() {
+                break;
+            }
+        }
+        drop(body);
+        assert_eq!(forwarded, native.as_bytes());
         assert!(relay.try_admit().is_ok());
         let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
             .await
@@ -527,6 +536,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
                 .unwrap()["value"]["stringValue"],
             if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert!(metadata.get("relay_outcome").is_none());
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
@@ -645,6 +655,14 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     );
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     let attrs = span["attributes"].as_array().unwrap();
+    assert!(attrs.iter().any(
+        |a| a["key"] == "langfuse.observation.level" && a["value"]["stringValue"] == "DEFAULT"
+    ));
+    assert!(
+        !attrs
+            .iter()
+            .any(|a| a["key"] == "langfuse.observation.status_message")
+    );
     assert!(
         attrs
             .iter()
@@ -668,7 +686,9 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     .unwrap();
     assert!(metadata.get("relay_outcome").is_none());
     assert!(metadata.get("native_usage").is_none());
-    assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-1");
+    assert!(metadata.get("langfuse.gateway.request.id").is_none());
     let usage: Value = serde_json::from_str(
         attrs
             .iter()

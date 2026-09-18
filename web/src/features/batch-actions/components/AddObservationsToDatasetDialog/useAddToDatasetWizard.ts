@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useReducer, useCallback, useMemo, useRef } from "react";
 import { api } from "@/src/utils/api";
 import { showErrorToast } from "@/src/features/notifications";

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { Organization } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import {

@@ -22,6 +22,9 @@
   independently default-off and cloud-gated. Do not expose these PoC controls in
   local or production env templates. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
+  `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
+  and Redis snapshots independently of dispatch/consumption when either role is
+  enabled. Global snapshot gauges must not be summed across worker reporters.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
