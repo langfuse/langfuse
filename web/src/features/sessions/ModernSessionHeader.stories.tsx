@@ -366,6 +366,15 @@ export const TestHidesAndRevealsDetails = meta.story({
     await expect(
       hideTraceDetail.getBoundingClientRect().height,
     ).toBeGreaterThanOrEqual(24);
+    const hoveredPill =
+      hideTraceDetail.parentElement?.querySelector<HTMLElement>(
+        "[data-session-header-pill='true']",
+      );
+    await expect(hoveredPill).toBeInTheDocument();
+    const pillRect = hoveredPill!.getBoundingClientRect();
+    const hideButtonRect = hideTraceDetail.getBoundingClientRect();
+    await expect(hideButtonRect.left).toBeGreaterThanOrEqual(pillRect.left);
+    await expect(hideButtonRect.right).toBeLessThanOrEqual(pillRect.right + 1);
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
