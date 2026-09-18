@@ -974,6 +974,25 @@ describe("scores trpc", () => {
         categories: null,
       });
     });
+
+    it("does not persist a categorical config with null categories", async () => {
+      const name = `categorical-null-categories-${randomUUID().slice(0, 8)}`;
+
+      await expect(
+        caller.scoreConfigs.create({
+          projectId,
+          name,
+          dataType: ScoreConfigDataType.CATEGORICAL,
+          categories: null,
+        }),
+      ).rejects.toBeDefined();
+
+      expect(
+        await prisma.scoreConfig.count({
+          where: { projectId, name },
+        }),
+      ).toBe(0);
+    });
   });
 
   describe("scoreConfigs.appendCategory", () => {
