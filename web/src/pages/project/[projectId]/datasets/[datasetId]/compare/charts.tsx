@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";

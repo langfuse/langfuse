@@ -139,6 +139,33 @@ async function createProjectMembershipOrThrowIfDuplicate({
   }
 }
 
+async function createOrgMembershipOrThrowIfDuplicate({
+  prisma,
+  data,
+}: {
+  prisma: PrismaClient | Prisma.TransactionClient;
+  data: {
+    userId: string;
+    orgId: string;
+    role: Role;
+  };
+}) {
+  try {
+    return await prisma.organizationMembership.create({ data });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "User is already a member of this organization",
+      });
+    }
+    throw error;
+  }
+}
+
 export const membersRouter = createTRPCRouter({
   ...allMembersRoutes,
   ...allInvitesRoutes,
@@ -346,7 +373,8 @@ export const membersRouter = createTRPCRouter({
             countCurrentUsage: countSeatsInUse,
             create: async (tx) => {
               const createdOrgMembership =
-                await tx.organizationMembership.create({
+                await createOrgMembershipOrThrowIfDuplicate({
+                  prisma: tx,
                   data: {
                     userId: user.id,
                     orgId: input.orgId,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";

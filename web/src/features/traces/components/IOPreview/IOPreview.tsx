@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -255,6 +256,7 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -282,6 +284,7 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}

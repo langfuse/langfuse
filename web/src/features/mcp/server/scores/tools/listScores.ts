@@ -152,6 +152,7 @@ export const [listScoresTool, handleListScores] = defineTool({
     "Filtering by trace user or trace tags is not supported. To find scores for a specific user, first resolve the user's trace IDs (e.g. via listObservations with userId), then filter scores by traceId.",
     "Score reads are eventually consistent: a score created with createScore may not appear in listScores immediately. If a newly created score is missing, wait briefly and retry.",
   ].join("\n"),
+  action: "scores:read",
   baseSchema: ListScoresBaseSchema,
   inputSchema: ListScoresInputSchema,
   handler: async (input, context) => {

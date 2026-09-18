@@ -26,6 +26,9 @@ vi.mock("@/src/utils/api", () => ({
       },
     },
     // Pulled in by the prompt-source filter builder.
+    prompts: {
+      allLabels: { useQuery: () => ({ data: [], isFetching: false }) },
+    },
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },

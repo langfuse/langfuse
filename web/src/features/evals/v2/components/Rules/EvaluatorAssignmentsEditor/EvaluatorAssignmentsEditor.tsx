@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Check, Link2, Plus } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useStore } from "zustand";

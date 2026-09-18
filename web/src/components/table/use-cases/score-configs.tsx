@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -31,8 +32,15 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigDialogController } from "@/src/features/score-configs/components/ArchiveScoreConfigDialogController";
-import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import {
+  ArchiveScoreConfigDialogController,
+  type ArchiveScoreConfigState,
+} from "@/src/features/score-configs/components/ArchiveScoreConfigDialogController";
+import {
+  CreateScoreConfigDialogController,
+  EditScoreConfigDialogController,
+} from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { type UpdateConfig } from "@/src/features/score-configs/lib/upsertFormTypes";
 
 type ScoreConfigTableRow = {
   id: string;
@@ -75,6 +83,38 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  return (
+    <EditScoreConfigDialogController projectId={projectId}>
+      {(editControl) => (
+        <ArchiveScoreConfigDialogController projectId={projectId}>
+          {(archiveControl) => (
+            <ScoreConfigsTableContent
+              projectId={projectId}
+              editControl={editControl}
+              archiveControl={archiveControl}
+            />
+          )}
+        </ArchiveScoreConfigDialogController>
+      )}
+    </EditScoreConfigDialogController>
+  );
+}
+
+function ScoreConfigsTableContent({
+  projectId,
+  editControl,
+  archiveControl,
+}: {
+  projectId: string;
+  editControl: {
+    disabled: { reason: string } | undefined;
+    openDialog: (config: UpdateConfig) => void;
+  };
+  archiveControl: {
+    disabled: { reason: string } | undefined;
+    openDialog: (config: ArchiveScoreConfigState) => void;
+  };
+}) {
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -158,62 +198,50 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         const { id: configId, isArchived, name } = row.original;
 
         return (
-          <UpsertScoreConfigDialogController
-            mode="edit"
-            projectId={projectId}
-            defaultValues={{
-              id: configId,
-              name,
-              dataType: row.original.dataType,
-              minValue: row.original.range.minValue ?? undefined,
-              maxValue: row.original.range.maxValue ?? undefined,
-              description: row.original.description ?? undefined,
-              categories: row.original.range.categories?.length
-                ? row.original.range.categories
-                : undefined,
-            }}
-          >
-            {({ disabled: editDisabled, Trigger }) => (
-              <ArchiveScoreConfigDialogController
-                configId={configId}
-                projectId={projectId}
-                isArchived={isArchived}
-                name={name}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                aria-label="edit"
+                disabled={editControl.disabled !== undefined}
+                title={editControl.disabled?.reason}
+                onSelect={() =>
+                  editControl.openDialog({
+                    id: configId,
+                    name,
+                    dataType: row.original.dataType,
+                    minValue: row.original.range.minValue ?? undefined,
+                    maxValue: row.original.range.maxValue ?? undefined,
+                    description: row.original.description ?? undefined,
+                    categories: row.original.range.categories?.length
+                      ? row.original.range.categories
+                      : undefined,
+                  })
+                }
               >
-                {({ disabled, openDialog }) => (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      <Trigger asChild>
-                        <DropdownMenuItem
-                          aria-label="edit"
-                          disabled={editDisabled !== undefined}
-                          title={editDisabled?.reason}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      </Trigger>
-                      <DropdownMenuItem
-                        key="archive"
-                        disabled={disabled !== undefined}
-                        title={disabled?.reason}
-                        onClick={(event) => event.stopPropagation()}
-                        onSelect={openDialog}
-                      >
-                        <Archive className="mr-2 h-4 w-4" />
-                        Archive
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </ArchiveScoreConfigDialogController>
-            )}
-          </UpsertScoreConfigDialogController>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={archiveControl.disabled !== undefined}
+                title={archiveControl.disabled?.reason}
+                onSelect={() =>
+                  archiveControl.openDialog({
+                    id: configId,
+                    isArchived,
+                    name,
+                  })
+                }
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                {isArchived ? "Restore" : "Archive"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
@@ -242,28 +270,23 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          <UpsertScoreConfigDialogController
-            key="new-config-dialog"
-            mode="create"
-            projectId={projectId}
-          >
-            {({ disabled, isSubmitting, Trigger }) => (
-              <Trigger asChild>
-                <Button
-                  variant="secondary"
-                  disabled={disabled !== undefined}
-                  loading={isSubmitting}
-                  title={disabled?.reason}
-                >
-                  <PlusIcon
-                    className="mr-1.5 -ml-0.5 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                  Add new score config
-                </Button>
-              </Trigger>
+          <CreateScoreConfigDialogController projectId={projectId}>
+            {({ disabled, isSubmitting, openDialog }) => (
+              <Button
+                variant="secondary"
+                disabled={disabled !== undefined}
+                loading={isSubmitting}
+                title={disabled?.reason}
+                onClick={openDialog}
+              >
+                <PlusIcon
+                  className="mr-1.5 -ml-0.5 h-4 w-4"
+                  aria-hidden="true"
+                />
+                Add new score config
+              </Button>
             )}
-          </UpsertScoreConfigDialogController>
+          </CreateScoreConfigDialogController>
         }
         className="px-0"
       />

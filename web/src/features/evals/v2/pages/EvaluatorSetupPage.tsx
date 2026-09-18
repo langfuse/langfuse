@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";

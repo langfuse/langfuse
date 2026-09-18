@@ -18,7 +18,13 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { env } from "@/src/env.mjs";
+import { authorize } from "@/src/features/auth/policy/authorize";
+import { shadowAuthDiff } from "@/src/features/public-api/server/shadowAuthDiff";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
+import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
@@ -105,6 +111,8 @@ export function createMcpServer(context: ServerContext): Server {
       throw new Error(`Unknown tool: ${name}`);
     }
 
+    assertToolAuthorized(registeredTool.definition, context);
+
     // Execute handler with context
     // Handler performs validation and error handling via defineTool wrapper
     const clickHouseCtx = contextWithLangfuseProps({
@@ -131,3 +139,26 @@ export function createMcpServer(context: ServerContext): Server {
 
   return server;
 }
+
+/** assertToolAuthorized checks the resolved context against a tool's action: enforce throws on deny, shadow only diffs, ungated tools and unresolved contexts (legacy) pass. */
+function assertToolAuthorized(
+  definition: ToolDefinition,
+  context: ServerContext,
+  diff = shadowAuthDiff,
+): void {
+  if (definition.action === __dangerouslySkipAuthz || !context.auth) return;
+  const decision = authorize(context.auth, definition.action, {
+    projectId: context.projectId,
+  });
+  if (env.API_AUTH_MIGRATION === "shadow") {
+    diff(
+      decision,
+      { success: true, scope: { accessLevel: context.accessLevel } },
+      definition.action,
+    );
+    return;
+  }
+  if (!decision.success) throw formatErrorForUser(decision.error);
+}
+
+export const __test = { assertToolAuthorized };

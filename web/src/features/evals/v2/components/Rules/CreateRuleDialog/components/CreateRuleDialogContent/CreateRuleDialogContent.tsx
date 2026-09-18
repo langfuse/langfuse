@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showSuccessToast } from "@/src/features/notifications";
 import type { EvalTargetObject, FilterState } from "@langfuse/shared";
 import { useRef, useState } from "react";

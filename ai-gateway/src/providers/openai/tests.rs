@@ -7,7 +7,7 @@ use tokio::sync::Notify;
 
 fn provider(server: &FakeServer, active: usize) -> OpenAiProvider {
     OpenAiProvider::for_test(
-        format!("{}/v1/responses", server.url),
+        format!("{}/v1", server.url),
         ProviderLimits {
             active,
             ..ProviderLimits::default()
@@ -35,6 +35,14 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
             "openai-project",
             "x-api-key",
             "x-forwarded-host",
+            "traceparent",
+            "tracestate",
+            "baggage",
+            "langfuse-trace-name",
+            "langfuse-session-id",
+            "langfuse-user-id",
+            "langfuse-tags",
+            "langfuse-metadata",
         ] {
             assert!(!request.headers().contains_key(name), "forwarded {name}");
         }
@@ -61,6 +69,17 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         ("openai-project", "wrong-project"),
         ("x-api-key", "wrong-key"),
         ("x-forwarded-host", "attacker.example"),
+        (
+            "traceparent",
+            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        ),
+        ("tracestate", "caller=private"),
+        ("baggage", "langfuse_user_id=private"),
+        ("langfuse-trace-name", "private-trace"),
+        ("langfuse-session-id", "private-session"),
+        ("langfuse-user-id", "private-user"),
+        ("langfuse-tags", "private-tag"),
+        ("langfuse-metadata", "private:value"),
         ("content-type", "application/json"),
         ("accept-encoding", "gzip"),
         ("connection", "accept-encoding"),
@@ -340,17 +359,12 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
     };
     use serde_json::Value;
 
-    for (content_type, native, sink_status) in [
-        (
-            "application/json",
-            r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#,
-            200,
-        ),
-        (
-            "text/event-stream",
-            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n",
-            503,
-        ),
+    const JSON: &str = r#"{"id":"resp-1","model":"actual","status":"completed","output":[],"usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}}"#;
+    const SSE: &str = "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-1\",\"model\":\"actual\",\"status\":\"completed\",\"output\":[],\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"total_tokens\":3}}}\n\n";
+    for (content_type, native, sink_status, close_before_eof) in [
+        ("application/json", JSON, 200, false),
+        ("text/event-stream", SSE, 503, false),
+        ("text/event-stream", SSE, 200, true),
     ] {
         let (sent, mut received) = tokio::sync::mpsc::channel(2);
         let release = Arc::new(Notify::new());
@@ -374,37 +388,65 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         let telemetry =
             Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
         let upstream = FakeServer::start(move |_| async move {
+            let body = if close_before_eof {
+                Body::from_stream(
+                    stream::iter([Ok::<_, Infallible>(Bytes::from_static(native.as_bytes()))])
+                        .chain(stream::pending()),
+                )
+            } else {
+                Body::from(native)
+            };
             Response::builder()
                 .header("content-type", content_type)
-                .body(Body::from(native))
+                .body(body)
                 .unwrap()
         })
         .await;
         let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
+        let headers = HeaderMap::from_iter([
+            (
+                axum::http::HeaderName::from_static("traceparent"),
+                HeaderValue::from_static("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"),
+            ),
+            (
+                axum::http::HeaderName::from_static("tracestate"),
+                HeaderValue::from_static("caller=state"),
+            ),
+            (
+                axum::http::HeaderName::from_static("langfuse-user-id"),
+                HeaderValue::from_static("caller-user"),
+            ),
+        ]);
         let response = relay
             .forward(
                 relay.try_admit().unwrap(),
                 context,
-                &HeaderMap::new(),
+                &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
             )
             .await
             .unwrap();
         // Neither the last byte nor the provider permit waits for the sink response.
-        assert_eq!(
-            tokio::time::timeout(Duration::from_secs(1), to_bytes(response.into_body(), 4096))
-                .await
-                .unwrap()
-                .unwrap(),
-            native
-        );
+        let mut body = response.into_body().into_data_stream();
+        let mut forwarded = Vec::new();
+        while let Some(chunk) = tokio::time::timeout(Duration::from_secs(1), body.next())
+            .await
+            .unwrap()
+        {
+            forwarded.extend_from_slice(&chunk.unwrap());
+            if close_before_eof && forwarded.len() == native.len() {
+                break;
+            }
+        }
+        drop(body);
+        assert_eq!(forwarded, native.as_bytes());
         assert!(relay.try_admit().is_ok());
         let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
             .await
             .unwrap()
             .unwrap();
-        assert_completed_upload(&payload);
+        assert_completed_upload(&payload, content_type == "text/event-stream");
         release.notify_one();
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
@@ -488,9 +530,13 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         )
         .unwrap();
         assert_eq!(
-            metadata["relay_outcome"],
-            if cancelled { "cancelled" } else { "timeout" }
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.level")
+                .unwrap()["value"]["stringValue"],
+            if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert!(metadata.get("relay_outcome").is_none());
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
             .await;
@@ -499,20 +545,134 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
     }
 }
 
-fn assert_completed_upload(payload: &serde_json::Value) {
+#[tokio::test]
+async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::Value;
+
+    const COMPACT: &[u8] =
+        br#"{"model":"gpt-4.1","input":[{"encrypted_content":"opaque-ciphertext"}]}"#;
+    const COMPACT_RESPONSE: &str =
+        r#"{"id":"comp_1","output":[{"encrypted_content":"opaque-ciphertext"}]}"#;
+    const MODELS: &str = r#"{"object":"list","data":[{"id":"gpt-4.1","object":"model"}]}"#;
+
+    let (sent, mut received) = tokio::sync::mpsc::channel(2);
+    let sink = FakeServer::start(move |request| {
+        let sent = sent.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+            sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                .await
+                .unwrap();
+            Response::new(Body::from("{}"))
+        }
+    })
+    .await;
+    let telemetry =
+        Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+    let upstream = FakeServer::start(|request| async move {
+        let uri = request.uri().to_string();
+        let method = request.method().clone();
+        let body = to_bytes(request.into_body(), 4096).await.unwrap();
+        match (method.as_str(), uri.as_str()) {
+            ("POST", "/v1/responses/compact") => {
+                assert_eq!(body, COMPACT);
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(COMPACT_RESPONSE))
+                    .unwrap()
+            }
+            ("GET", "/v1/models") => {
+                assert!(body.is_empty());
+                Response::builder()
+                    .header("content-type", "application/json")
+                    .body(Body::from(MODELS))
+                    .unwrap()
+            }
+            other => panic!("unexpected provider request {other:?}"),
+        }
+    })
+    .await;
+    let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
+    let compact = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::from_static(COMPACT),
+            OpenAiRoute::ResponsesCompact,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        to_bytes(compact.into_body(), 4096).await.unwrap(),
+        COMPACT_RESPONSE
+    );
+    let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["name"],
+        "openai.responses"
+    );
+    let models = relay
+        .forward_route(
+            relay.try_admit().unwrap(),
+            resolved_request_context("provider-secret").await,
+            &HeaderMap::new(),
+            Bytes::new(),
+            OpenAiRoute::Models,
+        )
+        .await
+        .unwrap();
+    assert_eq!(to_bytes(models.into_body(), 4096).await.unwrap(), MODELS);
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    assert!(received.try_recv().is_err());
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(1))
+        .await;
+    assert_eq!(sink.calls(), 1);
+    assert_eq!(upstream.calls(), 2);
+}
+
+fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     use serde_json::{Value, json};
+
+    let generation = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
+    assert_eq!(generation["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
+    assert_eq!(generation["parentSpanId"], "00f067aa0ba902b7");
+    assert_eq!(generation["traceState"], "caller=state");
+    assert!(
+        generation["attributes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|attribute| {
+                attribute["key"] == "user.id" && attribute["value"]["stringValue"] == "caller-user"
+            })
+    );
     let span = &payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0];
     let attrs = span["attributes"].as_array().unwrap();
+    assert!(attrs.iter().any(
+        |a| a["key"] == "langfuse.observation.level" && a["value"]["stringValue"] == "DEFAULT"
+    ));
+    assert!(
+        !attrs
+            .iter()
+            .any(|a| a["key"] == "langfuse.observation.status_message")
+    );
     assert!(
         attrs
             .iter()
             .any(|a| a["key"] == "langfuse.observation.model.name"
                 && a["value"]["stringValue"] == "actual")
     );
-    assert!(
+    assert_eq!(
         attrs
             .iter()
-            .any(|a| a["key"] == "langfuse.observation.completion_start_time")
+            .any(|a| a["key"] == "langfuse.observation.completion_start_time"),
+        streaming,
     );
     let metadata: Value = serde_json::from_str(
         attrs
@@ -523,9 +683,20 @@ fn assert_completed_upload(payload: &serde_json::Value) {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(metadata["relay_outcome"], "eof");
+    assert!(metadata.get("relay_outcome").is_none());
+    assert!(metadata.get("native_usage").is_none());
+    assert_eq!(metadata["langfuse.gateway.provider.response.id"], "resp-1");
+    let usage: Value = serde_json::from_str(
+        attrs
+            .iter()
+            .find(|a| a["key"] == "langfuse.observation.usage_details")
+            .unwrap()["value"]["stringValue"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
     assert_eq!(
-        metadata["native_usage"],
+        usage,
         json!({"input_tokens":2,"output_tokens":1,"total_tokens":3})
     );
     for secret in [

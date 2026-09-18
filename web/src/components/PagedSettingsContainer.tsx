@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";

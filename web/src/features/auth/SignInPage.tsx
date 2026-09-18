@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
 import {
