@@ -2807,6 +2807,7 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "litellm.provider.model",
       "gen_ai.response.model",
       "ai.model.id",
       "gen_ai.request.model",
