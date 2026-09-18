@@ -9,6 +9,12 @@ export type MetricEmphasisContext = {
   traceTotalDurationMs?: number;
 };
 
+export type TraceMetricEmphasis = {
+  totals: MetricEmphasisContext;
+  /** Rows that are the whole trace, so their share is always 100%. */
+  wholeTraceNodeIds: Set<string>;
+};
+
 function nodeDurationMs(node: TreeNode): number | undefined {
   if (node.latency != null) return node.latency * 1000;
   if (node.endTime) return node.endTime.getTime() - node.startTime.getTime();
@@ -16,30 +22,50 @@ function nodeDurationMs(node: TreeNode): number | undefined {
 }
 
 /**
- * Undefined for the trace root and for a lone top-level observation: both
- * are the whole trace, so their share is always 100%.
+ * Trace-wide totals, derived once per trace from the unfiltered roots so every
+ * view emphasises the same rows regardless of level filtering.
  */
-export function resolveMetricEmphasisContext(
-  node: TreeNode,
+export function computeTraceMetricEmphasis(
   roots: TreeNode[],
-): MetricEmphasisContext | undefined {
-  if (node.type === "TRACE") return undefined;
+): TraceMetricEmphasis {
   const traceRoot = roots.find((root) => root.type === "TRACE");
   const topLevel = traceRoot ? traceRoot.children : roots;
-  if (topLevel.length === 1 && topLevel[0]?.id === node.id) return undefined;
-
   const base = traceRoot ? [traceRoot] : roots;
-  const durations = base
-    .map(nodeDurationMs)
-    .filter((d): d is number => d != null);
+
+  const wholeTraceNodeIds = new Set<string>();
+  if (traceRoot) wholeTraceNodeIds.add(traceRoot.id);
+  if (topLevel.length === 1 && topLevel[0])
+    wholeTraceNodeIds.add(topLevel[0].id);
+
+  let traceTotalCost: Decimal | undefined;
+  let traceTotalDurationMs: number | undefined;
+  for (const root of base) {
+    if (root.totalCost) {
+      traceTotalCost = traceTotalCost
+        ? traceTotalCost.plus(root.totalCost)
+        : root.totalCost;
+    }
+    const duration = nodeDurationMs(root);
+    if (duration != null && (traceTotalDurationMs ?? -Infinity) < duration) {
+      traceTotalDurationMs = duration;
+    }
+  }
+
   return {
-    traceTotalCost: base.reduce<Decimal | undefined>((acc, r) => {
-      if (!r.totalCost) return acc;
-      return acc ? acc.plus(r.totalCost) : r.totalCost;
-    }, undefined),
-    traceTotalDurationMs:
-      durations.length > 0 ? Math.max(...durations) : undefined,
+    totals: { traceTotalCost, traceTotalDurationMs },
+    wholeTraceNodeIds,
   };
+}
+
+/** Undefined when the row is the whole trace: its share is always 100%. */
+export function metricEmphasisFor(
+  node: TreeNode,
+  trace: TraceMetricEmphasis | undefined,
+): MetricEmphasisContext | undefined {
+  if (!trace) return undefined;
+  if (node.type === "TRACE") return undefined;
+  if (trace.wholeTraceNodeIds.has(node.id)) return undefined;
+  return trace.totals;
 }
 
 export function isEmphasizedShare(

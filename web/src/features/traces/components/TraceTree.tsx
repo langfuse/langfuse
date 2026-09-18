@@ -24,7 +24,7 @@ import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNo
 import { type TreeNode } from "../types/treeNode";
 import { cn } from "@/src/utils/tailwind";
 import {
-  resolveMetricEmphasisContext,
+  metricEmphasisFor,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
 
@@ -87,7 +87,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
 });
 
 export function TraceTree() {
-  const { roots, comments } = useTraceData();
+  const { roots, comments, metricEmphasis } = useTraceData();
   const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
@@ -114,7 +114,7 @@ export function TraceTree() {
           isCollapsed={isCollapsed}
           onToggleCollapse={onToggleCollapse}
           onSelect={onSelect}
-          emphasis={resolveMetricEmphasisContext(node as TreeNode, roots)}
+          emphasis={metricEmphasisFor(node as TreeNode, metricEmphasis)}
           commentCount={comments.get(node.id)}
           onHover={handleHover}
         />
