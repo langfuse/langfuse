@@ -4,7 +4,7 @@ import { z } from "zod";
 import { NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
-import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
+import { PublicApiCreateScoreSourceDomain, TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
 import { applyScoreValidation } from "../../utils/scores";
 
 export const idSchema = z
@@ -538,9 +538,16 @@ const createAllIngestionSchemas = ({
     observationId: z.string().nullish(),
     comment: z.string().nullish(),
     metadata: jsonSchema.nullish(),
-    source: z
-      .enum(["API", "EVAL", "ANNOTATION"])
-      .default("API" as ScoreSourceType),
+    // Measurement provenance must not be caller-declared on the public
+    // ingestion path: EVAL is reserved for the evaluation worker and
+    // ANNOTATION for authenticated annotator sessions, mirroring the
+    // restriction POST /api/public/scores already enforces via
+    // PublicApiCreateScoreSourceDomain. Internal ingestion (the evaluation
+    // worker itself) keeps the full enum.
+    source: (isPublic
+      ? PublicApiCreateScoreSourceDomain
+      : z.enum(["API", "EVAL", "ANNOTATION"])
+    ).default("API" as ScoreSourceType),
     executionTraceId: z.string().nullish(),
     queueId: z.string().nullish(),
   });
