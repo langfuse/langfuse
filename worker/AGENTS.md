@@ -16,6 +16,17 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
+  registered by `src/queues/topicsQueue.ts`. Summary results are staged in Redis
+  with a three-hour TTL; `src/queues/topicsEmbeddingQueue.ts` delegates to
+  `src/features/topics/processTopicEmbeddingBatch.ts` to embed and persist combined
+  results in ClickHouse before deleting the payload. The coordinator delays its
+  queue job while waiting for embeddings. Pending batch IDs stay in that BullMQ
+  job; unchanged polls read Redis queue states without loading execution storage.
+  Read `src/features/topics/README.md`
+  for native numerical setup, database results, object-storage manifests, and model configuration.
+  Canonical transcript assembly is shared with the web transcript inspector through
+  `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
@@ -29,7 +40,8 @@
 - Service layer: `src/services/*`
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
-  records its own metrics and logs; see `../packages/native/AGENTS.md`.
+  records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
+  its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
 ## Shared Package Imports

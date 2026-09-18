@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma, type Role } from "@langfuse/shared/src/db";
@@ -59,14 +60,7 @@ function makeSession(
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: false,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       admin: false,
     },
     environment: {

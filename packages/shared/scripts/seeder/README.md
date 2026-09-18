@@ -58,6 +58,19 @@ Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+For Topics, `pnpm run seed -- topics` creates 12 discovery traces across
+three themes and three separate assignment traces (two familiar themes and one
+new theme), with v4 events enabled by default. `--batch discovery` selects IDs
+`-t00` through `-t11`; `--batch assignment` selects `-t12` through `-t14`.
+There are no model calls or planted topic labels in the trace I/O.
+For broader validation, `--batch evaluation --id-prefix topics-eval-s42`
+creates 100 traces (`-e00` through `-e99`) with five intent themes and
+cross-cutting tool outcomes: 20 each of timeout, denied access, invalid JSON,
+empty results, and success. Each trace has a generation and a child tool.
+Intent has 100 applicable traces; Issues has 80 and needs exploratory mode
+with the current minimum-count gate. Theme/outcome labels remain outside
+trace metadata and I/O.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.

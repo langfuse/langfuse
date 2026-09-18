@@ -8,6 +8,21 @@ export const featurePreviewFlags = [
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
 
+const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+
+export const personalFeaturePreviewFlags = [
+  ...featurePreviewFlags,
+  ...adminOnlyFeaturePreviewFlags,
+] as const;
+
+export type PersonalFeaturePreviewFlag =
+  (typeof personalFeaturePreviewFlags)[number];
+
+export const isAdminOnlyFeaturePreviewFlag = (
+  flag: string,
+): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
+  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+
 const restrictedFlags = ["aiGateway"] as const;
 
 type RestrictedFlag = (typeof restrictedFlags)[number];
@@ -28,7 +43,8 @@ export const featurePreviewLabels = {
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
   normalizedIoPreview: "Improved Message Rendering",
-} satisfies Record<FeaturePreviewFlag, string>;
+  langfuseTopics: "Langfuse Topics",
+} satisfies Record<PersonalFeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
@@ -50,7 +66,7 @@ export const isFeaturePreviewAvailable = (
 };
 
 export const availableFlags = [
-  ...featurePreviewFlags,
+  ...personalFeaturePreviewFlags,
   ...restrictedFlags,
   "searchBar",
   "templateFlag",

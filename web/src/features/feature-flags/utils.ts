@@ -5,12 +5,13 @@ import {
   isRestrictedFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
+  isAdminOnlyFeaturePreviewFlag,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type PersonalFeaturePreviewFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: PersonalFeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
@@ -40,7 +41,7 @@ export const parseFlags = (
     }
 
     if (
-      isFeaturePreviewFlag(flag) &&
+      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;

@@ -436,6 +436,9 @@ importers:
       slackify-markdown:
         specifier: ^5.0.0
         version: 5.0.0(supports-color@8.1.1)
+      tiktoken:
+        specifier: ^1.0.20
+        version: 1.0.20
       undici:
         specifier: 7.29.1
         version: 7.29.1

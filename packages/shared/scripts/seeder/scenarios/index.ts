@@ -14,6 +14,7 @@ import { sessionVarietyScenario } from "./session-variety";
 import { supportAgentScenario } from "./support-agent";
 import { timelineAnnotatedScenario } from "./timeline-annotated";
 import { timelineShapesScenario } from "./timeline-shapes";
+import { topicsScenario } from "./topics";
 import { traceTreeScenario } from "./trace-tree";
 import { ScenarioDefinition } from "./types";
 
@@ -38,6 +39,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "support-agent": supportAgentScenario,
   "timeline-annotated": timelineAnnotatedScenario,
   "timeline-shapes": timelineShapesScenario,
+  topics: topicsScenario,
 };
 
 export * from "./types";

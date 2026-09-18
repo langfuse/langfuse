@@ -10,6 +10,19 @@ import {
 } from "./utils";
 
 describe("parseFlags", () => {
+  it("requires personal Topics opt-in and ignores team and organization defaults", () => {
+    const context = {
+      email: "team.member@langfuse.com",
+      v4BetaEnabled: true,
+    };
+    expect(parseFlags([], context).langfuseTopics).toBe(false);
+    expect(
+      parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
+        .langfuseTopics,
+    ).toBe(false);
+    expect(parseFlags(["langfuseTopics"], context).langfuseTopics).toBe(true);
+  });
+
   it("enables feature previews by default for Langfuse team members", () => {
     const flags = parseFlags([], {
       email: "team.member@langfuse.com",

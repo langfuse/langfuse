@@ -108,6 +108,9 @@ import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
+import { isTopicsEnabled } from "@langfuse/shared/topics/server";
+import { topicsQueueProcessor } from "./queues/topicsQueue";
+import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 
 const app = express();
 
@@ -461,6 +464,19 @@ if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
 }
 
 export let inAppAgentDlqRetryRunner: InAppAgentDlqRetryRunner | null = null;
+
+if (isTopicsEnabled()) {
+  WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
+    concurrency: 1,
+  });
+  WorkerManager.register(
+    QueueName.TopicsEmbedding,
+    topicsEmbeddingQueueProcessor,
+    {
+      concurrency: 2,
+    },
+  );
+}
 
 if (
   isInAppAgentWorkerSurfaceEnabled(

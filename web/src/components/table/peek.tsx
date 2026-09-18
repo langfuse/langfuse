@@ -315,6 +315,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           forceDirection="bottom"
         >
           <DrawerContent
+            portalLayer="modal"
             size="full"
             className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
             onPointerDownOutside={preventDismissOnKeptOpen}

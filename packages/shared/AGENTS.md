@@ -55,6 +55,23 @@
 
 ## Export Entry Points
 
+- `@langfuse/shared/topics`: client-safe local Topics execution and result contracts.
+- `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
+  queue access and Postgres run progress with object-storage input/cohort manifests.
+  Summaries, embeddings, assignments and map coordinates live in ClickHouse.
+  `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
+  enqueues reference-only embedding batches. Consumers persist completed results
+  to ClickHouse before deleting staged payloads; queue job retention is separate
+  from the payload TTL. The Topics coordinator job tracks pending embedding batch
+  IDs so its queue-state polling does not read or rewrite domain storage.
+  Available only on a loopback development server.
+  `loadTopicTranscript` assembles the same canonical transcript for every facet
+  in memory for the worker and transcript inspector; transcript/source I/O is
+  not part of the execution journal. Facet versions own prompts; rules own filters,
+  sampling and facet assignments; executions freeze trace selection, prompt versions
+  and summary/embedding settings. Current membership resolves latest published assignments
+  and explicit no-topic outcomes; historical readers remain scoped to a map.
+
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt
   helpers, eval/model-pricing helpers, product path builders, and other
