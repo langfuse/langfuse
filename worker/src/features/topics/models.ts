@@ -46,6 +46,7 @@ async function structuredCall<T>(
   if (!env.OPENAI_API_KEY)
     throw new TopicsProviderUnavailable(
       "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
+      "authentication",
     );
   // Include the structured-output schema and message framing in the input limit.
   if (
@@ -166,6 +167,7 @@ export async function nameTopicGroups(evidence: {
   if (inputLimit > 900_000)
     throw new TopicsProviderUnavailable(
       "The complete cluster exceeds the naming model's input limit. Use a smaller cohort; no member summaries were discarded.",
+      "invalid_input",
     );
   const result = await structuredCall(
     system,
@@ -188,6 +190,7 @@ export async function embedTopicSummary(
   if (!env.OPENAI_API_KEY)
     throw new TopicsProviderUnavailable(
       "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
+      "authentication",
     );
   const encoding = get_encoding("cl100k_base");
   let inputTokens: number;

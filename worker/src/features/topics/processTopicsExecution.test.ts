@@ -25,6 +25,11 @@ const state = vi.hoisted(() => ({
   embed: vi.fn(),
   name: vi.fn(),
   numeric: vi.fn(),
+  increment: vi.fn(),
+}));
+vi.mock("@langfuse/shared/src/server", () => ({
+  recordIncrement: (...args: unknown[]) => state.increment(...args),
+  recordDistribution: vi.fn(),
 }));
 const facet: TopicFacetVersion = {
   id: "facet-version",
@@ -268,6 +273,7 @@ function execution(
 }
 
 beforeEach(() => {
+  state.increment.mockClear();
   state.artifacts.clear();
   state.executions.clear();
   state.summaries.clear();
@@ -1141,6 +1147,13 @@ describe("Topics execution", () => {
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed).not.toHaveBeenCalled();
     expect(state.executions.get("auth")?.status).toBe("failed");
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.executions",
+      1,
+      {
+        outcome: "failed",
+      },
+    );
     expect(state.executions.get("auth")?.error).toContain("HTTP 401");
     expect(JSON.stringify(state.executions.get("auth"))).not.toContain(
       "sk-private-secret",

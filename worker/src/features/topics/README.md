@@ -237,6 +237,31 @@ invoke the same refresh path as the manual button. Large per-project discovery,
 all-member naming, and distributed stream processing remain follow-up work;
 these changes are not a 100-million-traces/day throughput validation.
 
+### Datadog metrics
+
+Topics uses the worker's existing DogStatsD connection and emits four metrics:
+
+| Metric                              | Meaning                                                                                                                                  | Tags                       |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `langfuse.topics.executions`        | Execution attempts started, completed, completed with errors, or failed; independent of BullMQ success                                   | `outcome`                  |
+| `langfuse.topics.results`           | Generated/reused results, assignments/outliers, and clustering outcomes including insufficient data                                      | `stage`, `result`          |
+| `langfuse.topics.stage_duration_ms` | Duration of summary, embedding, numerical clustering, naming, assignment, transcript loading and instrumented storage operations         | `stage`, `outcome`, `unit` |
+| `langfuse.topics.errors`            | Failures classified as authentication, rate limit, timeout, invalid input/output, provider, trace loading, storage, numerical or unknown | `stage`, `reason`          |
+
+Tags contain only fixed categories, never tenant/run/trace IDs, facet names or
+customer content. The same error propagating through nested catches counts once
+per execution attempt. A resume starts another attempt; an already-completed
+execution replay emits no attempt or result metrics.
+
+Result counters measure work, not unique database rows: summary/embedding and
+assignment results count trace–facet processing, naming counts cluster labels,
+and clustering counts facet outcomes. Revisited stages can count again on a
+resume or refresh. Generated results count when accepted in memory; a later
+persistence failure is reported separately. Model durations exclude cache hits.
+Metrics are best effort, not an exactly-once ledger or an execution heartbeat.
+Queue backlog, waiting time and BullMQ outcomes remain under
+`langfuse.queue.topics.*`.
+
 ### Observed small-sample limitation
 
 The synthetic smoke test discovered three topics from 12 traces. Its frozen map
