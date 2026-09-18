@@ -77,12 +77,12 @@ export function VirtualizedTreeNodeWrapper({
   return (
     <div
       className={cn(
-        "relative flex w-full cursor-pointer px-0",
+        "group relative flex w-full cursor-pointer px-0",
         // Dim unselected rows in dark only — in light the gray read as washed
         // out, an accepted light/dark inconsistency.
         isSelected
           ? "bg-muted text-foreground"
-          : "hover:bg-muted/50 dark:text-muted-foreground",
+          : "hover:bg-accent dark:text-muted-foreground",
         className,
       )}
       style={{
@@ -134,7 +134,12 @@ export function VirtualizedTreeNodeWrapper({
 
         {/* 3. Icon + child connector: fixed width container */}
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
-          <div className="relative z-10 flex h-4 items-center justify-center">
+          <div
+            className={cn(
+              "relative z-10 flex h-4 items-center justify-center",
+              isSelected ? "bg-muted" : "bg-background group-hover:bg-accent",
+            )}
+          >
             <ItemTypeIcon type={nodeType} className="size-3" />
           </div>
           {/* Vertical bar downwards if there are expanded children (skipped
