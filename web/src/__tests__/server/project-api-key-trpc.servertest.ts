@@ -6,6 +6,7 @@ import {
   createAndAddApiKeysToDb,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 describe("project API keys trpc", () => {
   // The session user is persisted as the API key creator, so it must exist
@@ -154,6 +155,18 @@ describe("project API keys trpc", () => {
   });
 
   describe("projectApiKeys.updateNote", () => {
+    it("returns NOT_FOUND for a missing API key", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.updateNote({
+          projectId,
+          keyId: randomUUID(),
+          note: "Updated Note",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("does not update in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
       const inAppAgentKey = await createAndAddApiKeysToDb({
@@ -180,6 +193,17 @@ describe("project API keys trpc", () => {
   });
 
   describe("projectApiKeys.delete", () => {
+    it("returns NOT_FOUND for a missing API key", async () => {
+      const { caller, projectId } = await createProjectCaller();
+
+      await expect(
+        caller.projectApiKeys.delete({
+          projectId,
+          id: randomUUID(),
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
     it("does not delete in-app agent API keys", async () => {
       const { caller, projectId } = await createProjectCaller();
       const inAppAgentKey = await createAndAddApiKeysToDb({

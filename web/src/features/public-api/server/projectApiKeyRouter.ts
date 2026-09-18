@@ -8,7 +8,7 @@ import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { StringNoHTML } from "@langfuse/shared";
+import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -103,13 +103,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      await ctx.prisma.apiKey.findFirstOrThrow({
+      const existingKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.keyId,
           projectId: input.projectId,
           isInAppAgentKey: false,
         },
       });
+
+      if (!existingKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       await auditLog({
         session: ctx.session,
@@ -145,13 +149,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.id,
           projectId: input.projectId,
           scope: "PROJECT",
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       if (apiKey.isInAppAgentKey) return false;
 
