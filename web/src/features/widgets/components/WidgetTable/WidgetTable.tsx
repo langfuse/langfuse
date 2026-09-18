@@ -42,22 +42,22 @@ const chartDisplayModes: Record<DashboardWidgetChartType, string> = {
 
 const viewBadgeVariants = {
   TRACES: "blue",
-  OBSERVATIONS: "success",
-  SCORES_NUMERIC: "warning",
+  OBSERVATIONS: "teal",
+  SCORES_NUMERIC: "green",
   SCORES_BOOLEAN: "violet",
-  SCORES_CATEGORICAL: "destructive",
+  SCORES_CATEGORICAL: "pink",
 } as const;
 
 const chartTypeBadgeVariants = {
   LINE_TIME_SERIES: "blue",
-  AREA_TIME_SERIES: "blue",
+  AREA_TIME_SERIES: "emerald",
   BAR_TIME_SERIES: "violet",
   HORIZONTAL_BAR: "teal",
-  VERTICAL_BAR: "destructive",
-  PIE: "warning",
-  NUMBER: "success",
-  HISTOGRAM: "violet",
-  PIVOT_TABLE: "teal",
+  VERTICAL_BAR: "orange",
+  PIE: "pink",
+  NUMBER: "green",
+  HISTOGRAM: "purple",
+  PIVOT_TABLE: "amber",
 } as const;
 
 export type WidgetTableRow = {
@@ -119,45 +119,48 @@ export function DashboardWidgetTable({
         size: 300,
       }),
       createBadgeTableColumn<WidgetTableRow>({
-        accessorFn: (row) => startCase(row.view.toLowerCase()),
-        id: "view",
+        range: "decorative",
+        accessorKey: "view",
         header: "View Type",
         enableSorting: true,
         size: TYPE_COLUMN_SIZE,
-        getVariant: (_view, { row }) =>
-          viewBadgeVariants[
-            row.original.view as keyof typeof viewBadgeVariants
-          ] ?? "blue",
+        getBadge: (view) => ({
+          value: startCase(view.toLowerCase()),
+          variant:
+            viewBadgeVariants[view as keyof typeof viewBadgeVariants] ?? "blue",
+        }),
       }),
       createBadgeTableColumn<WidgetTableRow>({
-        accessorFn: (row) =>
-          chartTypeLabels[row.chartType as DashboardWidgetChartType],
-        id: "chartType",
+        range: "decorative",
+        accessorKey: "chartType",
         header: "Chart Type",
         enableSorting: true,
         size: TYPE_COLUMN_SIZE,
-        getVariant: (_chartType, { row }) =>
-          chartTypeBadgeVariants[
-            row.original.chartType as DashboardWidgetChartType
+        getBadge: (chartType) => ({
+          value: chartTypeLabels[chartType as DashboardWidgetChartType],
+          variant:
+            chartTypeBadgeVariants[chartType as DashboardWidgetChartType],
+          icon: dashboardWidgetChartTypeIcons[
+            chartType as DashboardWidgetChartType
           ],
-        getIcon: (_chartType, { row }) =>
-          dashboardWidgetChartTypeIcons[
-            row.original.chartType as DashboardWidgetChartType
-          ],
+        }),
       }),
       createBadgeTableColumn<WidgetTableRow>({
+        range: "decorative",
         accessorFn: (row) =>
           chartDisplayModes[row.chartType as DashboardWidgetChartType],
         id: "displayMode",
         header: "Display Mode",
         enableSorting: true,
         size: TYPE_COLUMN_SIZE,
-        getVariant: (displayMode) =>
-          displayMode === "Time Series" ? "blue" : "teal",
-        getIcon: (displayMode) =>
-          displayMode === "Time Series"
-            ? dashboardWidgetChartTypeIcons.LINE_TIME_SERIES
-            : dashboardWidgetChartTypeIcons.NUMBER,
+        getBadge: (displayMode) => ({
+          value: displayMode,
+          variant: displayMode === "Time Series" ? "blue" : "teal",
+          icon:
+            displayMode === "Time Series"
+              ? dashboardWidgetChartTypeIcons.LINE_TIME_SERIES
+              : dashboardWidgetChartTypeIcons.NUMBER,
+        }),
       }),
       createDateTableColumn<WidgetTableRow>({
         accessorKey: "createdAt",
