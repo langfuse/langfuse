@@ -28,17 +28,17 @@ const groupScoresByName = <
     return groups;
   }, {});
 
+const MAX_VISIBLE_SCORE_GROUPS = 3;
+
 const partitionScores = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >(
   scores: Record<string, T[]>,
-  maxVisible?: number,
+  maxVisible: number,
 ) => {
   const sortedScores = Object.entries(scores).sort(([a], [b]) =>
     a < b ? -1 : 1,
   );
-  if (!maxVisible) return { visibleScores: sortedScores, hiddenScores: [] };
-
   const visibleScores = sortedScores.slice(0, maxVisible);
   const hiddenScores = sortedScores.slice(maxVisible);
   return { visibleScores, hiddenScores };
@@ -48,7 +48,7 @@ export const GroupedScoreBadges = <
   T extends WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 >({
   scores,
-  maxVisible,
+  maxVisible = MAX_VISIBLE_SCORE_GROUPS,
   compact,
   expandable = true,
 }: {
@@ -76,12 +76,11 @@ export const GroupedScoreBadges = <
   // "+N" expands IN PLACE on click (hover still previews the hidden chips);
   // the trailing "−" collapses back to the capped view.
   const [expanded, setExpanded] = useState(false);
-  const overflows =
-    maxVisible !== undefined && Object.keys(groupedScores).length > maxVisible;
+  const overflows = Object.keys(groupedScores).length > maxVisible;
 
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
-    expanded && expandable ? undefined : maxVisible,
+    expanded && expandable ? Number.POSITIVE_INFINITY : maxVisible,
   );
 
   const overflowButtonClassName = cn(
