@@ -13,7 +13,13 @@ import {
 
 let lastProcessingDurationMs: number | undefined;
 let workerPreloadPromise: Promise<void> | undefined;
-let workerShadowAvailable = false;
+
+type WorkerShadowStart = (res: NextApiResponse, projectId: string) => void;
+const workerShadowStartKey = Symbol.for(
+  "langfuse.otelIngestionWorkerShadow.start",
+);
+const workerShadowGlobal = globalThis as typeof globalThis &
+  Record<symbol, WorkerShadowStart | undefined>;
 
 function scheduleAdmissionShadow(projectId: string, durationMs: number): void {
   const task = tryScheduleOtelIngestionWorkerLifecycle(async (signal) => {
@@ -47,12 +53,10 @@ function scheduleAdmissionShadow(projectId: string, durationMs: number): void {
   });
 }
 
-export function startOtelIngestionWorkerAdmissionShadow(
+function runOtelIngestionWorkerAdmissionShadow(
   res: NextApiResponse,
   projectId: string,
 ): void {
-  if (!workerShadowAvailable) return;
-
   if (lastProcessingDurationMs !== undefined) {
     scheduleAdmissionShadow(projectId, lastProcessingDurationMs);
   }
@@ -83,9 +87,17 @@ export function startOtelIngestionWorkerAdmissionShadow(
   res.once("close", stopTracking);
 }
 
+export function startOtelIngestionWorkerAdmissionShadow(
+  res: NextApiResponse,
+  projectId: string,
+): void {
+  workerShadowGlobal[workerShadowStartKey]?.(res, projectId);
+}
+
 async function runWorkerPreload(): Promise<void> {
   await preloadOtelIngestionWorker();
-  workerShadowAvailable = true;
+  workerShadowGlobal[workerShadowStartKey] =
+    runOtelIngestionWorkerAdmissionShadow;
   logger.info("OTel ingestion worker shadow preloaded");
 }
 

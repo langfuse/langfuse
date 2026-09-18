@@ -1,3 +1,6 @@
+import { EventEmitter } from "node:events";
+
+import type { NextApiResponse } from "next";
 import { describe, expect, it, vi } from "vitest";
 
 import { tryScheduleOtelIngestionWorkerLifecycle } from "@/src/server/otel/otelIngestionWorkerPool";
@@ -61,5 +64,54 @@ describe("OTel ingestion worker admission", () => {
     await next;
     expect(abortedTaskStarted).toBe(false);
     expect(nextTaskStarted).toBe(true);
+  });
+
+  it("keeps shadow admission enabled across server bundle instances", async () => {
+    vi.resetModules();
+    const scheduledTasks: Promise<void>[] = [];
+    const tryScheduleOtelIngestionWorkerLifecycle = vi.fn(
+      (task: () => Promise<void>) => {
+        const scheduledTask = task();
+        scheduledTasks.push(scheduledTask);
+        return scheduledTask;
+      },
+    );
+    vi.doMock("@/src/server/otel/otelIngestionWorkerPool", () => ({
+      dispatchOtelIngestionWorkerTask: vi
+        .fn()
+        .mockResolvedValue({ kind: "shadow" }),
+      preloadOtelIngestionWorker: vi.fn().mockResolvedValue(undefined),
+      tryScheduleOtelIngestionWorkerLifecycle,
+    }));
+
+    try {
+      const preloadBundle =
+        await import("@/src/server/otel/otelIngestionWorkerShadow");
+      await preloadBundle.preloadOtelIngestionWorkerShadow();
+
+      const firstResponse = new EventEmitter() as NextApiResponse;
+      preloadBundle.startOtelIngestionWorkerAdmissionShadow(
+        firstResponse,
+        "project-id",
+      );
+      firstResponse.emit("finish");
+
+      vi.resetModules();
+      const routeBundle =
+        await import("@/src/server/otel/otelIngestionWorkerShadow");
+      routeBundle.startOtelIngestionWorkerAdmissionShadow(
+        new EventEmitter() as NextApiResponse,
+        "project-id",
+      );
+
+      expect(tryScheduleOtelIngestionWorkerLifecycle).toHaveBeenCalledOnce();
+      await Promise.all(scheduledTasks);
+    } finally {
+      delete (globalThis as typeof globalThis & Record<symbol, unknown>)[
+        Symbol.for("langfuse.otelIngestionWorkerShadow.start")
+      ];
+      vi.doUnmock("@/src/server/otel/otelIngestionWorkerPool");
+      vi.resetModules();
+    }
   });
 });
