@@ -94,12 +94,17 @@ export const ScoreBadge = <
         <ScoreTag key={level} level={level} />
       ))}
       <BadgeShell>
-        <span
-          aria-hidden
-          className={cn("size-1 shrink-0 rounded-full", scoreHueClass(name))}
-        />
-        <span className="min-w-0 flex-1 truncate" title={name}>
-          {name}:
+        <span className="flex min-w-0 flex-1 items-center gap-1">
+          <span
+            aria-hidden
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              scoreHueClass(name),
+            )}
+          />
+          <span className="min-w-0 truncate" title={name}>
+            {name}:
+          </span>
         </span>
         <span className="flex min-w-0 items-center gap-1 text-nowrap">
           {scores.map((score, index) => {
