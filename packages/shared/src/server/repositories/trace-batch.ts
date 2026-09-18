@@ -179,10 +179,11 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       timeGroupParams,
     )
     // Keep each tenant/trace contiguous across time buckets and result blocks.
-    // orderByColumns with start_time prepends minute ordering and splits traces.
-    .orderBy(
-      "ORDER BY e.project_id ASC, e.trace_id ASC, e.start_time ASC, e.span_id ASC, e.event_ts DESC",
-    );
+    // The transcript assembler orders observations within each trace in memory.
+    .orderByColumns([
+      { column: "e.project_id", direction: "ASC" },
+      { column: "e.trace_id", direction: "ASC" },
+    ]);
 
   return {
     ...builder.buildWithParams(),

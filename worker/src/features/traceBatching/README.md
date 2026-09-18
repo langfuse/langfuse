@@ -105,7 +105,7 @@ query memory or dispatcher snapshot memory.
 
 ## Per-trace transcripts
 
-The reader orders by project ID and trace ID before start time. The worker keeps
+The reader orders only by project ID and trace ID. The worker keeps
 one trace's observations, assembles it when the pair changes, and flushes the last
 trace only after a successful end of stream. A stream error discards the current
 partial trace; earlier completed traces have already emitted samples. Each trace

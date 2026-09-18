@@ -67,7 +67,7 @@ describe("trace batch queue", () => {
       tool_call_names: [],
     };
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
-      yield row;
+      // SQL groups traces but does not order observations within a trace.
       yield {
         ...row,
         span_id: "second",
@@ -79,6 +79,7 @@ describe("trace batch queue", () => {
         ]),
         output: JSON.stringify({ role: "assistant", content: "second answer" }),
       };
+      yield row;
       expect(tokenCountAsync).not.toHaveBeenCalled();
       yield { ...row, project_id: "b", type: "SPAN" };
       // The first trace is processed before requesting more stream rows.
