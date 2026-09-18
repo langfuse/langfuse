@@ -843,8 +843,7 @@ function TableRowComponent<TData>({
         selectedRowId && selectedRowId === row.id
           ? "bg-accent dark:bg-accent"
           : undefined,
-        (rowIsSelected || shouldHighlightAllRows) &&
-          "bg-accent dark:bg-accent",
+        (rowIsSelected || shouldHighlightAllRows) && "bg-accent dark:bg-accent",
         getRowClassName?.(row.original),
       )}
     >
