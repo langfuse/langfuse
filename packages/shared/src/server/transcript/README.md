@@ -2,8 +2,7 @@
 
 PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
 
-Builds a conversation transcript from the observations of one trace, or of
-every trace in one session.
+Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
 
@@ -61,46 +60,19 @@ and decides which, if any, is the main conversation.
 
 ## Conversation history and current turn
 
-The builder first produces one flat list of messages per thread, each tagged
-with the observation and trace that first emitted it. At the very end, one
-cut is made in that list. Everything before the cut is `conversationHistory`,
-everything after it is `currentTurn`. Two rules decide where the cut goes.
-
-**Rule A: cut between traces.** Every message knows its trace. The last trace
-that contributed is the current one, so the cut goes right after the last
-message from any earlier trace. With a single trace, every message belongs to
-the same trace and rule A does nothing. Callers are expected to supply one
-trace at a time; the fixtures test never builds a whole session.
-
-**Rule B: cut inside the replayed input.** Take the current trace's messages
-before its first output message. That is what the first generation received as
-input. Among them, find the last message from the assistant or from a tool:
-it ended the previous turn. The cut goes right after it. Without an assistant
-or tool message there, nothing is cut.
-
-One trace with one generation:
+A trace is one turn. The input its generations replay from earlier turns, up
+to and including the last assistant or tool message before the trace's first
+output, is `conversationHistory` without provenance; everything after it is
+`currentTurn`, each message with the observation that emitted it.
 
 ```
 input:   User: Refund my order.
          Assistant: [refund call]
          Tool: Refund succeeded.
-         Assistant: Your refund is complete.   <- last assistant/tool before output
+         Assistant: Your refund is complete.   <- conversation history ends here
          User: When will it arrive?
 output:  Assistant: Within five business days.
 ```
-
-Rule A does nothing. Rule B cuts after "Your refund is complete". The four
-messages above the cut become `conversationHistory`, without provenance. The
-last two become `currentTurn.messages`, with provenance.
-`currentTurn.observations` lists only observations that emitted one of them.
-
-Two consequences of "last assistant or tool" rather than "last user":
-
-- A fresh conversation starts with `[System, User]`. There is no assistant
-  message, so nothing is cut and the system prompt stays with the turn.
-- Replayed input without any assistant or tool message looks like new input
-  and stays in the current turn. Two user messages sent in a row both stay in
-  the turn.
 
 ## Which observations contribute?
 
@@ -112,8 +84,8 @@ Two consequences of "last assistant or tool" rather than "last user":
   Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
   Preserve all normalized output parts; tool inputs are ignored. Provider-specific
   payload interpretation belongs to normalized IO, not the transcript builder.
-- The caller supplies observations from one trace or session, already in
-  transcript order (see Ordering).
+- The caller supplies one trace's observations, already in transcript order
+  (see Ordering).
 - Each observation is normalized once in this ordered pass. Generations
   establish threads and register output tool-call IDs; tools enrich registered
   calls. Input messages are processed before output messages for generations.
@@ -216,22 +188,18 @@ transcript/
 ├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, Turn, ThreadMessage
 └── fixtures/
-    ├── README.md          how to turn a trace JSON export into a fixture
     ├── fixture-types.ts   TranscriptFixture
     ├── format-transcript.ts  chat-shaped printout used by the test
-    ├── index.ts           registry: trace-scoped and session-scoped fixtures
+    ├── index.ts           registry of fixtures
     ├── fixtures.test.ts   structural checks and behavior assertion per fixture
-    ├── trace/             one file per trace-scoped fixture
-    └── session/           one file per session-scoped fixture
+    └── trace/             one file per fixture
 ```
 
 ## Fixtures and verification
 
-Fixtures contain observation trees and an expected transcript. The test builds
-every trace on its own and concatenates the threads in trace order, so a
-session fixture pins one history/current-turn split per trace. The fixture
-whose expectation is still deferred is skipped in the behavior test; its
-printed output is for manual review until the desired behavior is decided.
+Each fixture is one trace with an expected transcript, which the test asserts
+as a whole. Fixtures whose generations replay earlier turns pin the split
+between conversation history and current turn.
 
 Run with console output enabled to see it:
 

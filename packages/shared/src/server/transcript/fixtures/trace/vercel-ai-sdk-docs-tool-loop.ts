@@ -438,7 +438,6 @@ const payload13 = JSON.stringify([
 
 export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
   name: "Vercel AI SDK docs search with replayed tool history",
-  scope: "trace",
   description:
     "Two model steps with a documentation tool call and replayed history. The export also includes a GENERATION-typed application wrapper; its type and all payloads are preserved rather than adjusted to match the design example.",
   observations: [

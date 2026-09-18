@@ -375,7 +375,6 @@ const observations = [
 
 export const supportCopilotRefundLoopFixture = {
   name: "support copilot refund loop with cumulative conversation history",
-  scope: "trace",
   description:
     "Five generations replay all prior messages. Matching TOOL observations supply authoritative results, while replayed history is deduplicated and retains first-emitter provenance.",
   observations,

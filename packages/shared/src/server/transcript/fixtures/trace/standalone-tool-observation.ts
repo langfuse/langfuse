@@ -3,7 +3,6 @@ import type { TranscriptFixture } from "../fixture-types";
 // Tool execution is recorded only as a TOOL observation, not a model tool call.
 export const standaloneToolObservationFixture = {
   name: "Standalone tool execution without a generation tool call",
-  scope: "trace",
   description:
     "The generation contains only text. A subsequent TOOL observation has input and output but no matching generation tool call, so its result is omitted from the transcript.",
   observations: [

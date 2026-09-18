@@ -7,7 +7,6 @@ import type { TranscriptFixture } from "../fixture-types";
  */
 export const openaiAgentsSpanishHandoffFixture = {
   name: "OpenAI Agents Spanish handoff",
-  scope: "trace",
   description:
     "Triage hands off to a Spanish agent. This exercises changing instructions and agent handoff. Duplicate observation/trace ID pairs are removed, preserving first-occurrence order.",
   observations: [

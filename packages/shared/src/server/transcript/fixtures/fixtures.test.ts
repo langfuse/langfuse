@@ -1,32 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { Observation } from "../../../domain";
 import { transcriptFixtures } from "./index";
 import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
-import type { Transcript } from "../types";
 import { formatTranscript } from "./format-transcript";
-import { orderSupportRoutingFixture } from "./session/order-support-routing";
-
-/**
- * Build every trace on its own, never a whole session, in trace tree order,
- * and concatenate the threads in the order the traces first appear.
- */
-function assembleTranscriptPerTrace(
-  observations: Observation[],
-): Transcript | null {
-  const traces = new Map<string | null, Observation[]>();
-  for (const observation of observations) {
-    const trace = traces.get(observation.traceId) ?? [];
-    trace.push(observation);
-    traces.set(observation.traceId, trace);
-  }
-  const threads = [...traces.values()].flatMap(
-    (trace) => assembleTranscript(orderObservations(trace))?.threads ?? [],
-  );
-  return threads.length ? { threads } : null;
-}
 
 /**
  * Structural checks on fixtures and exact transcript expectations.
@@ -107,38 +85,27 @@ describe("transcript fixtures", () => {
       expect(new Set(ids).size).toBe(ids.length);
     });
 
-    it("matches its scope", () => {
-      if (fixture.scope === "trace") {
-        expect(traceIds.size).toBe(1);
-        return;
-      }
-
-      // Session scope spans several traces; session identity lives on the
-      // trace, not on observation records, so we only assert the shape here.
-      expect(traceIds.size).toBeGreaterThan(1);
+    it("belongs to one trace", () => {
+      expect(traceIds.size).toBe(1);
     });
 
     // Complete each seed into a full ClickHouse observation record and convert
-    // it to a domain `Observation`, then build each trace on its own.
-    // Routing history is an opaque string; its transcript expectation is deferred.
-    it.skipIf(fixture === orderSupportRoutingFixture)(
-      "returns the expected transcript for every trace",
-      () => {
-        const observations = fixture.observations.map((observation) =>
-          convertObservation(createObservation(observation)),
-        );
-        const transcript = assembleTranscriptPerTrace(observations);
+    // it to a domain `Observation`, then build the transcript.
+    it("returns the expected transcript", () => {
+      const observations = fixture.observations.map((observation) =>
+        convertObservation(createObservation(observation)),
+      );
+      const transcript = assembleTranscript(orderObservations(observations));
 
-        console.log("----------Formatted Transcript-------------------");
-        console.log(
-          formatTranscript(fixture.name, transcript, observations, {
-            hideReasoning: true,
-          }),
-        );
-        console.log("-------------------------------------------------");
+      console.log("----------Formatted Transcript-------------------");
+      console.log(
+        formatTranscript(fixture.name, transcript, observations, {
+          hideReasoning: true,
+        }),
+      );
+      console.log("-------------------------------------------------");
 
-        expect(transcript).toEqual(fixture.expected);
-      },
-    );
+      expect(transcript).toEqual(fixture.expected);
+    });
   });
 });

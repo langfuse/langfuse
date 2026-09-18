@@ -12,7 +12,7 @@ import {
   findChargesToolCallId,
   refund,
   supportCopilotRefundLoopFixture,
-} from "../trace/support-copilot-refund-loop";
+} from "./support-copilot-refund-loop";
 
 const firstTrace = supportCopilotRefundLoopFixture;
 const firstThread = firstTrace.expected.threads[0];
@@ -145,14 +145,12 @@ const replayedHistory: NormalizedMessage[] = [
 ];
 
 export const supportCopilotFollowUpFixture = {
-  name: "support copilot follow-up replays history across two traces",
-  scope: "session",
+  name: "support copilot follow-up inherits the first workflow as history",
   description:
-    "Two complete refund workflows share a conversation. Each trace is built on its own: the second trace's generations replay the first trace's final history, which becomes the conversation history, and the current turn holds only the second workflow with the second trace's IDs.",
-  observations: [...firstTrace.observations, ...followUpObservations],
+    "A second refund workflow whose generations replay the first trace's final history before the new customer message. That replay becomes the conversation history; the current turn holds only this trace's workflow with its own IDs.",
+  observations: followUpObservations,
   expected: {
     threads: [
-      firstThread,
       {
         conversationHistory: replayedHistory,
         currentTurn: {

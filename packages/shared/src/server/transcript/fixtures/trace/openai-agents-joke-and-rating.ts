@@ -203,7 +203,6 @@ const generatorAttributes = JSON.stringify({
 
 export const openaiAgentsJokeAndRatingFixture = {
   name: "OpenAI Agents joke generation followed by rating",
-  scope: "trace",
   description:
     "Separate agent executions generate a joke and rate it. The second prompt quotes the joke inside a fresh user message rather than replaying the first assistant message.",
   observations: [
