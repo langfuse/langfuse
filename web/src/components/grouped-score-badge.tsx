@@ -73,13 +73,10 @@ export const GroupedScoreBadges = <T extends ChipScore>({
   scores,
   maxVisible = MAX_VISIBLE_SCORE_GROUPS,
   compact,
-  onShowAll,
 }: {
   scores: T[];
   maxVisible?: number;
   compact?: boolean;
-  /** Opens the node's Scores tab from the popover footer. */
-  onShowAll?: () => void;
 }) => {
   const groupedScores = groupScoresByName(scores);
 
@@ -133,15 +130,6 @@ export const GroupedScoreBadges = <T extends ChipScore>({
             onClick={(event) => event.stopPropagation()}
           >
             <ScoreTable scores={scores} />
-            {onShowAll && (
-              <button
-                type="button"
-                className="text-link hover:text-link-hover block w-full px-2 pb-2 text-left text-xs"
-                onClick={onShowAll}
-              >
-                Open Scores tab
-              </button>
-            )}
           </PopoverContent>
         </Popover>
       )}
