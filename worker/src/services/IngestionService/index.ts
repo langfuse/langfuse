@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";

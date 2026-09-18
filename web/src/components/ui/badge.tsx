@@ -20,6 +20,9 @@ const badgeVariants = cva(
         success: "bg-light-green text-dark-green",
         error: "bg-light-red text-dark-red",
         warning: "bg-light-yellow text-dark-yellow",
+        blue: "bg-light-blue text-dark-blue",
+        violet: "bg-light-violet text-dark-violet",
+        teal: "bg-light-teal text-dark-teal",
       },
       size: {
         default: "px-2.5 py-0.5 text-xs",

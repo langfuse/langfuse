@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";

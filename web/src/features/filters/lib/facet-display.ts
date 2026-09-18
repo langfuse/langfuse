@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { UIFilter } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { filterRank } from "@/src/features/search-bar";
 
