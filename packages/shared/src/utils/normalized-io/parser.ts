@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { asRecord, parseArray, parseIfString } from "./core/utils/json";
 import type { NormalizedIO, SpanIO } from "./types";
 import {

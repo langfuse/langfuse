@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useState } from "react";

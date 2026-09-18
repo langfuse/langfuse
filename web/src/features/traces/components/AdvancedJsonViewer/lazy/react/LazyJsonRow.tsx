@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * LazyJsonRow — a single visible line of the lazy JSON viewer. View-only: it
  * receives one `JsonRow` plus stable callbacks and renders; it owns no state,

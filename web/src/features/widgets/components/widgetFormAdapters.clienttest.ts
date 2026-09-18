@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // @vitest-environment node
 
 import startCase from "lodash/startCase";

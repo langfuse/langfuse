@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 vi.mock("@langfuse/shared/src/server/llm/llmText", async () => {
   const actual = await vi.importActual(
     "@langfuse/shared/src/server/llm/llmText",

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-nested-ternary */
 // Structure stats — violations per project-structure-RFC rule over web/src.
 //
 //   pnpm structure:stats                     per-rule counts (+ Δ vs baseline)

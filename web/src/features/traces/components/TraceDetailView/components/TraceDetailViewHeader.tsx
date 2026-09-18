@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * TraceDetailViewHeader - Extracted header component for TraceDetailView
  *

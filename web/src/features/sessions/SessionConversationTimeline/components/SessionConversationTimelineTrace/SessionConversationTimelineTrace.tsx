@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,

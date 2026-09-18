@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,

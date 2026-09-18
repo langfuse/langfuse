@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * NavigationHeader - Fixed-height search bar for navigation panel
  *

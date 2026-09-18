@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps } from "react";

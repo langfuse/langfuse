@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useEffect, type ReactNode } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";

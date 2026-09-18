@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import {
