@@ -15,6 +15,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  AuditLogRecordInsertType,
   buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
@@ -60,6 +61,7 @@ export class ClickhouseWriter {
       [TableName.BlobStorageFileLog]: [],
       [TableName.DatasetRunItems]: [],
       [TableName.EventsFull]: [],
+      [TableName.AuditLogs]: [],
     };
 
     this.start();
@@ -126,6 +128,7 @@ export class ClickhouseWriter {
           this.flush(TableName.BlobStorageFileLog, fullQueue),
           this.flush(TableName.DatasetRunItems, fullQueue),
           this.flush(TableName.EventsFull, fullQueue),
+          this.flush(TableName.AuditLogs, fullQueue),
         ]).catch((err) => {
           logger.error("ClickhouseWriter.flushAll", err);
         });
@@ -634,6 +637,7 @@ export enum TableName {
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
+  AuditLogs = "audit_logs",
 }
 
 type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -652,7 +656,9 @@ type RecordInsertType<T extends TableName> = T extends TableName.Scores
               ? DatasetRunItemRecordInsertType
               : T extends TableName.EventsFull
                 ? EventRecordInsertType
-                : never;
+                : T extends TableName.AuditLogs
+                  ? AuditLogRecordInsertType
+                  : never;
 
 type ClickhouseQueue = {
   [T in TableName]: ClickhouseWriterQueueItem<T>[];

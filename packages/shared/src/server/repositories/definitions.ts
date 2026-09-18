@@ -581,3 +581,38 @@ export const eventRecordInsertSchema = eventRecordBaseSchema.extend({
   event_ts: z.string(),
 });
 export type EventRecordInsertType = z.infer<typeof eventRecordInsertSchema>;
+
+// Audit logs: one row per change (create/update/delete) or access (read,
+// list, export, download) event. `project_id = ''` marks org-level events;
+// empty strings replace nulls so the row matches the ClickHouse defaults.
+const auditLogEventKindSchema = z.enum(["change", "access"]);
+export type AuditLogEventKind = z.infer<typeof auditLogEventKindSchema>;
+const auditLogActorTypeSchema = z.enum(["USER", "API_KEY"]);
+export type AuditLogActorType = z.infer<typeof auditLogActorTypeSchema>;
+
+const auditLogRecordBaseSchema = z.object({
+  id: z.string(),
+  org_id: z.string(),
+  project_id: z.string(),
+  event_kind: auditLogEventKindSchema,
+  actor_type: auditLogActorTypeSchema,
+  user_id: z.string(),
+  api_key_id: z.string(),
+  user_org_role: z.string(),
+  user_project_role: z.string(),
+  resource_type: z.string(),
+  resource_id: z.string(),
+  action: z.string(),
+  surface: z.string(),
+  route: z.string(),
+  params: z.string(),
+  result_count: z.number().int().nonnegative(),
+  before: z.string(),
+  after: z.string(),
+});
+export const auditLogRecordInsertSchema = auditLogRecordBaseSchema.extend({
+  timestamp: z.string(),
+});
+export type AuditLogRecordInsertType = z.infer<
+  typeof auditLogRecordInsertSchema
+>;
