@@ -160,7 +160,10 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        signIn(providerId);
+        signIn(
+          providerId,
+          targetPath ? { callbackUrl: targetPath } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -306,6 +309,7 @@ function StandardSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -320,6 +324,10 @@ function VerifiedSignupFlow({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
 
   const [formError, setFormError] = useState<string | null>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
@@ -441,6 +449,7 @@ function VerifiedSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
