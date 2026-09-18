@@ -41,6 +41,7 @@ import {
   SecondaryOtelIngestionQueue,
   TraceUpsertQueue,
   CloudFreeTierUsageThresholdQueue,
+  CloudSpendAlertQueue,
   CloudUsageMeteringQueue,
   V4LegacyApiUsageQueue,
   EventPropagationQueue,
@@ -481,6 +482,12 @@ if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
   (env.STRIPE_SECRET_KEY || isChbConfigured())
 ) {
+  // Instantiate the queue to trigger scheduled jobs — this is what installs
+  // the hourly CHB fan-out. Without it the schedule only ever appeared as a
+  // side effect of the Stripe metering job touching the same queue, so a
+  // CHB-only deployment produced no fan-out at all.
+  CloudSpendAlertQueue.getInstance();
+
   WorkerManager.register(
     QueueName.CloudSpendAlertQueue,
     cloudSpendAlertQueueProcessor,
