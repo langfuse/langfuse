@@ -75,9 +75,10 @@ const boundText = (text: string, limit: number): string => {
   );
 };
 
+// Excluding colons keeps malformed data: prefixes from rescanning the same suffix.
 const redactInlineMedia = (text: string): string =>
   text.replace(
-    /data:[^;,\s]+;base64,[A-Za-z0-9+/=_-]+/g,
+    /data:[^:;,\s]+;base64,[A-Za-z0-9+/=_-]+/g,
     "[media payload omitted]",
   );
 

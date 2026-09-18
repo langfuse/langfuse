@@ -131,7 +131,12 @@ describe("Topics trace input", () => {
           {
             role: "user",
             content: [
-              { type: "text", text: "x".repeat(20_000) },
+              {
+                type: "text",
+                text:
+                  "data:data:image/svg+xml;base64,INLINE_PAYLOAD followed by " +
+                  "x".repeat(20_000),
+              },
               {
                 type: "image_url",
                 image_url: { url: "data:image/png;base64,SECRET_IMAGE" },
@@ -144,6 +149,8 @@ describe("Topics trace input", () => {
     ]);
     const input = serializeTraceTranscript(prepared);
     expect(input.text).not.toContain("SECRET_IMAGE");
+    expect(input.text).not.toContain("INLINE_PAYLOAD");
+    expect(input.text).toContain("data:[media payload omitted] followed by");
     expect(input.coverage.truncatedBlockCount).toBeGreaterThan(0);
     expect(input.coverage.mediaPartCount).toBe(1);
     expect(input.hasContent).toBe(true);
