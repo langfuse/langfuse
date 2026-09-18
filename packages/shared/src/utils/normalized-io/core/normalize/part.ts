@@ -42,7 +42,7 @@ const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
 
 function createPartContext(parserContext?: ParserContext): PartHandlerContext {
   return {
-    normalizePart: (value) => normalizePart(value, parserContext),
+    normalizeParts: (value) => normalizeParts(value, parserContext),
     normalizePartList: (values) => normalizePartList(values, parserContext),
   };
 }
@@ -59,56 +59,60 @@ export function normalizePartList(
       continue;
     }
 
-    const part = normalizePart(value, parserContext);
-    if (!part) continue;
-
-    // Text parts frequently embed media reference tokens mid-string; split
-    // them out. Refusals and annotated text stay intact.
-    if (part.type === "text" && !part.providerMetadata && !part.refusal) {
-      parts.push(...normalizeMediaPartsFromString(part.text));
-      continue;
+    for (const part of normalizeParts(value, parserContext)) {
+      // Text parts frequently embed media reference tokens mid-string; split
+      // them out. Refusals and annotated text stay intact.
+      if (part.type === "text" && !part.providerMetadata && !part.refusal) {
+        parts.push(...normalizeMediaPartsFromString(part.text));
+        continue;
+      }
+      parts.push(part);
     }
-    parts.push(part);
   }
   return parts;
+}
+
+function asParts(
+  value: NormalizedMessagePart | NormalizedMessagePart[] | null,
+): NormalizedMessagePart[] {
+  return value === null ? [] : Array.isArray(value) ? value : [value];
 }
 
 function normalizePartBase(
   value: unknown,
   parserContext?: ParserContext,
-): NormalizedMessagePart | null {
+): NormalizedMessagePart[] {
   if (typeof value === "string") {
     const mediaReference = parseMediaReference(value);
-    if (mediaReference) return filePartFromMediaReference(mediaReference);
-    return { type: "text", text: value };
+    if (mediaReference) return [filePartFromMediaReference(mediaReference)];
+    return [{ type: "text", text: value }];
   }
-  if (!isRecord(value)) return null;
+  if (!isRecord(value)) return [];
 
   const partContext = createPartContext(parserContext);
   const providers = providersInOrder(parserContext?.preferredProvider);
 
   const type = typeof value.type === "string" ? value.type : undefined;
   if (type) {
-    const sharedHandler = ownLookup(SHARED_TYPED_PART_HANDLERS, type);
-    if (sharedHandler) {
-      const result = sharedHandler(value, partContext);
-      if (result.matched) return result.value;
-    }
-
     for (const provider of providers) {
       const handler = ownLookup(provider.typedParts, type);
       if (!handler) continue;
       const result = handler(value, partContext);
-      if (result.matched) return result.value;
+      if (result.matched) return asParts(result.value);
+    }
+    const sharedHandler = ownLookup(SHARED_TYPED_PART_HANDLERS, type);
+    if (sharedHandler) {
+      const result = sharedHandler(value, partContext);
+      if (result.matched) return asParts(result.value);
     }
   } else {
     for (const provider of providers) {
       const result = provider.tryNormalizeUntypedPart?.(value, partContext);
-      if (result?.matched) return result.value;
+      if (result?.matched) return asParts(result.value);
     }
   }
 
-  return normalizeFallbackPart(value);
+  return asParts(normalizeFallbackPart(value));
 }
 
 const COMMON_CONSUMED_PART_KEYS = [
@@ -254,13 +258,21 @@ function withProviderMetadata<T extends NormalizedMessagePart>(
   return providerMetadata ? ({ ...part, providerMetadata } as T) : part;
 }
 
-export function normalizePart(
+export function normalizeParts(
   value: unknown,
   parserContext?: ParserContext,
-): NormalizedMessagePart | null {
-  const part = normalizePartBase(value, parserContext);
-  if (!part) return null;
+): NormalizedMessagePart[] {
   const record = asRecord(value);
+  return normalizePartBase(value, parserContext).map((entry) =>
+    finalizePart(entry, value, record),
+  );
+}
+
+function finalizePart(
+  part: NormalizedMessagePart,
+  value: unknown,
+  record: Record<string, unknown> | undefined,
+): NormalizedMessagePart {
   const normalized = record ? withProviderMetadata(part, record) : part;
 
   if (normalized.type === "tool-call") {
