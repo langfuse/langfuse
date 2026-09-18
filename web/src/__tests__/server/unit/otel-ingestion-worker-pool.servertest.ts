@@ -214,6 +214,9 @@ describe("OTel ingestion worker request context", () => {
   it("returns empty before admission for a closed request or response", async () => {
     const closePair = [
       async (pair: ReturnType<typeof createHttpPair>) => {
+        Object.defineProperty(pair.req, "readable", { value: false });
+      },
+      async (pair: ReturnType<typeof createHttpPair>) => {
         const closed = once(pair.req, "close");
         pair.req.destroy();
         await closed;

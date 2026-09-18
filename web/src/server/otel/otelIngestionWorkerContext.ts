@@ -19,7 +19,7 @@ const OTEL_REQUEST_BODY_READ_TIMEOUT_MS = 300_000;
 let workerCompletionLogged = false;
 
 function isRequestClosed(req: IncomingMessage): boolean {
-  return req.destroyed || req.readableAborted;
+  return req.destroyed || req.readableAborted || !req.readable;
 }
 
 function isResponseClosed(res: NextApiResponse): boolean {
