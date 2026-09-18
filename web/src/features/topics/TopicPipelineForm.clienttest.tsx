@@ -182,7 +182,7 @@ describe("Topics pipeline selection handoff", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     // Reusing filters selects stable facets; runtime settings do not detach the rule.
-    fireEvent.keyDown(screen.getByLabelText("Topic rule"), {
+    fireEvent.keyDown(screen.getByLabelText("Saved configuration"), {
       key: "ArrowDown",
     });
     fireEvent.keyDown(await screen.findByRole("option", { name: rule.name }), {
@@ -238,11 +238,11 @@ describe("Topics pipeline selection handoff", () => {
       ...selection.criteria,
       facetIds: ["intent"],
     });
-    fireEvent.keyDown(screen.getByLabelText("Topic rule"), {
+    fireEvent.keyDown(screen.getByLabelText("Saved configuration"), {
       key: "ArrowDown",
     });
     fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Ad hoc selection" }),
+      await screen.findByRole("option", { name: "Custom configuration" }),
       { key: "Enter" },
     );
     expect(selection.initialCriteria).toBeUndefined();

@@ -372,7 +372,7 @@ export function TopicPipelineForm({
                   <label className="flex flex-col gap-1 text-sm">
                     Rule name
                     <Input
-                      aria-label="Topic rule name"
+                      aria-label="Saved configuration name"
                       className="w-64"
                       placeholder="Save these filters and facets"
                       value={ruleName}
@@ -578,7 +578,7 @@ export function TopicPipelineForm({
       </div>
       {operation !== "recluster" && (
         <label className="flex flex-col gap-1 text-sm">
-          Topic rule
+          Saved configuration
           <Select
             value={selectedRule?.id ?? "adhoc"}
             disabled={rules.isLoading || saveRule.isPending}
@@ -613,11 +613,11 @@ export function TopicPipelineForm({
               saveRule.reset();
             }}
           >
-            <SelectTrigger className="w-64" aria-label="Topic rule">
+            <SelectTrigger className="w-64" aria-label="Saved configuration">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="ph-no-capture">
-              <SelectItem value="adhoc">Ad hoc selection</SelectItem>
+              <SelectItem value="adhoc">Custom configuration</SelectItem>
               {rules.data?.map((rule) => (
                 <SelectItem key={rule.id} value={rule.id}>
                   {rule.name}
@@ -627,7 +627,7 @@ export function TopicPipelineForm({
           </Select>
           {rules.error && (
             <span role="alert" className="text-destructive text-sm">
-              Could not load saved rules. Ad hoc selection is still available.
+              Could not load saved rules. Custom configuration is still available.
             </span>
           )}
         </label>
