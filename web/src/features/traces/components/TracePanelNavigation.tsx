@@ -2,7 +2,7 @@
  * TracePanelNavigation - Pure content component for navigation panel
  *
  * Responsibility:
- * - Decide which navigation view to show (Tree/Timeline/Search)
+ * - Decide which navigation view to show (Tree/Timeline/Graph/Messages/Search)
  * - The Timeline is either the classic gantt or the Compact Timeline, depending
  *   on that feature preview
  * - NO layout structure - just returns the content component
@@ -24,6 +24,8 @@ import { TraceTree } from "./TraceTree";
 import { TraceSearchList } from "./TraceSearchList";
 import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { TraceGraphView } from "./TraceGraphView/TraceGraphView";
+import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useMemo } from "react";
 
 export function TracePanelNavigation() {
@@ -31,9 +33,12 @@ export function TracePanelNavigation() {
   const { isGraphViewAvailable, isLoading: isGraphLoading } =
     useTraceGraphData();
   const [viewMode] = useQueryParam("view", StringParam);
+  const messagesEnabled = useIsFeatureEnabled("traceMessages");
 
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";
+  // Internal preview; a stale ?view=messages falls back to tree for others.
+  const isMessagesView = viewMode === "messages" && messagesEnabled;
   // Availability is false while the graph query loads, so hold the view until it
   // resolves. Stale ?view=graph then falls back to tree.
   const isGraphView =
@@ -49,6 +54,9 @@ export function TracePanelNavigation() {
     //
     // The Tree still hands a query to the flat list; highlighting it is its own
     // change.
+    if (isMessagesView) {
+      return <TraceMessagesView />;
+    }
     if (isGraphView) {
       return <TraceGraphView />;
     }
@@ -59,7 +67,7 @@ export function TracePanelNavigation() {
       return <TraceSearchList />;
     }
     return <TraceTree />;
-  }, [hasQuery, isGraphView, isTimelineView]);
+  }, [hasQuery, isGraphView, isMessagesView, isTimelineView]);
 
   return content;
 }
