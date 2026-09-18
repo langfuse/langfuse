@@ -12,11 +12,26 @@ import type {
 
 const MAX_WORKER_QUEUE_DEPTH = 2;
 
-let workerPool:
-  | Piscina<OtelIngestionWorkerRequest, OtelIngestionWorkerResult>
-  | undefined;
-let workerPreloadPromise: Promise<void> | undefined;
-const workerQueue = new PQueue({ concurrency: 1 });
+type OtelIngestionWorkerRuntime = {
+  pool?: Piscina<OtelIngestionWorkerRequest, OtelIngestionWorkerResult>;
+  preloadPromise?: Promise<void>;
+  queue: PQueue;
+};
+
+// Next emits instrumentation and API routes as separate server bundles. Keep
+// their worker pool and admission queue shared within the Node process.
+const workerRuntimeKey = Symbol.for("langfuse.otelIngestionWorker.runtime");
+const workerRuntimeGlobal = globalThis as typeof globalThis &
+  Record<symbol, OtelIngestionWorkerRuntime | undefined>;
+
+function getWorkerRuntime(): OtelIngestionWorkerRuntime {
+  let runtime = workerRuntimeGlobal[workerRuntimeKey];
+  if (!runtime) {
+    runtime = { queue: new PQueue({ concurrency: 1 }) };
+    workerRuntimeGlobal[workerRuntimeKey] = runtime;
+  }
+  return runtime;
+}
 
 function getWorkerFilename(): string {
   const distDir = process.env.NEXT_DIST_DIR || ".next";
@@ -54,20 +69,21 @@ function getWorkerPool(): Piscina<
   OtelIngestionWorkerRequest,
   OtelIngestionWorkerResult
 > {
-  if (!workerPool) {
-    workerPool = new Piscina({
+  const runtime = getWorkerRuntime();
+  if (!runtime.pool) {
+    runtime.pool = new Piscina({
       filename: getWorkerFilename(),
       minThreads: 1,
       maxThreads: 1,
       maxQueue: 0,
       atomics: "disabled",
     });
-    workerPool.on("error", (error) => {
+    runtime.pool.on("error", (error) => {
       logger.error("OTel ingestion worker pool error", error);
     });
   }
 
-  return workerPool;
+  return runtime.pool;
 }
 
 export function dispatchOtelIngestionWorkerTask(
@@ -87,11 +103,12 @@ export function tryScheduleOtelIngestionWorkerLifecycle(
   task: (signal?: AbortSignal) => Promise<void>,
   signal?: AbortSignal,
 ): Promise<void> | undefined {
-  if (workerQueue.pending + workerQueue.size >= MAX_WORKER_QUEUE_DEPTH) {
+  const { queue } = getWorkerRuntime();
+  if (queue.pending + queue.size >= MAX_WORKER_QUEUE_DEPTH) {
     return undefined;
   }
 
-  return workerQueue.add(
+  return queue.add(
     async ({ signal: queueSignal }) => task(queueSignal),
     signal ? { signal } : undefined,
   );
@@ -107,8 +124,9 @@ async function runWorkerPreload(): Promise<void> {
 }
 
 export function preloadOtelIngestionWorker(): Promise<void> {
-  if (!workerPreloadPromise) {
-    workerPreloadPromise = runWorkerPreload();
+  const runtime = getWorkerRuntime();
+  if (!runtime.preloadPromise) {
+    runtime.preloadPromise = runWorkerPreload();
   }
-  return workerPreloadPromise;
+  return runtime.preloadPromise;
 }

@@ -421,3 +421,36 @@ describe("OTel ingestion worker result", () => {
     }
   });
 });
+
+describe("OTel ingestion worker preload", () => {
+  it("reuses the preloaded pool across server bundle instances", async () => {
+    vi.resetModules();
+    const run = vi.fn().mockResolvedValue({ kind: "warmup" });
+    const PiscinaMock = vi.fn().mockImplementation(function () {
+      return { on: vi.fn(), run };
+    });
+    vi.doMock("node:fs", () => ({ existsSync: () => true }));
+    vi.doMock("piscina", () => ({ default: PiscinaMock }));
+
+    try {
+      const instrumentationBundle =
+        await import("@/src/server/otel/otelIngestionWorkerPool");
+      await instrumentationBundle.preloadOtelIngestionWorker();
+
+      vi.resetModules();
+      const routeBundle =
+        await import("@/src/server/otel/otelIngestionWorkerPool");
+      await routeBundle.dispatchOtelIngestionWorkerTask({ type: "warmup" });
+
+      expect(PiscinaMock).toHaveBeenCalledOnce();
+      expect(run).toHaveBeenCalledTimes(2);
+    } finally {
+      delete (globalThis as typeof globalThis & Record<symbol, unknown>)[
+        Symbol.for("langfuse.otelIngestionWorker.runtime")
+      ];
+      vi.doUnmock("node:fs");
+      vi.doUnmock("piscina");
+      vi.resetModules();
+    }
+  });
+});
