@@ -277,25 +277,39 @@ describe("redisQueueRetryOptions", () => {
       vi.restoreAllMocks();
     });
 
-    it("keeps early retries at least 1s apart", () => {
-      vi.spyOn(Math, "random").mockReturnValue(0.5);
-      const delay = retryStrategy(1);
-      expect(delay).toBeGreaterThanOrEqual(1000);
-      expect(delay).toBeLessThan(1501);
+    it("stays within 1s–20s for every attempt count", () => {
+      for (const random of [0, 0.5, 1]) {
+        vi.spyOn(Math, "random").mockReturnValue(random);
+        // 5000 is past the point where Math.exp overflows to Infinity, which
+        // must still clamp to the cap rather than return a non-number.
+        for (const times of [1, 5, 8, 10, 50, 5000]) {
+          const delay = retryStrategy(times);
+          expect(delay).toBeGreaterThanOrEqual(1000);
+          expect(delay).toBeLessThanOrEqual(20000);
+        }
+      }
     });
 
-    it("caps the base delay at 20s before jitter", () => {
-      vi.spyOn(Math, "random").mockReturnValue(0);
+    it("holds early attempts near the floor so a brief restart recovers quickly", () => {
+      vi.spyOn(Math, "random").mockReturnValue(1);
+      expect(retryStrategy(1)).toBe(2000);
+      expect(retryStrategy(7)).toBe(2000);
+    });
+
+    it("reaches the 20s cap for a sustained outage", () => {
+      vi.spyOn(Math, "random").mockReturnValue(1);
       expect(retryStrategy(50)).toBe(20000);
+      vi.spyOn(Math, "random").mockReturnValue(0);
+      expect(retryStrategy(50)).toBe(10000);
     });
 
     it("applies jitter so concurrent connections do not retry in lockstep", () => {
       vi.spyOn(Math, "random").mockReturnValue(0);
-      const base = retryStrategy(8);
+      const low = retryStrategy(8);
       vi.spyOn(Math, "random").mockReturnValue(1);
-      const jittered = retryStrategy(8);
-      expect(jittered).toBeGreaterThan(base);
-      expect(jittered).toBeLessThanOrEqual(base * 1.5);
+      const high = retryStrategy(8);
+      expect(low).toBeLessThan(high);
+      expect(high).toBeLessThanOrEqual(low * 2 + 1);
     });
   });
 
