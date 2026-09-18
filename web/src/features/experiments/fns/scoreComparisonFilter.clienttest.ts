@@ -84,6 +84,31 @@ describe("matchesScoreComparisonFilter", () => {
       }),
     ).toBe(false);
   });
+
+  it("detects categorical values that collide when joined", () => {
+    expect(
+      matchesScoreComparisonFilter({
+        operator: "differs",
+        dataType: "CATEGORICAL",
+        baseline: {
+          type: "CATEGORICAL",
+          values: ["a|b", "c"],
+          valueCounts: [
+            { value: "a|b", count: 1 },
+            { value: "c", count: 1 },
+          ],
+        },
+        comparison: {
+          type: "CATEGORICAL",
+          values: ["a", "b|c"],
+          valueCounts: [
+            { value: "a", count: 1 },
+            { value: "b|c", count: 1 },
+          ],
+        },
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("score comparison filter URL state", () => {
