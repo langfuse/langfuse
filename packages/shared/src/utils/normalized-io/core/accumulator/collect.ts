@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
 import { asRecord, parseIfString, parseRecord } from "../utils/json";
@@ -121,6 +122,19 @@ function collectMessageSequence(
   };
 
   for (const value of values) {
+    // Some providers return a list of messages, rather than a single message.
+    if (Array.isArray(value)) {
+      flushStandaloneToolCalls();
+      collectMessageSequence(
+        value,
+        fallbackRole,
+        parserContext,
+        messages,
+        accumulator,
+      );
+      continue;
+    }
+
     const record = asRecord(value);
     if (record) collectToolDefinitionsFromRecord(record, accumulator);
 

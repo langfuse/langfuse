@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
 import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -9,28 +11,30 @@ import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
 import { useEffect, useMemo, useState } from "react";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   TableViewPresetTableName,
   type Prisma,
-  type TableViewPresetState,
   ActionId,
   BatchActionType,
   BatchExportTableName,
 } from "@langfuse/shared";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   createDatasetsTableStore,
   toFolderRowId,
@@ -41,7 +45,7 @@ import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { Pen, Trash } from "lucide-react";
 
 type DatasetTableRow = {
@@ -62,12 +66,16 @@ type DatasetTableRow = {
   expectedOutputSchema?: Prisma.JsonValue | null;
 };
 
-type DatasetTableViewControllers = {
-  applyViewState: (viewData: TableViewPresetState) => void;
-  selectedViewId: string | null;
-  appliedViewId: string | null;
-  handleSetViewId: (viewId: string | null) => void;
-};
+type DatasetTableViewControllers = Pick<
+  ReturnType<typeof useTableViewManager>,
+  | "applyViewState"
+  | "selectedViewId"
+  | "appliedViewId"
+  | "handleSetViewId"
+  | "handleUserStateChange"
+  | "viewUpdateTarget"
+  | "filterEditorResetKey"
+>;
 
 function createRow(
   data: Partial<DatasetTableRow> & {
@@ -196,7 +204,7 @@ function DatasetsTableToolbar({
     typeof useColumnVisibility<DatasetTableRow>
   >[1];
   setRowHeight: ReturnType<typeof useRowHeightLocalStorage>[1];
-  setSearchQuery: (value: string | null | undefined) => void;
+  setSearchQuery: (query: string | null) => void;
   store: DatasetsTableStore;
   totalCount: number | null;
   viewControllers: DatasetTableViewControllers;
@@ -225,6 +233,8 @@ function DatasetsTableToolbar({
         setSearchType: undefined,
         searchType: undefined,
       }}
+      currentSearchQuery={searchQuery ?? ""}
+      isV4={false}
       viewConfig={{
         tableName: TableViewPresetTableName.Datasets,
         projectId,
@@ -348,20 +358,20 @@ export function DatasetsTable(props: { projectId: string }) {
       enableHiding: true,
       size: 200,
     }),
-    {
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countItems",
       header: "Items",
-      id: "countItems",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countRuns",
       header: "Experiments",
-      id: "countRuns",
       enableHiding: true,
       size: 60,
-    },
+      formatter: (value) => String(value),
+    }),
     createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",
@@ -574,6 +584,21 @@ export function DatasetsTable(props: { projectId: string }) {
     searchQuery,
   });
 
+  const handleSearchQueryChange = (query: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", query ?? "");
+    setSearchQuery(query);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (next) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibility(value);
+  };
+
   return (
     <>
       {currentFolderPath && (
@@ -583,18 +608,19 @@ export function DatasetsTable(props: { projectId: string }) {
         />
       )}
       <DatasetsTableToolbar
+        key={`${props.projectId}:${viewControllers.filterEditorResetKey}`}
         columns={columns}
         columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
+        setColumnVisibility={handleColumnVisibilityChange}
         columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
+        setColumnOrder={handleColumnOrderChange}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         currentFolderPath={currentFolderPath}
         paginationState={paginationState}
         projectId={props.projectId}
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        setSearchQuery={handleSearchQueryChange}
         store={datasetsTableStore}
         totalCount={datasets.data?.totalDatasets ?? null}
         viewControllers={viewControllers}
@@ -625,9 +651,9 @@ export function DatasetsTable(props: { projectId: string }) {
           state: paginationState,
         }}
         columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={handleColumnVisibilityChange}
         columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
         rowHeight={rowHeight}
       />
     </>

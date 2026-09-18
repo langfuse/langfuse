@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -8,7 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { ActionButton } from "@/src/components/ActionButton";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -18,9 +22,9 @@ import type { RouterOutput } from "@/src/utils/types";
 import { Role } from "@langfuse/shared";
 import { PlusIcon, Trash } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import {
@@ -30,7 +34,7 @@ import {
   HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { useQueryParam, withDefault, StringParam } from "use-query-params";
@@ -38,6 +42,7 @@ import { useEffect } from "react";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
 import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { env } from "@/src/env.mjs";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 
@@ -171,23 +176,16 @@ export function MembersTable({
         );
       },
     },
-    {
+    createTextTableColumn<MembersTableRow>({
       accessorKey: "email",
-      id: "email",
       header: "Email",
-    },
-    {
+    }),
+    createTextTableColumn<MembersTableRow, string[]>({
       accessorKey: "providers",
-      id: "providers",
       header: "SSO Provider",
       enableHiding: true,
-      cell: ({ row }) => {
-        const providers = row.getValue("providers") as string[];
-        if (providers.length === 0) return "-";
-
-        return providers.join(", ");
-      },
-    },
+      mapValue: (providers) => (providers?.length ? providers.join(", ") : "-"),
+    }),
     {
       accessorKey: "orgRole",
       id: "orgRole",
@@ -324,17 +322,12 @@ export function MembersTable({
           },
         ] satisfies LangfuseColumnDef<MembersTableRow>[])
       : []),
-    {
+    createDateTableColumn<MembersTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Member Since",
       enableHiding: true,
       defaultHidden: true,
-      cell: ({ row }) => {
-        const value = row.getValue("createdAt") as MembersTableRow["createdAt"];
-        return value ? new Date(value).toLocaleString() : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "meta",
       id: "meta",
@@ -412,10 +405,10 @@ export function MembersTable({
   if (project ? !hasProjectViewAccess : !hasOrgViewAccess) {
     return (
       <Alert>
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>
+        <Alert.Title>Access Denied</Alert.Title>
+        <Alert.Description>
           You do not have permission to view members of this organization.
-        </AlertDescription>
+        </Alert.Description>
       </Alert>
     );
   }
@@ -423,6 +416,7 @@ export function MembersTable({
   return (
     <>
       <DataTableToolbar
+        tableName="members"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -435,21 +429,20 @@ export function MembersTable({
               hasOnlySingleProjectAccess,
               isSubmitting,
               usageLimit,
-              Trigger,
+              openDialog,
             }) => (
-              <Trigger asChild>
-                <ActionButton
-                  variant="secondary"
-                  loading={isSubmitting}
-                  hasAccess={hasAccess}
-                  usageLimit={usageLimit}
-                  icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
-                >
-                  {hasOnlySingleProjectAccess
-                    ? "Add project member"
-                    : "Add new member"}
-                </ActionButton>
-              </Trigger>
+              <ActionButton
+                variant="secondary"
+                loading={isSubmitting}
+                hasAccess={hasAccess}
+                usageLimit={usageLimit}
+                icon={<PlusIcon className="h-5 w-5" aria-hidden="true" />}
+                onClick={openDialog}
+              >
+                {hasOnlySingleProjectAccess
+                  ? "Add project member"
+                  : "Add new member"}
+              </ActionButton>
             )}
           </CreateProjectMemberDialogController>
         }

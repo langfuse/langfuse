@@ -9,13 +9,13 @@ import {
 
 type UseDashboardFilterOptionsParams = {
   projectId: string;
-  isBetaEnabled: boolean;
+  isV4: boolean;
   timeRange: TimeRange;
 };
 
 export function useDashboardFilterOptions({
   projectId,
-  isBetaEnabled,
+  isV4,
   timeRange,
 }: UseDashboardFilterOptionsParams) {
   const commonQueryOptions = {
@@ -86,28 +86,24 @@ export function useDashboardFilterOptions({
   // a "Bad Request" toast.
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     { projectId, timestampFilter: traceTimestampFilter },
-    { ...commonQueryOptions, enabled: Boolean(projectId) && !isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && !isV4 },
   );
 
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     { projectId, startTimeFilter },
-    { ...commonQueryOptions, enabled: Boolean(projectId) && isBetaEnabled },
+    { ...commonQueryOptions, enabled: Boolean(projectId) && isV4 },
   );
 
   const nameOptions = useMemo(
     () =>
-      isBetaEnabled
+      isV4
         ? normalizeSingleValueOptions(eventsFilterOptions.data?.traceName)
         : normalizeSingleValueOptions(traceFilterOptions.data?.name),
-    [
-      isBetaEnabled,
-      eventsFilterOptions.data?.traceName,
-      traceFilterOptions.data?.name,
-    ],
+    [isV4, eventsFilterOptions.data?.traceName, traceFilterOptions.data?.name],
   );
 
   const tagsOptions = sortOptionValues(
-    isBetaEnabled
+    isV4
       ? (eventsFilterOptions.data?.traceTags ?? [])
       : (traceFilterOptions.data?.tags ?? []),
   );

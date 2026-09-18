@@ -4,7 +4,7 @@ import { listCommentsForApi } from "@/src/features/comments/server/publicComment
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,
-} from "@/src/features/public-api/types/comments";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildCommentObjectUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -22,6 +22,7 @@ export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
     "List comments in the current Langfuse project, optionally filtered by object or author.",
+  action: "comments:read",
   baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>

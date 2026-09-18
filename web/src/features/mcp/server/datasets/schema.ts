@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicApiIdSchema } from "@/src/features/public-api/types/datasets";
+import { publicApiIdSchema } from "@/src/features/public-api/server";
 
 const paginationSchema = {
   page: z.number().int().positive().default(1),
@@ -59,15 +59,26 @@ export const GetDatasetItemsMcpInput = GetDatasetItemsMcpRuntimeInput.refine(
   },
 );
 
-export const PostDatasetItemMcpInput = z.object({
-  datasetId: z.string(),
+const DatasetItemMcpInput = z.object({
   input: z.any().optional(),
-  expectedOutput: z.any().optional(),
+  expectedOutput: z
+    .any()
+    .optional()
+    .describe("Omit to keep the existing value. Set to null to clear it."),
   metadata: z.any().optional(),
   id: publicApiIdSchema.optional(),
   sourceTraceId: z.string().optional(),
   sourceObservationId: z.string().optional(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).optional(),
+});
+
+export const PostDatasetItemMcpInput = DatasetItemMcpInput.extend({
+  datasetId: z.string(),
+});
+
+export const BatchUpsertDatasetItemsMcpInput = z.object({
+  datasetId: z.string(),
+  items: z.array(DatasetItemMcpInput).min(1).max(100),
 });
 
 export const GetDatasetItemsMcpBaseSchema = GetDatasetItemsMcpBaseInput;

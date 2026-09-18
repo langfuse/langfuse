@@ -26,8 +26,8 @@
     ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
-    "Courier New", monospace;
+    var(--font-plex-mono, "IBM Plex Mono"), ui-monospace, SFMono-Regular, Menlo,
+    Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Weight ROLES — exactly TWO weights exist in this app: regular and bold.
      Both are font-relative, so components never hardcode numbers.
@@ -69,12 +69,25 @@
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
   --color-foreground-tertiary: hsl(var(--foreground-tertiary));
+  --color-foreground-secondary: hsl(var(--foreground-secondary));
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-muted-magenta: hsl(var(--muted-magenta));
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
+
+  --color-observation-trace: var(--observation-trace);
+  --color-observation-span: var(--observation-span);
+  --color-observation-generation: var(--observation-generation);
+  --color-observation-event: var(--observation-event);
+  --color-observation-agent: var(--observation-agent);
+  --color-observation-evaluator: var(--observation-evaluator);
+  --color-observation-tool: var(--observation-tool);
+  --color-observation-chain: var(--observation-chain);
+  --color-observation-retriever: var(--observation-retriever);
+  --color-observation-embedding: var(--observation-embedding);
+  --color-observation-guardrail: var(--observation-guardrail);
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
   /* These six status tokens hold complete oklch colors (tints carry baked
@@ -100,6 +113,11 @@
   --color-qlang-value: hsl(var(--qlang-value));
   --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
+
+  --color-json-value-string: var(--json-value-string);
+  --color-json-value-number: var(--json-value-number);
+  --color-json-value-boolean: var(--json-value-boolean);
+  --color-json-value-nullish: var(--json-value-nullish);
 
   --color-border: hsl(var(--border));
   --color-border-contrast: hsl(var(--border-contrast));
@@ -154,7 +172,7 @@
      text opts in via `font-bold` (the bold role) — never a raw number.
      Any other weight utility is drift (the theme-lab tool samples drift
      per token). */
-  --text-xs: 0.7rem;
+  --text-xs: 0.725rem;
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.825rem;
   --text-sm--font-weight: var(--font-weight-regular);
@@ -267,10 +285,13 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 217 33% 17%;
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    /* Text between body and muted: slate-700. Content that is not a heading
+       and not a label, e.g. JSON values. */
+    --foreground-secondary: 215 25% 27%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
@@ -348,7 +369,20 @@
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
 
-    --accent-light-green: 138 76.5% 96.7%;
+    /* Observation type hues: one lightness and chroma so no type outweighs another */
+    --observation-trace: oklch(68% 0.18 163);
+    --observation-span: oklch(68% 0.18 265);
+    --observation-generation: oklch(68% 0.18 335);
+    --observation-event: oklch(68% 0.18 115);
+    --observation-agent: oklch(68% 0.18 310);
+    --observation-evaluator: oklch(68% 0.18 285);
+    --observation-tool: oklch(68% 0.18 55);
+    --observation-chain: oklch(68% 0.18 0);
+    --observation-retriever: oklch(68% 0.18 145);
+    --observation-embedding: oklch(68% 0.18 85);
+    --observation-guardrail: oklch(68% 0.18 25);
+
+    --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
 
     /* Status pairs: light-* tinted fills (alpha baked in), dark-* the
@@ -388,6 +422,11 @@
     --qlang-value: 152 60% 30%;
     --qlang-number: 24 75% 42%;
     --qlang-keyword: 221 83% 53%;
+
+    --json-value-string: var(--color-green-800);
+    --json-value-number: var(--color-blue-800);
+    --json-value-boolean: var(--color-orange-800);
+    --json-value-nullish: var(--color-gray-500);
 
     --radius: 0.5rem;
     --sidebar-background: 0 0% 100%;
@@ -459,6 +498,7 @@
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
+    --foreground-secondary: 0 0% 62%;
     --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
@@ -520,6 +560,18 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
+
+    --observation-trace: oklch(75% 0.12 163);
+    --observation-span: oklch(75% 0.12 265);
+    --observation-generation: oklch(75% 0.12 335);
+    --observation-event: oklch(75% 0.12 115);
+    --observation-agent: oklch(75% 0.12 310);
+    --observation-evaluator: oklch(75% 0.12 285);
+    --observation-tool: oklch(75% 0.12 55);
+    --observation-chain: oklch(75% 0.12 0);
+    --observation-retriever: oklch(75% 0.12 145);
+    --observation-embedding: oklch(75% 0.12 85);
+    --observation-guardrail: oklch(75% 0.12 25);
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */
@@ -528,7 +580,10 @@
     /* Status pairs: light-* are dark tinted backgrounds (alpha baked in),
        dark-* the readable text/icon color on them. */
     --light-red: oklch(39.6% 0.141 25.723 / 0.7);
-    --dark-red: oklch(57.7% 0.245 27.325);
+    /* Lightened for dark mode like its green and yellow siblings below — left
+       at the light-mode step it was darker than the fill it sits on (2.74:1;
+       5.35:1 here, against green's 6.49 and yellow's 6.43). */
+    --dark-red: oklch(76.5% 0.177 27.325);
 
     --light-yellow: oklch(55.4% 0.135 66.442 / 0.4);
     --dark-yellow: oklch(79.5% 0.184 86.047);
@@ -560,6 +615,11 @@
     --qlang-value: 158 64% 52%;
     --qlang-number: 27 96% 61%;
     --qlang-keyword: 213 94% 68%;
+
+    --json-value-string: hsl(142 40% 60%);
+    --json-value-number: hsl(213 50% 68%);
+    --json-value-boolean: hsl(27 50% 61%);
+    --json-value-nullish: var(--color-gray-400);
 
     --radius: 0.5rem;
 
@@ -641,16 +701,16 @@
 
   /* The whole app renders inside #__next. Isolating it into its own stacking
      context caps every z-index in the app (page header, modals, popovers, …)
-     so none can escape it. The overlay layer containers (declared in
-     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
-     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     so none can escape it. LayerProvider appends the overlay layer containers
+     as <body> siblings AFTER #__next, so they paint on top purely by
+     DOM order — see context/LayerContext/LayerContext.tsx. This is what lets layers carry no
      z-index of their own; z-index stays a LOCAL tool for ordering within a
      single layer. */
   div#__next {
     isolation: isolate;
   }
 
-  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+  /* Overlay layer roots (see context/LayerContext/LayerContext.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
      they order by DOM order (later = on top). The layer containers are
      `pointer-events: none` so the EMPTY regions around an overlay pass clicks
@@ -723,6 +783,42 @@
     height: 10px !important;
     border-right: 2px solid currentColor !important;
     border-bottom: 2px solid currentColor !important;
+  }
+}
+
+/* A scrollport that says so. Overlay scrollbars — the platform default on
+   macOS, and Chrome's default everywhere — paint nothing until a scroll is
+   already under way, so a region holding more than it shows is
+   indistinguishable from one whose content was truncated: the reader has no
+   reason to try the wheel. This paints a thin scrollbar whenever the content
+   overflows, and still nothing when it fits. `scrollbar-color` also opts
+   Firefox out of overlay scrollbars, which it uses by default too. */
+@utility scrollbar-visible {
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: hsl(var(--muted-foreground) / 0.4);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.6);
+  }
+
+  /* Firefox has no `::-webkit-scrollbar`, so the standard properties are its
+     only way in — and they must NOT reach Chrome, where they take precedence
+     and switch the always-painted scrollbar above back off for an overlay one.
+     Hence the gate rather than declaring both unconditionally. */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.4) transparent;
   }
 }
 

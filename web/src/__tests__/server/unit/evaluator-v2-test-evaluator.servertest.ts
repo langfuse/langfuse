@@ -166,7 +166,12 @@ describe("testEvaluator", () => {
           }),
         ],
         trace: expect.objectContaining({
+          evaluationContext: {
+            evaluatorId: "evaluator-1",
+            evaluatorExecutionIsTest: true,
+          },
           metadata: expect.objectContaining({
+            evaluator_id: "evaluator-1",
             evaluator_test: "true",
             target_trace_id: "trace-1",
             target_observation_id: "observation-1",
@@ -280,7 +285,12 @@ describe("testEvaluator", () => {
           },
           { var: "experimentItemMetadata", value: { source: "test" } },
         ],
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluatorExecutionIsTest: true,
+        },
         metadata: expect.objectContaining({
+          evaluator_id: "evaluator-1",
           evaluator_test: "true",
           target_trace_id: "trace-1",
           target_observation_id: "observation-1",

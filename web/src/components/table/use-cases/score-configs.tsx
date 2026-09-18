@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
@@ -21,6 +22,8 @@ import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -29,15 +32,22 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
-import { ArchiveScoreConfigPopoverController } from "@/src/features/score-configs/components/ArchiveScoreConfigButton";
-import { UpsertScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import {
+  ArchiveScoreConfigDialogController,
+  type ArchiveScoreConfigState,
+} from "@/src/features/score-configs/components/ArchiveScoreConfigDialogController";
+import {
+  CreateScoreConfigDialogController,
+  EditScoreConfigDialogController,
+} from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
+import { type UpdateConfig } from "@/src/features/score-configs/lib/upsertFormTypes";
 
 type ScoreConfigTableRow = {
   id: string;
   name: string;
   dataType: ScoreConfigDataType;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Date;
+  updatedAt: Date;
   range: {
     maxValue?: number | null;
     minValue?: number | null;
@@ -73,6 +83,38 @@ function getConfigRange(
 }
 
 export function ScoreConfigsTable({ projectId }: { projectId: string }) {
+  return (
+    <EditScoreConfigDialogController projectId={projectId}>
+      {(editControl) => (
+        <ArchiveScoreConfigDialogController projectId={projectId}>
+          {(archiveControl) => (
+            <ScoreConfigsTableContent
+              projectId={projectId}
+              editControl={editControl}
+              archiveControl={archiveControl}
+            />
+          )}
+        </ArchiveScoreConfigDialogController>
+      )}
+    </EditScoreConfigDialogController>
+  );
+}
+
+function ScoreConfigsTableContent({
+  projectId,
+  editControl,
+  archiveControl,
+}: {
+  projectId: string;
+  editControl: {
+    disabled: { reason: string } | undefined;
+    openDialog: (config: UpdateConfig) => void;
+  };
+  archiveControl: {
+    disabled: { reason: string } | undefined;
+    openDialog: (config: ArchiveScoreConfigState) => void;
+  };
+}) {
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
     limit: "pageSize",
@@ -105,13 +147,12 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       header: "Name",
       enableHiding: true,
     }),
-    {
+    createTextTableColumn<ScoreConfigTableRow>({
       accessorKey: "dataType",
-      id: "dataType",
       header: "Data Type",
       size: 80,
       enableHiding: true,
-    },
+    }),
     createIOTableColumn<ScoreConfigTableRow, Prisma.JsonValue>({
       id: "range",
       accessorFn: getConfigRange,
@@ -128,31 +169,25 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
       getCell: (value) => value || undefined,
       singleLine: rowHeight === "s",
     }),
-    {
+    createIdTableColumn<ScoreConfigTableRow>({
       accessorKey: "id",
-      id: "id",
       header: "Config ID",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createDateTableColumn<ScoreConfigTableRow>({
       accessorKey: "createdAt",
-      id: "createdAt",
       header: "Created At",
       enableHiding: true,
       defaultHidden: true,
-    },
-    {
+    }),
+    createTextTableColumn<ScoreConfigTableRow, boolean>({
       accessorKey: "isArchived",
-      id: "isArchived",
       header: "Status",
       size: 80,
       enableHiding: true,
-      cell: ({ row }) => {
-        const { isArchived } = row.original;
-        return isArchived ? "Archived" : "Active";
-      },
-    },
+      mapValue: (isArchived) => (isArchived ? "Archived" : "Active"),
+    }),
     {
       accessorKey: "action",
       header: "Action",
@@ -163,64 +198,50 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         const { id: configId, isArchived, name } = row.original;
 
         return (
-          <UpsertScoreConfigDialogController
-            mode="edit"
-            projectId={projectId}
-            defaultValues={{
-              id: configId,
-              name,
-              dataType: row.original.dataType,
-              minValue: row.original.range.minValue ?? undefined,
-              maxValue: row.original.range.maxValue ?? undefined,
-              description: row.original.description ?? undefined,
-              categories: row.original.range.categories?.length
-                ? row.original.range.categories
-                : undefined,
-            }}
-          >
-            {({ disabled: editDisabled, Trigger }) => (
-              <ArchiveScoreConfigPopoverController
-                configId={configId}
-                projectId={projectId}
-                isArchived={isArchived}
-                name={name}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem
+                aria-label="edit"
+                disabled={editControl.disabled !== undefined}
+                title={editControl.disabled?.reason}
+                onSelect={() =>
+                  editControl.openDialog({
+                    id: configId,
+                    name,
+                    dataType: row.original.dataType,
+                    minValue: row.original.range.minValue ?? undefined,
+                    maxValue: row.original.range.maxValue ?? undefined,
+                    description: row.original.description ?? undefined,
+                    categories: row.original.range.categories?.length
+                      ? row.original.range.categories
+                      : undefined,
+                  })
+                }
               >
-                {({ Anchor, disabled, openPopover }) => (
-                  <DropdownMenu>
-                    <Anchor asChild>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                    </Anchor>
-                    <DropdownMenuContent>
-                      <Trigger asChild>
-                        <DropdownMenuItem
-                          aria-label="edit"
-                          disabled={editDisabled !== undefined}
-                          title={editDisabled?.reason}
-                        >
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                      </Trigger>
-                      <DropdownMenuItem
-                        key="archive"
-                        disabled={disabled !== undefined}
-                        title={disabled?.reason}
-                        onClick={(event) => event.stopPropagation()}
-                        onSelect={openPopover}
-                      >
-                        <Archive className="mr-2 h-4 w-4" />
-                        Archive
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </ArchiveScoreConfigPopoverController>
-            )}
-          </UpsertScoreConfigDialogController>
+                <Edit className="mr-2 h-4 w-4" />
+                Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={archiveControl.disabled !== undefined}
+                title={archiveControl.disabled?.reason}
+                onSelect={() =>
+                  archiveControl.openDialog({
+                    id: configId,
+                    isArchived,
+                    name,
+                  })
+                }
+              >
+                <Archive className="mr-2 h-4 w-4" />
+                {isArchived ? "Restore" : "Archive"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
@@ -240,6 +261,7 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
   return (
     <>
       <DataTableToolbar
+        tableName="score-configs"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
@@ -248,28 +270,23 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={
-          <UpsertScoreConfigDialogController
-            key="new-config-dialog"
-            mode="create"
-            projectId={projectId}
-          >
-            {({ disabled, isSubmitting, Trigger }) => (
-              <Trigger asChild>
-                <Button
-                  variant="secondary"
-                  disabled={disabled !== undefined}
-                  loading={isSubmitting}
-                  title={disabled?.reason}
-                >
-                  <PlusIcon
-                    className="mr-1.5 -ml-0.5 h-4 w-4"
-                    aria-hidden="true"
-                  />
-                  Add new score config
-                </Button>
-              </Trigger>
+          <CreateScoreConfigDialogController projectId={projectId}>
+            {({ disabled, isSubmitting, openDialog }) => (
+              <Button
+                variant="secondary"
+                disabled={disabled !== undefined}
+                loading={isSubmitting}
+                title={disabled?.reason}
+                onClick={openDialog}
+              >
+                <PlusIcon
+                  className="mr-1.5 -ml-0.5 h-4 w-4"
+                  aria-hidden="true"
+                />
+                Add new score config
+              </Button>
             )}
-          </UpsertScoreConfigDialogController>
+          </CreateScoreConfigDialogController>
         }
         className="px-0"
       />
@@ -294,8 +311,8 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
                       name: config.name,
                       dataType: config.dataType,
                       description: config.description,
-                      createdAt: config.createdAt.toLocaleString(),
-                      updatedAt: config.updatedAt.toLocaleString(),
+                      createdAt: config.createdAt,
+                      updatedAt: config.updatedAt,
                       range: {
                         maxValue: config.maxValue,
                         minValue: config.minValue,

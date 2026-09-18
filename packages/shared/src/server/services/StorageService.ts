@@ -1,4 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { Readable } from "stream";
+import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
@@ -21,6 +23,7 @@ import {
 import { Storage, Bucket, GetSignedUrlConfig } from "@google-cloud/storage";
 import { logger } from "../logger";
 import { env } from "../../env";
+import { normalizeBlobStorageRegion } from "../../utils/stringChecks";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import {
@@ -763,12 +766,16 @@ class S3StorageService implements StorageService {
         : undefined;
 
     const requestHandler = createS3RequestHandler(params.connectionValidation);
+    const region =
+      params.region === undefined
+        ? undefined
+        : normalizeBlobStorageRegion(params.region);
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
@@ -780,7 +787,7 @@ class S3StorageService implements StorageService {
     addS3DiagnosticsMiddleware(this.client, {
       bucketName: params.bucketName,
       endpoint: params.endpoint,
-      region: params.region,
+      region,
       forcePathStyle: params.forcePathStyle,
     });
 
@@ -791,7 +798,7 @@ class S3StorageService implements StorageService {
       ? new S3Client({
           credentials,
           endpoint: params.externalEndpoint,
-          region: params.region,
+          region,
           forcePathStyle: params.forcePathStyle,
           requestChecksumCalculation: "WHEN_REQUIRED",
           responseChecksumValidation: "WHEN_REQUIRED",
@@ -830,9 +837,9 @@ class S3StorageService implements StorageService {
           Body: data,
           ContentType: fileType,
         }),
-        // Use provided partSize and queueSize, or fall back to defaults
-        // Default: 5 MB part size supports files up to ~50 GB (5 MB × 10,000 parts)
-        // For large files, use partSize: 100 * 1024 * 1024 (100 MB) to support up to ~1 TB
+        // When partSize is undefined lib-storage falls back to 5 MiB, capping a
+        // single object at ~48.83 GiB (5 MiB × 10,000 parts). Callers uploading
+        // large objects must pass an explicit partSize to raise that ceiling.
         partSize: partSize,
         queueSize: queueSize,
       }).done();
@@ -854,10 +861,20 @@ class S3StorageService implements StorageService {
     stats,
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      // Tuning applies only on the buffered path. Forward no overrides so the
-      // fallback keeps lib-storage's defaults — forwarding the resolved 100 MiB
-      // partSize would ~20x per-upload memory (buffered is off by default).
-      await this.uploadFile({ fileName, fileType, data });
+      // Forward the caller's own part size and concurrency instead of a global
+      // default. lib-storage otherwise falls back to 5 MiB parts, capping a
+      // single object at ~48.83 GiB (5 MiB × 10,000 parts) and silently
+      // truncating larger exports; and leaving queueSize undefined lets it
+      // buffer partSize × 4 per upload, unbounded across concurrent callers.
+      // Peak memory is now partSize × queueSize, both caller-controlled.
+      await this.uploadFile({
+        fileName,
+        fileType,
+        data,
+        partSize: partSizeBytes,
+        queueSize:
+          maxConcurrentParts ?? env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
+      });
       return undefined;
     }
 
@@ -1131,19 +1148,8 @@ class GoogleCloudStorageService implements StorageService {
         await file.save(data, options);
         return;
       } else if (data instanceof Readable) {
-        return new Promise((resolve, reject) => {
-          const writeStream = file.createWriteStream(options);
-
-          data
-            .pipe(writeStream)
-            .on("error", (err: unknown) => {
-              reject(err);
-            })
-            .on("finish", () => {
-              resolve();
-            });
-          return;
-        });
+        await pipeline(data, file.createWriteStream(options));
+        return;
       }
 
       throw new Error("Unsupported data type. Must be Readable or string.");
@@ -1732,6 +1738,8 @@ class OCIObjectStorageService implements StorageService {
         namespaceName,
         bucketName: this.bucketName,
         prefix,
+        // Object summaries only carry `name` unless asked for more.
+        fields: "name,timeCreated",
       };
       const resp = await client.listObjects(req);
       const objects = ((resp as any).listObjects?.objects ?? []) as Array<{

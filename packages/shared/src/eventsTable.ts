@@ -1,5 +1,4 @@
 import { type ColumnDefinition } from "./tableDefinitions";
-import { EvalExecutionMetadataKey } from "./features/evals/evalExecutionMetadata";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
 export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
@@ -372,14 +371,14 @@ const eventsTableColsDefinition = [
     name: "Evaluator ID",
     id: "evaluatorId",
     type: "stringOptions",
-    internal: `arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATOR_ID}'))`,
+    internal: "e.evaluator_id",
     options: [],
   },
   {
     name: "Rule ID",
     id: "ruleId",
     type: "stringOptions",
-    internal: `if(notEmpty(arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'))), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.EVALUATION_RULE_ID}')), arrayElement(e.metadata_values, indexOf(e.metadata_names, '${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}')))`,
+    internal: "e.evaluation_rule_id",
     options: [],
   },
   {

@@ -1,4 +1,5 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
 "use client";
 
 import * as React from "react";
@@ -10,7 +11,7 @@ import type {
 } from "recharts";
 
 import { cn } from "@/src/utils/tailwind";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
@@ -361,7 +362,8 @@ const TOOLTIP_MAX_WIDTH_PX = 448;
 
 /**
  * Renders a chart tooltip into the app's `tooltip` overlay layer (see
- * `ui/layer.tsx`) so it escapes the chart card's `overflow` clipping and always
+ * `components/design-system/Layer/Layer.tsx`) so it escapes the chart card's
+ * `overflow` clipping and always
  * paints on top — never cut off at the chart frame. Positioned at the hovered
  * point (recharts' `coordinate`, relative to the chart box) translated to screen
  * coordinates. (LFE-10549)

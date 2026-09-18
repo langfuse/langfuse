@@ -2,7 +2,7 @@ import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/se
 import {
   CreateAnnotationQueueBody,
   CreateAnnotationQueueResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -22,6 +22,7 @@ export const [createAnnotationQueueTool, handleCreateAnnotationQueue] =
     name: "createAnnotationQueue",
     description:
       "Create an annotation queue, a worklist that collects trace or observation items for human review and scoring.",
+    action: "annotationQueues:CUD",
     baseSchema: CreateAnnotationQueueBaseSchema,
     inputSchema: CreateAnnotationQueueBody,
     handler: async (input, context) =>

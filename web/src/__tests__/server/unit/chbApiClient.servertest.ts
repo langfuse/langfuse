@@ -108,7 +108,7 @@ describe("chbApiClient", () => {
 
   describe("authentication", () => {
     it("presents the Auth0 access token and never follows a redirect", async () => {
-      onChb(jsonResponse(200, { url: "https://pay.example.com/s/1" }));
+      onChb(jsonResponse(200, { portalUrl: "https://pay.example.com/s/1" }));
 
       await client().createPortalSession({
         chOrganizationId: CH_ORG_ID,
@@ -123,13 +123,12 @@ describe("chbApiClient", () => {
     });
 
     it("reuses one token across requests", async () => {
-      onChb(jsonResponse(200, { id: "bundle_1" }), jsonResponse(200, {}));
+      onChb(jsonResponse(200, { id: "plan_1" }), jsonResponse(200, {}));
       const chb = client();
 
-      await chb.getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "b1" });
+      await chb.getAttachedPlan({ chOrganizationId: CH_ORG_ID });
       await chb.clearScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "b1",
       });
 
       expect(tokenCalls()).toHaveLength(1);
@@ -144,9 +143,9 @@ describe("chbApiClient", () => {
 
       await client().setScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "b1",
         change: { type: "cancel", when: "billing_cycle_end" },
-        idempotencyKey: "chb.bundle.scheduled.set:bundleId=b1:op=abc",
+        idempotencyKey:
+          "chb.attachedplan.scheduled.set:attachedPlanId=b1:op=abc",
       });
 
       expect(tokenCalls()).toHaveLength(2);
@@ -159,7 +158,7 @@ describe("chbApiClient", () => {
       );
       // The replay must stay idempotent on CHB's side.
       expect(headersOf(second![1])["Idempotency-Key"]).toBe(
-        "chb.bundle.scheduled.set:bundleId=b1:op=abc",
+        "chb.attachedplan.scheduled.set:attachedPlanId=b1:op=abc",
       );
     });
 
@@ -167,7 +166,7 @@ describe("chbApiClient", () => {
       onChb(jsonResponse(401, {}), jsonResponse(401, {}));
 
       const error = await client()
-        .getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "b1" })
+        .getAttachedPlan({ chOrganizationId: CH_ORG_ID })
         .catch((e) => e);
 
       // One replay, not a loop.
@@ -179,39 +178,68 @@ describe("chbApiClient", () => {
 
   describe("request wiring", () => {
     it("keeps the base url path prefix when joining the request path", async () => {
-      onChb(jsonResponse(200, { id: "bundle_1" }));
+      onChb(jsonResponse(200, { id: "plan_1" }));
 
-      await client().getBundle({
-        chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
-      });
+      await client().getAttachedPlan({ chOrganizationId: CH_ORG_ID });
 
       expect(lastChbCall().url.toString()).toBe(
-        "https://chb.example.com/api/v1/bundles/bundle_1?fields=plan%2Cperiod%2Cpayment%2Cscheduled",
+        "https://chb.example.com/api/v1/attachedplan?fields=plan%2Cperiod%2Cpayment%2Cscheduled",
       );
     });
 
-    it("url-encodes the bundle id into the path", async () => {
-      onChb(jsonResponse(202, {}));
+    it("scopes the scheduled-change routes by header, with no id in the path", async () => {
+      onChb(jsonResponse(200, {}));
 
-      await client().clearScheduledChange({
-        chOrganizationId: CH_ORG_ID,
-        bundleId: "../admin/bundles/other",
-      });
+      await client().clearScheduledChange({ chOrganizationId: CH_ORG_ID });
 
-      // Escaping matters: an unencoded id would let a caller-supplied value
-      // climb out of the bundles collection.
-      expect(lastChbCall().url.pathname).toBe(
-        "/api/v1/bundles/..%2Fadmin%2Fbundles%2Fother/scheduled",
+      // CHB resolves the attached plan from the organization header, so the
+      // path carries nothing caller-supplied.
+      const { url, init } = lastChbCall();
+      expect(url.pathname).toBe("/api/v1/attachedplan/scheduled");
+      expect(headersOf(init)["CH-Organization-Id"]).toBe(CH_ORG_ID);
+    });
+
+    it("scopes the invoice list by an organizationId query parameter", async () => {
+      onChb(jsonResponse(200, { invoices: [] }));
+
+      await client().listInvoices({ chOrganizationId: CH_ORG_ID });
+
+      const { url } = lastChbCall();
+      expect(url.pathname).toBe("/api/v1/invoices");
+      expect(url.searchParams.get("organizationId")).toBe(CH_ORG_ID);
+    });
+
+    it("always sends a checkout idempotency key, generating one when the caller has none", async () => {
+      const session = {
+        checkoutUrl: "https://pay.example.com/c/1",
+        organizationId: CH_ORG_ID,
+      };
+      const checkout = (idempotencyKey?: string) =>
+        client().createCheckoutSession({
+          email: "user@example.com",
+          planCode: "LANGFUSE_PRO",
+          returnUrl: "https://cloud.langfuse.com/back",
+          idempotencyKey,
+        });
+
+      onChb(jsonResponse(200, session));
+      await checkout("chb.checkout.create:orgId=org-1:op=abc");
+      expect(JSON.parse(lastChbCall().init.body as string).idempotencyKey).toBe(
+        "chb.checkout.create:orgId=org-1:op=abc",
       );
+
+      // CHB rejects a checkout without a key; a generated one keeps the call
+      // valid and merely gives up deduplication.
+      onChb(jsonResponse(200, session));
+      await checkout(undefined);
+      const generated = JSON.parse(lastChbCall().init.body as string)
+        .idempotencyKey as string;
+      expect(generated).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it("scopes org endpoints with CH-Organization-Id and omits it elsewhere", async () => {
-      onChb(jsonResponse(200, { id: "bundle_1" }));
-      await client().getBundle({
-        chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
-      });
+      onChb(jsonResponse(200, { id: "plan_1" }));
+      await client().getAttachedPlan({ chOrganizationId: CH_ORG_ID });
       expect(headersOf(lastChbCall().init)["CH-Organization-Id"]).toBe(
         CH_ORG_ID,
       );
@@ -237,7 +265,6 @@ describe("chbApiClient", () => {
       onChb(jsonResponse(202, {}));
       await client().setScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
         change: {
           type: "downgrade",
           when: "billing_cycle_end",
@@ -255,7 +282,6 @@ describe("chbApiClient", () => {
       onChb(jsonResponse(202, {}));
       await client().clearScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
       });
       const withoutBody = lastChbCall();
       expect(withoutBody.init.method).toBe("DELETE");
@@ -267,18 +293,17 @@ describe("chbApiClient", () => {
       onChb(jsonResponse(202, {}));
       await client().setScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
         change: { type: "cancel", when: "billing_cycle_end" },
-        idempotencyKey: "chb.bundle.scheduled.set:bundleId=bundle_1:op=abc",
+        idempotencyKey:
+          "chb.attachedplan.scheduled.set:attachedPlanId=plan_1:op=abc",
       });
       expect(headersOf(lastChbCall().init)["Idempotency-Key"]).toBe(
-        "chb.bundle.scheduled.set:bundleId=bundle_1:op=abc",
+        "chb.attachedplan.scheduled.set:attachedPlanId=plan_1:op=abc",
       );
 
       onChb(jsonResponse(202, {}));
       await client().setScheduledChange({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
         change: { type: "cancel", when: "billing_cycle_end" },
       });
       expect(headersOf(lastChbCall().init)["Idempotency-Key"]).toBeUndefined();
@@ -292,7 +317,6 @@ describe("chbApiClient", () => {
       const error = await client()
         .setScheduledChange({
           chOrganizationId: CH_ORG_ID,
-          bundleId: "bundle_1",
           change: {
             type: "upgrade",
             when: "immediate",
@@ -315,7 +339,7 @@ describe("chbApiClient", () => {
       onChb(jsonResponse(503, { error: "unavailable" }));
 
       const error = await client()
-        .getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "bundle_1" })
+        .getAttachedPlan({ chOrganizationId: CH_ORG_ID })
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ChbApiError);
@@ -334,7 +358,7 @@ describe("chbApiClient", () => {
       });
 
       const error = await client()
-        .getBundle({ chOrganizationId: CH_ORG_ID, bundleId: "bundle_1" })
+        .getAttachedPlan({ chOrganizationId: CH_ORG_ID })
         .catch((e) => e);
 
       expect(error).toBeInstanceOf(ChbApiError);
@@ -347,28 +371,43 @@ describe("chbApiClient", () => {
     it("ignores unknown fields so additive CHB changes cannot break us", async () => {
       onChb(
         jsonResponse(200, {
-          id: "bundle_1",
+          id: "plan_1",
           plan: {
-            planCode: "LANGFUSE_PRO_TEAMS",
-            tierName: "Team",
+            code: "LANGFUSE_PRO_TEAMS",
+            amount: 199,
+            currency: "USD",
+            recurrence: "monthly",
             extra: true,
           },
           period: { startDate: "2026-08-01T00:00:00Z" },
-          payment: { status: "active", provider: { customerId: "cus_1" } },
+          payment: {
+            status: "active",
+            provider: { name: "stripe", customerId: "cus_1" },
+          },
           unknownTopLevel: { nested: 1 },
         }),
       );
 
-      const bundle = await client().getBundle({
+      const attachedPlan = await client().getAttachedPlan({
         chOrganizationId: CH_ORG_ID,
-        bundleId: "bundle_1",
       });
 
-      expect(bundle.id).toBe("bundle_1");
-      expect(bundle.plan?.planCode).toBe("LANGFUSE_PRO_TEAMS");
-      expect(bundle.payment?.provider?.customerId).toBe("cus_1");
-      // Nothing required beyond `id`, so a sparse bundle still parses.
-      expect(bundle.scheduled).toBeUndefined();
+      expect(attachedPlan.id).toBe("plan_1");
+      expect(attachedPlan.plan?.code).toBe("LANGFUSE_PRO_TEAMS");
+      expect(attachedPlan.payment?.provider?.customerId).toBe("cus_1");
+      // Nothing required beyond `id`, so a sparse attached plan still parses.
+      expect(attachedPlan.scheduled).toBeUndefined();
+    });
+
+    it("reads the portal URL from CHB's portalUrl field", async () => {
+      onChb(jsonResponse(200, { portalUrl: "https://pay.example.com/s/1" }));
+
+      await expect(
+        client().createPortalSession({
+          chOrganizationId: CH_ORG_ID,
+          returnUrl: "https://cloud.langfuse.com/back",
+        }),
+      ).resolves.toBe("https://pay.example.com/s/1");
     });
 
     it("reads the checkout URL from CHB's checkoutUrl field", async () => {
@@ -397,7 +436,6 @@ describe("chbApiClient", () => {
       await expect(
         client().listInvoices({
           chOrganizationId: CH_ORG_ID,
-          bundleId: "bundle_1",
         }),
       ).resolves.toEqual([]);
     });
@@ -475,8 +513,8 @@ describe("chbApiClient", () => {
 
     it("mints one token across calls made through the shared client", async () => {
       setAll();
-      onChb(jsonResponse(200, { url: "https://chb.example.com/portal" }));
-      onChb(jsonResponse(200, { url: "https://chb.example.com/portal" }));
+      onChb(jsonResponse(200, { portalUrl: "https://chb.example.com/portal" }));
+      onChb(jsonResponse(200, { portalUrl: "https://chb.example.com/portal" }));
 
       // Two separate resolutions, as two billing procedures in one page load.
       await getChbApiClient()!.createPortalSession({

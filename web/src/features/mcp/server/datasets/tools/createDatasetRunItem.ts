@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { PostDatasetRunItemsV1Body } from "@/src/features/public-api/types/datasets";
-import { createDatasetRunItemForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { PostDatasetRunItemsV1Body } from "@/src/features/public-api/server";
+import { createDatasetRunItemForApi } from "@/src/features/datasets/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { getMcpPublicApiAuth } from "../../publicApi";
@@ -32,6 +32,7 @@ export const [createDatasetRunItemTool, handleCreateDatasetRunItem] =
     name: "createDatasetRunItem",
     description:
       "Create a dataset run item, a result that links one dataset item to a trace or observation in a dataset run.",
+    action: "datasets:CUD",
     baseSchema: CreateDatasetRunItemBaseSchema,
     inputSchema: PostDatasetRunItemsV1Body,
     handler: async (input, context) =>

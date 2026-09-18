@@ -2,7 +2,7 @@ import { LangfuseNotFoundError, SCORE_FIELD_GROUPS_V3 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
+import { listScoresV3ForPublicApi } from "@/src/features/public-api/server";
 import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
 
 const GetScoreInputSchema = z.object({ scoreId: z.string() }).strict();
@@ -14,6 +14,7 @@ export const [getScoreTool, handleGetScore] = defineTool({
     "The score carries a polymorphic value matching its dataType (number, boolean, or string) and a subject describing what it scores: { kind: trace | observation | session | experiment, id }.",
     "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
   ].join("\n"),
+  action: "scores:read",
   baseSchema: GetScoreInputSchema,
   inputSchema: GetScoreInputSchema,
   handler: async (input, context) => {

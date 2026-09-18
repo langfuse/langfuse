@@ -1,7 +1,7 @@
 import {
   GetAnnotationQueueItemsQuery,
   GetAnnotationQueueItemsResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 import { listAnnotationQueueItemsForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueItemUrl } from "@langfuse/shared/src/server";
@@ -12,6 +12,7 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
     name: "listAnnotationQueueItems",
     description:
       "List annotation queue items, each linking one trace or observation to a queue with a review status, with optional status filtering.",
+    action: "annotationQueues:read",
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
     handler: async (input, context) =>

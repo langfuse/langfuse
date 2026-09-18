@@ -1,16 +1,7 @@
-import React from "react";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
-  const hasReadAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "scoreConfigs:read",
-  });
-
-  if (!hasReadAccess) return null;
-
   return (
     <div id="score-configs">
       <Header title="Score Configs" />

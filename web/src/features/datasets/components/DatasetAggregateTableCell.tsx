@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -9,12 +10,14 @@ import { cn } from "@/src/utils/tailwind";
 import { ClockIcon, ListTree } from "lucide-react";
 import { usdFormatter } from "@/src/utils/numbers";
 import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
-import { ScoreRow } from "@/src/features/scores/components/ScoreRow";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import {
+  type ScoreColumn,
+  ScoreRow,
+  useMergedAggregates,
+  useMergeScoreColumns,
+} from "@/src/features/scores";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useMergedAggregates } from "@/src/features/scores/lib/useMergedAggregates";
-import { useMergeScoreColumns } from "@/src/features/scores/lib/mergeScoreColumns";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTrpcError } from "@/src/hooks/useTrpcError";
 import { type ScoreAggregate } from "@langfuse/shared";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
@@ -23,7 +26,7 @@ import { type BaselineDiff } from "@/src/features/datasets/lib/calculateBaseline
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { useResourceMetricsDiff } from "@/src/features/datasets/hooks/useResourceMetricsDiff";
 import { NotFoundCard } from "@/src/features/datasets/components/NotFoundCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 const DatasetAggregateCellContent = ({
   projectId,
@@ -174,7 +177,7 @@ const DatasetAggregateCellContent = ({
           <ConnectedIOTableCell isLoading variant="output" />
         ) : (
           <ConnectedIOTableCell
-            data={data.output ?? "null"}
+            data={data.output ?? null}
             variant="output"
             enableExpandOnHover
           />

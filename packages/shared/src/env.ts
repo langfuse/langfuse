@@ -145,13 +145,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  // Workaround for ClickHouse analyzer/lazy materialization bugs. In "auto",
-  // Langfuse detects the ClickHouse version on startup and applies known
-  // compatibility settings for affected version bands.
+  // Workarounds for ClickHouse version-specific parser and analyzer bugs. In
+  // "auto", Langfuse detects the ClickHouse version on startup and applies
+  // known compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: z
+    .enum(["auto", "true", "false"])
+    .default("auto"),
+  // Read-time skip-index evaluation, applied only from the version that fixes
+  // the patch-part read bug. See the compatibility rule for details.
+  CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: z
     .enum(["auto", "true", "false"])
     .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce

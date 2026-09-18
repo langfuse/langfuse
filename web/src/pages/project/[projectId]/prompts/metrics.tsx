@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -198,7 +199,8 @@ export default function PromptVersionTable({
       cell: ({ row }) => {
         const values: string[] = row.getValue("labels");
         return (
-          values && (
+          values &&
+          values.length > 0 && (
             <TruncatedLabels
               labels={values}
               maxVisibleLabels={3}
@@ -409,6 +411,7 @@ export default function PromptVersionTable({
       )}
       <div className="gap-3">
         <DataTableToolbar
+          tableName="prompt-versions"
           columns={columns}
           timeRange={showControlsInPageHeader ? undefined : timeRange}
           setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}

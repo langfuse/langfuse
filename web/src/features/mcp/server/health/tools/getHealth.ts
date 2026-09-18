@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { runHealthCheck } from "@/src/features/public-api/server/health-service";
+import { runHealthCheck } from "@/src/features/public-api/server";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
@@ -17,6 +18,7 @@ const HealthResponseSchema = z
 
 export const [getHealthTool, handleGetHealth] = defineTool({
   name: "getHealth",
+  action: __dangerouslySkipAuthz,
   description:
     "Check Langfuse API health. Optionally verify database availability and recent trace/observation ingestion.",
   baseSchema: HealthInputSchema,

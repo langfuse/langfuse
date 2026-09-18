@@ -1,11 +1,13 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer, type LayerName } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
@@ -229,8 +231,81 @@ const DrawerDescription = React.forwardRef<
 ));
 DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
+type DrawerControllerProps<State = void> = Pick<
+  DrawerProps,
+  | "blockTextSelection"
+  | "dismissible"
+  | "forceDirection"
+  | "modal"
+  | "shouldScaleBackground"
+> & {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the drawer.
+  initialState?: () => State | undefined;
+  onOpenChange?: (open: boolean) => boolean | void;
+  children: (control: {
+    isOpen: boolean;
+    openDrawer: (...args: [State] extends [void] ? [] : [state: State]) => void;
+  }) => React.ReactNode;
+  renderContent: (control: {
+    state: State;
+    closeDrawer: () => void;
+    replaceState: (state: State) => void;
+  }) => React.ReactNode;
+};
+
+const DrawerController = <State = void,>({
+  initialState,
+  children,
+  onOpenChange,
+  renderContent,
+  ...drawerProps
+}: DrawerControllerProps<State>) => {
+  const [controllerState, setControllerState] = React.useState<
+    { active: false } | { active: boolean; state: State }
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
+  const closeDrawer = () =>
+    setControllerState((currentState) =>
+      "state" in currentState
+        ? { ...currentState, active: false }
+        : currentState,
+    );
+
+  return (
+    <Drawer
+      {...drawerProps}
+      open={controllerState.active}
+      onOpenChange={(open) => {
+        if (onOpenChange?.(open) === false) return;
+
+        if (open) return;
+        closeDrawer();
+      }}
+    >
+      {children({
+        isOpen: controllerState.active,
+        openDrawer: (...args) =>
+          setControllerState({ active: true, state: args[0] as State }),
+      })}
+      {"state" in controllerState
+        ? renderContent({
+            state: controllerState.state,
+            closeDrawer,
+            replaceState: (state) =>
+              setControllerState((currentState) =>
+                currentState.active ? { active: true, state } : currentState,
+              ),
+          })
+        : null}
+    </Drawer>
+  );
+};
+
 export {
   Drawer,
+  DrawerController,
   DrawerTrigger,
   DrawerClose,
   DrawerContent,

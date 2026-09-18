@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -42,7 +43,7 @@ import {
   isScoreUnsaved,
 } from "@/src/features/scores/lib/helpers";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type AnnotationScoreFormData,
@@ -73,7 +74,7 @@ import {
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 function CommentField({
   savedComment,

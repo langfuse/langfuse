@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { countJsonRows } from "@/src/features/traces/components/AdvancedJsonViewer/utils/rowCount";
@@ -86,6 +87,7 @@ export interface IOPreviewJSONProps {
   hideIfNull?: boolean;
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   // Media attachments
   media?: MediaReturnType[];
   // Callback to inform parent if virtualization is being used (for scroll handling)
@@ -131,6 +133,7 @@ function IOPreviewJSONInner({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   onVirtualizationChange,
   enableInlineComments = false,
@@ -145,6 +148,10 @@ function IOPreviewJSONInner({
   showCorrections = true,
 }: IOPreviewJSONProps) {
   const selectionContext = useInlineCommentSelectionOptional();
+  const inlineCommentPositionRect = selectionContext?.selection?.anchorRect
+    ? (selectionContext.selection.startRect ??
+      selectionContext.selection.anchorRect)
+    : null;
 
   const handleAddComment = useCallback(() => {
     if (selectionContext?.selection && onAddInlineComment) {
@@ -274,7 +281,8 @@ function IOPreviewJSONInner({
     !hideOutput &&
     (outputTooLarge || !(hideIfNull && effectiveOutput === undefined));
   const showMetadata =
-    metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined);
+    !hideMetadata &&
+    (metadataTooLarge || !(hideIfNull && effectiveMetadata === undefined));
 
   const downloadName = observationId ?? traceId;
 
@@ -650,8 +658,11 @@ function IOPreviewJSONInner({
   return (
     <div className="ph-no-capture flex min-h-0 flex-1 flex-col border-t border-b">
       {/* Inline comment bubble - shows when text is selected */}
-      {enableInlineComments && (
-        <InlineCommentBubble onAddComment={handleAddComment} />
+      {enableInlineComments && inlineCommentPositionRect && (
+        <InlineCommentBubble
+          onAddComment={handleAddComment}
+          positionRect={inlineCommentPositionRect}
+        />
       )}
 
       {/* Header - matches LogViewToolbar styling */}

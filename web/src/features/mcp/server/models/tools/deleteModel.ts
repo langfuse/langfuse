@@ -1,7 +1,7 @@
 import {
   DeleteModelV1Query,
   DeleteModelV1Response,
-} from "@/src/features/public-api/types/models";
+} from "@/src/features/public-api/server";
 import { deleteModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -10,6 +10,7 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
   name: "deleteModel",
   description:
     "Delete a custom model definition from the current project. Built-in models cannot be deleted.",
+  action: "models:CUD",
   baseSchema: DeleteModelV1Query,
   inputSchema: DeleteModelV1Query,
   handler: async (input, context) =>

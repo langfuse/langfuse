@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
 import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
@@ -40,8 +41,11 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Waits at least 1s and at most 20s between retries.
-    return Math.max(Math.min(Math.exp(times), 20000), 1000);
+    // Retries forever. Exponential base delay clamped to 1s–20s, plus up to
+    // 50% random jitter (so at most 30s), so the per-queue connections do not
+    // reconnect in lockstep when Redis becomes unreachable.
+    const delay = Math.max(Math.min(Math.exp(times), 20000), 1000);
+    return delay + Math.random() * delay * 0.5;
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
@@ -232,6 +236,43 @@ const createRedisSentinelInstance = (
   return instance;
 };
 
+/**
+ * Every connection handed out by createNewRedisInstance, so that a shutdown can
+ * release all of them. Each queue owns a dedicated client, and those clients
+ * retry forever; left connected they keep the event loop alive and the process
+ * never exits.
+ */
+const activeRedisInstances = new Set<Redis | Cluster>();
+
+const trackRedisInstance = <T extends Redis | Cluster | null>(
+  instance: T,
+): T => {
+  if (instance) {
+    activeRedisInstances.add(instance);
+    instance.once("end", () => activeRedisInstances.delete(instance));
+  }
+  return instance;
+};
+
+/**
+ * Disconnect every client created by createNewRedisInstance, including the
+ * shared `redis` client, which is created through the same path. Returns how
+ * many were closed, for shutdown logging.
+ */
+export const disconnectAllRedisInstances = (): number => {
+  let closed = 0;
+  for (const instance of activeRedisInstances) {
+    try {
+      instance.disconnect();
+      closed++;
+    } catch (error) {
+      logRedisError("Failed to disconnect Redis instance on shutdown", error);
+    }
+  }
+  activeRedisInstances.clear();
+  return closed;
+};
+
 export const createNewRedisInstance = (
   additionalOptions: Partial<RedisOptions> = {},
 ): Redis | Cluster | null => {
@@ -246,11 +287,11 @@ export const createNewRedisInstance = (
   }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
-    return createRedisClusterInstance(additionalOptions);
+    return trackRedisInstance(createRedisClusterInstance(additionalOptions));
   }
 
   if (env.REDIS_SENTINEL_ENABLED === "true") {
-    return createRedisSentinelInstance(additionalOptions);
+    return trackRedisInstance(createRedisSentinelInstance(additionalOptions));
   }
 
   const tlsOptions = buildTlsOptions();
@@ -266,7 +307,7 @@ export const createNewRedisInstance = (
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
           username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          password: env.REDIS_AUTH || undefined,
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
@@ -277,7 +318,7 @@ export const createNewRedisInstance = (
     logRedisError("Redis error", error);
   });
 
-  return instance;
+  return trackRedisInstance(instance);
 };
 
 /**

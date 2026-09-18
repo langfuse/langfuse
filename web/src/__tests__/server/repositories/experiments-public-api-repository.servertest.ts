@@ -926,8 +926,8 @@ describe("Public API experiments repository", () => {
     it("preserves microsecond precision in experiment item cursors", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.UTC(2026, 0, 1, 0, 0, 0, 123);
-      const firstStartTimeUs = startTimeMs * 1_000 + 456;
-      const secondStartTimeUs = startTimeMs * 1_000;
+      const firstStartTime = "2026-01-01 00:00:00.123456";
+      const secondStartTime = "2026-01-01 00:00:00.123000";
 
       await createEventsCh([
         {
@@ -937,8 +937,8 @@ describe("Public API experiments repository", () => {
             startTimeMs,
             spanId: "span-cursor-first",
           }),
-          start_time: firstStartTimeUs,
-          event_ts: firstStartTimeUs,
+          start_time: firstStartTime,
+          event_ts: firstStartTime,
         },
         {
           ...createExperimentRootEvent({
@@ -947,8 +947,8 @@ describe("Public API experiments repository", () => {
             startTimeMs,
             spanId: "span-cursor-second",
           }),
-          start_time: secondStartTimeUs,
-          event_ts: secondStartTimeUs,
+          start_time: secondStartTime,
+          event_ts: secondStartTime,
         },
       ]);
 

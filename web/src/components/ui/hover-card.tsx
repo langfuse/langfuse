@@ -5,10 +5,8 @@ import * as React from "react";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 
 import { cn } from "@/src/utils/tailwind";
-import {
-  stopScrollPropagation,
-  useLayerContainer,
-} from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
 const HoverCard = HoverCardPrimitive.Root;
 

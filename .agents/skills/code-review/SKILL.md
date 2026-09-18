@@ -35,7 +35,8 @@ Focus on:
 - performance issues with real impact
 - missing or weak tests for risky changes
 - Before calling coverage missing, identify the unique regression each proposed
-  test catches. Prefer merging into the closest existing suite. Flag repeated
+  test catches. Do not ask for one whose only assertion would restate the diff —
+  a spacing value, a label — because it costs a file and proves nothing. Prefer merging into the closest existing suite. Flag repeated
   tests of the same predicate across layers unless each proves a distinct
   transport, projection, or execution boundary.
 

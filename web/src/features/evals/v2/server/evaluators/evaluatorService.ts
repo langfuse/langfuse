@@ -21,7 +21,7 @@ import {
   generateLangfuseAIText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
   getRecentEvaluatorExecutionTraces,
-  getTotalCostByEvaluatorTraceNames,
+  getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
@@ -254,71 +254,36 @@ export class EvaluatorService {
     ) as Record<string, EvaluatorExecutionTrace[]>;
     if (params.evaluatorIds.length === 0) return result;
 
-    const evaluators = await repository.findEvaluatorsByIds({
-      prisma: this.prisma,
-      projectId: params.projectId,
-      evaluatorIds: params.evaluatorIds,
-    });
-    // Prompt-experiment executions do not always carry evaluator_id metadata,
-    // but all evaluator execution paths use this trace-name convention.
-    const evaluatorIdsByTraceName = new Map<string, string[]>();
-    for (const evaluator of evaluators) {
-      const traceName = `Execute evaluator: ${evaluator.name}`;
-      evaluatorIdsByTraceName.set(traceName, [
-        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
-        evaluator.id,
-      ]);
-    }
-    const traces = await getRecentEvaluatorExecutionTraces(params.projectId, [
-      ...evaluatorIdsByTraceName.keys(),
-    ]);
+    const traces = await getRecentEvaluatorExecutionTraces(
+      params.projectId,
+      params.evaluatorIds,
+    );
 
     for (const trace of traces) {
-      for (const evaluatorId of evaluatorIdsByTraceName.get(trace.traceName) ??
-        []) {
-        result[evaluatorId]?.push({
-          id: trace.id,
-          level: trace.level,
-          timestamp: trace.timestamp,
-        });
-      }
+      result[trace.evaluatorId]?.push({
+        id: trace.id,
+        level: trace.level,
+        timestamp: trace.timestamp,
+      });
     }
 
     return result;
   }
 
   async getTotalCosts(params: { projectId: string; evaluatorIds: string[] }) {
-    const evaluators = await repository.findEvaluatorsByIds({
-      prisma: this.prisma,
-      projectId: params.projectId,
-      evaluatorIds: params.evaluatorIds,
-    });
-    const evaluatorIdsByTraceName = new Map<string, string[]>();
-    for (const evaluator of evaluators) {
-      const traceName = `Execute evaluator: ${evaluator.name}`;
-      evaluatorIdsByTraceName.set(traceName, [
-        ...(evaluatorIdsByTraceName.get(traceName) ?? []),
-        evaluator.id,
-      ]);
-    }
-
-    const costs = await getTotalCostByEvaluatorTraceNames(params.projectId, [
-      ...evaluatorIdsByTraceName.keys(),
-    ]);
+    const costs = await getTotalCostByEvaluatorIds(
+      params.projectId,
+      params.evaluatorIds,
+    );
     return Object.fromEntries(
-      costs.flatMap(({ traceName, totalCost }) =>
-        (evaluatorIdsByTraceName.get(traceName) ?? []).map((evaluatorId) => [
-          evaluatorId,
-          totalCost,
-        ]),
-      ),
+      costs.map(({ evaluatorId, totalCost }) => [evaluatorId, totalCost]),
     );
   }
 
   async create(input: CreateEvaluatorInput, createdByUserId: string | null) {
     const block = await validateEvaluatorForPersistence(input);
-    const evaluator = await this.prisma
-      .$transaction((prisma) =>
+    try {
+      const evaluator = await this.prisma.$transaction((prisma) =>
         repository.createEvaluator({
           prisma,
           input: {
@@ -330,28 +295,48 @@ export class EvaluatorService {
           createdByUserId,
           block,
         }),
-      )
-      .catch((error) => {
-        // Callers may pre-generate the id so test runs can be attributed
-        // before the first save. Ids are globally unique, so a collision with
-        // another project must not surface as an unhandled 500.
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
-          throw new LangfuseConflictError(
-            "An evaluator with this id already exists",
-          );
-        }
-        throw error;
+      );
+      await invalidateProjectEvalConfigCaches(input.projectId);
+      await this.audit({
+        action: "create",
+        projectId: input.projectId,
+        evaluatorId: evaluator.id,
       });
-    await invalidateProjectEvalConfigCaches(input.projectId);
-    await this.audit({
-      action: "create",
-      projectId: input.projectId,
-      evaluatorId: evaluator.id,
-    });
-    return normalizeEvaluatorPromptMessages(evaluator);
+      return normalizeEvaluatorPromptMessages(evaluator);
+    } catch (error) {
+      // Callers may pre-generate the id so test runs can be attributed
+      // before the first save. An exact retry returns the existing evaluator.
+      // Reusing the id with different content remains a conflict.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        if (input.evaluatorId) {
+          const existing = await repository.findEvaluator({
+            prisma: this.prisma,
+            projectId: input.projectId,
+            evaluatorId: input.evaluatorId,
+          });
+          const latest = existing?.versions[0];
+          if (
+            existing &&
+            latest &&
+            existing.name === input.name &&
+            existing.description === input.description &&
+            isDeepStrictEqual(
+              toEvaluatorDefinition(existing.type, latest),
+              input.definition,
+            )
+          ) {
+            return normalizeEvaluatorPromptMessages(existing);
+          }
+        }
+        throw new LangfuseConflictError(
+          "An evaluator with this id already exists",
+        );
+      }
+      throw error;
+    }
   }
 
   // Temporary fallback for the unstable Evaluators API until the final API

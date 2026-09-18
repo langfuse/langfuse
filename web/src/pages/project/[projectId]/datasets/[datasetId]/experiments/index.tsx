@@ -1,20 +1,8 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
-import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItemWithSecondaryAction,
-  DropdownMenuTrigger,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { DeleteDatasetButton } from "@/src/components/deleteButton";
-import { DuplicateDatasetButton } from "@/src/features/datasets/components/DuplicateDatasetButton";
 import { useState, useCallback } from "react";
-import { Bot, Edit, FlaskConical, LockIcon, MoreVertical } from "lucide-react";
+import { FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Dialog,
@@ -38,18 +26,40 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import {
+  EvaluatorForm,
+  useEvaluatorFormTemplate,
+} from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
+import { DatasetActionMenu } from "@/src/features/datasets/components/DatasetActionMenu";
 
-export default function Dataset() {
-  const router = useRouter();
+export default function DatasetExperimentsPage() {
+  const route = useReadyRouteParams(["projectId", "datasetId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return (
+    <DatasetExperimentsView
+      projectId={route.params.projectId}
+      datasetId={route.params.datasetId}
+    />
+  );
+}
+
+function DatasetExperimentsView({
+  projectId,
+  datasetId,
+}: {
+  projectId: string;
+  datasetId: string;
+}) {
   const capture = usePostHogClientCapture();
-  const projectId = router.query.projectId as string;
-  const datasetId = router.query.datasetId as string;
   const utils = api.useUtils();
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
@@ -65,10 +75,13 @@ export default function Dataset() {
     }[]
   >([]);
 
-  const dataset = api.datasets.byId.useQuery({
-    datasetId,
-    projectId,
-  });
+  const dataset = api.datasets.byId.useQuery(
+    {
+      datasetId,
+      projectId,
+    },
+    { enabled: Boolean(projectId) && Boolean(datasetId) },
+  );
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -93,6 +106,9 @@ export default function Dataset() {
     if (isExperimentsBetaActive) {
       utils.experiments.all.invalidate();
       utils.experiments.countAll.invalidate();
+      // The empty-window fallback is its own query, and a new run belongs in
+      // it: without this it keeps serving its cached list.
+      utils.experiments.mostRecent.invalidate();
     } else {
       utils.datasets.runsByDatasetId.invalidate();
       utils.datasets.baseRunDataByDatasetId.invalidate();
@@ -127,7 +143,12 @@ export default function Dataset() {
 
   const evalTemplates = api.evals.latestTemplates.useQuery(
     { projectId },
-    { enabled: !isExperimentsBetaActive && hasEvaluatorReadAccess },
+    {
+      enabled:
+        !isExperimentsBetaActive &&
+        hasEvaluatorReadAccess &&
+        Boolean(projectId),
+    },
   );
 
   const evaluators = api.evals.jobConfigsByTarget.useQuery(
@@ -153,6 +174,11 @@ export default function Dataset() {
     evaluatorsData: evaluators.data,
     evalTemplatesData: evalTemplates.data,
     refetchEvaluators: evaluators.refetch,
+  });
+  const evalTemplate = useEvaluatorFormTemplate({
+    evalTemplates: evalTemplates.data?.templates ?? [],
+    evalTemplate: selectedEvaluatorData?.evaluator.evalTemplate,
+    templateId: selectedEvaluatorData?.templateId,
   });
   // Callback for preprocessing evaluator form values
   // For experiment evaluators, we only run on new data (not historic)
@@ -299,7 +325,7 @@ export default function Dataset() {
               }
               listKey="datasets"
             />
-            <UpdateDatasetDialogController
+            <DatasetActionMenu
               projectId={projectId}
               datasetId={datasetId}
               datasetName={dataset.data?.name ?? ""}
@@ -309,56 +335,23 @@ export default function Dataset() {
               datasetExpectedOutputSchema={
                 dataset.data?.expectedOutputSchema ?? undefined
               }
-              source="dataset"
+              manageEvaluatorsHref={
+                hasReadAccess
+                  ? `/project/${projectId}/evals?target=dataset`
+                  : undefined
+              }
             >
-              {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
-                    <DropdownMenuItemWithSecondaryAction
-                      disabled={disabled}
-                      icon={disabled === undefined ? Edit : LockIcon}
-                      title="Edit"
-                      onClick={openDialog}
-                    />
-                    <DropdownMenuItem asChild>
-                      <DuplicateDatasetButton
-                        datasetId={datasetId}
-                        projectId={projectId}
-                      />
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      asChild
-                      onSelect={(event) => {
-                        event.preventDefault();
-                        return false;
-                      }}
-                    >
-                      <DeleteDatasetButton
-                        itemId={datasetId}
-                        projectId={projectId}
-                        redirectUrl={`/project/${projectId}/datasets`}
-                        deleteConfirmation={dataset.data?.name}
-                      />
-                    </DropdownMenuItem>
-                    {hasReadAccess && (
-                      <DropdownMenuItem asChild>
-                        <Link
-                          href={`/project/${projectId}/evals?target=dataset`}
-                        >
-                          <Bot className="mr-2 ml-1 h-4 w-4" />
-                          Manage Evaluators
-                        </Link>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              {({ getTriggerProps }) => (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  aria-label="Dataset actions"
+                  {...getTriggerProps()}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               )}
-            </UpdateDatasetDialogController>
+            </DatasetActionMenu>
           </>
         ),
       }}
@@ -370,7 +363,7 @@ export default function Dataset() {
         setScoreOptions={setScoreOptions}
       />
       {/* Dialog for configuring evaluators */}
-      {selectedEvaluatorData && (
+      {selectedEvaluatorData && evalTemplate && (
         <Dialog
           open={showEvaluatorForm}
           onOpenChange={(open) => {
@@ -389,8 +382,7 @@ export default function Dataset() {
             <EvaluatorForm
               useDialog={true}
               projectId={projectId}
-              evalTemplates={evalTemplates.data?.templates ?? []}
-              templateId={selectedEvaluatorData.templateId}
+              evalTemplate={evalTemplate}
               existingEvaluator={selectedEvaluatorData.evaluator}
               mode={selectedEvaluatorData.evaluator.id ? "edit" : "create"}
               hideTargetSection={!selectedEvaluatorData.evaluator.id}

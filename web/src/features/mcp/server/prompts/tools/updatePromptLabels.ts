@@ -69,6 +69,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
     "",
     "Accepts: name, version (required), newLabels (array, can be empty to remove all labels)",
   ].join("\n"),
+  action: "prompts:CUD",
   baseSchema: UpdatePromptLabelsBaseSchema,
   inputSchema: UpdatePromptLabelsInputSchema,
   handler: async (input, context) => {

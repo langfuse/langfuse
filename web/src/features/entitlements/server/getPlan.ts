@@ -40,7 +40,8 @@ export function getOrganizationPlanServerSide(
       // CHB org can never fall through to stale Stripe state — the same
       // CHB-wins precedence getBillingProvider enforces. A missing plan code
       // (drifted, so dropped by cloudConfigSchema) fails open to the free tier,
-      // never to a paid one; the paid gate for usage thresholds reads bundleId
+      // never to a paid one; the paid gate for usage thresholds reads
+      // attachedPlanId
       // instead, so a drifted code does not get a paying org ingestion-blocked.
       if (cloudConfig.clickhouse?.organizationId) {
         const { planCode } = cloudConfig.clickhouse;

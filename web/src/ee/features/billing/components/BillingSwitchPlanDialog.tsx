@@ -22,7 +22,7 @@ import {
   isUpgrade,
 } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
 import { StripeCancellationButton } from "./StripeCancellationButton";
@@ -153,12 +153,15 @@ export const BillingSwitchPlanDialog = ({
                         )}
                       </ul>
                     </div>
+                    <p className="text-muted-foreground mt-auto pt-4 text-xs">
+                      *price per 100k drops with increasing usage
+                    </p>
                     <Link
                       href="https://langfuse.com/pricing"
                       target="_blank"
-                      className="text-muted-foreground hover:text-foreground mt-auto block py-4 text-sm"
+                      className="text-muted-foreground hover:text-foreground block py-4 text-sm"
                     >
-                      Learn more about plan →
+                      Learn more about this plan →
                     </Link>
                     {/* The default behavior the user is on a paid plan.*/}
                     {currentProductId ? (

@@ -1,7 +1,7 @@
 import {
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
-} from "@/src/features/public-api/types/annotation-queues";
+} from "@/src/features/public-api/server";
 import { listAnnotationQueuesForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
@@ -12,6 +12,7 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
     name: "listAnnotationQueues",
     description:
       "List annotation queues, worklists that collect trace or observation items for human review and scoring, with pagination.",
+    action: "annotationQueues:read",
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
     handler: async (input, context) =>

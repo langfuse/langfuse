@@ -1,5 +1,5 @@
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
-import { redis } from "@langfuse/shared/src/server";
+import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { setSigtermReceived } from "../features/health";
@@ -24,15 +24,36 @@ import {
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
+  traceBatchDispatcher,
+  traceBatchMetricsRunner,
 } from "../app";
 
 export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   logger.info(`Received ${signal}, closing server...`);
+  await drainAndClose();
+};
+
+let drainPromise: Promise<void> | null = null;
+
+// Flip readiness to unhealthy, stop accepting new work, drain in-flight jobs
+// and flush pending writes, then close connections. Shared by the
+// SIGTERM/SIGINT path and the fatal-error path; memoized so concurrent
+// triggers reuse one drain instead of closing workers/connections twice.
+export const drainAndClose = (): Promise<void> => {
+  if (!drainPromise) {
+    drainPromise = runDrainAndClose();
+  }
+  return drainPromise;
+};
+
+const runDrainAndClose = async () => {
   setSigtermReceived();
 
-  // Stop accepting new connections
   server?.close();
   logger.info("Server has been closed.");
+
+  // Give in-flight dispatch up to five seconds before continuing shutdown.
+  await traceBatchDispatcher?.drain();
 
   // Stop batch project cleaners
   for (const cleaner of batchProjectCleaners) {
@@ -66,6 +87,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
+  traceBatchMetricsRunner?.stop();
 
   // Stop monitor runners
   for (const runner of monitorRunners) {
@@ -92,8 +114,13 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   await ClickhouseWriter.getInstance().shutdown();
   logger.info("Clickhouse writer has been shut down.");
 
-  redis?.disconnect();
-  logger.info("Redis connection has been closed.");
+  // Closes the shared client and every per-queue client in one pass. Each
+  // queue holds its own client; without this they stay connected, retry
+  // forever, and keep the event loop alive so the process never exits.
+  const closedRedisConnections = disconnectAllRedisInstances();
+  logger.info(
+    `Redis connections have been closed (${closedRedisConnections} clients).`,
+  );
 
   await prisma.$disconnect();
   logger.info("Prisma connection has been closed.");

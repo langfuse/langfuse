@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -13,14 +14,8 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import {
   Tooltip,
   TooltipTrigger,
@@ -38,7 +33,7 @@ import {
   type V4WriteMode,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
@@ -267,20 +262,17 @@ const MixpanelIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Mixpanel Region</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a region" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  {MIXPANEL_REGIONS.map((region) => (
-                    <SelectItem key={region.subdomain} value={region.subdomain}>
-                      {region.description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SelectInput
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  placeholder="Select a region"
+                  options={MIXPANEL_REGIONS.map((region) => ({
+                    value: region.subdomain,
+                    label: region.description,
+                  }))}
+                />
+              </FormControl>
               <FormDescription>
                 Select the Mixpanel region where your project is hosted
               </FormDescription>
@@ -347,26 +339,25 @@ const MixpanelIntegrationSettingsForm = ({
                     </TooltipContent>
                   </Tooltip>
                 </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {exportSourceOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={option.value}
-                        disabled={option.unavailable}
-                      >
-                        {option.unavailable
-                          ? `${option.label} (not available on this deployment)`
-                          : option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <FormControl>
+                  <SelectInput
+                    onValueChange={field.onChange}
+                    value={field.value}
+                    placeholder="Select data to export"
+                    options={exportSourceOptions.map((option) => {
+                      if (option.unavailable) {
+                        return {
+                          value: option.value,
+                          label: `${option.label} (not available on this deployment)`,
+                          disabled: true as const,
+                          disabledReason: "Not available on this deployment.",
+                        };
+                      }
+
+                      return { value: option.value, label: option.label };
+                    })}
+                  />
+                </FormControl>
                 <FormDescription>
                   Choose which data sources to export to Mixpanel. Scores are
                   always included.
@@ -378,10 +369,12 @@ const MixpanelIntegrationSettingsForm = ({
         )}
         {!watchedValidation.ok && (
           <Alert variant="destructive">
-            <AlertTitle>Saved export source is no longer available</AlertTitle>
-            <AlertDescription>
+            <Alert.Title>
+              Saved export source is no longer available
+            </Alert.Title>
+            <Alert.Description>
               {getExportSourceUnavailableMessage(watchedValidation.reason)}
-            </AlertDescription>
+            </Alert.Description>
           </Alert>
         )}
         <FormField

@@ -13,6 +13,7 @@ import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEnt
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
     deprecation: SCORES_DEPRECATION,

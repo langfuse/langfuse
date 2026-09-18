@@ -1,7 +1,9 @@
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { createScoreConfig } from "@/src/features/public-api/server/score-configs-api-service";
-import { PostScoreConfigBody } from "@/src/features/public-api/types/score-configs";
+import {
+  createScoreConfig,
+  PostScoreConfigBody,
+} from "@/src/features/public-api/server";
 import { z } from "zod";
 import {
   McpScoreConfigCategoricalCategoriesSchema,
@@ -33,6 +35,7 @@ export const [createScoreConfigTool, handleCreateScoreConfig] = defineTool({
   name: "createScoreConfig",
   description:
     "Create a score configuration. Supports numeric, categorical, boolean, and text configs. Boolean configs automatically receive True and False categories.",
+  action: "scoreConfigs:CUD",
   baseSchema: CreateScoreConfigBaseSchema,
   inputSchema: CreateScoreConfigInputSchema,
   destructiveHint: true,

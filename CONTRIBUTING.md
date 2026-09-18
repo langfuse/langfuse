@@ -37,6 +37,19 @@ _Before making any significant changes, please [open an issue](https://github.co
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
 
+Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
+
+```bash
+pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
+pnpm tc              # typecheck all packages
+pnpm exec knip       # unused files, exports and dependencies
+pnpm run test        # see "Running Unit Tests" below for the setup this needs
+```
+
+`lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
+
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one.
+
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
 ## Project Overview
@@ -108,6 +121,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
+  - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
@@ -117,7 +131,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.22.0
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
 
@@ -178,10 +192,13 @@ The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
 MinIO, then seeds the synthetic demo project and checks both application health
 endpoints. Cursor team administrators separately configure the read-only MCP
 catalog described in `.agents/README.md`; credentials and OAuth grants belong
-in Cursor, never in repository files.
+in Cursor, never in repository files. Maintainers who need the issue tracker
+inside Cloud should also set secret `LINEAR_API_KEY` (personal Linear API key)
+in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
 
 After local verification, a Cursor agent should open a same-repo reviewable
-PR (not a draft) and test its `pr-<N>.preview.langfuse.com` deployment.
+PR (not a draft), apply the GitHub `cursor` label, and test its
+`pr-<N>.preview.langfuse.com` deployment.
 Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
 When handing work to a human, give a one-sentence TL;DR, a preview URL with
 exact test steps (including how to seed or hit the same path on

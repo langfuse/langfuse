@@ -1,14 +1,15 @@
-import { GetDatasetV2Response } from "@/src/features/public-api/types/datasets";
+import { GetDatasetV2Response } from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { getDatasetByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { getDatasetByIdForApi } from "@/src/features/datasets/server";
 import { GetDatasetMcpInput } from "../schema";
 
 export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",
   description:
     "Get a dataset, a named collection of input and optional expected-output examples for experiments and evaluations, by ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetMcpInput,
   inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>

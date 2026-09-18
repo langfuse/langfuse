@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import { AISDKError, APICallError, RetryError } from "ai";
 
 const LLM_VALIDATION_ERROR_MARKER = Symbol.for(

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+/* eslint-disable no-nested-ternary */
+import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/router";
@@ -31,11 +32,13 @@ import { RuleActiveSwitchCell } from "@/src/features/evals/v2/components/Rules/R
 import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RuleNameCell/RuleNameCell";
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { EvaluatorExecutionHistory } from "@/src/features/evals/v2/components/Rules/EvaluatorExecutionHistory/EvaluatorExecutionHistory";
 import type { RuleTableRow } from "@/src/features/evals/v2/types/rules";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -56,15 +59,20 @@ import {
   getRuleNavigationUrl,
 } from "@/src/features/evals/v2/utils/ruleNavigation";
 import { ruleExecutionsUrl } from "@/src/features/evals/v2/fns/rules/ruleExecutionsUrl";
-import { TableViewPresetTableName } from "@langfuse/shared";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableViewPresetTableName, type OrderByState } from "@langfuse/shared";
+import {
+  omitFilterFacets,
+  useSidebarFilterState,
+} from "@/src/features/filters";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   evaluationRuleTableFilterColumns,
   evaluationRuleTableFilterConfig,
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
-import { omitFilterFacets } from "@/src/features/filters/lib/filter-config";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -160,11 +168,22 @@ export function RulesTable({
       ),
     [filterOptionsQuery.data?.hasUpgradeRequired],
   );
+  const viewControllersRef = useRef<Pick<
+    ReturnType<typeof useTableViewManager>,
+    "handleUserStateChange"
+  > | null>(null);
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: filterOptionsQuery.isPending,
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: projectId,
-    onExplicitFilterStateChange: () => {
+    onExplicitFilterStateChange: (change) => {
+      if (change.origin === "user") {
+        viewControllersRef.current?.handleUserStateChange(
+          change.previousFilters,
+          change.nextFilters,
+          { force: change.action === "clear" },
+        );
+      }
       setPagination({ page: 1, limit: pagination.limit });
       selectionStore.getState().actions.clearSelection();
     },
@@ -295,7 +314,6 @@ export function RulesTable({
         header: "Total cost (7d)",
         size: 140,
         enableHiding: true,
-        emptyValue: "—",
         formatter: (value) => usdFormatter(value, 2, 4),
         getValue: (value) => {
           if (costs.isPending) return { type: "loading" };
@@ -354,15 +372,14 @@ export function RulesTable({
             <RuleFilterPills filter={row.original.filter} />
           ),
       },
-      {
+      createNumberTableColumn<RuleTableRow>({
         accessorKey: "sampling",
-        id: "sampling",
         header: "Sampling",
         size: 100,
         enableHiding: true,
         enableSorting: true,
-        cell: ({ row }) => `${Math.round(row.original.sampling * 100)}%`,
-      },
+        formatter: (value) => `${Math.round(value * 100)}%`,
+      }),
       createUserTableColumn<RuleTableRow>({
         accessorKey: "createdByUser",
         header: "Created by",
@@ -510,29 +527,65 @@ export function RulesTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleSearchChange = (query: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", query ?? "");
+    setSearchQuery(query);
+    setPagination({ page: 1, limit: pagination.limit });
+    selectionActions.clearSelection();
+  };
+  const handleOrderByChange = (next: OrderByState) => {
+    viewControllers.handleUserStateChange(orderBy, next);
+    setOrderBy(next);
+    setPagination({ page: 1, limit: pagination.limit });
+    selectionActions.clearSelection();
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (updater) => {
+    const next = typeof updater === "function" ? updater(columnOrder) : updater;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (
+    updater,
+  ) => {
+    const next =
+      typeof updater === "function" ? updater(columnVisibility) : updater;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibility(next);
+  };
 
   return (
     <DataTableControlsProvider
       tableName={evaluationRuleTableFilterConfig.tableName}
     >
       <div className="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden">
+        <TableSearchBar
+          key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+          projectId={projectId}
+          tableName={filterConfig.tableName}
+          registry={evaluationRulesListFieldRegistry(filterConfig)}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={queryFilter.setFilterState}
+          observed={toObservedOptions(
+            filterOptions,
+            filterOptionsQuery.isPending,
+          )}
+          search={{ query: searchQuery ?? null, setQuery: handleSearchChange }}
+          isV4={false}
+        />
         <RulesTableToolbar
           columns={columns}
-          currentQuery={searchQuery ?? undefined}
-          onSearchChange={(query) => {
-            setSearchQuery(query || null);
-            setPagination({ page: 1, limit: pagination.limit });
-            selectionActions.clearSelection();
-          }}
+          currentQuery={searchQuery ?? ""}
           pageRowIds={rules.data?.rules.map(({ id }) => id) ?? []}
           pageSize={pagination.limit}
           pageIndex={pagination.page - 1}
           totalCount={rules.data?.totalItems ?? null}
           selectionStore={selectionStore}
           columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibility}
+          setColumnVisibility={handleColumnVisibilityChange}
           columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
+          setColumnOrder={handleColumnOrderChange}
           rowHeight={rowHeight}
           setRowHeight={setRowHeight}
           filterState={filterState}
@@ -545,7 +598,7 @@ export function RulesTable({
         />
         <ResizableFilterLayout>
           <DataTableControls
-            key={viewControllers.selectedViewId ?? "no-view"}
+            key={`${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
             queryFilter={queryFilter}
           />
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -569,16 +622,12 @@ export function RulesTable({
               }
               selectionStore={selectionStore}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibility}
+              onColumnVisibilityChange={handleColumnVisibilityChange}
               columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              onColumnOrderChange={handleColumnOrderChange}
               rowHeight={rowHeight}
               orderBy={orderBy}
-              setOrderBy={(nextOrderBy) => {
-                setOrderBy(nextOrderBy);
-                setPagination({ page: 1, limit: pagination.limit });
-                selectionActions.clearSelection();
-              }}
+              setOrderBy={handleOrderByChange}
               pagination={{
                 totalCount: rules.data?.totalItems ?? null,
                 state: {

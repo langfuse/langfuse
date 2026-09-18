@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * v4 transition orchestration: Postgres summaries, sidebar migration actions,
  * and re-exports for the tRPC router. SDK / events_core and system.query_log

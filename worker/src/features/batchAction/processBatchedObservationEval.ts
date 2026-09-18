@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import pLimit from "p-limit";
 import { prisma } from "@langfuse/shared/src/db";
 import { BatchActionStatus, observationForEvalSchema } from "@langfuse/shared";
@@ -63,6 +64,7 @@ export async function processBatchedObservationEval(params: {
             configs: evaluators,
             schedulerDeps,
             executionMode: "MANUAL",
+            executionScopeId: batchActionId,
           });
         }),
       ),

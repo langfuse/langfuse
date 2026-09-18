@@ -10,7 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { env } from "@/src/env.mjs";
@@ -34,7 +34,7 @@ export const PublishTraceSwitch = (props: {
   /** Hover tooltip for the icon button (suppressed while the popover is open). */
   tooltip?: string;
 }) => {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -54,7 +54,7 @@ export const PublishTraceSwitch = (props: {
   };
   const mut = api.traces.publish.useMutation({
     onMutate: async (input) => {
-      if (isBetaEnabled) {
+      if (isV4) {
         await utils.events.byTraceId.cancel(eventsTraceQueryInput);
 
         const previousEvents = utils.events.byTraceId.getData(
@@ -90,7 +90,7 @@ export const PublishTraceSwitch = (props: {
       return { previousTrace };
     },
     onError: (err, _input, context) => {
-      if (isBetaEnabled) {
+      if (isV4) {
         utils.events.byTraceId.setData(
           eventsTraceQueryInput,
           context?.previousEvents,
@@ -104,7 +104,7 @@ export const PublishTraceSwitch = (props: {
       trpcErrorToast(err);
     },
     onSuccess: async () => {
-      if (!isBetaEnabled) {
+      if (!isV4) {
         await utils.traces.all.invalidate();
       }
     },
@@ -236,9 +236,11 @@ const Base = (props: {
                   id="publish-trace"
                   variant="ghost"
                   size={props.label ? "sm" : props.size}
+                  // Menu row: same box and icon size as the peek menu's
+                  // Delete and Expand rows, so the three line up.
                   className={
                     props.label
-                      ? "w-full justify-start gap-2 font-normal"
+                      ? "h-auto w-full justify-start gap-2 rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
                       : undefined
                   }
                   loading={props.isLoading}
@@ -246,13 +248,15 @@ const Base = (props: {
                 >
                   {props.isPublic ? (
                     <Globe
-                      className="h-4 w-4"
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
                       fill="#b3d9ff"
                       stroke="#4d94ff"
                       strokeWidth={2}
                     />
                   ) : (
-                    <Share2 className="h-4 w-4" />
+                    <Share2
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                    />
                   )}
                   {props.label ? (
                     <span className="text-sm">{props.label}</span>

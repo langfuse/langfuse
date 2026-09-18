@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
 import * as React from "react";
@@ -14,8 +14,7 @@ import {
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -137,20 +136,28 @@ const DropdownContentWrapper = React.forwardRef<
     const { register, recompute, top, bottom } = useScrollGradients<
       React.ComponentRef<typeof DropdownMenuPrimitive.Content>
     >(maxHeight !== undefined);
+    const setContentRef = React.useCallback(
+      (
+        element: React.ComponentRef<
+          typeof DropdownMenuPrimitive.Content
+        > | null,
+      ) => {
+        register(element);
+        if (typeof ref === "function") {
+          ref(element);
+        } else if (ref) {
+          ref.current = element;
+        }
+      },
+      [ref, register],
+    );
     const content =
       typeof children === "function" ? children({ top, bottom }) : children;
 
     return (
       <DropdownMenuPrimitive.Portal container={container}>
         <DropdownMenuPrimitive.Content
-          ref={(element) => {
-            register(element);
-            if (typeof ref === "function") {
-              ref(element);
-            } else if (ref) {
-              ref.current = element;
-            }
-          }}
+          ref={setContentRef}
           sideOffset={sideOffset}
           className={cn(
             dropdownMenuContentVariants({
@@ -502,12 +509,6 @@ const DropdownMenuItemWithSecondaryAction = (
   );
 };
 
-const DropdownMenuLoadingItem = () => (
-  <DropdownMenuItem disabled aria-label="Loading">
-    <Skeleton variant="contrast" className="h-4 w-24" />
-  </DropdownMenuItem>
-);
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -601,7 +602,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,

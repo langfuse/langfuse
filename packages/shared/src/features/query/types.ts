@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { singleFilter } from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
 
 export const metricAggregations = z.enum([
   "sum",
@@ -70,6 +70,11 @@ export const viewDeclaration = z.object({
       description: z.string().optional(),
       type: z.string().optional(),
       unit: z.string().optional(),
+      // Natural aggregation the widget builder preselects when the user
+      // switches to this measure (e.g. `sum` for toolCalls, where a carried-over
+      // `count` would count observations instead of tool calls). UI-only
+      // default; the query builder never reads it.
+      defaultAggregation: metricAggregations.optional(),
       aggs: z.record(z.string(), z.string()).optional(),
       // Override query semantics for specific user-selected aggregations while
       // keeping the base declaration as the UI/default compatibility contract.
@@ -99,7 +104,7 @@ export const viewDeclaration = z.object({
     }),
   ),
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
-  segments: z.array(singleFilter),
+  segments: singleFilterList,
   timeDimension: z.string(),
   // When set, adds a subquery filter to restrict rows to those whose "root event"
   // (matching the condition) has timeDimension in the query window.
@@ -216,7 +221,7 @@ export const query = z
     view: z.union([views, z.literal(SCORES_LISTABLE_COUNT_VIEW)]),
     dimensions: z.array(dimension),
     metrics: z.array(metric),
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
     timeDimension: z
       .object({
         // TODO: We may want to extend this and allow custom intervals like 3h in the future.

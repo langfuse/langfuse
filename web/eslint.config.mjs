@@ -1,5 +1,6 @@
 import { globalIgnores } from "eslint/config";
 import boundaries from "eslint-plugin-boundaries";
+import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
@@ -51,6 +52,12 @@ const sentryCapturePattern = {
     "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
 };
 
+const designSystemInternalPattern = {
+  regex: "(^|/)design-system/internal(?:/|$)",
+  message:
+    "Design-system internals may only be imported by other design-system components.",
+};
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -71,7 +78,82 @@ export default [
     },
   },
   {
+    name: "langfuse/web/no-abstracted-overlay-trigger",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.story.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": [
+        "warn",
+        {
+          overlayFamilies: [
+            {
+              module: "@/src/components/ui/dialog",
+              root: "Dialog",
+              trigger: "DialogTrigger",
+              contents: ["DialogContent"],
+            },
+            {
+              module: "@/src/components/ui/alert-dialog",
+              root: "AlertDialog",
+              trigger: "AlertDialogTrigger",
+              contents: ["AlertDialogContent"],
+            },
+            {
+              module: "@/src/components/ui/dropdown-menu",
+              root: "DropdownMenu",
+              trigger: "DropdownMenuTrigger",
+              contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
+            },
+            {
+              module: "@/src/components/ui/drawer",
+              root: "Drawer",
+              trigger: "DrawerTrigger",
+              contents: ["DrawerContent"],
+            },
+            {
+              module: "@/src/components/ui/popover",
+              root: "Popover",
+              trigger: "PopoverTrigger",
+              contents: ["PopoverContent"],
+            },
+            {
+              module: "@/src/components/ui/sheet",
+              root: "Sheet",
+              trigger: "SheetTrigger",
+              contents: ["SheetContent"],
+            },
+          ],
+          overlayControllerFamilies: [
+            {
+              module:
+                "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+              root: "ConfirmationDialogController",
+            },
+            {
+              module:
+                "@/src/components/design-system/DialogController/DialogController",
+              root: "DialogController",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
+    ignores: [
+      ".storybook/**/*",
+      "src/**/__tests__/**",
+      "src/**/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
     settings: {
       tailwindcss: {
         cssConfigPath: "src/styles/globals.css",
@@ -105,12 +187,17 @@ export default [
             "peer",
             // Valid named Tailwind peer marker; eslint-plugin-tailwindcss v4 misses it with Tailwind v4.
             "peer/menu-button",
+            // Component hooks used by the command and dialog primitives.
+            "cmdk-input-wrapper",
+            "dialog-header",
+            "dialog-footer",
           ],
         },
       ],
       "tailwindcss/enforces-negative-arbitrary-values": "warn",
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
+      "tailwindcss/enforces-canonical-classname": "off",
       "tailwindcss/enforces-shorthand": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
@@ -140,6 +227,39 @@ export default [
     },
   },
 
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
+    },
+  },
+
   // Component APIs should expose explicit variants instead of className, style,
   // or prefixed variants such as badgeClassName. New file-level overrides are
   // only acceptable for headless components that do not apply any internal
@@ -155,6 +275,60 @@ export default [
     ],
     rules: {
       "@repo/no-style-props": "error",
+    },
+  },
+
+  // Root design-system components follow `Name/Name.tsx`, optionally alongside
+  // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
+  // match that folder's name, and expose a matching named runtime export. The
+  // factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
+  {
+    name: "langfuse/web/design-system-component-structure",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    ignores: [
+      "src/components/design-system/factories/**",
+      "src/components/design-system/internal/**",
+      "src/components/design-system/table/**",
+    ],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-match-with-fex": [
+        "error",
+        {
+          "*.{ts,tsx}": "src/components/design-system/*/",
+        },
+      ],
+      "check-file/folder-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/": "PASCAL_CASE",
+        },
+      ],
+      "check-file/filename-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/*.{ts,tsx}": "<0>",
+        },
+        {
+          ignoreMiddleExtensions: true,
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-component-exports",
+    files: ["src/components/design-system/*/*.{ts,tsx}"],
+    ignores: [
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "src/components/design-system/table/**",
+    ],
+    rules: {
+      "@repo/filename-matches-export": "error",
+      "import/no-default-export": "error",
     },
   },
 
@@ -190,13 +364,6 @@ export default [
     },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
-      // Margin makes components harder to compose and should therefore be applied by the parent.
-      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
-      // TODO: Consider expanding this rule beyond design-system components
-      "@repo/no-margin-on-root-elements": [
-        "warn",
-        { classNameFunctions: ["cn", "clsx"] },
-      ],
       "boundaries/dependencies": [
         "error",
         {
@@ -220,9 +387,20 @@ export default [
           ],
         },
       ],
+    },
+  },
 
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
+  {
+    name: "langfuse/web/component-margin-rules",
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    rules: {
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
     },
   },
 
@@ -279,7 +457,7 @@ export default [
   },
 
   // Overlay primitive wrappers must stack via the app layer system (route the
-  // portal into a layer container, see components/ui/layer.tsx), never by
+  // portal into a layer container, see context/LayerContext/LayerContext.tsx), never by
   // escalating z-index to escape to the top. On these wrapper files, ban a
   // high/arbitrary z-index ANYWHERE (mode "wrapper") — every high z-index here
   // is an escape. z-index stays a local, within-layer tool elsewhere.
@@ -318,7 +496,41 @@ export default [
       "no-restricted-imports": [
         "error",
         {
+          patterns: [
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            designSystemInternalPattern,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-allow-internal-imports",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
           patterns: [...restrictedImportPatterns, sentryCapturePattern],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-naming",
+    files: ["src/components/design-system/internal/**/*.{ts,tsx}"],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "PASCAL_CASE",
         },
       ],
     },
@@ -335,7 +547,7 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: restrictedImportPatterns,
+          patterns: [...restrictedImportPatterns, designSystemInternalPattern],
         },
       ],
     },

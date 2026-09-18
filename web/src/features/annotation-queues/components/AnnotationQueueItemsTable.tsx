@@ -1,14 +1,17 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { type AnnotationQueueStatus } from "@langfuse/shared";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ChevronDown, ListTree, Trash } from "lucide-react";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { useState } from "react";
@@ -28,7 +31,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -401,6 +404,7 @@ export function AnnotationQueueItemsTable({
   return (
     <>
       <DataTableToolbar
+        tableName="annotation-queue-items"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

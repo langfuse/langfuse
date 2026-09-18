@@ -42,10 +42,6 @@ export function TruncatedLabels({
   const hiddenLabels = sortedLabels.slice(maxVisibleLabels);
   const hasHiddenLabels = hiddenLabels.length > 0;
 
-  if (sortedLabels.length === 0) {
-    return null;
-  }
-
   return (
     <div className={cn("flex flex-wrap gap-1", className)}>
       {visibleLabels.map((label) =>

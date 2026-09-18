@@ -21,14 +21,14 @@ import {
   forwardRef,
   useImperativeHandle,
 } from "react";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import {
   DatasetNameSchema,
   isValidJSONSchema,
   type Prisma,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useRouter } from "next/router";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";

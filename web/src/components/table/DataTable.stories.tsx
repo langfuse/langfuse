@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import preview from "../../../.storybook/preview";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { expect, fn } from "storybook/test";

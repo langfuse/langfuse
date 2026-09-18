@@ -1,7 +1,7 @@
 import {
   GetModelsV1Query,
   GetModelsV1Response,
-} from "@/src/features/public-api/types/models";
+} from "@/src/features/public-api/server";
 import { listModelsForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
 import { buildModelUrl } from "@langfuse/shared/src/server";
@@ -11,6 +11,7 @@ export const [listModelsTool, handleListModels] = defineTool({
   name: "listModels",
   description:
     "List custom and Langfuse-managed model definitions visible to the current project.",
+  action: "models:read",
   baseSchema: GetModelsV1Query,
   inputSchema: GetModelsV1Query,
   handler: async (input, context) =>

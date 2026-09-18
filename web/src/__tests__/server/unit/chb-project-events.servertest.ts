@@ -6,7 +6,7 @@ const EVENT_BUS_ARN =
 
 const mocks = vi.hoisted(() => ({
   env: {
-    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "eu" as string | undefined,
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" as string | undefined,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       "arn:aws:events:eu-central-1:720474339533:event-bus/control-plane-events" as
         | string
@@ -92,6 +92,7 @@ const waitFor = (assertion: () => void) =>
 describe("chbProjectEvents", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
     mocks.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN = EVENT_BUS_ARN;
     mocks.send.mockResolvedValue({ FailedEntryCount: 0 });
     mocks.findProjects.mockResolvedValue([]);
@@ -117,11 +118,49 @@ describe("chbProjectEvents", () => {
     expect(entry.Source).toBe("langfuse");
     // The event carries CHB's organization id, not ours -- CHB's registry is
     // keyed by its own org id.
-    expect(JSON.parse(entry.Detail)).toMatchObject({
+    // Detail mirrors CHB's own bus record: an envelope with the event body
+    // nested under `payload`.
+    const detail = JSON.parse(entry.Detail);
+    expect(detail).toMatchObject({
+      id: expect.any(String),
+      source: "langfuse",
+      timestamp: expect.any(Number),
+      payload: {
+        eventType: "LANGFUSE_PROJECT_CREATED",
+        organizationId: CHB_ORG_ID,
+        projectId: PROJECT_ID,
+        // Where this deployment runs: the provider region it lives in plus our
+        // own cell name, lowercased.
+        cloudProvider: "aws",
+        region: "eu-west-1",
+        cell: "eu",
+      },
+    });
+    expect(detail.payload).not.toHaveProperty("regionId");
+  });
+
+  // CHB locates a deployment by provider region plus cell, not by our cell
+  // name alone. HIPAA and US share us-west-2, so the cell is what still tells
+  // them apart.
+  it.each([
+    ["US", "us-west-2", "us"],
+    ["EU", "eu-west-1", "eu"],
+    ["HIPAA", "us-west-2", "hipaa"],
+    ["JP", "ap-northeast-1", "jp"],
+    ["STAGING", "eu-west-1", "staging"],
+  ])("locates cell %s in %s", async (cloudRegion, awsRegion, cell) => {
+    mocks.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloudRegion;
+
+    await sendChbProjectEvent({
       type: "LANGFUSE_PROJECT_CREATED",
-      organizationId: CHB_ORG_ID,
+      chbOrganizationId: CHB_ORG_ID,
       projectId: PROJECT_ID,
-      regionId: "eu",
+    });
+
+    expect(publishedDetails()[0].payload).toMatchObject({
+      cloudProvider: "aws",
+      region: awsRegion,
+      cell,
     });
   });
 
@@ -242,14 +281,13 @@ describe("chbProjectEvents", () => {
         where: { orgId: ORG_ID, deletedAt: null },
         select: { id: true },
       });
-      expect(publishedDetails().map((detail) => detail.projectId)).toEqual([
-        "project-a",
-        "project-b",
-      ]);
+      expect(
+        publishedDetails().map((detail) => detail.payload.projectId),
+      ).toEqual(["project-a", "project-b"]);
       // Batched: both projects ride one PutEvents call, not one call each.
       expect(mocks.send).toHaveBeenCalledTimes(1);
       expect(publishedEntries()[0].DetailType).toBe("LANGFUSE_PROJECT_CREATED");
-      expect(publishedDetails()[0]).toMatchObject({
+      expect(publishedDetails()[0].payload).toMatchObject({
         organizationId: CHB_ORG_ID,
       });
     });
@@ -284,7 +322,7 @@ describe("chbProjectEvents", () => {
       mocks.send.mockImplementation((command) => {
         const results = command.input.Entries.map(
           (entry: { Detail: string }) =>
-            JSON.parse(entry.Detail).projectId === "project-a"
+            JSON.parse(entry.Detail).payload.projectId === "project-a"
               ? { ErrorCode: "InternalException" }
               : { EventId: "ok" },
         );
@@ -306,7 +344,8 @@ describe("chbProjectEvents", () => {
           .slice(1)
           .flatMap(([command]) => command.input.Entries)
           .map(
-            (entry: { Detail: string }) => JSON.parse(entry.Detail).projectId,
+            (entry: { Detail: string }) =>
+              JSON.parse(entry.Detail).payload.projectId,
           ),
       ).toEqual(["project-a", "project-a"]);
 

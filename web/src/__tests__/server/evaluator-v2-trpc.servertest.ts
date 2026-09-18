@@ -292,7 +292,7 @@ describe("evalsV2 tRPC", () => {
       createEvent({
         project_id: projectId,
         trace_id: randomUUID(),
-        trace_name: `Execute evaluator: ${evaluator.name}`,
+        evaluator_id: evaluator.id,
         type: "GENERATION",
         cost_details: { total: 0.02 },
       }),

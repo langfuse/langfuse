@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 
@@ -11,7 +12,7 @@ import {
   WILDCARD,
   type PathSegment,
 } from "@/src/features/evals/v2/fns/variableMapping/segmentsToJsonPath";
-import { MediaTag } from "@/src/components/MediaTag/MediaTag";
+import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
   splitStringByMediaReferences,
@@ -59,7 +60,6 @@ function MediaAwarePreview({
         "text-muted-foreground flex min-w-0 flex-1 items-baseline gap-0.5 overflow-hidden text-xs leading-4",
         directDescriptor && "self-center",
       )}
-      title={preview}
     >
       {segments.map((segment, index) =>
         segment.type === "media" ? (
@@ -68,7 +68,7 @@ function MediaAwarePreview({
             data-tree-row-action=""
             className="inline-flex shrink-0 self-center"
           >
-            <MediaTag contentType={segment.descriptor.contentType} />
+            <MediaReferenceTag descriptor={segment.descriptor} />
           </span>
         ) : (
           <span
@@ -182,7 +182,13 @@ function TreeRow({
             "flex min-w-0 cursor-pointer items-baseline gap-2 text-left",
             hasMedia ? "shrink-0" : "flex-1",
           )}
-          title={expandable ? preview : `Pull {{${variable}}} from here`}
+          title={
+            hasMedia
+              ? undefined
+              : expandable
+                ? preview
+                : `Pull {{${variable}}} from here`
+          }
         >
           {expandable ? (
             <ChevronDown

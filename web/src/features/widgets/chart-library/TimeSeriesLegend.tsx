@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import {
@@ -159,7 +160,6 @@ export function SeriesOverflowNote({
   visibleCount: number;
   totalCount: number;
 }) {
-  if (totalCount <= visibleCount) return null;
   return (
     <div className="text-muted-foreground shrink-0 pb-1 text-right text-xs">
       Showing top {visibleCount} of {totalCount} series
@@ -182,8 +182,6 @@ export function TimeSeriesLegend({
   onItemClick: (dimension: string) => void;
   formatSummary: (value: number) => string;
 }) {
-  if (items.length === 0) return null;
-
   return (
     // Wrap onto multiple rows so every series stays visible, but cap the
     // legend's height and scroll inside it — a chart with hundreds of series
