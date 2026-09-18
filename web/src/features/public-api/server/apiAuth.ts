@@ -33,6 +33,33 @@ type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
 };
 
+const MAX_LOGGED_PUBLIC_KEY_LENGTH = 64;
+
+/**
+ * Renders a client-submitted public key for a log message.
+ *
+ * `formatSubmittedPublicKeyForLog` masks a value that is not a Langfuse public
+ * key, so a secret pasted into the public key slot is never echoed in full. The
+ * value still arrives straight from a client-controlled Authorization header
+ * via `atob`, though, and the paths that log it are the ones where the key was
+ * not found in the database, so it may be arbitrary bytes. The text log
+ * formatter interpolates `message` verbatim, so left as-is a caller could forge
+ * log lines with a newline, or drive an operator's terminal with an escape
+ * sequence (CWE-117).
+ *
+ * A real public key is printable ASCII (`pk-lf-` plus a UUID), so allow-list
+ * that range rather than enumerating the dangerous one: one rule covers C0
+ * controls, DEL, and the C1 range (`atob` maps byte 0x9B to U+009B, which
+ * `JSON.stringify` does not escape). `JSON.stringify` then quotes the result
+ * and escapes any embedded quote or backslash.
+ */
+const sanitizeKeyForLog = (publicKey: string): string =>
+  JSON.stringify(
+    formatSubmittedPublicKeyForLog(publicKey)
+      .slice(0, MAX_LOGGED_PUBLIC_KEY_LENGTH)
+      .replace(/[^\x20-\x7e]/g, "\uFFFD"),
+  );
+
 export class ApiAuthService {
   prisma: PrismaClient;
   redis: Redis | Cluster | null;
@@ -115,8 +142,7 @@ export class ApiAuthService {
 
               if (!slowKey) {
                 logger.error(
-                  "No key found for public key",
-                  formatSubmittedPublicKeyForLog(publicKey),
+                  `No key found for public key: ${sanitizeKeyForLog(publicKey)}`,
                 );
                 if (this.redis) {
                   logger.info(
@@ -158,15 +184,14 @@ export class ApiAuthService {
 
             if (!finalApiKey) {
               logger.info(
-                "No project id found for key",
-                formatSubmittedPublicKeyForLog(publicKey),
+                `No project id found for key: ${sanitizeKeyForLog(publicKey)}`,
               );
               throw new Error("Invalid credentials");
             }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -325,7 +350,9 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${sanitizeKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
     }
     return dbKey;
