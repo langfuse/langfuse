@@ -30,15 +30,6 @@ function cosineDistance(a: number[], b: number[]): number {
   );
 }
 
-function centroid(vectors: number[][]): number[] {
-  return normalizeVector(
-    vectors[0].map(
-      (_, i) =>
-        vectors.reduce((sum, vector) => sum + vector[i], 0) / vectors.length,
-    ),
-  );
-}
-
 function quantile(values: number[], fraction: number): number {
   const sorted = [...values].sort((a, b) => a - b);
   const position = (sorted.length - 1) * fraction;
@@ -65,21 +56,35 @@ export function buildTopicPrototypes(
       const indices = labels.flatMap((value, i) =>
         value === label ? [i] : [],
       );
+      const sum = vectors[indices[0]].map((_, dimension) =>
+        indices.reduce((total, index) => total + vectors[index][dimension], 0),
+      );
       return {
         label,
         indices,
-        centroid: centroid(indices.map((i) => vectors[i])),
+        sum,
+        centroid: normalizeVector(sum.map((value) => value / indices.length)),
       };
     });
   return groups.map((group) => {
     const positives = group.indices.map((index) => {
-      const others = group.indices.filter((i) => i !== index);
-      return others.length
-        ? cosineDistance(
-            vectors[index],
-            centroid(others.map((i) => vectors[i])),
-          )
-        : 0;
+      const otherCount = group.indices.length - 1;
+      if (!otherCount) return 0;
+      let mean = group.sum.map(
+        (value, dimension) => (value - vectors[index][dimension]) / otherCount,
+      );
+      // Re-sum nearly cancelling vectors to avoid amplifying subtraction error.
+      if (Math.hypot(...mean) < 1e-6) {
+        mean = group.sum.map(
+          (_, dimension) =>
+            group.indices.reduce(
+              (total, other) =>
+                other === index ? total : total + vectors[other][dimension],
+              0,
+            ) / otherCount,
+        );
+      }
+      return cosineDistance(vectors[index], normalizeVector(mean));
     });
     const rival = groups
       .filter((candidate) => candidate !== group)

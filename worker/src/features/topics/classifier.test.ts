@@ -8,6 +8,16 @@ import {
 import type { TopicSummary } from "@langfuse/shared/topics";
 
 describe("Topics original-space classifier", () => {
+  it("preserves the leave-one-out radius when member vectors nearly cancel", () => {
+    const summaries = [
+      { id: "a", embedding: [Math.cos(5), Math.sin(5)] },
+      { id: "b", embedding: [1, 0] },
+      { id: "c", embedding: [-1, 1e-11] },
+    ];
+    const [prototype] = buildTopicPrototypes(summaries, [0, 0, 0]);
+    expect(prototype.radius).toBeCloseTo(1.9431462087521165, 12);
+  });
+
   it("accepts exact duplicates at the radius boundary without admitting distinct vectors", () => {
     const embedding = Array.from(new Float32Array([0.7, 0.3, 0.1]));
     const summaries = Array.from({ length: 6 }, (_, index) => ({
@@ -74,7 +84,7 @@ describe("Topics original-space classifier", () => {
       { id: "c", embedding: [0.8, -0.6] },
     ];
     const [prototype] = buildTopicPrototypes(summaries, [0, 0, 0]);
-    expect(prototype.radius).toBeGreaterThan(0.2);
+    expect(prototype.radius).toBeCloseTo(1 - 1.08 / Math.hypot(1.8, 0.6), 12);
     const result = classifyTopic(
       [1, 0],
       [
