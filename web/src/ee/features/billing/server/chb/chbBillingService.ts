@@ -651,7 +651,7 @@ export class ChbBillingService {
     const chb = this.requireChbState(parsedOrg);
     if (!chb.attachedPlanId) {
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
+        code: "PRECONDITION_FAILED",
         message: "No active subscription to cancel",
       });
     }
@@ -690,7 +690,7 @@ export class ChbBillingService {
     const chb = this.requireChbState(parsedOrg);
     if (!chb.attachedPlanId) {
       throw new TRPCError({
-        code: "INTERNAL_SERVER_ERROR",
+        code: "PRECONDITION_FAILED",
         message: "No active subscription found",
       });
     }
