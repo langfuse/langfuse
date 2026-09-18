@@ -53,7 +53,7 @@ export function TraceMessagesView() {
 
   const { threads } = data.transcript;
   return (
-    <div className="flex flex-col gap-6 overflow-y-auto p-3">
+    <div className="flex h-full w-full flex-col gap-6 overflow-y-auto p-3">
       {data.cutoff && (
         <Notice>
           This trace exceeds the observation cap. Later observations are not
