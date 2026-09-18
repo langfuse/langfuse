@@ -217,14 +217,14 @@ function CommentThread({
       )}
       <div
         ref={commentsContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
       >
-        {filteredComments.length === 0 && (
-          <p className="text-muted-foreground px-2 py-6 text-sm">
-            {query ? "No comments match your search." : "No comments yet."}
-          </p>
-        )}
-        <div className="divide-y">
+        <div className="flex min-h-full flex-col justify-end gap-4">
+          {filteredComments.length === 0 && (
+            <p className="text-muted-foreground py-6 text-sm">
+              {query ? "No comments match your search." : "No comments yet."}
+            </p>
+          )}
           {filteredComments.map((comment) => (
             <CommentCard
               key={comment.id}
@@ -236,6 +236,7 @@ function CommentThread({
               timestamp={getRelativeTimestampFromNow(comment.createdAt)}
               content={comment.content}
               highlighted={highlightedCommentId === comment.id}
+              isOwnComment={session.data?.user?.id === comment.authorUserId}
               location={
                 comment.dataField && comment.path.length > 0 ? (
                   <div className="flex min-w-0 items-center gap-2">

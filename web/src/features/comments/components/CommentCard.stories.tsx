@@ -17,6 +17,7 @@ const comment = {
   content:
     "The answer is clear, but the second claim needs a source. I'd mark this as **partially correct** until we check it.",
   highlighted: false,
+  isOwnComment: false,
   actions: (
     <IconButton
       icon={Trash2}
@@ -31,6 +32,33 @@ const comment = {
 } satisfies ComponentProps<typeof CommentCard>;
 
 export const Default = meta.story({ args: comment });
+
+export const OwnMessage = meta.story({
+  args: { ...comment, isOwnComment: true },
+});
+
+export const Conversation = meta.story({
+  render: () => (
+    <div className="flex w-full max-w-md flex-col gap-4 p-4">
+      <CommentCard {...comment} actions={null} />
+      <CommentCard
+        {...comment}
+        id="reply"
+        authorName="Alex Rivera"
+        timestamp="2 minutes ago"
+        isOwnComment={true}
+        content="Agreed. I'll check the source and update the score."
+      />
+      <CommentCard
+        {...comment}
+        id="follow-up"
+        timestamp="Just now"
+        content="Thanks!"
+        actions={null}
+      />
+    </div>
+  ),
+});
 
 export const Highlighted = meta.story({
   args: { ...comment, highlighted: true },
