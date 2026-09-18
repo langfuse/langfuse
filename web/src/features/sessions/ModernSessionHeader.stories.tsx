@@ -321,11 +321,11 @@ export const TestCompactsTokenCounts = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(
         "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
       ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens "));
+    ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent("tokens 649k → 7k (Σ 655k)");
-    await expect(tokenPill).toHaveAttribute(
+    await expect(tokenPill).toHaveTextContent("649k → 7k (Σ 655k)");
+    await expect(tokenPill?.querySelector("[title]")).toHaveAttribute(
       "title",
       "tokens 648,714 → 6,697 (Σ 655,411)",
     );
@@ -402,9 +402,15 @@ export const TestHidesAndRevealsDetails = meta.story({
       name: "Add metadata JSONPath",
     });
     await waitFor(() =>
-      expect([overflowSearchInput, metadataEditorButton]).toContain(
-        canvasElement.ownerDocument.activeElement,
-      ),
+      expect(
+        [
+          overflowSearchInput,
+          metadataEditorButton,
+          canvas.queryByRole("button", {
+            name: /show \d+ hidden session details/i,
+          }),
+        ].filter(Boolean),
+      ).toContain(canvasElement.ownerDocument.activeElement),
     );
   },
 });

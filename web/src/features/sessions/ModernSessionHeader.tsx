@@ -2,8 +2,10 @@ import { percentile, type ScoreDomain } from "@langfuse/shared";
 import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
+import Link from "next/link";
+
+import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { ModernSessionHeaderPill } from "@/src/features/sessions/ModernSessionHeaderPill";
 import {
   MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
   parseStoredHiddenSessionHeaderDetails,
@@ -88,8 +90,8 @@ type SessionHeaderDetailControlLocation = "header" | "overflow";
 
 const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 
-const ChipValue = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-foreground">{children}</span>
+const ChipKey = ({ children }: { children: React.ReactNode }) => (
+  <span className="text-muted-foreground">{children}</span>
 );
 
 const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
@@ -108,19 +110,18 @@ const scoreChipValue = (
 };
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
-  <ModernSessionHeaderPill
-    variant="link"
+  <Link
     href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
+    className="ph-no-capture inline-flex max-w-[280px] min-w-0"
   >
-    user{" "}
-    <span
-      className="text-foreground group-hover:text-link truncate"
-      title={user}
-    >
-      {user}
-    </span>
-    <ArrowUpRight className="text-link h-3 w-3 shrink-0" />
-  </ModernSessionHeaderPill>
+    <Badge
+      data-session-header-pill="true"
+      label="user"
+      text={user}
+      trailingIcon={ArrowUpRight}
+      trailingIconTone="link"
+    />
+  </Link>
 );
 
 const SessionHeaderDetailWithVisibilityControl = ({
@@ -205,14 +206,14 @@ const MetadataJsonPathPill = ({
   onRemove: (path: string) => void;
 }) => (
   <span className="group flex items-center">
-    <ModernSessionHeaderPill variant="display">
-      <span className="max-w-40 truncate" title={display.path}>
+    <BadgeShell data-session-header-pill="true">
+      <span
+        className="text-muted-foreground max-w-40 truncate"
+        title={display.path}
+      >
         {display.label}
       </span>
-      <span
-        className="text-foreground max-w-56 truncate"
-        title={display.displayValue}
-      >
+      <span className="max-w-56 truncate" title={display.displayValue}>
         {display.displayValue}
       </span>
       <span className="-ml-1.5 inline-flex w-0 overflow-hidden transition-[width,margin] group-focus-within:ml-0 group-focus-within:w-4 group-hover:ml-0 group-hover:w-4">
@@ -226,7 +227,7 @@ const MetadataJsonPathPill = ({
           <X className="h-3 w-3" />
         </button>
       </span>
-    </ModernSessionHeaderPill>
+    </BadgeShell>
   </span>
 );
 
@@ -403,19 +404,19 @@ export function ModernSessionHeader({
       visibilityLabel: "trace and span counts",
       type: "traces",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <BadgeShell data-session-header-pill="true">
           <span>
-            <ChipValue>{numberFormatter(countTraces, 0)}</ChipValue> traces
+            {numberFormatter(countTraces, 0)} <ChipKey>traces</ChipKey>
           </span>
           {spanCount !== null ? (
             <>
               <ChipDot />
               <span>
-                <ChipValue>{numberFormatter(spanCount, 0)}</ChipValue> spans
+                {numberFormatter(spanCount, 0)} <ChipKey>spans</ChipKey>
               </span>
             </>
           ) : null}
-        </ModernSessionHeaderPill>
+        </BadgeShell>
       ),
     },
   ];
@@ -427,23 +428,20 @@ export function ModernSessionHeader({
       visibilityLabel: "latency percentiles",
       type: "latency",
       content: (
-        <ModernSessionHeaderPill variant="display">
+        <BadgeShell data-session-header-pill="true">
           <span>
-            p50{" "}
-            <ChipValue>{formatIntervalSeconds(p50LatencyMs / 1000)}</ChipValue>
+            <ChipKey>p50</ChipKey> {formatIntervalSeconds(p50LatencyMs / 1000)}
           </span>
           {p95LatencyMs !== null ? (
             <>
               <ChipDot />
               <span>
-                p95{" "}
-                <ChipValue>
-                  {formatIntervalSeconds(p95LatencyMs / 1000)}
-                </ChipValue>
+                <ChipKey>p95</ChipKey>{" "}
+                {formatIntervalSeconds(p95LatencyMs / 1000)}
               </span>
             </>
           ) : null}
-        </ModernSessionHeaderPill>
+        </BadgeShell>
       ),
     });
   }
@@ -456,19 +454,12 @@ export function ModernSessionHeader({
       visibilityLabel: "token usage",
       type: "tokens",
       content: (
-        <ModernSessionHeaderPill
-          variant="display"
+        <Badge
+          data-session-header-pill="true"
+          label="tokens"
+          text={`${compactTokenFormatter(tokensIn)} → ${compactTokenFormatter(tokensOut)} (Σ ${compactTokenFormatter(totalTokens)})`}
           title={`tokens ${exactTokenCounts}`}
-        >
-          <span>
-            tokens{" "}
-            <ChipValue>
-              {compactTokenFormatter(tokensIn)} →{" "}
-              {compactTokenFormatter(tokensOut)} (Σ{" "}
-              {compactTokenFormatter(totalTokens)})
-            </ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
+        />
       ),
     });
   }
@@ -479,14 +470,12 @@ export function ModernSessionHeader({
     visibilityLabel: "cost",
     type: "cost",
     content: (
-      <ModernSessionHeaderPill
-        variant="display"
+      <Badge
+        data-session-header-pill="true"
+        label="cost"
+        text={usdFormatter(totalCost, 2, 3)}
         title={`exact $${totalCost.toFixed(6)}`}
-      >
-        <span>
-          cost <ChipValue>{usdFormatter(totalCost, 2, 3)}</ChipValue>
-        </span>
-      </ModernSessionHeaderPill>
+      />
     ),
   });
 
@@ -504,15 +493,20 @@ export function ModernSessionHeader({
       visibilityLabel: `score ${index + 1}`,
       type: "score",
       content: (
-        <ModernSessionHeaderPill variant="display" title={score.name}>
+        <BadgeShell data-session-header-pill="true" title={score.name}>
           {isFraction ? (
             <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
           ) : null}
-          <span className="max-w-40 truncate" title={score.name}>
+          <span
+            className="text-muted-foreground max-w-40 truncate"
+            title={score.name}
+          >
             {score.name}
           </span>
-          <ChipValue>{value}</ChipValue>
-        </ModernSessionHeaderPill>
+          <span className="truncate" title={value}>
+            {value}
+          </span>
+        </BadgeShell>
       ),
     });
   });
@@ -524,11 +518,7 @@ export function ModernSessionHeader({
       visibilityLabel: "environment",
       type: "environment",
       content: (
-        <ModernSessionHeaderPill variant="display">
-          <span>
-            env <ChipValue>{environment}</ChipValue>
-          </span>
-        </ModernSessionHeaderPill>
+        <Badge data-session-header-pill="true" label="env" text={environment} />
       ),
     });
   }
@@ -639,13 +629,15 @@ export function ModernSessionHeader({
             onOpenChange={handleMetadataEditorOpenChange}
           >
             <PopoverTrigger asChild>
-              <ModernSessionHeaderPill
-                variant="button"
-                ariaLabel="Add metadata JSONPath"
-                ref={metadataEditorButtonRef}
-              >
-                <Plus className="h-3 w-3" />
-              </ModernSessionHeaderPill>
+              <BadgeShell asChild data-session-header-pill="true">
+                <button
+                  type="button"
+                  aria-label="Add metadata JSONPath"
+                  ref={metadataEditorButtonRef}
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </BadgeShell>
             </PopoverTrigger>
             {isMetadataEditorOpen ? (
               <MetadataJsonPathEditorContent
@@ -691,13 +683,15 @@ export function ModernSessionHeader({
               }}
             >
               <PopoverTrigger asChild>
-                <ModernSessionHeaderPill
-                  variant="button"
-                  ariaLabel={`Show ${overflowItemCount} hidden session details`}
-                  ref={overflowButtonRef}
-                >
-                  +{overflowItemCount}
-                </ModernSessionHeaderPill>
+                <BadgeShell asChild data-session-header-pill="true">
+                  <button
+                    type="button"
+                    aria-label={`Show ${overflowItemCount} hidden session details`}
+                    ref={overflowButtonRef}
+                  >
+                    +{overflowItemCount}
+                  </button>
+                </BadgeShell>
               </PopoverTrigger>
               <PopoverContent
                 align="end"
