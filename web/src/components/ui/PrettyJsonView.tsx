@@ -170,7 +170,7 @@ function getContainerClasses(
     baseClasses,
     toned ? "bg-accent-light-green dark:border-accent-dark-green/30" : "",
     borderless
-      ? "rounded-md overflow-hidden"
+      ? "rounded-md overflow-clip"
       : scrollable
         ? ""
         : "rounded-sm border",
@@ -1228,7 +1228,7 @@ export function PrettyJsonView(props: {
 
   const getBackgroundColorClass = () =>
     ASSISTANT_TITLES.includes(props.title || "")
-      ? "bg-accent-light-green rounded-md overflow-hidden"
+      ? "bg-accent-light-green rounded-md overflow-clip"
       : "";
 
   const body = (
