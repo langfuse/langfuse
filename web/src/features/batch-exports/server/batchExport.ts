@@ -174,10 +174,13 @@ export const batchExportRouter = createTRPCRouter({
         scope: "batchExports:create",
       });
 
-      await ctx.prisma.batchExport.update({
+      const { count } = await ctx.prisma.batchExport.updateMany({
         where: { id: input.batchExportId, projectId: input.projectId },
         data: { status: BatchExportStatus.CANCELLED },
       });
+      if (count === 0) {
+        throw new LangfuseNotFoundError("Batch export not found");
+      }
     }),
   downloadUrl: protectedProjectProcedure
     .input(
