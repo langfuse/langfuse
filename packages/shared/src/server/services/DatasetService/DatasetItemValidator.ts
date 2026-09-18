@@ -110,27 +110,49 @@ export class DatasetItemValidator {
     return value === null ? Prisma.DbNull : value;
   }
 
+  /**
+   * Normalize one IO field for an upsert.
+   *
+   * A value the caller actually supplied is normalized, and JSON-parsed when
+   * the caller opted in. A field the caller omitted (`undefined`) on an update
+   * falls back to the existing, already-decoded DB value, which is passed
+   * through untouched — re-parsing a carried-over bare string like "123456"
+   * would coerce it back to the number 123456, reintroducing #15342 on a
+   * routine status toggle.
+   */
+  private normalizeUpsertField(
+    value: string | unknown | null | undefined,
+    existing: { present: boolean; value: Prisma.InputJsonValue | null },
+    opts?: { sanitizeControlChars?: boolean; parseJsonStrings?: boolean },
+  ): Prisma.InputJsonValue | null | undefined {
+    if (value !== undefined) return this.normalize(value, opts);
+    if (existing.present) return existing.value;
+    return undefined;
+  }
+
   private normalize(
     data: string | unknown | null | undefined,
-    opts?: { sanitizeControlChars?: boolean },
+    opts?: { sanitizeControlChars?: boolean; parseJsonStrings?: boolean },
   ): Prisma.InputJsonValue | null | undefined {
     if (data === "") return null;
     if (data === undefined) return undefined;
     if (data === null) return null;
 
     try {
-      // Handle both string (tRPC) and already-parsed values (Public API)
       // InputJsonValue accepts objects, arrays, strings, numbers, booleans, null
       let parsed: Prisma.InputJsonValue;
 
-      if (typeof data === "string") {
-        // Try to parse as JSON first (for tRPC which sends JSON strings like '{"key":"value"}')
+      if (opts?.parseJsonStrings && typeof data === "string") {
+        // Opted-in callers still hold JSON-encoded strings like
+        // '{"key":"value"}' (tRPC forms, ClickHouse String columns).
         const parsedJson = parseJsonPrioritised(data);
         parsed = (
           parsedJson === undefined ? data : parsedJson
         ) as Prisma.InputJsonValue;
       } else {
-        // Public API sends already-parsed values - use directly
+        // Already-parsed value (Public API, MCP): a string here is a real
+        // string, so re-parsing it would silently coerce JSON-literal-looking
+        // values such as "123456" to the number 123456 (#15342).
         parsed = data as Prisma.InputJsonValue;
       }
 
@@ -186,7 +208,9 @@ export class DatasetItemValidator {
    * Combines JSON parsing, control character sanitization, and schema validation.
    *
    * **Flexible input:** Accepts both JSON strings (from tRPC) and already-parsed
-   * objects (from Public API). Handles both seamlessly.
+   * objects (from Public API). Callers holding JSON-encoded strings must set
+   * `normalizeOpts.parseJsonStrings`; everyone else gets their values stored
+   * verbatim.
    *
    * @param params.input - JSON string, parsed object, or null
    * @param params.expectedOutput - JSON string, parsed object, or null
@@ -197,7 +221,21 @@ export class DatasetItemValidator {
     input: string | unknown | null | undefined;
     expectedOutput: string | unknown | null | undefined;
     metadata: string | unknown | null | undefined;
-    normalizeOpts?: { sanitizeControlChars?: boolean };
+    /**
+     * Already-decoded values of the item being updated. When a field is
+     * omitted from `params`, its value here is carried over verbatim instead
+     * of being re-normalized, so a stored string is never parsed a second
+     * time. Omit entirely for create operations.
+     */
+    existingItem?: {
+      input: Prisma.InputJsonValue | null;
+      expectedOutput: Prisma.InputJsonValue | null;
+      metadata: Prisma.InputJsonValue | null;
+    };
+    normalizeOpts?: {
+      sanitizeControlChars?: boolean;
+      parseJsonStrings?: boolean;
+    };
     validateOpts: { normalizeUndefinedToNull?: boolean };
   }): ValidateAndNormalizeResult {
     // If we have a create operation, input cannot be undefined / null
@@ -220,14 +258,25 @@ export class DatasetItemValidator {
       };
     }
 
-    // 1. Normalize IO
-    const normalizedInput = this.normalize(params.input, params.normalizeOpts);
-    const normalizedExpectedOutput = this.normalize(
-      params.expectedOutput,
+    // 1. Normalize IO. On an update, fields omitted by the caller fall back to
+    // the existing already-decoded value rather than being parsed again.
+    const existing = params.existingItem;
+    const normalizedInput = this.normalizeUpsertField(
+      params.input,
+      { present: existing !== undefined, value: existing?.input ?? null },
       params.normalizeOpts,
     );
-    const normalizedMetadata = this.normalize(
+    const normalizedExpectedOutput = this.normalizeUpsertField(
+      params.expectedOutput,
+      {
+        present: existing !== undefined,
+        value: existing?.expectedOutput ?? null,
+      },
+      params.normalizeOpts,
+    );
+    const normalizedMetadata = this.normalizeUpsertField(
       params.metadata,
+      { present: existing !== undefined, value: existing?.metadata ?? null },
       params.normalizeOpts,
     );
 
