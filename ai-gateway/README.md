@@ -343,7 +343,7 @@ The gateway also recognizes correlation headers emitted by coding agents:
 | Agent | Session source | Turn source |
 | --- | --- | --- |
 | Claude Code | `x-claude-code-session-id` | Not available |
-| Codex | `thread_id` in `x-codex-turn-metadata` | `turn_id` in `x-codex-turn-metadata` |
+| Codex | `thread_id` in the Codex turn snapshot | `turn_id` in the Codex turn snapshot |
 | OpenCode | `x-opencode-session`, falling back to `x-session-id` or `x-session-affinity` for an OpenCode user agent | `x-opencode-request` |
 | Pi | `x-session-id`, `session_id`, `x-session-affinity`, or `x-client-request-id` for a Pi user agent | Not available |
 
@@ -360,11 +360,33 @@ This includes `agent.name`, `agent.project_id`, `agent.session_id`,
 routing-oriented `session_id` is retained as metadata, while its
 conversation-oriented `thread_id` supplies the Langfuse session.
 
-Agent extraction has a separate 8 KiB aggregate header limit. Codex turn metadata is
-limited to 4 KiB, and each extracted identifier uses the same 1 KiB field limit as
-the explicit context headers. Empty, duplicate, malformed, oversized, or
-control-character-bearing values are ignored. Generic affinity/request headers are
-used only after an agent-specific header or user agent identifies the caller.
+Codex sends its turn snapshot canonically in the request body as
+`client_metadata["x-codex-turn-metadata"]`; the `x-codex-turn-metadata` header and the
+flat `client_metadata` keys (`session_id`, `thread_id`, `turn_id`, `root_turn_id`,
+`parent_turn_id`, `x-codex-installation-id`, `x-codex-window-id`,
+`x-codex-parent-thread-id`) are compatibility projections of it. The gateway reads the
+body snapshot first, then the header, and finally the flat keys. A recognized
+`client_metadata` object is removed from the recorded input in full mode because it is
+request metadata rather than prompt content; other clients' `client_metadata` stays in
+the input untouched. Besides the identifiers above, Codex generations carry
+`agent.id` (Codex's `agent_name`, the agent's path in a multi-agent team such as
+`/root`), `agent.installation_id`, `agent.root_turn_id`, `agent.parent_turn_id`,
+`agent.parent_thread_id`, `agent.forked_from_thread_id`,
+`agent.forked_from_ordinal_exclusive`, `agent.window_id`, `agent.window_number`,
+`agent.context_window_id`, `agent.request_kind` (`turn`, `compaction`, `prewarm`,
+`memory`), `agent.compaction.{trigger,reason,implementation,phase,strategy}`,
+`agent.subagent_kind`, `agent.thread_source`, `agent.turn_trigger`, `agent.sandbox`,
+`agent.sandbox_mode`, `agent.workspace_kind`, `agent.auto_review_enabled`, and
+`agent.turn_started_at_unix_ms`. Numbers and booleans keep their native JSON type.
+Nested snapshot objects such as `workspaces` and `tool_namespaces_info` are not
+copied, and unknown snapshot keys are ignored so they cannot override `agent.name`.
+
+Agent extraction has a separate 8 KiB aggregate header limit. The Codex turn metadata
+header is limited to 4 KiB and the body `client_metadata` object to 64 KiB, and each
+extracted identifier uses the same 1 KiB field limit as the explicit context headers.
+Empty, duplicate, malformed, oversized, or control-character-bearing values are
+ignored. Generic affinity/request headers are used only after an agent-specific header
+or user agent identifies the caller.
 
 Caller context is kept outside ambient operational context and operational logs.
 Resolver and ingestion HTTP requests propagate only the gateway's internal trace;
@@ -381,9 +403,9 @@ including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per l
 Web's resolved ingestion mode controls content capture:
 
 - `full`: input retains native `input`, `instructions`, tools, prompt/context
-  references and unknown fields. Model and configuration are projected out of input.
-  Output is an ordered array of native completed items. Content is sent only through
-  Langfuse ingestion.
+  references and unknown fields. Model, configuration and a recognized coding agent's
+  `client_metadata` are projected out of input. Output is an ordered array of native
+  completed items. Content is sent only through Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
 

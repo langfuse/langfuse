@@ -50,6 +50,12 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
         }
     }
+
+    fn client_metadata(&self) -> Option<&Map<String, Value>> {
+        match self {
+            Self::OpenAiResponses(capture) => capture.client_metadata(),
+        }
+    }
 }
 
 /// Owned before dispatch and moved into the response body. Drop also covers a
@@ -138,9 +144,13 @@ impl ExecutionCapture {
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
     ) {
+        let client_metadata = self
+            .protocol
+            .as_ref()
+            .and_then(ProtocolCapture::client_metadata);
         self.delivery = Some((
             telemetry,
-            telemetry::DeliveryContext::from_resolved(context, headers),
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata),
         ));
     }
 
