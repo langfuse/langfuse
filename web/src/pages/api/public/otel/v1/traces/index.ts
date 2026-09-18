@@ -53,14 +53,22 @@ export default withMiddlewares({
       try {
         // Acquire worker admission before reading so queued request bodies remain paused.
         if (useWorker) {
-          const { createOtelIngestionWorkerContext } =
-            await import("@/src/server/otel/otelIngestionWorkerContext");
-          const contextResult = await createOtelIngestionWorkerContext(
-            req,
-            res,
-            auth.scope.projectId,
-            maxBodyBytes,
-          );
+          req.pause();
+          let workerContextModule;
+          try {
+            workerContextModule =
+              await import("@/src/server/otel/otelIngestionWorkerContext");
+          } catch (error) {
+            req.resume();
+            throw error;
+          }
+          const contextResult =
+            await workerContextModule.createOtelIngestionWorkerContext(
+              req,
+              res,
+              auth.scope.projectId,
+              maxBodyBytes,
+            );
           if ("response" in contextResult) {
             return contextResult.response;
           }
