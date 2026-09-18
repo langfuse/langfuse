@@ -94,6 +94,7 @@ export const scoreConfigsRouter = createTRPCRouter({
       const config = await ctx.prisma.scoreConfig.create({
         data: {
           ...input,
+          categories: input.categories ?? undefined,
         },
       });
 
