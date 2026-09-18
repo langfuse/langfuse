@@ -122,17 +122,36 @@ These distributions use the `langfuse.trace_batch` prefix:
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
+| `transcript_tokenization_duration_ms` | Elapsed time from token submission to settlement, including worker-pool queueing, copying, encoding and failures; emitted only when a transcript exists. |
 | `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
 
-Transcript token counts use the existing worker tokenizer pool with fixed
-`gpt-4o` encoding (`tokenizer:gpt-4o`), allowing comparison across projects and
-models. These are serialized-payload estimates, not provider billing counts.
+Transcript token counts use the existing local worker-thread pool and bundled
+tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
+selects `o200k_base`, also used by GPT-5 mini and nano
+([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)); metrics are tagged
+`tokenizer:o200k_base`. These are serialized-payload estimates, not provider
+billing counts or a model's full request framing.
 Unknown estimates are omitted and counted in `token_estimation_unavailable`.
-Only the assembled transcript is tokenized. Estimates are awaited per trace,
-so tokenizer work cannot accumulate an entire batch in memory. Assembly or
-tokenizer errors fail the attempt; `read_duration_ms` includes this processing.
-The current trace can still be arbitrarily large. ClickHouse must sort the
-filtered result, so compare query memory and latency against the unordered
+Rejected estimates increment `token_estimation_failed` and omit the token sample;
+they do not retry the batch. Only the assembled transcript is tokenized.
+
+The worker submits one transcript for tokenization while streaming the next
+trace's observations. Before submitting another transcript it awaits the previous
+promise, keeping at most one pending token estimate per batch. Success and stream
+failure both drain accepted promises; a stream failure never assembles its
+partial final trace. Assembly itself remains synchronous. `read_duration_ms`
+includes all this processing.
+
+Memory includes the current trace, the previous transcript being tokenized and
+stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
+The default two-thread tokenizer pool is shared with ingestion; overlap hides
+waiting time but does not remove CPU use or contention. Its existing 30-second
+timeout rejects the promise without cancelling queued/running encoding, so the
+pending-promise bound is not a cancellation guarantee. Watch tokenization latency
+and failures alongside `runtime.node.mem.rss`, `runtime.node.mem.heap_used`, worker
+CPU and queue depth before raising batch concurrency.
+
+ClickHouse must sort the filtered result, so compare query memory and latency against the unordered
 baseline before increasing load.
 
 Enable percentile aggregations for these distribution metrics in Datadog

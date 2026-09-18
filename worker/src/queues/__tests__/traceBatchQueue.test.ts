@@ -47,6 +47,106 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it.each([false, true])(
+    "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
+    async (streamFails) => {
+      let resolveFirst!: (tokens: number) => void;
+      let rejectSecond!: (error: Error) => void;
+      let cleaningUp = false;
+      vi.mocked(tokenCountAsync)
+        .mockImplementationOnce(
+          () => new Promise<number>((resolve) => (resolveFirst = resolve)),
+        )
+        .mockImplementationOnce(() =>
+          cleaningUp
+            ? Promise.resolve(0)
+            : new Promise<number>((_, reject) => (rejectSecond = reject)),
+        );
+      let suppliedThirdTrace = false;
+      let reachedEnd = false;
+      let settled = false;
+      const failure = new Error("stream failed");
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const [index, traceId] of ["a", "b", "b", "c"].entries()) {
+            if (traceId === "c") suppliedThirdTrace = true;
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              span_id: `span-${index}`,
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: traceId === "c" ? "SPAN" : "GENERATION",
+              name: "generation",
+              input: "hello",
+              output: "world",
+              metadata: {},
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+          }
+          reachedEnd = true;
+          if (streamFails) throw failure;
+        },
+      );
+      const job = {
+        data: {
+          id: "bounded-tokenization",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b", "c"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      const processing = traceBatchQueueProcessor(job, undefined).then(
+        (result) => ({ result, error: undefined }),
+        (error: unknown) => ({ result: undefined, error }),
+      );
+      void processing.then(() => (settled = true));
+      try {
+        // While a is being tokenized, all of b can arrive. At c's boundary,
+        // processing waits for a before submitting b to the tokenizer pool.
+        await vi.waitFor(() => expect(suppliedThirdTrace).toBe(true));
+        expect(reachedEnd).toBe(false);
+        expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+        resolveFirst(100);
+        await vi.waitFor(() => expect(reachedEnd).toBe(true));
+        expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+        expect(settled).toBe(false);
+        // An unavailable token estimate must not retry a whole batch or mask
+        // the original stream failure; its promise is drained before returning.
+        rejectSecond(new Error("token count timed out"));
+        const outcome = await processing;
+        expect(outcome.error).toBe(streamFails ? failure : undefined);
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.trace_batch.token_estimation_failed",
+          1,
+        );
+        expect(
+          vi
+            .mocked(recordDistribution)
+            .mock.calls.filter(
+              ([name]) =>
+                name === "langfuse.trace_batch.transcript_assembly_duration_ms",
+            ),
+        ).toHaveLength(streamFails ? 2 : 3);
+      } finally {
+        cleaningUp = true;
+        resolveFirst?.(100);
+        rejectSecond?.(new Error("test cleanup"));
+        await processing;
+      }
+    },
+  );
   it("assembles each tenant's trace at the boundary and EOF, tokenizing only the transcript", async () => {
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
@@ -117,12 +217,12 @@ describe("trace batch queue", () => {
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_tokens",
       tokenCount(estimates[0][0]),
-      { tokenizer: "gpt-4o" },
+      { tokenizer: "o200k_base" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_tokens",
       0,
-      { tokenizer: "gpt-4o" },
+      { tokenizer: "o200k_base" },
     );
     for (const hasTranscript of ["true", "false"]) {
       expect(recordDistribution).toHaveBeenCalledWith(

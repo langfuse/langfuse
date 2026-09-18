@@ -112,6 +112,7 @@ export const traceBatchQueueProcessor: Processor<
     }
 
     activeReads++;
+    let pendingTokenization: Promise<void> | undefined;
     try {
       recordTraceBatchActiveReads();
       let traceObservations: Observation[] = [];
@@ -131,7 +132,10 @@ export const traceBatchQueueProcessor: Processor<
           (previous.projectId !== event.project_id ||
             previous.traceId !== event.trace_id)
         ) {
-          await recordTraceBatchTranscript(traceObservations);
+          // Overlap tokenization with reading the next trace, but allow only
+          // one pending estimate per batch so queued payloads stay bounded.
+          await pendingTokenization;
+          pendingTokenization = recordTraceBatchTranscript(traceObservations);
           traceObservations = [];
         }
         traceObservations.push(
@@ -153,7 +157,8 @@ export const traceBatchQueueProcessor: Processor<
       }
       // Reaching EOF completes the last trace; a failed stream must not flush it.
       if (traceObservations.length) {
-        await recordTraceBatchTranscript(traceObservations);
+        await pendingTokenization;
+        pendingTokenization = recordTraceBatchTranscript(traceObservations);
       }
     } catch (error) {
       // Only rows consumed before the failure; never count these as successful throughput.
@@ -168,8 +173,13 @@ export const traceBatchQueueProcessor: Processor<
       }
       throw error;
     } finally {
-      activeReads--;
-      recordTraceBatchActiveReads();
+      try {
+        // Drain accepted tokenization promises even when the stream fails.
+        await pendingTokenization;
+      } finally {
+        activeReads--;
+        recordTraceBatchActiveReads();
+      }
     }
 
     recordDistribution(
