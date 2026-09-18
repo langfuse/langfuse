@@ -39,6 +39,14 @@ const executionLabels: Record<TopicExecutionStatus, string> = {
   completed_with_errors: "Run finished with errors",
   failed: "Run failed",
 };
+const executionPhaseLabels: Record<string, string> = {
+  queued: "Waiting for a worker",
+  summarizing: "Preparing summaries and embeddings",
+  clustering: "Clustering summaries",
+  naming: "Naming topics",
+  assigning: "Assigning traces to topics",
+  processing: "Processing facets",
+};
 const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   pending: "Waiting for results",
   published: "Topics ready",
@@ -340,6 +348,11 @@ function ExecutionPanel({
   const execution = query.data;
   if (query.error) return <ErrorMessage message={query.error.message} />;
   if (!execution) return <p>Loading execution…</p>;
+  const selectionDescription =
+    execution.input.operation === "recluster"
+      ? `${execution.input.sourceExecutionIds.length.toLocaleString()} saved batches`
+      : `${execution.input.traceIds.length.toLocaleString()} selected traces`;
+  const facetCount = execution.facets.length;
   return (
     <section className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -410,12 +423,28 @@ function ExecutionPanel({
           )}
         </PopoverController>
       </div>
-      {busy(execution.status) && (
-        <p role="status" className="text-sm">
-          Current step: {execution.phase.replaceAll("_", " ")}. You can leave
-          this page and reopen the run.
+      <div
+        className="flex flex-col gap-1"
+        role={busy(execution.status) ? "status" : undefined}
+      >
+        <p className="text-sm">
+          {execution.status === "running"
+            ? "Running on "
+            : execution.status === "queued"
+              ? "Queued for "
+              : "Run selection: "}
+          {selectionDescription} across {facetCount.toLocaleString()}{" "}
+          {facetCount === 1 ? "facet" : "facets"}.
         </p>
-      )}
+        {busy(execution.status) && (
+          <p className="text-muted-foreground text-sm">
+            {executionPhaseLabels[execution.phase] ??
+              execution.phase.replaceAll("_", " ")}
+            . Counts update after each processing batch. You can leave this page
+            and reopen the run.
+          </p>
+        )}
+      </div>
       {execution.error && <ErrorMessage message={execution.error} />}
       {execution.traceErrors.length > 0 && (
         <details>
@@ -465,24 +494,32 @@ function ExecutionPanel({
             </div>
             <p className="text-muted-foreground text-sm">
               {[
-                `${progress.counts.complete} summarized`,
-                ...(progress.counts.assigned
-                  ? [`${progress.counts.assigned} assigned`]
-                  : []),
-                ...(progress.counts.outlier
-                  ? [`${progress.counts.outlier} outliers`]
+                `${progress.counts.complete.toLocaleString()} / ${progress.counts.requested.toLocaleString()} traces have summaries and embeddings ready`,
+                ...(progress.runId
+                  ? [
+                      `${progress.counts.assigned.toLocaleString()} assigned`,
+                      `${progress.counts.outlier.toLocaleString()} outliers`,
+                    ]
                   : []),
                 ...(progress.counts.nonApplicable
-                  ? [`${progress.counts.nonApplicable} not applicable`]
+                  ? [
+                      `${progress.counts.nonApplicable.toLocaleString()} not applicable`,
+                    ]
                   : []),
                 ...(progress.counts.insufficientInput
-                  ? [`${progress.counts.insufficientInput} insufficient input`]
+                  ? [
+                      `${progress.counts.insufficientInput.toLocaleString()} insufficient input`,
+                    ]
                   : []),
-                ...(progress.counts.failed
-                  ? [`${progress.counts.failed} failed`]
-                  : []),
+                `${progress.counts.failed.toLocaleString()} failed`,
               ].join(" · ")}
             </p>
+            {execution.input.operation === "refresh" && progress.refresh && (
+              <p className="text-muted-foreground text-xs">
+                Ready and assignment counts include previously processed traces
+                in the combined cohort. Failures refer to the selected batch.
+              </p>
+            )}
             {progress.refresh && (
               <p className="text-muted-foreground text-sm">
                 {progress.refresh.shouldRefresh
