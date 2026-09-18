@@ -167,7 +167,7 @@ const PageHeader = ({
             <div className="flex grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex items-baseline gap-1.5">
                 {itemType && (
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-muted-foreground text-sm">
                     {getItemTypeLabels(itemType).displayLabel}
                   </span>
                 )}
