@@ -3,16 +3,16 @@
 <div align="center">
    <div>
       <h3>
-          <a href="https://langfuse.com/jp">
+          <a href="https://langfuse.com/japan">
             <strong>🇯🇵 🤝 🪢</strong>
          </a> · 
          <a href="https://cloud.langfuse.com">
             <strong>Langfuse Cloud</strong>
          </a> · 
-         <a href="https://langfuse.com/docs/deployment/self-host">
+         <a href="https://langfuse.com/self-hosting">
             <strong>セルフホスティング</strong>
          </a> · 
-         <a href="https://langfuse.com/demo">
+         <a href="https://langfuse.com/docs/demo">
             <strong>デモ</strong>
          </a>
       </h3>
@@ -23,7 +23,7 @@
       <a href="https://langfuse.com/issues"><strong>バグ報告</strong></a> ·
       <a href="https://langfuse.com/ideas"><strong>機能リクエスト</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>変更履歴</strong></a> ·
-      <a href="https://langfuse.com/roadmap"><strong>ロードマップ</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>ロードマップ</strong></a> ·
    </div>
    <br/>
    <span>Langfuseは、サポートと機能リクエストのために <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> を利用しています。</span>
@@ -73,13 +73,13 @@ Langfuseは**オープンソースのLLMエンジニアリング**プラット�
 チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
 Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
 
-[![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
+[![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/docs/demo)
 
 ## ✨ コア機能
 
 ![Langfuse Overview](https://langfuse.com/images/docs/github-readme/github-feature-overview.png)
 
-- **[LLMアプリケーションの可観測性](https://langfuse.com/docs/tracing):**  
+- **[LLMアプリケーションの可観測性](https://langfuse.com/docs/observability/overview):**  
   アプリケーションにインストゥルメンテーションを導入し、Langfuseへトレースを取り込むことで、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。  
   複雑なログやユーザーセッションを解析・デバッグできます。  
   インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
@@ -92,15 +92,15 @@ Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ
   評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。  
   LLMを判定者として用いる方法、ユーザーフィードバックの収集、手動によるラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。
 
-- **[データセット](https://langfuse.com/docs/evaluation/dataset-runs/datasets):**  
+- **[データセット](https://langfuse.com/docs/evaluation/experiments/datasets):**  
   LLMアプリケーション評価用のテストセットやベンチマークを構築できます。  
   継続的な改善、事前デプロイテスト、構造化された実験、柔軟な評価、さらにLangChainやLlamaIndexなどとのシームレスな統合をサポートします。
 
-- **[LLMプレイグラウンド](https://langfuse.com/docs/playground):**  
+- **[LLMプレイグラウンド](https://langfuse.com/docs/prompt-management/features/playground):**  
   プロンプトやモデル設定のテスト・反復作業を支援するツールで、フィードバックループを短縮し開発を加速します。  
   トレースで不具合が見つかった場合、直接プレイグラウンドへ飛び、迅速に改善できます。
 
-- **[包括的なAPI](https://langfuse.com/docs/api):**  
+- **[包括的なAPI](https://langfuse.com/docs/api-and-data-platform/features/public-api):**  
   LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムLLMOpsワークフローの基盤として頻繁に利用されます。  
   OpenAPI仕様、Postmanコレクション、PythonやJS/TS向けの型付きSDKが利用可能です。
 
@@ -122,7 +122,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 自身のインフラ上でLangfuseを実行できます:
 
-- **[Local (docker compose)](https://langfuse.com/self-hosting/local):**  
+- **[Local (docker compose)](https://langfuse.com/self-hosting/deployment/docker-compose):**  
   Docker Composeを使用して、たった5分で自分のマシン上でLangfuseを実行できます.
 
   ```bash
@@ -134,14 +134,14 @@ Langfuseチームによるマネージドデプロイメント。充実した無
   docker compose up
   ```
 
-- **[Kubernetes (Helm)](https://langfuse.com/self-hosting/kubernetes-helm):**  
+- **[Kubernetes (Helm)](https://langfuse.com/self-hosting/deployment/kubernetes-helm):**  
   Helmを使用してKubernetesクラスター上でLangfuseを実行します。  
   こちらが推奨される本番環境でのデプロイ方法です。
 
-- **[VM](https://langfuse.com/self-hosting/docker-compose):**  
+- **[VM](https://langfuse.com/self-hosting/deployment/docker-compose):**  
   Docker Composeを使用して、単一の仮想マシン上でLangfuseを実行します。
 
-- Terraform テンプレート: [AWS](https://langfuse.com/self-hosting/aws), [Azure](https://langfuse.com/self-hosting/azure), [GCP](https://langfuse.com/self-hosting/gcp)
+- Terraform テンプレート: [AWS](https://langfuse.com/self-hosting/deployment/aws), [Azure](https://langfuse.com/self-hosting/deployment/azure), [GCP](https://langfuse.com/self-hosting/deployment/gcp)
 
 [セルフホスティングのドキュメント](https://langfuse.com/self-hosting)を参照し、アーキテクチャや設定オプションの詳細をご確認ください。
 
@@ -151,40 +151,40 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 ### 主なインテグレーション:
 
-| インテグレーション                                                           | 対応言語・環境             | 説明                                                                                                                                                      |
-| ---------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [SDK](https://langfuse.com/docs/sdk)                                         | Python, JS/TS              | SDKを利用して手動でインストゥルメンテーションを実装し、完全な柔軟性を提供します。                                                                         |
-| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)        | Python, JS/TS              | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                            |
-| [Langchain](https://langfuse.com/docs/integrations/langchain)                | Python, JS/TS              | Langchainアプリケーションにコールバックハンドラーを渡すことで自動的に計測します。                                                                         |
-| [LlamaIndex](https://langfuse.com/docs/integrations/llama-index/get-started) | Python                     | LlamaIndexのコールバックシステムを介して自動的にインストゥルメントします。                                                                                |
-| [Haystack](https://langfuse.com/docs/integrations/haystack)                  | Python                     | Haystackのコンテンツトレースシステムを利用した自動インストゥルメンテーションを実現します。                                                                |
-| [LiteLLM](https://langfuse.com/docs/integrations/litellm)                    | Python, JS/TS (proxy only) | GPTのドロップイン置換として任意のLLMを使用できます。Azure、OpenAI、Cohere、Anthropic、Ollama、VLLM、Sagemaker、HuggingFace、Replicate（100+ LLM）に対応。 |
-| [Vercel AI SDK](https://langfuse.com/docs/integrations/vercel-ai-sdk)        | JS/TS                      | React、Next.js、Vue、Svelte、Node.jsを使用してAI搭載アプリケーションの構築を支援するTypeScriptツールキットです。                                          |
-| [API](https://langfuse.com/docs/api)                                         |                            | 公開APIを直接呼び出すことが可能です。OpenAPI仕様も利用できます。                                                                                          |
+| インテグレーション                                                          | 対応言語・環境             | 説明                                                                                                                                                      |
+| --------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [SDK](https://langfuse.com/docs/observability/sdk/overview)                 | Python, JS/TS              | SDKを利用して手動でインストゥルメンテーションを実装し、完全な柔軟性を提供します。                                                                         |
+| [OpenAI](https://langfuse.com/integrations/model-providers/openai-py)       | Python, JS/TS              | OpenAI SDKのドロップイン置換による自動インストゥルメンテーションを実現します。                                                                            |
+| [Langchain](https://langfuse.com/integrations/frameworks/langchain)         | Python, JS/TS              | Langchainアプリケーションにコールバックハンドラーを渡すことで自動的に計測します。                                                                         |
+| [LlamaIndex](https://langfuse.com/integrations/frameworks/llamaindex)       | Python                     | LlamaIndexのコールバックシステムを介して自動的にインストゥルメントします。                                                                                |
+| [Haystack](https://langfuse.com/integrations/frameworks/haystack)           | Python                     | Haystackのコンテンツトレースシステムを利用した自動インストゥルメンテーションを実現します。                                                                |
+| [LiteLLM](https://langfuse.com/integrations/gateways/litellm)               | Python, JS/TS (proxy only) | GPTのドロップイン置換として任意のLLMを使用できます。Azure、OpenAI、Cohere、Anthropic、Ollama、VLLM、Sagemaker、HuggingFace、Replicate（100+ LLM）に対応。 |
+| [Vercel AI SDK](https://langfuse.com/integrations/frameworks/vercel-ai-sdk) | JS/TS                      | React、Next.js、Vue、Svelte、Node.jsを使用してAI搭載アプリケーションの構築を支援するTypeScriptツールキットです。                                          |
+| [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)  |                            | 公開APIを直接呼び出すことが可能です。OpenAPI仕様も利用できます。                                                                                          |
 
 ### Langfuseと統合されているパッケージ:
 
-| 名前                                                                                  | タイプ                     | 説明                                                                                |
-| ------------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------- |
-| [Instructor](https://langfuse.com/docs/integrations/instructor)                       | ライブラリ                 | 構造化されたLLM出力（JSON、Pydantic）を取得するためのライブラリ                     |
-| [DSPy](https://langfuse.com/docs/integrations/dspy)                                   | ライブラリ                 | LLMプロンプトや重み付けを体系的に最適化するためのフレームワーク                     |
-| [Mirascope](https://langfuse.com/docs/integrations/mirascope)                         | ライブラリ                 | LLMアプリケーション構築用のPythonツールキット                                       |
-| [Ollama](https://langfuse.com/docs/integrations/ollama)                               | モデル（ローカル）         | オープンソースLLMを手軽にローカルで実行するためのツール                             |
-| [Amazon Bedrock](https://langfuse.com/docs/integrations/amazon-bedrock)               | モデル                     | AWS上でファウンデーションモデルやファインチューニング済みモデルを実行               |
-| [Google VertexAI and Gemini](https://langfuse.com/docs/integrations/google-vertex-ai) | モデル                     | Google上でファウンデーションモデルやファインチューニング済みモデルを実行            |
-| [AutoGen](https://langfuse.com/docs/integrations/autogen)                             | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [Flowise](https://langfuse.com/docs/integrations/flowise)                             | チャット/エージェント UI   | JS/TSのノーコードビルダーで、カスタマイズ可能なLLMフローを構築                      |
-| [Langflow](https://langfuse.com/docs/integrations/langflow)                           | チャット/エージェント UI   | PythonベースのUIで、react-flowを用いてLangChainの実験やプロトタイピングを容易に実現 |
-| [Dify](https://langfuse.com/docs/integrations/dify)                                   | チャット/エージェント UI   | ノーコードでLLMアプリ開発が可能なオープンソースプラットフォーム                     |
-| [OpenWebUI](https://langfuse.com/docs/integrations/openwebui)                         | チャット/エージェント UI   | 自前ホストおよびローカルモデルに対応するLLMチャットWeb UI                           |
-| [Promptfoo](https://langfuse.com/docs/integrations/promptfoo)                         | ツール                     | オープンソースのLLMテストプラットフォーム                                           |
-| [LobeChat](https://langfuse.com/docs/integrations/lobechat)                           | チャット/エージェント UI   | オープンソースのチャットボットプラットフォーム                                      |
-| [Vapi](https://langfuse.com/docs/integrations/vapi)                                   | プラットフォーム           | オープンソースの音声AIプラットフォーム                                              |
-| [Inferable](https://langfuse.com/docs/integrations/other/inferable)                   | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [Gradio](https://langfuse.com/docs/integrations/other/gradio)                         | チャット/エージェント UI   | チャットUIなどのWebインターフェース構築のためのオープンソースPythonライブラリ       |
-| [Goose](https://langfuse.com/docs/integrations/goose)                                 | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
-| [smolagents](https://langfuse.com/docs/integrations/smolagents)                       | エージェント               | オープンソースのAIエージェントフレームワーク                                        |
-| [CrewAI](https://langfuse.com/docs/integrations/crewai)                               | エージェント               | エージェントの協調とツール利用を実現するマルチエージェントフレームワーク            |
+| 名前                                                                                             | タイプ                     | 説明                                                                                |
+| ------------------------------------------------------------------------------------------------ | -------------------------- | ----------------------------------------------------------------------------------- |
+| [Instructor](https://langfuse.com/integrations/frameworks/instructor)                            | ライブラリ                 | 構造化されたLLM出力（JSON、Pydantic）を取得するためのライブラリ                     |
+| [DSPy](https://langfuse.com/integrations/frameworks/dspy)                                        | ライブラリ                 | LLMプロンプトや重み付けを体系的に最適化するためのフレームワーク                     |
+| [Mirascope](https://langfuse.com/integrations/frameworks/mirascope)                              | ライブラリ                 | LLMアプリケーション構築用のPythonツールキット                                       |
+| [Ollama](https://langfuse.com/integrations/model-providers/ollama)                               | モデル（ローカル）         | オープンソースLLMを手軽にローカルで実行するためのツール                             |
+| [Amazon Bedrock](https://langfuse.com/integrations/model-providers/amazon-bedrock)               | モデル                     | AWS上でファウンデーションモデルやファインチューニング済みモデルを実行               |
+| [Google VertexAI and Gemini](https://langfuse.com/integrations/model-providers/google-vertex-ai) | モデル                     | Google上でファウンデーションモデルやファインチューニング済みモデルを実行            |
+| [AutoGen](https://langfuse.com/integrations/frameworks/autogen)                                  | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
+| [Flowise](https://langfuse.com/integrations/no-code/flowise)                                     | チャット/エージェント UI   | JS/TSのノーコードビルダーで、カスタマイズ可能なLLMフローを構築                      |
+| [Langflow](https://langfuse.com/integrations/no-code/langflow)                                   | チャット/エージェント UI   | PythonベースのUIで、react-flowを用いてLangChainの実験やプロトタイピングを容易に実現 |
+| [Dify](https://langfuse.com/integrations/no-code/dify)                                           | チャット/エージェント UI   | ノーコードでLLMアプリ開発が可能なオープンソースプラットフォーム                     |
+| [OpenWebUI](https://langfuse.com/integrations/no-code/openwebui)                                 | チャット/エージェント UI   | 自前ホストおよびローカルモデルに対応するLLMチャットWeb UI                           |
+| [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                                   | ツール                     | オープンソースのLLMテストプラットフォーム                                           |
+| [LobeChat](https://langfuse.com/integrations/no-code/lobechat)                                   | チャット/エージェント UI   | オープンソースのチャットボットプラットフォーム                                      |
+| [Vapi](https://langfuse.com/integrations/no-code/vapi)                                           | プラットフォーム           | オープンソースの音声AIプラットフォーム                                              |
+| [Inferable](https://langfuse.com/integrations/other/inferable)                                   | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
+| [Gradio](https://langfuse.com/integrations/other/gradio)                                         | チャット/エージェント UI   | チャットUIなどのWebインターフェース構築のためのオープンソースPythonライブラリ       |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                                         | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                     |
+| [smolagents](https://langfuse.com/integrations/frameworks/smolagents)                            | エージェント               | オープンソースのAIエージェントフレームワーク                                        |
+| [CrewAI](https://langfuse.com/integrations/frameworks/crewai)                                    | エージェント               | エージェントの協調とツール利用を実現するマルチエージェントフレームワーク            |
 
 ## 🚀 クイックスタート
 
@@ -199,11 +199,11 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 ### 2️⃣ 初めてのLLM呼び出しのログ記録
 
-[`@observe()` デコレーター](https://langfuse.com/docs/sdk/python/decorators)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。  
+[`@observe()` デコレーター](https://langfuse.com/docs/observability/sdk/instrumentation#observe-wrapper)を利用することで、任意のPython製LLMアプリケーションのトレースが簡単に行えます。  
 このクイックスタートでは、Langfuseの[OpenAI統合](https://langfuse.com/integrations/model-providers/openai-py)を使用して、全てのモデルパラメータを自動で取得します。
 
 > [!TIP]
-> OpenAIを利用していない場合は、[こちらのドキュメント](https://langfuse.com/docs/get-started#log-your-first-llm-call-to-langfuse)で、他のモデルやフレームワークのログ記録方法をご確認ください。
+> OpenAIを利用していない場合は、[こちらのドキュメント](https://langfuse.com/docs/observability/get-started)で、他のモデルやフレームワークのログ記録方法をご確認ください。
 
 ```bash
 pip install langfuse openai
@@ -244,7 +244,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 > [!TIP]
 >
-> Langfuseでのトレースの詳細については、[こちら](https://langfuse.com/docs/tracing)をご参照いただくか、[インタラクティブデモ](https://langfuse.com/docs/demo)でお試しください。
+> Langfuseでのトレースの詳細については、[こちら](https://langfuse.com/docs/observability/overview)をご参照いただくか、[インタラクティブデモ](https://langfuse.com/docs/demo)でお試しください。
 
 ## ⭐️ Star Langfuse
 
@@ -278,7 +278,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 ## 🥇 ライセンス
 
 このリポジトリは、`ee`フォルダを除き、MITライセンスの下で公開されています。  
-詳細は[LICENSE](LICENSE)および[オープンソースに関するドキュメント](https://langfuse.com/docs/open-source)をご確認ください。
+詳細は[LICENSE](LICENSE)および[オープンソースに関するドキュメント](https://langfuse.com/handbook/chapters/open-source)をご確認ください。
 
 ## ⭐️ スターの履歴
 
@@ -292,7 +292,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 ## ❤️ Langfuseを利用しているオープンソースプロジェクト
 
-Langfuseを利用している主要なオープンソースPythonプロジェクト（スター数順）: ([出典](https://github.com/langfuse/langfuse-docs/blob/main/components-mdx/dependents))
+Langfuseを利用している主要なオープンソースPythonプロジェクト（スター数順）: ([出典](https://github.com/langfuse/langfuse-docs/tree/main/components-mdx/dependents))
 
 | リポジトリ                                                                                                                                                                                                                                                          | スター |
 | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -----: |
