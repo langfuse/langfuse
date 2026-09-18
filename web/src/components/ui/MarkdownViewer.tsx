@@ -567,14 +567,6 @@ export function MarkdownView({
             handleOnCopy={handleOnCopy}
             hoverRevealControls
             controlButtons={controlButtons}
-            collapseControl={
-              shouldBeCollapsible
-                ? {
-                    isCollapsed,
-                    onToggle: () => toggleCollapsed("header"),
-                  }
-                : undefined
-            }
           />
         </>
       ) : null}
