@@ -94,6 +94,18 @@ export const LargeList = meta.story({
   },
 });
 
+export const MultipleSelected = meta.story({
+  args: {
+    value: ["production", "regression"],
+    options,
+    onValueChange: fn(),
+    placeholder: "Choose score fields",
+    selectedLabel: "2 score fields selected",
+    searchPlaceholder: "Search score fields...",
+    emptyMessage: "No score fields found.",
+  },
+});
+
 export const TestSelectsMultipleOptions = meta.story({
   name: "(Test) Selects Multiple Options",
   args: {
@@ -194,6 +206,35 @@ export const TestKeepsOverlappingLabelsDistinct = meta.story({
 
     await expect(args.onValueChange).toHaveBeenCalledWith([
       "dataset-lowercase",
+    ]);
+  },
+});
+
+export const TestKeepsDisabledOptionsUnchanged = meta.story({
+  name: "(Test) Keeps Disabled Options Unchanged",
+  args: {
+    value: ["regression"],
+    options: options.map((option) => ({
+      ...option,
+      disabled: option.value === "regression",
+    })),
+    onValueChange: fn(),
+    placeholder: "Select datasets",
+    selectedLabel: "1 dataset selected",
+    searchPlaceholder: "Search datasets...",
+    emptyMessage: "No datasets found.",
+  },
+  play: async ({ args, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(within(canvasElement).getByRole("combobox"));
+    const option = body.getByRole("option", { name: /Regression/ });
+    await expect(option).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(option);
+    await expect(args.onValueChange).not.toHaveBeenCalled();
+    await userEvent.click(body.getByRole("option", { name: "Production" }));
+    await expect(args.onValueChange).toHaveBeenCalledWith([
+      "regression",
+      "production",
     ]);
   },
 });

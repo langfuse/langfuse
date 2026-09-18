@@ -41,25 +41,22 @@ export function useScoreConfigSelection({
   emptySelectedConfigIdsStorageKey?: string;
 }): {
   selectionOptions: {
-    key: string;
     value: string;
+    label: string;
     disabled: boolean;
   }[];
-  handleSelectionChange: (
-    values: Record<string, string>[],
-    changedValueId?: string,
-  ) => void;
+  handleSelectionChange: (values: string[]) => void;
 } {
   const { emptySelectedConfigIds, setEmptySelectedConfigIds } =
     useEmptyScoreConfigs(emptySelectedConfigIdsStorageKey);
 
   const selectionOptions = useMemo(() => {
-    return configs
+    return [...configs]
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((config) => {
         return {
-          key: config.id,
-          value: resolveConfigValue({
+          value: config.id,
+          label: resolveConfigValue({
             dataType: config.dataType,
             name: config.name,
           }),
@@ -69,7 +66,13 @@ export function useScoreConfigSelection({
   }, [configs, isInputDisabled]);
 
   const handleSelectionChange = useCallback(
-    (values: Record<string, string>[], changedValueId?: string) => {
+    (values: string[]) => {
+      const currentIds = controlledFields.flatMap((field) =>
+        field.configId ? [field.configId] : [],
+      );
+      const changedValueId =
+        values.find((id) => !currentIds.includes(id)) ??
+        currentIds.find((id) => !values.includes(id));
       if (!changedValueId) return;
 
       const fieldIndex = controlledFields.findIndex(

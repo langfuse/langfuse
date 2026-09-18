@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -56,14 +57,13 @@ import { ScoreConfigDetails } from "@/src/features/score-configs/components/Scor
 import {
   enrichCategoryOptionsWithStaleScoreValue,
   resolveCategoricalNumericValue,
-  resolveConfigValue,
   validateNumericScore,
 } from "@/src/features/scores/lib/annotationFormHelpers";
 import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import {
   CategoricalScoreInput,
   shouldUseCombobox,
@@ -72,7 +72,6 @@ import {
   createAnnotationAnalytics,
   getAnnotationTargetType,
 } from "@/src/features/scores/lib/annotationAnalytics";
-import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
@@ -261,6 +260,9 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       ...watchedScoreData[index],
     };
   });
+  const selectedConfigIds = fields.flatMap((field) =>
+    field.configId ? [field.configId] : [],
+  );
 
   const description = formatAnnotateDescription(scoreTarget);
 
@@ -888,7 +890,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     <div
       ref={formRootRef}
       data-annotation-form
-      className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full"
+      className="mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
       <div className="bg-background sticky top-0 z-10 rounded-sm">
         <AnnotateHeader
@@ -897,36 +899,41 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           description={description}
         />
         {allowManualSelection ? (
-          <div className="grid grid-flow-col items-center">
-            <MultiSelectKeyValues
-              placeholder="Value"
-              align="end"
-              items="empty scores"
-              className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
-              options={selectionOptions}
-              onValueChange={handleSelectionChange}
-              values={fields
-                .filter((field) => !!field.configId)
-                .map((field) => ({
-                  key: field.configId as string,
-                  value: resolveConfigValue({
-                    dataType: field.dataType,
-                    name: field.name,
-                  }),
-                }))}
-              controlButtons={
-                <DropdownMenuItemWithSecondaryAction
-                  title="Manage score configs"
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm font-bold">Score fields</span>
+              <Button variant="link" size="xs" asChild>
+                <Link
                   href={`/project/${scoreMetadata.projectId}/settings/scores`}
                   target="_blank"
-                  onBeforeAction={() => {
+                  onClick={() => {
                     capture(
                       "score_configs:manage_configs_item_click",
                       analyticsData,
                     );
                   }}
-                />
-              }
+                  onAuxClick={(event) => {
+                    if (event.button === 1) {
+                      capture(
+                        "score_configs:manage_configs_item_click",
+                        analyticsData,
+                      );
+                    }
+                  }}
+                >
+                  Manage score configs
+                </Link>
+              </Button>
+            </div>
+            <MultiSelectInput
+              aria-label="Score fields"
+              placeholder="Choose score fields"
+              selectedLabel={`${selectedConfigIds.length} score field${selectedConfigIds.length === 1 ? "" : "s"} selected`}
+              searchPlaceholder="Search score fields..."
+              emptyMessage="No score fields found."
+              options={selectionOptions}
+              onValueChange={handleSelectionChange}
+              value={selectedConfigIds}
             />
           </div>
         ) : null}

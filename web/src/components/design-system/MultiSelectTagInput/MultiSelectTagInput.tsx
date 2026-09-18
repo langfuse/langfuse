@@ -285,9 +285,13 @@ export function MultiSelectTagInput<V extends string>({
                   <CommandPrimitive.List id={listId}>
                     <CommandPrimitive.Group className="text-foreground overflow-hidden">
                       {selectAllLabel && options.length > 0 && (
-                        <InputDropdown.Option highlight="aria-selected">
+                        <InputDropdown.Option
+                          highlight="aria-selected"
+                          checked={allSelected}
+                        >
                           <CommandPrimitive.Item
                             value={selectAllLabel}
+                            aria-checked={allSelected}
                             onSelect={() =>
                               changeValue(
                                 allSelected
@@ -318,10 +322,12 @@ export function MultiSelectTagInput<V extends string>({
                           <InputDropdown.Option
                             key={option.value}
                             highlight="aria-selected"
+                            checked={isSelected}
                           >
                             <CommandPrimitive.Item
                               value={option.value || option.label}
                               keywords={[option.label]}
+                              aria-checked={isSelected}
                               onSelect={() => {
                                 if (isSelected) {
                                   removeValue(option.value);
