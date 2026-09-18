@@ -9,7 +9,6 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   BaseError,
-  PayloadTooLargeError,
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
@@ -26,17 +25,17 @@ import {
   structuredPublicApiErrorContract,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
+import {
+  getPublicApiSuccessStatusCode,
+  type PublicApiResponseWriter,
+  sendPublicApiJsonResponse,
+  sendPublicApiJsonSuccessResponse,
+} from "./publicApiResponse";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { attachDeprecation } from "@/src/features/public-api/server/deprecations";
 import { applyLegacyApiOrganizationCutoff } from "@/src/features/public-api/server/legacyApiOrganizationCutoff";
 import { type RouteAccessLevel } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
 import { type ProjectAction } from "@/src/features/auth/policy/types";
-
-// Next's res.json uses JSON.stringify; V8 throws this when the JSON string
-// exceeds the engine limit. Keep this check scoped to the response write.
-const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
-  error instanceof RangeError && error.message === "Invalid string length";
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -96,6 +95,12 @@ export type AuthedProjectAPIRouteConfig<
   rejectInEventsOnlyMode?: boolean;
   /** Stamps a top-level `_deprecation` object onto responses. */
   deprecation?: ApiDeprecationInfo;
+  /**
+   * Writes a successful response after the route function has completed.
+   * JSON is the default; custom writers can reuse the authenticated route
+   * machinery when an endpoint needs a different transport.
+   */
+  responseWriter?: PublicApiResponseWriter<z.infer<TResponse>>;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -128,15 +133,15 @@ export const createAuthedProjectAPIRoute = <
       routeConfig.rejectInEventsOnlyMode &&
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
     ) {
-      res.status(404).json(
-        attachDeprecation(
-          {
-            message:
-              "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
-          },
-          deprecation,
-        ),
-      );
+      sendPublicApiJsonResponse({
+        res,
+        statusCode: 404,
+        body: {
+          message:
+            "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+        },
+        deprecation,
+      });
       return;
     }
 
@@ -147,7 +152,11 @@ export const createAuthedProjectAPIRoute = <
           createStructuredPublicApiAuthError({ statusCode, message }),
         );
       }
-      res.status(statusCode).json({ message });
+      sendPublicApiJsonResponse({
+        res,
+        statusCode,
+        body: { message },
+      });
     };
 
     // A signed AI-gateway ingestion token authorizes the project directly,
@@ -224,7 +233,11 @@ export const createAuthedProjectAPIRoute = <
       routeName: routeConfig.name,
     });
     if (cutoffRejection) {
-      res.status(410).json(cutoffRejection.body);
+      sendPublicApiJsonResponse({
+        res,
+        statusCode: 410,
+        body: cutoffRejection.body,
+      });
       return;
     }
 
@@ -306,22 +319,20 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res.status(
-        // Check whether status code was already set inside handler to non default value
-        res.statusCode !== 200
-          ? res.statusCode
-          : routeConfig.successStatusCode || 200,
+      const statusCode = getPublicApiSuccessStatusCode(
+        res,
+        routeConfig.successStatusCode,
       );
+      res.status(statusCode);
 
-      try {
-        res.json(attachDeprecation(response || { message: "OK" }, deprecation));
-      } catch (error) {
-        if (isJsonStringTooLargeError(error)) {
-          throw new PayloadTooLargeError();
-        }
-
-        throw error;
-      }
+      const responseWriter: PublicApiResponseWriter<z.infer<TResponse>> =
+        routeConfig.responseWriter ?? sendPublicApiJsonSuccessResponse;
+      await responseWriter({
+        response,
+        res,
+        deprecation,
+        statusCode,
+      });
     });
   };
 };

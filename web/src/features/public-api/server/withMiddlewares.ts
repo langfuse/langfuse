@@ -22,6 +22,7 @@ import {
   toStructuredPublicApiError,
   type PublicApiErrorContract,
 } from "./structuredPublicApiErrorContract";
+import { sendPublicApiJsonResponse } from "./publicApiResponse";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
@@ -132,9 +133,13 @@ export function withMiddlewares(
             );
           }
 
-          return res.status(422).json({
-            message: errorMessage,
-            error: "Request timed out",
+          return sendPublicApiJsonResponse({
+            res,
+            statusCode: 422,
+            body: {
+              message: errorMessage,
+              error: "Request timed out",
+            },
           });
         }
 
@@ -166,38 +171,54 @@ export function withMiddlewares(
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);
           }
-          return res.status(error.httpCode).json({
-            message: error.message,
-            error: error.name,
+          return sendPublicApiJsonResponse({
+            res,
+            statusCode: error.httpCode,
+            body: {
+              message: error.message,
+              error: error.name,
+            },
           });
         }
 
         if (isPrismaException(error)) {
           logger.error(error);
           traceException(error);
-          return res.status(500).json({
-            message: "Internal Server Error",
-            error: "An unknown error occurred",
+          return sendPublicApiJsonResponse({
+            res,
+            statusCode: 500,
+            body: {
+              message: "Internal Server Error",
+              error: "An unknown error occurred",
+            },
           });
         }
 
         // Instanceof check fails here as shared package zod has different instances
         if (isZodError(error)) {
           logger.warn(error);
-          return res.status(400).json({
-            message: "Invalid request data",
-            error: error.issues,
+          return sendPublicApiJsonResponse({
+            res,
+            statusCode: 400,
+            body: {
+              message: "Invalid request data",
+              error: error.issues,
+            },
           });
         }
 
         logger.error(error);
         traceException(error);
-        return res.status(500).json({
-          message: "Internal Server Error",
-          error:
-            error instanceof Error
-              ? error.message
-              : "An unknown error occurred",
+        return sendPublicApiJsonResponse({
+          res,
+          statusCode: 500,
+          body: {
+            message: "Internal Server Error",
+            error:
+              error instanceof Error
+                ? error.message
+                : "An unknown error occurred",
+          },
         });
       }
     });

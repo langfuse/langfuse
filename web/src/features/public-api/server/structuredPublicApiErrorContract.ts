@@ -24,6 +24,7 @@ import {
   getRateLimitUpgradeMessage,
   type RateLimitUpgradePath,
 } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { sendPublicApiJsonResponse } from "./publicApiResponse";
 
 export const structuredPublicApiErrorContract = "structured";
 export type PublicApiErrorContract = typeof structuredPublicApiErrorContract;
@@ -58,7 +59,11 @@ export function sendStructuredPublicApiErrorResponse(
   res: NextApiResponse,
   error: StructuredPublicApiError,
 ) {
-  return res.status(error.httpCode).json(toBody(error));
+  return sendPublicApiJsonResponse({
+    res,
+    statusCode: error.httpCode,
+    body: toBody(error),
+  });
 }
 
 export function createStructuredPublicApiAuthError(params: {

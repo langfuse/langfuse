@@ -512,6 +512,47 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     );
   });
 
+  it("delegates successful responses to a configured response writer", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    const responseWriter = vi.fn(
+      async ({
+        res,
+        response,
+        statusCode,
+      }: {
+        res: NextApiResponse;
+        response: { ok: true };
+        statusCode: number;
+      }) => {
+        res.status(statusCode).json(response);
+      },
+    );
+    const handler = createAuthedProjectAPIRoute({
+      name: "Custom Response Route",
+      action: "project:read",
+      responseSchema: z.object({ ok: z.literal(true) }),
+      responseWriter,
+      fn: async () => ({ ok: true as const }),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: "Basic test",
+      },
+    });
+
+    await handler(req, res);
+
+    expect(responseWriter).toHaveBeenCalledWith({
+      response: { ok: true },
+      res,
+      deprecation: undefined,
+      statusCode: 200,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData()).toEqual({ ok: true });
+  });
+
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
