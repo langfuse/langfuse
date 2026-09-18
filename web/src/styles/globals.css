@@ -14,7 +14,7 @@
    silently dropped in _document) and prepended to the system stacks below;
    the token system (families here, weight roles below, text-* size+weight
    tokens) stays font-relative. Swapping a typeface = swap the files, keep the
-   var, retune the two weight-role numbers (Plex bold role is Medium 500).
+   var, retune the two weight-role numbers (Plex ships bold as SemiBold 600).
    The theme-lab panel can preview typefaces live without shipping them.
    Deliberately a plain @theme block (not `inline`): preflight reads
    var(--font-sans) at runtime, and only non-inline themes emit the :root
@@ -35,7 +35,7 @@
      (700): the `font-bold` utility IS the bold role. font-medium /
      font-semibold / raw numbers are drift — use font-bold or nothing. */
   --font-weight-regular: 400;
-  --font-weight-bold: 500;
+  --font-weight-bold: 600;
 }
 
 @theme inline {
