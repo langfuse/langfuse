@@ -30,13 +30,13 @@ import {
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
+import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
   convertDateToClickhouseDateTime,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
-  loadTranscript,
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
   getLatestSdkVersionInfoFromEvents,
@@ -432,9 +432,9 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   /**
-   * Assemble the message transcript of a trace from its generations and tools.
-   * Internal surface: Langfuse admins and deployments with experimental
-   * features enabled only.
+   * Assemble the message transcript of a trace from its generations and tools,
+   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
+   * deployments with experimental features enabled only.
    */
   transcriptByTraceId: protectedGetEventsTraceProcedure
     .input(
@@ -473,16 +473,9 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("trace_id", input.traceId);
 
-          return loadTranscript({
+          return loadTraceTranscript({
             projectId: input.projectId,
-            filter: [
-              {
-                type: "string",
-                column: "traceId",
-                operator: "=",
-                value: input.traceId,
-              },
-            ],
+            traceId: input.traceId,
             timestamp,
           });
         },

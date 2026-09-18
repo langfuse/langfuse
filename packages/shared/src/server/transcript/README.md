@@ -13,11 +13,8 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-loadTranscript(input: {
-  projectId: string;
-  filter: FilterCondition[]; // for now exactly one { type: "string", column: "traceId", operator: "=", value }
-  timestamp: Date; // trace timestamp
-}): Promise<{ transcript: Transcript | null; cutoff: boolean }>;
+orderObservations(observations: Observation[]): Observation[];
+assembleTranscript(orderedObservations: Observation[]): Transcript | null;
 
 type Transcript = { threads: Thread[] };
 
@@ -37,14 +34,15 @@ type ThreadMessage = NormalizedMessage & {
 };
 ```
 
-`loadTranscript` reads the trace through `getObservationsForTraceFromEventsTable`,
-the same repository function and time bounds the trace tree uses: once for the
-structure of every observation without I/O, once for the `GENERATION` and `TOOL`
-observations with I/O. It merges the two, orders them with `orderObservations`,
-and hands the domain `Observation`s (see `domain/observations.ts`) to the
-module-internal `assembleTranscript`, which consumes them in the given order.
-`transcript` is `null` when no eligible generations produce messages; `cutoff`
-is true when the trace exceeds the per-trace observation cap.
+Consumers load the domain `Observation`s (see `domain/observations.ts`)
+themselves, order them with `orderObservations`, and hand them to
+`assembleTranscript`, which consumes the given order and returns `null` when
+no eligible generations produce messages. The trace view does this in
+`loadTraceTranscript` (web, next to the `events.transcriptByTraceId`
+procedure): it reads the trace through `getObservationsForTraceFromEventsTable`,
+the same repository function and time bounds the trace tree uses, once for the
+structure of every observation without I/O and once for the `GENERATION` and
+`TOOL` observations with I/O, and merges the two by id.
 
 ## Ordering
 
@@ -210,12 +208,10 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               public surface: loadTranscript and the types
-├── load-transcript.ts     input schema and events-table reads
+├── index.ts               public surface: assembleTranscript, orderObservations, types
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
-├── load-transcript.test.ts  input schema checks
-├── transcript.ts          assembleTranscript, internal
+├── transcript.ts          assembleTranscript
 ├── threads.ts             thread selection and message deduplication
 ├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, Turn, ThreadMessage
