@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -11,7 +12,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  ItemBadge,
+  getItemTypeLabels,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import {
@@ -209,9 +214,13 @@ export function PeekHeader({
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
-          {/* Badge never truncates: it shows the full label or just the icon. */}
+          {/* Type never truncates: the word when it fits, the icon when not. */}
           <div ref={badgeRef} className="shrink-0">
-            <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
+            {plan.badgeShowLabel ? (
+              <Badge text={getItemTypeLabels(itemType).displayLabel} />
+            ) : (
+              <ItemBadge type={itemType} />
+            )}
           </div>
           <span
             className="truncate text-sm font-bold focus:outline-hidden"

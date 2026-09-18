@@ -227,9 +227,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary" size="sm">
-                    Project default
-                  </Badge>
+                  <Badge variant="secondary">Project default</Badge>
                 ) : null,
             }
           : facet,

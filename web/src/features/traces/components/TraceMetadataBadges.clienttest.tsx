@@ -20,17 +20,14 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    expect(
-      screen.getByText("Session: customer-session").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(screen.getByText("User ID: customer-user").closest("a")).toHaveClass(
+    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
-    expect(
-      screen.getByText("Target Trace: target-trace").closest("a"),
-    ).toHaveClass("ph-no-capture");
-    expect(screen.getByText("Env: production").parentElement).toHaveClass(
-      "bg-tertiary",
+    expect(screen.getByText("customer-user").closest("a")).toHaveClass(
+      "ph-no-capture",
+    );
+    expect(screen.getByText("target-trace").closest("a")).toHaveClass(
+      "ph-no-capture",
     );
   });
 });

@@ -56,12 +56,10 @@ export const ScoreBadge = <
 >({
   name,
   scores,
-  compact,
   showLevels,
 }: {
   name: string;
   scores: T[];
-  compact?: boolean;
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
 }) => {
@@ -76,7 +74,7 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+      <BadgeShell>
         <span className="min-w-0 flex-1 truncate" title={name}>
           {name}:
         </span>

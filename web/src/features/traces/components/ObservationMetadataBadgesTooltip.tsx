@@ -30,7 +30,11 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
+      <Badge
+        label="cost"
+        text={usdFormatter(totalCost)}
+        trailingIcon={InfoIcon}
+      />
     </BreakdownTooltip>
   );
 }
@@ -46,17 +50,12 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
+  const tokenText = formatTokenCounts(inputUsage, outputUsage, totalUsage);
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
       {tokenText ? (
-        <Badge text={tokenText} trailingIcon={InfoIcon} />
+        <Badge label="tokens" text={tokenText} trailingIcon={InfoIcon} />
       ) : (
         <BadgeShell aria-label="View usage breakdown">
           <InfoIcon aria-hidden className="size-3" />

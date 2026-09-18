@@ -227,7 +227,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <ClockIcon className="mr-1 mb-0.5 h-3 w-3" />
                   <span className="capitalize">
                     {formatIntervalSeconds(latency)}
@@ -243,7 +243,7 @@ const DatasetAggregateCellContent = ({
                   className="ml-1"
                 />
               ) : (
-                <Badge variant="tertiary" size="sm" className="font-normal">
+                <Badge variant="tertiary" className="font-normal">
                   <span className="mr-0.5">{usdFormatter(totalCost)}</span>
                 </Badge>
               ))}

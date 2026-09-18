@@ -7,7 +7,6 @@ import { Badge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
 type Color = NonNullable<ComponentProps["color"]>;
-type Size = NonNullable<ComponentProps["size"]>;
 
 const meta = preview.meta({
   component: Badge,
@@ -18,7 +17,7 @@ const meta = preview.meta({
 
 const allColors = Object.keys({
   primary: true,
-  neutral: true,
+  emphasis: true,
   red: true,
   yellow: true,
   blue: true,
@@ -26,11 +25,6 @@ const allColors = Object.keys({
   teal: true,
   green: true,
 } satisfies Record<Color, true>) as Color[];
-
-const allSizes = Object.keys({
-  default: true,
-  sm: true,
-} satisfies Record<Size, true>) as Size[];
 
 export const Default = meta.story({});
 
@@ -53,16 +47,9 @@ export const VariantMatrix = meta.story({
   },
   render: () => (
     <div className="grid grid-cols-[repeat(2,max-content)] items-center gap-3">
-      {allColors.map((color) =>
-        allSizes.map((size) => (
-          <Badge
-            key={`${color}-${size}`}
-            color={color}
-            size={size}
-            text={`${color} / ${size}`}
-          />
-        )),
-      )}
+      {allColors.map((color) => (
+        <Badge key={color} color={color} text={color} />
+      ))}
     </div>
   ),
 });

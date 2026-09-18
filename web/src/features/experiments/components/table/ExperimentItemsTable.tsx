@@ -391,7 +391,6 @@ const matchesExpectedOutput = (
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
-    size="sm"
     variant={matches ? "success" : "error"}
     className="mt-0.5 ml-1 shrink-0 font-bold"
   >

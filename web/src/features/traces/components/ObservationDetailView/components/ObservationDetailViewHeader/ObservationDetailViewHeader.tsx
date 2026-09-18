@@ -780,10 +780,7 @@ export const ObservationDetailViewHeader = memo(
                 />
               )}
               {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge
-                  level={observation.level}
-                  size="default"
-                />
+                <ObservationLevelBadge level={observation.level} />
               )}
               {observation.promptId && (
                 <PromptBadge
