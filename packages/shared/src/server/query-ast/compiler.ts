@@ -4,6 +4,7 @@ import {
   CreateTableNode,
   CreateViewNode,
   DefaultQueryCompiler,
+  FunctionNode,
   InsertQueryNode,
   ParensNode,
   ReferenceNode,
@@ -373,5 +374,24 @@ function bindTypeOfColumnOperand(node: OperationNode): string | undefined {
   if (ReferenceNode.is(node) && ColumnNode.is(node.column)) {
     return COLUMN_BIND_TYPES[node.column.column.name];
   }
+  // Date wrappers (`toDate(timestamp)`, `toStartOfMinute(start_time)`) keep
+  // the inner column's bind type so the compared value is still DateTime64(3).
+  if (
+    FunctionNode.is(node) &&
+    DATE_WRAPPER_FNS.has(node.func) &&
+    node.arguments[0]
+  ) {
+    return bindTypeOfColumnOperand(node.arguments[0]);
+  }
   return undefined;
 }
+
+const DATE_WRAPPER_FNS = new Set([
+  "toDate",
+  "toDateTime",
+  "toStartOfMinute",
+  "toStartOfHour",
+  "toStartOfDay",
+  "toStartOfMonth",
+  "toStartOfYear",
+]);

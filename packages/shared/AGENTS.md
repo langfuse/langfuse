@@ -41,6 +41,7 @@
   `clickhouse format`); each migrated call site keeps its `*.golden.test.ts`
   baseline next to the call site (e.g.
   `src/server/repositories/environments.golden.test.ts`,
+  `src/server/repositories/events.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
