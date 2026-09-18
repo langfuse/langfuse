@@ -351,7 +351,3 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 遥测数据不包括原始 traces、prompts、observations、scores 或数据集内容。我们在[遥测文档](https://langfuse.com/self-hosting/security/telemetry)中记录了收集的确切字段、这些数据会被发送到哪里，以及相关实现说明。
 
 对于 Langfuse OSS，你可以通过设置 `TELEMETRY_ENABLED=false` 来选择退出。
-
-```
-
-```
