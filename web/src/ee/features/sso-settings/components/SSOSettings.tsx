@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
