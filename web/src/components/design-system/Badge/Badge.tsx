@@ -86,7 +86,7 @@ export function Badge({
       {LeadingIcon ? (
         <LeadingIcon
           aria-hidden
-          className="text-muted-foreground size-3 shrink-0"
+          className="text-foreground-tertiary size-3 shrink-0"
         />
       ) : (
         label && <span className="text-muted-foreground shrink-0">{label}</span>
