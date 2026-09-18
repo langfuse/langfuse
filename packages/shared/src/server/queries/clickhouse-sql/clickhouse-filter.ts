@@ -4,6 +4,7 @@ import {
   filterOperators,
 } from "../../../interfaces/filters";
 import { InvalidRequestError } from "../../../errors";
+import { eventsTraceNameNgramColumns } from "../../../eventsTable";
 import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
@@ -61,6 +62,44 @@ const EVENTS_METADATA_MAP_FIELDS = new Set([
   "experiment_metadata",
   "experiment_item_metadata",
 ]);
+
+// The trace_name UI/API column resolves to a COALESCE over the raw trace_name
+// and name columns, so a predicate over it never engages the events_full
+// ngrambf_v1 indexes (defined on lower(trace_name) and lower(name)). For
+// prunable operators we prepend an OR prefilter over both raw lower()-indexed
+// columns — a correctness-safe superset that the exact COALESCE predicate then
+// trims. Scalar operators (= / LIKE) lower both sides in SQL; the `any of` IN set
+// is lowered via clickhouseAsciiLower to match the index's ASCII-only lower().
+// Negations (does not contain / none of) can never prune a skip index, so they are
+// left untouched.
+type TraceNameNgramColumns = { traceName: string; name: string };
+
+const traceNameNgramLikePattern = (
+  operator: "contains" | "starts with" | "ends with",
+  value: string,
+): string => {
+  const escaped = escapeSqlLikePattern(value);
+  switch (operator) {
+    case "contains":
+      return `%${escaped}%`;
+    case "starts with":
+      return `${escaped}%`;
+    case "ends with":
+      return `%${escaped}`;
+  }
+};
+
+const traceNameNgramEqualityPrefilter = (
+  columns: TraceNameNgramColumns,
+  valueParam: string,
+): string =>
+  `(lower(${columns.traceName}) = lower(${valueParam}) OR lower(${columns.name}) = lower(${valueParam}))`;
+
+const traceNameNgramLikePrefilter = (
+  columns: TraceNameNgramColumns,
+  patternParam: string,
+): string =>
+  `(lower(${columns.traceName}) LIKE lower(${patternParam}) OR lower(${columns.name}) LIKE lower(${patternParam}))`;
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
@@ -124,6 +163,17 @@ export class StringFilter implements Filter {
       }
     }
 
+    const traceNameNgramColumns = eventsTraceNameNgramColumns(this.field);
+    const extraParams: { [x: string]: string } = {};
+    const traceNameLikeConjunct = (
+      columns: TraceNameNgramColumns,
+      operator: "contains" | "starts with" | "ends with",
+    ): string => {
+      const p = `traceNameNgram${clickhouseCompliantRandomCharacters()}`;
+      extraParams[p] = traceNameNgramLikePattern(operator, this.value);
+      return traceNameNgramLikePrefilter(columns, `{${p}: String}`);
+    };
+
     let query: string;
     switch (this.operator) {
       case "=":
@@ -136,12 +186,16 @@ export class StringFilter implements Filter {
           );
         } else if (ngramTarget) {
           query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
+        } else if (traceNameNgramColumns && this.value !== "") {
+          query = `${traceNameNgramEqualityPrefilter(traceNameNgramColumns, `{${varName}: String}`)} AND (${query})`;
         }
         break;
       case "contains":
         query = `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
         if (ngramTarget && this.value.length > 0) {
           query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        } else if (traceNameNgramColumns && this.value !== "") {
+          query = `${traceNameLikeConjunct(traceNameNgramColumns, "contains")} AND (${query})`;
         }
         break;
       case "does not contain":
@@ -151,12 +205,16 @@ export class StringFilter implements Filter {
         query = `startsWith(${fieldWithPrefix}, {${varName}: String})`;
         if (ngramTarget && this.value.length > 0) {
           query = `(${ngramLikeConjunct(`${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        } else if (traceNameNgramColumns && this.value !== "") {
+          query = `${traceNameLikeConjunct(traceNameNgramColumns, "starts with")} AND (${query})`;
         }
         break;
       case "ends with":
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
         if (ngramTarget && this.value.length > 0) {
           query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}`)}${query})`;
+        } else if (traceNameNgramColumns && this.value !== "") {
+          query = `${traceNameLikeConjunct(traceNameNgramColumns, "ends with")} AND (${query})`;
         }
         break;
       case "is not empty":
@@ -191,7 +249,7 @@ export class StringFilter implements Filter {
       params:
         this.operator === "is not empty"
           ? {}
-          : { [varName]: this.value, ...ngramParams },
+          : { [varName]: this.value, ...ngramParams, ...extraParams },
     };
   }
 }
@@ -335,6 +393,23 @@ export class StringOptionsFilter implements Filter {
         ? `${fieldWithPrefix} IS NOT NULL`
         : `${fieldWithPrefix} != ''`;
       query = `(${query} AND ${guard})`;
+    }
+
+    // A trace_name `any of` matches against both raw lower()-indexed columns
+    // (ORed) so the ngram index can prune; the exact COALESCE IN stays the precise
+    // post-filter. An empty value in the set (empty/NULL cannot be pruned) and
+    // `none of` (a negation a presence bloom cannot prune) skip acceleration.
+    const traceNameNgramColumns = eventsTraceNameNgramColumns(this.field);
+    if (
+      this.operator === "any of" &&
+      traceNameNgramColumns &&
+      this.values.length > 0 &&
+      !this.values.includes("")
+    ) {
+      const loweredVar = `traceNameNgram${clickhouseCompliantRandomCharacters()}`;
+      ngramParams[loweredVar] = this.values.map(clickhouseAsciiLower);
+      const prefilter = `(lower(${traceNameNgramColumns.traceName}) IN ({${loweredVar}: Array(String)}) OR lower(${traceNameNgramColumns.name}) IN ({${loweredVar}: Array(String)}))`;
+      query = `${prefilter} AND (${query})`;
     }
 
     return {

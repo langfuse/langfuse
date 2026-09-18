@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { eventsTableTraceNameSql } from "../../../eventsTable";
 import {
   BooleanObjectFilter,
   FilterList,
@@ -9,6 +10,7 @@ import {
   NumberObjectFilter,
   StringFilter,
   StringObjectFilter,
+  StringOptionsFilter,
 } from "./clickhouse-filter";
 import { createFilterFromFilterState } from "./factory";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../../tableMappings/mapExperimentItemsTable";
@@ -286,6 +288,103 @@ describe("StringObjectFilter empty-value rejection", () => {
 
   it("allows an empty value for `=` (empty-string equality is a valid match)", () => {
     expect(() => metadataString("=", "").apply()).not.toThrow();
+  });
+});
+
+describe("trace_name ngram-index prefilter", () => {
+  const traceNameString = (operator: StringFilter["operator"], value: string) =>
+    new StringFilter({
+      clickhouseTable: "traces", // scores CTE labels it "traces" but runs on events_full
+      field: eventsTableTraceNameSql,
+      operator,
+      value,
+    });
+
+  const traceNameOptions = (
+    operator: StringOptionsFilter["operator"],
+    values: string[],
+    emptyEqualsNull = false,
+  ) =>
+    new StringOptionsFilter({
+      clickhouseTable: "traces",
+      field: eventsTableTraceNameSql,
+      operator,
+      values,
+      emptyEqualsNull,
+    });
+
+  it("prepends an OR prefilter over both indexed columns for `=`", () => {
+    const { query } = traceNameString("=", "foo").apply();
+    expect(query).toMatch(
+      /^\(lower\(e\.trace_name\) = lower\(\{stringFilter\w+: String\}\) OR lower\(e\.name\) = lower\(\{stringFilter\w+: String\}\)\) AND \(/,
+    );
+    expect(query).toContain(`AND (${eventsTableTraceNameSql} = {`);
+  });
+
+  it.each([
+    ["contains", "%foo%"],
+    ["starts with", "foo%"],
+    ["ends with", "%foo"],
+  ] as const)(
+    "prepends a LIKE prefilter over both indexed columns for `%s`",
+    (operator, pattern) => {
+      const { query, params } = traceNameString(operator, "foo").apply();
+      expect(query).toContain("lower(e.trace_name) LIKE lower({");
+      expect(query).toContain("OR lower(e.name) LIKE lower({");
+      expect(Object.values(params)).toContain(pattern);
+    },
+  );
+
+  it("escapes LIKE wildcards in the prefilter pattern", () => {
+    const { params } = traceNameString("contains", "a%b_c").apply();
+    expect(Object.values(params)).toContain("%a\\%b\\_c%");
+  });
+
+  it("skips the prefilter for an empty value", () => {
+    const { query } = traceNameString("contains", "").apply();
+    expect(query).not.toContain("lower(e.name)");
+  });
+
+  it("does not accelerate `does not contain` (a skip index cannot prune absence)", () => {
+    const { query } = traceNameString("does not contain", "foo").apply();
+    expect(query).not.toContain("lower(e.name)");
+  });
+
+  it("prepends an OR-of-IN prefilter over both indexed columns for `any of`", () => {
+    const { query, params } = traceNameOptions("any of", [
+      "Foo",
+      "bar",
+    ]).apply();
+    expect(query).toContain("lower(e.trace_name) IN ({");
+    expect(query).toContain("OR lower(e.name) IN ({");
+    expect(query).toContain(`AND (${eventsTableTraceNameSql} IN ({`);
+    // Values are ASCII-lowered in JS to match the index's lower(); a single
+    // shared array param backs both column disjuncts.
+    expect(Object.values(params)).toContainEqual(["foo", "bar"]);
+  });
+
+  it("does not accelerate `none of`", () => {
+    const { query } = traceNameOptions("none of", ["foo"]).apply();
+    expect(query).not.toContain("lower(e.name)");
+  });
+
+  it("skips the `any of` prefilter when an empty value is selected", () => {
+    const { query } = traceNameOptions("any of", ["foo", ""], true).apply();
+    expect(query).not.toContain("lower(e.name)");
+  });
+
+  it("leaves non-indexed bare-column string filters untouched", () => {
+    // version has no ngram index and is not the trace_name expression, so it
+    // compiles to a plain position() with no prefilter.
+    const { query } = new StringFilter({
+      clickhouseTable: "events_full",
+      field: "e.version",
+      operator: "contains",
+      value: "foo",
+    }).apply();
+    expect(query).toMatch(
+      /^position\(e\.version, \{stringFilter\w+: String\}\) > 0$/,
+    );
   });
 });
 
