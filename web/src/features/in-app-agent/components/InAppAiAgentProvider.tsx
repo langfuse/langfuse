@@ -18,12 +18,15 @@ import { useRouter } from "next/router";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { createInAppAgentConversationId } from "../ids";
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   AgUiMessageSchema,
   dropEmptyAssistantMessages,
   dropUnpairedAssistantToolCalls,
   type AgUiMessage,
   type InAppAgentToolApprovalRequest,
+  type InAppAgentUserInputPayload,
+  type InAppAgentUserInputRequest,
 } from "@langfuse/shared/in-app-agent";
 import { isActiveInAppAgentRunStatus } from "../watchFrames";
 import type {
@@ -86,6 +89,7 @@ const EMPTY_BACKGROUND_VIEW: BackgroundExecutionView = {
   eventCursor: -1,
   currentRun: null,
   pendingToolApprovals: [],
+  pendingUserInputs: [],
   cancelStatus: "idle",
   attachment: { status: "detached" },
 };
@@ -124,6 +128,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isRunning: false,
   isSubmitting: false,
   pendingToolApprovals: [],
+  pendingUserInputs: [],
   isSelectedConversationHydrating: false,
   execution: { run: null, isCancelling: false, cancel: () => undefined },
   error: null,
@@ -143,6 +148,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   submit: async () => false,
   approveToolCall: async () => undefined,
   rejectToolCall: async () => undefined,
+  answerUserInput: async () => undefined,
   submitFeedback: async () => undefined,
 };
 
@@ -156,6 +162,13 @@ export type InAppAgentPendingToolApproval = {
   approvalRequest: InAppAgentToolApprovalRequest;
   status: "pending" | "submitting";
   // Present for approvals restored from persisted background events.
+  runId?: string;
+};
+
+export type InAppAgentPendingUserInput = {
+  id: string;
+  userInputRequest: InAppAgentUserInputRequest;
+  status: "pending" | "submitting";
   runId?: string;
 };
 
@@ -182,6 +195,7 @@ type InAppAiAgentContextType = {
   isRunning: boolean;
   isSubmitting: boolean;
   pendingToolApprovals: InAppAgentPendingToolApproval[];
+  pendingUserInputs: InAppAgentPendingUserInput[];
   isSelectedConversationHydrating: boolean;
   execution: InAppAiAgentExecution;
   error: InAppAgentError | null;
@@ -208,6 +222,10 @@ type InAppAiAgentContextType = {
   approveToolCall: (approvalId: string) => Promise<void>;
   alwaysAllowToolCall?: (approvalId: string) => Promise<void>;
   rejectToolCall: (approvalId: string) => Promise<void>;
+  answerUserInput: (
+    userInputId: string,
+    payload: InAppAgentUserInputPayload,
+  ) => Promise<void>;
   submitFeedback: (params: {
     messageId: string;
     runId: string;
@@ -353,6 +371,7 @@ function InAppAiAgentProviderInner({
   const cancelRunMutation = api.inAppAgent.cancelRun.useMutation();
   const decideToolApprovalMutation =
     api.inAppAgent.decideToolApproval.useMutation();
+  const decideUserInputMutation = api.inAppAgent.decideUserInput.useMutation();
   const isSelectedConversationNotFound =
     conversationQuery.error?.data?.code === "NOT_FOUND";
   const selectedConversationId = isSelectedConversationNotFound
@@ -399,6 +418,9 @@ function InAppAiAgentProviderInner({
         : null,
       pendingToolApprovals: conversationQuery.data.pendingToolApprovals.map(
         (approval) => ({ ...approval, status: "pending" as const }),
+      ),
+      pendingUserInputs: (conversationQuery.data.pendingUserInputs ?? []).map(
+        (userInput) => ({ ...userInput, status: "pending" as const }),
       ),
       cancelStatus: "idle",
       attachment: { status: "detached" },
@@ -469,6 +491,16 @@ function InAppAiAgentProviderInner({
       }),
     );
   }, [backgroundExecutionView.pendingToolApprovals]);
+  const effectivePendingUserInputs = useMemo(() => {
+    return backgroundExecutionView.pendingUserInputs.map(
+      ({ runId, userInputRequest, status }): InAppAgentPendingUserInput => ({
+        id: userInputRequest.toolCallId,
+        userInputRequest,
+        status,
+        runId,
+      }),
+    );
+  }, [backgroundExecutionView.pendingUserInputs]);
   /**
    * Messages and their display sidecar always come from the same source, so the
    * projection below can never fold live messages against persisted state (or
@@ -571,6 +603,7 @@ function InAppAiAgentProviderInner({
           (message.toolCalls?.some(
             (toolCall) =>
               toolCall.function.name !== IN_APP_AGENT_REDIRECT_TOOL_NAME &&
+              toolCall.function.name !== IN_APP_AGENT_ASK_USER_TOOL_NAME &&
               (loadingEventIds.has(toolCall.id) ||
                 unresolvedActiveRunToolCallIds.has(toolCall.id)),
           ) ??
@@ -853,6 +886,9 @@ function InAppAiAgentProviderInner({
             pendingToolApprovals: snapshot.pendingToolApprovals.map(
               (approval) => ({ ...approval, status: "pending" as const }),
             ),
+            pendingUserInputs: (snapshot.pendingUserInputs ?? []).map(
+              (userInput) => ({ ...userInput, status: "pending" as const }),
+            ),
           } satisfies Omit<
             BackgroundExecutionView,
             "attachment" | "cancelStatus" | "liveMessageRevision"
@@ -872,6 +908,14 @@ function InAppAiAgentProviderInner({
             toolCallId: input.toolCallId,
             approved: input.approved,
             approvalScope: input.approvalScope,
+          }),
+        decideUserInput: (input) =>
+          decideUserInputMutation.mutateAsync({
+            projectId,
+            conversationId,
+            runId: input.runId,
+            toolCallId: input.toolCallId,
+            payload: input.payload,
           }),
         onHydratedSnapshot: ({ messages }) => {
           performToolSideEffectsForCompletedToolCalls({
@@ -910,6 +954,7 @@ function InAppAiAgentProviderInner({
       clearLoadingEvents,
       conversationQuery.data,
       decideToolApprovalMutation,
+      decideUserInputMutation,
       projectId,
       refetchActivity,
       releaseSubmitLock,
@@ -1430,6 +1475,66 @@ function InAppAiAgentProviderInner({
     [resumeToolApproval],
   );
 
+  const answerUserInput = useCallback(
+    async (userInputId: string, payload: InAppAgentUserInputPayload) => {
+      const userInput = effectivePendingUserInputs.find(
+        (pending) => pending.id === userInputId,
+      );
+
+      if (
+        !userInput ||
+        !selectedConversationId ||
+        isRunning ||
+        isInAppAgentRateLimited(error)
+      ) {
+        return;
+      }
+
+      const runId = userInput.runId ?? userInput.userInputRequest.runId;
+      setError(null);
+
+      try {
+        const initialMessages =
+          conversationQuery.data?.conversation.id === selectedConversationId
+            ? conversationQuery.data.messages.filter(isAgentConversationMessage)
+            : [];
+        const backgroundSession = getOrCreateBackgroundSession(
+          selectedConversationId,
+          initialMessages,
+        );
+
+        await backgroundSession.decideUserInput({
+          runId,
+          toolCallId: userInput.userInputRequest.toolCallId,
+          payload,
+        });
+        capture("in_app_agent:user_input_answered", {
+          selectionMode:
+            userInput.userInputRequest.args.selectionMode ?? "free_text",
+          optionCount: userInput.userInputRequest.args.options?.length ?? 0,
+          hasDetails: Boolean(payload.details),
+          answerCount: Array.isArray(payload.answer)
+            ? payload.answer.length
+            : 1,
+        });
+      } catch (decisionError) {
+        showErrorToast(
+          "Failed to send the answer",
+          getAgentErrorMessage(decisionError),
+        );
+      }
+    },
+    [
+      capture,
+      conversationQuery.data,
+      effectivePendingUserInputs,
+      error,
+      getOrCreateBackgroundSession,
+      isRunning,
+      selectedConversationId,
+    ],
+  );
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
@@ -1443,6 +1548,9 @@ function InAppAiAgentProviderInner({
       pendingToolApprovals: isSelectedConversationNotFound
         ? []
         : effectivePendingToolApprovals,
+      pendingUserInputs: isSelectedConversationNotFound
+        ? []
+        : effectivePendingUserInputs,
       isSelectedConversationHydrating,
       execution,
       error: effectiveError,
@@ -1463,6 +1571,7 @@ function InAppAiAgentProviderInner({
       approveToolCall,
       alwaysAllowToolCall,
       rejectToolCall,
+      answerUserInput,
       submitFeedback,
     }),
     [
@@ -1470,6 +1579,7 @@ function InAppAiAgentProviderInner({
       approveToolCall,
       attentionCount,
       alwaysAllowToolCall,
+      answerUserInput,
       isExpanded,
       conversations,
       effectiveError,
@@ -1488,6 +1598,7 @@ function InAppAiAgentProviderInner({
       openAssistant,
       execution,
       effectivePendingToolApprovals,
+      effectivePendingUserInputs,
       rejectToolCall,
       setAgentOpen,
       invalidateConversations,

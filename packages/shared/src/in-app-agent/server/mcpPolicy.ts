@@ -4,7 +4,10 @@ import { z } from "zod";
 import type { ProjectScope } from "../../features/rbac/projectAccessRights";
 import { hasProjectAccessByRole } from "../../features/rbac/projectAccessRights";
 import { Role } from "../../db";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "../constants";
+import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+} from "../constants";
 import {
   buildInAppAgentToolApprovalEvent,
   type InAppAgentToolApprovalSource,
@@ -437,6 +440,7 @@ export const IN_APP_AGENT_SANDBOX_TOOL_NAMES = new Set([
 const IN_APP_AGENT_LOCAL_AUTO_APPROVED_TOOL_NAMES = new Set<string>([
   ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
   ...IN_APP_AGENT_SANDBOX_TOOL_NAMES,
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
 ]);
 
 export function isMcpToolName(

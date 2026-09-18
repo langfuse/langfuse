@@ -42,8 +42,22 @@ const controlledAgent = vi.hoisted(() => ({
     loadMoreConversations: vi.fn(),
     messages: [],
     pendingToolApprovals: [] as Array<{ id: string }>,
+    pendingUserInputs: [] as Array<{
+      id: string;
+      userInputRequest?: {
+        type: "user_input_request";
+        id: string;
+        reason: "input_required";
+        message: string;
+        toolCallId: string;
+        toolName: string;
+        args: { question: string };
+        runId: string;
+      };
+    }>,
     approveToolCall: vi.fn(),
     rejectToolCall: vi.fn(),
+    answerUserInput: vi.fn(),
     selectedConversationId: undefined,
     selectedConversationTitle: null,
     selectConversation: vi.fn(),
@@ -72,6 +86,7 @@ vi.mock("./useSmoothStreamingMessages", () => ({
     isAnimating: false,
     messages: [],
     pendingToolApprovals: [],
+    pendingUserInputs: [],
     runningToolCallIds: [],
   }),
 }));
@@ -291,6 +306,7 @@ describe("ControlledInAppAgentWindow composer", () => {
     controlledAgent.value.isSelectedConversationHydrating = false;
     controlledAgent.value.isSubmitting = false;
     controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.pendingUserInputs = [];
     controlledAgent.value.selectConversation = vi.fn();
     controlledAgent.value.execution = {
       run: null,
@@ -360,6 +376,42 @@ describe("ControlledInAppAgentWindow composer", () => {
       screen.getByRole("button", { name: /^Conversation history/ }),
     ).toBeEnabled();
   });
+
+  it("blocks another turn while a question is pending", () => {
+    controlledAgent.value.isRunning = false;
+    controlledAgent.value.pendingUserInputs = [
+      {
+        id: "ask-1",
+        userInputRequest: {
+          type: "user_input_request",
+          id: "ask-1",
+          reason: "input_required",
+          message: "Which environment?",
+          toolCallId: "ask-1",
+          toolName: "ask_user",
+          args: { question: "Which environment?" },
+          runId: "run-1",
+        },
+      },
+    ];
+    controlledAgent.value.submit = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <ControlledInAppAgentWindow
+          isExpanded={false}
+          onClose={vi.fn()}
+          onDeleteConversation={vi.fn()}
+          onExpandedChange={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Message the assistant" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
+  });
 });
 
 describe("ControlledInAppAgentWindow stop", () => {
@@ -367,6 +419,7 @@ describe("ControlledInAppAgentWindow stop", () => {
     const cancel = vi.fn();
     controlledAgent.value.isRunning = true;
     controlledAgent.value.pendingToolApprovals = [];
+    controlledAgent.value.pendingUserInputs = [];
     controlledAgent.value.execution = {
       run: {
         id: "run-1",

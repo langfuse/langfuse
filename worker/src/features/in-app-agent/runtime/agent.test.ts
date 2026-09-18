@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
+  IN_APP_AGENT_ASK_USER_TOOL_NAME,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
@@ -1223,6 +1224,9 @@ describe("createAgUiStream", () => {
     expect(
       agentTools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
     ).not.toBe(true);
+    expect(
+      agentTools?.[IN_APP_AGENT_ASK_USER_TOOL_NAME]?.requireApproval,
+    ).not.toBe(true);
     const docsSearchTool = agentTools?.langfuseDocs_search;
     await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
       _meta: expect.objectContaining({
@@ -1288,6 +1292,7 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: "",
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        askUserToolName: IN_APP_AGENT_ASK_USER_TOOL_NAME,
         sandboxFilesystem: expect.stringContaining("<sandbox_filesystem>"),
         screenContext: "",
         userContext: "",
