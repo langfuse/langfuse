@@ -58,6 +58,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   trailingIcon?: LucideIcon;
   /** Link badges tint the arrow so the affordance reads before the hover. */
   trailingIconTone?: "default" | "link";
+  /** Underlines the value when a hover reveals more, e.g. a cost breakdown. */
+  underline?: boolean;
 };
 
 export function Badge({
@@ -69,6 +71,7 @@ export function Badge({
   leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
+  underline = false,
   ...props
 }: BadgeProps) {
   const iconKeyName = LeadingIcon ? (srLabel ?? title) : undefined;
@@ -88,7 +91,10 @@ export function Badge({
       ) : (
         label && <span className="text-muted-foreground shrink-0">{label}</span>
       )}
-      <span className="truncate" title={title ?? text}>
+      <span
+        className={cn("truncate", underline && "underline")}
+        title={title ?? text}
+      >
         {text}
       </span>
       {TrailingIcon && (

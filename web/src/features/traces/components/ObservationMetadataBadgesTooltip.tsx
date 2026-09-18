@@ -30,7 +30,7 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge color="ghost" text={usdFormatter(totalCost)} />
+      <Badge color="ghost" text={usdFormatter(totalCost)} underline />
     </BreakdownTooltip>
   );
 }
@@ -52,6 +52,7 @@ export function UsageBadge({
           leadingIcon={Coins}
           text={tokenText}
           title="Tokens"
+          underline
         />
       ) : (
         <BadgeShell aria-label="View usage breakdown">
