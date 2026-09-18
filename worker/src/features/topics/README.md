@@ -117,8 +117,18 @@ snapshots, transcripts, projections, or model request bodies. Shared determinist
 assembly is used by the worker and the on-demand summary inspector. Accepted
 summaries and embeddings are saved in ClickHouse; accepted names are saved in Postgres.
 Successful extraction writes the summary and embedding together to ClickHouse.
-If embedding fails, the summary is saved without a vector; a successful resume
-writes the complete result under the same row identity with a higher result version.
+Summarization stages its result in Redis; the separate `topics-embedding` queue
+holds only references, in batches of up to 100 traces across selected facets.
+The payload TTL defaults to **3 hours**, configured with
+`LANGFUSE_TOPICS_REDIS_TTL_SECONDS`. Retries never extend that deadline.
+The embedding worker caches a completed vector alongside its summary before the
+combined ClickHouse write. It removes the Redis payload only after the insert is
+acknowledged. A database retry therefore reuses the vector while its payload is
+available. No incomplete summary rows are written to ClickHouse.
+The coordinator releases its worker slot while waiting, then resumes from frozen
+batch references. Missing/expired payloads fail the batch explicitly; start a new
+execution to regenerate them. Redis staging is temporary, not a durable archive:
+Redis data loss or expiry before persistence can require repeating inference.
 Unchanged effective input and summary recipe reuse accepted summary text. Embedding
 settings belong to the execution, not the facet version. Compatible vectors are
 reused; a changed configuration creates a new combined summary/vector revision
@@ -229,10 +239,11 @@ ClickHouse stores summary text, embeddings, assignment outcomes, and map coordin
 Postgres stores each accepted cluster label separately, with evidence IDs only.
 Transcripts stay in memory. There are no per-call output files or shared-disk state.
 
-Processing reads cached summaries in batches of 100 traces and flushes accepted
-results before saving batch progress. ClickHouse writes are additionally bounded
-by 10,000 rows / 8 MiB with awaited async inserts. Successful summary+embedding
-work produces one combined row; embedding failures preserve a summary-only row.
+Processing reads cached summaries in batches of 100 traces and records accepted
+summary references before queueing embeddings. ClickHouse writes are additionally
+bounded by 10,000 rows / 8 MiB with awaited async inserts. Successful
+summary+embedding work produces one combined row. Retries may repeat an
+acknowledged insert under the same row identity; the replacing table resolves it.
 The batch size is an internal work unit, not a selected-trace cap.
 
 Provider usage and calculated model costs are recorded with accepted results.
@@ -245,7 +256,10 @@ allows its counted full input plus 10% and 512 framing tokens, and 1,000 output
 tokens. Inputs exceeding a conservative 900k-token context allowance fail before
 calling the provider; member summaries are never silently discarded. Embedding
 input remains capped at 1,024 tokens.
-Provider retries are disabled.
+Provider SDK retries are disabled. Embedding queue jobs retry transient failures
+up to three attempts with exponential backoff; authentication and invalid
+input/output failures stop immediately. A manual resume can retry a failed batch
+while its Redis payload still exists.
 
 A persisted summary, embedding, or cluster name can be reused without another charge. If a worker
 stops after a provider call succeeds but before saving its result, a manual
@@ -285,7 +299,7 @@ resume or refresh. Generated results count when accepted in memory; a later
 persistence failure is reported separately. Model durations exclude cache hits.
 Metrics are best effort, not an exactly-once ledger or an execution heartbeat.
 Queue backlog, waiting time and BullMQ outcomes remain under
-`langfuse.queue.topics.*`.
+`langfuse.queue.topics.*` and `langfuse.queue.topics-embedding.*`.
 
 ### Observed small-sample limitation
 

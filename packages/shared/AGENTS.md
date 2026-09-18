@@ -56,6 +56,10 @@
 - `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
   queue access and Postgres run progress with object-storage input/cohort manifests.
   Summaries, embeddings, assignments and map coordinates live in ClickHouse.
+  `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
+  enqueues reference-only embedding batches. Consumers persist completed results
+  to ClickHouse before deleting staged payloads; queue job retention is separate
+  from the payload TTL.
   Available only on a loopback development server.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
   in memory for the worker and evidence inspector; transcript/source I/O is

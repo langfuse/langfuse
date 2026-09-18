@@ -8,6 +8,7 @@ import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
 import { TopicsQueue } from "../topics/queue";
+import { TopicsEmbeddingQueue } from "../topics/embedding-queue";
 import { TraceBatchQueue } from "./traceBatch";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
@@ -52,6 +53,8 @@ export function getQueue(
   switch (queueName) {
     case QueueName.Topics:
       return TopicsQueue.getInstance();
+    case QueueName.TopicsEmbedding:
+      return TopicsEmbeddingQueue.getInstance();
     case QueueName.TraceBatch:
       return TraceBatchQueue.getInstance();
     case QueueName.BatchExport:

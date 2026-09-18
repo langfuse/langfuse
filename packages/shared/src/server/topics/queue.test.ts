@@ -4,9 +4,15 @@ import {
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "./queue";
+import {
+  TOPIC_EMBEDDING_EXPIRED_ERROR,
+  TopicsEmbeddingQueue,
+  enqueueTopicEmbeddingBatch,
+} from "./embedding-queue";
 
 vi.mock("../redis/redis", () => ({
   createBullMQQueueOptionsWithRedis: () => null,
+  redis: null,
 }));
 vi.mock("../logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("./config", () => ({ isTopicsEnabled: () => true }));
@@ -96,5 +102,65 @@ describe("Topics execution queue state", () => {
     await expect(
       getTopicExecutionQueueState("project-a", "run"),
     ).rejects.toThrow("Redis");
+  });
+});
+
+describe("Topics embedding queue handoff", () => {
+  const batch = {
+    projectId: "project-a",
+    executionId: "run",
+    batchId: "batch-1",
+    summaries: [
+      { summaryId: "summary", facetVersionId: "facet", traceId: "trace" },
+    ],
+  };
+
+  it("only retries failed batches on explicit resume and preserves expiry errors", async () => {
+    const getState = vi.fn().mockResolvedValue("failed");
+    const retry = vi.fn();
+    vi.spyOn(TopicsEmbeddingQueue, "getInstance").mockReturnValue({
+      getJob: vi.fn(async () => ({
+        data: { payload: batch },
+        failedReason: TOPIC_EMBEDDING_EXPIRED_ERROR,
+        getState,
+        retry,
+      })),
+    } as unknown as NonNullable<
+      ReturnType<typeof TopicsEmbeddingQueue.getInstance>
+    >);
+
+    await expect(enqueueTopicEmbeddingBatch(batch)).rejects.toThrow(
+      TOPIC_EMBEDDING_EXPIRED_ERROR,
+    );
+    expect(retry).not.toHaveBeenCalled();
+    await expect(
+      enqueueTopicEmbeddingBatch(batch, { retryFailed: true }),
+    ).resolves.toBe("pending");
+    expect(retry).toHaveBeenCalledOnce();
+    expect(retry).toHaveBeenCalledWith("failed", {
+      resetAttemptsMade: true,
+    });
+    getState.mockResolvedValue("completed");
+    await expect(enqueueTopicEmbeddingBatch(batch)).resolves.toBe("complete");
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it("rejects reuse of a batch ID with different accepted summaries", async () => {
+    const retry = vi.fn();
+    vi.spyOn(TopicsEmbeddingQueue, "getInstance").mockReturnValue({
+      getJob: vi.fn(async () => ({
+        data: { payload: batch },
+        retry,
+      })),
+    } as unknown as NonNullable<
+      ReturnType<typeof TopicsEmbeddingQueue.getInstance>
+    >);
+    await expect(
+      enqueueTopicEmbeddingBatch({
+        ...batch,
+        summaries: [{ ...batch.summaries[0]!, summaryId: "different" }],
+      }),
+    ).rejects.toThrow("scope mismatch");
+    expect(retry).not.toHaveBeenCalled();
   });
 });

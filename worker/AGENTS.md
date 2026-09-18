@@ -17,7 +17,11 @@
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
 - Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
-  registered by `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md`
+  registered by `src/queues/topicsQueue.ts`. Summary results are staged in Redis
+  with a three-hour TTL; `src/queues/topicsEmbeddingQueue.ts` delegates to
+  `src/features/topics/processTopicEmbeddingBatch.ts` to embed and persist combined
+  results in ClickHouse before deleting the payload. The coordinator delays its
+  queue job while waiting for embeddings. Read `src/features/topics/README.md`
   for native numerical setup, database results, object-storage manifests, and model configuration.
   Canonical transcript assembly is shared with the web evidence inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.

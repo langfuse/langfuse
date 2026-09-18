@@ -202,7 +202,10 @@ export async function embedTopicSummary(
     encoding.free();
   }
   if (inputTokens < 1 || inputTokens > 1024)
-    throw new Error("Topics embedding input must contain 1-1024 tokens.");
+    throw new TopicsProviderUnavailable(
+      "Topics embedding input must contain 1-1024 tokens.",
+      "invalid_input",
+    );
   const response = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     redirect: "error",

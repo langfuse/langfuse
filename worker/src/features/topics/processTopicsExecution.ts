@@ -6,7 +6,6 @@ import {
   writeTopicArtifact,
   getTopicFacetVersion,
   listTopicSummaries,
-  writeTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
   readTopicSummaries,
@@ -16,6 +15,12 @@ import {
   getLatestFacetSummaries,
   saveTopicRun,
   loadTopicTranscript,
+  stageTopicSummary,
+  readStagedTopicSummaries,
+  readStagedTopicSummary,
+  enqueueTopicEmbeddingBatch,
+  TOPIC_EMBEDDING_EXPIRED_ERROR,
+  type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import {
   type TopicExecution,
@@ -31,7 +36,6 @@ import {
 } from "@langfuse/shared/topics";
 import {
   summarizeTopicTrace,
-  embedTopicSummary,
   nameTopicGroups,
   TOPICS_SUMMARY_PROMPT_VERSION,
   TOPICS_NAMING_MODEL,
@@ -53,14 +57,26 @@ import { chunk } from "lodash";
 import { TopicMetrics } from "./metrics";
 
 const TRACE_BATCH_SIZE = 100;
-type PersistSummary = (summary: TopicSummary) => void;
+class PendingTopicEmbeddings extends Error {}
+class TopicEmbeddingFailure extends Error {}
+
+type SummaryBatch = {
+  summaries: TopicEmbeddingRef[];
+  failedCounts: Record<string, number>;
+};
+const summaryRef = (row: TopicSummary): TopicEmbeddingRef => ({
+  summaryId: row.id,
+  facetVersionId: row.facetVersionId,
+  traceId: row.traceId,
+});
 
 const artifactKey = (kind: string, value: unknown) =>
   `${kind}-${topicHash(value).slice(0, 48)}`;
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
 const isExecutionFailure = (error: unknown) =>
-  error instanceof TopicsProviderUnavailable;
+  error instanceof TopicsProviderUnavailable ||
+  error instanceof TopicEmbeddingFailure;
 
 function invalidOutput(
   metrics: TopicMetrics,
@@ -125,10 +141,19 @@ async function loadCachedSummaries(
   facet: TopicFacetVersion,
   traceIds: string[],
 ): Promise<TopicSummary[]> {
-  const rows = await listTopicSummaries(execution.projectId, {
-    facetId: facet.facetId,
-    traceIds,
-  });
+  const [staged, stored] = await Promise.all([
+    readStagedTopicSummaries(
+      execution.projectId,
+      execution.id,
+      facet.id,
+      traceIds,
+    ),
+    listTopicSummaries(execution.projectId, {
+      facetId: facet.facetId,
+      traceIds,
+    }),
+  ]);
+  const rows = [...staged, ...stored];
   return rows.filter(
     (row) =>
       row.facetId === facet.facetId &&
@@ -148,8 +173,8 @@ async function summarizeTrace(
   facet: TopicFacetVersion,
   traceId: string,
   cached: TopicSummary[],
+  acceptedSummaryIds: ReadonlySet<string>,
   getTranscript: () => ReturnType<typeof loadTopicTranscript>,
-  persist: PersistSummary,
 ): Promise<TopicSummary> {
   const accepted = cached.find(
     (row) =>
@@ -159,8 +184,13 @@ async function summarizeTrace(
   );
   if (accepted) {
     metrics.result("summary", "cached");
-    return ensureEmbedding(metrics, execution, accepted, persist);
+    // An accepted payload may expire after the cache read; never renew its TTL.
+    if (accepted.state === "summarized") return accepted;
+    return ensureEmbedding(metrics, execution, accepted);
   }
+  const id = topicHash([execution.id, traceId, facet.id]).slice(0, 48);
+  if (acceptedSummaryIds.has(id))
+    throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
   const summary = await (async (): Promise<TopicSummary> => {
     const { traceTimestamp, snapshotHash, transcript } = await getTranscript();
     const invocationHash = summaryInvocationHash(
@@ -186,10 +216,7 @@ async function summarizeTrace(
       candidates.find(embeddingMatches) ??
       candidates[0];
     const base = {
-      id: topicHash([execution.id, traceId, facet.id, invocationHash]).slice(
-        0,
-        48,
-      ),
+      id,
       projectId: execution.projectId,
       facetId: facet.facetId,
       facetVersionId: facet.id,
@@ -320,8 +347,8 @@ async function summarizeTrace(
     summary.state !== "summarized" &&
     !cached.some((row) => row.id === summary.id)
   )
-    persist(summary);
-  return ensureEmbedding(metrics, execution, summary, persist);
+    return stageSummary(metrics, execution, summary);
+  return ensureEmbedding(metrics, execution, summary);
 }
 
 /** Re-embedding stored summaries never reloads traces or repeats summarization. */
@@ -329,7 +356,6 @@ async function ensureEmbedding(
   metrics: TopicMetrics,
   execution: TopicExecution,
   source: TopicSummary,
-  persist: PersistSummary,
 ): Promise<TopicSummary> {
   const { embeddingModel, embeddingDimensions } =
     execution.input.embeddingConfig;
@@ -368,32 +394,144 @@ async function ensureEmbedding(
           processedAt: new Date().toISOString(),
           metadata: { ...source.metadata, summaryReusedFromId: source.id },
         };
-  let embedded;
+  return stageSummary(metrics, execution, summary);
+}
+
+async function stageSummary(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  summary: TopicSummary,
+): Promise<TopicSummary> {
   try {
-    embedded = await metrics.measure("embedding", () =>
-      embedTopicSummary(summary.summary, embeddingDimensions),
+    return await metrics.measure(
+      "storage",
+      () => stageTopicSummary(summary, execution.input.embeddingConfig),
+      "storage",
     );
-    metrics.embeddingResult(summary.id, "generated");
   } catch (error) {
-    // Preserve paid summarization even when embedding failed. Successful work
-    // takes one combined write through the batch buffer.
-    await metrics.measure(
-      "storage",
-      () => writeTopicSummaries([summary]),
-      "storage",
-    );
-    throw error;
+    throw new TopicEmbeddingFailure(errorMessage(error));
   }
-  const complete: TopicSummary = {
-    ...summary,
-    state: "complete",
-    resultVersion: 2,
-    embedding: embedded.embedding,
-    embeddingTokens: embedded.inputTokens,
-    embeddingCostUsd: embedded.costUsd,
-  };
-  persist(complete);
-  return complete;
+}
+
+/** Frozen references survive payload expiry without silently regenerating paid work. */
+async function resumeSummaryBatch(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  batchId: string,
+  batch: SummaryBatch,
+  retryFailed: boolean,
+  pendingEmbeddingBatchIds: Set<string>,
+): Promise<TopicSummary[]> {
+  if (!batch.summaries.length) return [];
+  const scope = { projectId: execution.projectId, executionId: execution.id };
+  const stored = await metrics.measure(
+    "storage",
+    () =>
+      readTopicSummaries(
+        execution.projectId,
+        batch.summaries.map((ref) => ref.summaryId),
+      ),
+    "storage",
+  );
+  const byId = new Map(stored.map((row) => [row.id, row]));
+  if (
+    !batch.summaries.every((ref) => {
+      const row = byId.get(ref.summaryId);
+      return row && row.state !== "summarized";
+    })
+  ) {
+    try {
+      pendingEmbeddingBatchIds.add(batchId);
+      await enqueueTopicEmbeddingBatch(
+        { ...scope, batchId, summaries: batch.summaries },
+        { retryFailed },
+      );
+    } catch (error) {
+      throw new TopicEmbeddingFailure(errorMessage(error));
+    }
+  }
+  const rows = await Promise.all(
+    batch.summaries.map(async (ref) => {
+      const row =
+        byId.get(ref.summaryId) ??
+        (await readStagedTopicSummary(scope, ref))?.summary;
+      if (
+        row &&
+        (row.projectId !== scope.projectId ||
+          row.facetVersionId !== ref.facetVersionId ||
+          row.traceId !== ref.traceId)
+      )
+        throw new TopicEmbeddingFailure("Topics summary batch scope mismatch.");
+      return row;
+    }),
+  );
+  // A worker can acknowledge the insert and remove its payload between these reads.
+  // The next attempt reads ClickHouse again, or surfaces the embedding job's failure.
+  if (rows.some((row) => !row)) throw new PendingTopicEmbeddings();
+  return rows as TopicSummary[];
+}
+
+async function prepareStoredSummaries(
+  metrics: TopicMetrics,
+  execution: TopicExecution,
+  source: TopicSummary[],
+  retryFailed: boolean,
+  pendingEmbeddingBatchIds: Set<string>,
+): Promise<TopicSummary[]> {
+  const summaries: TopicSummary[] = [];
+  for (const batch of chunk(
+    [...source].sort((a, b) => a.id.localeCompare(b.id)),
+    TRACE_BATCH_SIZE,
+  )) {
+    const key = artifactKey(
+      "cohort-embedding",
+      batch.map((row) => row.id),
+    );
+    const accepted = await checkpoint<SummaryBatch>(
+      metrics,
+      execution,
+      key,
+      async () => ({
+        summaries: await Promise.all(
+          batch.map(async (row) =>
+            summaryRef(await ensureEmbedding(metrics, execution, row)),
+          ),
+        ),
+        failedCounts: {},
+      }),
+    );
+    summaries.push(
+      ...(await resumeSummaryBatch(
+        metrics,
+        execution,
+        key,
+        accepted,
+        retryFailed,
+        pendingEmbeddingBatchIds,
+      )),
+    );
+  }
+  return summaries;
+}
+
+async function completedSummaries(
+  execution: TopicExecution,
+  summaries: TopicSummary[],
+) {
+  const visible = summaries.length
+    ? await readTopicSummaries(
+        execution.projectId,
+        summaries.map((summary) => summary.id),
+      )
+    : [];
+  const byId = new Map(
+    visible
+      .filter((row) => row.state !== "summarized")
+      .map((row) => [row.id, row]),
+  );
+  if (summaries.some((summary) => !byId.has(summary.id)))
+    throw new PendingTopicEmbeddings();
+  return summaries.map((summary) => byId.get(summary.id)!);
 }
 
 function countSummaries(
@@ -981,6 +1119,8 @@ async function refreshFacet(
   facet: TopicFacetVersion,
   progress: TopicFacetProgress,
   selected: TopicSummary[],
+  retryFailed: boolean,
+  pendingEmbeddingBatchIds: Set<string>,
 ) {
   const frozen = await checkpoint(
     metrics,
@@ -1011,24 +1151,16 @@ async function refreshFacet(
   );
   if (stored.length !== frozen.summaryIds.length)
     throw new Error("Refresh cohort is not fully visible.");
-  const summaries: TopicSummary[] = [];
-  for (const batch of chunk(stored, TRACE_BATCH_SIZE)) {
-    const pending: TopicSummary[] = [];
-    try {
-      for (const row of batch)
-        summaries.push(
-          await ensureEmbedding(metrics, execution, row, (value) =>
-            pending.push(value),
-          ),
-        );
-    } finally {
-      await metrics.measure(
-        "storage",
-        () => writeTopicSummaries(pending),
-        "storage",
-      );
-    }
-  }
+  const summaries = await completedSummaries(
+    execution,
+    await prepareStoredSummaries(
+      metrics,
+      execution,
+      stored,
+      retryFailed,
+      pendingEmbeddingBatchIds,
+    ),
+  );
   countSummaries(progress, summaries);
   progress.counts.requested = summaries.length;
   const complete = summaries.filter((row) => row.state === "complete");
@@ -1115,7 +1247,7 @@ export async function processTopicsExecution({
 }: {
   projectId: string;
   executionId: string;
-}): Promise<void> {
+}): Promise<{ pendingEmbeddingBatchIds: string[] } | void> {
   if (!isTopicsEnabled())
     throw new Error("Topics PoC runs only in local development.");
   const execution = await readTopicExecution(projectId, executionId);
@@ -1127,8 +1259,15 @@ export async function processTopicsExecution({
     )
   )
     return;
+  const pendingEmbeddingBatchIds = new Set<string>();
+  const acceptedSummaryIds = new Set(
+    execution.facets.flatMap((facet) => facet.summaryIds),
+  );
   const metrics = new TopicMetrics();
-  metrics.execution("started");
+  const retryFailed =
+    execution.status === "failed" ||
+    execution.status === "completed_with_errors";
+  if (execution.status !== "running") metrics.execution("started");
   execution.status = "running";
   execution.error = null;
   for (const progress of execution.facets) {
@@ -1137,7 +1276,11 @@ export async function processTopicsExecution({
       progress.error = null;
     }
   }
-  await saveProgress(metrics, execution, "summarizing").catch((error) => {
+  await saveProgress(
+    metrics,
+    execution,
+    execution.phase === "embedding" ? "embedding" : "summarizing",
+  ).catch((error) => {
     metrics.execution("failed");
     throw error;
   });
@@ -1181,27 +1324,13 @@ export async function processTopicsExecution({
           if (execution.input.operation === "recluster")
             progress.counts.requested = summaries.length;
         } else if (execution.input.operation === "recluster") {
-          summaries = [];
-          for (const batch of chunk(
+          summaries = await prepareStoredSummaries(
+            metrics,
+            execution,
             await reusableSummaries(execution, facet),
-            TRACE_BATCH_SIZE,
-          )) {
-            const pending: TopicSummary[] = [];
-            try {
-              for (const row of batch)
-                summaries.push(
-                  await ensureEmbedding(metrics, execution, row, (value) =>
-                    pending.push(value),
-                  ),
-                );
-            } finally {
-              await metrics.measure(
-                "storage",
-                () => writeTopicSummaries(pending),
-                "storage",
-              );
-            }
-          }
+            retryFailed,
+            pendingEmbeddingBatchIds,
+          );
           progress.counts.requested = summaries.length;
         } else {
           summaries = [];
@@ -1209,6 +1338,7 @@ export async function processTopicsExecution({
         }
         facets.push({ facet, progress, summaries, cached });
       } catch (error) {
+        if (error instanceof PendingTopicEmbeddings) throw error;
         metrics.error("execution", error);
         progress.outcome = "failed";
         progress.error = errorMessage(error);
@@ -1219,113 +1349,131 @@ export async function processTopicsExecution({
 
     if (execution.input.operation !== "recluster") {
       const extracting = facets.filter((item) => item.cached !== null);
-      for (const batch of chunk(execution.input.traceIds, TRACE_BATCH_SIZE)) {
-        for (const item of extracting)
-          item.cached = await metrics.measure(
-            "storage",
-            () => loadCachedSummaries(execution, item.facet, batch),
-            "storage",
-          );
-        const pending: TopicSummary[] = [];
-        try {
-          for (const traceId of batch) {
-            // Every facet sees one canonical in-memory transcript per trace.
-            let input: ReturnType<typeof loadTopicTranscript> | undefined;
-            const accepted = extracting
-              .flatMap((item) => item.cached ?? [])
-              .filter(
-                (row) =>
-                  row.traceId === traceId && row.executionId === execution.id,
-              );
-            const getTranscript = () => {
-              if (input) return input;
-              input = (async () => {
-                const loaded = await metrics.measure(
-                  "transcript",
-                  () =>
-                    loadTopicTranscript({
-                      projectId,
-                      traceId,
-                    }),
-                  "trace_load",
+      for (const traceIds of chunk(
+        execution.input.traceIds,
+        TRACE_BATCH_SIZE,
+      )) {
+        if (!extracting.length) break;
+        const key = artifactKey("cohort-summary", [
+          traceIds,
+          extracting.map((item) => item.facet.id),
+        ]);
+        let accepted = await readTopicArtifact<SummaryBatch>(
+          projectId,
+          execution.id,
+          key,
+        );
+        const newBatch = !accepted;
+        if (!accepted) {
+          for (const item of extracting)
+            item.cached = await metrics.measure(
+              "storage",
+              () => loadCachedSummaries(execution, item.facet, traceIds),
+              "storage",
+            );
+          const batch: TopicSummary[] = [];
+          const failedCounts: Record<string, number> = {};
+          try {
+            for (const traceId of traceIds) {
+              // Every facet sees one canonical in-memory transcript per trace.
+              let input: ReturnType<typeof loadTopicTranscript> | undefined;
+              const prior = extracting
+                .flatMap((item) => item.cached ?? [])
+                .filter(
+                  (row) =>
+                    row.traceId === traceId && row.executionId === execution.id,
                 );
-                if (
-                  accepted.some(
-                    (summary) =>
-                      summary.inputHash !== loaded.transcript.inputHash,
-                  )
-                )
-                  throw new Error(
-                    "Trace input changed since an accepted facet summary. Start a new execution to process the updated trace.",
+              const getTranscript = () => {
+                if (input) return input;
+                input = (async () => {
+                  const loaded = await metrics.measure(
+                    "transcript",
+                    () => loadTopicTranscript({ projectId, traceId }),
+                    "trace_load",
                   );
-                return loaded;
-              })();
-              return input;
-            };
-            for (const { facet, progress, summaries, cached } of extracting) {
-              try {
-                summaries.push(
-                  await summarizeTrace(
-                    metrics,
-                    execution,
-                    facet,
-                    traceId,
-                    cached!,
-                    getTranscript,
-                    (row) => pending.push(row),
-                  ),
-                );
-              } catch (error) {
-                metrics.error("summary", error);
-                if (isExecutionFailure(error)) {
-                  progress.outcome = "failed";
-                  progress.error = errorMessage(error);
-                  throw error;
-                }
-                progress.counts.failed++;
-                const message = errorMessage(error);
-                if (
-                  !execution.traceErrors.some(
-                    (item) =>
-                      item.traceId === traceId && item.error === message,
+                  if (
+                    prior.some(
+                      (summary) =>
+                        summary.inputHash !== loaded.transcript.inputHash,
+                    )
                   )
-                )
-                  execution.traceErrors.push({ traceId, error: message });
+                    throw new Error(
+                      "Trace input changed since an accepted facet summary. Start a new execution to process the updated trace.",
+                    );
+                  return loaded;
+                })();
+                return input;
+              };
+              for (const { facet, progress, cached } of extracting) {
+                try {
+                  batch.push(
+                    await summarizeTrace(
+                      metrics,
+                      execution,
+                      facet,
+                      traceId,
+                      cached!,
+                      acceptedSummaryIds,
+                      getTranscript,
+                    ),
+                  );
+                } catch (error) {
+                  metrics.error("summary", error);
+                  if (isExecutionFailure(error)) {
+                    progress.outcome = "failed";
+                    progress.error = errorMessage(error);
+                    throw error;
+                  }
+                  failedCounts[facet.id] = (failedCounts[facet.id] ?? 0) + 1;
+                  const message = errorMessage(error);
+                  if (
+                    !execution.traceErrors.some(
+                      (item) =>
+                        item.traceId === traceId && item.error === message,
+                    )
+                  )
+                    execution.traceErrors.push({ traceId, error: message });
+                }
               }
             }
+            accepted = { summaries: batch.map(summaryRef), failedCounts };
+            await writeTopicArtifact(projectId, execution.id, key, accepted);
+          } finally {
+            // Record accepted IDs even if a later provider call interrupts the batch.
+            for (const { facet, progress, summaries } of extracting) {
+              const partial = batch.filter(
+                (row) => row.facetVersionId === facet.id,
+              );
+              countSummaries(progress, [...summaries, ...partial]);
+            }
+            await saveProgress(metrics, execution, "summarizing");
           }
-        } finally {
-          // Commit paid results before recording progress or propagating failures.
-          await metrics.measure(
-            "storage",
-            () => writeTopicSummaries(pending),
-            "storage",
-          );
-          for (const { progress, summaries } of extracting)
-            countSummaries(progress, summaries);
-          await saveProgress(metrics, execution, "summarizing");
         }
+        const rows = await resumeSummaryBatch(
+          metrics,
+          execution,
+          key,
+          accepted,
+          retryFailed,
+          pendingEmbeddingBatchIds,
+        );
+        for (const { facet, progress, summaries } of extracting) {
+          summaries.push(
+            ...rows.filter((row) => row.facetVersionId === facet.id),
+          );
+          progress.counts.failed += accepted.failedCounts[facet.id] ?? 0;
+          if (newBatch) countSummaries(progress, summaries);
+        }
+        if (newBatch) await saveProgress(metrics, execution, "summarizing");
       }
     }
 
+    for (const item of facets) {
+      item.summaries = await completedSummaries(execution, item.summaries);
+      countSummaries(item.progress, item.summaries);
+    }
     for (const { facet, progress, summaries } of facets) {
       try {
-        countSummaries(progress, summaries);
-        const visible = summaries.length
-          ? await readTopicSummaries(
-              projectId,
-              summaries.map((summary) => summary.id),
-            )
-          : [];
-        const visibleIds = new Set(
-          visible
-            .filter((summary) => summary.state !== "summarized")
-            .map((summary) => summary.id),
-        );
-        if (summaries.some((summary) => !visibleIds.has(summary.id)))
-          throw new Error(
-            "Topic summaries are not fully visible; processing is deferred.",
-          );
         // Downstream retries keep the same population even if failed source reads recover.
         await checkpoint(
           metrics,
@@ -1339,7 +1487,15 @@ export async function processTopicsExecution({
         await clearNonApplicable(metrics, execution, facet, summaries);
         const complete = summaries.filter((row) => row.state === "complete");
         if (execution.input.operation === "refresh") {
-          await refreshFacet(metrics, execution, facet, progress, summaries);
+          await refreshFacet(
+            metrics,
+            execution,
+            facet,
+            progress,
+            summaries,
+            retryFailed,
+            pendingEmbeddingBatchIds,
+          );
         } else if (execution.input.operation === "assign") {
           const run = await getTopicRun(
             projectId,
@@ -1381,6 +1537,7 @@ export async function processTopicsExecution({
           );
         }
       } catch (error) {
+        if (error instanceof PendingTopicEmbeddings) throw error;
         metrics.error("execution", error);
         progress.outcome = "failed";
         progress.error = errorMessage(error);
@@ -1396,6 +1553,10 @@ export async function processTopicsExecution({
     await saveProgress(metrics, execution, "completed");
     metrics.execution(execution.status);
   } catch (error) {
+    if (error instanceof PendingTopicEmbeddings) {
+      await saveProgress(metrics, execution, "embedding");
+      return { pendingEmbeddingBatchIds: [...pendingEmbeddingBatchIds] };
+    }
     metrics.error("execution", error);
     metrics.execution("failed");
     execution.status = "failed";

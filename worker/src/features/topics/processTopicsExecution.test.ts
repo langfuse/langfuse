@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   TopicAssignment,
+  TopicEmbeddingConfig,
   TopicExecution,
   TopicFacetVersion,
   TopicRun,
   TopicSummary,
 } from "@langfuse/shared/topics";
+import type { TopicEmbeddingBatch } from "@langfuse/shared/topics/server";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 import { topicProviderError } from "./provider-error";
 
@@ -13,10 +15,18 @@ const state = vi.hoisted(() => ({
   artifacts: new Map<string, unknown>(),
   executions: new Map<string, TopicExecution>(),
   summaries: new Map<string, TopicSummary>(),
+  staged: new Map<
+    string,
+    { summary: TopicSummary; embeddingConfig: TopicEmbeddingConfig }
+  >(),
+  embeddingBatches: new Map<string, TopicEmbeddingBatch>(),
+  completedBatches: new Set<string>(),
+  deferEmbeddings: false,
   runs: new Map<string, TopicRun>(),
   assignments: new Map<string, TopicAssignment>(),
   facets: new Map<string, TopicFacetVersion>(),
   events: [] as string[],
+  progress: [] as number[][],
   visible: true,
   sourceUnavailable: false,
   sourceFailures: new Set<string>(),
@@ -42,6 +52,57 @@ const facet: TopicFacetVersion = {
 
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsEnabled: () => true,
+  TOPIC_EMBEDDING_EXPIRED_ERROR:
+    "Topics summaries expired before embedding completed. Start a new execution to regenerate them.",
+  stageTopicSummary: async (
+    summary: TopicSummary,
+    embeddingConfig: TopicEmbeddingConfig,
+  ) => {
+    const accepted = state.staged.get(summary.id);
+    if (accepted) return accepted.summary;
+    state.staged.set(summary.id, structuredClone({ summary, embeddingConfig }));
+    return summary;
+  },
+  readStagedTopicSummaries: async (
+    projectId: string,
+    executionId: string,
+    facetVersionId: string,
+    traceIds: string[],
+  ) =>
+    [...state.staged.values()]
+      .map((row) => row.summary)
+      .filter(
+        (row) =>
+          row.projectId === projectId &&
+          row.executionId === executionId &&
+          row.facetVersionId === facetVersionId &&
+          traceIds.includes(row.traceId),
+      ),
+  readStagedTopicSummary: async (_scope: unknown, ref: { summaryId: string }) =>
+    state.staged.get(ref.summaryId) ?? null,
+  updateStagedTopicSummary: async (
+    _scope: unknown,
+    ref: { summaryId: string },
+    summary: TopicSummary,
+  ) => {
+    const row = state.staged.get(ref.summaryId);
+    if (row) state.staged.set(ref.summaryId, { ...row, summary });
+  },
+  deleteStagedTopicSummary: async (
+    _scope: unknown,
+    ref: { summaryId: string },
+  ) => {
+    state.staged.delete(ref.summaryId);
+  },
+  enqueueTopicEmbeddingBatch: async (batch: TopicEmbeddingBatch) => {
+    const key = `${batch.projectId}/${batch.executionId}/${batch.batchId}`;
+    if (state.completedBatches.has(key)) return "complete";
+    state.embeddingBatches.set(key, batch);
+    if (state.deferEmbeddings) return "pending";
+    await processTopicEmbeddingBatch(batch);
+    state.completedBatches.add(key);
+    return "complete";
+  },
   loadTopicTranscript: async ({ traceId }: { traceId: string }) => {
     state.events.push(`load:${traceId}`);
     if (state.sourceUnavailable || state.sourceFailures.delete(traceId))
@@ -66,6 +127,9 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   readTopicExecution: async (_project: string, id: string) =>
     state.executions.get(id) ?? null,
   writeTopicExecution: async (execution: TopicExecution) => {
+    state.progress.push(
+      execution.facets.map((facet) => facet.summaryIds.length),
+    );
     state.executions.set(execution.id, structuredClone(execution));
   },
   readTopicArtifact: async (_project: string, execution: string, key: string) =>
@@ -208,7 +272,20 @@ vi.mock("./numeric", async (importOriginal) => ({
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
 
-import { processTopicsExecution } from "./processTopicsExecution";
+import { processTopicsExecution as processTopicsExecutionAttempt } from "./processTopicsExecution";
+import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
+
+async function processTopicsExecution(
+  scope: Parameters<typeof processTopicsExecutionAttempt>[0],
+) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const result = await processTopicsExecutionAttempt(scope);
+    if (!result || state.deferEmbeddings) return result;
+  }
+  throw new Error(
+    "Topics execution did not finish after embedding acknowledgements.",
+  );
+}
 
 function execution(
   id: string,
@@ -273,10 +350,15 @@ beforeEach(() => {
   state.artifacts.clear();
   state.executions.clear();
   state.summaries.clear();
+  state.staged.clear();
+  state.embeddingBatches.clear();
+  state.completedBatches.clear();
+  state.deferEmbeddings = false;
   state.runs.clear();
   state.assignments.clear();
   state.facets.clear();
   state.events.length = 0;
+  state.progress.length = 0;
   state.visible = true;
   state.sourceUnavailable = false;
   state.sourceFailures.clear();
@@ -339,6 +421,123 @@ beforeEach(() => {
 
 describe("Topics execution", () => {
   const issues = { ...facet, id: "issues-version", facetId: "issues" };
+
+  it("keeps completed selection counts while replaying frozen batches", async () => {
+    const facets = [
+      facet,
+      issues,
+      { ...facet, id: "outcome-version", facetId: "outcome" },
+    ];
+    const pending = execution("frozen-progress", 200, "discover", facets);
+    state.executions.set(pending.id, pending);
+    state.deferEmbeddings = true;
+    const scope = { projectId: "project", executionId: pending.id };
+    await processTopicsExecution(scope);
+    for (const [key, batch] of state.embeddingBatches) {
+      await processTopicEmbeddingBatch(batch);
+      state.completedBatches.add(key);
+    }
+    state.progress.length = 0;
+
+    await processTopicsExecution(scope);
+
+    expect(state.executions.get(pending.id)?.status).toBe("completed");
+    expect(state.progress.length).toBeGreaterThan(0);
+    expect(
+      state.progress.every((counts) => counts.every((count) => count === 200)),
+    ).toBe(true);
+  });
+
+  it("releases the coordinator while embeddings run and resumes without reloading traces", async () => {
+    const pending = execution("queued-embeddings", 100);
+    state.executions.set(pending.id, pending);
+    state.deferEmbeddings = true;
+    const scope = { projectId: "project", executionId: pending.id };
+
+    expect(await processTopicsExecution(scope)).toEqual({
+      pendingEmbeddingBatchIds: [expect.any(String)],
+    });
+    expect(state.executions.get(pending.id)).toMatchObject({
+      status: "running",
+      phase: "embedding",
+    });
+    expect(state.staged.size).toBe(100);
+    expect(state.summaries.size).toBe(0);
+    expect(state.numeric).not.toHaveBeenCalled();
+
+    for (const [key, batch] of state.embeddingBatches) {
+      await processTopicEmbeddingBatch(batch);
+      state.completedBatches.add(key);
+    }
+    state.sourceUnavailable = true;
+    await processTopicsExecution(scope);
+    expect(state.executions.get(pending.id)?.status).toBe("completed");
+    expect(state.summarize).toHaveBeenCalledTimes(100);
+    expect(state.embed).toHaveBeenCalledTimes(100);
+    expect(
+      state.events.filter((event) => event.startsWith("load:")),
+    ).toHaveLength(100);
+    expect(state.staged.size).toBe(0);
+    expect(state.assignments.size).toBe(100);
+  });
+
+  it("marks an accepted batch failed when staged summaries expire", async () => {
+    const pending = execution("expired-embeddings", 3);
+    state.executions.set(pending.id, pending);
+    state.deferEmbeddings = true;
+    const scope = { projectId: "project", executionId: pending.id };
+    expect(await processTopicsExecution(scope)).toEqual({
+      pendingEmbeddingBatchIds: [expect.any(String)],
+    });
+    state.staged.clear();
+    state.deferEmbeddings = false;
+    await processTopicsExecution(scope);
+    expect(state.executions.get(pending.id)?.status).toBe("failed");
+    expect(state.executions.get(pending.id)?.error).toContain(
+      "Start a new execution",
+    );
+    expect(state.summarize).toHaveBeenCalledTimes(3);
+    expect(state.summaries.size).toBe(0);
+  });
+
+  it("preserves expiry accounting for a partial later batch after replaying completed batches", async () => {
+    const pending = execution("expired-partial-batch", 102);
+    state.executions.set(pending.id, pending);
+    const scope = { projectId: "project", executionId: pending.id };
+    const summarize = state.summarize.getMockImplementation()!;
+    state.summarize.mockImplementation(async (...args) => {
+      if (state.summarize.mock.calls.length === 102)
+        throw topicProviderError({ statusCode: 503 });
+      return summarize(...args);
+    });
+
+    await processTopicsExecution(scope);
+    expect(state.executions.get(pending.id)?.status).toBe("failed");
+    expect(state.summaries.size).toBe(100);
+    expect(state.staged.size).toBe(1);
+    expect(state.summarize).toHaveBeenCalledTimes(102);
+    const [accepted] = state.staged.values();
+    expect(state.executions.get(pending.id)?.facets[0].summaryIds).toContain(
+      accepted.summary.id,
+    );
+
+    state.staged.clear();
+    state.sourceSuffix = "changed";
+    const sourceReads = state.events.filter((event) =>
+      event.startsWith("load:"),
+    ).length;
+    await processTopicsExecution(scope);
+
+    expect(state.executions.get(pending.id)?.status).toBe("failed");
+    expect(state.executions.get(pending.id)?.error).toContain(
+      "Start a new execution",
+    );
+    expect(state.summarize).toHaveBeenCalledTimes(102);
+    expect(
+      state.events.filter((event) => event.startsWith("load:")),
+    ).toHaveLength(sourceReads);
+    expect(state.summaries.size).toBe(100);
+  });
 
   it("keeps paid results in their domain tables and resumes accepted cluster labels", async () => {
     state.executions.set("durable", execution("durable", 100));
@@ -587,7 +786,7 @@ describe("Topics execution", () => {
       executionId: "pending-dimensions",
     });
     expect(state.executions.get("pending-dimensions")?.status).toBe("failed");
-    const originalId = [...state.summaries.keys()][0];
+    const originalId = [...state.staged.keys()][0];
     state.executions.set(
       "other-dimensions",
       execution("other-dimensions", 1, "discover", [facet], 32),
@@ -606,7 +805,7 @@ describe("Topics execution", () => {
     });
     expect(state.summaries.get(originalId)?.embedding).toHaveLength(16);
     expect(state.summaries.get(otherId)?.embedding).toHaveLength(32);
-    expect(state.summarize).toHaveBeenCalledTimes(1);
+    expect(state.summarize).toHaveBeenCalledTimes(2);
   });
 
   it("records cached source reversions as the current summary for subsequent refreshes", async () => {
@@ -722,9 +921,10 @@ describe("Topics execution", () => {
         facet,
         issues,
       ]);
-      state.embed.mockRejectedValueOnce(
-        topicProviderError({ statusCode: 503 }),
-      );
+      const summarize = state.summarize.getMockImplementation()!;
+      state.summarize
+        .mockImplementationOnce(summarize)
+        .mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
       state.executions.set(pending.id, pending);
       await processTopicsExecution({
         projectId: "project",
@@ -750,7 +950,7 @@ describe("Topics execution", () => {
       if (changed)
         expect(result.traceErrors[0].error).toContain("Trace input changed");
       else expect(result.traceErrors).toEqual([]);
-      expect(state.summarize).toHaveBeenCalledTimes(changed ? 1 : 2);
+      expect(state.summarize).toHaveBeenCalledTimes(changed ? 2 : 3);
       expect([...state.summaries.values()].map((row) => row.inputHash)).toEqual(
         ["trace0", ...(changed ? [] : ["trace0"])],
       );
@@ -878,7 +1078,8 @@ describe("Topics execution", () => {
       executionId: "resume",
     });
     expect(state.executions.get("resume")?.status).toBe("failed");
-    const [saved] = [...state.summaries.values()];
+    expect(state.summaries.size).toBe(0);
+    const [saved] = [...state.staged.values()].map((row) => row.summary);
     expect(saved).toMatchObject({
       state: "summarized",
       resultVersion: 1,
@@ -904,7 +1105,7 @@ describe("Topics execution", () => {
     expect(state.summaries.get(saved.id)?.embedding).toHaveLength(16);
     expect(
       state.events.filter((event) => event.startsWith("write-summary:")),
-    ).toEqual(["write-summary:summarized", "write-summary:complete"]);
+    ).toEqual(["write-summary:complete"]);
   });
   it("regenerates source input for a new execution and preserves earlier summaries", async () => {
     state.executions.set("first", execution("first", 1));
@@ -1210,7 +1411,9 @@ describe("Topics execution", () => {
         executionId: pending.id,
       });
       if (count < 31) {
-        expect(pending.facets[0].outcome).toBe("insufficient_data");
+        expect(state.executions.get(pending.id)?.facets[0].outcome).toBe(
+          "insufficient_data",
+        );
         expect(state.numeric).not.toHaveBeenCalled();
       } else {
         expect(state.numeric).toHaveBeenCalledWith(
