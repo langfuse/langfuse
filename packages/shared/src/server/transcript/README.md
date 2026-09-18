@@ -37,12 +37,12 @@ type ThreadMessage = NormalizedMessage & {
 Consumers load the domain `Observation`s (see `domain/observations.ts`)
 themselves, order them with `orderObservations`, and hand them to
 `assembleTranscript`, which consumes the given order and returns `null` when
-no eligible generations produce messages. The trace view does this in
-`loadTraceTranscript` (web, next to the `events.transcriptByTraceId`
-procedure): it reads the trace through `getObservationsForTraceFromEventsTable`,
-the same repository function and time bounds the trace tree uses, once for the
-structure of every observation without I/O and once for the `GENERATION` and
-`TOOL` observations with I/O, and merges the two by id.
+no eligible generations produce messages. For one trace, read it through
+`getObservationsForTraceFromEventsTable`, the same repository function and
+time bounds the trace tree uses: once for the structure of every observation
+without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
+merge the two by id so the walk order comes from the structure and the
+messages from the content.
 
 ## Ordering
 

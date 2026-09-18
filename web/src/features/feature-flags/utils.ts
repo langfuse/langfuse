@@ -2,7 +2,6 @@ import {
   availableFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
-  isInternalFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -12,18 +11,6 @@ import { type Flags } from "./types";
 
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
-
-/**
- * Langfuse admins and deployments with experimental features enabled see
- * internal surfaces. Client and server gates share this rule.
- */
-export const hasInternalAccess = ({
-  isAdmin,
-  isExperimentalFeaturesEnabled,
-}: {
-  isAdmin: boolean;
-  isExperimentalFeaturesEnabled: boolean;
-}) => isExperimentalFeaturesEnabled || isAdmin;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
@@ -48,13 +35,6 @@ export const parseFlags = (
   availableFlags.forEach((flag) => {
     if (isRestrictedFlag(flag)) {
       parsedFlags[flag] = context.aiGatewayEnabled === true;
-      return;
-    }
-
-    // Internal flags are decided per session by `hasInternalAccess`, never
-    // by stored flags.
-    if (isInternalFlag(flag)) {
-      parsedFlags[flag] = false;
       return;
     }
 

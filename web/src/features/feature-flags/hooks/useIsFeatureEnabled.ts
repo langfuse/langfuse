@@ -1,7 +1,7 @@
 import { useSession } from "next-auth/react";
-import { isInternalFlag, isRestrictedFlag } from "../available-flags";
+import { isRestrictedFlag } from "../available-flags";
 import type { Flag } from "../types";
-import { getContextualFeatureFlags, hasInternalAccess } from "../utils";
+import { getContextualFeatureFlags } from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -28,18 +28,13 @@ export default function useIsFeatureEnabled(
       organizationId,
     })?.[feature] ?? false;
 
-  if (isInternalFlag(feature)) {
-    return hasInternalAccess({ isAdmin, isExperimentalFeaturesEnabled });
-  }
-
   if (isRestrictedFlag(feature)) {
     return isFeatureEnabledOnUser;
   }
 
   return (
-    hasInternalAccess({
-      isAdmin: enableForAdmins && isAdmin,
-      isExperimentalFeaturesEnabled,
-    }) || isFeatureEnabledOnUser
+    isExperimentalFeaturesEnabled ||
+    (enableForAdmins && isAdmin) ||
+    isFeatureEnabledOnUser
   );
 }

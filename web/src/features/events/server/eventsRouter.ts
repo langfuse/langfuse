@@ -1,7 +1,4 @@
 import { type z, z as zodSchema } from "zod";
-import { TRPCError } from "@trpc/server";
-import { env } from "@/src/env.mjs";
-import { hasInternalAccess } from "@/src/features/feature-flags/utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -30,7 +27,6 @@ import {
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
-import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -427,56 +423,6 @@ export const eventsRouter = createTRPCRouter({
             // we need traceTS here because we filter for that in DB
             // fallback to input in case trace unavailable - shouldn't happen
             timestamp: ctx.trace?.timestamp ?? input.timestamp,
-          });
-        },
-      );
-    }),
-  /**
-   * Assemble the message transcript of a trace from its generations and tools,
-   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
-   * deployments with experimental features enabled only.
-   */
-  transcriptByTraceId: protectedGetEventsTraceProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        traceId: zodSchema.string(),
-        timestamp: zodSchema.date().optional(),
-      }),
-    )
-    .query(async ({ input, ctx }) => {
-      if (
-        !hasInternalAccess({
-          isAdmin: ctx.session?.user?.admin === true,
-          isExperimentalFeaturesEnabled:
-            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        })
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Transcripts are an internal preview.",
-        });
-      }
-      // The trace timestamp bounds the observation read; the trace is loaded
-      // by the procedure, so the input is only a fallback.
-      const timestamp = ctx.trace?.timestamp ?? input.timestamp;
-      if (!timestamp) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Trace timestamp is required.",
-        });
-      }
-
-      return instrumentAsync(
-        { name: "get-transcript-by-trace-id-trpc" },
-        async (span) => {
-          span.setAttribute("project_id", input.projectId);
-          span.setAttribute("trace_id", input.traceId);
-
-          return loadTraceTranscript({
-            projectId: input.projectId,
-            traceId: input.traceId,
-            timestamp,
           });
         },
       );
