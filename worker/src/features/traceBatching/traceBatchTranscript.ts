@@ -36,38 +36,17 @@ export async function recordTraceBatchTranscript(
     { has_transcript: String(transcript !== null) },
   );
 
-  // Measure payload content, without observation IDs, timestamps or costs.
-  // Parsed I/O avoids counting ClickHouse's JSON string escaping twice.
-  const rawPayload = observations.map((observation) => ({
-    input: observation.input,
-    output: observation.output,
-    metadata: observation.metadata,
-    toolDefinitions: observation.toolDefinitions,
-    toolCalls: observation.toolCalls,
-    toolCallNames: observation.toolCallNames,
-  }));
-  // Await each estimate before reading another trace, keeping backpressure on
-  // the stream and avoiding a batch-sized backlog in the tokenizer pool.
-  for (const [representation, payload] of [
-    ["observations", rawPayload],
-    ["transcript", transcript],
-  ] as const) {
-    const tokens =
-      payload === null
-        ? 0
-        : await tokenCountAsync({ model: TOKENIZER_MODEL, text: payload });
-    if (tokens === undefined) {
-      recordIncrement("langfuse.trace_batch.token_estimation_unavailable", 1, {
-        representation,
-      });
-      continue;
-    }
-    recordDistribution(
-      `langfuse.trace_batch.${representation}_tokens`,
-      tokens,
-      {
-        tokenizer: "gpt-4o",
-      },
-    );
+  // Finish this trace's token count before continuing the stream so the
+  // tokenizer pool cannot accumulate work for a whole batch.
+  const tokens =
+    transcript === null
+      ? 0
+      : await tokenCountAsync({ model: TOKENIZER_MODEL, text: transcript });
+  if (tokens === undefined) {
+    recordIncrement("langfuse.trace_batch.token_estimation_unavailable", 1);
+    return;
   }
+  recordDistribution("langfuse.trace_batch.transcript_tokens", tokens, {
+    tokenizer: "gpt-4o",
+  });
 }

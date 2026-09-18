@@ -114,22 +114,21 @@ ephemeral: neither logs nor job results contain their content.
 
 Completion means all rows returned for that pair's query window, not that no late
 events can arrive. Event versions follow the current ClickHouse merge state;
-the shared ordering function keeps one observation per ID. Raw token estimates
-include all returned versions. Retries can repeat per-trace samples.
+the shared ordering function keeps one observation per ID. Retries can repeat
+per-trace samples.
 
 These distributions use the `langfuse.trace_batch` prefix:
 
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `observations_tokens` | Token estimate of the JSON array of each returned observation's parsed input, output, metadata and tool fields, before transcript assembly. |
 | `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
 
-Both token distributions use the existing worker tokenizer pool with fixed
+Transcript token counts use the existing worker tokenizer pool with fixed
 `gpt-4o` encoding (`tokenizer:gpt-4o`), allowing comparison across projects and
 models. These are serialized-payload estimates, not provider billing counts.
-Unknown estimates are omitted and counted in `token_estimation_unavailable`
-with `representation:observations|transcript`. Estimates are awaited per trace,
+Unknown estimates are omitted and counted in `token_estimation_unavailable`.
+Only the assembled transcript is tokenized. Estimates are awaited per trace,
 so tokenizer work cannot accumulate an entire batch in memory. Assembly or
 tokenizer errors fail the attempt; `read_duration_ms` includes this processing.
 The current trace can still be arbitrarily large. ClickHouse must sort the

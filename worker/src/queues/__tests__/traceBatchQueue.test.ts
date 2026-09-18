@@ -47,7 +47,7 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
-  it("assembles each tenant's trace at the boundary and EOF, measuring real transcript and raw tokens", async () => {
+  it("assembles each tenant's trace at the boundary and EOF, tokenizing only the transcript", async () => {
     const userMessage = { role: "user", content: "first question" };
     const answer = { role: "assistant", content: "first answer" };
     const row = {
@@ -83,7 +83,7 @@ describe("trace batch queue", () => {
       expect(tokenCountAsync).not.toHaveBeenCalled();
       yield { ...row, project_id: "b", type: "SPAN" };
       // The first trace is processed before requesting more stream rows.
-      expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+      expect(tokenCountAsync).toHaveBeenCalledTimes(1);
       yield { ...row, project_id: "b", type: "SPAN", span_id: "second" };
     });
     const job = {
@@ -104,8 +104,8 @@ describe("trace batch queue", () => {
     } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
     await traceBatchQueueProcessor(job, undefined);
     const estimates = vi.mocked(tokenCountAsync).mock.calls;
-    expect(estimates).toHaveLength(3);
-    const serializedTranscript = JSON.stringify(estimates[1][0].text);
+    expect(estimates).toHaveLength(1);
+    const serializedTranscript = JSON.stringify(estimates[0][0].text);
     for (const content of [
       "first question",
       "first answer",
@@ -116,7 +116,7 @@ describe("trace batch queue", () => {
     }
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_tokens",
-      tokenCount(estimates[1][0]),
+      tokenCount(estimates[0][0]),
       { tokenizer: "gpt-4o" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
@@ -124,13 +124,6 @@ describe("trace batch queue", () => {
       0,
       { tokenizer: "gpt-4o" },
     );
-    for (const index of [0, 2]) {
-      expect(recordDistribution).toHaveBeenCalledWith(
-        "langfuse.trace_batch.observations_tokens",
-        tokenCount(estimates[index][0]),
-        { tokenizer: "gpt-4o" },
-      );
-    }
     for (const hasTranscript of ["true", "false"]) {
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.transcript_assembly_duration_ms",
