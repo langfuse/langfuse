@@ -50,19 +50,15 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
 
   return (
     <div className="p-2 text-xs">
-      <div className="text-foreground mb-1 text-sm font-bold">Scores</div>
-      <ul className="grid grid-cols-[auto_auto_1fr] gap-x-4 gap-y-1">
+      <div className="text-foreground mb-1 font-bold">Scores</div>
+      <ul className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1">
         {sortedScores.map((score) => (
           <li key={score.id} className="contents">
-            <span className="whitespace-nowrap">{score.name}</span>
+            <span className="text-muted-foreground whitespace-nowrap">
+              {score.name}
+            </span>
             <span className="text-foreground whitespace-nowrap">
               {formatScoreValue(score)}
-            </span>
-            <span
-              className="text-foreground-tertiary max-w-[280px] truncate"
-              title={score.comment ?? undefined}
-            >
-              {score.comment}
             </span>
           </li>
         ))}
