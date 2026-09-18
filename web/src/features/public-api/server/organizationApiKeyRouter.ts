@@ -8,7 +8,9 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
+import { throwIfApiKeyMissing } from "@/src/features/public-api/server/apiKeyNotFound";
 
 export const organizationApiKeysRouter = createTRPCRouter({
   byOrganizationId: protectedOrganizationProcedure
@@ -111,22 +113,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
-      await ctx.prisma.apiKey.findFirstOrThrow({
-        where: {
-          id: input.keyId,
-          orgId: input.orgId,
-          isInAppAgentKey: false,
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "apiKey",
-        resourceId: input.keyId,
-        action: "update",
-      });
-
-      await ctx.prisma.apiKey.update({
+      const updated = await ctx.prisma.apiKey.updateMany({
         where: {
           id: input.keyId,
           orgId: input.orgId,
@@ -135,6 +122,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         data: {
           note: input.note,
         },
+      });
+
+      if (updated.count === 0) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "apiKey",
+        resourceId: input.keyId,
+        action: "update",
       });
 
       // do not return the api key
@@ -153,13 +151,17 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
-      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+      const apiKey = await ctx.prisma.apiKey.findFirst({
         where: {
           id: input.id,
           orgId: input.orgId,
           scope: "ORGANIZATION",
         },
       });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       if (apiKey.isInAppAgentKey) return false;
 
@@ -170,10 +172,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         action: "delete",
       });
 
-      return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
-        input.id,
-        input.orgId,
-        "ORGANIZATION",
-      );
+      try {
+        return await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
+          input.id,
+          input.orgId,
+          "ORGANIZATION",
+        );
+      } catch (error) {
+        throwIfApiKeyMissing(error);
+      }
     }),
 });
