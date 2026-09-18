@@ -43,8 +43,7 @@ import {
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 import { generateSchemaExample } from "../lib/generateSchemaExample";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
-import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
-import { Badge } from "@/src/components/ui/badge";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import {
   isValidDatasetJson,
   parseDatasetJson,
@@ -339,42 +338,25 @@ export const NewDatasetItemForm = (props: {
                 <FormItem className="flex flex-col">
                   <FormLabel>Target datasets</FormLabel>
                   <FormControl>
-                    <MultiSelectInput
+                    <MultiSelectTagInput
+                      aria-label="Target datasets"
                       value={field.value}
                       options={(datasets.data ?? []).map((dataset) => ({
                         value: dataset.id,
                         label: dataset.name,
-                        secondaryLabel:
-                          dataset.id === props.currentDatasetId
-                            ? "(current)"
-                            : undefined,
+                        optionSuffix:
+                          dataset.id === props.currentDatasetId ? (
+                            <span className="text-muted-foreground">
+                              (current)
+                            </span>
+                          ) : undefined,
                       }))}
                       onValueChange={field.onChange}
                       placeholder="Select datasets"
-                      selectedLabel={`${field.value.length} dataset${field.value.length > 1 ? "s" : ""} selected`}
                       searchPlaceholder="Search datasets..."
                       emptyMessage="No datasets found."
                     />
                   </FormControl>
-                  {field.value.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {field.value.map((datasetId) => {
-                        const dataset = datasets.data?.find(
-                          (item) => item.id === datasetId,
-                        );
-
-                        return (
-                          <Badge
-                            key={datasetId}
-                            variant="secondary"
-                            className="mr-1 mb-1"
-                          >
-                            {dataset?.name ?? datasetId}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                  )}
                   <FormMessage />
                 </FormItem>
               )}
