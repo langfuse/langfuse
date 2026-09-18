@@ -389,6 +389,57 @@ describe("stable evaluators public API", () => {
     });
   });
 
+  it("reads snake-case tool call mappings", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const evaluator = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "snake-case tool calls evaluator",
+        description: null,
+        type: EvalTemplateType.LLM_AS_JUDGE,
+        versions: {
+          create: {
+            version: 1,
+            prompt: "Inspect {{input}} {{output}} {{tool_calls}}",
+            vars: ["input", "output", "tool_calls"],
+            variableMapping: [
+              {
+                templateVariable: "input",
+                selectedColumnId: "input",
+                jsonSelector: null,
+              },
+              {
+                templateVariable: "output",
+                selectedColumnId: "output",
+                jsonSelector: null,
+              },
+              {
+                templateVariable: "tool_calls",
+                selectedColumnId: "tool_calls",
+                jsonSelector: null,
+              },
+            ],
+            outputDefinition: { reasoning: "", score: "" },
+          },
+        },
+      },
+    });
+
+    const response = await makeZodVerifiedAPICall(
+      Evaluator,
+      "GET",
+      `/api/public/v2/evaluators/${evaluator.id}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.body.variableMapping).toEqual([
+      { variable: "input", source: "input" },
+      { variable: "output", source: "output" },
+      { variable: "tool_calls", source: "tool_calls" },
+    ]);
+  });
+
   it("returns 404 when getting an invalid evaluator ID", async () => {
     const { auth } = await createOrgProjectAndApiKey();
 

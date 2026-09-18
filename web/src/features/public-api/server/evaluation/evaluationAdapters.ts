@@ -57,6 +57,7 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   output: "output",
   metadata: "metadata",
   toolCalls: "tool_calls",
+  tool_calls: "tool_calls",
   expected_output: "expected_output",
   expectedOutput: "expected_output",
   experiment_item_expected_output: "expected_output",
