@@ -149,7 +149,7 @@ export function PopoverFilterBuilder({
       if (hasWipFilters) return currentWip;
       // Synced from external state (saved view applied, URL nav, clear-all): the
       // commit bypasses the wrapped `setWipFilterState`, so re-baseline the
-      // applied-count ref here too (LFE-10781). Otherwise a stale count makes the
+      // applied-count ref here too. Otherwise a stale count makes the
       // next wrapper edit — including popover close — mis-fire `filters:applied`.
       // `filterState` is already-valid (typed FilterState), so its length is the
       // valid count.
@@ -190,10 +190,9 @@ export function PopoverFilterBuilder({
     // is the ONLY thing that counts as a clear: a valid count that drops
     // because a row went transiently invalid mid-edit (changing a row's column
     // sets value:undefined → fails safeParse) keeps the SAME row count and
-    // must NOT emit `filters:cleared` — the user is refining, not clearing
-    // (LFE-10781 review).
+    // must NOT emit `filters:cleared` — the user is refining, not clearing.
     const rowsRemoved = newState.length < wipFilterState.length;
-    // Analytics (LFE-10781). METADATA ONLY — we report the changed filter's
+    // Analytics: METADATA ONLY — we report the changed filter's
     // shape + counts, never a raw value. Count semantics match the sidebar:
     // `conditionCount` = TOTAL applied conditions across ALL columns;
     // `columnConditionCount` = rows for the changed column.
@@ -259,9 +258,8 @@ export function PopoverFilterBuilder({
           if (open && filterState.length === 0) addNewFilter();
           // Discard all wip filters when closing popover
           if (!open) {
-            // METADATA ONLY (LFE-10781): previously sent the full `filterState`,
-            // which leaked raw filter VALUES (user ids, metadata content, free
-            // text = PII) into PostHog. Send only the applied-filter count.
+            // Send only the applied-filter count; raw filter values can contain
+            // user IDs, metadata content, or other personal data.
             capture("table:filter_builder_close", {
               filterCount: filterState.length,
             });
