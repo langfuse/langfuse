@@ -63,7 +63,7 @@ import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAn
 import { transformToAnnotationScores } from "@/src/features/scores/lib/transformScores";
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
-import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import {
   CategoricalScoreInput,
   shouldUseCombobox,
@@ -892,7 +892,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       data-annotation-form
       className="mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="bg-background sticky top-0 z-10 rounded-sm">
+      <div className="sticky top-0 z-10 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))]">
         <AnnotateHeader
           showSaving={showSaving}
           actionButtons={actionButtons}
@@ -925,10 +925,9 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                 </Link>
               </Button>
             </div>
-            <MultiSelectInput
+            <MultiSelectTagInput
               aria-label="Score fields"
               placeholder="Choose score fields"
-              selectedLabel={`${selectedConfigIds.length} score field${selectedConfigIds.length === 1 ? "" : "s"} selected`}
               searchPlaceholder="Search score fields..."
               emptyMessage="No score fields found."
               options={selectionOptions}

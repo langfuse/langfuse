@@ -47,7 +47,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
     >
       <ResizablePanel
         id="annotation-top"
-        className="w-full overflow-y-auto p-2"
+        className="w-full overflow-y-auto p-2 [--annotation-surface:var(--modal)] md:[--annotation-surface:var(--background)]"
         minSize="30%"
         defaultSize={`${verticalSize}%`}
       >

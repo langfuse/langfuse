@@ -102,6 +102,20 @@ export const ManySelected = meta.story({
   ),
 });
 
+export const ScoreFields = meta.story({
+  args: {
+    value: ["feedback", "manual-score"],
+    options: [
+      { value: "feedback", label: "Feedback" },
+      { value: "manual-score", label: "manual-score" },
+    ],
+    onValueChange: fn(),
+    placeholder: "Choose score fields",
+    searchPlaceholder: "Search score fields...",
+    emptyMessage: "No score fields found.",
+  },
+});
+
 export const TestRemovesTag = meta.story({
   name: "(Test) Removes Tag",
   args: {
@@ -201,5 +215,30 @@ export const TestOverflowBadgePlacement = meta.story({
         Math.abs(clearRightGap - expectedClearRightGap),
       ).toBeLessThanOrEqual(0.5);
     });
+  },
+});
+
+export const TestKeepsDisabledTagsWhenClearing = meta.story({
+  name: "(Test) Keeps Disabled Tags When Clearing",
+  args: {
+    value: ["option-1", "option-2", "option-3"],
+    options: options.map((option) => ({
+      ...option,
+      disabled: option.value === "option-1",
+    })),
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Remove Option 1" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear selection" }),
+    );
+    await expect(args.onValueChange).toHaveBeenCalledWith(["option-1"]);
   },
 });

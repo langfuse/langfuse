@@ -29,7 +29,7 @@ export function AnnotateDrawerContent<Target extends ScoreTarget>({
   );
 
   return (
-    <DrawerContent className="p-3">
+    <DrawerContent className="p-3 [--annotation-surface:var(--modal)]">
       <AnnotationForm
         serverScores={scores}
         scoreTarget={scoreTarget}

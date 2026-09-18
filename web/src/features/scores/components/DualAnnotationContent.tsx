@@ -29,7 +29,7 @@ export function DualAnnotationContent({
   );
 
   return (
-    <div className="flex max-h-[95vh] flex-col gap-4 overflow-y-auto">
+    <div className="flex max-h-[95vh] flex-col gap-4 overflow-y-auto [--annotation-surface:var(--modal)]">
       {/* Observation-level scores */}
       <div>
         <div className="text-muted-foreground mb-2 text-xs font-bold tracking-wide uppercase">

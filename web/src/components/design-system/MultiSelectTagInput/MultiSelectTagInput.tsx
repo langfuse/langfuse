@@ -14,6 +14,7 @@ import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 type MultiSelectTagOption<V> = {
   value: V;
   label: string;
+  disabled?: boolean;
 };
 
 type MultiSelectTagInputProps<V> = {
@@ -27,6 +28,7 @@ type MultiSelectTagInputProps<V> = {
   disabled?: boolean;
   error?: boolean;
   id?: string;
+  "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 };
@@ -42,6 +44,7 @@ export function MultiSelectTagInput<V extends string>({
   disabled,
   error,
   id,
+  "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
 }: MultiSelectTagInputProps<V>) {
@@ -56,17 +59,23 @@ export function MultiSelectTagInput<V extends string>({
   const listId = React.useId();
   const selectedOptions = React.useMemo(
     () =>
-      value.map((selectedValue) => ({
-        value: selectedValue,
-        label:
-          options.find((option) => option.value === selectedValue)?.label ??
-          selectedValue,
-      })),
+      value.map((selectedValue) => {
+        const option = options.find((option) => option.value === selectedValue);
+        return {
+          value: selectedValue,
+          label: option?.label ?? selectedValue,
+          disabled: option?.disabled,
+        };
+      }),
     [options, value],
   );
+  const enabledOptions = options.filter((option) => !option.disabled);
+  const disabledValues = options
+    .filter((option) => option.disabled)
+    .map((option) => option.value);
   const allSelected =
-    options.length > 0 &&
-    options.every((option) => value.includes(option.value));
+    enabledOptions.length > 0 &&
+    enabledOptions.every((option) => value.includes(option.value));
   const hiddenOptionCount = selectedOptions.filter(
     (option) => !fullyVisibleValues.has(option.value),
   ).length;
@@ -126,7 +135,17 @@ export function MultiSelectTagInput<V extends string>({
 
   const changeValue = (newValue: V[]) => {
     if (disabled) return;
-    onValueChange(newValue);
+    onValueChange([
+      ...newValue.filter(
+        (nextValue) =>
+          !disabledValues.includes(nextValue) || value.includes(nextValue),
+      ),
+      ...value.filter(
+        (currentValue) =>
+          disabledValues.includes(currentValue) &&
+          !newValue.includes(currentValue),
+      ),
+    ]);
   };
 
   const removeValue = (removedValue: V) => {
@@ -148,6 +167,7 @@ export function MultiSelectTagInput<V extends string>({
           <div
             id={id}
             role="combobox"
+            aria-label={ariaLabel}
             aria-controls={listId}
             aria-describedby={ariaDescribedBy}
             aria-expanded={open}
@@ -173,7 +193,11 @@ export function MultiSelectTagInput<V extends string>({
 
               if (event.key === "Backspace" && value.length > 0) {
                 event.preventDefault();
-                const lastValue = value.at(-1);
+                const lastValue = value
+                  .filter(
+                    (selectedValue) => !disabledValues.includes(selectedValue),
+                  )
+                  .at(-1);
                 if (lastValue !== undefined) removeValue(lastValue);
               }
             }}
@@ -213,7 +237,7 @@ export function MultiSelectTagInput<V extends string>({
                       </span>
                       <button
                         type="button"
-                        disabled={disabled}
+                        disabled={disabled || option.disabled}
                         aria-label={`Remove ${option.label}`}
                         className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm"
                         onClick={(event) => {
@@ -247,7 +271,12 @@ export function MultiSelectTagInput<V extends string>({
               {value.length > 0 && (
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={
+                    disabled ||
+                    value.every((selectedValue) =>
+                      disabledValues.includes(selectedValue),
+                    )
+                  }
                   data-clear-selection
                   aria-label="Clear selection"
                   className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1"
@@ -292,6 +321,7 @@ export function MultiSelectTagInput<V extends string>({
                           <CommandPrimitive.Item
                             value={selectAllLabel}
                             aria-checked={allSelected}
+                            disabled={enabledOptions.length === 0}
                             onSelect={() =>
                               changeValue(
                                 allSelected
@@ -328,6 +358,7 @@ export function MultiSelectTagInput<V extends string>({
                               value={option.value || option.label}
                               keywords={[option.label]}
                               aria-checked={isSelected}
+                              disabled={option.disabled}
                               onSelect={() => {
                                 if (isSelected) {
                                   removeValue(option.value);

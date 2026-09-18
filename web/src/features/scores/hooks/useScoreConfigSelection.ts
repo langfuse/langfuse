@@ -105,16 +105,24 @@ export function useScoreConfigSelection({
           changedValueId,
         ]);
       } else {
-        // Config was deselected
-        const field = controlledFields[fieldIndex];
-        if (field?.id) {
+        const deselectedFields = controlledFields.flatMap((field, index) =>
+          !values.includes(field.configId) ? [{ field, index }] : [],
+        );
+        if (deselectedFields.some(({ field }) => field.id)) {
           toast.error("Cannot deselect a populated score");
-          return;
         }
-        // No score -> remove row from form and empty selected config ids
-        remove(fieldIndex);
+        const removableFields = deselectedFields.filter(({ field }) => {
+          const config = configs.find((config) => config.id === field.configId);
+          return !field.id && config && !isInputDisabled(config);
+        });
+        if (!removableFields.length) return;
+
+        remove(removableFields.map(({ index }) => index));
+        const removedConfigIds = new Set(
+          removableFields.map(({ field }) => field.configId),
+        );
         setEmptySelectedConfigIds?.(
-          emptySelectedConfigIds.filter((id) => id !== changedValueId),
+          emptySelectedConfigIds.filter((id) => !removedConfigIds.has(id)),
         );
       }
     },
@@ -125,6 +133,7 @@ export function useScoreConfigSelection({
       remove,
       emptySelectedConfigIds,
       setEmptySelectedConfigIds,
+      isInputDisabled,
     ],
   );
 
