@@ -117,9 +117,8 @@ Sentry instrumentation skill first and decide whether it should capture at all
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
-  (trace/observation/session/experiment) with the global score-level color
-  coding in `src/components/score-tag.tsx`: `<ScoreTag>` where a level label
-  fits, `SCORE_LEVEL_DOT_CLASSES` for the level dot on score chips (see the
+  (trace/observation/session/experiment) with the `<ScoreTag>` component
+  (`src/components/score-tag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.

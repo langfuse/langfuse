@@ -19,25 +19,13 @@ export const SCORE_LEVEL_LABELS: Record<ScoreLevel, string> = {
   experiment: "Experiment",
 };
 
-export const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
+const SCORE_LEVEL_DESCRIPTIONS: Record<ScoreLevel, string> = {
   trace: "Trace-level score: the whole trace was the evaluation context",
   observation:
     "Observation-level score: a single observation was the evaluation context",
   session: "Session-level score: a session was the evaluation context",
   experiment:
     "Experiment-level score: an experiment run was the evaluation context",
-};
-
-/**
- * The global score-level color coding: one hue per level, used identically on
- * every surface. observation=blue, trace=violet, session=teal,
- * experiment=yellow.
- */
-export const SCORE_LEVEL_DOT_CLASSES: Record<ScoreLevel, string> = {
-  observation: "bg-dark-blue",
-  trace: "bg-dark-violet",
-  session: "bg-dark-teal",
-  experiment: "bg-dark-yellow",
 };
 
 /**
