@@ -130,9 +130,9 @@ export const isNetworkConnectivityError = (error: unknown): boolean => {
  * whose `data.zodError` is populated), plus CONFLICT on
  * {@link EXPECTED_TRPC_CONFLICT_PATHS}, plus BAD_REQUEST on
  * {@link EXPECTED_TRPC_BAD_REQUEST_PATHS}. Empty/too-short fields, stale
- * in-app-agent approvals, and a rejected user-configured remote-experiment
- * URL are the product working as designed — the toast is the UX; Sentry
- * must not log them.
+ * in-app-agent approvals, a rejected user-configured remote-experiment
+ * URL, and a rejected PostHog hostname are the product working as designed
+ * — the toast is the UX; Sentry must not log them.
  * A 5xx (`INTERNAL_SERVER_ERROR`), a non-Zod `BAD_REQUEST` outside the
  * allowlist, a CONFLICT outside the allowlist, an unrecognized code, or
  * any non-tRPC error is not expected and keeps flowing to Sentry.
@@ -166,12 +166,14 @@ export const EXPECTED_TRPC_CONFLICT_PATHS = [
  *
  * `datasets.triggerRemoteExperiment` and `datasets.upsertRemoteExperiment`
  * wrap `validateWebhookURL` (and related header checks) as BAD_REQUEST.
- * A DNS miss, private IP, or missing remote URL is the user fixing their
- * webhook, not an app failure.
+ * `posthogIntegration.update` does the same for the user-configured
+ * PostHog hostname. A DNS miss, private IP, or missing host is the user
+ * fixing their webhook, not an app failure.
  */
 export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
   "datasets.triggerRemoteExperiment",
   "datasets.upsertRemoteExperiment",
+  "posthogIntegration.update",
 ] as const;
 
 const getTrpcErrorData = (
