@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -11,7 +12,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { cn } from "@/src/utils/tailwind";
 import {
   ItemBadge,
   getItemTypeLabels,
@@ -213,18 +213,11 @@ export function PeekHeader({
         ref={headerRef}
         className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
-        <div
-          className={cn(
-            "flex min-w-0 flex-row gap-2",
-            plan.badgeShowLabel ? "items-baseline" : "items-center",
-          )}
-        >
+        <div className="flex min-w-0 flex-row items-center gap-2">
           {/* Type never truncates: the word when it fits, the icon when not. */}
           <div ref={badgeRef} className="shrink-0">
             {plan.badgeShowLabel ? (
-              <span className="text-muted-foreground text-sm">
-                {getItemTypeLabels(itemType).displayLabel}
-              </span>
+              <Badge text={getItemTypeLabels(itemType).displayLabel} />
             ) : (
               <ItemBadge type={itemType} />
             )}

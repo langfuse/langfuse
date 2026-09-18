@@ -1,4 +1,5 @@
 /* eslint-disable @repo/no-style-props */
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import {
@@ -165,11 +166,9 @@ const PageHeader = ({
           >
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-baseline gap-1.5">
+              <div className="mr-2 flex items-center gap-1.5">
                 {itemType && (
-                  <span className="text-muted-foreground text-sm">
-                    {getItemTypeLabels(itemType).displayLabel}
-                  </span>
+                  <Badge text={getItemTypeLabels(itemType).displayLabel} />
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   {/* Explicit color: the SidebarProvider shell sets
