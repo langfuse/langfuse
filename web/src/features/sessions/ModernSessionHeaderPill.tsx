@@ -4,7 +4,7 @@ import { type ComponentPropsWithoutRef, type ReactNode, type Ref } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const PILL_CLASS_NAME =
-  "text-muted-foreground inline-flex h-[22px] shrink-0 items-center rounded-sm border px-2 py-0 font-mono text-[11px] leading-none whitespace-nowrap transition-[border-color,padding] hover:border-ring";
+  "text-muted-foreground inline-flex h-6 shrink-0 items-center rounded-sm border px-2 py-0 font-mono text-[11px] leading-none whitespace-nowrap transition-colors hover:border-ring";
 
 type ModernSessionHeaderPillProps = {
   children: ReactNode;

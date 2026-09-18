@@ -149,9 +149,7 @@ const SessionHeaderDetailWithVisibilityControl = ({
         "focus-within:[&_[data-session-header-pill]]:border-ring",
         "hover:[&_a[data-session-header-pill]]:border-link",
         "focus-within:[&_a[data-session-header-pill]]:border-link",
-        "hover:[&_[data-session-header-pill]]:pr-6",
-        "focus-within:[&_[data-session-header-pill]]:pr-6",
-        "[@media(hover:none)]:[&_[data-session-header-pill]]:pr-6",
+        "[&_[data-session-header-pill]]:pr-6",
       )}
     >
       {detail.content}
@@ -161,7 +159,7 @@ const SessionHeaderDetailWithVisibilityControl = ({
         title={`${action} in session header`}
         className={cn(
           "text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:ring-ring",
-          "pointer-events-none absolute top-1/2 right-0 inline-flex h-6 w-6 shrink-0 -translate-y-1/2",
+          "pointer-events-none absolute inset-y-0 right-0 inline-flex h-6 w-6 shrink-0",
           "items-center justify-center rounded-sm opacity-0 transition-opacity",
           "group-focus-within/detail:pointer-events-auto group-focus-within/detail:opacity-100",
           "group-hover/detail:pointer-events-auto group-hover/detail:opacity-100",

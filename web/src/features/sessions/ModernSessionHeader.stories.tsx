@@ -375,6 +375,10 @@ export const TestHidesAndRevealsDetails = meta.story({
     const hideButtonRect = hideTraceDetail.getBoundingClientRect();
     await expect(hideButtonRect.left).toBeGreaterThanOrEqual(pillRect.left);
     await expect(hideButtonRect.right).toBeLessThanOrEqual(pillRect.right + 1);
+    await expect(hideButtonRect.top).toBeGreaterThanOrEqual(pillRect.top - 1);
+    await expect(hideButtonRect.bottom).toBeLessThanOrEqual(
+      pillRect.bottom + 1,
+    );
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
