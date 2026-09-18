@@ -393,9 +393,12 @@ describe("Dataset item media tRPC procedures", () => {
     },
   );
 
-  it("rejects an upload for a dataset in another project", async () => {
+  it("returns not found for a dataset outside the project", async () => {
     // datasetId is not a dataset in this project
-    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toThrow();
+    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      message: expect.stringContaining("not found in project"),
+    });
   });
 
   it("rejects uploads above the media size limit", async () => {
