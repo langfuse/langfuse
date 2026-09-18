@@ -328,9 +328,8 @@ maybe("traces trpc (events_only write mode)", () => {
     });
   });
 
-  // Same routing as the bookmark case, but publish throws NOT_FOUND (rewrapped
-  // as INTERNAL_SERVER_ERROR) instead of silently no-opping when the read is
-  // misrouted to the empty legacy table.
+  // Same routing as the bookmark case, but publish throws NOT_FOUND instead of
+  // silently no-opping when the read is misrouted to the empty legacy table.
   it("should make a trace public that only exists in the events table", async () => {
     const traceId = randomUUID();
 

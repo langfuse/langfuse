@@ -1311,5 +1311,18 @@ describe("traces trpc", () => {
         });
       }
     });
+
+    it("returns NOT_FOUND when publishing a trace that does not exist", async () => {
+      await expect(
+        caller.traces.publish({
+          projectId,
+          traceId: randomUUID(),
+          public: true,
+        }),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Trace not found",
+      });
+    });
   });
 });
