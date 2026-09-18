@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, Response},
 };
 use tokio::sync::Semaphore;
+use tracing::Instrument;
 
 use crate::{
     providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
@@ -54,6 +55,31 @@ impl InferenceService {
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
     pub(crate) async fn resolve_and_admit(
+        &self,
+        gateway_key: &str,
+    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let span = tracing::info_span!(
+            "resolution",
+            otel.kind = "internal",
+            gateway.outcome = tracing::field::Empty
+        );
+        async {
+            let prepared = self.prepare(gateway_key).await;
+            tracing::Span::current().record(
+                "gateway.outcome",
+                match &prepared {
+                    Ok(_) => "admitted",
+                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
+                    Err(RequestPreparationError::Provider(_)) => "busy",
+                },
+            );
+            prepared
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn prepare(
         &self,
         gateway_key: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
