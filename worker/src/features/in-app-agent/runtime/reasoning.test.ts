@@ -9,14 +9,19 @@ import {
 import { applyPromptCacheToCall } from "./promptCache";
 
 const originalUseResponsesApi = env.LANGFUSE_AI_USE_RESPONSES_API;
+const originalReasoningEffort = env.LANGFUSE_AI_REASONING_EFFORT;
 
 beforeEach(() => {
-  Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: undefined });
+  Object.assign(env, {
+    LANGFUSE_AI_USE_RESPONSES_API: undefined,
+    LANGFUSE_AI_REASONING_EFFORT: undefined,
+  });
 });
 
 afterEach(() => {
   Object.assign(env, {
     LANGFUSE_AI_USE_RESPONSES_API: originalUseResponsesApi,
+    LANGFUSE_AI_REASONING_EFFORT: originalReasoningEffort,
   });
 });
 
@@ -125,6 +130,53 @@ describe("OpenAI Chat Completions request shape", () => {
         cache_control: { type: "ephemeral" },
       },
     ]);
+  });
+
+  it("sends a configured reasoning effort to Chat Completions", async () => {
+    Object.assign(env, { LANGFUSE_AI_REASONING_EFFORT: "low" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body.reasoning_effort).toBe("low");
+  });
+
+  it("omits reasoning_effort entirely when configured off", async () => {
+    Object.assign(env, { LANGFUSE_AI_REASONING_EFFORT: "off" });
+
+    const config = {
+      provider: "openai" as const,
+      modelId: "gpt-5.6-sol",
+      titleModelId: "gpt-5.6-luna",
+      apiKey: "sk-test",
+      baseURL: "https://llm-exec.internal/v1",
+    };
+    const { calls, fetch } = createCaptureFetch(OPENAI_CHAT_RESPONSE);
+    vi.stubGlobal("fetch", fetch);
+
+    const model = createInAppAgentLanguageModel({ config });
+    await model.doGenerate({
+      prompt: userPrompt(),
+      providerOptions: getInAppAgentReasoningProviderOptions(config),
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.body).not.toHaveProperty("reasoning_effort");
+    expect(calls[0]?.url).toBe("https://llm-exec.internal/v1/chat/completions");
   });
 });
 
