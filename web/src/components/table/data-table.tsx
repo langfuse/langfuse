@@ -841,11 +841,10 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (rowIsSelected || shouldHighlightAllRows) &&
-          "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
-          ? "bg-muted/40 dark:bg-muted"
+          ? "bg-accent dark:bg-accent"
           : undefined,
+        (rowIsSelected || shouldHighlightAllRows) && "bg-accent dark:bg-accent",
         getRowClassName?.(row.original),
       )}
     >
