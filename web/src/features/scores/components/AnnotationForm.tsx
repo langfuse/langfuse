@@ -5,8 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
   MessageCircle,
-  X,
-  Archive,
+  MoreHorizontal,
   Check,
   Trash,
   Settings2,
@@ -86,6 +85,10 @@ import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreC
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { Badge } from "@/src/components/ui/badge";
+import {
+  DropdownMenuController,
+  DropdownMenuItem,
+} from "@/src/components/ui/dropdown-menu";
 
 function CommentField({
   savedComment,
@@ -212,7 +215,9 @@ function AnnotateHeader({
             </span>
           </div>
         ) : null,
-        actionButtons,
+        <React.Fragment key="annotation-actions">
+          {actionButtons}
+        </React.Fragment>,
       ]}
     />
   );
@@ -370,7 +375,9 @@ export function AnnotationFormContent({
       ? "saving"
       : saveState.failed
         ? "error"
-        : saveState.saved && !hasUnsavedChanges
+        : saveState.saved &&
+            !hasUnsavedChanges &&
+            !form.formState.errors.scoreData
           ? "saved"
           : "idle";
   const trackSave = (
@@ -428,6 +435,29 @@ export function AnnotationFormContent({
 
   // Keyboard navigation stays inside the focused annotation form.
   const formRootRef = useRef<HTMLDivElement | null>(null);
+  const deferredScoreInput = useRef<{
+    key: string;
+    input: HTMLInputElement | HTMLTextAreaElement;
+  } | null>(null);
+  const isMovingToScoreActions = (
+    event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
+    score: AnnotationScoreFormData,
+  ) => {
+    const row = event.currentTarget.closest("[data-score-row]");
+    const next = event.relatedTarget;
+    const ownActions =
+      row &&
+      ((next instanceof HTMLElement &&
+        row.contains(next) &&
+        next.closest("[data-score-actions]")) ||
+        row.querySelector('[data-score-actions][data-state="open"]'));
+    if (!ownActions) return false;
+    deferredScoreInput.current = {
+      key: annotationFieldKey(score),
+      input: event.currentTarget,
+    };
+    return true;
+  };
 
   // Real DOM focus is the single source of
   // truth: `↑`/`↓` (and `Tab`) move focus between fields, `1`-`9` pick an option
@@ -483,40 +513,45 @@ export function AnnotationFormContent({
     form.setValue(`scoreData.${index}.stringValue`, previousScore.stringValue);
     form.setValue(`scoreData.${index}.comment`, previousScore.comment);
     form.setValue(`scoreData.${index}.timestamp`, previousScore.timestamp);
-    if (isTextDataType(field.dataType)) {
+    if (!isNumericDataType(field.dataType)) {
       form.setError(`scoreData.${index}.stringValue`, {
         type: "server",
-        message: "Failed to delete score",
+        message: "Failed to clear score",
       });
     } else {
       form.setError(`scoreData.${index}.value`, {
         type: "server",
-        message: "Failed to delete score",
+        message: "Failed to clear score",
       });
     }
   };
 
-  const handleDeleteScore = (index: number) => {
+  const handleClearScore = (index: number) => {
     const field = controlledFields[index];
-    if (!field?.id) return;
+    if (!field) return;
+    if (deferredScoreInput.current?.key === annotationFieldKey(field))
+      deferredScoreInput.current = null;
     const cleared = {
       ...field,
       id: null,
       value: null,
       stringValue: null,
       comment: null,
+      timestamp: null,
     };
-    const tracked = analytics.get(field.targetKey!)!.beginSave(
-      "delete",
-      cleared,
-      controlledFields
-        .filter((current) => current.targetKey === field.targetKey)
-        .map((current) =>
-          annotationFieldKey(current) === annotationFieldKey(field)
-            ? cleared
-            : current,
-        ),
-    );
+    const tracked = field.id
+      ? analytics.get(field.targetKey!)!.beginSave(
+          "delete",
+          cleared,
+          controlledFields
+            .filter((current) => current.targetKey === field.targetKey)
+            .map((current) =>
+              annotationFieldKey(current) === annotationFieldKey(field)
+                ? cleared
+                : current,
+            ),
+        )
+      : undefined;
 
     // Capture previous state for rollback
     const previousScore = {
@@ -528,21 +563,8 @@ export function AnnotationFormContent({
     };
 
     // Optimistically clear form
-    if (isTextDataType(field.dataType)) {
-      form.clearErrors(`scoreData.${index}.stringValue`);
-    } else {
-      form.clearErrors(`scoreData.${index}.value`);
-    }
-    update(index, {
-      name: field.name,
-      dataType: field.dataType,
-      configId: field.configId,
-      targetKey: field.targetKey,
-      id: null,
-      value: null,
-      stringValue: null,
-      comment: null,
-    });
+    form.clearErrors(`scoreData.${index}`);
+    update(index, cleared);
 
     // Fire mutation with rollback
     if (previousScore.id) {
@@ -567,7 +589,7 @@ export function AnnotationFormContent({
     if (index < 0) return;
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    if (isTextDataType(field.dataType)) {
+    if (!isNumericDataType(field.dataType)) {
       form.setError(`scoreData.${index}.stringValue`, {
         type: "server",
         message: "Failed to update score",
@@ -593,7 +615,7 @@ export function AnnotationFormContent({
     form.setValue(`scoreData.${index}.timestamp`, previousTimestamp);
     form.setValue(`scoreData.${index}.value`, previousValue);
     form.setValue(`scoreData.${index}.stringValue`, previousStringValue);
-    if (isTextDataType(field.dataType)) {
+    if (!isNumericDataType(field.dataType)) {
       form.setError(`scoreData.${index}.stringValue`, {
         type: "server",
         message: "Failed to create score",
@@ -652,7 +674,10 @@ export function AnnotationFormContent({
     );
 
     // Clear errors and update form optimistically
-    form.clearErrors(`scoreData.${index}.value`);
+    form.clearErrors([
+      `scoreData.${index}.value`,
+      `scoreData.${index}.stringValue`,
+    ]);
     form.setValue(`scoreData.${index}.value`, value);
     form.setValue(`scoreData.${index}.stringValue`, stringValue);
 
@@ -708,36 +733,34 @@ export function AnnotationFormContent({
     }
   };
 
-  const handleNumericUpsert = (index: number) => {
+  const handleNumericUpsert = (index: number, input: HTMLInputElement) => {
     const field = controlledFields[index];
     const config = configFor(field);
 
     if (!config || !field) return;
 
-    if (field.value === null || field.value === undefined) {
-      // Cleared to empty: remove an existing score (mirrors the text field),
-      // otherwise nothing to do.
-      if (field.id) handleDeleteScore(index);
-      return;
-    }
-
-    // Client-side validation - don't fire mutation if invalid
+    const value = input.value === "" ? null : input.valueAsNumber;
     const errorMessage = validateNumericScore({
-      value: field.value,
+      value,
+      badInput: input.validity.badInput,
       maxValue: config.maxValue,
       minValue: config.minValue,
     });
 
     if (!!errorMessage) {
       form.setError(`scoreData.${index}.value`, {
-        type: "custom",
+        type: "validate",
         message: errorMessage,
       });
       return;
     }
 
     form.clearErrors(`scoreData.${index}.value`);
-    handleUpsert(index, field.value as number, null);
+    if (value === null) {
+      if (field.id) handleClearScore(index);
+      return;
+    }
+    handleUpsert(index, value, null);
   };
 
   const handleCategoricalUpsert = (
@@ -768,12 +791,23 @@ export function AnnotationFormContent({
     if (!config || !field) return;
     if (!field.stringValue) {
       if (field.id) {
-        handleDeleteScore(index);
+        handleClearScore(index);
       }
       return;
     }
 
     handleUpsert(index, 0, field.stringValue);
+  };
+
+  const commitDeferredScore = (score: AnnotationScoreFormData) => {
+    const deferred = deferredScoreInput.current;
+    if (deferred?.key !== annotationFieldKey(score)) return;
+    deferredScoreInput.current = null;
+    const index = currentIndex(score);
+    if (index < 0) return;
+    if (deferred.input instanceof HTMLInputElement)
+      handleNumericUpsert(index, deferred.input);
+    else handleTextUpsert(index);
   };
 
   const rollbackCommentError = (
@@ -874,9 +908,11 @@ export function AnnotationFormContent({
         // isn't committed-and-dropped (mirrors the ⌘/Ctrl+Enter complete gate).
         if (
           target.type === "number" &&
-          (target.validity.rangeOverflow || target.validity.rangeUnderflow)
+          (target.validity.badInput || !target.validity.valid)
         ) {
           event.preventDefault();
+          const row = target.closest<HTMLElement>("[data-score-row]");
+          if (row) handleNumericUpsert(Number(row.dataset.scoreRow), target);
           target.reportValidity();
           return;
         }
@@ -918,6 +954,13 @@ export function AnnotationFormContent({
           ? (active.closest("[data-score-row]") as HTMLElement | null)
           : null;
       const currentPos = currentRow ? rowEls.indexOf(currentRow) : -1;
+
+      // Score action triggers own their menu keyboard navigation.
+      if (
+        active instanceof HTMLElement &&
+        active.closest("[data-score-actions]")
+      )
+        return;
 
       // `↑` / `↓` move focus between rows (to the row container itself, never
       // into a text field — so navigation is never trapped).
@@ -974,7 +1017,7 @@ export function AnnotationFormContent({
       if (/^[1-9]$/.test(event.key)) {
         if (currentPos < 0 || !currentRow) return;
         // Only from the row container itself or its value control — never the
-        // in-row Comment / Delete buttons (else a stray digit writes a phantom
+        // in-row comment or score actions (else a stray digit writes a phantom
         // score). Mirrors the Enter branch's `active === currentRow` gate.
         if (
           active !== currentRow &&
@@ -1031,52 +1074,56 @@ export function AnnotationFormContent({
     <div
       ref={formRootRef}
       data-annotation-form
-      className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
+      className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="sticky top-0 z-10 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))]">
+      <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
         <AnnotateHeader
           saveStatus={saveStatus}
-          actionButtons={actionButtons}
-          description={description}
-        />
-        {allowManualSelection ? (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-sm font-bold">Score fields</span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-accent gap-1.5 text-xs"
-                asChild
-              >
-                <Link
-                  href={`/project/${scoreMetadata.projectId}/settings/scores`}
-                  target="_blank"
-                  onClick={() => {
-                    capture(
-                      "score_configs:manage_configs_item_click",
-                      analyticsData,
-                    );
-                  }}
-                  onAuxClick={(event) => {
-                    if (event.button === 1) {
+          actionButtons={
+            <>
+              {allowManualSelection ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-accent gap-1.5 text-xs"
+                  asChild
+                >
+                  <Link
+                    href={`/project/${scoreMetadata.projectId}/settings/scores`}
+                    target="_blank"
+                    onClick={() => {
                       capture(
                         "score_configs:manage_configs_item_click",
                         analyticsData,
                       );
-                    }
-                  }}
-                >
-                  <Settings2 className="size-3" aria-hidden="true" />
-                  Manage score configs
-                </Link>
-              </Button>
-            </div>
+                    }}
+                    onAuxClick={(event) => {
+                      if (event.button === 1) {
+                        capture(
+                          "score_configs:manage_configs_item_click",
+                          analyticsData,
+                        );
+                      }
+                    }}
+                  >
+                    <Settings2 className="size-3" aria-hidden="true" />
+                    Manage score configs
+                  </Link>
+                </Button>
+              ) : null}
+              {actionButtons}
+            </>
+          }
+          description={description}
+        />
+        {allowManualSelection ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-bold">Scores</span>
             <MultiSelectTagInput
-              aria-label="Score fields"
-              placeholder="Choose score fields"
-              searchPlaceholder="Search score fields..."
-              emptyMessage="No score fields found."
+              aria-label="Scores"
+              placeholder="Choose scores"
+              searchPlaceholder="Search scores..."
+              emptyMessage="No scores found."
               options={selectionOptions.map((option) => ({
                 ...option,
                 accessibleLabel: showOptionTargets
@@ -1236,10 +1283,10 @@ export function AnnotationFormContent({
                             </Badge>
                           ) : null}
                         </div>
-                        <div className="grid grid-cols-[11fr_1fr] items-center py-1">
+                        <div className="grid grid-cols-[minmax(0,1fr)_1.5rem] items-center gap-1 py-1">
                           {/* data-score-control wraps only the value control so
                               keyboard 1-9 scoring targets it, not the in-row
-                              Comment / Delete buttons. */}
+                              comment or score actions. */}
                           <div data-score-control>
                             {isTextDataType(score.dataType) ? (
                               <FormField
@@ -1255,7 +1302,16 @@ export function AnnotationFormContent({
                                         className="text-xs"
                                         disabled={isInputDisabled(config)}
                                         placeholder="Enter free form text..."
-                                        onBlur={() => handleTextUpsert(index)}
+                                        onBlur={(event) => {
+                                          field.onBlur();
+                                          if (
+                                            !isMovingToScoreActions(
+                                              event,
+                                              score,
+                                            )
+                                          )
+                                            handleTextUpsert(index);
+                                        }}
                                       />
                                     </FormControl>
                                     <FormMessage className="text-xs" />
@@ -1267,21 +1323,43 @@ export function AnnotationFormContent({
                                 control={form.control}
                                 name={`scoreData.${index}.value`}
                                 render={({ field }) => (
-                                  <FormItem>
+                                  <FormItem className="space-y-1.5">
                                     <FormControl>
                                       <Input
                                         {...field}
                                         value={field.value ?? ""}
-                                        onChange={(e) => {
-                                          const value = e.target.value;
-                                          // Empty → null so the field can be
-                                          // cleared back to blank (returning here
-                                          // instead trapped the last digit — the
-                                          // form kept the old value and re-rendered
-                                          // it). onBlur deletes the score when null.
+                                        onChange={(event) => {
+                                          const value =
+                                            event.currentTarget.valueAsNumber;
                                           field.onChange(
-                                            value === "" ? null : Number(value),
+                                            Number.isFinite(value)
+                                              ? value
+                                              : null,
                                           );
+                                        }}
+                                        onInput={(event) => {
+                                          const input = event.currentTarget;
+                                          const error = validateNumericScore({
+                                            value:
+                                              input.value === ""
+                                                ? null
+                                                : input.valueAsNumber,
+                                            badInput: input.validity.badInput,
+                                            minValue: config.minValue,
+                                            maxValue: config.maxValue,
+                                          });
+                                          if (error)
+                                            form.setError(
+                                              `scoreData.${index}.value`,
+                                              {
+                                                type: "validate",
+                                                message: error,
+                                              },
+                                            );
+                                          else
+                                            form.clearErrors(
+                                              `scoreData.${index}.value`,
+                                            );
                                         }}
                                         type="number"
                                         // Mirror the config range as native
@@ -1294,14 +1372,24 @@ export function AnnotationFormContent({
                                         min={config.minValue ?? undefined}
                                         max={config.maxValue ?? undefined}
                                         step="any"
-                                        className="text-xs"
+                                        className="aria-invalid:border-destructive text-xs"
                                         disabled={isInputDisabled(config)}
-                                        onBlur={() =>
-                                          handleNumericUpsert(index)
-                                        }
+                                        onBlur={(event) => {
+                                          field.onBlur();
+                                          if (
+                                            !isMovingToScoreActions(
+                                              event,
+                                              score,
+                                            )
+                                          )
+                                            handleNumericUpsert(
+                                              index,
+                                              event.currentTarget,
+                                            );
+                                        }}
                                       />
                                     </FormControl>
-                                    <FormMessage className="text-xs" />
+                                    <FormMessage className="text-xs leading-snug font-normal" />
                                   </FormItem>
                                 )}
                               />
@@ -1346,58 +1434,55 @@ export function AnnotationFormContent({
                               />
                             )}
                           </div>
-                          {config.isArchived ? (
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="link"
-                                  type="button"
-                                  className="px-0 pl-1"
-                                  title="Delete archived score"
-                                  disabled={isScoreUnsaved(score.id)}
+                          {score.id ||
+                          isPresent(score.value) ||
+                          score.stringValue ||
+                          score.comment ||
+                          form.getFieldState(`scoreData.${index}.value`)
+                            .invalid ? (
+                            <DropdownMenuController
+                              align="end"
+                              onCloseAutoFocus={(event) => {
+                                event.preventDefault();
+                                commitDeferredScore(score);
+                                formRootRef.current
+                                  ?.querySelector<HTMLElement>(
+                                    `[data-score-row="${currentIndex(score)}"]`,
+                                  )
+                                  ?.focus();
+                              }}
+                              renderMenu={() => (
+                                <DropdownMenuItem
+                                  disabled={saveState.pending > 0}
+                                  onSelect={() => handleClearScore(index)}
                                 >
-                                  <Archive className="h-4 w-4"></Archive>
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent>
-                                <h2 className="mb-3 font-bold">
-                                  Your score is archived
-                                </h2>
-                                <p className="mb-3 text-sm">
-                                  This action will delete your score
-                                  irreversibly.
-                                </p>
-                                <div className="flex justify-end space-x-4">
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    loading={deleteMutation.isPending}
-                                    onClick={() => handleDeleteScore(index)}
-                                  >
-                                    Delete
-                                  </Button>
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          ) : (
-                            <Button
-                              variant="link"
-                              type="button"
-                              className="px-0 pl-1"
-                              title="Delete score from trace/observation"
-                              disabled={
-                                isScoreUnsaved(score.id) ||
-                                updateMutation.isPending
-                              }
-                              loading={
-                                deleteMutation.isPending &&
-                                !isScoreUnsaved(score.id)
-                              }
-                              onClick={() => handleDeleteScore(index)}
+                                  Clear score
+                                </DropdownMenuItem>
+                              )}
                             >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          )}
+                              {({ Trigger }) => (
+                                <Trigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    type="button"
+                                    size="icon-xs"
+                                    data-score-actions
+                                    onBlur={(event) => {
+                                      if (
+                                        event.currentTarget.dataset.state !==
+                                        "open"
+                                      )
+                                        commitDeferredScore(score);
+                                    }}
+                                    aria-label={`Score actions for ${score.name}${showSelectedTargets ? ` (${target.label})` : ""}`}
+                                    title="Score actions"
+                                  >
+                                    <MoreHorizontal className="size-4" />
+                                  </Button>
+                                </Trigger>
+                              )}
+                            </DropdownMenuController>
+                          ) : null}
                         </div>
                       </div>
                     );

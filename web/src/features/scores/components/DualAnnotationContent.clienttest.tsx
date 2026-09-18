@@ -147,9 +147,7 @@ describe("unified annotation targets", () => {
     mocks.create.mockResolvedValue({});
     renderContent();
 
-    expect(
-      screen.getAllByRole("combobox", { name: "Score fields" }),
-    ).toHaveLength(1);
+    expect(screen.getAllByRole("combobox", { name: "Scores" })).toHaveLength(1);
     expect(
       screen.queryByText(/Score data saved|^Saved$/),
     ).not.toBeInTheDocument();
@@ -211,6 +209,69 @@ describe("unified annotation targets", () => {
     expect(
       within(observationRow).getByRole("radio", { name: /False/ }),
     ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(traceRow).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("restores a categorical score after a failed clear and keeps its field after retry", async () => {
+    mocks.create.mockResolvedValue({});
+    mocks.remove
+      .mockRejectedValueOnce(new Error("Could not clear score"))
+      .mockResolvedValue({});
+    renderContent();
+    const observationRow = screen.getByRole("group", {
+      name: "Quality (Observation)",
+    });
+    const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
+    act(() => observationRow.focus());
+    fireEvent.keyDown(observationRow, { key: "1" });
+    act(() => traceRow.focus());
+    fireEvent.keyDown(traceRow, { key: "2" });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Saved"),
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: "Score actions for Quality (Observation)",
+      }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Clear score" }),
+    );
+    expect(await screen.findByText("Failed to clear score")).toBeVisible();
+    const restored = screen.getByRole("group", {
+      name: "Quality (Observation)",
+    });
+    expect(
+      within(restored).getByRole("radio", { name: /False/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: "Score actions for Quality (Observation)",
+      }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Clear score" }),
+    );
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledTimes(2));
+    expect(mocks.remove).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        id: mocks.create.mock.calls[0]![0].id,
+        projectId: "project",
+      }),
+    );
+    expect(screen.queryByText("Failed to clear score")).not.toBeInTheDocument();
+    const cleared = screen.getByRole("group", {
+      name: "Quality (Observation)",
+    });
+    expect(
+      within(cleared).getByRole("radio", { name: /False/ }),
+    ).toHaveAttribute("aria-checked", "false");
     expect(
       within(traceRow).getByRole("radio", { name: /True/ }),
     ).toHaveAttribute("aria-checked", "true");
@@ -290,7 +351,7 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Rating" })).toBeInTheDocument();
     const input = screen.getByRole("spinbutton");
-    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.input(input, { target: { value: "5" } });
     fireEvent.blur(input);
     await waitFor(() =>
       expect(
@@ -303,13 +364,195 @@ describe("unified annotation targets", () => {
         environment: "session-env",
       }),
     );
-    fireEvent.change(input, { target: { value: "11" } });
+    fireEvent.input(input, { target: { value: "11" } });
     expect(
       screen.queryByRole("status", { name: "Score save status" }),
     ).not.toBeInTheDocument();
     fireEvent.blur(input);
     expect(mocks.update).not.toHaveBeenCalled();
     expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+  });
+
+  it("does not delete a saved score for Firefox badInput and recovers from number and range errors", async () => {
+    const numeric = {
+      ...configs[0]!,
+      id: "numeric",
+      name: "Rating",
+      dataType: "NUMERIC" as const,
+      minValue: 1,
+      maxValue: 5,
+      categories: null,
+    };
+    mocks.create.mockResolvedValue({});
+    mocks.update.mockResolvedValue({});
+    mocks.remove.mockResolvedValue({});
+    renderContent(
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId: "session" }}
+        serverScores={[]}
+        scoreMetadata={{ projectId: "project", environment: "session-env" }}
+        analyticsData={{ type: "session", source: "SessionDetail", isV4: true }}
+        configSelection={{ mode: "fixed", configs: [numeric] }}
+      />,
+    );
+    const input = screen.getByRole("spinbutton") as HTMLInputElement;
+    fireEvent.input(input, { target: { value: "5" } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Saved"),
+    );
+
+    fireEvent.input(input, { target: { value: "" } });
+    const badInput = vi
+      .spyOn(input.validity, "badInput", "get")
+      .mockReturnValue(true);
+    // Firefox emits another input event while its sanitized value stays empty.
+    fireEvent.input(input);
+    expect(screen.getByText("Enter a number")).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    await act(async () => fireEvent.blur(input));
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a number")).toBeVisible();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Enter a number");
+
+    badInput.mockReturnValue(false);
+    fireEvent.input(input, { target: { value: "6" } });
+    expect(screen.getByText("Enter a value between 1 and 5")).toBeVisible();
+    fireEvent.blur(input);
+    expect(mocks.update).not.toHaveBeenCalled();
+    fireEvent.input(input, { target: { value: "3" } });
+    expect(input).toHaveAttribute("aria-invalid", "false");
+    expect(
+      screen.queryByText("Enter a value between 1 and 5"),
+    ).not.toBeInTheDocument();
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          value: 3,
+          scoreTarget: { type: "session", sessionId: "session" },
+        }),
+      ),
+    );
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.blur(input);
+    });
+    expect(mocks.remove).toHaveBeenCalledTimes(1);
+    badInput.mockRestore();
+  });
+
+  it("saves on another row's actions and when dismissing its own actions without clearing", async () => {
+    const text = {
+      ...configs[0]!,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT" as const,
+      categories: null,
+    };
+    mocks.create.mockResolvedValue({});
+    mocks.update.mockResolvedValue({});
+    renderContent(
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId: "session" }}
+        serverScores={[]}
+        scoreMetadata={{ projectId: "project" }}
+        analyticsData={{ type: "session", source: "SessionDetail", isV4: true }}
+        configSelection={{
+          mode: "fixed",
+          configs: [text, { ...text, id: "notes", name: "Notes" }],
+        }}
+      />,
+    );
+    const input = within(
+      screen.getByRole("group", { name: "Feedback" }),
+    ).getByRole("textbox");
+    const otherInput = within(
+      screen.getByRole("group", { name: "Notes" }),
+    ).getByRole("textbox");
+    fireEvent.change(otherInput, { target: { value: "Other draft" } });
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "Save feedback" } });
+    const otherActions = screen.getByRole("button", {
+      name: "Score actions for Notes",
+    });
+    act(() => otherActions.focus());
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
+    expect(mocks.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configId: "feedback",
+        stringValue: "Save feedback",
+      }),
+    );
+
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "Keep this edit" } });
+    const actions = screen.getByRole("button", {
+      name: "Score actions for Feedback",
+    });
+    act(() => actions.focus());
+    fireEvent.keyDown(actions, { key: "ArrowDown" });
+    const clearItem = await screen.findByRole("menuitem", {
+      name: "Clear score",
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
+    fireEvent.keyDown(clearItem, { key: "Escape" });
+    await waitFor(() =>
+      expect(mocks.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          configId: "feedback",
+          stringValue: "Keep this edit",
+        }),
+      ),
+    );
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(otherInput).toHaveValue("Other draft");
+  });
+
+  it("clears an unsaved draft from the labeled menu without posting it or removing a fixed field", async () => {
+    const text = {
+      ...configs[0]!,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT" as const,
+      categories: null,
+    };
+    renderContent(
+      <AnnotationForm
+        scoreTarget={{ type: "session", sessionId: "session" }}
+        serverScores={[]}
+        scoreMetadata={{ projectId: "project" }}
+        analyticsData={{ type: "session", source: "SessionDetail", isV4: true }}
+        configSelection={{ mode: "fixed", configs: [text] }}
+      />,
+    );
+    const input = screen.getByRole("textbox");
+    expect(
+      screen.queryByRole("button", { name: "Score actions for Feedback" }),
+    ).not.toBeInTheDocument();
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "Unsent feedback" } });
+    const actions = screen.getByRole("button", {
+      name: "Score actions for Feedback",
+    });
+    act(() => actions.focus());
+    fireEvent.keyDown(actions, { key: "ArrowDown" });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Clear score" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("");
+    expect(screen.getByRole("group", { name: "Feedback" })).toBeInTheDocument();
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("status", { name: "Score save status" }),
+    ).not.toBeInTheDocument();
   });
 });
 
