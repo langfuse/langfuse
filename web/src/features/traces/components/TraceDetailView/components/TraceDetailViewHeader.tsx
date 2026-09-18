@@ -61,6 +61,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
+const MAX_HEADER_SCORE_GROUPS = 6;
+
 export interface TraceDetailViewHeaderProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
     latency?: number;
@@ -489,7 +491,10 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             {trace.release && <ReleaseBadge release={trace.release} />}
             {trace.version && <VersionBadge version={trace.version} />}
             {traceScores.length > 0 && (
-              <GroupedScoreBadges scores={traceScores} />
+              <GroupedScoreBadges
+                scores={traceScores}
+                maxVisible={MAX_HEADER_SCORE_GROUPS}
+              />
             )}
           </CollapsibleBadgeRow>
         )}
