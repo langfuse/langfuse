@@ -177,6 +177,11 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
       `(${timeGroupPredicates.join(`
       OR `)})`,
       timeGroupParams,
+    )
+    // Keep each tenant/trace contiguous across time buckets and result blocks.
+    // orderByColumns with start_time prepends minute ordering and splits traces.
+    .orderBy(
+      "ORDER BY e.project_id ASC, e.trace_id ASC, e.start_time ASC, e.span_id ASC, e.event_ts DESC",
     );
 
   return {
@@ -187,6 +192,8 @@ const buildTraceBatchEventQuery = (props: TraceBatchEventStreamProps) => {
 
 /**
  * Stream full events_full payloads into the worker without retaining a whole batch.
+ * Rows are contiguous per (project_id, trace_id); a pair change or successful EOF
+ * completes that trace's query window, not its lifetime of possible late arrivals.
  * Rows reflect the events table's current merge state, as in other event reads;
  * this read-only experiment does not deduplicate versions or enrich model data.
  */

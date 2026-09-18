@@ -11,6 +11,8 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
+import { tokenCount } from "../../features/tokenisation/usage";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -22,6 +24,11 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
+}));
+
+// Exercise real tokenization without starting the compiled worker-thread pool.
+vi.mock("../../features/tokenisation/async-usage", () => ({
+  tokenCountAsync: vi.fn(async (params) => tokenCount(params)),
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
@@ -40,6 +47,97 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it("assembles each tenant's trace at the boundary and EOF, measuring real transcript and raw tokens", async () => {
+    const userMessage = { role: "user", content: "first question" };
+    const answer = { role: "assistant", content: "first answer" };
+    const row = {
+      project_id: "a",
+      trace_id: "shared-trace",
+      span_id: "first",
+      parent_span_id: null,
+      start_time: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000000",
+      type: "GENERATION",
+      name: "generation",
+      input: JSON.stringify([userMessage]),
+      output: JSON.stringify(answer),
+      metadata: {},
+      tool_definitions: {},
+      tool_calls: [],
+      tool_call_names: [],
+    };
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield row;
+      yield {
+        ...row,
+        span_id: "second",
+        start_time: "2026-09-11 00:01:00.000000",
+        input: JSON.stringify([
+          userMessage,
+          answer,
+          { role: "user", content: "second question" },
+        ]),
+        output: JSON.stringify({ role: "assistant", content: "second answer" }),
+      };
+      expect(tokenCountAsync).not.toHaveBeenCalled();
+      yield { ...row, project_id: "b", type: "SPAN" };
+      // The first trace is processed before requesting more stream rows.
+      expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+      yield { ...row, project_id: "b", type: "SPAN", span_id: "second" };
+    });
+    const job = {
+      data: {
+        id: "transcripts",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b"].map((projectId) => ({
+            projectId,
+            traceId: "shared-trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    await traceBatchQueueProcessor(job, undefined);
+    const estimates = vi.mocked(tokenCountAsync).mock.calls;
+    expect(estimates).toHaveLength(3);
+    const serializedTranscript = JSON.stringify(estimates[1][0].text);
+    for (const content of [
+      "first question",
+      "first answer",
+      "second question",
+      "second answer",
+    ]) {
+      expect(serializedTranscript.split(content)).toHaveLength(2);
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      tokenCount(estimates[1][0]),
+      { tokenizer: "gpt-4o" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      0,
+      { tokenizer: "gpt-4o" },
+    );
+    for (const index of [0, 2]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.observations_tokens",
+        tokenCount(estimates[index][0]),
+        { tokenizer: "gpt-4o" },
+      );
+    }
+    for (const hasTranscript of ["true", "false"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.transcript_assembly_duration_ms",
+        expect.any(Number),
+        { has_transcript: hasTranscript },
+      );
+    }
+  });
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const job = {
@@ -167,6 +265,7 @@ describe("trace batch queue", () => {
       await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
         failure,
       );
+      expect(tokenCountAsync).not.toHaveBeenCalled();
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
         maxThreads: 1,
         maxBlockSize: 512,
