@@ -62,6 +62,7 @@ import { type TableAction } from "@/src/features/table/types";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
@@ -109,6 +110,7 @@ export default function SessionsTable({
   isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
     [isV4, omittedFilter],
@@ -366,7 +368,19 @@ export default function SessionsTable({
   const sessionCountQuery = isV4 ? sessionCountQueryV4 : sessionCountQueryV3;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ isV4 }),
+    onSuccess: (data, variables, context) => {
+      if (context && (variables.isBatchAction || data.createdCount > 0)) {
+        capture("annotation_queues:item_added", {
+          type: "session",
+          source: "SessionTable",
+          targetType: "session",
+          objectType: "SESSION",
+          queueCount: 1,
+          isV4: context.isV4,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Sessions added to queue",
         description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,

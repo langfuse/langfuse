@@ -19,11 +19,12 @@ interface AnnotationDrawerSectionProps {
   scores: WithStringifiedMetadata<ScoreDomain>[];
   configs: ScoreConfigDomain[];
   environment?: string;
+  isV4: boolean;
 }
 
 export const AnnotationDrawerSection: React.FC<
   AnnotationDrawerSectionProps
-> = ({ item, scoreTarget, scores, configs, environment }) => {
+> = ({ item, scoreTarget, scores, configs, environment, isV4 }) => {
   const session = useSession();
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
@@ -47,6 +48,7 @@ export const AnnotationDrawerSection: React.FC<
         analyticsData={{
           type: scoreTarget.type,
           source: "AnnotationQueue",
+          isV4,
         }}
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (

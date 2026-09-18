@@ -628,6 +628,7 @@ export const SessionPage: React.FC<{
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4: false,
                           },
                           scoreMetadata: {
                             projectId,
@@ -649,6 +650,7 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
+                  analyticsData={{ source: "SessionDetail", isV4: false }}
                 >
                   {({ disabled, totalCount }) => (
                     <Button
@@ -748,6 +750,7 @@ export const SessionPage: React.FC<{
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4: false,
                         },
                         scoreMetadata: {
                           projectId,
@@ -769,6 +772,7 @@ export const SessionPage: React.FC<{
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
+                analyticsData={{ source: "SessionDetail", isV4: false }}
               >
                 {({ disabled, totalCount }) => (
                   <Button
@@ -1669,6 +1673,7 @@ const LoadedSessionEventsPage: React.FC<{
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4: true,
                           },
                           scoreMetadata: {
                             projectId,
@@ -1695,6 +1700,7 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
+                  analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
                   {({ disabled, totalCount }) => (
                     <Button
@@ -1821,6 +1827,7 @@ const LoadedSessionEventsPage: React.FC<{
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4: true,
                         },
                         scoreMetadata: {
                           projectId,
@@ -1847,6 +1854,7 @@ const LoadedSessionEventsPage: React.FC<{
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
+                analyticsData={{ source: "SessionDetail", isV4: true }}
               >
                 {({ disabled, totalCount }) => (
                   <Button

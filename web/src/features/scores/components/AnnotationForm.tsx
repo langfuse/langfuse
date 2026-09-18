@@ -64,7 +64,14 @@ import { transformToAnnotationScores } from "@/src/features/scores/lib/transform
 import { v4 as uuid } from "uuid";
 import { useScoreMutations } from "@/src/features/scores/hooks/useScoreMutations";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
+import {
+  CategoricalScoreInput,
+  shouldUseCombobox,
+} from "@/src/features/scores/components/CategoricalScoreInput";
+import {
+  createAnnotationAnalytics,
+  getAnnotationTargetType,
+} from "@/src/features/scores/lib/annotationAnalytics";
 import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -226,6 +233,20 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     resolver: zodResolver(AnnotateFormSchema),
     defaultValues: { scoreData: initialFormData },
   });
+  const [analytics] = useState(() =>
+    createAnnotationAnalytics(
+      capture,
+      { ...analyticsData, targetType: getAnnotationTargetType(scoreTarget) },
+      initialFormData,
+    ),
+  );
+  const { getValues } = form;
+
+  // Connect the visible form lifetime to the analytics session.
+  useEffect(() => {
+    analytics.open();
+    return () => analytics.close(getValues("scoreData"));
+  }, [analytics, getValues]);
 
   const { fields, update, remove, insert } = useFieldArray({
     control: form.control,
@@ -260,7 +281,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       configControl.emptySelectedConfigIdsStorageKey,
   });
 
-  const [showSaving, setShowSaving] = useState(false);
+  const showSaving =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    deleteMutation.isPending;
 
   // LFE-7628 — root of this form, used to scope the global keydown listener so
   // it doesn't double-fire across multiple mounted forms (DualAnnotationContent
@@ -297,18 +321,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       configs.some((c) => c.id === field.configId) &&
       (isTextDataType(field.dataType) || isNumericDataType(field.dataType)),
   );
-
-  useEffect(() => {
-    const isPending =
-      createMutation.isPending ||
-      updateMutation.isPending ||
-      deleteMutation.isPending;
-    setShowSaving(isPending);
-  }, [
-    createMutation.isPending,
-    updateMutation.isPending,
-    deleteMutation.isPending,
-  ]);
 
   const rollbackDeleteError = (
     index: number,
@@ -349,6 +361,19 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
   const handleDeleteScore = (index: number) => {
     const field = controlledFields[index];
+    if (!field?.id) return;
+    const cleared = {
+      ...field,
+      id: null,
+      value: null,
+      stringValue: null,
+      comment: null,
+    };
+    const tracked = analytics.beginSave(
+      "delete",
+      cleared,
+      controlledFields.map((current, i) => (i === index ? cleared : current)),
+    );
 
     // Capture previous state for rollback
     const previousScore = {
@@ -377,19 +402,21 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
 
     // Fire mutation with rollback
     if (previousScore.id) {
-      deleteMutation.mutate(
-        {
-          id: previousScore.id,
-          projectId: scoreMetadata.projectId,
-        },
-        {
-          onError: () => rollbackDeleteError(index, field, previousScore),
-        },
-      );
+      deleteMutation
+        .mutateAsync(
+          {
+            id: previousScore.id,
+            projectId: scoreMetadata.projectId,
+          },
+          {
+            onError: () => rollbackDeleteError(index, field, previousScore),
+          },
+        )
+        .then(
+          () => tracked?.success(),
+          () => tracked?.failure(),
+        );
     }
-
-    // Capture delete event
-    capture("score:delete", analyticsData);
   };
 
   const rollbackUpdateError = (
@@ -449,6 +476,31 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const previousStringValue = field.stringValue;
     const previousId = field.id;
     const previousTimestamp = field.timestamp;
+    const config = configs.find((config) => config.id === field.configId);
+    const next = {
+      ...field,
+      value,
+      stringValue,
+      id: field.id ?? uuid(),
+      timestamp: field.timestamp ?? new Date(),
+    };
+    const categories = enrichCategoryOptionsWithStaleScoreValue(
+      config?.categories ?? [],
+      field.stringValue,
+    );
+    const control = isTextDataType(field.dataType)
+      ? "text"
+      : isNumericDataType(field.dataType)
+        ? "number"
+        : shouldUseCombobox(categories)
+          ? "select"
+          : "segmented";
+    const tracked = analytics.beginSave(
+      field.id ? "update" : "create",
+      next,
+      controlledFields.map((current, i) => (i === index ? next : current)),
+      { control, optionCount: config?.categories?.length ?? 0 },
+    );
 
     // Clear errors and update form optimistically
     form.clearErrors(`scoreData.${index}.value`);
@@ -471,39 +523,48 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     };
 
     if (scoreId) {
-      updateMutation.mutate(
-        {
-          ...baseScoreData,
-          id: scoreId,
-          timestamp: scoreTimestamp ?? undefined,
-        } as UpdateAnnotationScoreData,
-        {
-          onError: () =>
-            rollbackUpdateError(index, previousValue, previousStringValue),
-        },
-      );
+      updateMutation
+        .mutateAsync(
+          {
+            ...baseScoreData,
+            id: scoreId,
+            timestamp: scoreTimestamp ?? undefined,
+          } as UpdateAnnotationScoreData,
+          {
+            onError: () =>
+              rollbackUpdateError(index, previousValue, previousStringValue),
+          },
+        )
+        .then(
+          () => tracked?.success(),
+          () => tracked?.failure(),
+        );
     } else {
-      const id = uuid();
-      const timestamp = new Date();
+      const { id, timestamp } = next;
       form.setValue(`scoreData.${index}.id`, id);
       form.setValue(`scoreData.${index}.timestamp`, timestamp);
-      createMutation.mutate(
-        {
-          ...baseScoreData,
-          id,
-          timestamp,
-        } as CreateAnnotationScoreData,
-        {
-          onError: () =>
-            rollbackCreateError(
-              index,
-              previousValue,
-              previousStringValue,
-              previousId,
-              previousTimestamp,
-            ),
-        },
-      );
+      createMutation
+        .mutateAsync(
+          {
+            ...baseScoreData,
+            id,
+            timestamp,
+          } as CreateAnnotationScoreData,
+          {
+            onError: () =>
+              rollbackCreateError(
+                index,
+                previousValue,
+                previousStringValue,
+                previousId,
+                previousTimestamp,
+              ),
+          },
+        )
+        .then(
+          () => tracked?.success(),
+          () => tracked?.failure(),
+        );
     }
   };
 
@@ -593,6 +654,12 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   const handleCommentUpdate = (index: number, newComment: string | null) => {
     const field = controlledFields[index];
     if (!field || !field.id) return;
+    const next = { ...field, comment: newComment };
+    const tracked = analytics.beginSave(
+      newComment ? "update_comment" : "delete_comment",
+      next,
+      controlledFields.map((current, i) => (i === index ? next : current)),
+    );
 
     const previousComment = field.comment;
 
@@ -603,17 +670,22 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     });
 
     // Fire mutation
-    updateMutation.mutate(
-      {
-        ...field,
-        ...scoreMetadata,
-        scoreTarget,
-        comment: newComment,
-      } as UpdateAnnotationScoreData,
-      {
-        onError: () => rollbackCommentError(index, field, previousComment),
-      },
-    );
+    updateMutation
+      .mutateAsync(
+        {
+          ...field,
+          ...scoreMetadata,
+          scoreTarget,
+          comment: newComment,
+        } as UpdateAnnotationScoreData,
+        {
+          onError: () => rollbackCommentError(index, field, previousComment),
+        },
+      )
+      .then(
+        () => tracked?.success(),
+        () => tracked?.failure(),
+      );
   };
 
   // LFE-7628 — keyboard-first scoring, driven by real DOM focus with a
@@ -1068,7 +1140,13 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                         name={field.name}
                                         value={field.value ?? ""}
                                         disabled={isInputDisabled(config)}
-                                        source={analyticsData?.source}
+                                        analyticsData={{
+                                          ...analyticsData,
+                                          targetType:
+                                            getAnnotationTargetType(
+                                              scoreTarget,
+                                            ),
+                                        }}
                                         onValueChange={(
                                           value,
                                           numericValue,
@@ -1263,6 +1341,13 @@ export function AnnotationForm<Target extends ScoreTarget>({
     <Skeleton className="h-full w-full" />
   ) : (
     <InnerAnnotationForm
+      key={JSON.stringify([
+        scoreMetadata.projectId,
+        scoreMetadata.queueId,
+        scoreTarget,
+        analyticsData.source,
+        analyticsData.isV4,
+      ])}
       scoreTarget={scoreTarget}
       initialFormData={sortedInitialFormData}
       scoreMetadata={scoreMetadata}

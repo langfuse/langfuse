@@ -64,6 +64,7 @@ export const AnnotationPanel = ({ projectId }: { projectId: string }) => {
               analyticsData={{
                 type: "trace",
                 source: "DatasetCompare",
+                isV4: false,
               }}
               scoreMetadata={{
                 projectId,

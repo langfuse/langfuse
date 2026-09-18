@@ -11,6 +11,7 @@
  */
 
 import { memo } from "react";
+import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -84,6 +85,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const {
     existingDatasetItems,
@@ -247,6 +249,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                               analyticsData: {
                                 type: "trace",
                                 source: "TraceDetail",
+                                isV4,
                               },
                               scoreMetadata: {
                                 projectId,
@@ -268,6 +271,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       projectId={projectId}
                       objectId={trace.id}
                       objectType={AnnotationQueueObjectType.TRACE}
+                      analyticsData={{ source: "TraceDetail", isV4 }}
                     >
                       {({ disabled, totalCount }) => (
                         <Button
@@ -396,6 +400,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4,
                           },
                           scoreMetadata: {
                             projectId,
@@ -417,6 +422,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   projectId={projectId}
                   objectId={trace.id}
                   objectType={AnnotationQueueObjectType.TRACE}
+                  analyticsData={{ source: "TraceDetail", isV4 }}
                 >
                   {({ disabled, totalCount }) => (
                     <Button

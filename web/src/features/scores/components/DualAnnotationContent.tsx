@@ -5,6 +5,7 @@ import { Separator } from "@/src/components/ui/separator";
 
 interface DualAnnotationContentProps {
   projectId: string;
+  isV4: boolean;
   traceId: string;
   observationId: string;
   traceEnvironment: string;
@@ -15,6 +16,7 @@ interface DualAnnotationContentProps {
 
 export function DualAnnotationContent({
   projectId,
+  isV4,
   traceId,
   observationId,
   traceEnvironment,
@@ -47,6 +49,7 @@ export function DualAnnotationContent({
           analyticsData={{
             type: "trace",
             source: "TraceDetail",
+            isV4,
           }}
         />
       </div>
@@ -71,6 +74,7 @@ export function DualAnnotationContent({
           analyticsData={{
             type: "trace",
             source: "TraceDetail",
+            isV4,
           }}
         />
       </div>

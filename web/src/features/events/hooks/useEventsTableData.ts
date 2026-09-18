@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { showSuccessToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
@@ -65,6 +66,7 @@ export function useEventsTableData({
   rowsEnabled = true,
   ioCharLimit,
 }: UseEventsTableDataParams) {
+  const capture = usePostHogClientCapture();
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
@@ -252,7 +254,18 @@ export function useEventsTableData({
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "ObservationTable",
+          targetType: "observation",
+          objectType: "OBSERVATION",
+          queueCount: 1,
+          isV4: true,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,

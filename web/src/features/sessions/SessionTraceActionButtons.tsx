@@ -31,6 +31,7 @@ export function SessionTraceActionButtons({
   environment,
   scores,
   traceCommentCounts,
+  isV4,
   density = "default",
   className,
 }: {
@@ -40,6 +41,7 @@ export function SessionTraceActionButtons({
   environment?: string | null;
   scores: TraceScores;
   traceCommentCounts: Map<string, number> | undefined;
+  isV4: boolean;
   density?: "default" | "compact";
   className?: string;
 }) {
@@ -149,6 +151,7 @@ export function SessionTraceActionButtons({
                   analyticsData: {
                     type: "trace",
                     source: "SessionDetail",
+                    isV4,
                   },
                   scoreMetadata: {
                     projectId,
@@ -170,6 +173,7 @@ export function SessionTraceActionButtons({
           projectId={projectId}
           objectId={traceId}
           objectType="TRACE"
+          analyticsData={{ source: "SessionDetail", isV4 }}
         >
           {({ disabled, totalCount }) => (
             <Button

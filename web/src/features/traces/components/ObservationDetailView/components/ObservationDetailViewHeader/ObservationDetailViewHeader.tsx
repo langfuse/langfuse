@@ -11,6 +11,7 @@
  */
 
 import { memo, useMemo } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ObservationType,
   AnnotationQueueObjectType,
@@ -126,6 +127,15 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isV4: isV4Enabled } = useReadPath();
+    const capture = usePostHogClientCapture();
+    const captureAnnotationEntry = () =>
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "TraceDetail",
+        targetType: "observation",
+        isV4: isV4Enabled,
+      });
     const { trace, serverScores } = useTraceData();
 
     // Get trace-level scores for V4 dual annotation
@@ -362,6 +372,7 @@ export const ObservationDetailViewHeader = memo(
                               variant="ghost"
                               size="sm"
                               disabled={!hasAnnotationAccess}
+                              onClick={captureAnnotationEntry}
                               className="w-full justify-start gap-2 font-normal"
                             >
                               {!hasAnnotationAccess ? (
@@ -374,6 +385,7 @@ export const ObservationDetailViewHeader = memo(
                           </DrawerTrigger>
                           <DrawerContent className="p-3">
                             <DualAnnotationContent
+                              isV4={isV4Enabled}
                               projectId={projectId}
                               traceId={traceId}
                               observationId={observation.id}
@@ -403,6 +415,7 @@ export const ObservationDetailViewHeader = memo(
                                   analyticsData: {
                                     type: "trace",
                                     source: "TraceDetail",
+                                    isV4: isV4Enabled,
                                   },
                                   scoreMetadata: {
                                     projectId,
@@ -425,6 +438,10 @@ export const ObservationDetailViewHeader = memo(
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
+                        analyticsData={{
+                          source: "TraceDetail",
+                          isV4: isV4Enabled,
+                        }}
                       >
                         {({ disabled, totalCount }) => (
                           <Button
@@ -577,6 +594,7 @@ export const ObservationDetailViewHeader = memo(
                           variant="secondary"
                           size="sm"
                           disabled={!hasAnnotationAccess}
+                          onClick={captureAnnotationEntry}
                           className="rounded-r-none"
                         >
                           {!hasAnnotationAccess ? (
@@ -589,6 +607,7 @@ export const ObservationDetailViewHeader = memo(
                       </DrawerTrigger>
                       <DrawerContent className="p-3">
                         <DualAnnotationContent
+                          isV4={isV4Enabled}
                           projectId={projectId}
                           traceId={traceId}
                           observationId={observation.id}
@@ -618,6 +637,7 @@ export const ObservationDetailViewHeader = memo(
                               analyticsData: {
                                 type: "trace",
                                 source: "TraceDetail",
+                                isV4: isV4Enabled,
                               },
                               scoreMetadata: {
                                 projectId,
@@ -640,6 +660,7 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
+                    analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   >
                     {({ disabled, totalCount }) => (
                       <Button

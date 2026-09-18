@@ -101,6 +101,7 @@ import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
 import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -199,6 +200,7 @@ export default function ObservationsTable({
   limitRows,
   showControlsInPageHeader = false,
 }: ObservationsTableProps) {
+  const capture = usePostHogClientCapture();
   const peekContext = usePeekTableState();
 
   const observationsFilterConfig = useMemo(
@@ -636,7 +638,18 @@ export default function ObservationsTable({
   const totalCount = totalCountQuery.data?.totalCount ?? null;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "ObservationTable",
+          targetType: "observation",
+          objectType: "OBSERVATION",
+          queueCount: 1,
+          isV4: false,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,

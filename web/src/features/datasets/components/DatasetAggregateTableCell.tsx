@@ -142,6 +142,15 @@ const DatasetAggregateCellContent = ({
   };
 
   const handleOpenReview = () => {
+    if (!isActiveCell) {
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "DatasetCompare",
+        targetType: value.observation ? "observation" : "trace",
+        isV4: false,
+      });
+    }
     setActiveCell({
       traceId: value.trace.id,
       observationId: value.observation?.id,

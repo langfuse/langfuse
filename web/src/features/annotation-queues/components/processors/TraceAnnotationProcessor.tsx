@@ -1,3 +1,4 @@
+import { useReadPath } from "@/src/features/events";
 import { Trace } from "@/src/features/traces";
 import {
   type AnnotationQueueItem,
@@ -22,6 +23,7 @@ interface TraceAnnotationProcessorProps {
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
+  const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
 
   const [, setCurrentObservationId] = useQueryParam("observation", StringParam);
@@ -52,6 +54,7 @@ export const TraceAnnotationProcessor: React.FC<
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "trace",
         traceId: traceId,

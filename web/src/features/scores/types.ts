@@ -63,11 +63,15 @@ export type AnnotationScore = {
 
 export type AnalyticsData = {
   type: "trace" | "session";
+  isV4: boolean;
   source:
     | "TraceDetail"
     | "SessionDetail"
     | "AnnotationQueue"
-    | "DatasetCompare";
+    | "DatasetCompare"
+    | "TraceTable"
+    | "ObservationTable"
+    | "SessionTable";
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
@@ -106,7 +110,7 @@ export type AnnotationForm<Target extends ScoreTarget> = {
     environment?: string;
   };
   configSelection?: ScoreConfigSelection;
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
 };
 
@@ -134,6 +138,6 @@ export type InnerAnnotationFormProps<Target extends ScoreTarget> = {
     queueId?: string;
     environment?: string;
   };
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
 };
