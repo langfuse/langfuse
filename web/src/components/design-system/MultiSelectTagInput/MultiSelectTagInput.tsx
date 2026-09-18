@@ -166,6 +166,7 @@ export function MultiSelectTagInput<V extends string>({
         <PopoverPrimitive.Trigger asChild>
           <div
             id={id}
+            className="cursor-pointer aria-disabled:cursor-not-allowed"
             role="combobox"
             aria-label={ariaLabel}
             aria-controls={listId}
@@ -239,7 +240,7 @@ export function MultiSelectTagInput<V extends string>({
                         type="button"
                         disabled={disabled || option.disabled}
                         aria-label={`Remove ${option.label}`}
-                        className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm"
+                        className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
                         onClick={(event) => {
                           event.stopPropagation();
                           removeValue(option.value);
@@ -279,7 +280,7 @@ export function MultiSelectTagInput<V extends string>({
                   }
                   data-clear-selection
                   aria-label="Clear selection"
-                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1"
+                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1 disabled:cursor-not-allowed"
                   onClick={(event) => {
                     event.stopPropagation();
                     changeValue([]);
