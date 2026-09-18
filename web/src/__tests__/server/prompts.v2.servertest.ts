@@ -3528,6 +3528,52 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       const v1 = remaining.find((p) => p.version === 1);
       expect(v1?.labels).toEqual(["dev"]);
     });
+
+    it("returns 404 for a version that does not exist and keeps other versions", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptMissingVersion" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production", "latest"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      for (const version of [0, 999]) {
+        const res = await makeAPICall(
+          "DELETE",
+          `${baseURI}/${encodeURIComponent(name)}?version=${version}`,
+          undefined,
+          auth,
+        );
+        expect(res.status).toBe(404);
+      }
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+    });
+
+    it("returns 404 for a prompt name that does not exist", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+
+      const res = await makeAPICall(
+        "DELETE",
+        `${baseURI}/${encodeURIComponent("doesNotExist" + uuidv4())}`,
+        undefined,
+        auth,
+      );
+
+      expect(res.status).toBe(404);
+    });
   });
 
   describe("Parsing prompt dependency tags", () => {

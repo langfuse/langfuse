@@ -81,7 +81,7 @@ const deletePromptNameHandler = async (
   const where = {
     projectId: authCheck.scope.projectId,
     name: promptName,
-    ...(version ? { version } : {}),
+    ...(version != null ? { version } : {}),
     ...(label ? { labels: { has: label } } : {}),
   };
 
