@@ -696,14 +696,54 @@ function isGlobalHandlerUnsupportedMediaResourceEvent(
 export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
 
 /**
- * True for a browser-level parse failure of a Next.js chunk: the global
+ * Pathname of a stack-frame filename. Accepts the SDK's `app://` prefix and
+ * absolute http(s) URLs; query/hash are stripped. Returns `null` when the
+ * value is not a usable path.
+ */
+function scriptFramePathname(filename: string): string | null {
+  const withoutQuery = filename.split(/[?#]/)[0];
+  if (withoutQuery.startsWith("app://")) {
+    return withoutQuery.replace(/^app:\/\//, "") || null;
+  }
+  if (/^https?:\/\//i.test(withoutQuery)) {
+    try {
+      return new URL(withoutQuery).pathname;
+    } catch {
+      return null;
+    }
+  }
+  return withoutQuery.startsWith("/") ? withoutQuery : null;
+}
+
+/**
+ * True when the filename is a Next.js HTML document route (no script
+ * extension, not under `/_next/`). Some browsers attribute a truncated or
+ * unparsable script to the document URL instead of the chunk: Safari as
+ * `Unexpected EOF` (LANGFUSE-617), Chrome as
+ * `Failed to execute 'appendChild' on 'Node': Unexpected token ')'`
+ * when it inserts the script (LANGFUSE-61V). The project id lives in that
+ * path, so leaving these ungrouped mints one Sentry issue per project.
+ */
+function isPageDocumentPath(pathname: string): boolean {
+  if (!pathname.startsWith("/")) return false;
+  if (pathname.includes("/_next/")) return false;
+  return !/\.(m?js|cjs|jsx|tsx?)$/i.test(pathname);
+}
+
+/**
+ * True for a browser-level parse failure of a Next.js script: the global
  * `onerror` handler caught a `SyntaxError` whose entire stack is ONE anonymous
- * frame at a `/_next/static/chunks/…` script — the shape a browser produces
- * when a script's CONTENT fails to parse (truncated download, or a stale
- * client fetching a chunk that no longer exists and receiving garbage after a
- * deploy). Chunk filenames are content-hashed, so Sentry minted a new
- * fingerprint per chunk per deploy (LANGFUSE-5WH/5WG/5WD/5S7 and the 1-event
- * long tail). The reload banner (#15279) is the mitigation for the cause.
+ * frame at either a `/_next/static/chunks/…` script or the HTML document
+ * URL — the shapes a browser produces when a script's CONTENT fails to parse
+ * (truncated download, or a stale client fetching a chunk that no longer
+ * exists and receiving garbage after a deploy). Safari reports the same
+ * failure against the document (`Unexpected EOF`); Chrome reports it as
+ * `Failed to execute 'appendChild' on 'Node': Unexpected token ')'` when
+ * the parser rejects the script as it is inserted. Chunk filenames are
+ * content-hashed and document paths embed the project id, so Sentry minted
+ * a new fingerprint per chunk per deploy (LANGFUSE-5WH/5WG/5WD/5S7) and
+ * per project (LANGFUSE-617 / LANGFUSE-61V). The reload banner (#15279)
+ * is the mitigation for the cause.
  *
  * These events are GROUPED under {@link STALE_CHUNK_PARSE_FINGERPRINT} in
  * `beforeSend`, NOT dropped: if a deploy ever ships a genuinely unparsable
@@ -715,7 +755,9 @@ export const STALE_CHUNK_PARSE_FINGERPRINT = "stale-chunk-parse-error";
  *    (`web/src/features/evals/…`) — different mechanism, multi-frame stack;
  *  - a runtime `SyntaxError` thrown by app code (e.g. `JSON.parse`) carries
  *    its throwing function and callers — more than one frame / a named
- *    function.
+ *    function;
+ *  - a parse error in a non-chunk `.js` file (extension, password-manager
+ *    inject) is left alone — only hashed Next chunks and HTML documents.
  */
 export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -734,10 +776,11 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
   // name means runtime code threw.
   if (frame?.function && frame.function !== "?") return false;
 
-  return (
-    typeof frame?.filename === "string" &&
-    frame.filename.includes("/_next/static/chunks/")
-  );
+  if (typeof frame?.filename !== "string") return false;
+  if (frame.filename.includes("/_next/static/chunks/")) return true;
+
+  const pathname = scriptFramePathname(frame.filename);
+  return pathname !== null && isPageDocumentPath(pathname);
 }
 
 /**

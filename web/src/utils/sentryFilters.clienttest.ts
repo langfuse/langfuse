@@ -1660,6 +1660,43 @@ describe("isStaleChunkParseErrorEvent", () => {
         isDenylistedNoiseEvent(chunkParseErrorEvent("Unexpected end of input")),
       ).toBe(false);
     });
+
+    it("matches Safari Unexpected EOF attributed to the page document (LANGFUSE-617)", () => {
+      // Safari reports a truncated/unparsable script against the document URL
+      // (line 1, no function), not `/_next/static/chunks/…`. The project id is
+      // in that path, so Sentry would mint one issue per project without
+      // grouping. Synthetic path only — never a real project id.
+      const event = chunkParseErrorEvent(
+        "Unexpected EOF",
+        "app:///project/synthetic-project-id/settings/api-keys",
+      );
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("matches a full https document URL the same way", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected EOF",
+            "https://us.cloud.langfuse.com/project/synthetic-project-id/settings/api-keys",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches Chrome appendChild script-parse SyntaxError on the document (LANGFUSE-61V)", () => {
+      // Chrome attributes an unparsable inline script to the document URL
+      // (here a session page) with this appendChild wording, not
+      // `/_next/static/chunks/…`. Same grouping hole as LANGFUSE-617.
+      // Synthetic path only — never a real project or session id.
+      const event = chunkParseErrorEvent(
+        "Failed to execute 'appendChild' on 'Node': Unexpected token ')'",
+        "app:///project/synthetic-project-id/sessions/synthetic-session-id",
+      );
+      expect(isStaleChunkParseErrorEvent(event)).toBe(true);
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
   });
 
   describe("NEVER matches a user-authored or app-code SyntaxError", () => {
@@ -1780,6 +1817,18 @@ describe("isStaleChunkParseErrorEvent", () => {
           chunkParseErrorEvent(
             "Unexpected end of input",
             "app:///some-other-script.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a single-frame SyntaxError on a page URL with a NAMED function", () => {
+      expect(
+        isStaleChunkParseErrorEvent(
+          chunkParseErrorEvent(
+            "Unexpected EOF",
+            "app:///project/synthetic-project-id/settings/api-keys",
+            "parseStoredView",
           ),
         ),
       ).toBe(false);
