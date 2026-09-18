@@ -3,6 +3,7 @@ import type { LanguageModel } from "ai";
 import type { LLMConnectionConfig } from "../../../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter } from "../../types";
 import type { AiSdkModelConfig } from "../resolveAiSdkModelConfig";
+import { withGatewayCostCapture } from "../../gatewayCost";
 import { buildAnthropicModel } from "./anthropic";
 import { buildAzureModel } from "./azure";
 import { buildBedrockModel } from "./bedrock";
@@ -49,8 +50,12 @@ export async function buildAiSdkModel(params: {
     extraHeaders,
     config,
     credentialSource,
-    createFetch,
   } = params;
+
+  // Every adapter builds its fetch from this, so wrapping once here is what
+  // lets a gateway-reported cost reach the generation span whichever provider
+  // ends up serving the call.
+  const createFetch = withGatewayCostCapture(params.createFetch);
 
   switch (model.adapter) {
     case LLMAdapter.OpenAI:
