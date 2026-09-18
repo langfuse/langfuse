@@ -89,7 +89,16 @@ export function Badge({
           className="text-foreground-tertiary size-3 shrink-0"
         />
       ) : (
-        label && <span className="text-muted-foreground shrink-0">{label}</span>
+        label && (
+          <span
+            className={cn(
+              "shrink-0",
+              color !== "ghost" && "text-muted-foreground",
+            )}
+          >
+            {label}
+          </span>
+        )
       )}
       <span
         className={cn(

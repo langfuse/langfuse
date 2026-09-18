@@ -107,7 +107,7 @@ const OUTLINE_SESSION_HEADER_DETAIL_TYPES = new Set<SessionHeaderDetailType>([
 const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-muted-foreground">{children}</span>
+  <span>{children}</span>
 );
 
 const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
