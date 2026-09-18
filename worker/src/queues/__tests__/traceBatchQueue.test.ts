@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Job } from "bullmq";
+import { trace } from "@opentelemetry/api";
 import {
+  getCurrentSpan,
   getTraceBatchEventStream,
   logger,
   QueueJobs,
@@ -19,6 +21,7 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getTraceBatchEventStream: vi.fn(),
+  getCurrentSpan: vi.fn(),
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
@@ -27,9 +30,16 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
+const processingSpan = trace.wrapSpanContext({
+  traceId: "0123456789abcdef0123456789abcdef",
+  spanId: "0123456789abcdef",
+  traceFlags: 1,
+});
 beforeEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
+  vi.spyOn(processingSpan, "setAttributes");
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
@@ -41,6 +51,7 @@ afterEach(() => {
 
 describe("trace batch queue", () => {
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
+    env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "discarded-read";
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const job = {
       opts: {},
@@ -62,6 +73,14 @@ describe("trace batch queue", () => {
     );
     expect(recordGauge).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
+    expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ "langfuse.trace_batch.outcome": "discard" }),
+    );
+    expect(processingSpan.setAttributes).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.trace_batch.observation_count": expect.any(Number),
+      }),
+    );
   });
 
   it("discards an expired batch before querying, including on retry", async () => {
@@ -117,6 +136,16 @@ describe("trace batch queue", () => {
     const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const failure = new Error("query failed");
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.batch_trace_count": 2,
+          "langfuse.trace_batch.batch_project_count": 2,
+          "langfuse.trace_batch.event_time_span_ms": 11_000,
+          "langfuse.trace_batch.max_trace_span_ms": 3_000,
+        }),
+      );
+      // Completion must annotate the processing span captured before child work.
+      vi.mocked(getCurrentSpan).mockReturnValue(undefined);
       yield {
         project_id: "project",
         trace_id: "trace",
@@ -172,6 +201,30 @@ describe("trace batch queue", () => {
         maxBlockSize: 512,
         experimentId: "arm-b",
         queryId: expect.any(String),
+      });
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.experiment_id": "arm-b",
+          "langfuse.trace_batch.job_id": "batch-job",
+          "langfuse.trace_batch.attempt": 2,
+        }),
+      );
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.query_id": vi.mocked(getTraceBatchEventStream)
+            .mock.lastCall![1]!.queryId,
+        }),
+      );
+      expect(processingSpan.setAttributes).toHaveBeenLastCalledWith({
+        "langfuse.trace_batch.outcome": "failure",
+        "langfuse.trace_batch.duration_ms": expect.any(Number),
+        "langfuse.trace_batch.observation_count": 1,
+        "langfuse.trace_batch.found_trace_count": 1,
+        "langfuse.trace_batch.found_project_count": 1,
+        "langfuse.trace_batch.input_bytes": 5,
+        "langfuse.trace_batch.output_bytes": 6,
+        "langfuse.trace_batch.metadata_bytes": 9,
+        "langfuse.trace_batch.partial": true,
       });
       expect(log).toHaveBeenCalledWith(
         "Trace batch experiment read",
@@ -396,6 +449,17 @@ describe("trace batch queue", () => {
         expect.anything(),
       );
       expect(yieldedRows).toBe(8);
+      expect(processingSpan.setAttributes).toHaveBeenLastCalledWith({
+        "langfuse.trace_batch.outcome": "success",
+        "langfuse.trace_batch.duration_ms": expect.any(Number),
+        "langfuse.trace_batch.observation_count": 4,
+        "langfuse.trace_batch.found_trace_count": 3,
+        "langfuse.trace_batch.found_project_count": 2,
+        "langfuse.trace_batch.input_bytes": 20,
+        "langfuse.trace_batch.output_bytes": 24,
+        "langfuse.trace_batch.metadata_bytes": 36,
+        "langfuse.trace_batch.partial": false,
+      });
       expect(log).toHaveBeenCalledWith(
         "Trace batch experiment read completed",
         expect.objectContaining({
@@ -450,6 +514,8 @@ describe("trace batch queue", () => {
   it.each([true, false])(
     "normalizes persisted single-project jobs and counts returned projects (has rows: %s)",
     async (hasRows) => {
+      env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = hasRows ? undefined : "no-span";
+      if (!hasRows) vi.mocked(getCurrentSpan).mockReturnValue(undefined);
       const trace = {
         traceId: "trace",
         minStart: 1_000,
@@ -495,6 +561,7 @@ describe("trace batch queue", () => {
         metadataBytes: 0,
         ioMetadataBytes: hasRows ? 10 : 0,
       });
+      expect(processingSpan.setAttributes).not.toHaveBeenCalled();
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.input_bytes",
         hasRows ? 5 : 0,
