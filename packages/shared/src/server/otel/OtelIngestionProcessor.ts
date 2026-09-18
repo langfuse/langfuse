@@ -504,13 +504,13 @@ export class OtelIngestionProcessor {
                   source: "event" as const,
                 };
 
-                // AI SDK agent spans carry aggregate usage duplicating their
-                // child model-call spans — skip model/usage/cost for them.
-                const isAiSdkAgentSpan =
-                  this.isAiSdkAgentOperation(spanAttributes);
+                // Aggregate spans duplicate child usage; skip model/usage/cost
+                // to avoid counting it again or inferring additional tokens.
+                const isAggregateSpan =
+                  this.isAggregateUsageSpan(spanAttributes);
 
                 const usageDetails = UsageDetails.safeParse(
-                  isAiSdkAgentSpan
+                  isAggregateSpan
                     ? {}
                     : this.extractUsageDetails(
                         spanAttributes,
@@ -537,13 +537,19 @@ export class OtelIngestionProcessor {
                     ? normalizedTools.toolCallNames
                     : undefined;
 
-                const observationType =
+                let observationType =
                   observationTypeMapper.mapToObservationType(
                     spanAttributes,
                     resourceAttributes,
                     scopeSpan?.scope,
                     span.name,
                   );
+                if (
+                  isAggregateSpan &&
+                  observationType === ObservationType.GENERATION
+                ) {
+                  observationType = ObservationType.SPAN;
+                }
                 // Prompts can only be linked to GENERATION observations
                 const canLinkPrompt =
                   observationType === ObservationType.GENERATION;
@@ -603,7 +609,7 @@ export class OtelIngestionProcessor {
                     spanAttributes,
                     scopeSpan?.scope?.name ?? "",
                   ),
-                  modelName: isAiSdkAgentSpan
+                  modelName: isAggregateSpan
                     ? undefined
                     : this.extractModelName(spanAttributes),
                   completionStartTime: this.extractCompletionStartTime(
@@ -615,7 +621,7 @@ export class OtelIngestionProcessor {
                   providedUsageDetails: usageDetails.success
                     ? usageDetails.data
                     : undefined,
-                  providedCostDetails: isAiSdkAgentSpan
+                  providedCostDetails: isAggregateSpan
                     ? {}
                     : this.extractCostDetails(spanAttributes, spanContext),
 
@@ -1221,16 +1227,22 @@ export class OtelIngestionProcessor {
       metadata,
     );
 
-    // AI SDK agent spans carry aggregate usage duplicating their child
-    // model-call spans — skip model/usage/cost for them.
-    const isAiSdkAgentSpan = this.isAiSdkAgentOperation(attributes);
+    // Aggregate spans duplicate child usage; skip model/usage/cost
+    // to avoid counting it again or inferring additional tokens.
+    const isAggregateSpan = this.isAggregateUsageSpan(attributes);
 
-    const mappedObservationType = observationTypeMapper.mapToObservationType(
+    let mappedObservationType = observationTypeMapper.mapToObservationType(
       attributes,
       resourceAttributes,
       scopeSpan?.scope,
       span.name,
     );
+    if (
+      isAggregateSpan &&
+      mappedObservationType === ObservationType.GENERATION
+    ) {
+      mappedObservationType = ObservationType.SPAN;
+    }
     // Prompts can only be linked to GENERATION observations
     const canLinkPrompt = mappedObservationType === ObservationType.GENERATION;
 
@@ -1269,7 +1281,7 @@ export class OtelIngestionProcessor {
         attributes,
         instrumentationScopeName,
       ) as any,
-      model: isAiSdkAgentSpan ? undefined : this.extractModelName(attributes),
+      model: isAggregateSpan ? undefined : this.extractModelName(attributes),
       promptName: canLinkPrompt
         ? (attributes?.[LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_NAME] ??
           attributes["langfuse.prompt.name"] ??
@@ -1279,14 +1291,14 @@ export class OtelIngestionProcessor {
       promptVersion: canLinkPrompt
         ? this.extractPromptVersion(attributes)
         : null,
-      usageDetails: isAiSdkAgentSpan
+      usageDetails: isAggregateSpan
         ? {}
         : this.extractUsageDetails(
             attributes,
             instrumentationScopeName,
             observationContext,
           ),
-      costDetails: isAiSdkAgentSpan
+      costDetails: isAggregateSpan
         ? {}
         : this.extractCostDetails(attributes, observationContext),
       input: normalizedToolMetadata.input,
@@ -2782,23 +2794,22 @@ export class OtelIngestionProcessor {
   }
 
   /**
-   * The Vercel AI SDK OTel integration (@ai-sdk/otel) emits an
-   * `invoke_agent` span (and `agent_step` child spans) that carry aggregate
-   * `gen_ai.usage.*` token counts duplicating the per-call usage on the
-   * grandchild model-call span (`gen_ai.operation.name: "chat"`). Populating
-   * model/usage/cost on the agent spans as well as the model-call span would
-   * classify both as generations and double every trace's cost, so model,
-   * usage, and cost extraction is skipped for these spans. Agent-type spans
-   * from other instrumentations (e.g. OpenInference `AGENT` spans) are not
-   * affected because the gate is on the operation name, not the observation
-   * type.
+   * AI SDK agent spans and supported Mastra parents aggregate child usage.
+   * Skip their model, usage, and cost to avoid double counting or inferring tokens.
    */
-  private isAiSdkAgentOperation(attributes: Record<string, unknown>): boolean {
+  private isAggregateUsageSpan(attributes: Record<string, unknown>): boolean {
     const operationName = attributes["gen_ai.operation.name"];
 
+    const mastraProvider =
+      attributes["gen_ai.provider.name"] ??
+      this.parseJsonPayload(attributes["mastra.metadata.modelMetadata"])
+        ?.modelProvider;
+
     return (
-      typeof operationName === "string" &&
-      ["invoke_agent", "agent_step"].includes(operationName)
+      (typeof operationName === "string" &&
+        ["invoke_agent", "agent_step"].includes(operationName)) ||
+      (attributes["mastra.span.type"] === "model_generation" &&
+        (mastraProvider === "openai" || mastraProvider === "anthropic"))
     );
   }
 
@@ -2825,6 +2836,16 @@ export class OtelIngestionProcessor {
         return typeof attributes[key] === "string"
           ? (attributes[key] as string)
           : JSON.stringify(attributes[key]);
+      }
+    }
+
+    if (attributes["mastra.metadata.modelMetadata"]) {
+      const mastraModelMetadata = this.parseJsonPayload(
+        attributes["mastra.metadata.modelMetadata"],
+      );
+      const modelId = mastraModelMetadata?.modelId;
+      if (typeof modelId === "string" && modelId.trim().length > 0) {
+        return modelId;
       }
     }
   }
@@ -3064,6 +3085,92 @@ export class OtelIngestionProcessor {
         }
       }
 
+      return usageDetails;
+    }
+
+    if (
+      instrumentationScopeName === "@mastra/langfuse" &&
+      attributes["mastra.span.type"] === "model_step"
+    ) {
+      const genericUsage = this.extractGenericGenAiUsageDetails(attributes);
+      if (Object.keys(genericUsage).length > 0) return genericUsage;
+
+      const modelMetadata = this.parseJsonPayload(
+        attributes["mastra.metadata.modelMetadata"],
+      );
+      const provider = modelMetadata?.modelProvider;
+      const usage = this.parseJsonPayload(
+        attributes["mastra.metadata.body"],
+      )?.usage;
+      let rawUsage: Record<string, unknown>;
+
+      if (provider === "openai") {
+        const inputDetails =
+          usage?.input_tokens_details ?? usage?.prompt_tokens_details;
+        const outputDetails =
+          usage?.output_tokens_details ?? usage?.completion_tokens_details;
+        rawUsage = {
+          input: usage?.input_tokens ?? usage?.prompt_tokens,
+          output: usage?.output_tokens ?? usage?.completion_tokens,
+          total: usage?.total_tokens,
+          input_cached_tokens: inputDetails?.cached_tokens,
+          input_cache_creation: inputDetails?.cache_write_tokens,
+          output_reasoning_tokens: outputDetails?.reasoning_tokens,
+        };
+      } else if (provider === "anthropic") {
+        rawUsage = {
+          input: usage?.input_tokens,
+          output: usage?.output_tokens,
+          output_reasoning_tokens:
+            usage?.output_tokens_details?.thinking_tokens,
+          input_cached_tokens: usage?.cache_read_input_tokens,
+          input_cache_creation: usage?.cache_creation_input_tokens,
+          input_cache_creation_5m:
+            usage?.cache_creation?.ephemeral_5m_input_tokens,
+          input_cache_creation_1h:
+            usage?.cache_creation?.ephemeral_1h_input_tokens,
+        };
+      } else {
+        return genericUsage;
+      }
+
+      const usageDetails = Object.fromEntries(
+        Object.entries(rawUsage).filter(
+          (entry): entry is [string, number] =>
+            typeof entry[1] === "number" &&
+            Number.isFinite(entry[1]) &&
+            entry[1] >= 0,
+        ),
+      );
+
+      // OpenAI includes cache tokens in input; Anthropic reports them separately.
+      if (provider === "openai" && usageDetails.input !== undefined) {
+        usageDetails.input = Math.max(
+          usageDetails.input -
+            (usageDetails.input_cached_tokens ?? 0) -
+            (usageDetails.input_cache_creation ?? 0),
+          0,
+        );
+      }
+      // Duration-specific writes are included in Anthropic's cache-write total.
+      if (
+        provider === "anthropic" &&
+        usageDetails.input_cache_creation !== undefined
+      ) {
+        usageDetails.input_cache_creation = Math.max(
+          usageDetails.input_cache_creation -
+            (usageDetails.input_cache_creation_5m ?? 0) -
+            (usageDetails.input_cache_creation_1h ?? 0),
+          0,
+        );
+      }
+      // Both providers include reasoning tokens in output.
+      if (usageDetails.output !== undefined) {
+        usageDetails.output = Math.max(
+          usageDetails.output - (usageDetails.output_reasoning_tokens ?? 0),
+          0,
+        );
+      }
       return usageDetails;
     }
 
