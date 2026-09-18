@@ -73,8 +73,10 @@ export const GroupedScoreBadges = <
   const showLevels =
     new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
 
-  // "+N" expands in place on click; hover previews the hidden chips.
+  // "+N" expands IN PLACE on click (hover still previews the hidden chips);
+  // the trailing "−" collapses back to the capped view.
   const [expanded, setExpanded] = useState(false);
+  const overflows = Object.keys(groupedScores).length > maxVisible;
 
   const { visibleScores, hiddenScores } = partitionScores(
     groupedScores,
@@ -141,6 +143,22 @@ export const GroupedScoreBadges = <
             </div>
           </HoverCardContent>
         </HoverCard>
+      )}
+      {expanded && overflows && (
+        <BadgeShell asChild color="neutral" size={compact ? "sm" : "default"}>
+          <button
+            type="button"
+            className={overflowButtonClassName}
+            title="Show fewer scores"
+            aria-label="Show fewer scores"
+            onClick={(event) => {
+              event.stopPropagation();
+              setExpanded(false);
+            }}
+          >
+            −
+          </button>
+        </BadgeShell>
       )}
     </>
   );
