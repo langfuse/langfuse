@@ -13,6 +13,7 @@ use std::{
 
 use axum::http::HeaderMap;
 use opentelemetry::trace::{FutureExt, TraceContextExt};
+use serde_json::{Map, Value};
 use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -21,6 +22,7 @@ use crate::{
     resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
 };
 use context::GenerationContext;
+pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
 
 const MAX_UPLOADS: usize = 32;
@@ -37,12 +39,16 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(context: &ResolvedRequestContext, headers: &HeaderMap) -> Self {
+    pub fn from_resolved(
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         Self {
             project_id: context.attribution().project_id().to_owned(),
             access_token: context.ingestion().access_token().to_owned(),
             expires_at: context.ingestion().expires_at(),
-            generation: GenerationContext::from_headers(headers),
+            generation: GenerationContext::from_request(headers, client_metadata),
         }
     }
 }

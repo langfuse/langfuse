@@ -3,7 +3,7 @@ use super::{
     MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
     identity_encoding, sse::SseDecoder,
 };
-use crate::resolution::IngestionMode;
+use crate::{resolution::IngestionMode, telemetry};
 use axum::http::{HeaderMap, header};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -25,6 +25,7 @@ pub(super) struct OpenAiResponsesCapture {
     expected_items: Option<usize>,
     request_complete: bool,
     response_valid: bool,
+    client_metadata: Option<Map<String, Value>>,
 }
 
 impl OpenAiResponsesCapture {
@@ -39,6 +40,7 @@ impl OpenAiResponsesCapture {
             expected_items: None,
             request_complete: false,
             response_valid: true,
+            client_metadata: None,
         };
         if identity_encoding(headers)
             && body.len() <= MAX_CAPTURE_BYTES
@@ -140,6 +142,11 @@ impl OpenAiResponsesCapture {
         self.facts
     }
 
+    /// The coding agent's `client_metadata` object removed from the request, if any.
+    pub fn client_metadata(&self) -> Option<&Map<String, Value>> {
+        self.client_metadata.as_ref()
+    }
+
     fn capture_request(&mut self, mut request: Map<String, Value>) {
         self.facts.requested_model = request
             .get("model")
@@ -147,6 +154,8 @@ impl OpenAiResponsesCapture {
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
         request.remove("model");
+        // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
+        self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
         for key in [
             "temperature",
             "top_p",

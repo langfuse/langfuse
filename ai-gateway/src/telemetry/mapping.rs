@@ -94,7 +94,6 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
 fn reserved_metadata(key: &str) -> bool {
     [
         "langfuse.gateway",
-        "http_status",
         "scope",
         "resourceAttributes",
         "attributes",
@@ -116,40 +115,47 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
                 metadata.insert(key.clone(), value.clone());
             }
             metadata.insert(
-                format!("langfuse.gateway.api-key.metadata.{key}"),
+                format!("langfuse.gateway.api_key.metadata.{key}"),
                 value.clone(),
             );
         }
     }
     for (source, target) in [
-        ("project_id", "project_id"),
-        ("organization_id", "organization_id"),
-        ("ingestion_mode", "ingestion_mode"),
-        ("key_id", "api-key.id"),
-        ("provider_connection_id", "provider.connection_id"),
+        ("project_id", "project.id"),
+        ("organization_id", "organization.id"),
+        ("ingestion_mode", "ingestion.mode"),
+        ("key_id", "api_key.id"),
+        ("provider_connection_id", "connection.id"),
     ] {
         if let Some(value) = facts.metadata.get(source) {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
         }
     }
     metadata.insert(
-        "langfuse.gateway.api_format".into(),
+        "langfuse.gateway.request.api_format".into(),
         json!(facts.api_format),
     );
-    metadata.insert("http_status".into(), json!(facts.http_status));
+    // Before upstream headers, transport failures become gateway HTTP errors.
+    // Once headers arrive, later stream failures cannot change the HTTP status.
+    let response_status = facts.http_status.or(match facts.outcome {
+        RelayOutcome::Timeout => Some(504),
+        RelayOutcome::TransportError => Some(502),
+        RelayOutcome::Eof | RelayOutcome::Cancelled => None,
+    });
+    metadata.insert(
+        "langfuse.gateway.response.status_code".into(),
+        json!(response_status),
+    );
     for (key, value) in [
-        ("response_id", &facts.inference.provider_response_id),
-        ("request_id", &facts.inference.provider_request_id),
+        ("response.id", &facts.inference.provider_response_id),
+        ("upstream.request.id", &facts.inference.provider_request_id),
     ] {
         if let Some(value) = value {
-            metadata.insert(format!("langfuse.gateway.provider.{key}"), json!(value));
+            metadata.insert(format!("langfuse.gateway.{key}"), json!(value));
         }
     }
     for (key, value) in &facts.inference.request_metadata {
-        metadata.insert(
-            format!("langfuse.gateway.provider.request.{key}"),
-            value.clone(),
-        );
+        metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
     }
     metadata
 }
@@ -288,6 +294,27 @@ mod tests {
     }
 
     #[test]
+    fn response_status_distinguishes_failures_before_and_after_headers() {
+        for (http_status, outcome, expected) in [
+            (None, RelayOutcome::Timeout, json!(504)),
+            (None, RelayOutcome::TransportError, json!(502)),
+            (Some(200), RelayOutcome::Timeout, json!(200)),
+            (Some(200), RelayOutcome::TransportError, json!(200)),
+            (Some(429), RelayOutcome::Eof, json!(429)),
+            (None, RelayOutcome::Cancelled, Value::Null),
+        ] {
+            let mut facts = facts();
+            facts.http_status = http_status;
+            facts.outcome = outcome;
+            let metadata = metadata(&attributes(&span(facts, &context())));
+            assert_eq!(
+                metadata["langfuse.gateway.response.status_code"], expected,
+                "{outcome:?}"
+            );
+        }
+    }
+
+    #[test]
     fn caller_attributes_and_metadata_cannot_replace_trusted_gateway_fields() {
         let mut context = context();
         context.attributes = serde_json::from_value(json!({
@@ -296,11 +323,11 @@ mod tests {
         }))
         .unwrap();
         context.metadata = serde_json::from_value(json!({
-            "custom": "value", "team": "untrusted", "http_status": "fake",
-            "langfuse.gateway.project_id": "wrong-project",
-            "langfuse.gateway.api-key.id": "wrong-key",
-            "langfuse.gateway.api-key.metadata.team": "wrong-team",
-            "langfuse.gateway.provider.request.fake": "fake",
+            "custom": "value", "team": "untrusted", "langfuse.gateway.response.status_code": "fake",
+            "langfuse.gateway.project.id": "wrong-project",
+            "langfuse.gateway.api_key.id": "wrong-key",
+            "langfuse.gateway.api_key.metadata.team": "wrong-team",
+            "langfuse.gateway.request.fake": "fake",
             "scope": "fake", "resourceAttributes.secret": "fake", "attributes": "fake"
         }))
         .unwrap();
@@ -315,15 +342,15 @@ mod tests {
         let metadata = metadata(&attrs);
         assert_eq!(metadata["custom"], "value");
         assert_eq!(metadata["team"], "search");
-        assert_eq!(metadata["http_status"], 200);
-        assert_eq!(metadata["langfuse.gateway.project_id"], "project");
-        assert_eq!(metadata["langfuse.gateway.api-key.id"], "key");
-        assert_eq!(metadata["langfuse.gateway.api-key.metadata.team"], "search");
+        assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
+        assert_eq!(metadata["langfuse.gateway.project.id"], "project");
+        assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.api_key.metadata.team"], "search");
         for key in [
             "scope",
             "resourceAttributes.secret",
             "attributes",
-            "langfuse.gateway.provider.request.fake",
+            "langfuse.gateway.request.fake",
         ] {
             assert!(metadata.get(key).is_none(), "caller forged {key}");
         }
@@ -355,13 +382,13 @@ mod tests {
         assert_eq!(
             metadata,
             json!({
-                "http_status": 200,
+                "langfuse.gateway.response.status_code": 200,
                 "team": "search",
-                "langfuse.gateway.api-key.metadata.team": "search",
-                "langfuse.gateway.api-key.id": "key",
-                "langfuse.gateway.project_id": "project",
-                "langfuse.gateway.ingestion_mode": "full",
-                "langfuse.gateway.api_format": "openai.responses",
+                "langfuse.gateway.api_key.metadata.team": "search",
+                "langfuse.gateway.api_key.id": "key",
+                "langfuse.gateway.project.id": "project",
+                "langfuse.gateway.ingestion.mode": "full",
+                "langfuse.gateway.request.api_format": "openai.responses",
             })
         );
     }
@@ -373,11 +400,11 @@ mod tests {
         facts.metadata["provider_connection_id"] = json!("connection");
         facts.metadata["key_metadata"] = json!({
             "team": "search", "enabled": true, "cost_center": 42,
-            "http_status": 500,
-            "langfuse.gateway.api-key.id": "spoofed-key",
-            "langfuse.gateway.provider.request_id": "spoofed-request",
+            "langfuse.gateway.response.status_code": 500,
+            "langfuse.gateway.api_key.id": "spoofed-key",
+            "langfuse.gateway.upstream.request.id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
-            "langfuse.gateway.api-key.metadata.team": "spoofed-team",
+            "langfuse.gateway.api_key.metadata.team": "spoofed-team",
             "agent.name": "spoofed-agent",
             "scope": "spoofed-scope", "scope.name": "spoofed-scope-name",
             "resourceAttributes": "spoofed-resource",
@@ -393,25 +420,19 @@ mod tests {
         assert_eq!(metadata["team"], "search");
         assert_eq!(metadata["enabled"], true);
         assert_eq!(metadata["cost_center"], 42);
-        assert_eq!(metadata["langfuse.gateway.api-key.metadata.team"], "search");
+        assert_eq!(metadata["langfuse.gateway.api_key.metadata.team"], "search");
         assert_eq!(
-            metadata["langfuse.gateway.api-key.metadata.http_status"],
+            metadata["langfuse.gateway.api_key.metadata.langfuse.gateway.response.status_code"],
             500
         );
-        assert_eq!(metadata["http_status"], 200);
-        assert_eq!(metadata["langfuse.gateway.api-key.id"], "key");
-        assert_eq!(
-            metadata["langfuse.gateway.provider.connection_id"],
-            "connection"
-        );
-        assert_eq!(
-            metadata["langfuse.gateway.provider.response_id"],
-            "response"
-        );
-        assert_eq!(metadata["langfuse.gateway.organization_id"], "org");
+        assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
+        assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.connection.id"], "connection");
+        assert_eq!(metadata["langfuse.gateway.response.id"], "response");
+        assert_eq!(metadata["langfuse.gateway.organization.id"], "org");
         assert_eq!(metadata["agent.name"], "opencode");
         assert_eq!(
-            metadata["langfuse.gateway.api-key.metadata.agent.name"],
+            metadata["langfuse.gateway.api_key.metadata.agent.name"],
             "spoofed-agent"
         );
         for key in [
@@ -424,11 +445,11 @@ mod tests {
             assert!(metadata.get(key).is_none(), "{key}");
         }
         assert_ne!(
-            metadata["langfuse.gateway.provider.request_id"],
+            metadata["langfuse.gateway.upstream.request.id"],
             "spoofed-request"
         );
         assert_eq!(
-            metadata["langfuse.gateway.api-key.metadata.langfuse.gateway.api-key.metadata.team"],
+            metadata["langfuse.gateway.api_key.metadata.langfuse.gateway.api_key.metadata.team"],
             "spoofed-team"
         );
     }
@@ -497,21 +518,18 @@ mod tests {
         let attrs = attributes(&span(facts, &context()));
         let metadata = metadata(&attrs);
         assert_eq!(
-            metadata["langfuse.gateway.provider.request.metadata"],
+            metadata["langfuse.gateway.request.metadata"],
             json!({"customer": "customer-1"})
         );
         assert_eq!(
-            metadata["langfuse.gateway.provider.request.prompt_cache_key"],
+            metadata["langfuse.gateway.request.prompt_cache_key"],
             "cache-key"
         );
         assert_eq!(
-            metadata["langfuse.gateway.provider.request.safety_identifier"],
+            metadata["langfuse.gateway.request.safety_identifier"],
             "safety-id"
         );
-        assert_eq!(
-            metadata["langfuse.gateway.provider.request.user"],
-            "legacy-user"
-        );
+        assert_eq!(metadata["langfuse.gateway.request.user"], "legacy-user");
         for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
             assert!(metadata.get(key).is_none());
         }

@@ -8,7 +8,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         ghost: "hover:bg-accent hover:text-accent-foreground",
-        subtle: "hover:bg-border",
+        outline:
+          "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+        subtle: "hover:bg-border aria-expanded:bg-border",
       },
       size: {
         xs: "size-4 rounded-sm",
@@ -44,7 +46,7 @@ type IconButtonProps = NativeButtonProps & {
   label: string;
   ref?: Ref<HTMLButtonElement>;
   size?: "xs" | "sm" | "md";
-  variant?: "ghost" | "subtle";
+  variant?: "ghost" | "outline" | "subtle";
 };
 
 export function IconButton({

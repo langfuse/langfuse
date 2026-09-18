@@ -23,8 +23,18 @@ export default function NewWidget() {
   const { isV4, isResolved } = useReadPath();
   const capture = usePostHogClientCapture();
 
+  const dashboards = api.dashboard.allDashboards.useQuery(
+    {
+      projectId,
+      page: 1,
+      limit: 500,
+      orderBy: { column: "updatedAt", order: "DESC" },
+    },
+    { enabled: Boolean(projectId) },
+  );
+
   const createWidgetMutation = api.dashboardWidgets.create.useMutation({
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       // Which measure/aggregation/chart shapes do users actually save?
       capture("dashboard:widget_saved", {
         isNew: true,
@@ -40,9 +50,22 @@ export default function NewWidget() {
       });
 
       if (dashboardId) {
-        router.push(
+        await router.push(
           `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${data.widget.id}`,
         );
+        return;
+      }
+
+      const dashboardData =
+        dashboards.data ?? (await dashboards.refetch()).data;
+
+      if (
+        dashboardData &&
+        !dashboardData.dashboards.some(
+          (dashboard) => dashboard.owner === "PROJECT",
+        )
+      ) {
+        await router.push(`/project/${projectId}/widgets`);
       } else {
         setPendingWidgetId(data.widget.id); // store for dialog
         setDashboardDialogOpen(true);

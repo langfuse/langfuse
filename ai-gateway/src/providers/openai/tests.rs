@@ -398,12 +398,12 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
             };
             Response::builder()
                 .header("content-type", content_type)
+                .header("x-request-id", "req-1")
                 .body(body)
                 .unwrap()
         })
         .await;
         let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
-        let context = resolved_request_context_with_mode("provider-secret", "full").await;
         let headers = HeaderMap::from_iter([
             (
                 axum::http::HeaderName::from_static("traceparent"),
@@ -421,7 +421,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         let response = relay
             .forward(
                 relay.try_admit().unwrap(),
-                context,
+                resolved_request_context_with_mode("provider-secret", "full").await,
                 &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
             )
@@ -536,6 +536,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
                 .unwrap()["value"]["stringValue"],
             if cancelled { "WARNING" } else { "ERROR" }
         );
+        assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert!(metadata.get("relay_outcome").is_none());
         telemetry
             .shutdown(Instant::now() + Duration::from_secs(1))
@@ -685,7 +686,9 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     .unwrap();
     assert!(metadata.get("relay_outcome").is_none());
     assert!(metadata.get("native_usage").is_none());
-    assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.request.id"], "req-1");
+    assert!(metadata.get("langfuse.gateway.request.id").is_none());
     let usage: Value = serde_json::from_str(
         attrs
             .iter()
