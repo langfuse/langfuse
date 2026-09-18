@@ -295,7 +295,8 @@ export const microsoftAgentAdapter: ProviderAdapter = {
     // HINTS: Fast checks for explicit Microsoft Agent Framework indicators
     if (ctx.framework === "microsoft-agent") return true;
 
-    const scopeName = getNestedProperty(meta, "scope", "name");
+    const scopeName =
+      getNestedProperty(meta, "scope", "name") ?? meta?.["scope.name"];
     if (scopeName === "agent_framework") return true;
     if (
       typeof scopeName === "string" &&
