@@ -21,7 +21,7 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { plexMono } from "@/src/styles/fonts";
+import { plexMono, plexSans } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
@@ -172,7 +172,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <div className={`${plexMono.variable} contents`}>
+    <div className={`${plexSans.variable} ${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
