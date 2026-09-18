@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   traceException: vi.fn(),
   recordIncrement: vi.fn(),
   auditLog: vi.fn(),
+  findSpendAlert: vi.fn(),
+  createSpendAlert: vi.fn(),
   sendChbProjectEvent: vi.fn(),
   getChbApiClient: vi.fn(),
   getAttachedPlan: vi.fn(),
@@ -31,6 +33,10 @@ vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
     organization: { findFirst: mocks.findOrg, update: mocks.updateOrg },
     project: { findMany: mocks.findProjects },
+    cloudSpendAlert: {
+      findFirst: mocks.findSpendAlert,
+      create: mocks.createSpendAlert,
+    },
   },
 }));
 
@@ -266,6 +272,13 @@ describe("chbWebhookHandler", () => {
     // test rejects has to be pinned back here or it leaks into the next test.
     mocks.invalidateCachedOrgApiKeys.mockResolvedValue(undefined);
     mocks.auditLog.mockResolvedValue(undefined);
+    mocks.findSpendAlert.mockResolvedValue(null);
+    mocks.createSpendAlert.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        id: `alert-${data.threshold}`,
+        ...data,
+      }),
+    );
     mocks.getChbApiClient.mockReturnValue({
       getAttachedPlan: mocks.getAttachedPlan,
     });
@@ -472,7 +485,14 @@ describe("chbWebhookHandler", () => {
     // Post-commit like the cache invalidation: the state change is applied,
     // so the missing audit row is logged and paged rather than retried.
     expect(response.status).toBe(200);
-    expect(mocks.auditLog).toHaveBeenCalledTimes(1);
+    // The organization row's audit write is the one that must have been
+    // attempted; a created event also audits each seeded spend alert, so the
+    // action is the assertion rather than a call count.
+    expect(mocks.auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "BillingService.chb.BILLING_ATTACHEDPLAN_CREATED",
+      }),
+    );
     expect(mocks.redisDel).not.toHaveBeenCalled();
     expect(mocks.traceException).toHaveBeenCalledWith(
       expect.objectContaining({ message: "connection reset" }),
@@ -631,5 +651,64 @@ describe("chbWebhookHandler", () => {
       lastEventCreatedAt: "2026-08-01T00:00:00Z",
     });
     expect(orgColumnsOfUpdate()).toHaveProperty("cloudBillingCycleAnchor");
+  });
+
+  /**
+   * The Stripe path seeds default spend alerts on a first subscription. A
+   * CHB-billed org has to start out with the same thresholds, or its billing
+   * page offers spend alerts that nobody ever configured.
+   */
+  describe("default spend alerts", () => {
+    const seededThresholds = () =>
+      mocks.createSpendAlert.mock.calls.map(
+        (call) => (call[0] as { data: { threshold: number } }).data.threshold,
+      );
+
+    it("seeds the plan and universal thresholds on BILLING_ATTACHEDPLAN_CREATED", async () => {
+      const response = await chbWebhookHandler(post(attachedPlanCreated()));
+
+      expect(response.status).toBe(200);
+      // LANGFUSE_CORE -> cloud:core -> $200, plus the universal $4000.
+      expect(seededThresholds()).toEqual([200, 4000]);
+    });
+
+    it("seeds from the plan CHB reports, not the code the event announced", async () => {
+      mocks.getAttachedPlan.mockResolvedValue(
+        attachedPlan({ plan: { code: "LANGFUSE_ENTERPRISE" } }),
+      );
+
+      await chbWebhookHandler(post(attachedPlanCreated()));
+
+      expect(seededThresholds()).toEqual([2000, 4000]);
+    });
+
+    it("leaves an org's own alerts alone", async () => {
+      mocks.findSpendAlert.mockResolvedValue({ id: "existing" });
+
+      await chbWebhookHandler(post(attachedPlanCreated()));
+
+      expect(mocks.createSpendAlert).not.toHaveBeenCalled();
+    });
+
+    it("does not seed on an update or a cancellation", async () => {
+      await chbWebhookHandler(post(chbEvent("BILLING_ATTACHEDPLAN_UPDATED")));
+      await chbWebhookHandler(post(chbEvent("BILLING_ATTACHEDPLAN_CANCELLED")));
+
+      expect(mocks.createSpendAlert).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Seeding runs after the organization update has committed, so a failure
+     * there must not turn into a 500 that asks CHB to replay an event this
+     * handler has already applied.
+     */
+    it("still answers 200 when seeding fails", async () => {
+      mocks.createSpendAlert.mockRejectedValue(new Error("db down"));
+
+      const response = await chbWebhookHandler(post(attachedPlanCreated()));
+
+      expect(response.status).toBe(200);
+      expect(mocks.traceException).toHaveBeenCalled();
+    });
   });
 });
