@@ -57,7 +57,16 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/" }),
+  useRouter: () => ({ asPath: "/", query: {} }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { email: "user@example.com", featureFlags: {} },
+      environment: {},
+    },
+  }),
 }));
 
 vi.mock("./InAppAiAgentProvider", () => ({
@@ -935,5 +944,54 @@ describe("InAppAgentWindow message actions", () => {
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(`${analysis}\n\n${closer}`);
     });
+  });
+});
+
+describe("InAppAgentWindow trace link", () => {
+  it("shows a Langfuse trace link on the settled answer when a href is provided", () => {
+    render(
+      windowElement({
+        getAssistantTraceHref: (runId) =>
+          `/project/ai-features/traces/${runId}-trace`,
+        messages: [
+          {
+            id: "user-1",
+            role: "user",
+            content: { type: "text", text: "What failed?" },
+          },
+          {
+            id: "assistant-1",
+            runId: "run-1",
+            role: "assistant",
+            content: { type: "text", text: "The reranker." },
+          },
+        ],
+      }),
+    );
+
+    const traceLink = screen.getByRole("link", { name: "Langfuse trace" });
+    expect(traceLink).toHaveAttribute(
+      "href",
+      "/project/ai-features/traces/run-1-trace",
+    );
+  });
+
+  it("does not show a trace link when no href builder is provided", () => {
+    render(
+      windowElement({
+        messages: [
+          {
+            id: "assistant-1",
+            runId: "run-1",
+            role: "assistant",
+            content: { type: "text", text: "The reranker." },
+          },
+        ],
+      }),
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "Langfuse trace" }),
+    ).not.toBeInTheDocument();
   });
 });

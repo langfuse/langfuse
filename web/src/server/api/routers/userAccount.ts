@@ -10,8 +10,15 @@ import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
-import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  featurePreviewFlags,
+  internalFlags,
+} from "@/src/features/feature-flags/available-flags";
+import {
+  setUserFeaturePreview,
+  setUserInternalFlag,
+} from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import { isLangfuseInternalUserEmail } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 
 const updateDisplayNameSchema = z.object({
@@ -133,6 +140,35 @@ export const userAccountRouter = createTRPCRouter({
       await setUserFeaturePreview({
         prisma: ctx.prisma,
         userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
+
+      return {
+        success: true,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
+    }),
+
+  setInternalFlagEnabled: authenticatedProcedure
+    .input(
+      z.object({
+        flag: z.enum(internalFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      if (!isLangfuseInternalUserEmail(ctx.session.user.email)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Internal flags are only available to Langfuse employees.",
+        });
+      }
+
+      await setUserInternalFlag({
+        prisma: ctx.prisma,
+        userId: ctx.session.user.id,
         flag: input.flag,
         enabled: input.enabled,
       });

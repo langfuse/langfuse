@@ -9,6 +9,7 @@ import {
   filterFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
+  type InternalFlag,
 } from "@/src/features/feature-flags/available-flags";
 import {
   getFeaturePreviewOptOutFlag,
@@ -344,6 +345,51 @@ export async function setOrganizationFeatureFlagDefault({
       before,
       after,
     };
+  });
+}
+
+export async function setUserInternalFlag({
+  prisma,
+  userId,
+  flag,
+  enabled,
+}: {
+  prisma: PrismaClient;
+  userId: string;
+  flag: InternalFlag;
+  enabled: boolean;
+}): Promise<void> {
+  await withSerializableRetry(prisma, async (tx) => {
+    const rows = await tx.$queryRaw<
+      Array<{
+        featureFlags: string[];
+      }>
+    >`
+      SELECT
+        feature_flags AS "featureFlags"
+      FROM users
+      WHERE id = ${userId}
+      FOR UPDATE
+    `;
+    const user = rows[0];
+    if (!user) throw new LangfuseNotFoundError("User not found");
+
+    const withoutFlag = user.featureFlags.filter(
+      (currentFlag) => currentFlag !== flag,
+    );
+    const nextFeatureFlags = enabled ? [...withoutFlag, flag] : withoutFlag;
+
+    if (
+      user.featureFlags.length !== nextFeatureFlags.length ||
+      user.featureFlags.some(
+        (currentFlag, index) => currentFlag !== nextFeatureFlags[index],
+      )
+    ) {
+      await tx.user.update({
+        where: { id: userId },
+        data: { featureFlags: { set: nextFeatureFlags } },
+      });
+    }
   });
 }
 

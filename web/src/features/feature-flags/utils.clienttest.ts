@@ -77,6 +77,33 @@ describe("parseFlags", () => {
     expect(flags.templateFlag).toBe(true);
   });
 
+  it("enables internal flags only for Langfuse team members who opted in", () => {
+    expect(
+      parseFlags(["inAppAgentTraceLink"], {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      }).inAppAgentTraceLink,
+    ).toBe(true);
+    expect(
+      parseFlags(["inAppAgentTraceLink"], {
+        email: "user@example.com",
+        v4BetaEnabled: true,
+      }).inAppAgentTraceLink,
+    ).toBe(false);
+    expect(
+      parseFlags([], {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      }).inAppAgentTraceLink,
+    ).toBe(false);
+    expect(
+      parseFlagsWithOrganizationDefaults([], ["inAppAgentTraceLink"], {
+        email: "team.member@langfuse.com",
+        v4BetaEnabled: true,
+      }).inAppAgentTraceLink,
+    ).toBe(false);
+  });
+
   it("honors an explicit opt-out for every user", () => {
     const flags = parseFlags(
       ["modernSession", getFeaturePreviewOptOutFlag("modernSession")],

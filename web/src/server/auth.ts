@@ -12,6 +12,7 @@ import {
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import {
+  isLangfuseInternalUserEmail,
   parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/utils";
@@ -862,6 +863,9 @@ export async function getAuthOptions(signupAttribution?: {
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
+              aiFeaturesProjectId: isLangfuseInternalUserEmail(dbUser?.email)
+                ? env.LANGFUSE_AI_FEATURES_PROJECT_ID
+                : undefined,
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),

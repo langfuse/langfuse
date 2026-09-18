@@ -30,6 +30,23 @@ export const featurePreviewLabels = {
   normalizedIoPreview: "Improved Message Rendering",
 } satisfies Record<FeaturePreviewFlag, string>;
 
+/** Flags only Langfuse/ClickHouse employees can enable. Never shown to customers. */
+export const internalFlags = ["inAppAgentTraceLink"] as const;
+
+export type InternalFlag = (typeof internalFlags)[number];
+
+export const isInternalFlag = (flag: string): flag is InternalFlag =>
+  internalFlags.some((internalFlag) => internalFlag === flag);
+
+export const internalFlagLabels = {
+  inAppAgentTraceLink: "In-app agent trace links",
+} satisfies Record<InternalFlag, string>;
+
+export const internalFlagDescriptions = {
+  inAppAgentTraceLink:
+    "After each assistant turn, show a link to the Langfuse product trace for that run.",
+} satisfies Record<InternalFlag, string>;
+
 export type FeaturePreviewAvailabilityContext = {
   v4BetaEnabled: boolean;
 };
@@ -52,6 +69,7 @@ export const isFeaturePreviewAvailable = (
 export const availableFlags = [
   ...featurePreviewFlags,
   ...restrictedFlags,
+  ...internalFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
