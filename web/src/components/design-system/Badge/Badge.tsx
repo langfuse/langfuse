@@ -96,7 +96,7 @@ export function Badge({
           aria-hidden
           className={cn(
             "size-3 shrink-0",
-            trailingIconTone === "link" && "text-link",
+            trailingIconTone === "link" && "text-primary-accent",
           )}
         />
       )}

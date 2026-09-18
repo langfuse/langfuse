@@ -94,6 +94,12 @@ export function ModernSession({
           <ModernSessionHeader
             projectId={projectId}
             countTraces={session.countTraces}
+            durationMs={
+              session.minTimestamp && session.maxTimestamp
+                ? new Date(session.maxTimestamp).getTime() -
+                  new Date(session.minTimestamp).getTime()
+                : null
+            }
             traces={headerTraces}
             tokensIn={session.inputUsage}
             tokensOut={session.outputUsage}

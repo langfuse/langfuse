@@ -744,8 +744,6 @@ export const ObservationDetailViewHeader = memo(
                   ? subtreeMetrics.hasGenerationLike &&
                     subtreeMetrics.usageDetails && (
                       <UsageBadge
-                        inputUsage={subtreeMetrics.inputUsage}
-                        outputUsage={subtreeMetrics.outputUsage}
                         totalUsage={subtreeMetrics.totalUsage}
                         usageDetails={subtreeMetrics.usageDetails}
                       />
@@ -753,8 +751,6 @@ export const ObservationDetailViewHeader = memo(
                   : isGenerationLike(observation.type) &&
                     observation.usageDetails && (
                       <UsageBadge
-                        inputUsage={inputUsage}
-                        outputUsage={outputUsage}
                         totalUsage={totalUsage}
                         usageDetails={observation.usageDetails}
                       />

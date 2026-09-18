@@ -1,4 +1,4 @@
-import { percentile, type ScoreDomain } from "@langfuse/shared";
+import { type ScoreDomain } from "@langfuse/shared";
 import {
   ArrowUpRight,
   Clock,
@@ -53,6 +53,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 type ModernSessionHeaderProps = {
   projectId: string;
   countTraces: number;
+  durationMs?: number | null;
   traces:
     | { state: "loading" }
     | {
@@ -354,6 +355,7 @@ const MetadataJsonPathEditorContent = ({
 export function ModernSessionHeader({
   projectId,
   countTraces,
+  durationMs,
   traces,
   tokensIn,
   tokensOut,
@@ -401,21 +403,10 @@ export function ModernSessionHeader({
       isV4: true,
     });
   };
-  const latencies =
-    traces.state === "loaded"
-      ? traces.data.flatMap((trace) =>
-          trace.latencyMs !== null && trace.latencyMs > 0
-            ? [trace.latencyMs]
-            : [],
-        )
-      : [];
   const spanCount =
     traces.state === "loaded"
       ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
       : null;
-  const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
   const pills: SessionHeaderDetail[] = [
     {
       key: "traces",
@@ -440,41 +431,26 @@ export function ModernSessionHeader({
     },
   ];
 
-  if (p50LatencyMs !== null) {
+  if (durationMs) {
     pills.push({
       key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
+      searchText: `duration ${durationMs}`,
+      visibilityLabel: "duration",
       type: "latency",
       content: (
-        <BadgeShell
+        <Badge
           color="ghost"
           data-session-header-pill="true"
-          title="Latency"
-        >
-          <Clock
-            aria-hidden
-            className="text-muted-foreground size-3 shrink-0"
-          />
-          <span>
-            <ChipKey>p50</ChipKey> {formatIntervalSeconds(p50LatencyMs / 1000)}
-          </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                <ChipKey>p95</ChipKey>{" "}
-                {formatIntervalSeconds(p95LatencyMs / 1000)}
-              </span>
-            </>
-          ) : null}
-        </BadgeShell>
+          leadingIcon={Clock}
+          srLabel="duration"
+          text={formatIntervalSeconds(durationMs / 1000)}
+          title="Duration"
+        />
       ),
     });
   }
 
   if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
@@ -486,8 +462,8 @@ export function ModernSessionHeader({
           data-session-header-pill="true"
           leadingIcon={Coins}
           srLabel="tokens"
-          text={`${compactTokenFormatter(tokensIn)} → ${compactTokenFormatter(tokensOut)} (Σ ${compactTokenFormatter(totalTokens)})`}
-          title={`tokens ${exactTokenCounts}`}
+          text={compactTokenFormatter(totalTokens)}
+          title={`tokens ${numberFormatter(totalTokens, 0)}`}
         />
       ),
     });

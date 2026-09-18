@@ -9,7 +9,7 @@ import {
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 import { Coins, InfoIcon } from "lucide-react";
 
 export function CostBadge({
@@ -36,17 +36,13 @@ export function CostBadge({
 }
 
 export function UsageBadge({
-  inputUsage,
-  outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  inputUsage: number;
-  outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = formatTokenCounts(inputUsage, outputUsage, totalUsage);
+  const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
