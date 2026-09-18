@@ -25,7 +25,7 @@ export const CrashModal = ({
         <h1 className="text-2xl font-bold tracking-tight">
           Something went wrong
         </h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-5">
+        <p className="text-muted-foreground mt-2 text-sm">
           {statusCode ? (
             <span className="text-foreground mr-2 font-bold whitespace-nowrap">
               Error {statusCode}

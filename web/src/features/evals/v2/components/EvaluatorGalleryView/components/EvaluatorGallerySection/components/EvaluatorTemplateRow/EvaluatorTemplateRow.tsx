@@ -20,13 +20,13 @@ export function EvaluatorTemplateRow({
     >
       <span className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @3xl:grid-cols-[minmax(10rem,18rem)_minmax(0,1fr)_max-content_6rem]">
         <span
-          className="col-start-1 row-start-1 min-w-0 truncate text-sm leading-5 font-bold"
+          className="col-start-1 row-start-1 min-w-0 truncate text-sm font-bold"
           title={template.name}
         >
           {template.name}
         </span>
         <span
-          className="text-muted-foreground col-span-2 col-start-1 row-start-2 min-w-0 truncate text-sm leading-5 @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1"
+          className="text-muted-foreground col-span-2 col-start-1 row-start-2 min-w-0 truncate text-sm @3xl:col-span-1 @3xl:col-start-2 @3xl:row-start-1"
           title={description}
         >
           {description}

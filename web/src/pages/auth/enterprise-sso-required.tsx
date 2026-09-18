@@ -155,7 +155,7 @@ export default function EnterpriseSsoRequiredPage() {
           <h1 className="text-primary mt-6 text-center text-2xl font-bold">
             Use your Enterprise SSO
           </h1>
-          <p className="text-muted-foreground mt-2 text-center text-sm leading-6">
+          <p className="text-muted-foreground mt-2 text-center text-sm">
             {description} Enter your company email so we can send you to the
             correct identity provider.
           </p>

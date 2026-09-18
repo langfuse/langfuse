@@ -175,7 +175,7 @@ export function FeaturePreviewModal({
                     <h2 className="text-foreground text-xl font-bold">
                       {featurePreviewLabels[selected.flag]}
                     </h2>
-                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
+                    <p className="text-muted-foreground mt-2 max-w-2xl text-sm">
                       {selected.description}
                     </p>
                     <Button asChild className="mt-4">
@@ -207,7 +207,7 @@ export function FeaturePreviewModal({
                       <h3 className="text-foreground text-sm font-bold">
                         {featurePreviewLabels.sessionTimeline}
                       </h3>
-                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-5">
+                      <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
                         Use the redesigned timeline to navigate session events
                         in chronological order.
                       </p>
@@ -231,7 +231,7 @@ export function FeaturePreviewModal({
 
                 <PreviewMockupPanel illustration={selected.illustration} />
 
-                <p className="text-muted-foreground mt-5 text-sm leading-5">
+                <p className="text-muted-foreground mt-5 text-sm">
                   {selected.details}
                 </p>
               </>
