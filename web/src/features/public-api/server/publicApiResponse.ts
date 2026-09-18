@@ -9,9 +9,7 @@ import { attachDeprecation } from "./deprecations";
 
 // Next's res.json uses JSON.stringify; V8 throws this when the JSON string
 // exceeds the engine limit. Keep this check scoped to the response write.
-export const isJsonStringTooLargeError = (
-  error: unknown,
-): error is RangeError =>
+const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
 
 export type PublicApiResponseWriter<TResponse> = (params: {

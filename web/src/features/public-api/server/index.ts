@@ -13,13 +13,6 @@ export { evaluatorVersionsApiHandler } from "./evaluation/evaluatorVersionsApiHa
 export { runHealthCheck } from "./health-service";
 export { RateLimitService } from "./RateLimitService";
 export {
-  getPublicApiSuccessStatusCode,
-  isJsonStringTooLargeError,
-  sendPublicApiJsonResponse,
-  sendPublicApiJsonSuccessResponse,
-} from "./publicApiResponse";
-export type { PublicApiResponseWriter } from "./publicApiResponse";
-export {
   createScoreConfig,
   getScoreConfig,
   listScoreConfigs,
