@@ -433,6 +433,8 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   timestamp?: Date;
   selectIOAndMetadata?: boolean;
   selectToolData?: boolean;
+  /** Restrict to these observation types. All types when omitted. */
+  types?: ObservationType[];
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
   const {
     projectId,
@@ -440,6 +442,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     timestamp,
     selectIOAndMetadata = false,
     selectToolData = false,
+    types,
   } = params;
 
   const filter: FilterState = [
@@ -458,6 +461,15 @@ export const getObservationsForTraceFromEventsTable = async (params: {
       // Equivalent to TRACE_TO_OBSERVATIONS_INTERVAL (INTERVAL 1 HOUR)
       value: new Date(timestamp.getTime() - 60 * 60 * 1000),
       type: "datetime" as const,
+    });
+  }
+
+  if (types) {
+    filter.push({
+      column: "type",
+      operator: "any of" as const,
+      value: types,
+      type: "stringOptions" as const,
     });
   }
 

@@ -70,7 +70,7 @@ plus a one-line registration in `fixtures/index.ts`. Use
    job and must be tested.
 
 3. **Keep the export order.** Do not sort by time or by tree position. The
-   builder must not rely on input order.
+   test orders observations with `orderObservations` before assembling.
 
 4. **Map fields.** Copy these and drop everything else:
 

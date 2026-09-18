@@ -13,9 +13,11 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-getTranscript(
-  observations: Observation[]
-): Transcript | null;
+loadTranscript(input: {
+  projectId: string;
+  filter: FilterCondition[]; // for now exactly one { type: "string", column: "traceId", operator: "=", value }
+  timestamp: Date; // trace timestamp
+}): Promise<{ transcript: Transcript | null; cutoff: boolean }>;
 
 type Transcript = { threads: Thread[] };
 
@@ -35,9 +37,24 @@ type ThreadMessage = NormalizedMessage & {
 };
 ```
 
-The input is the domain `Observation` (see `domain/observations.ts`), which
-the repositories produce from ClickHouse rows. Returns `null` when no eligible
-generations produce messages.
+`loadTranscript` reads the trace through `getObservationsForTraceFromEventsTable`,
+the same repository function and time bounds the trace tree uses: once for the
+structure of every observation without I/O, once for the `GENERATION` and `TOOL`
+observations with I/O. It merges the two, orders them with `orderObservations`,
+and hands the domain `Observation`s (see `domain/observations.ts`) to the
+module-internal `assembleTranscript`, which consumes them in the given order.
+`transcript` is `null` when no eligible generations produce messages; `cutoff`
+is true when the trace exceeds the per-trace observation cap.
+
+## Ordering
+
+The transcript walks observations the way the trace tree does: depth first,
+with roots and siblings by start time. That differs from plain start-time order
+when a span that started earlier contains a generation that started later than
+a sibling span's generation. `orderObservations` produces this order from the
+full structure, following the web tree builder's rules: one row per id with the
+earliest start winning, and a row whose parent is missing becomes a root. The
+assembler never sorts; callers, including the fixtures test, order first.
 
 A **transcript** contains the conversation threads inferred from the supplied
 observations. A **thread** is a sequence of messages connected by shared input
@@ -97,9 +114,9 @@ Two consequences of "last assistant or tool" rather than "last user":
   Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
   Preserve all normalized output parts; tool inputs are ignored. Provider-specific
   payload interpretation belongs to normalized IO, not the transcript builder.
-- The caller supplies observations from one trace or session. The builder
-  orders generations and tools by start time across the supplied traces.
-- Each observation is normalized once in this chronological pass. Generations
+- The caller supplies observations from one trace or session, already in
+  transcript order (see Ordering).
+- Each observation is normalized once in this ordered pass. Generations
   establish threads and register output tool-call IDs; tools enrich registered
   calls. Input messages are processed before output messages for generations.
 - Generations producing no messages are skipped and do not create empty threads.
@@ -193,7 +210,12 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               getTranscript
+├── index.ts               public surface: loadTranscript and the types
+├── load-transcript.ts     input schema and events-table reads
+├── ordering.ts            orderObservations, the trace tree walk
+├── ordering.test.ts       ordering rules
+├── load-transcript.test.ts  input schema checks
+├── transcript.ts          assembleTranscript, internal
 ├── threads.ts             thread selection and message deduplication
 ├── tool-calls.ts          tool matching and response association
 ├── types.ts               Transcript, Thread, Turn, ThreadMessage
