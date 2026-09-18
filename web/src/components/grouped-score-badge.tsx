@@ -50,7 +50,7 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
 
   return (
     <div className="p-2 text-xs">
-      <div className="text-muted-foreground mb-1">Scores</div>
+      <div className="text-foreground mb-1 font-bold">Scores</div>
       <ul className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1">
         {sortedScores.map((score) => (
           <li key={score.id} className="contents">
