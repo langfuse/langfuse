@@ -126,7 +126,12 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
   );
 
 const normalizeAnthropicThinking: PartHandler = (value) =>
-  claimed(reasoningPart(value.thinking, optionalString(value.signature)));
+  claimed(
+    reasoningPart(
+      value.thinking ?? value.content,
+      optionalString(value.signature),
+    ),
+  );
 
 const normalizeAnthropicRedactedThinking: PartHandler = (value) => {
   const data = optionalString(value.data);
