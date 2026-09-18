@@ -133,6 +133,20 @@ describe("datasets trpc", () => {
     });
   });
 
+  describe("datasets.updateDataset", () => {
+    it("returns NOT_FOUND when the dataset does not exist", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.datasets.updateDataset({
+          projectId: project.id,
+          datasetId: v4(),
+          name: "renamed",
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+  });
+
   describe("datasets.deleteMany", () => {
     it("deletes explicitly selected datasets and folder subtrees", async () => {
       const { project, caller } = await prepare();
