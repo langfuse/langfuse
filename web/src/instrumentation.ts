@@ -29,6 +29,8 @@ export async function register() {
         await drainAndClose();
       },
     });
+    const { startEventLoopMetrics } = await import("./utils/eventLoopMetrics");
+    startEventLoopMetrics();
   }
 
   if (isNodeRuntime && isInitLoadingEnabled) {
