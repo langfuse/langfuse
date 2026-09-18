@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import Page from "@/src/components/layouts/page";
 import { ActionButton } from "@/src/components/ActionButton";

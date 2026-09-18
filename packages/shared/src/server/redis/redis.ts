@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
 import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";

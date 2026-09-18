@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";

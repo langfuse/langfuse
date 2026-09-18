@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { Session } from "next-auth";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";

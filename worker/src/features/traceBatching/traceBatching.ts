@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createHash, randomUUID } from "node:crypto";
 import { xxh32 } from "@node-rs/xxhash";
 import {

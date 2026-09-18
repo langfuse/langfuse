@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";

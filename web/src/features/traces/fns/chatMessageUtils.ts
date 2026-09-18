@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { z } from "zod";
 import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import type { combineInputOutputMessages } from "@/src/utils/chatml";
