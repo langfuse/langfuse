@@ -82,7 +82,9 @@ describe("stripeBillingService", () => {
       "maps %s onto PRECONDITION_FAILED and does not call Stripe",
       async (_label, call) => {
         findUnique.mockResolvedValue(
-          stubOrg({ stripe: { customerId: "cus_1" } }),
+          stubOrg({
+            stripe: { customerId: "cus_1", isLegacySubscription: false },
+          }),
         );
 
         expect(await trpcCode(call(service()))).toBe("PRECONDITION_FAILED");
