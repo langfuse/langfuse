@@ -235,7 +235,7 @@ function isMessageLike(value: unknown): boolean {
 
 /**
  * Helper to add a tool call from content-array parts.
- * Handles Anthropic `tool_use` and AI SDK `tool-call` parts.
+ * Handles Anthropic `tool_use`, AI SDK `tool-call`, and Bedrock `toolUse` parts.
  */
 function addToolArgumentFromContentPart(
   args: ClickhouseToolArgument[],
@@ -252,6 +252,23 @@ function addToolArgumentFromContentPart(
 
   if (part.type === "tool-call") {
     addToolArgument(args, part);
+  }
+
+  const toolUse = part.toolUse;
+  if (
+    isPlainRecord(toolUse) &&
+    typeof toolUse.toolUseId === "string" &&
+    toolUse.toolUseId.length > 0 &&
+    typeof toolUse.name === "string" &&
+    toolUse.name.length > 0 &&
+    toolUse.input !== undefined
+  ) {
+    addToolArgument(args, {
+      id: toolUse.toolUseId,
+      name: toolUse.name,
+      arguments: JSON.stringify(toolUse.input),
+      type: "function",
+    });
   }
 }
 
@@ -272,6 +289,27 @@ function extractToolsFromRawInput(
   if (Array.isArray(obj.tools)) {
     for (const tool of obj.tools) {
       addToolDefinition(definitions, tool);
+    }
+  }
+
+  // Bedrock Converse keeps tool definitions under toolConfig and wraps the
+  // JSON schema in inputSchema.json. Cache points have no toolSpec.
+  if (isPlainRecord(obj.toolConfig) && Array.isArray(obj.toolConfig.tools)) {
+    for (const tool of obj.toolConfig.tools) {
+      if (!isPlainRecord(tool) || !isPlainRecord(tool.toolSpec)) continue;
+      const { name, description, inputSchema } = tool.toolSpec;
+      if (
+        typeof name !== "string" ||
+        name.length === 0 ||
+        !isPlainRecord(inputSchema) ||
+        inputSchema.json === undefined
+      )
+        continue;
+      addToolDefinition(definitions, {
+        name,
+        description: typeof description === "string" ? description : undefined,
+        parameters: inputSchema.json,
+      });
     }
   }
 
@@ -351,17 +389,16 @@ function extractToolCallsFromRawOutput(
     }
   }
 
-  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
+  // Bedrock Converse response envelope: {output: {message: {content: [...]}}}.
+  if (isPlainRecord(obj.output) && isPlainRecord(obj.output.message)) {
+    extractToolCallsFromMessage(obj.output.message, args);
+  }
+
+  // Tool calls in provider content arrays.
   if (Array.isArray(obj.content)) {
     for (const part of obj.content) {
-      if (
-        part &&
-        typeof part === "object" &&
-        ["tool_use", "tool-call"].includes(
-          (part as Record<string, unknown>).type as string,
-        )
-      ) {
-        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
+      if (isPlainRecord(part)) {
+        addToolArgumentFromContentPart(args, part);
       }
     }
   }
@@ -385,17 +422,11 @@ function extractToolCallsFromMessage(
     parseArrayIfString(msg.tool_calls) ?? parseArrayIfString(msg.toolCalls);
   addToolArguments(args, messageToolCalls);
 
-  // Tool calls in content arrays: Anthropic `tool_use`, AI SDK `tool-call`
+  // Tool calls in provider content arrays.
   if (Array.isArray(msg.content)) {
     for (const part of msg.content) {
-      if (
-        part &&
-        typeof part === "object" &&
-        ["tool_use", "tool-call"].includes(
-          (part as Record<string, unknown>).type as string,
-        )
-      ) {
-        addToolArgumentFromContentPart(args, part as Record<string, unknown>);
+      if (isPlainRecord(part)) {
+        addToolArgumentFromContentPart(args, part);
       }
     }
   }
