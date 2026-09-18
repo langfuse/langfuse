@@ -253,7 +253,7 @@ pricing without duplicating it in metadata. Missing usage is not reported as zer
 
 Gateway metadata uses `langfuse.gateway.*`: `project_id`, `organization_id`,
 `ingestion_mode`, `api_format`, `api-key.id`, and `provider.connection_id`,
-`provider.request_id`, `provider.response_id`. API-key attribution entries appear
+`provider.request.id`, `provider.response.id`. API-key attribution entries appear
 both as top-level metadata and under `langfuse.gateway.api-key.metadata.*`.
 Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution
 copy preserves the original value. `http_status` stays top level. Relay outcome,

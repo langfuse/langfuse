@@ -668,7 +668,7 @@ fn assert_completed_upload(payload: &serde_json::Value, streaming: bool) {
     .unwrap();
     assert!(metadata.get("relay_outcome").is_none());
     assert!(metadata.get("native_usage").is_none());
-    assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.provider.response.id"], "resp-1");
     let usage: Value = serde_json::from_str(
         attrs
             .iter()

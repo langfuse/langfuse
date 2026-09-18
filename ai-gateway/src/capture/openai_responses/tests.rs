@@ -707,7 +707,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         assert!(metadata.get("output_complete").is_none());
         assert!(metadata.get("provider_status").is_none());
         assert!(metadata.get("native_usage").is_none());
-        assert_eq!(metadata["langfuse.gateway.provider.response_id"], "resp-1");
+        assert_eq!(metadata["langfuse.gateway.provider.response.id"], "resp-1");
         assert!(
             uploaded_attribute(&upload, "langfuse.observation.usage_details")["input_tokens"]
                 .is_number()
