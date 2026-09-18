@@ -3,15 +3,19 @@ import type { Observation } from "../../../domain";
 import { transcriptFixtures } from "./index";
 import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
-import { getTranscript, type Transcript } from "../index";
+import { orderObservations } from "../ordering";
+import { assembleTranscript } from "../transcript";
+import type { Transcript } from "../types";
 import { formatTranscript } from "./format-transcript";
 import { orderSupportRoutingFixture } from "./session/order-support-routing";
 
 /**
- * Build every trace on its own, never a whole session, and concatenate the
- * threads in the order the traces first appear.
+ * Build every trace on its own, never a whole session, in trace tree order,
+ * and concatenate the threads in the order the traces first appear.
  */
-function getTranscriptPerTrace(observations: Observation[]): Transcript | null {
+function assembleTranscriptPerTrace(
+  observations: Observation[],
+): Transcript | null {
   const traces = new Map<string | null, Observation[]>();
   for (const observation of observations) {
     const trace = traces.get(observation.traceId) ?? [];
@@ -19,7 +23,7 @@ function getTranscriptPerTrace(observations: Observation[]): Transcript | null {
     traces.set(observation.traceId, trace);
   }
   const threads = [...traces.values()].flatMap(
-    (trace) => getTranscript(trace)?.threads ?? [],
+    (trace) => assembleTranscript(orderObservations(trace))?.threads ?? [],
   );
   return threads.length ? { threads } : null;
 }
@@ -47,8 +51,8 @@ describe("transcript fixtures", () => {
 
   it("skips generations without messages", () => {
     const empty = generation("1", [], []);
-    expect(getTranscript([empty])).toBeNull();
-    const transcript = getTranscript([empty, generation("2", ["A"], [])]);
+    expect(assembleTranscript([empty])).toBeNull();
+    const transcript = assembleTranscript([empty, generation("2", ["A"], [])]);
     expect(transcript?.threads).toHaveLength(1);
     expect(transcript?.threads[0].currentTurn.observations).toEqual([
       { id: "2", traceId },
@@ -56,7 +60,7 @@ describe("transcript fixtures", () => {
   });
 
   it("continues the newest matching thread without duplicating history", () => {
-    const transcript = getTranscript([
+    const transcript = assembleTranscript([
       generation("1", ["A"], []),
       generation("2", ["B"], []),
       generation("3", ["B", "A"], ["C"]),
@@ -78,7 +82,7 @@ describe("transcript fixtures", () => {
   });
 
   it("does not list a replay-only generation as a contributor", () => {
-    const transcript = getTranscript([
+    const transcript = assembleTranscript([
       generation("1", ["A"], ["B"]),
       generation("2", ["A", "B"], []),
     ]);
@@ -123,7 +127,7 @@ describe("transcript fixtures", () => {
         const observations = fixture.observations.map((observation) =>
           convertObservation(createObservation(observation)),
         );
-        const transcript = getTranscriptPerTrace(observations);
+        const transcript = assembleTranscriptPerTrace(observations);
 
         console.log("----------Formatted Transcript-------------------");
         console.log(
