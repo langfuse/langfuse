@@ -20,13 +20,17 @@ import {
   DatasetItemIOCell,
   TraceObservationIOCell,
 } from "@/src/features/datasets/components/DatasetIOCells";
-import { datasetRunItemsTableColsWithOptions } from "@langfuse/shared";
+import {
+  datasetRunItemsTableColsWithOptions,
+  BatchExportTableName,
+} from "@langfuse/shared";
 import { convertRunItemToItemsByRunUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import { type DatasetRunItemByRunRowData } from "@/src/features/datasets/lib/types";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 export function DatasetRunItemsByRunTable(props: {
   projectId: string;
@@ -290,6 +294,29 @@ export function DatasetRunItemsByRunTable(props: {
         setColumnOrder={setColumnOrder}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        actionButtons={
+          <BatchExportTableButton
+            key="batchExport"
+            projectId={projectId}
+            tableName={BatchExportTableName.DatasetRunItems}
+            orderByState={{ column: "createdAt", order: "DESC" }}
+            filterState={[
+              {
+                type: "string",
+                operator: "=",
+                column: "datasetRunId",
+                value: datasetRunId,
+              },
+              {
+                type: "string",
+                operator: "=",
+                column: "datasetId",
+                value: datasetId,
+              },
+              ...userFilterState,
+            ]}
+          />
+        }
       />
       <DataTable
         tableName="datasetRunItems"
