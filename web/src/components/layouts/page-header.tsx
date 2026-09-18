@@ -8,7 +8,10 @@ import {
 } from "@/src/components/ItemBadge";
 import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
-import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import {
+  PageHeaderActionsSlotTarget,
+  PageHeaderControlsSlotTarget,
+} from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
@@ -37,6 +40,7 @@ const containerLayoutClassName =
 
 export type PageHeaderProps = {
   title: string;
+  subtitle?: ReactNode;
   /** Rich title rendering (e.g. inline-editable); replaces the plain title
    * span inside the heading. `title` stays the canonical string. */
   titleContent?: ReactNode;
@@ -65,6 +69,7 @@ export type PageHeaderProps = {
 
 const PageHeader = ({
   title,
+  subtitle,
   titleContent,
   itemType,
   actionButtonsLeft,
@@ -218,6 +223,11 @@ const PageHeader = ({
                       </span>
                     )}
                   </h2>
+                  {subtitle ? (
+                    <p className="text-muted-foreground line-clamp-1 text-sm leading-5 font-normal">
+                      {subtitle}
+                    </p>
+                  ) : null}
                 </div>
                 {titleBadges && (
                   <div className="ml-1 flex items-center gap-1">
@@ -240,6 +250,7 @@ const PageHeader = ({
                 actionButtonsRightClassName,
               )}
             >
+              <PageHeaderActionsSlotTarget />
               {actionButtonsRight}
             </div>
           </div>

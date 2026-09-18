@@ -156,6 +156,9 @@ const events = {
     "bulk_export",
     "bulk_import_submit",
   ],
+  // Skill editor adoption funnel. Metadata only: counts/booleans, never skill
+  // names, paths, tags, labels, or file contents.
+  skills: ["new_form_open", "version_create", "version_download"],
   prompt_detail: [
     "test_in_playground_button_click",
     "add_label_submit",

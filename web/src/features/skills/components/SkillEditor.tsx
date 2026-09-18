@@ -1,0 +1,426 @@
+import { useState } from "react";
+import { useStore } from "zustand";
+import { useMediaQuery } from "react-responsive";
+import { Download, Eye, FileCode2, Loader2, Plus } from "lucide-react";
+import { CodeMirrorEditor } from "@/src/components/editor";
+import { PageHeaderActionsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { Button } from "@/src/components/ui/button";
+import { DialogController } from "@/src/components/ui/dialog";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/src/components/ui/resizable";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
+import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkillVersion";
+import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
+import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
+import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
+import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
+import {
+  type SkillDraftFile,
+  type SkillEditorInitialValue,
+  type SkillEditorStore,
+} from "@/src/features/skills/components/skillEditorStore";
+import {
+  SkillLabelsSelect,
+  SkillTagsSelect,
+} from "@/src/features/skills/components/SkillMetadataSelect";
+import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersionHistory";
+import { api } from "@/src/utils/api";
+
+export function SkillEditor({
+  projectId,
+  store,
+  canCreate,
+  onCreated,
+  history,
+  metadataOptions,
+}: {
+  projectId: string;
+  store: SkillEditorStore;
+  canCreate: boolean;
+  onCreated: (created: { name: string; version: number }) => Promise<void>;
+  history:
+    | { kind: "new" }
+    | {
+        kind: "versions";
+        versions: Array<{
+          version: number;
+          labels: string[];
+          commitMessage: string | null;
+          createdAt: Date;
+        }>;
+        selectedVersion: number;
+        onSelect: (version: number) => Promise<void>;
+      };
+  metadataOptions: { labels: string[]; tags: string[] };
+}) {
+  const dirty = useStore(store, (state) => state.dirty);
+  const fileCount = useStore(store, (state) => Object.keys(state.files).length);
+  const name = useStore(store, (state) => state.name);
+  const baseVersion = useStore(store, (state) => state.baseVersion);
+  const prepareUploads = api.skills.prepareUploads.useMutation();
+  const createVersion = api.skills.createVersion.useMutation();
+  const setVersionLabels = api.skills.setLabels.useMutation();
+  const setVersionTags = api.skills.setTags.useMutation();
+  const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
+  const createButtonTitle = canCreate
+    ? undefined
+    : "You do not have write access";
+
+  const save = async (): Promise<boolean> => {
+    setIsSaving(true);
+    try {
+      const created = await createSkillVersionFromDraft({
+        projectId,
+        store,
+        prepareUploads: (input) => prepareUploads.mutateAsync(input),
+        createVersion: (input) => createVersion.mutateAsync(input),
+      });
+      capture("skills:version_create", {
+        fileCount,
+        isFirstVersion: baseVersion === null,
+      });
+      showSuccessToast({
+        title: "Skill version created",
+        description: `Version ${created.version} is now available.`,
+      });
+      await onCreated(created);
+      return true;
+    } catch (error) {
+      showErrorToast(
+        "Failed to create skill version",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveLabels = async (labels: string[]): Promise<boolean> => {
+    try {
+      await saveSkillLabels({
+        projectId,
+        name,
+        version: baseVersion,
+        labels,
+        store,
+        setLabels: (input) => setVersionLabels.mutateAsync(input),
+        invalidate: () =>
+          Promise.all([
+            utils.skills.all.invalidate(),
+            utils.skills.editorByName.invalidate(),
+          ]),
+      });
+      showSuccessToast({
+        title:
+          baseVersion === null
+            ? "Draft labels updated"
+            : "Skill labels updated",
+        description:
+          baseVersion === null
+            ? "The labels will be saved with the first version."
+            : `Version ${baseVersion} now uses the selected labels.`,
+      });
+      return true;
+    } catch (error) {
+      showErrorToast(
+        "Failed to update skill labels",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      return false;
+    }
+  };
+
+  const saveTags = async (tags: string[]): Promise<boolean> => {
+    try {
+      await saveSkillTags({
+        projectId,
+        name,
+        version: baseVersion,
+        tags,
+        store,
+        setTags: (input) => setVersionTags.mutateAsync(input),
+        invalidate: () =>
+          Promise.all([
+            utils.skills.all.invalidate(),
+            utils.skills.editorByName.invalidate(),
+          ]),
+      });
+      showSuccessToast({
+        title:
+          baseVersion === null ? "Draft tags updated" : "Skill tags updated",
+        description:
+          baseVersion === null
+            ? "The tags will be saved with the first version."
+            : `Version ${baseVersion} now uses the selected tags.`,
+      });
+      return true;
+    } catch (error) {
+      showErrorToast(
+        "Failed to update skill tags",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+      return false;
+    }
+  };
+
+  const download = async () => {
+    if (baseVersion === null) return;
+    setIsDownloading(true);
+    try {
+      const result = await downloadSkillVersion({
+        projectId,
+        name,
+        version: baseVersion,
+        getVersion: (input) => utils.client.skills.byName.query(input),
+      });
+      capture("skills:version_download", { fileCount: result.fileCount });
+    } catch {
+      showErrorToast(
+        "Download failed",
+        "Could not download this skill version. Please try again.",
+      );
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:overflow-hidden">
+      <PageHeaderActionsPortal>
+        <div className="flex max-w-full flex-wrap items-center justify-start gap-2 sm:justify-end">
+          <SkillMetadataFields
+            store={store}
+            canEdit={canCreate}
+            isSavingLabels={setVersionLabels.isPending}
+            isSavingTags={setVersionTags.isPending}
+            onSaveLabels={saveLabels}
+            onSaveTags={saveTags}
+            metadataOptions={metadataOptions}
+          />
+          <div className="bg-border hidden h-6 w-px sm:block" />
+          {baseVersion !== null ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={download}
+              disabled={isDownloading}
+              aria-label={`Download version ${baseVersion}`}
+            >
+              {isDownloading ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 h-4 w-4" />
+              )}
+              Download
+            </Button>
+          ) : null}
+          <DialogController
+            closeOnInteractionOutside={false}
+            size="default"
+            renderContent={({ closeDialog }) => (
+              <CreateSkillVersionDialog
+                store={store}
+                name={name}
+                isFirstVersion={baseVersion === null}
+                isSaving={isSaving}
+                onCancel={closeDialog}
+                onConfirm={async () => {
+                  if (await save()) closeDialog();
+                }}
+              />
+            )}
+          >
+            {({ openDialog }) => (
+              <Button
+                onClick={openDialog}
+                disabled={!canCreate || isSaving}
+                title={createButtonTitle}
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                {baseVersion === null ? "Create skill" : "New version"}
+              </Button>
+            )}
+          </DialogController>
+        </div>
+      </PageHeaderActionsPortal>
+      <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
+        {history.kind === "versions" ? (
+          <SkillVersionHistory
+            kind="versions"
+            versions={history.versions}
+            selectedVersion={history.selectedVersion}
+            dirty={dirty}
+            onSelect={history.onSelect}
+          />
+        ) : (
+          <SkillVersionHistory kind="new" />
+        )}
+        <div className="min-h-[720px] min-w-0 flex-1 md:min-h-0">
+          <ResizablePanelGroup
+            key={isDesktop ? "desktop" : "mobile"}
+            orientation={isDesktop ? "horizontal" : "vertical"}
+          >
+            <ResizablePanel
+              defaultSize={isDesktop ? "28%" : "32%"}
+              minSize={isDesktop ? "20%" : "24%"}
+              maxSize={isDesktop ? "42%" : "50%"}
+            >
+              <SkillFileExplorer store={store} />
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel
+              defaultSize={isDesktop ? "72%" : "68%"}
+              minSize={isDesktop ? "45%" : "42%"}
+            >
+              <SkillFileEditor store={store} />
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SkillMetadataFields({
+  store,
+  canEdit,
+  isSavingLabels,
+  isSavingTags,
+  onSaveLabels,
+  onSaveTags,
+  metadataOptions,
+}: {
+  store: SkillEditorStore;
+  canEdit: boolean;
+  isSavingLabels: boolean;
+  isSavingTags: boolean;
+  onSaveLabels: (labels: string[]) => Promise<boolean>;
+  onSaveTags: (tags: string[]) => Promise<boolean>;
+  metadataOptions: { labels: string[]; tags: string[] };
+}) {
+  const labels = useStore(store, (state) => state.labels);
+  const tags = useStore(store, (state) => state.tags);
+
+  return (
+    <div className="ph-no-capture flex max-w-full flex-wrap items-center gap-2">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-muted-foreground text-xs">Labels</span>
+        <SkillLabelsSelect
+          value={labels}
+          options={metadataOptions.labels}
+          disabled={!canEdit}
+          isSaving={isSavingLabels}
+          onSave={onSaveLabels}
+        />
+      </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-muted-foreground text-xs">Tags</span>
+        <SkillTagsSelect
+          value={tags}
+          options={metadataOptions.tags}
+          disabled={!canEdit}
+          isSaving={isSavingTags}
+          onSave={onSaveTags}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SkillFileEditor({ store }: { store: SkillEditorStore }) {
+  const activePath = useStore(store, (state) => state.activePath);
+  const activeFile = useStore(store, (state) => state.files[state.activePath]!);
+  const updateActiveFile = useStore(
+    store,
+    (state) => state.actions.updateActiveFile,
+  );
+  const [view, setView] = useState<"edit" | "preview">("edit");
+  const canPreview = activePath.endsWith(".md");
+
+  return (
+    <section className="ph-no-capture flex h-full min-w-0 flex-col">
+      <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
+        <span className="min-w-0 truncate font-mono text-xs" title={activePath}>
+          {activePath}
+        </span>
+        <div className="flex gap-1">
+          <Button
+            size="sm"
+            variant={view === "edit" ? "secondary" : "ghost"}
+            onClick={() => setView("edit")}
+          >
+            <FileCode2 className="mr-1 h-3.5 w-3.5" /> Edit
+          </Button>
+          <Button
+            size="sm"
+            variant={view === "preview" ? "secondary" : "ghost"}
+            onClick={() => setView("preview")}
+            disabled={!canPreview}
+          >
+            <Eye className="mr-1 h-3.5 w-3.5" /> Preview
+          </Button>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-3">
+        {view === "preview" && canPreview ? (
+          <div className="prose dark:prose-invert mx-auto max-w-4xl">
+            <MarkdownView markdown={activeFile.content} />
+          </div>
+        ) : (
+          <CodeMirrorEditor
+            key={activePath}
+            value={activeFile.content}
+            onChange={updateActiveFile}
+            mode="text"
+            minHeight="500px"
+            lineNumbers
+            className="h-full"
+          />
+        )}
+      </div>
+    </section>
+  );
+}
+
+export const NEW_SKILL_INITIAL_VALUE: SkillEditorInitialValue = {
+  name: "",
+  baseVersion: null,
+  labels: ["production"],
+  tags: [],
+  files: [
+    {
+      path: "SKILL.md",
+      content:
+        "---\nname: my-skill\ndescription: Describe when and how to use this skill.\n---\n\n# Instructions\n\nAdd instructions for the agent here.\n",
+      contentType: "text/markdown",
+      executable: false,
+    },
+  ],
+};
+
+export function toSkillEditorInitialValue(skill: {
+  name: string;
+  version: number;
+  labels: string[];
+  tags: string[];
+  files: SkillDraftFile[];
+}): SkillEditorInitialValue {
+  return {
+    name: skill.name,
+    baseVersion: skill.version,
+    labels: skill.labels,
+    tags: skill.tags,
+    files: skill.files,
+  };
+}

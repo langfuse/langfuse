@@ -1,0 +1,166 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public/v1
+  endpoints:
+    list:
+      docs: List skills and their available versions.
+      method: GET
+      path: /skills
+      request:
+        name: ListSkillsRequest
+        query-parameters:
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page: optional<integer>
+          limit: optional<integer>
+          fromUpdatedAt: optional<datetime>
+          toUpdatedAt: optional<datetime>
+      response: SkillMetaListResponse
+
+    prepareUploads:
+      docs: Prepare content-addressed file uploads for a skill version.
+      method: POST
+      path: /skills/uploads
+      request: PrepareSkillUploadsRequest
+      response:
+        status-code: 201
+        type: PrepareSkillUploadsResponse
+
+    createVersion:
+      docs: Verify uploaded files and create an immutable skill version.
+      method: POST
+      path: /skills
+      request: CreateSkillVersionRequest
+      response:
+        status-code: 201
+        type: SkillVersion
+
+    get:
+      docs: Resolve a skill by version or label. Defaults to the production label.
+      method: GET
+      path: /skills/{skillName}
+      path-parameters:
+        skillName: string
+      request:
+        name: GetSkillRequest
+        query-parameters:
+          version: optional<integer>
+          label: optional<string>
+      response: SkillVersionWithDownloads
+
+    setLabels:
+      docs: Replace the labels on a skill version and atomically move them from other versions.
+      method: PATCH
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      request: UpdateSkillLabelsRequest
+      response: SkillVersion
+
+    deleteVersion:
+      docs: Delete one immutable skill version. Unreferenced blobs are retained for asynchronous cleanup.
+      method: DELETE
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      response: DeleteSkillVersionResponse
+
+types:
+  SkillMetaListResponse:
+    properties:
+      data: list<SkillMeta>
+      meta: pagination.MetaResponse
+
+  SkillMeta:
+    properties:
+      name: string
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+      lastUpdatedAt: datetime
+      latestVersion: integer
+      description: string
+
+  SkillBlobDescriptor:
+    properties:
+      sha256Hash: string
+      contentType: string
+      contentLength: long
+
+  PrepareSkillUploadsRequest:
+    properties:
+      blobs: list<SkillBlobDescriptor>
+
+  PreparedSkillUpload:
+    extends: SkillBlobDescriptor
+    properties:
+      blobId: string
+      uploadUrl: nullable<string>
+
+  PrepareSkillUploadsResponse:
+    properties:
+      data: list<PreparedSkillUpload>
+
+  SkillVersionFileInput:
+    properties:
+      path: string
+      blobId: string
+      executable: optional<boolean>
+
+  CreateSkillVersionRequest:
+    properties:
+      files: list<SkillVersionFileInput>
+      labels: optional<list<string>>
+      tags: optional<list<string>>
+      commitMessage: optional<nullable<string>>
+
+  SkillFile:
+    properties:
+      id: string
+      path: string
+      executable: boolean
+      blobId: string
+      sha256Hash: string
+      contentType: string
+      contentLength: long
+
+  SkillFileWithDownload:
+    extends: SkillFile
+    properties:
+      downloadUrl: string
+      downloadUrlExpiresAt: datetime
+
+  SkillVersion:
+    properties:
+      id: string
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      createdBy: string
+      name: string
+      description: string
+      frontmatter: unknown
+      version: integer
+      tags: list<string>
+      labels: list<string>
+      commitMessage: nullable<string>
+      files: list<SkillFile>
+
+  SkillVersionWithDownloads:
+    extends: SkillVersion
+    properties:
+      files: list<SkillFileWithDownload>
+
+  UpdateSkillLabelsRequest:
+    properties:
+      labels: list<string>
+
+  DeleteSkillVersionResponse:
+    properties:
+      deleted: boolean
