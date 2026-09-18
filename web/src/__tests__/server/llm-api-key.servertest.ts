@@ -9,6 +9,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
@@ -104,15 +105,7 @@ describe("llmApiKey.all RPC", () => {
             ],
           },
         ],
-        featureFlags: {
-          langfuseTopics: false,
-          searchBar: false,
-          templateFlag: true,
-          excludeClickhouseRead: false,
-          observationEvals: false,
-          v4BetaToggleVisible: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,

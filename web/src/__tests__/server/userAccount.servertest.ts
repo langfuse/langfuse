@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { randomUUID } from "crypto";
@@ -266,17 +267,13 @@ async function createCaller({
             : [],
         },
       ],
-      featureFlags: {
+      featureFlags: testFeatureFlags({
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         modernSession: featureFlags.includes("modernSession"),
         sessionTimeline: featureFlags.includes("sessionTimeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      }),
       admin,
     },
     environment: {

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 as uuidv4 } from "uuid";
 import {
   createOrgProjectAndApiKey,
@@ -82,15 +83,7 @@ describe("dashboard widget minVersion", () => {
             ],
           },
         ],
-        featureFlags: {
-          langfuseTopics: false,
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         v4BetaEnabled,
         admin: true,
       },

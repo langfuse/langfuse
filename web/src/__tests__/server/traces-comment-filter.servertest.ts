@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -47,15 +48,7 @@ describe("Traces Comment Filtering", () => {
             ],
           },
         ],
-        featureFlags: {
-          langfuseTopics: false,
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          searchBar: false,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,15 +63,7 @@ const baseSession: Session = {
     email: "user@example.com",
     canCreateOrganizations: true,
     organizations: [],
-    featureFlags: {
-      langfuseTopics: false,
-      searchBar: false,
-      templateFlag: false,
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags({ templateFlag: false }),
     admin: false,
   },
   environment: {

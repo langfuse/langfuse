@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { FeaturePreviewModal } from "./FeaturePreviewModal";
@@ -14,7 +15,9 @@ vi.mock("next-auth/react", () => ({
     data: {
       user: {
         admin: mocks.admin,
-        featureFlags: { langfuseTopics: mocks.langfuseTopics },
+        featureFlags: testFeatureFlags({
+          langfuseTopics: mocks.langfuseTopics,
+        }),
       },
       environment: { enableExperimentalFeatures: true },
     },

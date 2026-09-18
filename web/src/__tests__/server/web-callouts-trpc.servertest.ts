@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { Mock } from "vitest";
 import { TRPCError } from "@trpc/server";
@@ -96,15 +97,7 @@ const buildSession = ({
         ],
       },
     ],
-    featureFlags: {
-      langfuseTopics: false,
-      templateFlag: true,
-      excludeClickhouseRead: false,
-      searchBar: false,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: false,
     v4BetaEnabled,
   },

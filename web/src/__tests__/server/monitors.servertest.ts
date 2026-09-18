@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // requireV4Writes 404s the monitors routes under the default legacy write mode;
@@ -61,15 +62,7 @@ const buildSession = (params: {
         ],
       },
     ],
-    featureFlags: {
-      langfuseTopics: false,
-      searchBar: false,
-      templateFlag: false,
-      excludeClickhouseRead: false,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags({ templateFlag: false }),
     admin: false,
   },
   environment: {

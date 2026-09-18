@@ -11,6 +11,7 @@
  * This is split into its own file because the env is process-wide for the file;
  * the dual-mode flag tests live in traces-trpc.servertest.ts.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup
@@ -88,15 +89,7 @@ maybe("traces trpc (events_only write mode)", () => {
           ],
         },
       ],
-      featureFlags: {
-        langfuseTopics: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,

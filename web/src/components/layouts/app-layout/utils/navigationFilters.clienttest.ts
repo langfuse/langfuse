@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
@@ -12,7 +13,9 @@ it("keeps Topics hidden without explicit opt-in despite admin and experimental o
   const context: NavigationFilterContext = {
     routerProjectId: undefined,
     routerOrganizationId: undefined,
-    session: { user: { featureFlags: { langfuseTopics: false } } } as Session,
+    session: {
+      user: { featureFlags: testFeatureFlags({ langfuseTopics: false }) },
+    } as Session,
     enableExperimentalFeatures: true,
     cloudAdmin: true,
     entitlements: [],

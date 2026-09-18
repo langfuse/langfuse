@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -66,15 +67,7 @@ const buildSession = (orgId: string, projectId: string): Session => ({
         ],
       },
     ],
-    featureFlags: {
-      langfuseTopics: false,
-      searchBar: false,
-      templateFlag: true,
-      excludeClickhouseRead: false,
-      observationEvals: false,
-      v4BetaToggleVisible: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as any,

@@ -14,6 +14,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -77,15 +78,7 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
           ],
         },
       ],
-      featureFlags: {
-        langfuseTopics: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
     },
     environment: {} as any,
   };

@@ -13,6 +13,7 @@
  * SESSION_OBSERVATIONS_PER_TRACE_LIMIT + 1 real observations come back, and
  * the extra (+1) row is the client's "has more" sentinel.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -82,15 +83,7 @@ maybe("sessions observations bounded I/O (events)", () => {
           ],
         },
       ],
-      featureFlags: {
-        langfuseTopics: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as EventsServiceModule from "@/src/features/events/server/eventsService";
 
 const mocks = vi.hoisted(() => ({
@@ -50,15 +51,7 @@ const memberCaller = eventsRouter.createCaller({
         name: "Test User",
         admin: false,
         canCreateOrganizations: true,
-        featureFlags: {
-          langfuseTopics: false,
-          excludeClickhouseRead: false,
-          experimentsV4Enabled: false,
-          observationEvals: false,
-          searchBar: false,
-          templateFlag: false,
-          v4BetaToggleVisible: false,
-        },
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         organizations: [
           {
             id: "org-1",

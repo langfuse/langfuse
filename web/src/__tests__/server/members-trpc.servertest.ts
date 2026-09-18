@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -10,7 +11,6 @@ import type { Session } from "next-auth";
 // while satisfying newer required fields on the session user type.
 type SessionUser = NonNullable<Session["user"]>;
 type SessionProject = SessionUser["organizations"][number]["projects"][number];
-type SessionFeatureFlags = SessionUser["featureFlags"];
 import { v4 as uuidv4 } from "uuid";
 
 async function createTestOrg(plan: Plan) {
@@ -92,10 +92,7 @@ function createSession(
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      } as SessionFeatureFlags,
+      featureFlags: testFeatureFlags(),
       admin: false, // Not admin to test actual limits
     },
     environment: {
