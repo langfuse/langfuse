@@ -34,33 +34,35 @@ export function TraceSummaryStrip() {
 
   return (
     <div className="shrink-0 border-b px-3 py-2">
-      <div className="flex flex-wrap items-center gap-1">
-        <LatencyBadge latencySeconds={trace.latency ?? null} />
-        {aggregatedMetrics.totalCost != null &&
-          aggregatedMetrics.costDetails && (
-            <CostBadge
-              totalCost={aggregatedMetrics.totalCost}
-              costDetails={aggregatedMetrics.costDetails}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-1">
+          <LatencyBadge latencySeconds={trace.latency ?? null} />
+          {aggregatedMetrics.totalCost != null &&
+            aggregatedMetrics.costDetails && (
+              <CostBadge
+                totalCost={aggregatedMetrics.totalCost}
+                costDetails={aggregatedMetrics.costDetails}
+              />
+            )}
+          {aggregatedMetrics.hasGenerationLike &&
+            aggregatedMetrics.usageDetails && (
+              <UsageBadge
+                inputUsage={aggregatedMetrics.inputUsage}
+                outputUsage={aggregatedMetrics.outputUsage}
+                totalUsage={aggregatedMetrics.totalUsage}
+                usageDetails={aggregatedMetrics.usageDetails}
+              />
+            )}
+          {trace.sessionId && (
+            <SessionBadge
+              sessionId={trace.sessionId}
+              projectId={trace.projectId}
             />
           )}
-        {aggregatedMetrics.hasGenerationLike &&
-          aggregatedMetrics.usageDetails && (
-            <UsageBadge
-              inputUsage={aggregatedMetrics.inputUsage}
-              outputUsage={aggregatedMetrics.outputUsage}
-              totalUsage={aggregatedMetrics.totalUsage}
-              usageDetails={aggregatedMetrics.usageDetails}
-            />
+          {trace.userId && (
+            <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
           )}
-        {trace.sessionId && (
-          <SessionBadge
-            sessionId={trace.sessionId}
-            projectId={trace.projectId}
-          />
-        )}
-        {trace.userId && (
-          <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
-        )}
+        </div>
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {visibleTags.map((tag) => (

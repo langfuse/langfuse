@@ -15,17 +15,15 @@ export function SessionBadge({
   sessionId: string;
   projectId: string;
 }) {
-  const label = "session";
-  const text = sessionId;
-
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className="ph-no-capture inline-flex"
     >
       <Badge
-        label={label}
-        text={text}
+        color="ghost"
+        text="session"
+        title={sessionId}
         trailingIcon={ArrowUpRight}
         trailingIconTone="link"
       />
@@ -40,17 +38,15 @@ export function UserIdBadge({
   userId: string;
   projectId: string;
 }) {
-  const label = "user";
-  const text = userId;
-
   return (
     <Link
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       className="ph-no-capture inline-flex"
     >
       <Badge
-        label={label}
-        text={text}
+        color="ghost"
+        label="user"
+        text={userId}
         trailingIcon={ArrowUpRight}
         trailingIconTone="link"
       />

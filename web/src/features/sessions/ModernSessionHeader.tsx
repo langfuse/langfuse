@@ -1,5 +1,14 @@
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
+import {
+  ArrowUpRight,
+  Clock,
+  Coins,
+  Eye,
+  EyeOff,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -88,6 +97,12 @@ type SessionHeaderDetail = {
 
 type SessionHeaderDetailControlLocation = "header" | "overflow";
 
+const OUTLINE_SESSION_HEADER_DETAIL_TYPES = new Set<SessionHeaderDetailType>([
+  "environment",
+  "metadata",
+  "score",
+]);
+
 const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
@@ -115,6 +130,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
     className="ph-no-capture inline-flex max-w-[280px] min-w-0"
   >
     <Badge
+      color="ghost"
       data-session-header-pill="true"
       label="user"
       text={user}
@@ -126,11 +142,13 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
 
 const SessionHeaderDetailWithVisibilityControl = ({
   detail,
+  isGroupStart = false,
   isHidden,
   location,
   onVisibilityChange,
 }: {
   detail: SessionHeaderDetail;
+  isGroupStart?: boolean;
   isHidden: boolean;
   location: SessionHeaderDetailControlLocation;
   onVisibilityChange: (
@@ -146,6 +164,7 @@ const SessionHeaderDetailWithVisibilityControl = ({
       className={cn(
         "group relative flex items-center",
         detail.type === "metadata" ? "pr-6" : "[@media(hover:none)]:pr-6",
+        location === "header" && isGroupStart && "ml-1",
       )}
     >
       {detail.content}
@@ -404,7 +423,7 @@ export function ModernSessionHeader({
       visibilityLabel: "trace and span counts",
       type: "traces",
       content: (
-        <BadgeShell data-session-header-pill="true">
+        <BadgeShell color="ghost" data-session-header-pill="true">
           <span>
             {numberFormatter(countTraces, 0)} <ChipKey>traces</ChipKey>
           </span>
@@ -428,7 +447,15 @@ export function ModernSessionHeader({
       visibilityLabel: "latency percentiles",
       type: "latency",
       content: (
-        <BadgeShell data-session-header-pill="true">
+        <BadgeShell
+          color="ghost"
+          data-session-header-pill="true"
+          title="Latency"
+        >
+          <Clock
+            aria-hidden
+            className="text-muted-foreground size-3 shrink-0"
+          />
           <span>
             <ChipKey>p50</ChipKey> {formatIntervalSeconds(p50LatencyMs / 1000)}
           </span>
@@ -455,8 +482,10 @@ export function ModernSessionHeader({
       type: "tokens",
       content: (
         <Badge
+          color="ghost"
           data-session-header-pill="true"
-          label="tokens"
+          leadingIcon={Coins}
+          srLabel="tokens"
           text={`${compactTokenFormatter(tokensIn)} → ${compactTokenFormatter(tokensOut)} (Σ ${compactTokenFormatter(totalTokens)})`}
           title={`tokens ${exactTokenCounts}`}
         />
@@ -471,13 +500,33 @@ export function ModernSessionHeader({
     type: "cost",
     content: (
       <Badge
+        color="ghost"
         data-session-header-pill="true"
-        label="cost"
         text={usdFormatter(totalCost, 2, 3)}
         title={`exact $${totalCost.toFixed(6)}`}
       />
     ),
   });
+
+  const userDetails = users.map(
+    (user, index): SessionHeaderDetail => ({
+      key: sessionHeaderDynamicDetailKey("user", user),
+      searchText: `user ${user}`,
+      visibilityLabel: `user ${index + 1}`,
+      type: "user",
+      content: <UserChip projectId={projectId} user={user} />,
+    }),
+  );
+  const visibleUserDetails = userDetails
+    .filter((detail) => !hiddenDetailKeySet.has(detail.key))
+    .slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
+  visibleUserDetails.forEach((detail) => pills.push(detail));
+  const visibleUserDetailKeySet = new Set(
+    visibleUserDetails.map((detail) => detail.key),
+  );
+  const overflowUserDetails = userDetails.filter(
+    (detail) => !visibleUserDetailKeySet.has(detail.key),
+  );
 
   scores.forEach((score, index) => {
     const value = scoreChipValue(score);
@@ -523,26 +572,6 @@ export function ModernSessionHeader({
     });
   }
 
-  const userDetails = users.map(
-    (user, index): SessionHeaderDetail => ({
-      key: sessionHeaderDynamicDetailKey("user", user),
-      searchText: `user ${user}`,
-      visibilityLabel: `user ${index + 1}`,
-      type: "user",
-      content: <UserChip projectId={projectId} user={user} />,
-    }),
-  );
-  const visibleUserDetails = userDetails
-    .filter((detail) => !hiddenDetailKeySet.has(detail.key))
-    .slice(0, INITIAL_SESSION_USERS_DISPLAY_COUNT);
-  visibleUserDetails.forEach((detail) => pills.push(detail));
-  const visibleUserDetailKeySet = new Set(
-    visibleUserDetails.map((detail) => detail.key),
-  );
-  const overflowUserDetails = userDetails.filter(
-    (detail) => !visibleUserDetailKeySet.has(detail.key),
-  );
-
   metadataJsonPaths.paths.forEach((path, index) => {
     const display = getConfiguredMetadataDisplay(
       path,
@@ -561,6 +590,9 @@ export function ModernSessionHeader({
       ),
     });
   });
+  const groupStartPillKey = pills.find((pill) =>
+    OUTLINE_SESSION_HEADER_DETAIL_TYPES.has(pill.type),
+  )?.key;
   const visiblePills = pills.filter(
     (pill) => !hiddenDetailKeySet.has(pill.key),
   );
@@ -618,6 +650,7 @@ export function ModernSessionHeader({
         renderItem={(pill) => (
           <SessionHeaderDetailWithVisibilityControl
             detail={pill}
+            isGroupStart={pill.key === groupStartPillKey}
             isHidden={false}
             location="header"
             onVisibilityChange={changeDetailVisibility}

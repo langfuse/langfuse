@@ -4,7 +4,7 @@
  */
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { ExternalLinkIcon, PlusCircle } from "lucide-react";
+import { ArrowUpRight, PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 
@@ -27,7 +27,13 @@ export function ModelBadge({
         className="inline-flex"
         title="View model details"
       >
-        <Badge text={model} trailingIcon={ExternalLinkIcon} />
+        <Badge
+          color="ghost"
+          label="model"
+          text={model}
+          trailingIcon={ArrowUpRight}
+          trailingIconTone="link"
+        />
       </Link>
     );
   }
@@ -54,7 +60,12 @@ export function ModelBadge({
       }}
     >
       <button type="button" className="inline-flex cursor-pointer">
-        <Badge text={model} trailingIcon={PlusCircle} />
+        <Badge
+          color="ghost"
+          label="model"
+          text={model}
+          trailingIcon={PlusCircle}
+        />
       </button>
     </UpsertModelFormDialog>
   );

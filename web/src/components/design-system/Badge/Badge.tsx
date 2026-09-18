@@ -11,6 +11,7 @@ const badgeVariants = cva(
     variants: {
       color: {
         primary: "border-border bg-transparent text-foreground-secondary",
+        ghost: "border-transparent bg-transparent text-foreground-secondary",
         emphasis: "border-transparent bg-tertiary/60 text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",
@@ -51,6 +52,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
+  leadingIcon?: LucideIcon;
+  srLabel?: string;
   trailingIcon?: LucideIcon;
   /** Link badges tint the arrow so the affordance reads before the hover. */
   trailingIconTone?: "default" | "link";
@@ -60,14 +63,30 @@ export function Badge({
   color,
   text,
   label,
+  srLabel,
   title,
+  leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
+  const iconKeyName = LeadingIcon ? (srLabel ?? title) : undefined;
+
   return (
-    <BadgeShell color={color} {...props}>
-      {label && <span className="text-muted-foreground shrink-0">{label}</span>}
+    <BadgeShell
+      color={color}
+      aria-label={iconKeyName}
+      title={iconKeyName}
+      {...props}
+    >
+      {LeadingIcon ? (
+        <LeadingIcon
+          aria-hidden
+          className="text-muted-foreground size-3 shrink-0"
+        />
+      ) : (
+        label && <span className="text-muted-foreground shrink-0">{label}</span>
+      )}
       <span className="truncate" title={title ?? text}>
         {text}
       </span>

@@ -4,6 +4,8 @@
  * Each badge handles its own null checks and returns null when data is unavailable
  */
 
+import { Clock } from "lucide-react";
+
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
@@ -14,7 +16,14 @@ export function LatencyBadge({
 }) {
   if (latencySeconds == null) return null;
 
-  return <Badge label="latency" text={formatIntervalSeconds(latencySeconds)} />;
+  return (
+    <Badge
+      color="ghost"
+      leadingIcon={Clock}
+      text={formatIntervalSeconds(latencySeconds)}
+      title="Latency"
+    />
+  );
 }
 
 export function TimeToFirstTokenBadge({
@@ -24,5 +33,11 @@ export function TimeToFirstTokenBadge({
 }) {
   if (timeToFirstToken == null) return null;
 
-  return <Badge label="ttft" text={formatIntervalSeconds(timeToFirstToken)} />;
+  return (
+    <Badge
+      color="ghost"
+      label="ttft"
+      text={formatIntervalSeconds(timeToFirstToken)}
+    />
+  );
 }

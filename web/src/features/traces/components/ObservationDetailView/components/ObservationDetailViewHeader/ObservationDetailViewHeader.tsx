@@ -726,67 +726,71 @@ export const ObservationDetailViewHeader = memo(
 
           {/* Other badges */}
           {!isAnnotationMode && (
-            <CollapsibleBadgeRow>
-              <LatencyBadge latencySeconds={latencySeconds} />
-              <TimeToFirstTokenBadge
-                timeToFirstToken={observation.timeToFirstToken}
-              />
-              {evaluatorId &&
-                (observation.environment ===
-                  LangfuseInternalTraceEnvironment.LLMJudge ||
-                  observation.environment ===
-                    LangfuseInternalTraceEnvironment.CodeEval) &&
-                !evaluatorId.startsWith("managed:") && (
-                  <EvaluatorBadge
-                    evaluatorId={evaluatorId}
-                    evaluatorName={evaluator.data?.name}
+            <CollapsibleBadgeRow className="gap-3">
+              <div className="flex flex-wrap items-center gap-1">
+                <LatencyBadge latencySeconds={latencySeconds} />
+                <TimeToFirstTokenBadge
+                  timeToFirstToken={observation.timeToFirstToken}
+                />
+                {displayedTotalCost != null && displayedCostDetails && (
+                  <CostBadge
+                    totalCost={displayedTotalCost}
+                    costDetails={displayedCostDetails}
+                    costSource={costSource}
+                    priceSource={priceSource}
+                  />
+                )}
+                {subtreeMetrics
+                  ? subtreeMetrics.hasGenerationLike &&
+                    subtreeMetrics.usageDetails && (
+                      <UsageBadge
+                        inputUsage={subtreeMetrics.inputUsage}
+                        outputUsage={subtreeMetrics.outputUsage}
+                        totalUsage={subtreeMetrics.totalUsage}
+                        usageDetails={subtreeMetrics.usageDetails}
+                      />
+                    )
+                  : isGenerationLike(observation.type) &&
+                    observation.usageDetails && (
+                      <UsageBadge
+                        inputUsage={inputUsage}
+                        outputUsage={outputUsage}
+                        totalUsage={totalUsage}
+                        usageDetails={observation.usageDetails}
+                      />
+                    )}
+                {observation.model && (
+                  <ModelBadge
+                    model={observation.model}
+                    internalModelId={observation.internalModelId}
+                    projectId={projectId}
+                    usageDetails={observation.usageDetails}
+                  />
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {evaluatorId &&
+                  (observation.environment ===
+                    LangfuseInternalTraceEnvironment.LLMJudge ||
+                    observation.environment ===
+                      LangfuseInternalTraceEnvironment.CodeEval) &&
+                  !evaluatorId.startsWith("managed:") && (
+                    <EvaluatorBadge
+                      evaluatorId={evaluatorId}
+                      evaluatorName={evaluator.data?.name}
+                      projectId={projectId}
+                    />
+                  )}
+                {observation.level !== "DEFAULT" && (
+                  <ObservationLevelBadge level={observation.level} />
+                )}
+                {observation.promptId && (
+                  <PromptBadge
+                    promptId={observation.promptId}
                     projectId={projectId}
                   />
                 )}
-              {displayedTotalCost != null && displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  costSource={costSource}
-                  priceSource={priceSource}
-                />
-              )}
-              {subtreeMetrics
-                ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
-                    <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
-                      totalUsage={subtreeMetrics.totalUsage}
-                      usageDetails={subtreeMetrics.usageDetails}
-                    />
-                  )
-                : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
-                    <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
-                      totalUsage={totalUsage}
-                      usageDetails={observation.usageDetails}
-                    />
-                  )}
-              {observation.model && (
-                <ModelBadge
-                  model={observation.model}
-                  internalModelId={observation.internalModelId}
-                  projectId={projectId}
-                  usageDetails={observation.usageDetails}
-                />
-              )}
-              {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={observation.level} />
-              )}
-              {observation.promptId && (
-                <PromptBadge
-                  promptId={observation.promptId}
-                  projectId={projectId}
-                />
-              )}
+              </div>
             </CollapsibleBadgeRow>
           )}
         </div>
