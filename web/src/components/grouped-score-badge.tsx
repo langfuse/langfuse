@@ -113,7 +113,7 @@ export const GroupedScoreBadges = <T extends ChipScore>({
               <button
                 type="button"
                 className={cn(
-                  "cursor-pointer text-xs font-bold",
+                  "cursor-pointer self-center text-xs font-bold",
                   compact ? "px-0.5 py-0 leading-tight" : "px-1",
                 )}
                 aria-label={`Show all ${Object.keys(groupedScores).length} scores`}
