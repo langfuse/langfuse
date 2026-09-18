@@ -92,7 +92,10 @@ export function Badge({
         label && <span className="text-muted-foreground shrink-0">{label}</span>
       )}
       <span
-        className={cn("truncate", underline && "underline")}
+        className={cn(
+          "truncate",
+          underline && "decoration-border-contrast underline",
+        )}
         title={title ?? text}
       >
         {text}
