@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";

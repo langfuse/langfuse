@@ -50,6 +50,12 @@ impl ProtocolCapture {
             Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
         }
     }
+
+    fn client_metadata(&self) -> Option<&Map<String, Value>> {
+        match self {
+            Self::OpenAiResponses(capture) => capture.client_metadata(),
+        }
+    }
 }
 
 /// Owned before dispatch and moved into the response body. Drop also covers a
@@ -110,11 +116,17 @@ impl ExecutionCapture {
             })
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
+        let span = tracing::Span::current();
+        // Parsing the whole request is CPU-bound and scales with the body.
+        let protocol = tracing::info_span!(
+            "request.capture",
+            otel.kind = "internal",
+            http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
+        )
+        .in_scope(|| OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()));
         Self {
-            span: tracing::Span::current(),
-            protocol: Some(ProtocolCapture::OpenAiResponses(
-                OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()),
-            )),
+            span,
+            protocol: Some(ProtocolCapture::OpenAiResponses(protocol)),
             started,
             start_time_unix_ms,
             first_byte_ms: None,
@@ -138,9 +150,13 @@ impl ExecutionCapture {
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
     ) {
+        let client_metadata = self
+            .protocol
+            .as_ref()
+            .and_then(ProtocolCapture::client_metadata);
         self.delivery = Some((
             telemetry,
-            telemetry::DeliveryContext::from_resolved(context, headers),
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata),
         ));
     }
 

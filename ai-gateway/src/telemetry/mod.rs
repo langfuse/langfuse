@@ -13,6 +13,7 @@ use std::{
 
 use axum::http::HeaderMap;
 use opentelemetry::trace::{FutureExt, TraceContextExt};
+use serde_json::{Map, Value};
 use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -21,6 +22,7 @@ use crate::{
     resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
 };
 use context::GenerationContext;
+pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
 
 const MAX_UPLOADS: usize = 32;
@@ -37,12 +39,16 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(context: &ResolvedRequestContext, headers: &HeaderMap) -> Self {
+    pub fn from_resolved(
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         Self {
             project_id: context.attribution().project_id().to_owned(),
             access_token: context.ingestion().access_token().to_owned(),
             expires_at: context.ingestion().expires_at(),
-            generation: GenerationContext::from_headers(headers),
+            generation: GenerationContext::from_request(headers, client_metadata),
         }
     }
 }
@@ -228,12 +234,7 @@ impl Write for SizeCounter {
 pub(crate) fn debug_record(facts: &InferenceFacts) {
     tracing::debug!(
         api_format = facts.api_format,
-        outcome = match facts.outcome {
-            crate::capture::RelayOutcome::Eof => "eof",
-            crate::capture::RelayOutcome::Cancelled => "cancelled",
-            crate::capture::RelayOutcome::Timeout => "timeout",
-            crate::capture::RelayOutcome::TransportError => "transport_error",
-        },
+        outcome = facts.outcome.as_str(),
         http_status = facts.http_status,
         duration_ms = u64::try_from(facts.duration_ms).unwrap_or(u64::MAX),
         first_byte_ms = facts

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ReactNode, useState } from "react";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";

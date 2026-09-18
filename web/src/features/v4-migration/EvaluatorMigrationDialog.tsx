@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { BotMessageSquare, Wrench } from "lucide-react";
 import { useState } from "react";
 import {

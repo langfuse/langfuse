@@ -35,7 +35,11 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       if (text === null || text === undefined) return null;
       if (typeof text !== "string") return loadingCell;
 
-      return <span title={text}>{text}</span>;
+      return (
+        <span className="block w-full truncate" title={text}>
+          {text}
+        </span>
+      );
     },
   });
 }
