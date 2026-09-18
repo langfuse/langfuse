@@ -125,7 +125,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["langfuse.gateway.project_id"]
+                metadata["langfuse.gateway.project.id"]
                     .as_str()
                     .unwrap()
                     .to_owned(),

@@ -266,14 +266,34 @@ and streams without a captured content delta have no completion-start time or TT
 The exporter projects native OpenAI usage into the receiver's supported shape for
 pricing without duplicating it in metadata. Missing usage is not reported as zero.
 
-Gateway metadata uses `langfuse.gateway.*`: `project_id`, `organization_id`,
-`ingestion_mode`, `api_format`, `api-key.id`, and `provider.connection_id`,
-`provider.request.id`, `provider.response.id`. API-key attribution entries appear
-both as top-level metadata and under `langfuse.gateway.api-key.metadata.*`.
+Gateway metadata uses `langfuse.gateway.*`, grouped by the resource or exchange
+each field describes:
+
+| Suffix                                                                                      | Meaning                                                                     |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
+| `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
+| `ingestion.mode`                                                                            | Effective capture mode                                                      |
+| `request.api_format`                                                                        | Native API contract, such as `openai.responses`                             |
+| `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
+| `response.id`                                                                               | Native response object's ID                                                 |
+| `response.status_code`                                                                      | HTTP status returned to the caller                                          |
+| `upstream.request.id`                                                                       | Provider request ID received in the upstream `x-request-id` response header |
+
+`request.id` is reserved for a future gateway-generated request ID and is not
+emitted. The upstream request ID is separate and is omitted when unavailable.
+API-key attribution entries appear both as top-level metadata and under
+`langfuse.gateway.api_key.metadata.*`.
 Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution
-copy preserves the original value. `http_status` stays top level. Relay outcome,
-provider status, completeness flags and first-byte timing remain internal facts
-rather than generation metadata. Ingestion removes mapped observation-attribute
+copy preserves the original value. `agent.*` and native request field names retain
+their existing spelling. Metadata names apply to newly captured generations;
+historical traces are not rewritten.
+
+`response.status_code` includes gateway-generated 502/504 errors before upstream
+headers arrive. After headers arrive it retains the relayed status, even if a
+stream subsequently fails; cancellation before headers leaves the status unknown.
+Relay outcome, provider status, completeness flags and first-byte timing remain
+internal facts rather than generation metadata. Ingestion removes mapped observation-attribute
 duplicates for the gateway scope while preserving custom attributes, scope and
 resources.
 
@@ -432,7 +452,7 @@ JSON types; ingestion applies Langfuse's existing model-parameter normalization
 are not filled with assumed defaults.
 The response model and service tier take precedence over requested values when present.
 Request `metadata`, `prompt_cache_key`, `safety_identifier` and deprecated `user` are
-stored under `langfuse.gateway.provider.request.*` only in full mode.
+stored under `langfuse.gateway.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
