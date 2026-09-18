@@ -8,7 +8,7 @@ const BASE64_MARKER = ";base64,";
 const MEDIA_REFERENCE_PREFIX = "@@@langfuseMedia:";
 const MEDIA_REFERENCE_SUFFIX = "@@@";
 const SERIALIZED_PROVIDER_MEDIA_TYPE =
-  /"type"\s*:\s*"(?:base64|media|blob|file)"/;
+  /"type"\s*:\s*"(?:base64|media|blob|file|image-data|file-data)"/;
 
 export type MediaPayloadKind =
   | "data_uri"
@@ -579,7 +579,14 @@ function matchStructuredMedia(
     }
   }
 
-  if (value.type === "file" && typeof value.mediaType === "string") {
+  // The AI SDK's message-level file part, and the two spellings a tool result
+  // uses for the same bytes.
+  if (
+    (value.type === "file" ||
+      value.type === "image-data" ||
+      value.type === "file-data") &&
+    typeof value.mediaType === "string"
+  ) {
     const property =
       typeof value.data === "string"
         ? "data"

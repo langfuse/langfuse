@@ -244,6 +244,88 @@ describe("transformMediaPayload", () => {
     );
   });
 
+  it("processes the AI SDK's tool-result image-data and file-data parts", async () => {
+    const value = {
+      messages: [
+        {
+          role: "tool",
+          content: [
+            {
+              type: "tool-result",
+              toolCallId: "call_1",
+              toolName: "readFile",
+              output: {
+                type: "content",
+                value: [
+                  { type: "text", text: "sheet.png" },
+                  {
+                    type: "image-data",
+                    mediaType: "image/png",
+                    data: PNG_BASE64,
+                  },
+                  {
+                    type: "file-data",
+                    mediaType: "application/pdf",
+                    data: PNG_BASE64,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      ],
+    };
+    const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
+
+    await transformMediaPayload(value, {
+      processCandidate,
+      onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    const parts = value.messages[0]?.content[0]?.output.value;
+    expect(parts?.[1]?.data).toBe(MEDIA_REFERENCE);
+    expect(parts?.[2]?.data).toBe(MEDIA_REFERENCE);
+    expect(processCandidate).toHaveBeenCalledTimes(2);
+    expect(
+      processCandidate.mock.calls.map(([candidate]) => candidate.kind),
+    ).toEqual(["ai_sdk_v6", "ai_sdk_v6"]);
+  });
+
+  it("detects the AI SDK's tool-result parts inside stringified JSON", async () => {
+    const value = JSON.stringify([
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            output: {
+              type: "content",
+              value: [
+                {
+                  type: "image-data",
+                  mediaType: "image/png",
+                  data: PNG_BASE64,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ]);
+
+    const transformed = await transformMediaPayload(value, {
+      processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
+      onInvalidCandidate: vi.fn(),
+      onIgnoredCandidate: vi.fn(),
+      onDetectionPath: vi.fn(),
+    });
+
+    expect(transformed.value).toContain(MEDIA_REFERENCE);
+    expect(transformed.value).not.toContain(PNG_BASE64);
+  });
+
   it("replaces an own __proto__ field without invoking its setter", async () => {
     const dataUri = `data:image/png;base64,${PNG_BASE64}`;
     const value: Record<string, unknown> = {};
