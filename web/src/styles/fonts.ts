@@ -8,8 +8,8 @@ export const plexSans = localFont({
       style: "normal",
     },
     {
-      path: "../../public/fonts/IBMPlexSans-SemiBold.woff2",
-      weight: "600",
+      path: "../../public/fonts/IBMPlexSans-Medium.woff2",
+      weight: "500",
       style: "normal",
     },
   ],
@@ -26,7 +26,7 @@ export const plexMono = localFont({
     },
     {
       path: "../../public/fonts/IBMPlexMono-Bold.woff2",
-      weight: "600",
+      weight: "500",
       style: "normal",
     },
   ],
