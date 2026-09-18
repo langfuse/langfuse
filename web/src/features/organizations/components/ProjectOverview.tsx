@@ -45,6 +45,7 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import { useQueryOrganizationLookup } from "@/src/features/organizations/hooks";
 
 const OrganizationProjectTiles = ({
   org,
@@ -327,6 +328,8 @@ export const OrganizationProjectOverview = () => {
   const router = useRouter();
   const queryOrgId = router.query.organizationId;
   const session = useSession();
+  const { organization: queriedOrg, isPending: queriedOrgPending } =
+    useQueryOrganizationLookup();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
@@ -342,9 +345,11 @@ export const OrganizationProjectOverview = () => {
       .length === 0 && !queryOrgId;
 
   if (queryOrgId) {
-    const org = organizations.find((org) => org.id === queryOrgId);
+    if (queriedOrgPending) {
+      return "loading...";
+    }
 
-    if (!org) {
+    if (!queriedOrg) {
       return (
         <ErrorPage
           title="Organization not found"
@@ -353,7 +358,9 @@ export const OrganizationProjectOverview = () => {
       );
     }
 
-    return <SingleOrganizationPage org={org} search={search ?? undefined} />;
+    return (
+      <SingleOrganizationPage org={queriedOrg} search={search ?? undefined} />
+    );
   }
 
   return (
