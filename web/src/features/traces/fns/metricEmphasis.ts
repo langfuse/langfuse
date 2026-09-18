@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 
 /** A row at or above this share of the trace total is emphasised. */
-const METRIC_EMPHASIS_THRESHOLD = 0.5;
+const METRIC_EMPHASIS_THRESHOLD = 0.75;
 
 export type MetricEmphasisContext = {
   traceTotalCost?: Decimal;
