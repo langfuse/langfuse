@@ -574,10 +574,17 @@ export function ConnectedObservationDetailView({
               >
                 <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
                   <ScoresTable
+                    // Remount per node: collapsed groups belong to one node.
+                    key={observation.id}
                     projectId={projectId}
                     traceId={traceId}
                     observationId={observation.id}
                     includeTraceLevelScores={ownsTraceLevelScores}
+                    // An evaluator's per-metric details (judge, sample size)
+                    // live in metadata; this table is where they are read.
+                    metadataVisibleByDefault
+                    // Rows under the same score group headers the chips use.
+                    groupByNamePrefix
                     hiddenColumns={[
                       "traceId",
                       "observationId",
