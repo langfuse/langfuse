@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -8,6 +9,11 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
@@ -163,16 +169,11 @@ export function IOPreview({
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
-    "jsonViewPreference",
-    "pretty",
+    JSON_VIEW_PREFERENCE_STORAGE_KEY,
+    DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  // A previously persisted "pretty-beta" preference is no longer a view mode;
-  // fall back to the Formatted view.
-  const normalizedLocalView: ViewMode =
-    (localCurrentView as string) === "pretty-beta"
-      ? "pretty"
-      : localCurrentView;
-  const selectedView = currentView ?? normalizedLocalView;
+  const selectedView =
+    currentView ?? normalizeJsonViewPreference(localCurrentView);
   const showViewToggle = currentView === undefined;
 
   const [compensateScrollRef, startPreserveScroll] =

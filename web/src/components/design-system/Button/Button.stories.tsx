@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -50,6 +51,7 @@ export const SecondaryLink = meta.story({
   name: "(Test) Secondary Link",
   args: {
     href: "/docs",
+    icon: BookOpen,
     text: "View docs",
     variant: "secondary",
   },

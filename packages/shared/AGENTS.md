@@ -18,6 +18,9 @@
 - Main exports: `src/index.ts`
 - DB clients and types: `src/db.ts`
 - Server exports: `src/server/index.ts`
+- CloudWatch metrics: `recordGauge` batches values; windowed measurements can
+  call `flushMetricsToCloudWatch` from the server barrel after recording to
+  submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
 - Domain model types: `src/domain/*`
 - Repository layer: `src/server/repositories/*`

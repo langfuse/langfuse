@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
 import type {
   EvalTemplateType,

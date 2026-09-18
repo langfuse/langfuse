@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
@@ -107,16 +108,17 @@ import {
 
 /** Reuses ItemBadge's type→hue mapping, so a colour means what it already means. */
 const TYPE_COLOR: Record<string, string> = {
-  TRACE: "bg-dark-green",
-  GENERATION: "bg-muted-magenta",
-  EVENT: "bg-muted-green",
-  SPAN: "bg-muted-blue",
-  AGENT: "bg-purple-600",
-  TOOL: "bg-orange-600",
-  CHAIN: "bg-pink-600",
-  RETRIEVER: "bg-teal-600",
-  EMBEDDING: "bg-amber-600",
-  GUARDRAIL: "bg-red-600",
+  TRACE: "bg-observation-trace",
+  GENERATION: "bg-observation-generation",
+  EVENT: "bg-observation-event",
+  SPAN: "bg-observation-span",
+  AGENT: "bg-observation-agent",
+  EVALUATOR: "bg-observation-evaluator",
+  TOOL: "bg-observation-tool",
+  CHAIN: "bg-observation-chain",
+  RETRIEVER: "bg-observation-retriever",
+  EMBEDDING: "bg-observation-embedding",
+  GUARDRAIL: "bg-observation-guardrail",
 };
 const FALLBACK_COLOR = "bg-muted-gray";
 /** Neutral mode's bar, when colour is not carrying type. */

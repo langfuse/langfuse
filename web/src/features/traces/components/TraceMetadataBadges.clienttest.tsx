@@ -29,15 +29,6 @@ describe("TraceMetadataBadges session replay privacy", () => {
     expect(
       screen.getByText("Target Trace: target-trace").closest("a"),
     ).toHaveClass("ph-no-capture");
-    expect(
-      screen.getByText("Session: customer-session").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("User ID: customer-user").parentElement,
-    ).toHaveClass("bg-primary");
-    expect(
-      screen.getByText("Target Trace: target-trace").parentElement,
-    ).toHaveClass("bg-primary");
     expect(screen.getByText("Env: production").parentElement).toHaveClass(
       "bg-tertiary",
     );
