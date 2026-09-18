@@ -443,6 +443,7 @@ describe("validateQuery", () => {
       "scores.accuracy:>0.8",
       "traceScores.nps:positive",
       "metadata.region:*eu*",
+      "metadata.timeout:>20",
       "input:refund",
       "name:checkout",
       "tags:(a AND b)",
@@ -462,7 +463,6 @@ describe("validateQuery", () => {
       "-latency:2", // negated numeric equality
       "-input:prefix*", // negated starts-with
       "-tags:(a AND b)", // negated all-of
-      "metadata.region:>5", // metadata comparison
       "-metadata.region:eu", // negated metadata equality
       "latency:(1 OR 2)", // numeric any-of
       "has:(endTime OR userId)", // positive multi-has
