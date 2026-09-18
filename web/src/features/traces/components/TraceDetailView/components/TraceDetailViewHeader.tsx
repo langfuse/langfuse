@@ -382,14 +382,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             </NewDatasetItemFromExistingObjectDialogController>
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
-              <div className="flex items-start">
+              <div className="flex flex-wrap items-start gap-2">
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
                       variant="secondary"
                       size="sm"
                       disabled={disabled}
-                      className="rounded-r-none"
                       onClick={() =>
                         openDrawer({
                           scoreTarget: {
@@ -429,17 +428,14 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       variant="secondary"
                       size="sm"
                       disabled={disabled !== undefined}
-                      className="rounded-l-none rounded-r-md border-l-2"
+                      className="gap-1.5"
                     >
-                      <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="toolbar"
-                          />
-                        )}
-                      </span>
+                      <ListPlus className="h-3.5 w-3.5" />
+                      <span>Add to queue</span>
+                      {totalCount > 0 && (
+                        <ActionButtonCountBadge count={totalCount} />
+                      )}
+                      <ChevronDown className="h-3 w-3" />
                     </Button>
                   )}
                 </AnnotationQueueItemDropdownMenuController>

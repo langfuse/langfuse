@@ -586,7 +586,7 @@ export const ObservationDetailViewHeader = memo(
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
-                <div className="flex items-start">
+                <div className="flex flex-wrap items-start gap-2">
                   {isV4Enabled ? (
                     <Drawer key={"annotation-drawer-" + observation.id}>
                       <DrawerTrigger asChild>
@@ -595,7 +595,6 @@ export const ObservationDetailViewHeader = memo(
                           size="sm"
                           disabled={!hasAnnotationAccess}
                           onClick={captureAnnotationEntry}
-                          className="rounded-r-none"
                         >
                           {!hasAnnotationAccess ? (
                             <LockIcon className="mr-1.5 h-3 w-3" />
@@ -625,7 +624,6 @@ export const ObservationDetailViewHeader = memo(
                           variant="secondary"
                           size="sm"
                           disabled={disabled}
-                          className="rounded-r-none"
                           onClick={() =>
                             openDrawer({
                               scoreTarget: {
@@ -667,17 +665,14 @@ export const ObservationDetailViewHeader = memo(
                         variant="secondary"
                         size="sm"
                         disabled={disabled !== undefined}
-                        className="rounded-l-none rounded-r-md border-l-2"
+                        className="gap-1.5"
                       >
-                        <span className="relative mr-1 text-xs">
-                          <ChevronDown className="h-3 w-3" />
-                          {totalCount > 0 && (
-                            <AnnotationQueueItemCountBadge
-                              totalCount={totalCount}
-                              layout="toolbar"
-                            />
-                          )}
-                        </span>
+                        <ListPlus className="h-3.5 w-3.5" />
+                        <span>Add to queue</span>
+                        {totalCount > 0 && (
+                          <ActionButtonCountBadge count={totalCount} />
+                        )}
+                        <ChevronDown className="h-3 w-3" />
                       </Button>
                     )}
                   </AnnotationQueueItemDropdownMenuController>
