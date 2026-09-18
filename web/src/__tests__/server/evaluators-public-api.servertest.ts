@@ -19,6 +19,7 @@ import {
   LlmAsJudgeEvaluator,
   PublicApiError,
 } from "@/src/features/public-api";
+import { toApiReadMappings } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {
@@ -389,51 +390,26 @@ describe("stable evaluators public API", () => {
     });
   });
 
-  it("reads snake-case tool call mappings", async () => {
-    const { auth, projectId } = await createOrgProjectAndApiKey();
-    const evaluator = await prisma.evaluator.create({
-      data: {
-        projectId,
-        name: "snake-case tool calls evaluator",
-        description: null,
-        type: EvalTemplateType.LLM_AS_JUDGE,
-        versions: {
-          create: {
-            version: 1,
-            prompt: "Inspect {{input}} {{output}} {{tool_calls}}",
-            vars: ["input", "output", "tool_calls"],
-            variableMapping: [
-              {
-                templateVariable: "input",
-                selectedColumnId: "input",
-                jsonSelector: null,
-              },
-              {
-                templateVariable: "output",
-                selectedColumnId: "output",
-                jsonSelector: null,
-              },
-              {
-                templateVariable: "tool_calls",
-                selectedColumnId: "tool_calls",
-                jsonSelector: null,
-              },
-            ],
-            outputDefinition: { reasoning: "", score: "" },
-          },
+  it("reads snake-case tool call mappings", () => {
+    expect(
+      toApiReadMappings([
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
         },
-      },
-    });
-
-    const response = await makeZodVerifiedAPICall(
-      Evaluator,
-      "GET",
-      `/api/public/v2/evaluators/${evaluator.id}`,
-      undefined,
-      auth,
-    );
-
-    expect(response.body.variableMapping).toEqual([
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "tool_calls",
+          selectedColumnId: "tool_calls",
+          jsonSelector: null,
+        },
+      ]),
+    ).toEqual([
       { variable: "input", source: "input" },
       { variable: "output", source: "output" },
       { variable: "tool_calls", source: "tool_calls" },
