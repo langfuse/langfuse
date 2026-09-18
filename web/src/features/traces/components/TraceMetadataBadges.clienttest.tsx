@@ -34,14 +34,7 @@ describe("TraceMetadataBadges session replay privacy", () => {
 
 describe("UsageBadge", () => {
   it("keeps custom usage details accessible without aggregate token totals", () => {
-    render(
-      <UsageBadge
-        inputUsage={0}
-        outputUsage={0}
-        totalUsage={0}
-        usageDetails={{ audio_seconds: 12 }}
-      />,
-    );
+    render(<UsageBadge totalUsage={0} usageDetails={{ audio_seconds: 12 }} />);
 
     expect(
       screen.getByRole("button", { name: "View usage breakdown" }),

@@ -154,8 +154,6 @@ export const ObservationDetailViewHeader = memo(
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
-    const inputUsage = observation.inputUsage;
-    const outputUsage = observation.outputUsage;
     const evaluatorId = resolveEvaluatorIdMetadata(
       observationWithIO?.metadata ?? observation.metadata,
     );
