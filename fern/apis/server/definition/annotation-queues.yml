@@ -20,6 +20,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include items created on or after this timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include items created before this timestamp.
       response: PaginatedAnnotationQueues
 
     createQueue:
@@ -59,6 +65,12 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include items created on or after this timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Optional filter to only include items created before this timestamp.
       response: PaginatedAnnotationQueueItems
 
     getQueueItem:
