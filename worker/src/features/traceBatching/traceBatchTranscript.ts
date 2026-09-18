@@ -46,7 +46,6 @@ export function recordTraceBatchTranscript(
 
   // Returning only the tokenization promise lets the caller release observations
   // and stream the next trace while the tokenizer thread processes its copy.
-  const tokenizationStartedAt = performance.now();
   return tokenCountAsync({ model: TOKENIZER_MODEL, text: transcript })
     .then((tokens) => {
       if (tokens === undefined) {
@@ -60,11 +59,5 @@ export function recordTraceBatchTranscript(
     .catch(() => {
       // A missing experiment metric must not retry all reads in the batch.
       recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
-    })
-    .finally(() => {
-      recordDistribution(
-        "langfuse.trace_batch.transcript_tokenization_duration_ms",
-        performance.now() - tokenizationStartedAt,
-      );
     });
 }

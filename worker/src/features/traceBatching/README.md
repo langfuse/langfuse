@@ -122,7 +122,6 @@ These distributions use the `langfuse.trace_batch` prefix:
 | Metric | Sample |
 | --- | --- |
 | `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
-| `transcript_tokenization_duration_ms` | Elapsed time from token submission to settlement, including worker-pool queueing, copying, encoding and failures; emitted only when a transcript exists. |
 | `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
 
 Transcript token counts use the existing local worker-thread pool and bundled
@@ -147,8 +146,8 @@ stream buffers, multiplied by active batch jobs. A single trace remains unbounde
 The default two-thread tokenizer pool is shared with ingestion; overlap hides
 waiting time but does not remove CPU use or contention. Its existing 30-second
 timeout rejects the promise without cancelling queued/running encoding, so the
-pending-promise bound is not a cancellation guarantee. Watch tokenization latency
-and failures alongside `runtime.node.mem.rss`, `runtime.node.mem.heap_used`, worker
+pending-promise bound is not a cancellation guarantee. Watch tokenization failures
+alongside `runtime.node.mem.rss`, `runtime.node.mem.heap_used`, worker
 CPU and queue depth before raising batch concurrency.
 
 ClickHouse must sort the filtered result, so compare query memory and latency against the unordered
