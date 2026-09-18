@@ -171,6 +171,19 @@ not unique ingested events. Discarded/unparsed jobs omit stream counters.
 Use these existing logs to compare batch shape and volume across outcomes by
 query ID; no payload contents, project-ID lists or per-batch metric tags are added.
 
+With an experiment ID, the BullMQ processing span also carries attributes under
+`langfuse.trace_batch.*`: `experiment_id`, `job_id`, `attempt` (one-based),
+`query_id`, `batch_trace_count`, `batch_project_count`, `event_time_span_ms`,
+and `max_trace_span_ms`. Shape and query ID are attached before reading, so they
+remain available if the stream fails. Completion adds `outcome`, `duration_ms`,
+`observation_count`, `found_trace_count`, `found_project_count`, `input_bytes`,
+`output_bytes`, `metadata_bytes`, and `partial`, with the same semantics as the
+logs. Discards and validation failures omit query/stream fields. These reuse
+existing aggregates without additional queries or serialization. Payloads and
+project/trace-ID lists are not attached. Dispatcher size estimates remain aggregate
+metrics, not per-job span attributes; consumed bytes are not estimated total size.
+Span availability follows the existing tracing sampling and retention settings.
+
 For the initial scaling curve, use deterministic trace sampling at 10%, 20%,
 50%, then 100% across the same project population. Annotate fixed UTC windows;
 pause tracking and drain old readiness/queued work between settings. Warm up at
