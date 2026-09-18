@@ -8,7 +8,6 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { scoreLevelFromScore } from "@/src/components/score-tag";
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 
 /**
@@ -66,14 +65,6 @@ export const GroupedScoreBadges = <
 }) => {
   const groupedScores = groupScoresByName(scores);
 
-  // Level tags only when this selection MIXES levels (LFE-10596): a row whose
-  // scores all share one level (the common case — e.g. a span's own
-  // observation-level scores) needs no per-chip disambiguation; a mixed row
-  // (e.g. the root carrying trace-level and observation-level scores) tags
-  // each group so the levels are tellable apart.
-  const showLevels =
-    new Set(scores.map((score) => scoreLevelFromScore(score))).size > 1;
-
   // "+N" expands IN PLACE on click (hover still previews the hidden chips);
   // the trailing "−" collapses back to the capped view.
   const [expanded, setExpanded] = useState(false);
@@ -94,12 +85,7 @@ export const GroupedScoreBadges = <
   return (
     <>
       {visibleScores.map(([name, scores]) => (
-        <ScoreBadge
-          key={name}
-          name={name}
-          scores={scores}
-          showLevels={showLevels}
-        />
+        <ScoreBadge key={name} name={name} scores={scores} />
       ))}
       {Boolean(hiddenScores.length) && (
         <HoverCard>
@@ -129,12 +115,7 @@ export const GroupedScoreBadges = <
           <HoverCardContent className="max-h-[300px] w-max max-w-[min(420px,90vw)] overflow-y-auto p-2">
             <div className="flex flex-wrap gap-1">
               {hiddenScores.map(([name, scores]) => (
-                <ScoreBadge
-                  key={name}
-                  name={name}
-                  scores={scores}
-                  showLevels={showLevels}
-                />
+                <ScoreBadge key={name} name={name} scores={scores} />
               ))}
             </div>
           </HoverCardContent>

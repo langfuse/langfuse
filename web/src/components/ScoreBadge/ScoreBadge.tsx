@@ -7,34 +7,21 @@ import {
 import Link from "next/link";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
+import {
+  SCORE_LEVEL_DESCRIPTIONS,
+  SCORE_LEVEL_DOT_CLASSES,
+  scoreLevelFromScore,
+} from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { cn } from "@/src/utils/tailwind";
-
-const SCORE_HUE_CLASSES = [
-  "bg-score-hue-1",
-  "bg-score-hue-2",
-  "bg-score-hue-3",
-  "bg-score-hue-4",
-  "bg-score-hue-5",
-  "bg-score-hue-6",
-  "bg-score-hue-7",
-  "bg-score-hue-8",
-] as const;
-
-/** Same score name, same hue, on every surface and every page load. */
-const scoreHueClass = (name: string) => {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) % 4294967296;
-  return SCORE_HUE_CLASSES[hash % SCORE_HUE_CLASSES.length];
-};
 
 const hasMetadata = (
   score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
@@ -75,33 +62,59 @@ export const ScoreBadge = <
 >({
   name,
   scores,
-  showLevels,
 }: {
   name: string;
   scores: T[];
-  /** Render this group's level tags when the selection mixes score levels. */
-  showLevels?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
-  const levels = showLevels
-    ? Array.from(new Set(scores.map((score) => scoreLevelFromScore(score))))
-    : [];
+  const levels = Array.from(
+    new Set(scores.map((score) => scoreLevelFromScore(score))),
+  );
 
   return (
     <span className="inline-flex max-w-full min-w-0 items-center gap-1">
-      {levels.map((level) => (
-        <ScoreTag key={level} level={level} />
-      ))}
       <BadgeShell>
         <span className="flex min-w-0 flex-1 items-center gap-1">
-          <span
-            aria-hidden
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              scoreHueClass(name),
+          <CustomTooltip
+            content={
+              <span className="flex flex-col gap-1">
+                {levels.map((level) => (
+                  <span key={level} className="flex items-start gap-1.5">
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "mt-1.5 size-1.5 shrink-0 rounded-full",
+                        SCORE_LEVEL_DOT_CLASSES[level],
+                      )}
+                    />
+                    <span>{SCORE_LEVEL_DESCRIPTIONS[level]}</span>
+                  </span>
+                ))}
+              </span>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span
+                {...getTriggerProps()}
+                role="img"
+                aria-label={levels
+                  .map((level) => SCORE_LEVEL_DESCRIPTIONS[level])
+                  .join("; ")}
+                className="flex shrink-0 items-center gap-0.5"
+              >
+                {levels.map((level) => (
+                  <span
+                    key={level}
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      SCORE_LEVEL_DOT_CLASSES[level],
+                    )}
+                  />
+                ))}
+              </span>
             )}
-          />
+          </CustomTooltip>
           <span className="min-w-0 truncate" title={name}>
             {name}:
           </span>
