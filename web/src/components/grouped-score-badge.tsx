@@ -4,27 +4,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
 import { cn } from "@/src/utils/tailwind";
 import { type LastUserScore, type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { scoreLevelFromScore } from "@/src/components/score-tag";
-import {
-  ScoreBadge,
-  ScoreMetadataHoverCard,
-  hasScoreMetadata,
-} from "@/src/components/ScoreBadge/ScoreBadge";
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 
 type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
-const MAX_VISIBLE_SCORE_GROUPS = 3;
+const MAX_VISIBLE_SCORE_GROUPS = 2;
 
 /**
  * Bucket scores by name, the way the badges group them. Exported so a caller that
@@ -61,47 +49,19 @@ const ScoreTable = <T extends ChipScore>({ scores }: { scores: T[] }) => {
   const sortedScores = [...scores].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <Table className="w-auto table-auto">
-      <TableHeader>
-        <TableRow>
-          <TableHead className="h-7 text-xs font-normal">Name</TableHead>
-          <TableHead className="h-7 text-xs font-normal">Value</TableHead>
-          <TableHead className="h-7 text-xs font-normal">Comment</TableHead>
-          <TableHead className="h-7 text-xs font-normal">Metadata</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {sortedScores.map((score) => {
-          const value = formatScoreValue(score);
-          return (
-            <TableRow key={score.id}>
-              <TableCell className="py-1 whitespace-nowrap">
-                {score.name}
-              </TableCell>
-              <TableCell className="py-1 whitespace-nowrap">{value}</TableCell>
-              <TableCell className="py-1">
-                {score.comment && (
-                  <span
-                    className="block max-w-[240px] truncate"
-                    title={score.comment}
-                  >
-                    {score.comment}
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="py-1">
-                {hasScoreMetadata(score) && (
-                  <ScoreMetadataHoverCard
-                    ariaLabel={`View metadata for ${score.name}: ${value}`}
-                    metadata={score.metadata}
-                  />
-                )}
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+    <div className="p-2 text-xs">
+      <div className="text-muted-foreground mb-1">Scores</div>
+      <ul className="grid grid-cols-[auto_auto] gap-x-4 gap-y-1">
+        {sortedScores.map((score) => (
+          <li key={score.id} className="contents">
+            <span className="whitespace-nowrap">{score.name}</span>
+            <span className="text-foreground whitespace-nowrap">
+              {formatScoreValue(score)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 };
 

@@ -17,7 +17,7 @@ import { ScoreTag, scoreLevelFromScore } from "@/src/components/score-tag";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
-export const hasScoreMetadata = (
+const hasMetadata = (
   score: WithStringifiedMetadata<ScoreDomain> | LastUserScore,
 ) => {
   if (!score.metadata) return false;
@@ -31,23 +31,6 @@ export const hasScoreMetadata = (
     return false;
   }
 };
-
-export const ScoreMetadataHoverCard = ({
-  ariaLabel,
-  metadata,
-}: {
-  ariaLabel: string;
-  metadata: (WithStringifiedMetadata<ScoreDomain> | LastUserScore)["metadata"];
-}) => (
-  <HoverCard>
-    <HoverCardTrigger aria-label={ariaLabel} className="inline-block shrink-0">
-      <BracesIcon className="mb-0.25 size-3!" />
-    </HoverCardTrigger>
-    <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
-      <JSONView codeClassName="rounded-md!" json={metadata} />
-    </HoverCardContent>
-  </HoverCard>
-);
 
 const ExecutionTraceLink = ({
   executionTraceId,
@@ -132,11 +115,21 @@ export const ScoreBadge = <
                     </HoverCardContent>
                   </HoverCard>
                 )}
-                {hasScoreMetadata(score) && (
-                  <ScoreMetadataHoverCard
-                    ariaLabel={`View metadata for ${name}: ${value}`}
-                    metadata={score.metadata}
-                  />
+                {hasMetadata(score) && (
+                  <HoverCard>
+                    <HoverCardTrigger
+                      aria-label={`View metadata for ${name}: ${value}`}
+                      className="inline-block shrink-0"
+                    >
+                      <BracesIcon className="mb-0.25 size-3!" />
+                    </HoverCardTrigger>
+                    <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+                      <JSONView
+                        codeClassName="rounded-md!"
+                        json={score.metadata}
+                      />
+                    </HoverCardContent>
+                  </HoverCard>
                 )}
                 {index < scores.length - 1 && <span>,</span>}
               </span>

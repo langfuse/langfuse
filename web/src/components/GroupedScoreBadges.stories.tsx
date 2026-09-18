@@ -70,7 +70,7 @@ export const WithOverflow = meta.story({
     await waitFor(async () => {
       await expect(
         canvasElement.ownerDocument.body.querySelectorAll(
-          '[role="dialog"][data-state="open"] tbody tr',
+          '[role="dialog"][data-state="open"] li',
         ),
       ).toHaveLength(3);
     });
