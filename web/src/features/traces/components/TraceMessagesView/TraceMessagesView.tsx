@@ -7,7 +7,7 @@
  * first, then the current turn with links to the observations that emitted it.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -89,6 +89,8 @@ function ThreadBlock({
 }) {
   const { setSelectedNodeId } = useSelection();
   const layout = useDesktopLayoutContextOptional();
+  // History is context, not the point of the view; start folded.
+  const [showHistory, setShowHistory] = useState(false);
   // Media of the emitting observations, so inline references resolve the way
   // they do in the formatted view. History has no emitter to ask.
   const mediaQueries = api.useQueries((t) =>
@@ -111,10 +113,21 @@ function ThreadBlock({
       {title && <h3 className="text-sm font-bold">{title}</h3>}
       {thread.conversationHistory.length > 0 && (
         <>
-          <SectionLabel>Conversation history</SectionLabel>
-          <div className="opacity-70">
-            <MessageList messages={thread.conversationHistory} media={[]} />
-          </div>
+          <SectionLabel>
+            <button
+              type="button"
+              className="hover:text-foreground"
+              onClick={() => setShowHistory((shown) => !shown)}
+            >
+              {showHistory ? "Hide" : "Show"} conversation history (
+              {thread.conversationHistory.length})
+            </button>
+          </SectionLabel>
+          {showHistory && (
+            <div className="opacity-70">
+              <MessageList messages={thread.conversationHistory} media={[]} />
+            </div>
+          )}
           <SectionLabel>Current turn</SectionLabel>
         </>
       )}
