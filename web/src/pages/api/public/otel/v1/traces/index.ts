@@ -56,14 +56,22 @@ export default withMiddlewares({
       try {
         // Acquire worker admission before reading so queued request bodies remain paused.
         if (useWorker) {
-          const { createOtelIngestionWorkerContext } =
-            await import("@/src/server/otel/otelIngestionWorkerContext");
-          const contextResult = await createOtelIngestionWorkerContext(
-            req,
-            res,
-            auth.scope.projectId,
-            maxBodyBytes,
-          );
+          req.pause();
+          let workerContextModule;
+          try {
+            workerContextModule =
+              await import("@/src/server/otel/otelIngestionWorkerContext");
+          } catch (error) {
+            req.resume();
+            throw error;
+          }
+          const contextResult =
+            await workerContextModule.createOtelIngestionWorkerContext(
+              req,
+              res,
+              auth.scope.projectId,
+              maxBodyBytes,
+            );
           if ("response" in contextResult) {
             return contextResult.response;
           }
@@ -72,20 +80,14 @@ export default withMiddlewares({
         } else {
           // Attach the reader before loading shadow code so a fast request
           // cannot finish while the stream is still unobserved.
-          const bodyResultPromise = readOtelRequestBody(
-            req,
-            maxBodyBytes,
-          ).then(
+          const bodyResultPromise = readOtelRequestBody(req, maxBodyBytes).then(
             (body) => ({ success: true as const, body }),
             (error: unknown) => ({ success: false as const, error }),
           );
           if (useShadow) {
             const { startOtelIngestionWorkerAdmissionShadow } =
               await import("@/src/server/otel/otelIngestionWorkerShadow");
-            startOtelIngestionWorkerAdmissionShadow(
-              res,
-              auth.scope.projectId,
-            );
+            startOtelIngestionWorkerAdmissionShadow(res, auth.scope.projectId);
           }
           const bodyResult = await bodyResultPromise;
           if (!bodyResult.success) throw bodyResult.error;
