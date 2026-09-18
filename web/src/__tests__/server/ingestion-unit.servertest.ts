@@ -82,7 +82,7 @@ vi.mock("@langfuse/shared/src/db", async () => {
 });
 
 describe("/api/public/ingestion API Endpoint", () => {
-  it(`should return 500 for prisma exception`, async () => {
+  it(`should return 503 for prisma exception`, async () => {
     const { req, res } = createMocks({
       method: "POST",
       headers: {
@@ -97,6 +97,6 @@ describe("/api/public/ingestion API Endpoint", () => {
     const extendedRes = res as unknown as NextApiResponse;
 
     await handler(extendedReq, extendedRes);
-    expect(res._getStatusCode()).toBe(500);
+    expect(res._getStatusCode()).toBe(503);
   });
 });
