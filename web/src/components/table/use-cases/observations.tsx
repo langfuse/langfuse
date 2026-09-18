@@ -94,10 +94,13 @@ import {
 } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  TableSearchBar,
+  toObservedOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
 import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
 import { useRouter } from "next/router";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
