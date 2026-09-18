@@ -60,7 +60,7 @@ const modelConfigDescriptions = {
   lastUsed: "Start time of the latest generation using this model",
 } as const;
 
-export default function ModelTable({ projectId }: { projectId: string }) {
+export default function ModelsTable({ projectId }: { projectId: string }) {
   const router = useRouter();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
