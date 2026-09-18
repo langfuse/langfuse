@@ -23,7 +23,11 @@ import {
 } from "kysely";
 
 import { QueryCompileError, UnscopedRelationError } from "./errors";
-import { type ClickHouseSelectQueryNode } from "./nodes";
+import {
+  FinalTableNode,
+  unwrapFinalTable,
+  type ClickHouseSelectQueryNode,
+} from "./nodes";
 import { TENANTED_TABLES } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
@@ -192,6 +196,9 @@ function assertRelationAllowed(relation: Relation): void {
 }
 
 function describeRelation(node: OperationNode): Relation {
+  if (FinalTableNode.is(node)) {
+    return describeRelation(unwrapFinalTable(node));
+  }
   if (RawNode.is(node)) {
     return { kind: "raw" };
   }

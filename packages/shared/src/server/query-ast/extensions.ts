@@ -6,19 +6,23 @@
  *   - Plugins ({@link ArrayJoinPlugin}, {@link LimitByPlugin}) that attach a
  *     custom operation node (`ArrayJoinNode` / `LimitByNode`) onto the select
  *     node during query transformation; the ClickHouse compiler renders them.
- *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}) that apply those
- *     plugins while extending the builder's output row type, so produced
- *     aliases are type-checked and misspelled references are compile errors.
+ *   - `$call` helpers ({@link arrayJoin}, {@link limitBy}, {@link useFinal})
+ *     that apply those plugins while extending the builder's output row type,
+ *     so produced aliases are type-checked and misspelled references are
+ *     compile errors.
  *   - Typed expression helpers ({@link mapKeys}, {@link mapValues},
  *     {@link metadataValue}) that build ClickHouse map/array function calls and
  *     `metadata[key]` subscripts as real, parameter-bound nodes — never raw SQL
  *     strings — so they escape and compose like any other expression.
  */
 import {
+  AliasNode,
   ColumnNode,
   ExpressionWrapper,
+  FromNode,
   FunctionNode,
   IdentifierNode,
+  JoinNode,
   ReferenceNode,
   TableNode,
   ValueNode,
@@ -34,11 +38,14 @@ import {
 import {
   ArrayIndexNode,
   ArrayJoinNode,
+  FinalTableNode,
   LimitByNode,
+  unwrapFinalTable,
   type ArrayJoinVariant,
   type ClickHouseSelectQueryNode,
 } from "./nodes";
-import type { ClickHouseDatabase } from "./schema";
+import { QueryCompileError } from "./errors";
+import { DEDUP_SPECS, type ClickHouseDatabase } from "./schema";
 import { ClickHouseOperationNodeTransformer } from "./transformer";
 
 type OperationNodeSource = OperationNode | { toOperationNode(): OperationNode };
@@ -227,4 +234,79 @@ export function limitBy(spec: LimitBySpec) {
   return <DB, TB extends keyof DB, O>(
     qb: SelectQueryBuilder<DB, TB, O>,
   ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new LimitByPlugin(spec));
+}
+
+function physicalTableName(node: OperationNode): string | undefined {
+  if (FinalTableNode.is(node)) return physicalTableName(unwrapFinalTable(node));
+  if (AliasNode.is(node)) return physicalTableName(node.node);
+  if (TableNode.is(node)) return node.table.identifier.name;
+  return undefined;
+}
+
+function wrapFinal(
+  node: OperationNode,
+  tables: ReadonlySet<string>,
+): OperationNode {
+  if (FinalTableNode.is(node)) return node;
+  const name = physicalTableName(node);
+  return name && tables.has(name)
+    ? (FinalTableNode.create(node) as unknown as OperationNode)
+    : node;
+}
+
+/**
+ * Plugin that marks named physical tables for `FINAL`. Walks this select's
+ * FROM/JOIN table expressions only — apply it on the builder that owns the
+ * scores (or other ReplacingMergeTree) relation, including a CTE body.
+ */
+class FinalPlugin implements KyselyPlugin {
+  constructor(private readonly tables: ReadonlySet<string>) {}
+
+  transformQuery(args: PluginTransformQueryArgs): RootOperationNode {
+    if (args.node.kind !== "SelectQueryNode") return args.node;
+    const transformer = new ClickHouseOperationNodeTransformer();
+    const node = transformer.transformNode(
+      args.node,
+    ) as ClickHouseSelectQueryNode;
+    const froms = (node.from?.froms ?? []).map((from) =>
+      wrapFinal(from, this.tables),
+    );
+    const joins = (node.joins ?? []).map((join) => {
+      const table = wrapFinal(join.table, this.tables);
+      if (table === join.table) return join;
+      return join.on
+        ? JoinNode.createWithOn(join.joinType, table, join.on.on)
+        : JoinNode.create(join.joinType, table);
+    });
+    return {
+      ...node,
+      // cloneWithFroms appends; replacing the list avoids
+      // `FROM scores AS s, scores AS s FINAL`.
+      ...(node.from ? { from: FromNode.create(froms) } : {}),
+      ...(joins.length ? { joins } : {}),
+    } as RootOperationNode;
+  }
+
+  async transformResult(args: PluginTransformResultArgs) {
+    return args.result;
+  }
+}
+
+/**
+ * `FROM <table> FINAL` / `JOIN <table> AS alias FINAL` as a `$call` step:
+ * `qb.$call(useFinal(["scores"]))`. Tables declared `dedup: none` (immutable
+ * at read time, including `events_core`) cannot take FINAL.
+ */
+export function useFinal(tables: ReadonlyArray<keyof ClickHouseDatabase>) {
+  for (const table of tables) {
+    if (DEDUP_SPECS[table]?.strategy === "none") {
+      throw new QueryCompileError(
+        `Cannot apply FINAL to ${table}: declared immutable (dedup strategy none).`,
+      );
+    }
+  }
+  const names = new Set<string>(tables);
+  return <DB, TB extends keyof DB, O>(
+    qb: SelectQueryBuilder<DB, TB, O>,
+  ): SelectQueryBuilder<DB, TB, O> => qb.withPlugin(new FinalPlugin(names));
 }
