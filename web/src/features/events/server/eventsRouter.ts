@@ -447,7 +447,7 @@ export const eventsRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       if (
         !hasInternalAccess({
-          isAdmin: ctx.session.user.admin === true,
+          isAdmin: ctx.session?.user?.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         })

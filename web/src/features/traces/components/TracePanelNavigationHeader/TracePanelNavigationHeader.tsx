@@ -339,6 +339,10 @@ function TracePanelNavigationHeaderExpanded({
                 });
               }
               setViewMode(view === "tree" ? null : view);
+              // The transcript wants the width; the rail's "Show detail
+              // panel" button and selecting an observation bring it back.
+              if (view === "messages")
+                layout?.detailPanelRef.current?.collapse();
             }}
           />
           {/* When the detail panel is closed it shows its own collapsed rail
