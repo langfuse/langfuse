@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { singleFilterList } from "../interfaces/filters";
 
 export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
 export const TOPICS_EMBEDDING_MODEL = "text-embedding-3-small";
@@ -18,17 +19,57 @@ export const topicEmbeddingConfigSchema = z.object({
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
 export const topicProcessingConfigSchema = z.object({
   summaryModel: z.literal(TOPICS_SUMMARY_MODEL).default(TOPICS_SUMMARY_MODEL),
-  projection: z.enum(["all", "intent", "issues"]).default("all"),
   maxInputTokens: z.number().int().min(256).max(8000).default(8000),
   maxOutputTokens: z.number().int().min(64).max(512).default(512),
 });
 export type TopicProcessingConfig = z.infer<typeof topicProcessingConfigSchema>;
 export const topicMinimumTraceCountSchema = z.number().int().min(3);
 
+export const topicRuleConfigSchema = z.object({
+  filter: singleFilterList
+    .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
+    .refine(
+      (filters) => !filters.some((item) => item.type === "positionInTrace"),
+      "Position-in-trace filters are not supported for Topics selection.",
+    ),
+  limit: z.number().int().positive().nullable().default(null),
+  sampling: z.enum(["random", "latest"]),
+});
+export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
+  .extend({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+    seed: z.string().min(1).max(128),
+  })
+  .refine(({ from, to }) => from < to, {
+    message: "Choose an end time after the start time.",
+    path: ["to"],
+  })
+  .refine(({ from, to }) => to.getTime() - from.getTime() <= 93 * 86400000, {
+    message: "Select at most 93 days of traces.",
+    path: ["from"],
+  });
+export const topicTraceSelectionSnapshotSchema =
+  topicTraceSelectionCriteriaSchema.safeExtend({
+    excludedTraceIds: z.array(topicTraceIdSchema).default([]),
+  });
+export type TopicRule = z.infer<typeof topicRuleConfigSchema> & {
+  id: string;
+  projectId: string;
+  name: string;
+  facetIds: string[];
+  updatedAt: string;
+};
+
 const executionBase = {
   projectId: topicIdSchema,
   requestId: topicIdSchema,
   facetVersionIds: z.array(topicIdSchema).min(1),
+  ruleId: topicIdSchema.optional(),
+  traceSelection: topicTraceSelectionSnapshotSchema.optional(),
+  processingConfig: topicProcessingConfigSchema.default(() =>
+    topicProcessingConfigSchema.parse({}),
+  ),
   exploratory: z.boolean().default(false),
   minimumTraceCount: topicMinimumTraceCountSchema.optional(),
   embeddingConfig: topicEmbeddingConfigSchema.default(() =>
@@ -99,7 +140,6 @@ export interface TopicFacetVersion {
   facetId: string;
   version: number;
   prompt: string;
-  processingConfig: TopicProcessingConfig;
   createdAt: string;
 }
 export interface TopicFacet {

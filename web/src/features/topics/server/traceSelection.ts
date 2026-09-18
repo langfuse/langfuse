@@ -2,12 +2,12 @@ import { z } from "zod";
 import {
   eventsTableTraceNameSelectSql,
   InvalidRequestError,
-  singleFilterList,
 } from "@langfuse/shared";
 import {
   topicExecutionInputSchema,
   topicIdSchema,
-  topicTraceIdSchema,
+  topicTraceSelectionCriteriaSchema,
+  topicTraceSelectionSnapshotSchema,
 } from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
@@ -17,36 +17,8 @@ import {
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 
-const traceSelectionCriteriaSchema = z
-  .object({
-    filter: singleFilterList.refine((filters) => filters.length <= 100, {
-      message: "Select at most 100 filters.",
-    }),
-    from: z.date(),
-    to: z.date(),
-    limit: z.number().int().positive().nullable().default(null),
-    sampling: z.enum(["random", "latest"]),
-    seed: z.string().min(1).max(128),
-  })
-  .refine(({ from, to }) => from < to, {
-    message: "Choose an end time after the start time.",
-    path: ["to"],
-  })
-  .refine(({ from, to }) => to.getTime() - from.getTime() <= 93 * 86400000, {
-    message: "Select at most 93 days of traces.",
-    path: ["from"],
-  })
-  .refine(
-    ({ filter }) => !filter.some((item) => item.type === "positionInTrace"),
-    {
-      message:
-        "Position-in-trace filters are not supported for Topics selection.",
-      path: ["filter"],
-    },
-  );
-
 export const topicTraceSelectionSchema =
-  traceSelectionCriteriaSchema.safeExtend({
+  topicTraceSelectionCriteriaSchema.safeExtend({
     projectId: topicIdSchema,
   });
 
@@ -57,9 +29,7 @@ export const topicTriggerInputSchema = z.union([
     .extend({
       operation: z.enum(["discover", "refresh", "assign"]),
       targetRunIds: z.record(topicIdSchema, topicIdSchema).optional(),
-      selection: traceSelectionCriteriaSchema.safeExtend({
-        excludedTraceIds: z.array(topicTraceIdSchema).default([]),
-      }),
+      selection: topicTraceSelectionSnapshotSchema,
     })
     .refine(
       (value) =>
@@ -232,5 +202,6 @@ export async function resolveTopicTraceSelection(
   return topicExecutionInputSchema.parse({
     ...execution,
     traceIds,
+    traceSelection: selection,
   });
 }

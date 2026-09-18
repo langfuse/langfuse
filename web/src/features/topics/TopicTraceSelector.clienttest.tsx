@@ -11,7 +11,10 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TopicTraceSelector } from "./TopicTraceSelector";
+import {
+  TopicTraceSelector,
+  type TopicTraceCriteria,
+} from "./TopicTraceSelector";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), push: vi.fn() }));
 vi.mock("next/router", () => ({
@@ -57,13 +60,13 @@ vi.mock(
   }),
 );
 
-function setup() {
+function setup(initialCriteria?: TopicTraceCriteria) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   const view = render(
     <QueryClientProvider client={client}>
-      <TopicTraceSelector projectId="project">
+      <TopicTraceSelector projectId="project" initialCriteria={initialCriteria}>
         {(ids) => (
           <>
             <button disabled={!ids}>Trigger topics</button>
@@ -105,6 +108,35 @@ afterEach(() => {
 });
 
 describe("Topics trace selection", () => {
+  it("loads saved rule criteria and chooses a fresh execution time range", async () => {
+    mocks.fetch.mockResolvedValue(result("trace-a"));
+    const criteria: TopicTraceCriteria = {
+      filter: [
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ],
+      sampling: "latest",
+      limit: 50,
+    };
+    setup(criteria);
+    expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+    expect(screen.getByLabelText("Trace sampling method")).toHaveTextContent(
+      "Newest first",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    expect(mocks.fetch.mock.calls[0][0]).toMatchObject(criteria);
+    expect(mocks.fetch.mock.calls[0][0].to).toBeInstanceOf(Date);
+    expect(
+      mocks.fetch.mock.calls[0][0].to.getTime() -
+        mocks.fetch.mock.calls[0][0].from.getTime(),
+    ).toBe(7 * 86_400_000);
+  });
+
   it("opens trace peek from preview rows and names without changing the cohort", async () => {
     mocks.fetch.mockResolvedValue(result("trace-a", "trace-b"));
     setup();

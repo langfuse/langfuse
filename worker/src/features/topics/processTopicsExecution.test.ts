@@ -37,7 +37,6 @@ const facet: TopicFacetVersion = {
   facetId: "facet",
   version: 1,
   prompt: "Describe the interaction intent.",
-  processingConfig: topicProcessingConfigSchema.parse({}),
   createdAt: "2026-01-01T00:00:00.000Z",
 };
 
@@ -224,6 +223,7 @@ function execution(
     requestId: id,
     facetVersionIds: facets.map((selected) => selected.id),
     exploratory: false,
+    processingConfig: topicProcessingConfigSchema.parse({}),
     embeddingConfig: {
       embeddingModel: "text-embedding-3-small" as const,
       embeddingDimensions,
@@ -798,6 +798,7 @@ describe("Topics execution", () => {
       operation: "recluster",
       facetVersionIds: [facet.id],
       exploratory: false,
+      processingConfig: topicProcessingConfigSchema.parse({}),
       embeddingConfig: {
         embeddingModel: "text-embedding-3-small",
         embeddingDimensions: 16,
@@ -923,14 +924,33 @@ describe("Topics execution", () => {
       state.executions.get("first")!.facets[0].summaryIds,
     );
   });
-  it("reuses unchanged inputs across executions but rejects stale prompt identities", async () => {
-    state.executions.set("original", execution("original", 1));
+  it("reuses summaries and embeddings after a rule filter changes but rejects stale prompt identities", async () => {
+    const original = execution("original", 1);
+    original.input.ruleId = "rule-original";
+    original.input.traceSelection = {
+      filter: [],
+      from: new Date("2026-01-01T00:00:00Z"),
+      to: new Date("2026-01-02T00:00:00Z"),
+      limit: null,
+      sampling: "latest",
+      seed: "original",
+      excludedTraceIds: [],
+    };
+    state.executions.set(original.id, original);
     await processTopicsExecution({
       projectId: "project",
       executionId: "original",
     });
     const firstIds = state.executions.get("original")!.facets[0].summaryIds;
-    state.executions.set("cached", execution("cached", 1));
+    const cached = execution("cached", 1);
+    cached.input.ruleId = "rule-changed";
+    cached.input.traceSelection = {
+      ...original.input.traceSelection,
+      from: new Date("2025-01-01T00:00:00Z"),
+      sampling: "random",
+      seed: "changed",
+    };
+    state.executions.set(cached.id, cached);
     await processTopicsExecution({
       projectId: "project",
       executionId: "cached",
@@ -940,11 +960,6 @@ describe("Topics execution", () => {
     );
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed).toHaveBeenCalledTimes(1);
-    expect(
-      [...state.artifacts.keys()].some((key) =>
-        /\/(snapshot|projection)-/.test(key),
-      ),
-    ).toBe(false);
     for (const row of state.summaries.values())
       row.invocationHash = "previous-prompt-version";
     state.executions.set("new-prompt", execution("new-prompt", 1));
@@ -958,7 +973,34 @@ describe("Topics execution", () => {
     ).not.toEqual(firstIds);
   });
 
-  it("reuses paid summaries across dimension-only facet versions and preserves historical vectors", async () => {
+  it("regenerates summaries when the run changes summary settings", async () => {
+    state.executions.set(
+      "settings-original",
+      execution("settings-original", 1),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "settings-original",
+    });
+    const changed = execution("settings-changed", 1);
+    changed.input = {
+      ...changed.input,
+      processingConfig: topicProcessingConfigSchema.parse({
+        maxOutputTokens: 64,
+      }),
+    };
+    state.executions.set(changed.id, changed);
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: changed.id,
+    });
+    expect(state.summarize).toHaveBeenCalledTimes(2);
+    expect(state.summarize.mock.calls[1][2]).toEqual(
+      changed.input.processingConfig,
+    );
+  });
+
+  it("re-embeds changed dimensions and reuses summaries when reverting a prompt", async () => {
     state.executions.set(
       "dimensions-original",
       execution("dimensions-original", 1),
@@ -968,15 +1010,9 @@ describe("Topics execution", () => {
       executionId: "dimensions-original",
     });
     const original = structuredClone([...state.summaries.values()][0]);
-    const updated = {
-      ...facet,
-      id: "dimensions-v2",
-      version: 2,
-      createdAt: "2026-01-02T00:00:00.000Z",
-    };
     state.executions.set(
       "dimensions-updated",
-      execution("dimensions-updated", 1, "discover", [updated], 32),
+      execution("dimensions-updated", 1, "discover", [facet], 32),
     );
     await processTopicsExecution({
       projectId: "project",
@@ -985,13 +1021,13 @@ describe("Topics execution", () => {
 
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed.mock.calls.map((call) => call[1])).toEqual([16, 32]);
-    const target = [...state.summaries.values()].find(
-      (row) => row.facetVersionId === updated.id,
+    const target = state.summaries.get(
+      state.executions.get("dimensions-updated")!.facets[0].summaryIds[0],
     )!;
     expect(target).toMatchObject({
       facetId: facet.facetId,
-      facetVersionId: updated.id,
-      facetVersion: 2,
+      facetVersionId: facet.id,
+      facetVersion: facet.version,
       executionId: "dimensions-updated",
       state: "complete",
       summary: original.summary,
@@ -1005,25 +1041,40 @@ describe("Topics execution", () => {
     });
     expect(target.embedding).toHaveLength(32);
     expect(target.id).not.toBe(original.id);
+    expect(target.invocationHash).toBe(original.invocationHash);
     expect(state.summaries.get(original.id)).toEqual(original);
 
-    const reverted = { ...facet, id: "dimensions-v3", version: 3 };
+    const changed = {
+      ...facet,
+      id: "prompt-v2",
+      version: 2,
+      prompt: "Describe the issue.",
+    };
     state.executions.set(
-      "dimensions-reverted",
-      execution("dimensions-reverted", 1, "discover", [reverted]),
+      "prompt-changed",
+      execution("prompt-changed", 1, "discover", [changed]),
     );
     await processTopicsExecution({
       projectId: "project",
-      executionId: "dimensions-reverted",
+      executionId: "prompt-changed",
     });
-    const reused = [...state.summaries.values()].find(
-      (row) => row.facetVersionId === reverted.id,
+    const reverted = { ...facet, id: "prompt-v3", version: 3 };
+    state.executions.set(
+      "prompt-reverted",
+      execution("prompt-reverted", 1, "discover", [reverted]),
+    );
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: "prompt-reverted",
+    });
+    const reused = state.summaries.get(
+      state.executions.get("prompt-reverted")!.facets[0].summaryIds[0],
     )!;
     expect(reused.embedding).toEqual(original.embedding);
     expect(reused.embeddingCostUsd).toBe(0);
     expect(reused.metadata.embeddingReusedFromId).toBe(original.id);
-    expect(state.summarize).toHaveBeenCalledTimes(1);
-    expect(state.embed).toHaveBeenCalledTimes(2);
+    expect(state.summarize).toHaveBeenCalledTimes(2);
+    expect(state.embed).toHaveBeenCalledTimes(3);
   });
 
   it("resumes re-embedding a reused summary without source data or summary inference", async () => {
@@ -1032,14 +1083,9 @@ describe("Topics execution", () => {
       projectId: "project",
       executionId: "reuse-source",
     });
-    const updated = {
-      ...facet,
-      id: "reuse-v2",
-      version: 2,
-    };
     state.executions.set(
       "reuse-resume",
-      execution("reuse-resume", 1, "discover", [updated], 32),
+      execution("reuse-resume", 1, "discover", [facet], 32),
     );
     state.embed.mockRejectedValueOnce(topicProviderError({ statusCode: 503 }));
     await processTopicsExecution({
@@ -1057,8 +1103,8 @@ describe("Topics execution", () => {
     expect(state.summarize).toHaveBeenCalledTimes(1);
     expect(state.embed).toHaveBeenCalledTimes(3);
     expect(
-      [...state.summaries.values()].find(
-        (row) => row.facetVersionId === updated.id,
+      state.summaries.get(
+        state.executions.get("reuse-resume")!.facets[0].summaryIds[0],
       )?.embedding,
     ).toHaveLength(32);
   });
@@ -1075,14 +1121,9 @@ describe("Topics execution", () => {
       projectId: "project",
       executionId: "non-applicable",
     });
-    const updated = {
-      ...facet,
-      id: "non-applicable-v2",
-      version: 2,
-    };
     state.executions.set(
       "non-applicable-reuse",
-      execution("non-applicable-reuse", 1, "discover", [updated], 32),
+      execution("non-applicable-reuse", 1, "discover", [facet], 32),
     );
     await processTopicsExecution({
       projectId: "project",
@@ -1099,21 +1140,6 @@ describe("Topics execution", () => {
   it.each([
     { label: "prompt", change: { prompt: "Describe the issue." } },
     { label: "facet", change: { facetId: "different-facet" } },
-    {
-      label: "guidance",
-      change: {
-        processingConfig: {
-          ...facet.processingConfig,
-          projection: "issues" as const,
-        },
-      },
-    },
-    {
-      label: "token limits",
-      change: {
-        processingConfig: { ...facet.processingConfig, maxOutputTokens: 64 },
-      },
-    },
   ])("does not reuse a summary after changing $label", async ({ change }) => {
     state.executions.set("recipe-source", execution("recipe-source", 1));
     await processTopicsExecution({
@@ -1241,6 +1267,7 @@ describe("Topics execution", () => {
       operation: "recluster",
       facetVersionIds: [facet.id],
       exploratory: false,
+      processingConfig: topicProcessingConfigSchema.parse({}),
       embeddingConfig: {
         embeddingModel: "text-embedding-3-small",
         embeddingDimensions: 16,

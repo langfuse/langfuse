@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { topicProcessingConfigSchema } from "../../topics";
 import {
   createTopicFacetVersion,
+  ensureDefaultTopicFacets,
   createTopicRun,
   getPublishedTopicRun,
   getTopicDefinitions,
@@ -19,6 +19,9 @@ const mocks = vi.hoisted(() => ({
   upsertTopic: vi.fn(),
   writeArtifact: vi.fn(),
   facetFind: vi.fn(),
+  facetFindUnique: vi.fn(),
+  facetFindMany: vi.fn(),
+  facetCreate: vi.fn(),
   facetUpdate: vi.fn(),
   topicFind: vi.fn(),
 }));
@@ -26,7 +29,11 @@ vi.mock("../../db", () => ({
   Prisma: {},
   prisma: {
     topicClusteringRun: { findFirst: mocks.runFind, update: mocks.runUpdate },
-    topicFacet: { findFirst: mocks.facetFind },
+    topicFacet: {
+      findFirst: mocks.facetFind,
+      findUnique: mocks.facetFindUnique,
+      findMany: mocks.facetFindMany,
+    },
     topic: { findMany: mocks.topicFind },
     $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
@@ -38,6 +45,7 @@ vi.mock("../../db", () => ({
         },
         topic: { upsert: mocks.upsertTopic },
         topicFacet: {
+          create: mocks.facetCreate,
           findFirstOrThrow: mocks.facetFind,
           update: mocks.facetUpdate,
         },
@@ -53,60 +61,96 @@ vi.mock("./journal", () => ({
   writeTopicArtifact: mocks.writeArtifact,
 }));
 
-describe("Topics facet version configuration", () => {
+describe("Topics default facets", () => {
+  it("creates missing defaults without replacing existing facet prompts on repeated initialization", async () => {
+    vi.resetAllMocks();
+    const names = new Set(["Intent", "Issues"]);
+    mocks.facetFindUnique.mockImplementation(async ({ where }) =>
+      names.has(where.projectId_name.name)
+        ? { id: where.projectId_name.name }
+        : null,
+    );
+    mocks.facetFindMany.mockResolvedValue([]);
+    mocks.facetCreate.mockImplementation(async ({ data }) => {
+      names.add(data.name);
+      return { ...data, id: "new-facet", publishedRunId: null };
+    });
+    mocks.create.mockImplementation(async ({ data }) => ({
+      ...data,
+      id: "new-version",
+      createdAt: new Date(),
+    }));
+
+    await ensureDefaultTopicFacets("project-a");
+    await ensureDefaultTopicFacets("project-a");
+
+    expect(mocks.facetCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.facetCreate).toHaveBeenCalledWith({
+      data: {
+        projectId: "project-a",
+        name: "Outcome",
+        description: expect.any(String),
+      },
+    });
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+    expect(mocks.create).toHaveBeenCalledWith({
+      data: {
+        projectId: "project-a",
+        facetId: "new-facet",
+        version: 1,
+        prompt: expect.any(String),
+      },
+    });
+    expect(mocks.facetUpdate).not.toHaveBeenCalled();
+  });
+});
+
+describe("Topics facet prompt versions", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.lock.mockResolvedValue([{ id: "facet-a" }]);
     mocks.findFirst.mockResolvedValue({
+      id: "facet-v2",
+      projectId: "project-a",
+      facetId: "facet-a",
       version: 2,
-      processingConfig: topicProcessingConfigSchema.parse({
-        projection: "issues",
-        maxInputTokens: 3000,
-      }),
+      prompt: "Describe the task.",
+      createdAt: new Date("2026-09-16T00:00:00Z"),
     });
     mocks.create.mockImplementation(async ({ data }) => ({
       ...data,
       id: "facet-v3",
-      createdAt: new Date("2026-09-16T00:00:00Z"),
+      createdAt: new Date("2026-09-17T00:00:00Z"),
     }));
   });
 
-  it("preserves the previous summary settings when only the prompt changes", async () => {
+  it("keeps the same version when saving an unchanged prompt", async () => {
     const version = await createTopicFacetVersion({
       projectId: "project-a",
       facetId: "facet-a",
-      prompt: "Describe evidenced failures.",
+      prompt: " Describe the task. ",
     });
-    expect(version.version).toBe(3);
-    expect(version.processingConfig).toMatchObject({
-      projection: "issues",
-      maxInputTokens: 3000,
-    });
-    expect(mocks.findFirst).toHaveBeenCalledWith({
-      where: { projectId: "project-a", facetId: "facet-a" },
-      orderBy: { version: "desc" },
-    });
+    expect(version.id).toBe("facet-v2");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
-  it("changes only supplied processing settings in a new facet version", async () => {
-    mocks.findFirst.mockResolvedValue({
-      version: 2,
-      processingConfig: topicProcessingConfigSchema.parse({
-        projection: "issues",
-        maxInputTokens: 3000,
-        maxOutputTokens: 128,
-      }),
-    });
+  it("creates an immutable version only for a changed prompt", async () => {
     const version = await createTopicFacetVersion({
       projectId: "project-a",
       facetId: "facet-a",
       prompt: "Describe evidenced failures.",
-      processingConfig: { maxInputTokens: 4000 },
     });
-    expect(version.processingConfig).toMatchObject({
-      projection: "issues",
-      maxInputTokens: 4000,
-      maxOutputTokens: 128,
+    expect(version).toMatchObject({
+      version: 3,
+      prompt: "Describe evidenced failures.",
+    });
+    expect(mocks.create).toHaveBeenCalledWith({
+      data: {
+        projectId: "project-a",
+        facetId: "facet-a",
+        version: 3,
+        prompt: "Describe evidenced failures.",
+      },
     });
   });
 });

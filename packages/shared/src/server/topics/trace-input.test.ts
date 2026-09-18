@@ -1,8 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  topicProcessingConfigSchema,
-  type TopicFacetVersion,
-} from "../../topics";
 import { loadTraceSnapshot } from "./load-trace";
 import { loadTopicTranscript } from "./trace-input";
 import {
@@ -37,15 +33,6 @@ const observations: TopicsObservation[] = [
     metadata: {},
   },
 ];
-const facet: TopicFacetVersion = {
-  id: "facet-v1",
-  projectId: "project-a",
-  facetId: "facet-a",
-  version: 1,
-  prompt: "Describe the user goal.",
-  processingConfig: topicProcessingConfigSchema.parse({ projection: "intent" }),
-  createdAt: "2026-09-15T10:00:00.000Z",
-};
 const snapshot = (rows = observations) => ({
   projectId: "project-a",
   traceId: "trace-a",
@@ -60,42 +47,6 @@ beforeEach(() => {
 });
 
 describe("shared in-memory Topics input", () => {
-  it("uses identical evidence for every facet, regardless of its prompt or token budget", async () => {
-    const rows = [
-      {
-        ...observations[0],
-        input: [
-          { role: "system", content: "Follow the refund policy." },
-          {
-            role: "user",
-            content: "Please cancel my subscription. ".repeat(300),
-          },
-        ],
-      },
-    ];
-    vi.mocked(loadTraceSnapshot).mockResolvedValue(snapshot(rows));
-    const results = await Promise.all(
-      (["all", "intent", "issues"] as const)
-        .map((projection, index) => ({
-          projectId: "project-a",
-          traceId: "trace-a",
-          facet: {
-            ...facet,
-            prompt: `Facet instruction ${index}`,
-            processingConfig: {
-              ...facet.processingConfig,
-              projection,
-              maxInputTokens: index === 0 ? 8000 : 256,
-            },
-          },
-        }))
-        .map((request) => loadTopicTranscript(request)),
-    );
-    expect(results[1]).toEqual(results[0]);
-    expect(results[2]).toEqual(results[0]);
-    expect(results[0].transcript.text).toContain("Follow the refund policy.");
-  });
-
   it("focuses on generations and tools and removes repeated prompt context", () => {
     const prompt = [
       { role: "system", content: "Follow the policy." },

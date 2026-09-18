@@ -4,6 +4,28 @@ Turn selected v4 traces into facet summaries, embeddings, discovered topic maps,
 and assignments to an existing map. Open `/project/<projectId>/topics` on the
 current local Langfuse instance (normally `http://localhost:3000`).
 
+## Facets and selection rules
+
+Like evaluators and evaluation rules, Topics separates semantic definitions from
+which traces are processed:
+
+- `topic_facets`: stable facet identity, name and current published map.
+- `topic_facet_versions`: immutable prompt versions only. Saving an unchanged
+  prompt does not create a version.
+- `topic_rules`: editable names, observation filters and optional random/latest
+  sample size. `topic_rule_facet_assignments` attaches stable facets to rules;
+  editing a rule does not create prompt versions.
+- At trigger, the execution manifest freezes the rule ID, filter, time window,
+  sampling seed, exclusions, resolved trace IDs, selected prompt versions and
+  runtime summary/embedding configuration. Retries never re-evaluate a rule.
+
+Summary reuse depends on transcript content, facet prompt, summary settings and
+system-prompt version. Rule IDs and selection criteria do not affect that key.
+Embedding reuse additionally requires the same embedding model and dimensions.
+Summaries and embeddings remain in ClickHouse; there are no per-trace Postgres
+rule or execution rows. Rules select incoming traces for the facet's cumulative
+topics, rather than owning separate maps.
+
 ## Setup
 
 Use the normal local Postgres, ClickHouse, Redis, object storage, web, and worker stack. Apply the
@@ -38,7 +60,7 @@ events; legacy-only traces are unsupported.
 
 1. Initialize facets, inspect/edit their instructions, and select trace IDs for
    batch A. Topic names emerge from the descriptions; the facet is not a list of
-   topic classes. `Intent` and `Issues` are editable starting points.
+   topic classes. `Intent`, `Outcome`, and `Issues` are editable starting points.
 2. Discover on batch A. Set **Minimum traces for clustering** to control how many
    applicable summaries each facet needs before discovery (at least 3). This is
    saved with the execution and reused on retry. The standard default is 100
@@ -120,7 +142,7 @@ blocks. Assembly omits media bytes and reasoning, and preserves available audio
 transcripts. Structural ordering and replayed-context deduplication are shared
 across facets. This is a normalized representation, not a lossless export.
 
-If transcript plus instructions/schema exceeds a facet version's input allowance,
+If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. The canonical transcript text
 determines input identity. Accepted checkpoints and reclustering of stored
@@ -218,7 +240,7 @@ Calculations use $0.10/M input and
 $0.40/M output for nano, $0.20/M input and $1.20/M output for Luna, and $0.02/M
 embedding input tokens. Luna requests above 272k input tokens use 2x input and
 1.5x output rates for the whole request. See the [model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
-Extraction defaults to 8,000/512 input/output tokens (version-specific). Naming
+Extraction defaults to 8,000/512 input/output tokens (execution settings). Naming
 allows its counted full input plus 10% and 512 framing tokens, and 1,000 output
 tokens. Inputs exceeding a conservative 900k-token context allowance fail before
 calling the provider; member summaries are never silently discarded. Embedding
@@ -287,3 +309,19 @@ real UMAP/HDBSCAN through the worker's child process on more than 1,000 syntheti
 vectors and checks serving prototypes, cold-start, identical-input and invalid
 vector behavior. Rust tests cover deterministic fitting and validation. Neither
 command calls a paid model.
+
+## Default facet extraction
+
+Intent describes the requested task even when execution fails. Outcome describes
+what was actually delivered or confirmed, keeping a proposed action distinct from
+an assistant's claim and a confirming result. Issues describes the principal
+observed obstacle, its consequence and recovery; a problem quoted for analysis
+is not itself an agent defect. Each editable prompt owns its facet's semantics.
+
+The shared extraction wrapper asks for compact English prose (normally one
+sentence, at most two and 100 words), preserves meaningful distinctions, and
+omits incidental identifiers, source references and narration. Applicability is
+separate from task success: absent signals and insufficient evidence retain their
+distinct statuses and empty summaries, so they do not become embedded topics.
+With one summary per trace/facet, the Issues default prioritizes the principal
+problem rather than claiming to enumerate every independent issue.

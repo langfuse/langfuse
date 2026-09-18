@@ -18,6 +18,7 @@ import {
 } from "@langfuse/shared/topics";
 import {
   TopicTraceSelector,
+  type TopicTraceCriteria,
   type TopicTraceSelection,
 } from "./TopicTraceSelector";
 
@@ -40,6 +41,14 @@ export function TopicPipelineForm({
   onTriggered: (id: string) => void;
 }) {
   const [operation, setOperation] = useState<TopicOperation>("refresh");
+  const rules = api.topics.rules.useQuery({ projectId });
+  const [ruleId, setRuleId] = useState<string | null>(null);
+  const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
+  const [ruleName, setRuleName] = useState("");
+  const [selector, setSelector] = useState<{
+    key: number;
+    initialCriteria?: TopicTraceCriteria;
+  }>({ key: 0 });
   const [selectedFacetIds, setSelectedFacetIds] = useState<string[]>(() =>
     facets
       .filter((facet) => facet.versions.length > 0)
@@ -72,6 +81,16 @@ export function TopicPipelineForm({
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
   const utils = api.useUtils();
+  const saveRule = api.topics.saveRule.useMutation({
+    onSuccess: (rule) => {
+      utils.topics.rules.setData({ projectId }, (current) => [
+        rule,
+        ...(current ?? []).filter((item) => item.id !== rule.id),
+      ]);
+      setRuleId(rule.id);
+      setRuleName(rule.name);
+    },
+  });
   const facetChoices = facets.flatMap((facet) => {
     const version =
       facet.versions.find(
@@ -84,6 +103,17 @@ export function TopicPipelineForm({
   const facetVersionIds = facetChoices
     .filter((choice) => choice.selected)
     .map((choice) => choice.version.id);
+  const activeFacetIds = facetChoices
+    .filter((choice) => choice.selected)
+    .map((choice) => choice.facet.id);
+  const matchesRule = (criteria: TopicTraceCriteria | null) =>
+    selectedRule &&
+    criteria &&
+    JSON.stringify(criteria.filter) === JSON.stringify(selectedRule.filter) &&
+    criteria.sampling === selectedRule.sampling &&
+    criteria.limit === selectedRule.limit &&
+    activeFacetIds.length === selectedRule.facetIds.length &&
+    activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
   const retainedCohort =
     currentResults.data &&
     facetVersionIds.every((id) =>
@@ -127,7 +157,10 @@ export function TopicPipelineForm({
     setSelectedFacetIds((current) =>
       checked ? [...current, id] : current.filter((item) => item !== id),
     );
-  async function submit(selection: TopicTraceSelection | null) {
+  async function submit(
+    selection: TopicTraceSelection | null,
+    criteria: TopicTraceCriteria | null,
+  ) {
     setError(null);
     try {
       if (!facetVersionIds.length)
@@ -145,6 +178,9 @@ export function TopicPipelineForm({
         embeddingConfig: topicEmbeddingConfigSchema.parse({
           embeddingDimensions: Number(dimensions),
         }),
+        ...(operation !== "recluster" && selectedRule && matchesRule(criteria)
+          ? { ruleId: selectedRule.id }
+          : {}),
       };
       const values = (() => {
         if (operation === "recluster")
@@ -183,7 +219,10 @@ export function TopicPipelineForm({
       );
     }
   }
-  const renderConfiguration = (selection: TopicTraceSelection | null) => (
+  const renderConfiguration = (
+    selection: TopicTraceSelection | null,
+    criteria: TopicTraceCriteria | null,
+  ) => (
     <>
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 text-sm font-bold">Facets</legend>
@@ -260,6 +299,60 @@ export function TopicPipelineForm({
           </div>
         ))}
       </fieldset>
+      {operation !== "recluster" && criteria && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col gap-1 text-sm">
+              Rule name
+              <Input
+                aria-label="Topic rule name"
+                className="w-64"
+                placeholder="Save these filters and facets"
+                value={ruleName}
+                onChange={(event) => setRuleName(event.target.value)}
+              />
+            </label>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                !canWrite ||
+                !ruleName.trim() ||
+                !activeFacetIds.length ||
+                saveRule.isPending
+              }
+              onClick={() =>
+                saveRule.mutate({
+                  projectId,
+                  ...(selectedRule ? { id: selectedRule.id } : {}),
+                  name: ruleName,
+                  ...criteria,
+                  facetIds: activeFacetIds,
+                })
+              }
+            >
+              {saveRule.isPending
+                ? "Saving…"
+                : selectedRule
+                  ? "Update rule"
+                  : "Save rule"}
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Rules save filters, sampling and selected facets. Choose the time
+            range for each run. Changing a rule reuses existing summaries and
+            embeddings when the trace and facet prompt match.
+            {selectedRule && !matchesRule(criteria)
+              ? " Unsaved changes apply only to this run until you update the rule."
+              : ""}
+          </p>
+          {saveRule.error && (
+            <p role="alert" className="text-destructive text-sm">
+              {saveRule.error.message}
+            </p>
+          )}
+        </div>
+      )}
       {operation === "recluster" && (
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-bold">
@@ -357,7 +450,7 @@ export function TopicPipelineForm({
             (operation === "assign" &&
               facetVersionIds.some((id) => !selectedTargetRunIds[id]))
           }
-          onClick={() => submit(selection)}
+          onClick={() => submit(selection, criteria)}
         >
           {trigger.isPending ? "Starting…" : "Run topics"}
         </Button>
@@ -422,10 +515,70 @@ export function TopicPipelineForm({
           </SelectContent>
         </Select>
       </div>
+      {operation !== "recluster" && (
+        <label className="flex flex-col gap-1 text-sm">
+          Topic rule
+          <Select
+            value={selectedRule?.id ?? "adhoc"}
+            disabled={rules.isLoading || saveRule.isPending}
+            onValueChange={(value) => {
+              const rule = rules.data?.find((item) => item.id === value);
+              setRuleId(rule?.id ?? null);
+              setRuleName(rule?.name ?? "");
+              setSelectedFacetIds(
+                rule?.facetIds ??
+                  facets
+                    .filter((facet) => facet.versions.length > 0)
+                    .map((facet) => facet.id),
+              );
+              setFacetVersions(
+                Object.fromEntries(
+                  facets.map((facet) => [
+                    facet.id,
+                    facet.versions[0]?.id ?? "",
+                  ]),
+                ),
+              );
+              setSelector((current) => ({
+                key: current.key + 1,
+                initialCriteria: rule
+                  ? {
+                      filter: rule.filter,
+                      sampling: rule.sampling,
+                      limit: rule.limit,
+                    }
+                  : undefined,
+              }));
+              saveRule.reset();
+            }}
+          >
+            <SelectTrigger className="w-64" aria-label="Topic rule">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="ph-no-capture">
+              <SelectItem value="adhoc">Ad hoc selection</SelectItem>
+              {rules.data?.map((rule) => (
+                <SelectItem key={rule.id} value={rule.id}>
+                  {rule.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {rules.error && (
+            <span role="alert" className="text-destructive text-sm">
+              Could not load saved rules. Ad hoc selection is still available.
+            </span>
+          )}
+        </label>
+      )}
       {operation === "recluster" ? (
-        renderConfiguration(null)
+        renderConfiguration(null, null)
       ) : (
-        <TopicTraceSelector projectId={projectId}>
+        <TopicTraceSelector
+          key={selector.key}
+          projectId={projectId}
+          initialCriteria={selector.initialCriteria}
+        >
           {renderConfiguration}
         </TopicTraceSelector>
       )}

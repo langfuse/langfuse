@@ -59,8 +59,9 @@
   Available only on a loopback development server.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
   in memory for the worker and evidence inspector; transcript/source I/O is
-  not part of the execution journal. Facet versions own summary settings; executions
-  own embedding settings. Current membership resolves latest published assignments
+  not part of the execution journal. Facet versions own prompts; rules own filters,
+  sampling and facet assignments; executions freeze trace selection, prompt versions
+  and summary/embedding settings. Current membership resolves latest published assignments
   and explicit no-topic outcomes; historical readers remain scoped to a map.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for

@@ -1,28 +1,56 @@
 import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import {
-  topicProcessingConfigSchema,
-  type TopicFacet,
-} from "@langfuse/shared/topics";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { TopicFacet } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
-import type { TopicTraceSelection } from "./TopicTraceSelector";
+import type {
+  TopicTraceCriteria,
+  TopicTraceSelection,
+} from "./TopicTraceSelector";
 
 const selection = vi.hoisted(() => ({
   value: null as TopicTraceSelection | null,
+  criteria: null as TopicTraceCriteria | null,
+  initialCriteria: undefined as TopicTraceCriteria | undefined,
 }));
 const trigger = vi.hoisted(() => vi.fn());
+const saveRule = vi.hoisted(() => vi.fn());
+const rule = {
+  id: "rule",
+  projectId: "project",
+  name: "Production intents",
+  filter: [],
+  sampling: "latest" as const,
+  limit: 50,
+  facetIds: ["intent"],
+};
 vi.mock("./TopicTraceSelector", () => ({
   TopicTraceSelector: ({
     children,
+    initialCriteria,
   }: {
-    children: (value: TopicTraceSelection | null) => ReactNode;
-  }) => children(selection.value),
+    children: (
+      value: TopicTraceSelection | null,
+      criteria: TopicTraceCriteria | null,
+    ) => ReactNode;
+    initialCriteria?: TopicTraceCriteria;
+  }) => {
+    selection.initialCriteria = initialCriteria;
+    return children(selection.value, selection.criteria);
+  },
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
       currentResults: { useQuery: () => ({ data: [] }) },
+      rules: { useQuery: () => ({ data: [rule] }) },
+      saveRule: {
+        useMutation: () => ({
+          mutate: saveRule,
+          isPending: false,
+          reset: vi.fn(),
+        }),
+      },
       trigger: {
         useMutation: () => ({ mutateAsync: trigger, isPending: false }),
       },
@@ -35,6 +63,14 @@ vi.mock("@/src/utils/api", () => ({
     }),
   },
 }));
+
+const scrollIntoView = HTMLElement.prototype.scrollIntoView;
+beforeEach(() => {
+  HTMLElement.prototype.scrollIntoView = vi.fn();
+});
+afterEach(() => {
+  HTMLElement.prototype.scrollIntoView = scrollIntoView;
+});
 
 describe("Topics pipeline selection handoff", () => {
   it("requires a reviewed selection, sends its exact IDs and all facets, and blocks an invalidated selection", async () => {
@@ -52,7 +88,6 @@ describe("Topics pipeline selection handoff", () => {
           version: 1,
           prompt: `Describe ${name}`,
           createdAt: "2026-09-16T00:00:00Z",
-          processingConfig: topicProcessingConfigSchema.parse({}),
         },
       ],
     }));
@@ -66,6 +101,7 @@ describe("Topics pipeline selection handoff", () => {
       onTriggered,
     };
     selection.value = null;
+    selection.criteria = null;
     trigger.mockResolvedValue({ id: "execution" });
     const view = render(<TopicPipelineForm {...props} />);
     expect(
@@ -124,5 +160,71 @@ describe("Topics pipeline selection handoff", () => {
         .getByRole("button", { name: "Run topics" })
         .hasAttribute("disabled"),
     ).toBe(true);
+
+    // Reusing filters selects stable facets; runtime settings do not detach the rule.
+    fireEvent.keyDown(screen.getByLabelText("Topic rule"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(await screen.findByRole("option", { name: rule.name }), {
+      key: "Enter",
+    });
+    expect(selection.initialCriteria).toEqual({
+      filter: rule.filter,
+      sampling: rule.sampling,
+      limit: rule.limit,
+    });
+    expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
+    selection.criteria = selection.initialCriteria!;
+    selection.value = {
+      count: 50,
+      selection: {
+        ...selection.criteria,
+        from: new Date("2026-09-15T00:00:00Z"),
+        to: new Date("2026-09-16T00:00:00Z"),
+        seed: "rule-preview",
+        excludedTraceIds: [],
+      },
+    };
+    view.rerender(<TopicPipelineForm {...props} />);
+    fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
+      target: { value: "256" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(3));
+    expect(trigger.mock.calls[2][0]).toMatchObject({
+      ruleId: rule.id,
+      facetVersionIds: ["intent-v1"],
+      embeddingConfig: { embeddingDimensions: 256 },
+    });
+
+    selection.criteria = { ...selection.criteria, limit: 25 };
+    selection.value = {
+      count: 25,
+      selection: { ...selection.value.selection, limit: 25 },
+    };
+    view.rerender(<TopicPipelineForm {...props} />);
+    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(4));
+    expect(trigger.mock.calls[3][0]).not.toHaveProperty("ruleId");
+    expect(saveRule).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Update rule" }));
+    expect(saveRule).toHaveBeenCalledWith({
+      projectId: "project",
+      id: rule.id,
+      name: rule.name,
+      ...selection.criteria,
+      facetIds: ["intent"],
+    });
+    fireEvent.keyDown(screen.getByLabelText("Topic rule"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(
+      await screen.findByRole("option", { name: "Ad hoc selection" }),
+      { key: "Enter" },
+    );
+    expect(selection.initialCriteria).toBeUndefined();
+    expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Issues" })).toBeChecked();
   });
 });

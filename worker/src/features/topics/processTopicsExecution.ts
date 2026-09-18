@@ -20,6 +20,7 @@ import {
 import {
   type TopicExecution,
   type TopicFacetVersion,
+  type TopicProcessingConfig,
   type TopicSummary,
   type TopicRun,
   type TopicAssignment,
@@ -105,58 +106,40 @@ async function saveProgress(
   );
 }
 
-const summaryInvocationHash = (inputHash: string, facet: TopicFacetVersion) =>
+const summaryInvocationHash = (
+  inputHash: string,
+  facet: TopicFacetVersion,
+  config: TopicProcessingConfig,
+) =>
   topicHash({
     inputHash,
-    facet,
+    prompt: facet.prompt,
+    summaryModel: config.summaryModel,
+    maxInputTokens: config.maxInputTokens,
+    maxOutputTokens: config.maxOutputTokens,
     summaryPromptVersion: TOPICS_SUMMARY_PROMPT_VERSION,
   });
 
-const summaryConfigHash = (facet: TopicFacetVersion) =>
-  topicHash({
-    prompt: facet.prompt,
-    summaryModel: facet.processingConfig.summaryModel,
-    projection: facet.processingConfig.projection,
-    maxInputTokens: facet.processingConfig.maxInputTokens,
-    maxOutputTokens: facet.processingConfig.maxOutputTokens,
-  });
-
 async function loadCachedSummaries(
-  projectId: string,
+  execution: TopicExecution,
   facet: TopicFacetVersion,
   traceIds: string[],
 ): Promise<TopicSummary[]> {
-  const rows = await listTopicSummaries(projectId, {
+  const rows = await listTopicSummaries(execution.projectId, {
     facetId: facet.facetId,
     traceIds,
   });
-  const versions = new Map<string, TopicFacetVersion | null>([
-    [facet.id, facet],
-  ]);
-  const configHash = summaryConfigHash(facet);
-  const compatible: TopicSummary[] = [];
-  for (const row of rows) {
-    if (
-      row.facetId !== facet.facetId ||
-      row.summaryModel !== TOPICS_SUMMARY_MODEL
-    )
-      continue;
-    if (!versions.has(row.facetVersionId))
-      versions.set(
-        row.facetVersionId,
-        await getTopicFacetVersion(projectId, row.facetVersionId),
-      );
-    const source = versions.get(row.facetVersionId);
-    // Cached summaries must match both facet settings and the current prompt.
-    if (
-      source &&
-      source.facetId === facet.facetId &&
-      summaryConfigHash(source) === configHash &&
-      row.invocationHash === summaryInvocationHash(row.inputHash, source)
-    )
-      compatible.push(row);
-  }
-  return compatible;
+  return rows.filter(
+    (row) =>
+      row.facetId === facet.facetId &&
+      row.summaryModel === execution.input.processingConfig.summaryModel &&
+      row.invocationHash ===
+        summaryInvocationHash(
+          row.inputHash,
+          facet,
+          execution.input.processingConfig,
+        ),
+  );
 }
 
 async function summarizeTrace(
@@ -180,7 +163,11 @@ async function summarizeTrace(
   }
   const summary = await (async (): Promise<TopicSummary> => {
     const { traceTimestamp, snapshotHash, transcript } = await getTranscript();
-    const invocationHash = summaryInvocationHash(transcript.inputHash, facet);
+    const invocationHash = summaryInvocationHash(
+      transcript.inputHash,
+      facet,
+      execution.input.processingConfig,
+    );
     const candidates = cached.filter(
       (row) =>
         row.traceId === traceId && row.inputHash === transcript.inputHash,
@@ -281,7 +268,11 @@ async function summarizeTrace(
       };
     }
     const result = await metrics.measure("summary", async () => {
-      const result = await summarizeTopicTrace(facet, transcript.text);
+      const result = await summarizeTopicTrace(
+        facet,
+        transcript.text,
+        execution.input.processingConfig,
+      );
       const applicable = result.output.status === "applicable";
       if (
         applicable &&
@@ -1232,7 +1223,7 @@ export async function processTopicsExecution({
         for (const item of extracting)
           item.cached = await metrics.measure(
             "storage",
-            () => loadCachedSummaries(projectId, item.facet, batch),
+            () => loadCachedSummaries(execution, item.facet, batch),
             "storage",
           );
         const pending: TopicSummary[] = [];

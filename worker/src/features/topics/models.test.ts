@@ -53,10 +53,13 @@ describe("Topics naming boundary", () => {
       facetId: "facet",
       version: 1,
       prompt: "Describe the user's request.",
-      processingConfig: topicProcessingConfigSchema.parse({}),
       createdAt: "2026-09-16T00:00:00Z",
     };
-    const result = await summarizeTopicTrace(facet, "RAW_TRANSCRIPT_SENTINEL");
+    const result = await summarizeTopicTrace(
+      facet,
+      "RAW_TRANSCRIPT_SENTINEL",
+      topicProcessingConfigSchema.parse({}),
+    );
     expect(result.output).toEqual({
       summary: "A billing request.",
       status: "applicable",
@@ -73,13 +76,14 @@ describe("Topics naming boundary", () => {
       facetId: "facet",
       version: 1,
       prompt: "Describe intent.",
-      processingConfig: topicProcessingConfigSchema.parse({
-        maxInputTokens: 256,
-      }),
       createdAt: "2026-09-16T00:00:00Z",
     };
     await expect(
-      summarizeTopicTrace(facet, "Trace evidence. ".repeat(1000)),
+      summarizeTopicTrace(
+        facet,
+        "Trace evidence. ".repeat(1000),
+        topicProcessingConfigSchema.parse({ maxInputTokens: 256 }),
+      ),
     ).rejects.toThrow("transcript is never shortened per facet");
     expect(state.call).not.toHaveBeenCalled();
   });

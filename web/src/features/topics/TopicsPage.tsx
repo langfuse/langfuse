@@ -22,7 +22,6 @@ import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
-  topicProcessingConfigSchema,
   type TopicFacet,
   type TopicExecutionStatus,
   type TopicFacetOutcome,
@@ -175,8 +174,8 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
         <section className="flex flex-col items-start gap-3 border-t pt-6">
           <h2 className="font-bold">Start with a question</h2>
           <p className="text-muted-foreground text-sm">
-            Create starter facets for intent and issues. You can edit the
-            questions or add your own.
+            Create starter facets for intent, outcome, and issues. You can edit
+            the questions or add your own.
           </p>
           <Button
             disabled={!canWrite || initialize.isPending}
@@ -307,10 +306,6 @@ function FacetEditor({
               ...(facetId === "new" ? {} : { facetId }),
               name,
               prompt,
-              processingConfig: {
-                ...(facets.find((facet) => facet.id === facetId)?.versions[0]
-                  ?.processingConfig ?? topicProcessingConfigSchema.parse({})),
-              },
             })
           }
         >

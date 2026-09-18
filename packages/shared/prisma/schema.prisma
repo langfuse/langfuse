@@ -194,6 +194,7 @@ model Project {
   InAppAgentRun                     InAppAgentRun[]
   InAppAgentPendingToolApproval     InAppAgentPendingToolApproval[]
   topicFacets                       TopicFacet[]
+  topicRules                        TopicRule[]
   gatewayConfigs                    GatewayConfig[]                     @relation("GatewayDefaultIngestionProject")
 
   @@index([orgId])
@@ -1945,15 +1946,16 @@ model CloudSpendAlert {
 }
 
 model TopicFacet {
-  id             String              @id @default(cuid())
-  projectId      String              @map("project_id")
-  project        Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name           String
-  description    String              @default("")
-  publishedRunId String?             @map("published_run_id")
-  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  versions       TopicFacetVersion[]
+  id              String                     @id @default(cuid())
+  projectId       String                     @map("project_id")
+  project         Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  description     String                     @default("")
+  publishedRunId  String?                    @map("published_run_id")
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  versions        TopicFacetVersion[]
+  ruleAssignments TopicRuleFacetAssignment[]
 
   @@unique([projectId, id])
   @@unique([projectId, name])
@@ -1961,20 +1963,48 @@ model TopicFacet {
 }
 
 model TopicFacetVersion {
-  id                      String               @id @default(cuid())
-  projectId               String               @map("project_id")
-  facetId                 String               @map("facet_id")
-  facet                   TopicFacet           @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
-  version                 Int
-  prompt                  String
-  processingConfig        Json                 @map("processing_config")
-  filterAndSamplingConfig Json                 @default("{}") @map("filter_and_sampling_config")
-  createdAt               DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
-  runs                    TopicClusteringRun[]
+  id        String               @id @default(cuid())
+  projectId String               @map("project_id")
+  facetId   String               @map("facet_id")
+  facet     TopicFacet           @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
+  version   Int
+  prompt    String
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
+  runs      TopicClusteringRun[]
 
   @@unique([projectId, id])
   @@unique([projectId, facetId, version])
   @@map("topic_facet_versions")
+}
+
+model TopicRule {
+  id          String                     @id @default(cuid())
+  projectId   String                     @map("project_id")
+  project     Project                    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  filter      Json
+  sampling    String
+  limit       Int?
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  assignments TopicRuleFacetAssignment[]
+
+  @@unique([projectId, id])
+  @@index([projectId, updatedAt(sort: Desc)])
+  @@map("topic_rules")
+}
+
+model TopicRuleFacetAssignment {
+  id        String     @id @default(cuid())
+  projectId String     @map("project_id")
+  ruleId    String     @map("rule_id")
+  rule      TopicRule  @relation(fields: [projectId, ruleId], references: [projectId, id], onDelete: Cascade)
+  facetId   String     @map("facet_id")
+  facet     TopicFacet @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
+
+  @@unique([ruleId, facetId])
+  @@index([projectId, facetId])
+  @@map("topic_rule_facet_assignments")
 }
 
 model TopicClusteringRun {

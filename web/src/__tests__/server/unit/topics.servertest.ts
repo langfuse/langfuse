@@ -23,6 +23,9 @@ const mocks = vi.hoisted(() => ({
   getTopicFacetVersion: vi.fn(),
   createTopicFacet: vi.fn(),
   createTopicFacetVersion: vi.fn(),
+  listTopicRules: vi.fn(),
+  getTopicRule: vi.fn(),
+  saveTopicRule: vi.fn(),
   listTopicRuns: vi.fn(),
   getTopicRun: vi.fn(),
   readTopicSummaries: vi.fn(),
@@ -57,6 +60,7 @@ const input: TopicExecutionInput = {
   traceIds: ["trace-a"],
   exploratory: false,
   forceRefresh: false,
+  processingConfig: topicProcessingConfigSchema.parse({}),
   embeddingConfig: topicEmbeddingConfigSchema.parse({}),
 };
 
@@ -156,6 +160,7 @@ beforeEach(() => {
   mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.getTopicFacetVersion.mockResolvedValue({
     id: facetVersionId,
+    facetId: "facet-a",
     projectId,
   });
   mocks.readTopicExecution.mockResolvedValue(execution());
@@ -314,6 +319,11 @@ describe("Topics filtered trace preview", () => {
     expect(resolved.traceIds[0]).toBe("trace-1");
     expect(resolved.traceIds.at(-1)).toBe("trace-1000");
     expect(resolved).not.toHaveProperty("selection");
+    expect(resolved.traceSelection).toEqual({
+      ...criteria,
+      limit: null,
+      excludedTraceIds: ["trace-0"],
+    });
     expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toContain("LIMIT");
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
@@ -331,6 +341,72 @@ describe("Topics filtered trace preview", () => {
       }),
     ).rejects.toThrow("No traces match this selection");
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("runs saved rules without creating facet versions and rejects stale or foreign rules", async () => {
+    const rule = {
+      id: "rule-a",
+      projectId,
+      name: "Billing",
+      filter: selection.filter,
+      sampling: selection.sampling,
+      limit: selection.limit,
+      facetIds: ["facet-a"],
+    };
+    const request = {
+      projectId,
+      requestId: "rule-request",
+      operation: "discover" as const,
+      facetVersionIds: [facetVersionId],
+      ruleId: rule.id,
+      selection: {
+        filter: selection.filter,
+        from: selection.from,
+        to: selection.to,
+        limit: selection.limit,
+        sampling: selection.sampling,
+        seed: selection.seed,
+      },
+    };
+    mocks.getTopicRule.mockResolvedValue(null);
+    await expect(caller().trigger(request)).rejects.toThrow(
+      "Topic rule not found in this project",
+    );
+    expect(mocks.getTopicRule).toHaveBeenCalledWith(projectId, rule.id);
+    mocks.getTopicRule.mockResolvedValue({ ...rule, sampling: "latest" });
+    await expect(caller().trigger(request)).rejects.toThrow(
+      "Topic rule changed",
+    );
+    mocks.getTopicRule.mockResolvedValue({
+      ...rule,
+      facetIds: ["other-facet"],
+    });
+    await expect(caller().trigger(request)).rejects.toThrow(
+      "Select the facets attached",
+    );
+    mocks.getTopicRule.mockResolvedValue(rule);
+    mocks.queryClickhouse.mockResolvedValue([
+      {
+        id: "trace-a",
+        timestampMs: "1789430400000",
+        name: "Agent",
+        environment: "default",
+        matchedTraceCount: "1",
+      },
+    ]);
+    await caller().trigger(request);
+    expect(mocks.createTopicExecution.mock.calls[0][0]).toMatchObject({
+      ruleId: rule.id,
+      traceIds: ["trace-a"],
+      traceSelection: { ...request.selection, excludedTraceIds: [] },
+    });
+    expect(mocks.createTopicFacetVersion).not.toHaveBeenCalled();
+    mocks.readTopicExecutionForRequest.mockResolvedValue(execution());
+    mocks.getTopicRule.mockClear();
+    mocks.queryClickhouse.mockClear();
+    await caller().trigger(request);
+    expect(mocks.getTopicRule).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
   });
 
   it("orders latest traces after deduplication and returns an empty preview when no events match", async () => {
@@ -673,6 +749,7 @@ describe("Topics local execution access and publication", () => {
           sourceExecutionIds: ["foreign-execution"],
           exploratory: false,
           forceRefresh: false,
+          processingConfig: topicProcessingConfigSchema.parse({}),
           embeddingConfig: topicEmbeddingConfigSchema.parse({}),
         };
       }
@@ -1061,34 +1138,25 @@ describe("Topics transcript preview and facet configuration", () => {
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
   });
 
-  it("preserves partial facet processing settings without versioning embedding configuration", async () => {
-    const config = topicProcessingConfigSchema.parse({
-      projection: "issues",
-      maxInputTokens: 2000,
-    });
-    const input = {
+  it("stores facet prompts independently of execution processing settings", async () => {
+    const facet = {
       projectId,
       facetId: "facet-a",
       name: "Issues",
       description: "",
       prompt: "Describe visible issues",
-      processingConfig: config,
     };
-    await caller().saveFacet(input);
-    expect(mocks.createTopicFacetVersion).toHaveBeenCalledWith(input);
-    const partial = {
+    await caller().saveFacet(facet);
+    expect(mocks.createTopicFacetVersion).toHaveBeenCalledWith(facet);
+    await caller().trigger({
       ...input,
-      processingConfig: { maxInputTokens: 512 },
-    };
-    await caller().saveFacet(partial);
-    expect(mocks.createTopicFacetVersion).toHaveBeenLastCalledWith(partial);
-    await expect(
-      caller().saveFacet({
-        ...input,
-        processingConfig: { ...config, maxInputTokens: 8001 },
-      }),
-    ).rejects.toThrow();
-    expect(mocks.createTopicFacetVersion).toHaveBeenCalledTimes(2);
+      processingConfig: { ...input.processingConfig, maxInputTokens: 2000 },
+    });
+    expect(
+      mocks.createTopicExecution.mock.calls[0][0].processingConfig
+        .maxInputTokens,
+    ).toBe(2000);
+    expect(mocks.createTopicFacetVersion).toHaveBeenCalledTimes(1);
   });
 });
 

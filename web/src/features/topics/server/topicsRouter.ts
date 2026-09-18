@@ -5,7 +5,7 @@ import {
   topicEmbeddingConfigSchema,
   topicIdSchema,
   topicTraceIdSchema,
-  topicProcessingConfigSchema,
+  topicRuleConfigSchema,
   type TopicExecution,
   type TopicRun,
   type TopicSummary,
@@ -20,6 +20,9 @@ import {
   getTopicFacetVersion,
   createTopicFacet,
   createTopicFacetVersion,
+  listTopicRules,
+  getTopicRule,
+  saveTopicRule,
   listTopicRuns,
   getTopicRun,
   readTopicSummaries,
@@ -48,18 +51,6 @@ import { currentTopicResults } from "./currentResults";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
-const processingConfigPatchSchema = z.object({
-  summaryModel: topicProcessingConfigSchema.shape.summaryModel
-    .unwrap()
-    .optional(),
-  projection: topicProcessingConfigSchema.shape.projection.unwrap().optional(),
-  maxInputTokens: topicProcessingConfigSchema.shape.maxInputTokens
-    .unwrap()
-    .optional(),
-  maxOutputTokens: topicProcessingConfigSchema.shape.maxOutputTokens
-    .unwrap()
-    .optional(),
-});
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
@@ -367,7 +358,6 @@ export const topicsRouter = createTRPCRouter({
         name: z.string().trim().min(1).max(100),
         description: z.string().max(500).default(""),
         prompt: z.string().trim().min(10).max(4000),
-        processingConfig: processingConfigPatchSchema.optional(),
       }),
     )
     .mutation(async ({ input }) => {
@@ -375,6 +365,17 @@ export const topicsRouter = createTRPCRouter({
         return createTopicFacetVersion({ ...input, facetId: input.facetId });
       return createTopicFacet(input);
     }),
+  rules: topicsProcedure.query(({ input }) => listTopicRules(input.projectId)),
+  saveRule: topicsWriteProcedure
+    .input(
+      topicRuleConfigSchema.extend({
+        projectId: topicIdSchema,
+        id: topicIdSchema.optional(),
+        name: z.string().trim().min(1).max(100),
+        facetIds: z.array(topicIdSchema).min(1),
+      }),
+    )
+    .mutation(({ input }) => saveTopicRule(input)),
   runs: topicsProcedure.query(async ({ input }) =>
     (await listTopicRuns(input.projectId)).map(publicRun),
   ),
@@ -391,11 +392,36 @@ export const topicsRouter = createTRPCRouter({
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
+      const requestHash = createHash("sha256")
+        .update(JSON.stringify(input))
+        .digest("hex");
+      const existing = await readTopicExecutionForRequest(
+        input.projectId,
+        input.requestId,
+        requestHash,
+      );
+      if (existing) {
+        if (existing.status === "queued")
+          await enqueueTopicExecution(input.projectId, existing.id);
+        return { id: existing.id };
+      }
+      const rule = input.ruleId
+        ? await getTopicRule(input.projectId, input.ruleId)
+        : null;
+      if (input.ruleId && !rule)
+        throw new InvalidRequestError("Topic rule not found in this project.");
+      if (rule && !("selection" in input))
+        throw new InvalidRequestError(
+          "Topic rules require a filtered trace selection.",
+        );
+      const facetIds = new Set<string>();
       for (const id of input.facetVersionIds) {
-        if (!(await getTopicFacetVersion(input.projectId, id)))
+        const version = await getTopicFacetVersion(input.projectId, id);
+        if (!version)
           throw new InvalidRequestError(
             "Facet version not found in this project.",
           );
+        facetIds.add(version.facetId);
         if (input.operation === "assign") {
           const run = await getTopicRun(
             input.projectId,
@@ -440,23 +466,27 @@ export const topicsRouter = createTRPCRouter({
             );
         }
       }
-      const requestHash =
-        "selection" in input
-          ? createHash("sha256").update(JSON.stringify(input)).digest("hex")
-          : undefined;
-      const existing = requestHash
-        ? await readTopicExecutionForRequest(
-            input.projectId,
-            input.requestId,
-            requestHash,
-          )
-        : null;
-      const execution =
-        existing ??
-        (await createTopicExecution(
-          await resolveTopicTraceSelection(input, ctx.prisma),
-          requestHash,
-        ));
+      if (
+        rule &&
+        (rule.facetIds.length !== facetIds.size ||
+          !rule.facetIds.every((id) => facetIds.has(id)))
+      )
+        throw new InvalidRequestError(
+          "Select the facets attached to this Topic rule, or save its changes first.",
+        );
+      if (rule && "selection" in input) {
+        // Reject stale previews instead of silently running a newly edited rule.
+        const selected = topicRuleConfigSchema.parse(input.selection);
+        const saved = topicRuleConfigSchema.parse(rule);
+        if (JSON.stringify(selected) !== JSON.stringify(saved))
+          throw new InvalidRequestError(
+            "This Topic rule changed. Reload it and preview the traces again.",
+          );
+      }
+      const execution = await createTopicExecution(
+        await resolveTopicTraceSelection(input, ctx.prisma),
+        requestHash,
+      );
       if (execution.status === "queued")
         await enqueueTopicExecution(input.projectId, execution.id);
       return { id: execution.id };

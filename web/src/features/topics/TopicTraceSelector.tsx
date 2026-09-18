@@ -10,6 +10,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import type { TopicRule } from "@langfuse/shared/topics";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -39,6 +40,10 @@ import { DateRangeInput } from "@/src/features/evals/v2/components/Evaluators/Ev
 import { parseTraceInput } from "./parse-trace-input";
 
 type PreviewInput = RouterInputs["topics"]["previewTraces"];
+export type TopicTraceCriteria = Pick<
+  TopicRule,
+  "filter" | "sampling" | "limit"
+>;
 type TracePreview = RouterOutputs["topics"]["previewTraces"]["traces"][number];
 export type TopicTraceSelection = { count: number } & (
   | { traceIds: string[] }
@@ -67,22 +72,31 @@ function calendarRange(from: string, to: string) {
 
 export function TopicTraceSelector({
   projectId,
+  initialCriteria,
   children,
 }: {
   projectId: string;
-  children: (selection: TopicTraceSelection | null) => ReactNode;
+  initialCriteria?: TopicTraceCriteria;
+  children: (
+    selection: TopicTraceSelection | null,
+    criteria: TopicTraceCriteria | null,
+  ) => ReactNode;
 }) {
   const [mode, setMode] = useState("filters");
   const [filterMode, setFilterMode] = useState<"builder" | "query">("builder");
-  const [filter, setFilter] = useState<FilterState>([]);
+  const [filter, setFilter] = useState<FilterState>(
+    initialCriteria?.filter ?? [],
+  );
   const [timeWindow, setTimeWindow] = useState("7");
   const [range, setRange] = useState(() => {
     const to = new Date();
     return { from: new Date(to.getTime() - 7 * DAY), to };
   });
-  const [sample, setSample] = useState(false);
-  const [limit, setLimit] = useState("100");
-  const [sampling, setSampling] = useState<"random" | "latest">("random");
+  const [sample, setSample] = useState(initialCriteria?.limit != null);
+  const [limit, setLimit] = useState(String(initialCriteria?.limit ?? 100));
+  const [sampling, setSampling] = useState<"random" | "latest">(
+    initialCriteria?.sampling ?? "random",
+  );
   const [paste, setPaste] = useState("");
   const [request, setRequest] = useState<PreviewInput | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
@@ -458,6 +472,9 @@ export function TopicTraceSelector({
                 },
               }
             : null,
+        mode === "filters" && validLimit
+          ? { filter, sampling, limit: sample ? Number(limit) : null }
+          : null,
       )}
     </div>
   );

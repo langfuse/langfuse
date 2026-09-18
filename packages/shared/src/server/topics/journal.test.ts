@@ -113,6 +113,11 @@ const input: TopicExecutionInput = {
   traceIds: ["trace-a", "trace-b"],
   exploratory: false,
   forceRefresh: false,
+  processingConfig: {
+    summaryModel: "gpt-4.1-nano",
+    maxInputTokens: 8000,
+    maxOutputTokens: 512,
+  },
   embeddingConfig: {
     embeddingModel: "text-embedding-3-small",
     embeddingDimensions: 768,
@@ -137,7 +142,32 @@ describe("durable Topics execution storage", () => {
       ...input,
       traceIds,
       minimumTraceCount: 31,
+      ruleId: "rule-a",
+      traceSelection: {
+        filter: [
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: new Date("2026-09-01"),
+          },
+        ],
+        from: new Date("2026-09-01"),
+        to: new Date("2026-09-02"),
+        limit: null,
+        sampling: "random",
+        seed: "seed",
+        excludedTraceIds: ["excluded"],
+      },
     });
+    expect(execution.input.ruleId).toBe("rule-a");
+    expect(execution.input.traceSelection).toMatchObject({
+      from: new Date("2026-09-01"),
+      to: new Date("2026-09-02"),
+      filter: [{ value: new Date("2026-09-01") }],
+      excludedTraceIds: ["excluded"],
+    });
+    expect(execution.input.processingConfig).toEqual(input.processingConfig);
     expect(state.rows.size).toBe(2);
     for (const facetId of input.facetVersionIds) {
       const id = createHash("sha256")

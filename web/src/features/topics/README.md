@@ -12,27 +12,34 @@ existing local-development and project-access checks still apply.
   assignments across runs and facets; explicit execution links remain historical.
   A single run-status label sits alongside the heading; stage and operation
   live in Run details. Facet outcomes use result-oriented labels and
-  omit zero-valued exception counts. Facet prompts and summary processing settings
-  are versioned; embedding dimensions belong to executions.
+  omit zero-valued exception counts. Facet versions contain only prompts;
+  processing settings and embedding dimensions are frozen on executions.
 - `TopicPipelineForm.tsx` owns operation, facet versions and submission.
   Every available facet starts selected. Update topics is the default operation,
   accumulating traces into the existing cohort, with an explicit force-refresh
   option. Embedding dimensions are configured per execution. Reclustering offers only completed
   batches containing every selected facet version, excluding incompatible choices.
+  Saved topic rules hold reusable filters, sampling and stable facet IDs, like
+  evaluator rules. Selecting a rule loads its criteria and each facet's latest
+  prompt version; editing criteria or facets becomes an ad hoc run until explicitly
+  saved. Rules do not create separate maps or invalidate summaries and embeddings.
+  Rule saving adds no product analytics event for this local PoC.
 - `TopicTraceSelector.tsx` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
-  sampling with a user-chosen size. Explicit preview fixes the cohort;
+  sampling with a user-chosen size. Rule criteria initialize a keyed selector;
+  dates stay specific to each execution. Explicit preview counts the cohort;
   changing criteria invalidates it. Rows can be excluded across preview pages.
-  The form submits only those reviewed trace IDs. Paste IDs remains available.
+  The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional
   sampling. There is no total trace cap. Preview rows and current results render
-  in pages of 20; reviewed IDs are frozen before submission. All predicates match
+  in pages of 20; selected IDs are frozen by the server at submission. All predicates match
   the same observation; the worker reads the
   whole containing trace, including observations outside the selection window.
   Preview only reads identifiers and display metadata and never calls a model.
-  The reviewed identities are fixed; source trace content can still change before
-  the worker loads it. Preview responses are not a historical trace snapshot.
+  Matching counts can change between preview and submission, and source trace
+  content can change before the worker loads it. Preview responses are not a
+  historical trace snapshot.
 - `TraceTranscriptDialog.tsx` provides **Show transcript** on the standalone trace page
   and both trace/observation peek headers, including their overflow menus. It fetches
   only while open, using the same deterministic, facet-independent transcript
@@ -66,7 +73,7 @@ existing local-development and project-access checks still apply.
   History and detail reads reconcile interrupted/queued retries with the queue.
   Resume only enqueues work: the worker exclusively advances existing execution
   journals, including finalization after all facet results have been saved.
-  Partial facet configuration changes retain settings omitted by the caller.
+  Facet prompt edits create versions independently of saved selection rules.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
   Trace IDs are opaque data; URL path segments are decoded once, while internal
   execution/artifact IDs retain the strict filesystem-safe format.
