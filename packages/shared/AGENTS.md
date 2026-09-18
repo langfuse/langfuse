@@ -66,7 +66,7 @@
   IDs so its queue-state polling does not read or rewrite domain storage.
   Available only on a loopback development server.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
-  in memory for the worker and evidence inspector; transcript/source I/O is
+  in memory for the worker and transcript inspector; transcript/source I/O is
   not part of the execution journal. Facet versions own prompts; rules own filters,
   sampling and facet assignments; executions freeze trace selection, prompt versions
   and summary/embedding settings. Current membership resolves latest published assignments

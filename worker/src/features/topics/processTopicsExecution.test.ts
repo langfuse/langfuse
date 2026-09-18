@@ -107,10 +107,8 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     state.events.push(`load:${traceId}`);
     if (state.sourceUnavailable || state.sourceFailures.delete(traceId))
       throw new Error("Source trace unavailable");
-    const blockId = `${traceId}:input`;
     return {
       traceTimestamp: "2026-01-01T00:00:00.000Z",
-      snapshotHash: traceId + state.sourceSuffix,
       transcript: {
         inputHash: traceId + state.sourceSuffix,
         text: JSON.stringify([
@@ -119,7 +117,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
             text: traceId + state.sourceSuffix,
           },
         ]),
-        sourceReferences: [{ blockId, source: "input" }],
+        hasContent: true,
         coverage: {},
       },
     };
@@ -194,8 +192,6 @@ vi.mock("@langfuse/shared/topics/server", () => ({
       startedAt: null,
       createdAt: new Date().toISOString(),
       finishedAt: null,
-      manifestPath: "manifest",
-      artifactPath: "",
       metrics: {},
       error: null,
       topics: [],
@@ -260,7 +256,7 @@ vi.mock("./models", () => ({
   TOPICS_NAMING_MODEL: "gpt-5.6-luna",
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
-  nameTopicGroups: (...args: unknown[]) => state.name(...args),
+  nameTopicGroup: (...args: unknown[]) => state.name(...args),
 }));
 vi.mock("./numeric", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./numeric")>()),
@@ -397,16 +393,11 @@ beforeEach(() => {
   state.name
     .mockReset()
     .mockImplementation(
-      async (input: {
-        groups: { id: string; members: { id: string }[] }[];
-      }) => ({
+      async (group: { id: string; members: { id: string }[] }) => ({
         output: {
-          labels: input.groups.map((group) => ({
-            id: group.id,
-            name: `Topic ${group.id.slice(0, 8)}`,
-            description: "Observed member interactions.",
-            evidenceSummaryIds: [group.members[0].id],
-          })),
+          name: `Topic ${group.id.slice(0, 8)}`,
+          description: "Observed member interactions.",
+          evidenceSummaryIds: [group.members[0].id],
         },
         inputTokens: 50,
         outputTokens: 20,

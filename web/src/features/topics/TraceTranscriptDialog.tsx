@@ -120,8 +120,8 @@ function TraceTranscriptDialog({
             <p className="text-muted-foreground text-xs">
               {transcript.data.coverage.observationCount} observations ·{" "}
               {transcript.data.coverage.truncatedBlockCount} shortened blocks.
-              Media payloads and reasoning are omitted. The transcript is limited
-              to 10,000 characters.
+              Media payloads and reasoning are omitted. The transcript is
+              limited to 10,000 characters.
             </p>
             <JSONView
               title="Transcript"

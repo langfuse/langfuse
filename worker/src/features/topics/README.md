@@ -194,25 +194,21 @@ The synchronous native fit runs in a credential-free Node child process with a
 count cap is imposed. Exact neighbor search has quadratic cost; large cohorts
 can exceed the deadline. Map coordinates are repeatable on the same platform
 and build, but are not a compatibility contract across backends or architectures.
-See [numerical validation](NUMERIC_VALIDATION.md) for replacement evidence and
-known quality differences.
-
-HDBSCAN's single root cluster is disabled: accepting it merged three clear themes
-in the 12-trace smoke cohort. The smaller neighborhood separated them offline
-using the same stored embeddings. This example supports the exploratory setting,
-not its quality on arbitrary data.
+Synthetic cohorts do not establish topic quality; validate representative data
+before expanding deployment.
 
 The same classifier determines initial and later memberships. Naming sees its
 effective populations: every member's full facet summary, plus three nearby
-contrasts. Each group gets one naming call with no tool loop. Group IDs, unique
-names, and member evidence references are validated before accepting output.
+contrasts. Each group gets one naming call with no tool loop. Unique names and
+member evidence references are validated before accepting output.
 The provider schema keeps evidence IDs as strings, avoiding the API's enum-size
 limit for large clusters; local validation still requires genuine member IDs. This checks structural grounding, not factual
 or semantic correctness; inspect the examples to judge usefulness.
 
 No informative clusters yields a terminal `no_topics` result and leaves the
-previous published map in place. A single overall population is not forced into
-a topic; validating that case needs a future coherence policy. Maps are
+previous published map in place. HDBSCAN's single root cluster is disabled, so
+a single overall population is not forced into a topic; validating that case
+needs a future coherence policy. Maps are
 published only after their frozen initial assignment cohort is readable in
 ClickHouse. Topic definitions and initial manifests remain immutable while later
 assignments can extend a map's live membership. Refresh matches final memberships to the previous published map. Continuing
@@ -304,16 +300,6 @@ persistence failure is reported separately. Model durations exclude cache hits.
 Metrics are best effort, not an exactly-once ledger or an execution heartbeat.
 Queue backlog, waiting time and BullMQ outcomes remain under
 `langfuse.queue.topics.*` and `langfuse.queue.topics-embedding.*`.
-
-### Observed small-sample limitation
-
-The synthetic smoke test discovered three topics from 12 traces. Its frozen map
-accepted two held-out requests and rejected a novel baking request as an outlier.
-Reclustering all 15 summaries absorbed that request into billing. A bounded
-offline robust-radius experiment did not prevent this; robust seed filtering also
-rejected a legitimate travel request. Neither experimental change is enabled.
-Inspect common-cohort comparisons and validate on representative data before
-treating these small-sample topics or thresholds as reliable.
 
 ## Offline verification
 

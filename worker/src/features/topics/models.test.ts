@@ -19,22 +19,15 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   countTopicTokens: (text: string) => Math.ceil(text.length / 4),
 }));
 
-import { nameTopicGroups, summarizeTopicTrace } from "./models";
+import { nameTopicGroup, summarizeTopicTrace } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
 const evidence = {
-  groups: [
-    {
-      id: "stable-topic-id",
-      members: [
-        { id: "member-a", summary: "The user requests an invoice." },
-        { id: "member-b", summary: "The user requests billing corrections." },
-      ],
-      contrasts: [
-        { id: "contrast", summary: "The user requests translation." },
-      ],
-    },
+  members: [
+    { id: "member-a", summary: "The user requests an invoice." },
+    { id: "member-b", summary: "The user requests billing corrections." },
   ],
+  contrasts: [{ id: "contrast", summary: "The user requests translation." }],
 };
 
 beforeEach(() => {
@@ -88,7 +81,7 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("attaches the known group identity to its provider label", async () => {
+  it("accepts a grounded label and records the naming model usage", async () => {
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
@@ -97,9 +90,9 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    const result = await nameTopicGroups(evidence);
-    expect(result.output.labels[0]).toMatchObject({
-      id: "stable-topic-id",
+    const result = await nameTopicGroup(evidence);
+    expect(result.output).toMatchObject({
+      name: "Invoice assistance",
       evidenceSummaryIds: ["member-a"],
     });
     expect(state.call).toHaveBeenCalledTimes(1);
@@ -120,9 +113,7 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    await nameTopicGroups({
-      groups: [{ id: "group", members, contrasts: [] }],
-    });
+    await nameTopicGroup({ members, contrasts: [] });
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,
     );
@@ -142,7 +133,7 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    await expect(nameTopicGroups(evidence)).rejects.toThrow();
+    await expect(nameTopicGroup(evidence)).rejects.toThrow();
     state.call.mockResolvedValue({
       output: {
         name: "Invoice assistance",
@@ -151,6 +142,6 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    await expect(nameTopicGroups(evidence)).rejects.toThrow();
+    await expect(nameTopicGroup(evidence)).rejects.toThrow();
   });
 });

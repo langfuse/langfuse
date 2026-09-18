@@ -286,17 +286,14 @@ function EmbeddingMapView({
                       ) ?? [],
                     );
                     const index = dots.indexOf(event.currentTarget);
-                    const next =
-                      event.key === "Home"
-                        ? 0
-                        : event.key === "End"
-                          ? dots.length - 1
-                          : (index +
-                              (["ArrowRight", "ArrowDown"].includes(event.key)
-                                ? 1
-                                : -1) +
-                              dots.length) %
-                            dots.length;
+                    const direction = ["ArrowRight", "ArrowDown"].includes(
+                      event.key,
+                    )
+                      ? 1
+                      : -1;
+                    let next = (index + direction + dots.length) % dots.length;
+                    if (event.key === "Home") next = 0;
+                    else if (event.key === "End") next = dots.length - 1;
                     dots[next]?.focus();
                   }
                 }}
@@ -343,10 +340,10 @@ function EmbeddingMapView({
           </>
         ) : null}
       </div>
-      {(data.unpositioned.length > 0 || data.missingSummaryCount > 0) && (
+      {(data.unpositionedCount > 0 || data.missingSummaryCount > 0) && (
         <p className="text-muted-foreground border-t px-4 py-3 text-xs">
-          {data.unpositioned.length > 0
-            ? ` ${data.unpositioned.length} summaries in this execution have no coordinates in this map; they remain in the list below.`
+          {data.unpositionedCount > 0
+            ? ` ${data.unpositionedCount} summaries in this execution have no coordinates in this map; they remain in the list below.`
             : ""}
           {data.missingSummaryCount > 0
             ? ` ${data.missingSummaryCount} original summaries are no longer available.`

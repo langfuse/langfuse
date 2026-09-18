@@ -2019,7 +2019,6 @@ model TopicClusteringRun {
   phase             String            @default("snapshot")
   config            Json              @default("{}")
   manifestPath      String            @default("") @map("manifest_path")
-  artifactPath      String            @default("") @map("artifact_path")
   metrics           Json              @default("{}")
   error             String?
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)

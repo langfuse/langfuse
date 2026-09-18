@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     summary String CODEC(ZSTD(3)),
     embedding Array(Float32),
     input_hash String,
-    snapshot_hash String,
     invocation_hash String,
     summary_model LowCardinality(String),
     embedding_model LowCardinality(String),

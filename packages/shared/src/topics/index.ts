@@ -167,7 +167,6 @@ export interface TopicSummary {
   summary: string;
   embedding: number[];
   inputHash: string;
-  snapshotHash: string;
   invocationHash: string;
   summaryModel: string;
   embeddingModel: string;
@@ -228,8 +227,6 @@ export interface TopicRun {
   finishedAt: string | null;
   config: Record<string, unknown>;
   summaryIds: string[];
-  manifestPath: string;
-  artifactPath: string;
   metrics: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];

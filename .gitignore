@@ -118,5 +118,3 @@ web/test-results/*
 
 # Superset config
 .superset/
-
-/.topics-data/

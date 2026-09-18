@@ -96,19 +96,11 @@ function publicRun(run: TopicRun) {
     embeddingConfig: runEmbeddingConfig(run),
     facetVersionId: run.facetVersionId,
     runSequence: run.runSequence,
-    status: run.status,
-    phase: run.phase,
-    createdAt: run.createdAt,
-    startedAt: run.startedAt,
     publishedAt: run.publishedAt,
-    metrics: run.metrics,
-    error: run.error,
     topics: (run.publishedAt ? run.topics : []).map((topic) => ({
       id: topic.topicId,
       name: topic.name,
       description: topic.description,
-      radius: topic.radius,
-      representativeSummaryIds: topic.representativeSummaryIds,
     })),
   };
 }
@@ -168,7 +160,7 @@ async function recoverExecutionState(execution: TopicExecution) {
   return execution;
 }
 
-type MapSummary = Pick<TopicSummary, "traceId" | "summary" | "state"> & {
+type MapSummary = Pick<TopicSummary, "traceId" | "summary"> & {
   summaryId: string;
   topicId: string | null;
   outcome: "assigned" | "outlier" | "unassigned";
@@ -177,11 +169,9 @@ type TopicMap = {
   status: "ready" | "unavailable";
   reason: string | null;
   runId: string | null;
-  discoveryExecutionId: string | null;
-  discoveryCount: number;
   missingSummaryCount: number;
-  points: (MapSummary & { x: number; y: number; inExecution: boolean })[];
-  unpositioned: MapSummary[];
+  points: (MapSummary & { x: number; y: number })[];
+  unpositionedCount: number;
 };
 async function publishedTopicMap(input: {
   projectId: string;
@@ -200,11 +190,9 @@ async function publishedTopicMap(input: {
     status: "unavailable",
     reason: "This batch does not have a published map.",
     runId: null,
-    discoveryExecutionId: null,
-    discoveryCount: 0,
     missingSummaryCount: 0,
     points: [],
-    unpositioned: [],
+    unpositionedCount: 0,
   };
   const run = facet.runId
     ? await getTopicRun(input.projectId, facet.runId)
@@ -216,7 +204,6 @@ async function publishedTopicMap(input: {
   )
     throw new LangfuseNotFoundError("Execution map not found.");
   unavailable.runId = run.id;
-  unavailable.discoveryCount = run.summaryIds.length;
   const originId = topicIdSchema.safeParse(run.config.executionId);
   if (
     !originId.success ||
@@ -240,7 +227,6 @@ async function publishedTopicMap(input: {
       ...unavailable,
       reason: "The discovery execution for this map is unavailable.",
     };
-  unavailable.discoveryExecutionId = origin.id;
   const discoveryIds = new Set(run.summaryIds);
   const discoveryAssignments = await readTopicMapAssignments(
     input.projectId,
@@ -270,11 +256,7 @@ async function publishedTopicMap(input: {
 
   const executionIds = new Set(facet.summaryIds);
   const summaryIds = [...new Set([...run.summaryIds, ...facet.summaryIds])];
-  const additionalIds = [...executionIds].filter((id) => !discoveryIds.has(id));
-  const [summaries, assignments] = await Promise.all([
-    readTopicSummaries(input.projectId, summaryIds),
-    readTopicAssignments(input.projectId, additionalIds, run.id),
-  ]);
+  const summaries = await readTopicSummaries(input.projectId, summaryIds);
   const byId = new Map(
     summaries
       .filter(
@@ -286,10 +268,7 @@ async function publishedTopicMap(input: {
   );
   const topicIds = new Set(run.topics.map((topic) => topic.topicId));
   const assignedById = new Map(
-    [
-      ...projectedById.values(),
-      ...assignments.filter((row) => !discoveryIds.has(row.summaryId)),
-    ]
+    [...projectedById.values()]
       .filter(
         (row) =>
           row.projectId === input.projectId &&
@@ -306,35 +285,29 @@ async function publishedTopicMap(input: {
       summaryId: row.id,
       traceId: row.traceId,
       summary: row.summary,
-      state: row.state,
       topicId: assignment?.outcome === "assigned" ? assignment.topicId : null,
       outcome:
-        assignment?.outcome === "assigned"
-          ? "assigned"
-          : assignment?.outcome === "outlier"
-            ? "outlier"
-            : "unassigned",
+        assignment?.outcome === "assigned" || assignment?.outcome === "outlier"
+          ? assignment.outcome
+          : "unassigned",
     };
   };
   const points = run.summaryIds.flatMap((id) => {
     const row = byId.get(id);
     if (!row) return [];
     const [x, y] = projectedById.get(id)!.coordinates!;
-    return [{ ...publicSummary(row), x, y, inExecution: executionIds.has(id) }];
+    return [{ ...publicSummary(row), x, y }];
   });
-  const unpositioned = [...executionIds].flatMap((id) => {
-    const row = byId.get(id);
-    return row && !discoveryIds.has(id) ? [publicSummary(row)] : [];
-  });
+  const unpositionedCount = [...executionIds].filter(
+    (id) => byId.has(id) && !discoveryIds.has(id),
+  ).length;
   return {
     status: "ready",
     reason: null,
     runId: run.id,
-    discoveryExecutionId: origin.id,
-    discoveryCount: run.summaryIds.length,
     missingSummaryCount: run.summaryIds.length - points.length,
     points,
-    unpositioned,
+    unpositionedCount,
   };
 }
 
@@ -546,7 +519,6 @@ export const topicsRouter = createTRPCRouter({
           traceId: s.traceId,
           state: s.state,
           summary: s.summary,
-          processedAt: s.processedAt,
         })),
         assignments,
       };
@@ -629,9 +601,7 @@ export const topicsRouter = createTRPCRouter({
       }
       return {
         inputHash: summary.inputHash,
-        snapshotHash: summary.snapshotHash,
         model: summary.summaryModel,
-        metadata: summary.metadata,
         projection,
         projectionStatus,
       };

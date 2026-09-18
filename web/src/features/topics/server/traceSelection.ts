@@ -53,7 +53,6 @@ async function selectTopicTraces(
   prisma: PrismaClient,
   preview: boolean,
 ) {
-  const sampledAt = new Date();
   const { filterState, hasNoMatches } = await applyCommentFilters({
     projectId: input.projectId,
     prisma,
@@ -67,7 +66,6 @@ async function selectTopicTraces(
       matchedTraceCount: 0,
       selectedTraceCount: 0,
       traces: [],
-      sampledAt,
     };
 
   const { queryBuilder } = buildEventsObservationRowSelection({
@@ -169,7 +167,6 @@ async function selectTopicTraces(
       name: row.name || null,
       environment: row.environment,
     })),
-    sampledAt,
   };
 }
 

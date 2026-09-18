@@ -155,6 +155,11 @@ export function matchTopicContinuity(input: {
       best.candidateCoverage >= 0.8 &&
       best.commonAnchorCoverage >= 0.5 &&
       (best.centroidDistance === null || best.centroidDistance <= 0.15);
+    let status = "new";
+    if (continued) status = "continued";
+    else if (merged && split) status = "ambiguous";
+    else if (merged) status = "merge";
+    else if (split) status = "split";
     return {
       ...current,
       topicId: continued ? best.previousTopic.topicId : current.topicId,
@@ -165,15 +170,7 @@ export function matchTopicContinuity(input: {
           .sort(),
         continuity: {
           version: 1,
-          status: continued
-            ? "continued"
-            : merged && split
-              ? "ambiguous"
-              : merged
-                ? "merge"
-                : split
-                  ? "split"
-                  : "new",
+          status,
           sharedCount: best?.sharedCount ?? 0,
           previousCoverage: best?.previousCoverage ?? 0,
           candidateCoverage: best?.candidateCoverage ?? 0,

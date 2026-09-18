@@ -60,7 +60,7 @@ const summaryColumns = `id, project_id AS projectId, facet_id AS facetId,
   toUnixTimestamp64Milli(unit_timestamp) AS traceTimestampMs,
   toString(revision) AS revision, execution_id AS executionId,
   result_version AS resultVersion, processing_state AS state, summary, embedding,
-  input_hash AS inputHash, snapshot_hash AS snapshotHash, invocation_hash AS invocationHash,
+  input_hash AS inputHash, invocation_hash AS invocationHash,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   input_tokens AS inputTokens, output_tokens AS outputTokens, embedding_tokens AS embeddingTokens,
   summary_cost_usd AS summaryCostUsd, embedding_cost_usd AS embeddingCostUsd,
@@ -121,13 +121,11 @@ export async function listTopicSummaries(
       );
     }
   }
-  rows.sort((a, b) =>
-    BigInt(a.revision) === BigInt(b.revision)
-      ? b.resultVersion - a.resultVersion
-      : BigInt(a.revision) > BigInt(b.revision)
-        ? -1
-        : 1,
-  );
+  rows.sort((a, b) => {
+    if (BigInt(a.revision) === BigInt(b.revision))
+      return b.resultVersion - a.resultVersion;
+    return BigInt(a.revision) > BigInt(b.revision) ? -1 : 1;
+  });
   return rows.map(summaryResult);
 }
 export const readTopicSummaries = (projectId: string, summaryIds: string[]) =>
@@ -180,7 +178,6 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
     summary: row.summary,
     embedding: row.embedding,
     input_hash: row.inputHash,
-    snapshot_hash: row.snapshotHash,
     invocation_hash: row.invocationHash,
     summary_model: row.summaryModel,
     embedding_model: row.embeddingModel,

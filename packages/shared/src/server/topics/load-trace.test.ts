@@ -13,7 +13,6 @@ const row = {
   parent_span_id: null,
   start_time: "2026-09-15 10:00:00.000",
   end_time: "2026-09-15 10:00:01.000",
-  event_ts: "2026-09-15 10:00:02.000",
   type: "GENERATION",
   name: "chat",
   level: "DEFAULT",

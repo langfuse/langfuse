@@ -25,7 +25,7 @@
   job; unchanged polls read Redis queue states without loading execution storage.
   Read `src/features/topics/README.md`
   for native numerical setup, database results, object-storage manifests, and model configuration.
-  Canonical transcript assembly is shared with the web evidence inspector through
+  Canonical transcript assembly is shared with the web transcript inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in

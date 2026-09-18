@@ -36,7 +36,7 @@ import {
 } from "@langfuse/shared/topics";
 import {
   summarizeTopicTrace,
-  nameTopicGroups,
+  nameTopicGroup,
   TOPICS_SUMMARY_PROMPT_VERSION,
   TOPICS_NAMING_MODEL,
 } from "./models";
@@ -192,7 +192,7 @@ async function summarizeTrace(
   if (acceptedSummaryIds.has(id))
     throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
   const summary = await (async (): Promise<TopicSummary> => {
-    const { traceTimestamp, snapshotHash, transcript } = await getTranscript();
+    const { traceTimestamp, transcript } = await getTranscript();
     const invocationHash = summaryInvocationHash(
       transcript.inputHash,
       facet,
@@ -228,7 +228,6 @@ async function summarizeTrace(
       revision: execution.revision,
       executionId: execution.id,
       inputHash: transcript.inputHash,
-      snapshotHash,
       invocationHash,
       summaryModel: TOPICS_SUMMARY_MODEL,
       embeddingModel: TOPICS_EMBEDDING_MODEL,
@@ -275,11 +274,7 @@ async function summarizeTrace(
         },
       };
     }
-    if (
-      !transcript.sourceReferences.some(
-        (reference) => reference.source !== "structure",
-      )
-    ) {
+    if (!transcript.hasContent) {
       metrics.result("summary", "insufficient_input");
       return {
         ...base,
@@ -321,11 +316,9 @@ async function summarizeTrace(
     const applicable = result.output.status === "applicable";
     metrics.result(
       "summary",
-      applicable
+      result.output.status === "applicable"
         ? "generated"
-        : result.output.status === "not_applicable"
-          ? "not_applicable"
-          : "insufficient_input",
+        : result.output.status,
     );
     return {
       ...base,
@@ -693,17 +686,13 @@ async function discover(
     artifactKey("manifest", facet.id),
     async () =>
       [...summaries]
-        .sort((a, b) =>
-          a.traceId < b.traceId
-            ? -1
-            : a.traceId > b.traceId
-              ? 1
-              : a.id < b.id
-                ? -1
-                : a.id > b.id
-                  ? 1
-                  : 0,
-        )
+        .sort((a, b) => {
+          if (a.traceId < b.traceId) return -1;
+          if (a.traceId > b.traceId) return 1;
+          if (a.id < b.id) return -1;
+          if (a.id > b.id) return 1;
+          return 0;
+        })
         .map((row) => ({
           id: row.id,
           revision: row.revision,
@@ -880,39 +869,16 @@ async function discover(
         continue;
       }
       const label = await metrics.measure("naming", async () => {
-        const result = await nameTopicGroups({ groups: [group] });
-        if (
-          result.output.labels.length !== 1 ||
-          result.output.labels[0].id !== group.id
-        )
-          throw invalidOutput(
-            metrics,
-            "naming",
-            "Naming did not return exactly the requested group.",
-          );
-        const label = result.output.labels[0];
+        const { output: label } = await nameTopicGroup(group);
         if (
           !label.name.trim() ||
-          label.name.length > 100 ||
           !label.description.trim() ||
-          label.description.length > 600 ||
           names.has(label.name.trim().toLowerCase())
         )
           throw invalidOutput(
             metrics,
             "naming",
             "Topic names must be concise, non-empty, and distinct.",
-          );
-        const members = new Set(group.members.map((member) => member.id));
-        if (
-          !label.evidenceSummaryIds.length ||
-          label.evidenceSummaryIds.length > 3 ||
-          label.evidenceSummaryIds.some((id) => !members.has(id))
-        )
-          throw invalidOutput(
-            metrics,
-            "naming",
-            "Topic name cited missing or contrastive evidence.",
           );
         return label;
       });
@@ -933,8 +899,6 @@ async function discover(
         representativeSummaryIds: label.evidenceSummaryIds,
         metadata: {
           effectiveMemberCount: group.count,
-          discoveryLabel: prototype.id,
-          seedSummaryIds: prototype.seedSummaryIds,
           namingModel: TOPICS_NAMING_MODEL,
         },
       });
@@ -998,7 +962,6 @@ async function discover(
       ...run,
       topics,
       phase: "assigning",
-      artifactPath: artifactKey("numeric", run.id),
       metrics: {
         applicable: summaries.length,
         densityClusters: new Set(numeric.labels.filter((label) => label >= 0))

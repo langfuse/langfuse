@@ -19,7 +19,6 @@ const observation = (
   name: "chat",
   startTime: "2026-09-15T10:00:00.000Z",
   endTime: "2026-09-15T10:00:01.000Z",
-  eventTimestamp: "2026-09-15T10:00:02.000Z",
   level: "DEFAULT",
   statusMessage: null,
   input: null,
@@ -44,17 +43,14 @@ describe("Topics trace input", () => {
           "utf8",
         ),
       ) as {
-        observations: Array<TopicsObservation & { updatedAt: string }>;
+        observations: TopicsObservation[];
       };
-      const prepared = prepareTrace(
-        fixture.observations.map((row) => ({
-          ...row,
-          eventTimestamp: row.updatedAt,
-        })),
-      );
+      const prepared = prepareTrace(fixture.observations);
       const projected = serializeTraceTranscript(prepared);
       expect(
-        projected.sourceReferences.some((ref) => ref.source === "output"),
+        JSON.parse(projected.text).some(
+          (block: { source?: string }) => block.source === "output",
+        ),
       ).toBe(true);
       expect(projected.coverage.observationCount).toBe(
         fixture.observations.length,
@@ -79,7 +75,6 @@ describe("Topics trace input", () => {
     expect(serializeTraceTranscript(first)).toEqual(
       serializeTraceTranscript(reordered),
     );
-    expect(first.sourceSnapshotHash).toBe(reordered.sourceSnapshotHash);
     expect(serializeTraceTranscript(first).text).toContain("false");
     const changed = prepareTrace([
       rows[0],
@@ -151,7 +146,7 @@ describe("Topics trace input", () => {
     expect(input.text).not.toContain("SECRET_IMAGE");
     expect(input.coverage.truncatedBlockCount).toBeGreaterThan(0);
     expect(input.coverage.mediaPartCount).toBe(1);
-    expect(input.sourceReferences.length).toBeGreaterThan(0);
+    expect(input.hasContent).toBe(true);
   });
 
   it("retains data beside message containers and removes raw media from ID-less outputs", () => {

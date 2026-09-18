@@ -54,7 +54,6 @@ const summary = (id = "summary"): TopicSummary => ({
   summary: `A summary of ${id}.`,
   embedding: [],
   inputHash: "input",
-  snapshotHash: "snapshot",
   invocationHash: "invocation",
   summaryModel: "gpt-4.1-nano",
   embeddingModel: embeddingConfig.embeddingModel,

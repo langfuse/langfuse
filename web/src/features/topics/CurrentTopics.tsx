@@ -94,18 +94,16 @@ function CurrentFacet({
     facet.topics.some((topic) => topic.id === selection)
       ? selection
       : null;
-  const visible = facet.rows.filter(
-    (row) =>
-      selected === null ||
-      (selected === "outliers"
-        ? row.outcome === "outlier"
-        : selected === "no_topic"
-          ? row.outcome === "not_applicable" ||
-            row.outcome === "insufficient_input"
-          : selected === "awaiting_map"
-            ? row.awaitingUpdate
-            : row.topicId === selected),
-  );
+  const visible = facet.rows.filter((row) => {
+    if (selected === null) return true;
+    if (selected === "outliers") return row.outcome === "outlier";
+    if (selected === "no_topic")
+      return (
+        row.outcome === "not_applicable" || row.outcome === "insufficient_input"
+      );
+    if (selected === "awaiting_map") return row.awaitingUpdate;
+    return row.topicId === selected;
+  });
   function selectTrace(traceId: string | null, syncTable = split) {
     setSelectedTraceId(traceId);
     if (traceId === null || !syncTable) return;

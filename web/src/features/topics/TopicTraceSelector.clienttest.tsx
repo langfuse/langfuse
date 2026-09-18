@@ -97,7 +97,6 @@ function result(...ids: string[]) {
   return {
     matchedTraceCount: ids.length,
     selectedTraceCount: ids.length,
-    sampledAt: new Date(),
     traces: ids.map((id) => ({
       id,
       timestamp: new Date(),

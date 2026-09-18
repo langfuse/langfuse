@@ -209,6 +209,9 @@ export function TopicTraceSelector({
     });
   };
 
+  let previewLabel = ready ? "Refresh selection" : "Preview traces";
+  if (request !== null && preview.isFetching) previewLabel = "Loading preview…";
+
   const controls = (
     <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <Tabs
@@ -393,11 +396,7 @@ export function TopicTraceSelector({
             }
             onClick={previewTraces}
           >
-            {request !== null && preview.isFetching
-              ? "Loading preview…"
-              : ready
-                ? "Refresh selection"
-                : "Preview traces"}
+            {previewLabel}
           </Button>
           {request !== null && preview.error && (
             <p role="alert" className="text-destructive text-sm">
@@ -459,25 +458,25 @@ export function TopicTraceSelector({
       )}
     </div>
   );
+  let selection: TopicTraceSelection | null = null;
+  if (mode === "paste") {
+    if (pastedIds) selection = { traceIds: pastedIds, count: pastedIds.length };
+  } else if (request && selectedCount > 0) {
+    selection = {
+      count: selectedCount,
+      selection: {
+        filter: request.filter,
+        from: request.from,
+        to: request.to,
+        limit: request.limit,
+        sampling: request.sampling,
+        seed: request.seed,
+        excludedTraceIds: excluded,
+      },
+    };
+  }
   return children(
-    mode === "paste"
-      ? pastedIds
-        ? { traceIds: pastedIds, count: pastedIds.length }
-        : null
-      : request && selectedCount > 0
-        ? {
-            count: selectedCount,
-            selection: {
-              filter: request.filter,
-              from: request.from,
-              to: request.to,
-              limit: request.limit,
-              sampling: request.sampling,
-              seed: request.seed,
-              excludedTraceIds: excluded,
-            },
-          }
-        : null,
+    selection,
     mode === "filters" && validLimit
       ? { filter, sampling, limit: sample ? Number(limit) : null }
       : null,
@@ -509,6 +508,9 @@ function TracePreviewTable({
   const excludedIds = new Set(excluded);
   const selectedCount = traces.length - excludedIds.size;
   const pageCount = Math.max(1, Math.ceil(traces.length / 20));
+  let allChecked: boolean | "indeterminate" =
+    selectedCount > 0 ? "indeterminate" : false;
+  if (selectedCount === traces.length && traces.length > 0) allChecked = true;
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="max-h-96 overflow-auto rounded-md border">
@@ -518,13 +520,7 @@ function TracePreviewTable({
               <TableHead className="w-12">
                 <Checkbox
                   aria-label="Select all previewed traces"
-                  checked={
-                    selectedCount === traces.length && traces.length > 0
-                      ? true
-                      : selectedCount > 0
-                        ? "indeterminate"
-                        : false
-                  }
+                  checked={allChecked}
                   disabled={traces.length === 0}
                   onCheckedChange={(checked) =>
                     onExcludedChange(

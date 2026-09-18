@@ -391,6 +391,17 @@ function ExecutionPanel({
       ? `${execution.input.sourceExecutionIds.length.toLocaleString()} saved batches`
       : `${execution.input.traceIds.length.toLocaleString()} selected traces`;
   const facetCount = execution.facets.length;
+  const operationLabel = {
+    assign: "Assign to existing topics",
+    recluster: "Recluster saved summaries",
+    refresh: "Update topics",
+    discover: "Discover topics",
+  }[execution.input.operation];
+  let modeLabel = execution.input.exploratory ? "Small sample" : "Standard";
+  if (execution.input.operation === "assign") modeLabel = "Existing map";
+  let selectionPrefix = "Run selection: ";
+  if (execution.status === "running") selectionPrefix = "Running on ";
+  else if (execution.status === "queued") selectionPrefix = "Queued for ";
   return (
     <section className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -414,23 +425,9 @@ function ExecutionPanel({
                 <dt className="text-muted-foreground">Triggered</dt>
                 <dd>{new Date(execution.createdAt).toLocaleString()}</dd>
                 <dt className="text-muted-foreground">Operation</dt>
-                <dd>
-                  {execution.input.operation === "assign"
-                    ? "Assign to existing topics"
-                    : execution.input.operation === "recluster"
-                      ? "Recluster saved summaries"
-                      : execution.input.operation === "refresh"
-                        ? "Update topics"
-                        : "Discover topics"}
-                </dd>
+                <dd>{operationLabel}</dd>
                 <dt className="text-muted-foreground">Mode</dt>
-                <dd>
-                  {execution.input.operation === "assign"
-                    ? "Existing map"
-                    : execution.input.exploratory
-                      ? "Small sample"
-                      : "Standard"}
-                </dd>
+                <dd>{modeLabel}</dd>
                 <dt className="text-muted-foreground">Last step</dt>
                 <dd className="capitalize">
                   {execution.phase.replaceAll("_", " ")}
@@ -466,11 +463,7 @@ function ExecutionPanel({
         role={busy(execution.status) ? "status" : undefined}
       >
         <p className="text-sm">
-          {execution.status === "running"
-            ? "Running on "
-            : execution.status === "queued"
-              ? "Queued for "
-              : "Run selection: "}
+          {selectionPrefix}
           {selectionDescription} across {facetCount.toLocaleString()}{" "}
           {facetCount === 1 ? "facet" : "facets"}.
         </p>
@@ -643,13 +636,12 @@ function TopicResults({
   const visible =
     selected === null
       ? summaries
-      : summaries.filter((summary) =>
-          selected === "outliers"
-            ? assignmentBySummary.get(summary.id)?.outcome === "outlier"
-            : selected === "unassigned"
-              ? !assignmentBySummary.has(summary.id)
-              : assignmentBySummary.get(summary.id)?.topicId === selected,
-        );
+      : summaries.filter((summary) => {
+          const assignment = assignmentBySummary.get(summary.id);
+          if (selected === "outliers") return assignment?.outcome === "outlier";
+          if (selected === "unassigned") return !assignment;
+          return assignment?.topicId === selected;
+        });
   return (
     <div className="flex flex-col gap-4">
       {run?.publishedAt && (
@@ -870,18 +862,20 @@ function SummaryInspector({
   if (query.error) return <ErrorMessage message={query.error.message} />;
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
   const transcript = query.data.projection;
+  const projectionDescription = {
+    matching:
+      "Transcript regenerated from trace data; matches the summarized input.",
+    changed:
+      "Trace data or transcript processing has changed. Showing the current transcript, which differs from the summarized input.",
+    unavailable:
+      "Source transcript unavailable. The stored summary is still retained.",
+  }[query.data.projectionStatus];
   return (
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-xs break-all">
         {query.data.model} · input hash {query.data.inputHash}
       </p>
-      <p className="text-muted-foreground text-xs">
-        {query.data.projectionStatus === "matching"
-          ? "Transcript regenerated from trace data; matches the summarized input."
-          : query.data.projectionStatus === "changed"
-            ? "Trace data or transcript processing has changed. Showing the current transcript, which differs from the summarized input."
-            : "Source transcript unavailable. The stored summary is still retained."}
-      </p>
+      <p className="text-muted-foreground text-xs">{projectionDescription}</p>
       {transcript && (
         <JSONView
           title="Transcript"

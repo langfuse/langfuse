@@ -19,9 +19,6 @@ const props = {
     {
       id: "billing",
       name: "Billing",
-      description: "Invoice questions",
-      radius: 0.2,
-      representativeSummaryIds: ["a"],
     },
   ],
   selectedTopic: null,
@@ -31,10 +28,8 @@ const ready = {
   status: "ready",
   runId: "run",
   reason: null,
-  discoveryExecutionId: "original",
-  discoveryCount: 2,
   missingSummaryCount: 0,
-  unpositioned: [],
+  unpositionedCount: 0,
   points: [
     {
       summaryId: "a",
@@ -44,7 +39,6 @@ const ready = {
       y: 8,
       topicId: "billing",
       outcome: "assigned",
-      inExecution: true,
     },
     {
       summaryId: "b",
@@ -54,7 +48,6 @@ const ready = {
       y: 8,
       topicId: null,
       outcome: "outlier",
-      inExecution: true,
     },
   ],
 };
@@ -202,7 +195,7 @@ describe("embedding map", () => {
   });
 
   it("explains unpositioned later-batch summaries and never invents dots", () => {
-    query.data = { ...ready, unpositioned: [{ summaryId: "later" }] };
+    query.data = { ...ready, unpositionedCount: 1 };
     const view = render(<TopicEmbeddingMap {...props} />);
     expect(view.container.querySelectorAll("circle")).toHaveLength(2);
     expect(
@@ -211,12 +204,10 @@ describe("embedding map", () => {
     query.data = {
       ...ready,
       status: "unavailable",
-      reason: "Projection artifact is unavailable.",
+      reason: "Saved coordinates are unavailable.",
     };
     view.rerender(<TopicEmbeddingMap {...props} />);
     expect(view.container.querySelectorAll("circle")).toHaveLength(0);
-    expect(
-      screen.getByText("Projection artifact is unavailable."),
-    ).toBeTruthy();
+    expect(screen.getByText("Saved coordinates are unavailable.")).toBeTruthy();
   });
 });

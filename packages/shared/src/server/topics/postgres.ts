@@ -263,8 +263,6 @@ async function runResult(row: RunRow): Promise<TopicRun> {
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
     summaryIds: manifest?.summaryIds ?? [],
-    manifestPath: row.manifestPath,
-    artifactPath: row.artifactPath,
     metrics: row.metrics as Record<string, unknown>,
     error: row.error,
     topics: row.topics.map((topic) => ({
@@ -326,12 +324,9 @@ export async function getTopicDefinitions(
   return definitions;
 }
 
-export async function listTopicRuns(
-  projectId: string,
-  facetVersionId?: string,
-): Promise<TopicRun[]> {
+export async function listTopicRuns(projectId: string): Promise<TopicRun[]> {
   const rows = await prisma.topicClusteringRun.findMany({
-    where: { projectId, ...(facetVersionId ? { facetVersionId } : {}) },
+    where: { projectId },
     include: { topics: true },
     orderBy: { runSequence: "desc" },
     take: 100,
@@ -345,8 +340,6 @@ export async function createTopicRun(input: {
   facetVersionId: string;
   config?: Record<string, unknown>;
   summaryIds?: string[];
-  manifestPath?: string;
-  artifactPath?: string;
 }): Promise<TopicRun> {
   const { id, projectId } = input;
   const existing = await prisma.topicClusteringRun.findFirst({
@@ -358,7 +351,7 @@ export async function createTopicRun(input: {
   if (existing.facetVersionId !== input.facetVersionId)
     throw new Error("Run facet version cannot change.");
   if (existing.publishedAt || existing.manifestPath) return runResult(existing);
-  const manifestPath = input.manifestPath ?? `manifest-${id}`;
+  const manifestPath = `manifest-${id}`;
   if (input.summaryIds)
     await writeTopicArtifact(projectId, existing.executionId, manifestPath, {
       summaryIds: input.summaryIds,
@@ -368,7 +361,6 @@ export async function createTopicRun(input: {
     data: {
       config: (input.config ?? {}) as Prisma.InputJsonValue,
       manifestPath: input.summaryIds ? manifestPath : "",
-      artifactPath: input.artifactPath ?? "",
     },
     include: { topics: true },
   });
@@ -436,7 +428,6 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
         config: run.config as Prisma.InputJsonValue,
         metrics: run.metrics as Prisma.InputJsonValue,
         error: run.error,
-        artifactPath: run.artifactPath,
         finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
         publishedAt: run.publishedAt ? new Date(run.publishedAt) : null,
       },

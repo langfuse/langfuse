@@ -24,7 +24,6 @@ export async function loadTopicTranscript({
     throw new Error("Topics trace scope mismatch.");
   return {
     traceTimestamp: snapshot.timestamp,
-    snapshotHash: snapshot.sourceSnapshotHash,
     transcript: serializeTraceTranscript(prepareTrace(snapshot.observations)),
   };
 }

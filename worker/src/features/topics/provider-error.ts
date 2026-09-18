@@ -29,14 +29,10 @@ export function topicProviderError(error: unknown): TopicsProviderUnavailable {
     const candidate = record.statusCode ?? record.status;
     if (typeof candidate === "number" && candidate >= 400 && candidate <= 599) {
       status = candidate;
-      reason =
-        status === 401 || status === 403
-          ? "authentication"
-          : status === 429
-            ? "rate_limit"
-            : status === 408 || status === 504
-              ? "timeout"
-              : "provider_error";
+      if (status === 401 || status === 403) reason = "authentication";
+      else if (status === 429) reason = "rate_limit";
+      else if (status === 408 || status === 504) reason = "timeout";
+      else reason = "provider_error";
       break;
     }
     if (record.name === "AbortError" || record.name === "TimeoutError")

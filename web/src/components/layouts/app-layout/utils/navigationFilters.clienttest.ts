@@ -6,7 +6,7 @@ import type { NavigationFilterContext } from "./navigationFilters.types";
 it("keeps Topics hidden without explicit opt-in despite admin and experimental overrides", () => {
   const route: Route = {
     title: "Topics",
-    pathname: "/topics",
+    href: "/topics",
     featureFlag: "langfuseTopics",
   };
   const context: NavigationFilterContext = {

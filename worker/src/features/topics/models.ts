@@ -127,16 +127,12 @@ Return the summary and its applicability status. Use applicable when the recordi
   );
 }
 
-export async function nameTopicGroups(evidence: {
-  groups: {
-    id: string;
-    members: { id: string; summary: string }[];
-    contrasts: { id: string; summary: string }[];
-  }[];
+export async function nameTopicGroup(group: {
+  members: { id: string; summary: string }[];
+  contrasts: { id: string; summary: string }[];
 }) {
-  if (evidence.groups.length !== 1 || !evidence.groups[0].members.length)
+  if (!group.members.length)
     throw new Error("Naming requires one non-empty effective group.");
-  const group = evidence.groups[0];
   const memberIds = new Set(group.members.map((member) => member.id));
   const schema = z.object({
     name: z.string().min(1).max(100),
@@ -171,7 +167,7 @@ export async function nameTopicGroups(evidence: {
       "The complete cluster exceeds the naming model's input limit. Use a smaller cohort; no member summaries were discarded.",
       "invalid_input",
     );
-  const result = await structuredCall(
+  return structuredCall(
     system,
     input,
     schema,
@@ -179,10 +175,6 @@ export async function nameTopicGroups(evidence: {
     1000,
     TOPICS_NAMING_MODEL,
   );
-  return {
-    ...result,
-    output: { labels: [{ ...result.output, id: group.id }] },
-  };
 }
 
 export async function embedTopicSummary(

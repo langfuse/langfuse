@@ -1,6 +1,6 @@
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream } from "../repositories/clickhouse";
-import { hashTraceSnapshot, type TopicsObservation } from "./transcript";
+import type { TopicsObservation } from "./transcript";
 
 const MAX_OBSERVATIONS = 2_000;
 const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
@@ -12,7 +12,6 @@ type SnapshotRow = {
   parent_span_id: string | null;
   start_time: string;
   end_time: string | null;
-  event_ts: string;
   type: string;
   name: string;
   level: string;
@@ -39,7 +38,6 @@ export async function loadTraceSnapshot(params: {
       "e.parent_span_id",
       "e.start_time",
       "e.end_time",
-      "e.event_ts",
       "e.type",
       "e.name",
       "e.level",
@@ -92,7 +90,6 @@ export async function loadTraceSnapshot(params: {
       parentObservationId: row.parent_span_id || null,
       startTime: utcTimestamp(row.start_time),
       endTime: row.end_time ? utcTimestamp(row.end_time) : null,
-      eventTimestamp: row.event_ts,
       type: row.type,
       name: row.name,
       level: row.level,
@@ -110,7 +107,6 @@ export async function loadTraceSnapshot(params: {
     projectId,
     traceId,
     observations,
-    sourceSnapshotHash: hashTraceSnapshot(observations),
     timestamp: observations.reduce(
       (earliest, row) => (row.startTime < earliest ? row.startTime : earliest),
       observations[0].startTime,

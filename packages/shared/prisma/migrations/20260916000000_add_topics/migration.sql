@@ -35,7 +35,6 @@ CREATE TABLE "topic_clustering_runs" (
     "phase" TEXT NOT NULL DEFAULT 'snapshot',
     "config" JSONB NOT NULL DEFAULT '{}',
     "manifest_path" TEXT NOT NULL DEFAULT '',
-    "artifact_path" TEXT NOT NULL DEFAULT '',
     "metrics" JSONB NOT NULL DEFAULT '{}',
     "error" TEXT,
     "created_at" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

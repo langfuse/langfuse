@@ -58,6 +58,7 @@ export function TopicPipelineForm({
   const rules = api.topics.rules.useQuery({ projectId });
   const [ruleId, setRuleId] = useState<string | null>(null);
   const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
+  const saveRuleLabel = selectedRule ? "Update rule" : "Save rule";
   const [ruleName, setRuleName] = useState("");
   const [selector, setSelector] = useState<{
     key: number;
@@ -398,11 +399,7 @@ export function TopicPipelineForm({
                       })
                     }
                   >
-                    {saveRule.isPending
-                      ? "Saving…"
-                      : selectedRule
-                        ? "Update rule"
-                        : "Save rule"}
+                    {saveRule.isPending ? "Saving…" : saveRuleLabel}
                   </Button>
                 </div>
                 <p className="text-muted-foreground text-xs">
@@ -627,7 +624,8 @@ export function TopicPipelineForm({
           </Select>
           {rules.error && (
             <span role="alert" className="text-destructive text-sm">
-              Could not load saved rules. Custom configuration is still available.
+              Could not load saved rules. Custom configuration is still
+              available.
             </span>
           )}
         </label>

@@ -50,7 +50,6 @@ const summaryFixture: TopicSummary = {
   summary: "Requests an invoice",
   embedding: [0.1, 0.2],
   inputHash: "input",
-  snapshotHash: "snapshot",
   invocationHash: "invocation",
   summaryModel: "gpt-4.1-nano",
   embeddingModel: "text-embedding-3-small",

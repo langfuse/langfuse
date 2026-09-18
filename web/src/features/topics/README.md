@@ -52,7 +52,7 @@ existing local-development and project-access checks still apply.
 - `TraceTranscriptDialog.tsx` provides **Show transcript** on the standalone trace page
   and both trace/observation peek headers, including their overflow menus. It fetches
   only while open, using the same deterministic, facet-independent transcript
-  loader as the worker. The JSON viewer displays the ordered JSONL records as an
+  loader as the worker. The JSON viewer displays the compact transcript as an
   expandable array, preserving strings inside each record. Saved summaries load
   separately from ClickHouse: latest
   result per facet version, with historical-input provenance. Viewing them never
@@ -81,22 +81,23 @@ existing local-development and project-access checks still apply.
   facet summaries provide accumulated-cohort/readiness counts. This view exports
   no embedding vectors; the scatter remains the latest map's discovery snapshot.
 - `server/topicsRouter.ts` owns project authorization and the public result
-  contract. The map joins coordinates to the immutable discovery manifest by
-  index, then looks up summaries and assignments by ID. It never exports vectors.
+  contract. The map joins persisted assignment coordinates and summaries by ID
+  in the discovery manifest’s order. It returns only map points and counts for
+  missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
   Resume only enqueues work: the worker exclusively advances existing execution
   journals, including finalization after all facet results have been saved.
   Facet prompt edits create versions independently of saved selection rules.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
   Trace IDs are opaque data; URL path segments are decoded once, while internal
-  execution/artifact IDs retain the strict filesystem-safe format.
+  execution and object-storage identifiers retain the restricted ID format.
 
 The plot is an approximate 2D view, separate from clustering and classification.
 It always shows the original discovery cohort. Later assignment batches keep
 their results in the list; they are explicitly reported as unpositioned because
-the PoC does not retain a UMAP transform. Missing artifacts show an explanation
-instead of fabricated coordinates. Missing source summaries do not shift the
-remaining points' indices.
+the PoC does not retain a UMAP transform. Missing coordinates show an explanation
+instead of fabricated points. Missing source summaries do not change the
+remaining points' coordinates.
 
 Runtime and numerical pipeline:
 [`worker/src/features/topics/README.md`](../../../../worker/src/features/topics/README.md).

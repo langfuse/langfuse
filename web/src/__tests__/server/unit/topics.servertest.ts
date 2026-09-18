@@ -124,8 +124,6 @@ const run = {
   status: "completed",
   phase: "published",
   publishedAt: "2026-09-16T00:00:00Z",
-  manifestPath: "/private/manifest.json",
-  artifactPath: "/private/map.json",
   metrics: { summaryCount: 1 },
   topics: [
     {
@@ -149,9 +147,8 @@ const summary = {
   embedding: [0.1, 0.9],
   executionId: "prior-execution",
   inputHash: "input-hash",
-  snapshotHash: "snapshot-hash",
   summaryModel: "gpt-4.1-nano",
-  metadata: { projectionArtifactKey: "projection-a" },
+  metadata: {},
 };
 
 beforeEach(() => {
@@ -240,7 +237,6 @@ describe("Topics filtered trace preview", () => {
           timestamp: new Date("2026-09-15T00:00:00Z"),
         },
       ],
-      sampledAt: expect.any(Date),
     });
     const request = mocks.queryClickhouse.mock.calls[0][0];
     expect(request.query).toContain("GROUP BY m.id");
@@ -522,23 +518,19 @@ describe("Topics published scatter map", () => {
         summaryId: "summary-b",
         traceId: "trace-b",
         summary: summary.summary,
-        state: "complete",
         topicId: null,
         outcome: "outlier",
         x: 20,
         y: 21,
-        inExecution: false,
       },
       {
         summaryId: "summary-a",
         traceId: "trace-a",
         summary: summary.summary,
-        state: "complete",
         topicId: "topic-a",
         outcome: "assigned",
         x: 10,
         y: 11,
-        inExecution: true,
       },
     ]);
     expect(mocks.readTopicMapAssignments).toHaveBeenCalledWith(
@@ -547,8 +539,6 @@ describe("Topics published scatter map", () => {
       "discovery-a",
     );
     expect(JSON.stringify(map)).not.toContain("embedding");
-    expect(map).not.toHaveProperty("artifactPath");
-    expect(map).not.toHaveProperty("labels");
   });
 
   it("keeps assigned traces outside the discovery cohort explicitly unpositioned", async () => {
@@ -575,38 +565,19 @@ describe("Topics published scatter map", () => {
       },
       { ...summary, id: "extra-summary", traceId: "extra-trace" },
     ]);
-    mocks.readTopicAssignments.mockResolvedValue([
-      firstAssignment,
-      { ...firstAssignment, summaryId: "summary-c" },
-    ]);
     const map = await caller().map(mapInput);
     expect(map.points.map((point) => point.summaryId)).toEqual([
       "summary-b",
       "summary-a",
     ]);
-    expect(map.unpositioned).toMatchObject([
-      { summaryId: "summary-c", outcome: "assigned" },
-      {
-        summaryId: "summary-d",
-        state: "not_applicable",
-        outcome: "unassigned",
-      },
-    ]);
-    expect(map.unpositioned[0]).not.toHaveProperty("x");
-    expect(mocks.readTopicAssignments).toHaveBeenCalledWith(
-      projectId,
-      ["summary-c", "summary-d"],
-      "run-a",
-    );
+    expect(map.unpositionedCount).toBe(2);
+    expect(mocks.readTopicAssignments).not.toHaveBeenCalled();
   });
 
   it("does not shift coordinates when a discovery summary is missing or belongs to another facet", async () => {
     mocks.readTopicSummaries.mockResolvedValue([
       summary,
       { ...summary, id: "summary-b", facetVersionId: "another-facet" },
-    ]);
-    mocks.readTopicAssignments.mockResolvedValue([
-      { ...firstAssignment, projectId: "another-project" },
     ]);
     const map = await caller().map(mapInput);
     expect(map.missingSummaryCount).toBe(1);
@@ -649,27 +620,6 @@ describe("Topics published scatter map", () => {
       expect(mocks.readTopicSummaries).not.toHaveBeenCalled();
     },
   );
-
-  it("keeps discovery coordinates and labels when later online assignments reuse the map", async () => {
-    mocks.readTopicAssignments.mockResolvedValue([
-      {
-        ...firstAssignment,
-        executionId: "online-execution",
-        topicId: null,
-        outcome: "outlier",
-        coordinates: null,
-      },
-    ]);
-    const map = await caller().map(mapInput);
-    expect(
-      map.points.find((point) => point.summaryId === "summary-a"),
-    ).toMatchObject({
-      x: 10,
-      y: 11,
-      topicId: "topic-a",
-      outcome: "assigned",
-    });
-  });
 
   it("does not read unpublished coordinates or accept another facet's map", async () => {
     mocks.getTopicRun.mockResolvedValue({ ...run, publishedAt: null });
@@ -784,7 +734,7 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("allows a viewer to read published results without returning vectors or internal paths, but forbids execution", async () => {
+  it("allows a viewer to read published results without returning vectors, but forbids execution", async () => {
     const response = await caller("VIEWER").results({
       projectId,
       executionId: "execution-a",
@@ -793,8 +743,6 @@ describe("Topics local execution access and publication", () => {
     expect(response.summaries).toHaveLength(1);
     expect(response.run?.topics).toHaveLength(1);
     expect(response.summaries[0]).not.toHaveProperty("embedding");
-    expect(response.run).not.toHaveProperty("manifestPath");
-    expect(response.run).not.toHaveProperty("artifactPath");
     expect(response.run?.topics[0]).not.toHaveProperty("centroid");
     expect(mocks.readTopicSummaries).toHaveBeenCalledWith(projectId, [
       "summary-a",
@@ -848,11 +796,10 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.readTopicMapAssignments).not.toHaveBeenCalled();
   });
 
-  it("regenerates inspection input from the source trace without loading artifacts", async () => {
+  it("regenerates inspection input from the source trace", async () => {
     const projection = { text: "A refund request", inputHash: "input-hash" };
     mocks.loadTopicTranscript.mockResolvedValue({
       transcript: projection,
-      snapshotHash: "snapshot-hash",
     });
     const response = await caller().inspect({
       projectId,
@@ -872,7 +819,6 @@ describe("Topics local execution access and publication", () => {
   it("distinguishes changed source evidence from a stored summary and keeps unavailable summaries inspectable", async () => {
     mocks.loadTopicTranscript.mockResolvedValue({
       transcript: { text: "Changed trace", inputHash: "changed" },
-      snapshotHash: "changed",
     });
     const request = {
       projectId,

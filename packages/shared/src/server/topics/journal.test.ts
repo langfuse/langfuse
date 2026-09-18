@@ -59,7 +59,6 @@ vi.mock("../../db", () => {
           config: {},
           metrics: {},
           manifestPath: "",
-          artifactPath: "",
           publishedAt: null,
           createdAt: new Date(),
           runSequence: BigInt(state.rows.size + 1),
@@ -184,7 +183,9 @@ describe("durable Topics execution storage", () => {
       typeof value === "bigint" ? String(value) : value,
     );
     expect(database).not.toContain("request:0/opaque");
-    expect(database).toContain('"selectedTraceCount":2001');
+    expect(execution.facets.map((facet) => facet.counts.requested)).toEqual([
+      2001, 2001,
+    ]);
     expect(
       [...state.objects.values()]
         .filter((value) => value.includes("request:"))

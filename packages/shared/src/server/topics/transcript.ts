@@ -14,7 +14,6 @@ export type TopicsObservation = {
   name: string;
   startTime: string;
   endTime: string | null;
-  eventTimestamp: string;
   level: string;
   statusMessage: string | null;
   input: unknown;
@@ -22,16 +21,8 @@ export type TopicsObservation = {
   metadata: unknown;
 };
 
-type BlockSourceReference = {
-  blockId: string;
-  observationId: string;
+type TranscriptBlock = {
   source: "input" | "output" | "status" | "structure";
-  messageIndex?: number;
-  partIndex?: number;
-};
-
-type TranscriptBlock = BlockSourceReference & {
-  parentObservationId: string | null;
   role?: string;
   kind: string;
   text: string;
@@ -48,15 +39,15 @@ type TranscriptCoverage = {
   omittedBlockCount: number;
 };
 
-export type PreparedTrace = {
-  projectId: string;
-  traceId: string;
-  sourceSnapshotHash: string;
+type PreparedTrace = {
   blocks: TranscriptBlock[];
   coverage: TranscriptCoverage;
 };
 
-const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const compare = (a: string, b: string) => {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+};
 const canonical = (value: unknown): unknown => {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(canonical);
@@ -72,9 +63,6 @@ const canonical = (value: unknown): unknown => {
 const serialize = (value: unknown): string => JSON.stringify(canonical(value));
 const hash = (value: unknown) =>
   createHash("sha256").update(serialize(value)).digest("hex");
-
-export const hashTraceSnapshot = (observations: readonly TopicsObservation[]) =>
-  hash([...observations].sort((a, b) => compare(a.id, b.id)));
 
 const boundText = (text: string, limit: number): string => {
   if (text.length <= limit) return text;
@@ -106,22 +94,23 @@ const modelData = (value: unknown, field?: string): unknown => {
     )
       return "[reasoning omitted]";
     return Object.fromEntries(
-      Object.entries(record).map(([key, nested]) => [
-        key,
-        ["reasoning", "reasoning_content", "thinking"].includes(key)
-          ? "[reasoning omitted]"
-          : ["signature", "thoughtSignature", "encrypted_content"].includes(
-                key,
-              ) ||
-              (key === "data" &&
-                (record.type === "base64" ||
-                  typeof record.mimeType === "string" ||
-                  typeof record.mime_type === "string" ||
-                  field === "audio" ||
-                  field === "input_audio"))
-            ? "[opaque payload omitted]"
-            : modelData(nested, key),
-      ]),
+      Object.entries(record).map(([key, nested]) => {
+        if (["reasoning", "reasoning_content", "thinking"].includes(key))
+          return [key, "[reasoning omitted]"];
+        if (
+          ["signature", "thoughtSignature", "encrypted_content"].includes(
+            key,
+          ) ||
+          (key === "data" &&
+            (record.type === "base64" ||
+              typeof record.mimeType === "string" ||
+              typeof record.mime_type === "string" ||
+              field === "audio" ||
+              field === "input_audio"))
+        )
+          return [key, "[opaque payload omitted]"];
+        return [key, modelData(nested, key)];
+      }),
     );
   }
   return value;
@@ -251,10 +240,7 @@ export function prepareTrace(
       }
     }
   }
-  const add = (
-    row: TopicsObservation,
-    block: Omit<TranscriptBlock, "observationId" | "parentObservationId">,
-  ) => {
+  const add = (row: TopicsObservation, block: TranscriptBlock) => {
     // Wrapper payloads add little to this PoC; keep their errors and status.
     if (
       focusedObservations.size > 0 &&
@@ -262,7 +248,6 @@ export function prepareTrace(
       block.source !== "status"
     )
       return;
-    if (block.kind === "context-reference") return;
     if (block.kind === "text" || block.kind === "tool-definitions") {
       const key = serialize({ role: block.role, text: block.text });
       // Repeated outputs remain visible; only repeated input context is skipped.
@@ -272,8 +257,6 @@ export function prepareTrace(
     blocks.push({
       ...block,
       text: redactInlineMedia(block.text),
-      observationId: row.id,
-      parentObservationId: row.parentObservationId,
     });
   };
   const emitted = new Set<string>();
@@ -318,29 +301,17 @@ export function prepareTrace(
         .flatMap((message) => message.parts)
         .filter((part) => part.type === "file").length;
       add(row, {
-        blockId: `${row.id}:${side}:raw`,
         source: side,
         kind: "data",
         text: dataText(decoded),
       });
       return;
     }
-    if (prefix > 0)
-      add(row, {
-        blockId: `${row.id}:${side}:replay`,
-        source: side,
-        kind: "context-reference",
-        text: `Replayed context: ${prefix} earlier messages; only newly added messages follow.`,
-      });
-    messages.slice(prefix).forEach((message, offset) => {
-      const messageIndex = prefix + offset;
-      message.parts.forEach((part, partIndex) => {
+    messages.slice(prefix).forEach((message) => {
+      message.parts.forEach((part) => {
         if (part.type === "file") coverage.mediaPartCount++;
         add(row, {
-          blockId: `${row.id}:${side}:${messageIndex}:${partIndex}`,
           source: side,
-          messageIndex,
-          partIndex,
           kind: part.type,
           role: message.senderName
             ? `${message.role} (${message.senderName})`
@@ -350,9 +321,7 @@ export function prepareTrace(
       });
       if (message.finishReason)
         add(row, {
-          blockId: `${row.id}:${side}:${messageIndex}:finish-reason`,
           source: "status",
-          messageIndex,
           kind: "status",
           text: dataText({ finishReason: message.finishReason }),
         });
@@ -390,7 +359,6 @@ export function prepareTrace(
       }
       if (Object.keys(status).length)
         add(row, {
-          blockId: `${row.id}:${side}:provider-status`,
           source: "status",
           kind: "status",
           text: dataText(status),
@@ -410,7 +378,6 @@ export function prepareTrace(
       );
       if (Object.keys(additionalData).length)
         add(row, {
-          blockId: `${row.id}:${side}:data`,
           source: side,
           kind: "data",
           text: dataText(additionalData),
@@ -429,7 +396,6 @@ export function prepareTrace(
     if (emitted.has(row.id)) return;
     active.add(row.id);
     add(row, {
-      blockId: `${row.id}:structure`,
       source: "structure",
       kind: "span",
       text: `${row.type} ${row.name}${row.parentObservationId && !byId.has(row.parentObservationId) ? " [parent missing]" : ""}`,
@@ -448,7 +414,6 @@ export function prepareTrace(
     const definitions = parsed.get(row.id)!.toolDefinitions;
     if (definitions.length)
       add(row, {
-        blockId: `${row.id}:input:tools`,
         source: "input",
         kind: "tool-definitions",
         text: dataText(
@@ -459,7 +424,6 @@ export function prepareTrace(
     emitSide(row, "output", ownInput);
     if (row.level !== "DEFAULT" || row.statusMessage)
       add(row, {
-        blockId: `${row.id}:status`,
         source: "status",
         kind: "status",
         text: `${row.level}: ${row.statusMessage ?? ""}`,
@@ -476,9 +440,6 @@ export function prepareTrace(
   for (const row of rows) if (!emitted.has(row.id)) emit(row, []);
   coverage.cycleObservationIds.sort(compare);
   return {
-    projectId: first.projectId,
-    traceId: first.traceId,
-    sourceSnapshotHash: hashTraceSnapshot(rows),
     blocks,
     coverage,
   };
@@ -565,14 +526,7 @@ export function serializeTraceTranscript(prepared: PreparedTrace) {
   }
   return {
     ...result,
-    sourceReferences: blocks.map(
-      ({ blockId, observationId, source, messageIndex, partIndex }) => ({
-        blockId,
-        observationId,
-        source,
-        ...(messageIndex !== undefined ? { messageIndex, partIndex } : {}),
-      }),
-    ),
+    hasContent: blocks.some((block) => block.source !== "structure"),
     inputHash: hash(result.text),
   };
 }

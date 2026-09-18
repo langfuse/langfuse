@@ -1,11 +1,10 @@
 import { createHash } from "node:crypto";
 import type { TopicSummary } from "@langfuse/shared/topics";
 
-export interface TopicPrototype {
+interface TopicPrototype {
   id: string;
   centroid: number[];
   radius: number;
-  seedSummaryIds: string[];
 }
 
 export function topicHash(value: unknown): string {
@@ -42,7 +41,7 @@ function quantile(values: number[], fraction: number): number {
 
 /** Derives portable prototypes from density-clustering seeds in original space. */
 export function buildTopicPrototypes(
-  summaries: Pick<TopicSummary, "id" | "embedding">[],
+  summaries: Pick<TopicSummary, "embedding">[],
   labels: number[],
 ): TopicPrototype[] {
   if (labels.length !== summaries.length)
@@ -103,14 +102,13 @@ export function buildTopicPrototypes(
       id: `cluster_${group.label}`,
       centroid: group.centroid,
       radius: Math.min(quantile(positives, 0.95), cap),
-      seedSummaryIds: group.indices.map((i) => summaries[i].id),
     };
   });
 }
 
 export function classifyTopic(
   embedding: number[],
-  prototypes: Pick<TopicPrototype, "id" | "centroid" | "radius">[],
+  prototypes: TopicPrototype[],
 ) {
   const vector = normalizeVector(embedding);
   const ranked = prototypes
@@ -122,11 +120,14 @@ export function classifyTopic(
   const nearest = ranked[0];
   // Normalization and centroid averaging can differ by floating-point roundoff.
   const accepted = nearest && nearest.distance <= nearest.radius + 1e-12;
+  let rejectionReason = "";
+  if (!nearest) rejectionReason = "no_topics";
+  else if (!accepted) rejectionReason = "outside_radius";
   return {
     topicId: accepted ? nearest.id : null,
     distance: nearest?.distance ?? null,
     runnerUpDistance: ranked[1]?.distance ?? null,
-    rejectionReason: !nearest ? "no_topics" : !accepted ? "outside_radius" : "",
+    rejectionReason,
   };
 }
 

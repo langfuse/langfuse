@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadTraceSnapshot } from "./load-trace";
 import { loadTopicTranscript } from "./trace-input";
 import {
-  hashTraceSnapshot,
   prepareTrace,
   serializeTraceTranscript,
   type TopicsObservation,
@@ -20,7 +19,6 @@ const observations: TopicsObservation[] = [
     name: "chat",
     startTime: "2026-09-15T10:00:00.000Z",
     endTime: "2026-09-15T10:00:01.000Z",
-    eventTimestamp: "2026-09-15 10:00:02.000",
     level: "DEFAULT",
     statusMessage: null,
     input: JSON.stringify([
@@ -38,7 +36,6 @@ const snapshot = (rows = observations) => ({
   traceId: "trace-a",
   observations: rows,
   timestamp: rows[0].startTime,
-  sourceSnapshotHash: hashTraceSnapshot(rows),
 });
 
 beforeEach(() => {
@@ -314,7 +311,6 @@ describe("shared in-memory Topics input", () => {
     });
     expect(loadTraceSnapshot).toHaveBeenCalledTimes(2);
     expect(second.transcript.text).toContain("Cancellation failed.");
-    expect(second.snapshotHash).not.toBe(first.snapshotHash);
     expect(second.transcript.inputHash).not.toBe(first.transcript.inputHash);
   });
 

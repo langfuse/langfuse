@@ -26,7 +26,6 @@ type ExecutionMetadata = {
   inputManifest: ObjectReference;
   inputHash: string;
   requestHash: string;
-  selectedTraceCount: number;
   progressManifest: ObjectReference | null;
   facet: Omit<TopicFacetProgress, "summaryIds">;
   artifacts: Record<string, ObjectReference>;
@@ -207,7 +206,6 @@ export class TopicExecutionStore {
             inputManifest,
             inputHash: hash(input),
             requestHash,
-            selectedTraceCount: requested,
             progressManifest: null,
             artifacts: {},
             facet: {
@@ -395,6 +393,15 @@ export class TopicExecutionStore {
           !completed &&
           (facet.outcome === "failed" || execution.status === "failed");
         const terminal = completed || failed;
+        let status = execution.status === "queued" ? "pending" : "running";
+        let phase = execution.phase;
+        if (completed) {
+          status = "completed";
+          phase = facet.outcome;
+        } else if (failed) {
+          status = "failed";
+          phase = "failed";
+        }
         await tx.topicClusteringRun.update({
           where: { projectId_id: { projectId, id: row.id } },
           data: {
@@ -406,18 +413,8 @@ export class TopicExecutionStore {
             } satisfies ExecutionMetadata),
             ...(!row.publishedAt
               ? {
-                  status: failed
-                    ? "failed"
-                    : terminal
-                      ? "completed"
-                      : execution.status === "queued"
-                        ? "pending"
-                        : "running",
-                  phase: completed
-                    ? facet.outcome
-                    : failed
-                      ? "failed"
-                      : execution.phase,
+                  status,
+                  phase,
                   error: completed ? null : (facet.error ?? execution.error),
                   ...(execution.status === "running" && !row.startedAt
                     ? { startedAt: new Date() }
