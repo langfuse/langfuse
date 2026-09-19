@@ -224,6 +224,9 @@ export const InAppAgentToolApprovalRequestSchema = z.object({
   toolName: z.string().min(1),
   args: z.unknown().optional(),
   runId: z.string().min(1),
+  // Last invoke-model observation of the parent run, so the continuation can
+  // nest the wait span and approved tool under that generation.
+  parentModelObservationId: z.string().min(1).optional(),
 });
 
 export type InAppAgentToolApprovalRequest = z.infer<
