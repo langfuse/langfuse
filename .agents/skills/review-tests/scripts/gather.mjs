@@ -4,11 +4,10 @@
 //
 //   node .agents/skills/review-tests/scripts/gather.mjs [paths...] [flags]
 //
-//   --base <ref>          diff base (default: merge-base with origin/main)
-//   --coverage-map <file> test-file -> covered production lines
-//   --candidates <n>      candidates per test (default 5)
-//   --max-tests <n>       cap the reviewed set (default 60, 0 disables)
-//   --pretty              indent the JSON
+//   --base <ref>       diff base (default: merge-base with origin/main)
+//   --candidates <n>   candidates per test (default 5)
+//   --max-tests <n>    cap the reviewed set; 0, the default, reviews every test
+//   --pretty           indent the JSON
 //
 // With paths, every test they name is reviewed. Without paths, the branch diff
 // plus uncommitted changes decide the scope. Emits the evidence object contract
@@ -19,8 +18,10 @@ import { readFileSync } from "node:fs";
 
 import {
   TEST_FILE_RE,
+  buildSymbolIndex,
+  callSymbols,
+  packageRootOf,
   productionTargets,
-  rankFiles,
   selectCandidates,
 } from "./lib/candidates.mjs";
 import { scanTests } from "./lib/scan-tests.mjs";
@@ -34,15 +35,13 @@ function parseArgs(argv) {
   const opts = {
     paths: [],
     base: null,
-    coverageMap: null,
     candidates: 5,
-    maxTests: 60,
+    maxTests: 0,
     pretty: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--base") opts.base = argv[++i];
-    else if (arg === "--coverage-map") opts.coverageMap = argv[++i];
     else if (arg === "--candidates") opts.candidates = Number(argv[++i]);
     else if (arg === "--max-tests") opts.maxTests = Number(argv[++i]);
     else if (arg === "--pretty") opts.pretty = true;
@@ -133,6 +132,40 @@ function expandPaths(paths, allFiles) {
   return [...new Set(out)];
 }
 
+// Layers mirror the vitest projects: which runner a file needs and whether a
+// database sits underneath. Cheapest first — the placement rule reasons about
+// this order.
+function layerOf(file) {
+  if (/\.clienttest\.tsx?$/.test(file)) return "client";
+  if (/\.servertest\.tsx?$/.test(file)) {
+    return file.startsWith("web/src/__tests__/server/unit/")
+      ? "server-unit"
+      : "server-db";
+  }
+  return "unit";
+}
+
+// Worker and shared `*.test.ts` files are not split by path, so service use is
+// read off the source. The markers are the repository's own fixture helpers
+// and clients; a false negative only means a stub run finds out at runtime.
+const SERVICE_MARKERS =
+  /\b(prisma|clickhouseClient|queryClickhouse|commandClickhouse|create(Traces|Observations|Scores|Events)Ch|createOrgProjectAndApiKey|createOrgProjectAndApiKeyForTesting|redis|getQueue|ioredis|Redis|S3StorageService)\b/;
+const touchesServices = (src, layer) =>
+  layer === "server-db" || SERVICE_MARKERS.test(src);
+
+// The exact command that runs one file, so no agent has to guess a runner.
+function runCommandFor(file, layer) {
+  const root = packageRootOf(file);
+  if (root === "web") {
+    return `pnpm --filter web run ${layer === "client" ? "test-client" : "test"} ${file}`;
+  }
+  if (root === "worker") return `pnpm --filter worker run test ${file}`;
+  if (root === "packages/shared") {
+    return `pnpm --filter @langfuse/shared run test ${file}`;
+  }
+  return `pnpm --filter ${root.split("/").pop()} run test ${file}`;
+}
+
 const readIfPresent = (file) => {
   try {
     return readFileSync(file, "utf8");
@@ -157,15 +190,12 @@ function main() {
   const targetFiles = sweep ? scope : scope.files;
   const hunks = sweep ? new Map() : scope.hunks;
 
-  const coverage = opts.coverageMap
-    ? (JSON.parse(readIfPresent(opts.coverageMap) ?? "null")?.tests ?? null)
-    : null;
-
   // Every test file in the repo is scanned: candidates may live anywhere, and
   // scanning all of them costs well under a second.
   const allTestFiles = allFiles.filter((f) => TEST_FILE_RE.test(f));
   const testsByFile = new Map();
-  const testToModules = new Map();
+  const byTestId = new Map();
+  const fileInfo = new Map();
   const unscannable = [];
   for (const file of allTestFiles) {
     const src = readIfPresent(file);
@@ -180,16 +210,31 @@ function main() {
     if (scanned.tests.length === 0 && targetFiles.includes(file)) {
       unscannable.push({ file, reason: "no describe/it blocks found" });
     }
+    const layer = layerOf(file);
+    fileInfo.set(file, {
+      layer,
+      touchesServices: touchesServices(src, layer),
+      runCommand: runCommandFor(file, layer),
+      imports: productionTargets(scanned.imports, file, exists),
+    });
     testsByFile.set(file, scanned.tests);
-    testToModules.set(file, productionTargets(scanned.imports, file, exists));
+    for (const test of scanned.tests) {
+      byTestId.set(test.id, {
+        file,
+        test,
+        symbols: callSymbols(test.source, scanned.bindings, file, exists),
+      });
+    }
   }
+  const index = buildSymbolIndex(byTestId);
 
   const inHunks = (test, ranges) =>
     !ranges || ranges.some(([lo, hi]) => test.endLine >= lo && test.line <= hi);
 
   const tests = [];
   for (const file of targetFiles) {
-    const ranked = rankFiles({ targetFile: file, testToModules, coverage });
+    const info = fileInfo.get(file);
+    if (!info) continue;
     for (const target of testsByFile.get(file) ?? []) {
       if (!inHunks(target, hunks.get(file))) continue;
       tests.push({
@@ -199,29 +244,39 @@ function main() {
         line: target.line,
         endLine: target.endLine,
         parameterized: target.parameterized,
+        layer: info.layer,
+        touchesServices: info.touchesServices,
+        runCommand: info.runCommand,
         source: target.source,
         assertions: target.assertions,
-        coveredLines: coverage?.[file] ?? null,
-        imports: testToModules.get(file) ?? [],
+        symbols: byTestId.get(target.id)?.symbols ?? [],
+        imports: info.imports,
+        // Each candidate carries its own runner and layer so the confirmer never
+        // has to derive one from a path.
         candidates: selectCandidates({
           target,
           testsByFile,
-          ranked,
+          byTestId,
+          index,
           limit: opts.candidates,
-        }),
+        }).map((c) => ({
+          ...c,
+          layer: fileInfo.get(c.file)?.layer ?? null,
+          runCommand: fileInfo.get(c.file)?.runCommand ?? null,
+        })),
       });
     }
   }
 
-  // One judge runs per reviewed test per rule, so an accidentally huge scope is
-  // reported rather than silently spent.
+  // One judge runs per reviewed test per rule. The cap is off by default so
+  // every changed test is reviewed; when set, what it drops is reported.
   const kept = opts.maxTests === 0 ? tests : tests.slice(0, opts.maxTests);
   const truncated =
     kept.length < tests.length
       ? {
           reviewed: kept.length,
           dropped: tests.length - kept.length,
-          reason: `--max-tests ${opts.maxTests}; narrow the scope or raise the cap`,
+          reason: `--max-tests ${opts.maxTests}`,
         }
       : null;
 
@@ -229,10 +284,8 @@ function main() {
     mode: sweep ? "sweep" : "diff",
     base,
     baseKind,
-    degraded: !coverage,
-    degradedReason: coverage
-      ? null
-      : "no coverage map; candidates ranked by shared production imports",
+    candidateBasis:
+      "production functions each test calls, weighted by how few test files call them",
     files: targetFiles,
     testCount: kept.length,
     discoveredTestCount: tests.length,

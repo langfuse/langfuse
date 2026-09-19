@@ -84,10 +84,14 @@ An axiom 1 flag must carry `covered_by` naming each covering test id, and one
 line per entry saying what it covers. A flag whose `covered_by` you cannot fill
 from the candidates given is not a finding — return `pass`.
 
-When the evidence says `degraded: true`, candidates were ranked by shared
-imports rather than measured coverage. Two tests importing the same module may
-touch entirely different functions in it. Cap confidence at `medium` for axiom 1
-and say so in the reason.
+Candidates were chosen because they call the same production functions as the
+test under review; each one lists the shared functions. Prefer candidates that
+share the function the test is actually *about* over ones sharing only fixture
+helpers. Your flag will be confirmed after you return: the shared function is
+stubbed and both tests are run, and the claim stands only if both fail. So
+judge from the sources — same input class, same asserted outcome — and leave
+the proof to the confirmer. Do not lower confidence for lack of coverage data;
+the confirmation supplies it.
 
 ## Verdict
 

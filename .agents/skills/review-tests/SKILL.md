@@ -71,14 +71,23 @@ The rule files group them by the question a judge asks: `uniqueness` (1, 4, 5,
 
 ## Shape
 
-Two pieces, in order. Only the judges, adversaries and gates cost tokens.
+Three pieces, in order. Only the judges, confirmers, adversaries and gates cost
+tokens.
 
-1. `scripts/gather.mjs` — deterministic. Resolves scope from the diff, extracts
-   every changed test, and picks the candidate tests that might already cover
-   it. Emits the evidence object. No model involved, so the same diff always
-   produces the same prompts.
-2. `workflows/review.js` — one judge per test per rule file, then an adversary
-   per flag, then a gate on every rewrite. Returns findings.
+1. `scripts/ensure-services.mjs` — brings up Postgres, ClickHouse, Redis and
+   MinIO if they are not already reachable, or fails the run. Every covering
+   claim is confirmed by running tests, and most of this repository's tests
+   need the stack; a review that could not run them is never produced.
+2. `scripts/gather.mjs` — deterministic. Resolves scope from the diff, extracts
+   every changed test, works out which production functions it calls, and
+   picks the candidate tests that call the same ones. Emits the evidence
+   object. No model involved, so the same diff always produces the same
+   prompts.
+3. `workflows/review.js` — one judge per test per rule file; every axiom 1 flag
+   is then **confirmed by stubbing** the shared function and running both
+   tests; an adversary defends each surviving flag; a gate proves every
+   rewrite can fail. Returns findings, or aborts if any stub run could not
+   execute.
 
 `--fix` has no workflow. You read the discussion, decide which findings stand,
 and apply them yourself: the evidence already holds each test's exact source
@@ -94,36 +103,48 @@ Never `sleep`, poll, or loop in Bash while waiting.
 
 ## 1. Scout (inline)
 
-Two tool calls before Workflow: one `gather.mjs` run, then the Workflow call.
-Do not open `rules/`, `workflows/`, or any test file — the judges read them.
-`<skillDir>` is this skill's base directory from the skill listing.
+Three tool calls before Workflow: `ensure-services.mjs`, `gather.mjs`, then
+the Workflow call. Do not open `rules/`, `workflows/`, or any test file — the
+judges read them. `<skillDir>` is this skill's base directory from the skill
+listing.
 
 **Flags.** `--fix` runs the fix phase. `--post` posts to the PR instead of
 printing to chat (a local run never posts). `--rules uniqueness,ownership`
 restricts the judges. `--model judge=sonnet` and friends override a stage.
 Everything else is a path.
 
-**Run gather** from the repo root:
+**Ensure the service stack** from the repo root:
+
+```sh
+node .agents/skills/review-tests/scripts/ensure-services.mjs
+```
+
+It probes Postgres, ClickHouse, Redis and MinIO on the ports
+`docker-compose.dev.yml` publishes and, if any is down, runs
+`docker compose -f docker-compose.dev.yml up -d --wait postgres redis minio
+clickhouse` — the same recipe CI uses. Exit 0 prints one JSON line. **Exit 1
+means stop:** print its stderr and end the run. Do not fall back to a review
+without confirmations; there is no such mode.
+
+**Run gather:**
 
 ```sh
 node .agents/skills/review-tests/scripts/gather.mjs [paths...] \
-  [--base <ref>] [--coverage-map <file>] [--candidates 5] [--max-tests 60]
+  [--base <ref>] [--candidates 5] [--max-tests 0]
 ```
 
 Vitest only. Test files are `*.test.ts`, `*.servertest.ts(x)`, and
 `*.clienttest.ts(x)`. With no paths it reviews the branch diff plus uncommitted
 changes, scoped to changed line ranges, so an untouched test in an edited file
-is not reviewed. With paths it reviews every test in them.
+is not reviewed. With paths it reviews every test in them. Every test in scope
+is reviewed; `--max-tests` is off unless set.
 
-**Read four fields off the result before continuing:**
+**Read three fields off the result before continuing:**
 
 - `baseKind` — how the diff base was found. Anything other than a merge-base
   means the scope may be wider than the branch's own work; say so.
-- `degraded` — true when no coverage map was loaded. Candidates were ranked by
-  shared production imports instead. Judges are told, and axiom 1 confidence is
-  capped at medium.
-- `truncated` — non-null when `--max-tests` dropped tests. Print the count and
-  offer a narrower scope; never let it pass silently.
+- `truncated` — non-null only when `--max-tests` was set and dropped tests.
+  Print the count; never let it pass silently.
 - `unscannable` — files in scope whose tests could not be extracted. Name them
   as unreviewed.
 
@@ -140,8 +161,7 @@ not at all.
   "mode": "diff",            // or "sweep"
   "base": "<sha>",
   "baseKind": "merge-base with origin/main",
-  "degraded": true,
-  "degradedReason": "no coverage map; candidates ranked by shared production imports",
+  "candidateBasis": "production functions each test calls, weighted by how few test files call them",
   "files": ["worker/src/a.test.ts"],
   "testCount": 3,
   "discoveredTestCount": 3,
@@ -155,9 +175,12 @@ not at all.
     "line": 42,
     "endLine": 58,
     "parameterized": false,
+    "layer": "unit",         // unit | client | server-unit | server-db
+    "touchesServices": true, // database, ClickHouse or Redis in the file
+    "runCommand": "pnpm --filter worker run test worker/src/a.test.ts",
     "source": "it(\"…\", () => { … })",
     "assertions": ["expect(x).toBe(1)"],
-    "coveredLines": null,    // { "<prod file>": [[start, end]] } with a map
+    "symbols": ["packages/shared/src/server/index.ts#getGenerations"],
     "imports": ["packages/shared/src/server/index.ts"],
     "candidates": [{
       "id": "worker/src/b.test.ts::other > name",
@@ -166,7 +189,10 @@ not at all.
       "line": 88,
       "source": "it(\"…\", () => { … })",
       "overlap": 1.79,
-      "basis": "sibling"     // or "imports" | "coverage"
+      "basis": "sibling",    // or "symbols"
+      "sharedSymbols": ["packages/shared/src/server/index.ts#getGenerations"],
+      "layer": "unit",
+      "runCommand": "pnpm --filter worker run test worker/src/b.test.ts"
     }]
   }]
 }
@@ -174,6 +200,8 @@ not at all.
 
 A test id is its path plus its full `describe > it` name path. Parameterized
 tests keep the template name (`handles %s items`), so one id covers every case.
+A symbol is `<module file>#<export>`; a dotted member (`db.ts#prisma.trace.findMany`)
+is a method on that export. `sharedSymbols` is what the confirmer stubs.
 
 ## 2. Review
 
@@ -187,11 +215,21 @@ Call Workflow with `scriptPath: "<skillDir>/workflows/review.js"` and
 ```
 
 Omit `onlyRules` and `models` unless flags asked for them. Defaults are
-`claude-sonnet-4-6` for all three stages, set per stage so the gate can move
-independently.
+`claude-sonnet-4-6` for all four stages (`judge`, `confirm`, `adversary`,
+`rewrite`), set per stage so one can move independently.
 
-Returns `{ findings, counts, degraded, truncated }`. Each finding carries
-`action`:
+Returns `{ failed, failures, findings, refuted, counts, truncated }`.
+
+**If `failed` is true, stop.** A stub run could not execute — `failures` names
+the test, the stage and the exact error (a refused connection, a crashed
+runner). Print it and end the run. Post nothing, not even the findings that
+needed no runtime: a partial review is not a review.
+
+`refuted` lists axiom 1 claims the confirmer disproved — the covering test did
+not fail when the shared function was stubbed, so it does not cover the flagged
+one. They are reported for transparency, never acted on.
+
+Each finding carries `action`:
 
 | action | meaning |
 | --- | --- |
@@ -200,10 +238,13 @@ Returns `{ findings, counts, degraded, truncated }`. Each finding carries
 | `comment` | worth a reader's attention; no change proposed |
 | `suggest-only` | a rewrite whose subject function was ambiguous — never applied by `--fix` |
 
-Three script-level guards you can rely on, so do not re-check them: an axiom 1
+Four script-level guards you can rely on, so do not re-check them: an axiom 1
 flag with no `covered_by`, or citing a candidate that was never offered, is
-discarded before it costs an adversary; a defended flag is downgraded to
-`comment`; a rewrite that did not fail against stubbed code is downgraded too.
+discarded before it costs anything; an axiom 1 flag survives only if stubbing
+the shared function failed the flagged test **and** the covering test, so every
+`delete` you see carries `confirmation.evidence`; a defended flag is downgraded
+to `comment`; a rewrite that did not fail against stubbed code is downgraded
+too.
 
 ## 3. Report
 
@@ -216,10 +257,14 @@ reason:
 worker/src/queues/__tests__/exportQueue.test.ts
   :446  uniqueness  1  "added redundant test"
         covered by exportQueue.test.ts:302 — same fixture, same rejection assertion
+        confirmed: stubbed uploadTableCoreDataJsonl → both tests failed
         adversary: no unique input or assertion found
   :120  placement   6  "maps usage units from usage_details"
         pure mapping asserted through a database round-trip → call mapUsage directly
 ```
+
+Every axiom 1 line carries its `confirmed:` line; there is no unconfirmed
+variant.
 
 Then, when present: **Rewrites** (with the gate's evidence line), **Comments**,
 **Suggestion only**, **Not reviewed** (`unscannable`, `truncated`), and **Not
@@ -229,10 +274,11 @@ covered**. End with `<N> reviewed, <M> kept`. Say `no findings` when clean.
 
 One review, not a stream of comments.
 
-- **Summary comment** — the verdict table, `<N> reviewed, <M> kept`, whether the
-  run was degraded, how to apply (`/review-tests --fix`), and the eight axioms
-  verbatim inside a collapsed `<details>` block, so a reviewer who meets
-  `axiom 4` on an inline comment can read it without leaving GitHub.
+- **Summary comment** — the verdict table, `<N> reviewed, <M> kept, <K>
+  covering claims confirmed by stubbing`, how to apply (`/review-tests --fix`),
+  and the eight axioms verbatim inside a collapsed `<details>` block, so a
+  reviewer who meets `axiom 4` on an inline comment can read it without leaving
+  GitHub.
 - **Inline comment** per finding, anchored to `file:line`. `comment` findings
   post inline too; a `keep` posts nothing.
 - **Rewrites** carry a GitHub ```suggestion``` block holding the whole
@@ -314,38 +360,42 @@ reformat, reorder, or fix anything you notice in passing.
 3. Reply to each inline comment with what was done or why it was skipped, then
    resolve that thread. Nothing else goes into the threads.
 
-## Coverage
+## Candidates and confirmation
 
-Candidate selection prefers measured coverage and falls back to shared imports.
+Axiom 1 asks whether another test exercises the same production *function*.
+That is answered in two steps, neither of which needs a coverage map.
 
-With `--coverage-map <file>`, the file is:
+**Candidates are found statically, by shared function calls.** `gather.mjs`
+reads every test in the repository (1130 files, under a second), resolves each
+one's imports, and records which production functions the test body actually
+calls — `getGenerationsForAnalyticsIntegrations(`, `prisma.trace.findMany(`,
+`<Table …/>` — qualified by the module that provides them. Two tests that call
+the same function are candidates for each other. Each symbol is weighted by how
+few test files call it, so fixture helpers every test calls
+(`createOrgProjectAndApiKey`, `createTracesCh`) weigh almost nothing and the one
+function a test actually targets carries the score. Siblings in the same file
+take up to half the budget, since two tests that can only fail together usually
+sit next to each other; at most two candidates come from any other file.
 
-```jsonc
-{ "sha": "<main sha the map was built from>",
-  "granularity": "file",
-  "tests": { "<test file>": { "<production file>": [[1, 20], [30, 35]] } } }
-```
+**Covering claims are confirmed by measurement.** When a judge says test A is
+covered by test B, the confirmer stubs the shared function to a no-op in a
+disposable worktree and runs A's file and B's file. Both fail → confirmed; the
+finding carries the command and failure lines. B survives → B does not cover A;
+the claim is refuted and never posted. A survives → A did not depend on that
+function; refuted. This is axiom 5's own method — "stubbing the function body"
+— turned on the redundancy question, and it is what the rewrite gate already
+does for replacements.
 
-Keys are test **files**, not individual tests — Istanbul does not attribute per
-test natively, and file granularity is enough to rank candidates. Candidate
-files are then ranked by shared covered lines instead of shared imports.
+**The service stack is a precondition, not an option.** Most tests here need
+Postgres, ClickHouse, Redis and MinIO; `ensure-services.mjs` brings them up
+before anything runs, and a stub run that still cannot execute aborts the whole
+review with the error. A finding that rests on "could not check" does not exist
+in this skill's output.
 
-**No map is produced today, so every run is degraded.** The intended source was
-a nightly job on `main` emitting one map to the Actions cache, but this repo has
-1130 test files, and the design's one-coverage-run-per-test-file would mean 1130
-vitest invocations, most needing Postgres, ClickHouse, and Redis. That is a
-separate slice with its own cost question; `@vitest/coverage-v8` is also
-currently a `worker` dependency only. Until it exists:
-
-- Candidates come from shared production imports, weighted so a barrel every
-  test imports (`@langfuse/shared/src/server`) counts far less than a module two
-  tests share alone.
-- Siblings in the same file take up to half the candidate budget, since two
-  tests that can only fail together usually sit next to each other.
-- Judges are told the run is degraded and cap axiom 1 confidence at medium.
-
-Report `degraded: true` in the summary so a reader knows the axiom 1 findings
-rest on import overlap, not measured coverage.
+What this cannot see: a duplicate that never names the function — an API-route
+test reaching the service over HTTP while a unit test calls it directly. Static
+candidates will not link them. That gap is accepted rather than paid for with a
+whole-suite coverage map.
 
 ## Triggering from GitHub
 

@@ -1,6 +1,6 @@
-// Exercises review.js with mocked agent()/parallel()/pipeline() so
-// the deterministic layer — which flags survive, which agents are worth
-// spawning, what order edits land in — is checked without spending tokens.
+// Exercises review.js with mocked agent()/parallel()/pipeline() so the
+// deterministic layer — which flags survive, which agents are worth spawning,
+// when the run aborts — is checked without spending tokens.
 //
 //   node .agents/skills/review-tests/workflows/workflow-logic.test.mjs
 //
@@ -62,9 +62,12 @@ export async function run(file, { args, agent }) {
 
 const REVIEW = new URL("./review.js", import.meta.url).pathname;
 
+const COVERING_ID = "b.test.ts::token validation rejects expired";
+const SYMBOL = "web/src/features/auth/validateToken.ts#validateToken";
+
 const mkEvidence = (overrides = {}) => ({
   mode: "diff",
-  degraded: false,
+  candidateBasis: "production functions each test calls",
   tests: [
     {
       id: "a.test.ts::rejects expired token",
@@ -73,19 +76,26 @@ const mkEvidence = (overrides = {}) => ({
       line: 10,
       endLine: 14,
       parameterized: false,
+      layer: "server-db",
+      touchesServices: true,
+      runCommand: "pnpm --filter web run test a.test.ts",
       source: 'it("rejects expired token", () => { expect(v(t)).toBe(false) })',
       assertions: ["expect(v(t)).toBe(false)"],
-      imports: ["auth.ts"],
+      symbols: [SYMBOL],
+      imports: ["web/src/features/auth/validateToken.ts"],
       candidates: [
         {
-          id: "b.test.ts::token validation rejects expired",
+          id: COVERING_ID,
           file: "b.test.ts",
           line: 88,
           name: "token validation rejects expired",
           source:
             'it("token validation rejects expired", () => { expect(v(t)).toBe(false) })',
-          overlap: 3,
-          basis: "imports",
+          overlap: 1.2,
+          basis: "symbols",
+          sharedSymbols: [SYMBOL],
+          layer: "server-db",
+          runCommand: "pnpm --filter web run test b.test.ts",
         },
       ],
     },
@@ -93,72 +103,138 @@ const mkEvidence = (overrides = {}) => ({
   ...overrides,
 });
 
-const calls = [];
-const track = (label, out) => {
-  calls.push(label);
-  return out;
+const PASS = {
+  verdict: "pass",
+  axiom: "",
+  reason: "",
+  confidence: "high",
+  action: "comment",
+  covered_by: [],
 };
+const AXIOM1_FLAG = {
+  verdict: "flag",
+  axiom: "1",
+  reason: "same fixture, same rejection assertion",
+  confidence: "high",
+  action: "delete",
+  covered_by: [{ id: COVERING_ID, why: "same assertion" }],
+};
+const CONFIRMED = {
+  ran: true,
+  stubbed: SYMBOL,
+  target_failed: true,
+  covering: [{ id: COVERING_ID, failed: true }],
+  evidence:
+    "pnpm --filter web run test a.test.ts -> 1 failed; b.test.ts -> 1 failed",
+};
+const NO_GAP = { gap_found: false, checked: "same input, same assertion" };
 
-// --- case 1: judge flags axiom 1, adversary finds no gap -> deletion stands ---
+// A mock that answers each phase from a table and records what ran.
+const scripted =
+  (table, seen = []) =>
+  async (prompt, opts) => {
+    seen.push({
+      phase: opts.phase,
+      label: opts.label,
+      isolation: opts.isolation,
+      prompt,
+    });
+    const answer = table[opts.phase];
+    if (answer === undefined) throw new Error(`unexpected phase ${opts.phase}`);
+    return typeof answer === "function" ? answer(prompt, opts) : answer;
+  };
+
+// --- case 1: flag -> confirmed by stubbing -> no gap -> deletion stands ---
 {
+  const seen = [];
   const { result, logs } = await run(REVIEW, {
     args: { skillDir: "/skill", evidence: mkEvidence() },
-    agent: async (prompt, opts) => {
-      if (opts.phase === "Judge" && opts.label.startsWith("judge:uniqueness")) {
-        return track(opts.label, {
-          verdict: "flag",
-          axiom: "1",
-          reason: "same fixture, same rejection assertion",
-          confidence: "high",
-          action: "delete",
-          covered_by: [
-            {
-              id: "b.test.ts::token validation rejects expired",
-              why: "same assertion",
-            },
-          ],
-        });
-      }
-      if (opts.phase === "Judge") {
-        return track(opts.label, {
-          verdict: "pass",
-          axiom: "",
-          reason: "",
-          confidence: "high",
-          action: "comment",
-          covered_by: [],
-        });
-      }
-      if (opts.phase === "Defend")
-        return track(opts.label, {
-          gap_found: false,
-          checked: "same input, same assertion",
-        });
-      throw new Error(`unexpected phase ${opts.phase}`);
-    },
+    agent: scripted(
+      {
+        Judge: (p, o) =>
+          o.label.startsWith("judge:uniqueness") ? AXIOM1_FLAG : PASS,
+        Confirm: CONFIRMED,
+        Defend: NO_GAP,
+      },
+      seen,
+    ),
   });
+  assert.equal(result.failed, false);
   assert.equal(result.findings.length, 1, "one finding");
   const f = result.findings[0];
   assert.equal(f.action, "delete");
-  assert.equal(f.downgraded, false);
+  assert.equal(f.confirmation.status, "confirmed");
+  assert.equal(f.confirmation.stubbed, SYMBOL);
+  assert.equal(f.layer, "server-db");
   assert.equal(f.defence.gapFound, false);
-  assert.equal(result.counts.reviewed, 1);
-  assert.equal(result.counts.kept, 0, "flagged test is not counted as kept");
-  assert.ok(
-    calls.some((c) => c.startsWith("defend:")),
-    "adversary ran",
+  const confirmCall = seen.find((s) => s.phase === "Confirm");
+  assert.equal(
+    confirmCall.isolation,
+    "worktree",
+    "confirm runs in a disposable worktree",
   );
+  assert.match(
+    confirmCall.prompt,
+    /pnpm --filter web run test a\.test\.ts/,
+    "target run command in prompt",
+  );
+  assert.match(
+    confirmCall.prompt,
+    /pnpm --filter web run test b\.test\.ts/,
+    "covering run command derived",
+  );
+  assert.match(
+    confirmCall.prompt,
+    new RegExp(SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+    "shared symbol is the stub target",
+  );
+  assert.equal(result.counts.kept, 0);
+  assert.equal(result.counts.confirmed, 1);
   assert.ok(
-    logs.some((l) => l.includes("1 reviewed, 0 kept")),
+    logs.some((l) => l.includes("1 covering claims confirmed")),
     logs.join("|"),
   );
   console.log(
-    "case 1 OK  deletion stands; counts:",
+    "case 1 OK  confirmed deletion stands; counts:",
     JSON.stringify(result.counts),
   );
 }
 
-// --- case 2: adversary finds a gap -> flag downgraded to comment ---
+// --- case 2: covering test does not fail under the stub -> claim refuted, no adversary spent ---
+{
+  const seen = [];
+  const { result } = await run(REVIEW, {
+    args: {
+      skillDir: "/skill",
+      evidence: mkEvidence(),
+      onlyRules: ["uniqueness"],
+    },
+    agent: scripted(
+      {
+        Judge: AXIOM1_FLAG,
+        Confirm: {
+          ...CONFIRMED,
+          covering: [{ id: COVERING_ID, failed: false }],
+        },
+        Defend: NO_GAP,
+      },
+      seen,
+    ),
+  });
+  assert.deepEqual(result.findings, [], "a refuted claim is not a finding");
+  assert.equal(result.refuted.length, 1);
+  assert.match(result.refuted[0].reason, /no named covering test/);
+  assert.ok(
+    !seen.some((s) => s.phase === "Defend"),
+    "no adversary on a refuted flag",
+  );
+  assert.equal(result.counts.kept, 1, "the test is kept");
+  console.log(
+    "case 2 OK  refuted when covering test survives the stub; no adversary spend",
+  );
+}
+
+// --- case 3: flagged test itself survives the stub -> premise wrong, refuted ---
 {
   const { result } = await run(REVIEW, {
     args: {
@@ -166,72 +242,88 @@ const track = (label, out) => {
       evidence: mkEvidence(),
       onlyRules: ["uniqueness"],
     },
-    agent: async (prompt, opts) => {
-      if (opts.phase === "Judge") {
-        return {
-          verdict: "flag",
-          axiom: "1",
-          reason: "duplicate",
-          confidence: "medium",
-          action: "delete",
-          covered_by: [
-            {
-              id: "b.test.ts::token validation rejects expired",
-              why: "same assertion",
-            },
-          ],
-        };
-      }
-      return {
-        gap_found: true,
-        gap: "only this test passes a null token",
-        quote: "expect(v(null))",
-        covering_test: "b.test.ts::token validation rejects expired",
-      };
-    },
+    agent: scripted({
+      Judge: AXIOM1_FLAG,
+      Confirm: { ...CONFIRMED, target_failed: false },
+    }),
   });
-  const f = result.findings[0];
-  assert.equal(f.action, "comment", "a defended flag becomes a comment");
-  assert.equal(f.downgraded, true);
-  assert.equal(f.defence.gap, "only this test passes a null token");
-  assert.equal(result.counts.kept, 1, "a defended test is kept");
+  assert.deepEqual(result.findings, []);
+  assert.match(result.refuted[0].reason, /did not fail the flagged test/);
   console.log(
-    "case 2 OK  defended flag downgraded; counts:",
-    JSON.stringify(result.counts),
+    "case 3 OK  refuted when the flagged test does not depend on the stubbed function",
   );
 }
 
-// --- case 3: axiom 1 flag with no candidates is dropped in script ---
+// --- case 4: the stub run could not execute -> the whole review aborts, nothing reported ---
+{
+  const { result, logs } = await run(REVIEW, {
+    args: { skillDir: "/skill", evidence: mkEvidence() },
+    agent: scripted({
+      Judge: (p, o) =>
+        o.label.startsWith("judge:uniqueness")
+          ? AXIOM1_FLAG
+          : {
+              ...PASS,
+              verdict: "flag",
+              axiom: "6",
+              action: "comment",
+              reason: "db round-trip for a pure mapping",
+            },
+      Confirm: {
+        ran: false,
+        reason_not_run: "connect ECONNREFUSED 127.0.0.1:5432",
+        stubbed: SYMBOL,
+        target_failed: false,
+        covering: [],
+        evidence: "",
+      },
+      Defend: NO_GAP,
+    }),
+  });
+  assert.equal(result.failed, true);
+  assert.deepEqual(
+    result.findings,
+    [],
+    "no findings at all, not even the placement comment",
+  );
+  assert.equal(result.failures[0].stage, "confirm");
+  assert.match(result.failures[0].reason, /ECONNREFUSED/);
+  assert.ok(
+    logs.some((l) => l.startsWith("ABORTED")),
+    logs.join("|"),
+  );
+  console.log("case 4 OK  an unrunnable stub aborts the run with the reason");
+}
+
+// --- case 5: unevidenced axiom-1 flag is dropped before any confirm/adversary spend ---
 {
   const evidence = mkEvidence();
   evidence.tests[0].candidates = [];
   const seen = [];
   const { result } = await run(REVIEW, {
     args: { skillDir: "/skill", evidence, onlyRules: ["uniqueness"] },
-    agent: async (prompt, opts) => {
-      seen.push(opts.phase);
-      return {
-        verdict: "flag",
-        axiom: "1",
-        reason: "duplicate of something",
-        confidence: "low",
-        action: "delete",
-        covered_by: [{ id: "ghost.test.ts::nope", why: "invented" }],
-      };
-    },
+    agent: scripted(
+      {
+        Judge: {
+          ...AXIOM1_FLAG,
+          covered_by: [{ id: "ghost.test.ts::nope", why: "invented" }],
+        },
+      },
+      seen,
+    ),
   });
-  assert.deepEqual(
-    result.findings,
-    [],
-    "unevidenced axiom 1 flag is discarded",
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.refuted, []);
+  assert.ok(
+    seen.every((s) => s.phase === "Judge"),
+    "only judges ran",
   );
-  assert.ok(!seen.includes("Defend"), "no adversary spent on a discarded flag");
   console.log(
-    "case 3 OK  unevidenced axiom-1 flag discarded, no adversary spend",
+    "case 5 OK  unevidenced axiom-1 flag discarded, no confirm or adversary spend",
   );
 }
 
-// --- case 4: a judge citing a candidate that was not offered is discarded ---
+// --- case 6: a judge citing a candidate that was not offered is discarded ---
 {
   const { result } = await run(REVIEW, {
     args: {
@@ -239,28 +331,67 @@ const track = (label, out) => {
       evidence: mkEvidence(),
       onlyRules: ["uniqueness"],
     },
-    agent: async () => ({
-      verdict: "flag",
-      axiom: "1",
-      reason: "duplicate",
-      confidence: "high",
-      action: "delete",
-      covered_by: [{ id: "hallucinated.test.ts::not offered", why: "made up" }],
+    agent: scripted({
+      Judge: {
+        ...AXIOM1_FLAG,
+        covered_by: [
+          { id: "hallucinated.test.ts::not offered", why: "made up" },
+        ],
+      },
     }),
   });
-  assert.deepEqual(
-    result.findings,
-    [],
-    "hallucinated covering test is filtered",
-  );
-  console.log("case 4 OK  hallucinated covering test filtered");
+  assert.deepEqual(result.findings, []);
+  console.log("case 6 OK  hallucinated covering test filtered");
 }
 
-// --- case 5: rewrite gate failure downgrades to comment; pass keeps rewrite ---
-for (const [failedWhenStubbed, ambiguous, expected] of [
-  [true, false, "rewrite"],
-  [false, false, "comment"],
-  [false, true, "suggest-only"],
+// --- case 7: adversary finds a gap on a confirmed flag -> downgraded to comment ---
+{
+  const { result } = await run(REVIEW, {
+    args: {
+      skillDir: "/skill",
+      evidence: mkEvidence(),
+      onlyRules: ["uniqueness"],
+    },
+    agent: scripted({
+      Judge: AXIOM1_FLAG,
+      Confirm: CONFIRMED,
+      Defend: {
+        gap_found: true,
+        gap: "only this test passes a null token",
+        quote: "expect(v(null))",
+        covering_test: COVERING_ID,
+      },
+    }),
+  });
+  const f = result.findings[0];
+  assert.equal(f.action, "comment");
+  assert.equal(f.downgraded, true);
+  assert.equal(
+    f.confirmation.status,
+    "confirmed",
+    "confirmation is kept on the comment",
+  );
+  assert.equal(result.counts.kept, 1);
+  console.log(
+    "case 7 OK  defended flag downgraded; counts:",
+    JSON.stringify(result.counts),
+  );
+}
+
+// --- case 8: rewrite gate outcomes, including an unrunnable gate aborting the run ---
+for (const [gateOut, expected] of [
+  [{ ran: true, ambiguous: false, failed_when_stubbed: true }, "rewrite"],
+  [{ ran: true, ambiguous: false, failed_when_stubbed: false }, "comment"],
+  [{ ran: true, ambiguous: true, failed_when_stubbed: false }, "suggest-only"],
+  [
+    {
+      ran: false,
+      reason_not_run: "clickhouse: connection refused",
+      ambiguous: false,
+      failed_when_stubbed: false,
+    },
+    "ABORT",
+  ],
 ]) {
   const { result } = await run(REVIEW, {
     args: {
@@ -268,46 +399,54 @@ for (const [failedWhenStubbed, ambiguous, expected] of [
       evidence: mkEvidence(),
       onlyRules: ["ownership"],
     },
-    agent: async (prompt, opts) => {
-      if (opts.phase === "Judge") {
+    agent: scripted({
+      Judge: {
+        verdict: "flag",
+        axiom: "2",
+        reason: "asserts on a spy",
+        confidence: "high",
+        action: "rewrite",
+        covered_by: [],
+      },
+      Defend: NO_GAP,
+      Gate: (p, o) => {
+        assert.equal(
+          o.isolation,
+          "worktree",
+          "gate runs in an isolated worktree",
+        );
+        assert.match(
+          p,
+          /pnpm --filter web run test a\.test\.ts/,
+          "gate uses the evidence's run command",
+        );
         return {
-          verdict: "flag",
-          axiom: "2",
-          reason: "asserts on a spy",
-          confidence: "high",
-          action: "rewrite",
-          covered_by: [],
+          replacement: 'it("rewritten", () => { expect(result).toEqual(row) })',
+          subject: "validateToken",
+          evidence: "-> 1 failed",
+          ...gateOut,
         };
-      }
-      if (opts.phase === "Defend") return { gap_found: false, checked: "n/a" };
-      assert.equal(
-        opts.isolation,
-        "worktree",
-        "gate runs in an isolated worktree",
-      );
-      return {
-        replacement: 'it("rewritten", () => { expect(result).toEqual(row) })',
-        subject: "validateToken",
-        ambiguous,
-        failed_when_stubbed: failedWhenStubbed,
-        evidence: "pnpm --filter worker run test a.test.ts -> 1 failed",
-      };
-    },
+      },
+    }),
   });
+  if (expected === "ABORT") {
+    assert.equal(result.failed, true);
+    assert.equal(result.failures[0].stage, "gate");
+    console.log("case 8 OK  unrunnable gate aborts the run");
+    continue;
+  }
   const f = result.findings[0];
   assert.equal(
     f.action,
     expected,
-    `gate(${failedWhenStubbed},${ambiguous}) -> ${expected}, got ${f.action}`,
+    `gate(${JSON.stringify(gateOut)}) -> ${expected}, got ${f.action}`,
   );
   if (expected === "rewrite") assert.ok(f.replacement && f.gate.passed);
   if (expected === "comment") assert.equal(f.gate.passed, false);
-  console.log(
-    `case 5 OK  gate failed=${failedWhenStubbed} ambiguous=${ambiguous} -> ${f.action}`,
-  );
+  console.log(`case 8 OK  gate ${JSON.stringify(gateOut)} -> ${f.action}`);
 }
 
-// --- case 6: empty scope returns cleanly without spawning agents ---
+// --- case 9: empty scope returns cleanly without spawning agents ---
 {
   let spawned = 0;
   const { result, logs } = await run(REVIEW, {
@@ -317,49 +456,52 @@ for (const [failedWhenStubbed, ambiguous, expected] of [
       return null;
     },
   });
-  assert.equal(spawned, 0, "no agents for an empty scope");
+  assert.equal(spawned, 0);
   assert.deepEqual(result.findings, []);
+  assert.equal(result.failed, false);
   assert.ok(logs.some((l) => l.includes("no changed tests")));
-  console.log("case 6 OK  empty scope short-circuits");
+  console.log("case 9 OK  empty scope short-circuits");
 }
 
-// --- case 7: a dead judge agent (null) does not crash the pipeline ---
+// --- case 10: a dead judge agent (null) does not crash the pipeline ---
 {
   const { result } = await run(REVIEW, {
     args: { skillDir: "/skill", evidence: mkEvidence() },
     agent: async () => null,
   });
   assert.deepEqual(result.findings, []);
-  console.log("case 7 OK  null agent results tolerated");
+  assert.equal(
+    result.failed,
+    false,
+    "a silent judge is a pass, not an environment failure",
+  );
+  console.log("case 10 OK  null judge tolerated");
 }
 
-// --- case 8: degraded evidence reaches the judge prompt ---
+// --- case 11: the judge sees layer, run command and shared symbols ---
 {
   let prompt = "";
   await run(REVIEW, {
     args: {
       skillDir: "/skill",
-      evidence: mkEvidence({
-        degraded: true,
-        degradedReason: "no coverage map",
-      }),
-      onlyRules: ["uniqueness"],
+      evidence: mkEvidence(),
+      onlyRules: ["placement"],
     },
-    agent: async (p, opts) => {
-      if (opts.phase === "Judge") prompt = p;
-      return {
-        verdict: "pass",
-        axiom: "",
-        reason: "",
-        confidence: "high",
-        action: "comment",
-        covered_by: [],
-      };
-    },
+    agent: scripted({
+      Judge: (p) => {
+        prompt = p;
+        return PASS;
+      },
+    }),
   });
-  assert.match(prompt, /DEGRADED/);
-  assert.match(prompt, /Cap confidence at medium/);
-  console.log("case 8 OK  degraded mode is stated in the judge prompt");
+  assert.match(prompt, /layer: server-db \(uses database or redis\)/);
+  assert.match(prompt, /runs with: pnpm --filter web run test a\.test\.ts/);
+  assert.match(prompt, /both call validateToken/);
+  assert.match(prompt, /will be CONFIRMED after you return by stubbing/);
+  assert.doesNotMatch(prompt, /DEGRADED/);
+  console.log(
+    "case 11 OK  judge prompt carries layer, runner and shared symbols",
+  );
 }
 
 console.log("\nall dry-run cases passed");

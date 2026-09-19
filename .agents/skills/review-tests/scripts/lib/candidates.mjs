@@ -1,10 +1,13 @@
 // Picks the tests most likely to already cover a changed test.
 //
-// Two ranking bases. With a coverage map, candidate files are ranked by shared
-// covered production lines. Without one the skill runs degraded and ranks by
-// shared production imports, weighted so a barrel every test imports —
-// `@langfuse/shared/src/server` — counts for far less than a module two tests
-// share alone.
+// The unit of comparison is the production *function* a test calls, not the
+// file it imports. Every worker test imports `@langfuse/shared/src/server`, so
+// file overlap says nothing; two tests that both call
+// `getGenerationsForAnalyticsIntegrations(` very likely fail together. Symbols
+// are weighted by how many test files use them, so fixture helpers every test
+// calls — `createOrgProjectAndApiKey` — count for almost nothing.
+
+import { maskCode } from "./scan-tests.mjs";
 
 export const TEST_FILE_RE = /\.(test|servertest|clienttest)\.(ts|tsx)$/;
 const SOURCE_EXTENSIONS = ["", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx"];
@@ -77,82 +80,101 @@ export function productionTargets(imports, fromFile, exists) {
   return [...out];
 }
 
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * Inverts per-file module lists so a module's breadth of use is known.
- * @param {Map<string, string[]>} testToModules
+ * Production symbols a test body calls, qualified by the module that provides
+ * them: `packages/shared/src/server/index.ts#createTrace`. A namespace import's
+ * members and an object binding's methods (`prisma.trace.findMany(`) qualify
+ * as `module#binding.member`. JSX usage counts as a call, so client tests
+ * rendering a component share a symbol with every other test of it.
+ *
+ * @param {string} source one test's source
+ * @param {Array<{local: string, imported: string, spec: string}>} bindings
+ * @param {string} file the test file, for import resolution
+ * @param {(path: string) => boolean} exists
+ * @returns {string[]}
  */
-export function buildModuleIndex(testToModules) {
-  const moduleToTests = new Map();
-  for (const [file, modules] of testToModules) {
-    for (const mod of modules) {
-      if (!moduleToTests.has(mod)) moduleToTests.set(mod, new Set());
-      moduleToTests.get(mod).add(file);
+export function callSymbols(source, bindings, file, exists) {
+  const isCode = maskCode(source);
+  const atCode = (re) => {
+    const found = [];
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(source)) !== null) if (isCode[m.index]) found.push(m);
+    return found;
+  };
+
+  const out = new Set();
+  for (const b of bindings) {
+    const module = resolveImport(b.spec, file, exists);
+    if (!module || TEST_FILE_RE.test(module)) continue;
+    const local = escapeRe(b.local);
+    const name = b.imported === "*" ? null : b.imported;
+
+    if (name && atCode(new RegExp(`(?<![\\w$.])${local}\\s*\\(`, "g")).length) {
+      out.add(`${module}#${name}`);
+    }
+    if (name && atCode(new RegExp(`<${local}(?![\\w$])`, "g")).length) {
+      out.add(`${module}#${name}`);
+    }
+    const members = atCode(
+      new RegExp(`(?<![\\w$.])${local}\\.([\\w$]+(?:\\.[\\w$]+)*)\\s*\\(`, "g"),
+    );
+    for (const m of members) {
+      out.add(name ? `${module}#${name}.${m[1]}` : `${module}#${m[1]}`);
     }
   }
-  return moduleToTests;
+  return [...out].sort();
 }
 
-/** A module shared by many test files is weak evidence of redundancy. */
-export function moduleWeight(moduleToTests, mod) {
-  const breadth = moduleToTests.get(mod)?.size ?? 1;
+/**
+ * Inverts per-test symbol lists into symbol → set of test files, so a symbol's
+ * breadth of use is known.
+ * @param {Map<string, {file: string, symbols: string[]}>} byTestId
+ */
+export function buildSymbolIndex(byTestId) {
+  const index = new Map();
+  for (const { file, symbols } of byTestId.values()) {
+    for (const sym of symbols) {
+      if (!index.has(sym)) index.set(sym, new Set());
+      index.get(sym).add(file);
+    }
+  }
+  return index;
+}
+
+/** A symbol called from many test files is weak evidence of redundancy. */
+export function symbolWeight(index, sym) {
+  const breadth = index.get(sym)?.size ?? 1;
   return 1 / Math.log2(breadth + 1);
 }
 
-function intersectLines(a, b) {
-  let shared = 0;
-  for (const [file, rangesA] of Object.entries(a)) {
-    const rangesB = b[file];
-    if (!rangesB) continue;
-    for (const [aStart, aEnd] of rangesA) {
-      for (const [bStart, bEnd] of rangesB) {
-        const lo = Math.max(aStart, bStart);
-        const hi = Math.min(aEnd, bEnd);
-        if (hi >= lo) shared += hi - lo + 1;
-      }
-    }
-  }
-  return shared;
-}
-
 /**
- * Ranks other test files by overlap with `targetFile`, descending.
- * @returns {Array<{file: string, overlap: number, basis: string, shared: string[]}>}
+ * Ranks tests in other files by weighted shared symbols with `target`,
+ * descending.
+ * @returns {Array<{test, overlap: number, shared: string[]}>}
  */
-export function rankFiles({ targetFile, testToModules, coverage }) {
-  if (coverage && coverage[targetFile]) {
-    const mine = coverage[targetFile];
-    return Object.entries(coverage)
-      .filter(([file]) => file !== targetFile)
-      .map(([file, theirs]) => ({
-        file,
-        overlap: intersectLines(mine, theirs),
-        basis: "coverage",
-        shared: Object.keys(theirs).filter((f) => f in mine),
-      }))
-      .filter((r) => r.overlap > 0)
-      .sort((a, b) => b.overlap - a.overlap || a.file.localeCompare(b.file));
-  }
-
-  const moduleToTests = buildModuleIndex(testToModules);
-  const mine = new Set(testToModules.get(targetFile) ?? []);
+export function rankTests({ target, byTestId, index }) {
+  const mine = new Set(byTestId.get(target.id)?.symbols ?? []);
+  if (!mine.size) return [];
   const scored = [];
-  for (const [file, modules] of testToModules) {
-    if (file === targetFile) continue;
-    const shared = modules.filter((m) => mine.has(m));
+  for (const [id, entry] of byTestId) {
+    if (entry.file === target.file) continue;
+    const shared = entry.symbols.filter((s) => mine.has(s));
     if (!shared.length) continue;
-    const overlap = shared.reduce(
-      (sum, m) => sum + moduleWeight(moduleToTests, m),
-      0,
-    );
+    const overlap = shared.reduce((sum, s) => sum + symbolWeight(index, s), 0);
     scored.push({
-      file,
+      test: entry.test,
       overlap: Number(overlap.toFixed(4)),
-      basis: "imports",
       shared,
     });
   }
   return scored.sort(
-    (a, b) => b.overlap - a.overlap || a.file.localeCompare(b.file),
+    (a, b) =>
+      b.overlap - a.overlap ||
+      a.test.file.localeCompare(b.test.file) ||
+      a.test.line - b.test.line,
   );
 }
 
@@ -206,45 +228,63 @@ const fingerprint = (test) => `${test.name} ${test.assertions.join(" ")}`;
 /**
  * Chooses the candidate tests shown to a judge. Siblings in the same file get
  * up to half the budget — two tests that can only fail together usually sit
- * next to each other — and ranked files fill the rest, best test per file so a
- * single large suite cannot crowd out every other source.
+ * next to each other — ordered by shared symbols, then by name and assertion
+ * similarity. Ranked tests from other files fill the rest, at most two per
+ * file so one large suite cannot crowd out every other source.
  *
- * @returns {Array<{id, file, name, line, source, overlap, basis}>}
+ * @returns {Array<{id, file, name, line, source, overlap, basis, sharedSymbols}>}
  */
-export function selectCandidates({ target, testsByFile, ranked, limit = 5 }) {
+export function selectCandidates({
+  target,
+  testsByFile,
+  byTestId,
+  index,
+  limit = 5,
+}) {
   const out = [];
   const siblingBudget = Math.ceil(limit / 2);
+  const mine = new Set(byTestId.get(target.id)?.symbols ?? []);
 
+  // A rarely-shared production call is strong evidence and outweighs any name
+  // match; a helper every test calls weighs so little that a near-identical
+  // name and assertion list wins instead. Symbol weight is doubled so a
+  // function shared by only two files (weight 0.63) beats a perfect word match.
   const siblings = (testsByFile.get(target.file) ?? [])
     .filter((t) => t.id !== target.id)
-    .map((t) => ({
-      test: t,
-      score: similarity(fingerprint(target), fingerprint(t)),
-    }))
+    .map((t) => {
+      const shared = (byTestId.get(t.id)?.symbols ?? []).filter((s) =>
+        mine.has(s),
+      );
+      const symbolScore = shared.reduce(
+        (sum, s) => sum + symbolWeight(index, s),
+        0,
+      );
+      const words = similarity(fingerprint(target), fingerprint(t));
+      return { test: t, shared, score: 2 * symbolScore + words };
+    })
     .sort((a, b) => b.score - a.score || a.test.line - b.test.line)
     .slice(0, siblingBudget);
 
-  for (const { test, score } of siblings) {
+  for (const { test, shared, score } of siblings) {
     out.push({
       ...pick(test),
       overlap: Number(score.toFixed(4)),
       basis: "sibling",
+      sharedSymbols: shared,
     });
   }
 
-  for (const entry of ranked) {
+  const perFile = new Map();
+  for (const entry of rankTests({ target, byTestId, index })) {
     if (out.length >= limit) break;
-    const best = (testsByFile.get(entry.file) ?? [])
-      .map((t) => ({
-        test: t,
-        score: similarity(fingerprint(target), fingerprint(t)),
-      }))
-      .sort((a, b) => b.score - a.score || a.test.line - b.test.line)[0];
-    if (!best) continue;
+    const used = perFile.get(entry.test.file) ?? 0;
+    if (used >= 2) continue;
+    perFile.set(entry.test.file, used + 1);
     out.push({
-      ...pick(best.test),
+      ...pick(entry.test),
       overlap: entry.overlap,
-      basis: entry.basis,
+      basis: "symbols",
+      sharedSymbols: entry.shared,
     });
   }
 

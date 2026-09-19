@@ -229,3 +229,24 @@ test("marks a dynamic test name rather than guessing", () => {
   const { tests } = scanTests("it(name, () => {});");
   assert.equal(tests[0].name, "<dynamic>");
 });
+
+test("extracts import bindings: named, aliased, default, namespace", () => {
+  const src = [
+    'import { a, b as c, type T } from "./x";',
+    "import D, {",
+    "  multi,",
+    '} from "./d";',
+    'import * as ns from "./n";',
+    'import type { Z } from "./z";',
+    'import "./side-effect";',
+    '// import { commented } from "./no";',
+  ].join("\n");
+  const { bindings } = scanTests(src);
+  assert.deepEqual(bindings, [
+    { local: "a", imported: "a", spec: "./x" },
+    { local: "c", imported: "b", spec: "./x" },
+    { local: "D", imported: "default", spec: "./d" },
+    { local: "multi", imported: "multi", spec: "./d" },
+    { local: "ns", imported: "*", spec: "./n" },
+  ]);
+});

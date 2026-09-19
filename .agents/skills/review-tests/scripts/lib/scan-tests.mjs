@@ -242,6 +242,41 @@ const GROUPING = new Set(["describe", "suite"]);
 const ASSERTION_RE = /(?<![.\w$])(expect|assert|expectTypeOf)(?![\w$])/g;
 const IMPORT_RE =
   /(?:import\s[^;]*?from\s*|import\s*|export\s[^;]*?from\s*|require\s*\(\s*|import\s*\(\s*)(["'`])([^"'`]+)\1/g;
+// Static imports with a binding clause. `import type` is skipped: a type never
+// reaches runtime, so it is not something a test can call.
+const IMPORT_CLAUSE_RE =
+  /(?<![\w$.])import\s+(?!type\s)([^;"'`]+?)\s+from\s*(["'`])([^"'`]+)\2/g;
+
+/**
+ * Splits an import clause into local bindings.
+ * `Default, { a, b as c, type T } from "x"` → Default/default, a/a, c/b.
+ */
+function bindingsOf(clause, spec) {
+  const out = [];
+  const text = clause.trim();
+  const star = /^\*\s+as\s+([\w$]+)$/.exec(text);
+  if (star) return [{ local: star[1], imported: "*", spec }];
+
+  const braceAt = text.indexOf("{");
+  const head = (braceAt === -1 ? text : text.slice(0, braceAt))
+    .replace(/,\s*$/, "")
+    .trim();
+  if (head && /^[\w$]+$/.test(head))
+    out.push({ local: head, imported: "default", spec });
+
+  if (braceAt !== -1) {
+    const inner = text.slice(braceAt + 1, text.lastIndexOf("}"));
+    for (const raw of inner.split(",")) {
+      const part = raw.trim();
+      if (!part || part.startsWith("type ")) continue;
+      const alias = /^([\w$]+)\s+as\s+([\w$]+)$/.exec(part);
+      if (alias) out.push({ local: alias[2], imported: alias[1], spec });
+      else if (/^[\w$]+$/.test(part))
+        out.push({ local: part, imported: part, spec });
+    }
+  }
+  return out;
+}
 
 /**
  * Collects the assertion expressions inside `[start, end)`, each as the text of
@@ -384,9 +419,17 @@ export function scanTests(src, filePath = "") {
     imports.push(m[2]);
   }
 
+  const bindings = [];
+  IMPORT_CLAUSE_RE.lastIndex = 0;
+  while ((m = IMPORT_CLAUSE_RE.exec(src)) !== null) {
+    if (!isCode[m.index]) continue;
+    bindings.push(...bindingsOf(m[1], m[3]));
+  }
+
   return {
     tests,
     groups: calls.filter((c) => c.kind === "group").map((c) => c.name),
     imports: [...new Set(imports)],
+    bindings,
   };
 }
