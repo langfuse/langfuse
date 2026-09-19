@@ -1,8 +1,8 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
-import { MembersTable } from "@/src/features/rbac/components/MembersTable";
+import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
+import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
@@ -30,6 +30,8 @@ import {
   GatewayModelsPage,
   GatewayProvidersPage,
 } from "@/src/features/ai-gateway";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { api } from "@/src/utils/api";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -181,17 +183,7 @@ export const getOrganizationSettingsPages = ({
     slug: "members",
     section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
-    content: (
-      <div className="flex flex-col gap-6">
-        <div>
-          <Header title="Organization Members" />
-          <MembersTable orgId={organization.id} />
-        </div>
-        <div>
-          <MembershipInvitesPage orgId={organization.id} />
-        </div>
-      </div>
-    ),
+    content: <OrganizationMembersSettings orgId={organization.id} />,
   },
   {
     title: "Audit Logs",
@@ -310,5 +302,46 @@ const OrgSettingsPage = () => {
     </ContainerPage>
   );
 };
+
+function OrganizationMembersSettings({ orgId }: { orgId: string }) {
+  const [invitesPagination, setInvitesPagination] = useSessionStorage(
+    `orgInvites_${orgId}_pagination`,
+    { pageIndex: 0, pageSize: 10 },
+  );
+
+  const hasViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:read",
+  });
+
+  const membershipInvites = api.members.allInvitesFromOrg.useQuery(
+    {
+      orgId,
+      page: invitesPagination.pageIndex,
+      limit: invitesPagination.pageSize,
+    },
+    { enabled: hasViewAccess },
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Header title="Organization Members" />
+        <ConnectedMembersSettingsTable orgId={orgId} />
+      </div>
+      {hasViewAccess && membershipInvites.data?.totalCount !== 0 && (
+        <div>
+          <Header title="Membership Invites" />
+          <ConnectedMembershipInvitesSettingsTable
+            orgId={orgId}
+            query={membershipInvites}
+            paginationState={invitesPagination}
+            setPaginationState={setInvitesPagination}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default OrgSettingsPage;
