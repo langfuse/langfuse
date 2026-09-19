@@ -1,4 +1,4 @@
-// Exercises review.js and fix.js with mocked agent()/parallel()/pipeline() so
+// Exercises review.js with mocked agent()/parallel()/pipeline() so
 // the deterministic layer — which flags survive, which agents are worth
 // spawning, what order edits land in — is checked without spending tokens.
 //
@@ -61,7 +61,6 @@ export async function run(file, { args, agent }) {
 }
 
 const REVIEW = new URL("./review.js", import.meta.url).pathname;
-const FIX = new URL("./fix.js", import.meta.url).pathname;
 
 const mkEvidence = (overrides = {}) => ({
   mode: "diff",
@@ -361,170 +360,6 @@ for (const [failedWhenStubbed, ambiguous, expected] of [
   assert.match(prompt, /DEGRADED/);
   assert.match(prompt, /Cap confidence at medium/);
   console.log("case 8 OK  degraded mode is stated in the judge prompt");
-}
-
-// --- fix.js: resolved thread is a veto; standing finding is applied ---
-{
-  const findings = [
-    {
-      id: "a.test.ts::t1",
-      file: "a.test.ts",
-      line: 10,
-      endLine: 12,
-      name: "t1",
-      rule: "uniqueness",
-      axiom: "1",
-      action: "delete",
-      reason: "dup",
-      confidence: "high",
-      coveredBy: [],
-      replacement: null,
-    },
-    {
-      id: "a.test.ts::t2",
-      file: "a.test.ts",
-      line: 20,
-      endLine: 22,
-      name: "t2",
-      rule: "ownership",
-      axiom: "2",
-      action: "rewrite",
-      reason: "spy",
-      confidence: "high",
-      coveredBy: [],
-      replacement: 'it("t2", () => {})',
-    },
-    {
-      id: "b.test.ts::t3",
-      file: "b.test.ts",
-      line: 5,
-      endLine: 7,
-      name: "t3",
-      rule: "uniqueness",
-      axiom: "1",
-      action: "delete",
-      reason: "dup",
-      confidence: "high",
-      coveredBy: [],
-      replacement: null,
-    },
-    {
-      id: "c.test.ts::t4",
-      file: "c.test.ts",
-      line: 1,
-      endLine: 2,
-      name: "t4",
-      rule: "placement",
-      axiom: "6",
-      action: "comment",
-      reason: "layer",
-      confidence: "low",
-      coveredBy: [],
-      replacement: null,
-    },
-  ];
-  const threads = [
-    {
-      findingId: "b.test.ts::t3",
-      state: "resolved",
-      comments: [{ author: "dev", isOwner: true, body: "keep this one" }],
-    },
-  ];
-  const applyPrompts = [];
-  const { result, logs } = await run(FIX, {
-    args: { skillDir: "/skill", findings, threads, source: "pr" },
-    agent: async (prompt, opts) => {
-      if (opts.phase === "Interpret") {
-        const vetoed = prompt.includes("thread state: resolved");
-        return {
-          apply: !vetoed,
-          action: vetoed
-            ? "skip"
-            : prompt.includes("action: rewrite")
-              ? "rewrite"
-              : "delete",
-          rationale: vetoed ? "thread resolved by owner" : "no discussion",
-          replacement_override: "",
-        };
-      }
-      applyPrompts.push(prompt);
-      const ids = [...prompt.matchAll(/([a-z]\.test\.ts)/g)];
-      return {
-        applied: [
-          { id: "a.test.ts::t1", done: true, note: "removed" },
-          { id: "a.test.ts::t2", done: true, note: "replaced" },
-        ],
-        checks: "Tests 4 passed (4)",
-        _ids: ids.length,
-      };
-    },
-  });
-  assert.equal(
-    applyPrompts.length,
-    1,
-    "only one file had standing verdicts, so one editor",
-  );
-  assert.ok(
-    applyPrompts[0].includes("a.test.ts"),
-    "the editor targets a.test.ts",
-  );
-  assert.ok(
-    !applyPrompts[0].includes("c.test.ts"),
-    "comment-only findings never reach an editor",
-  );
-  // Descending line order keeps earlier edits from shifting later ones.
-  const first = applyPrompts[0].indexOf("a.test.ts:20");
-  const second = applyPrompts[0].indexOf("a.test.ts:10");
-  assert.ok(
-    first !== -1 && second !== -1 && first < second,
-    "verdicts are ordered bottom-up within a file",
-  );
-  assert.ok(
-    result.skipped.some((s) => s.id === "b.test.ts::t3"),
-    "resolved thread vetoed",
-  );
-  assert.equal(result.counts.applied, 2);
-  assert.ok(
-    logs.some((l) => l.includes("1 vetoed")),
-    logs.join("|"),
-  );
-  console.log(
-    "case 9 OK  fix.js: veto honoured, one editor per file, bottom-up order; counts:",
-    JSON.stringify(result.counts),
-  );
-}
-
-// --- fix.js: nothing actionable ---
-{
-  const { result, logs } = await run(FIX, {
-    args: {
-      skillDir: "/skill",
-      findings: [
-        {
-          id: "x",
-          file: "x.test.ts",
-          line: 1,
-          endLine: 1,
-          name: "x",
-          rule: "placement",
-          axiom: "6",
-          action: "comment",
-          reason: "r",
-          confidence: "low",
-          coveredBy: [],
-          replacement: null,
-        },
-      ],
-      threads: [],
-      source: "chat",
-    },
-    agent: async () => {
-      throw new Error("should not spawn");
-    },
-  });
-  assert.deepEqual(result.applied, []);
-  assert.ok(logs.some((l) => l.includes("nothing actionable")));
-  console.log("case 10 OK  fix.js: comment-only findings spawn no agents");
 }
 
 console.log("\nall dry-run cases passed");
