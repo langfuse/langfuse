@@ -111,13 +111,13 @@ types:
     docs: Individual span representing a unit of work or operation
     properties:
       traceId:
-        type: optional<unknown>
+        type: optional<string>
         docs: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
       spanId:
-        type: optional<unknown>
+        type: optional<string>
         docs: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
       parentSpanId:
-        type: optional<unknown>
+        type: optional<string>
         docs: Parent span ID if this is a child span
       name:
         type: optional<string>
@@ -135,7 +135,7 @@ types:
         type: optional<list<OtelAttribute>>
         docs: Span attributes including Langfuse-specific attributes (langfuse.observation.*)
       status:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Span status object
 
   OtelAttribute:

@@ -81,6 +81,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
