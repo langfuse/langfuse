@@ -124,6 +124,9 @@ function transformAggregates(
 
     const dataType = rawDataType as AnnotationScoreDataType;
 
+    // Aggregate keys hold a normalized score name ("-" and "." become "_"),
+    // so the config's real name is used for the score to keep edits from
+    // renaming it.
     const config = configs.find(
       (c) => normalizeScoreName(c.name) === name && c.dataType === dataType,
     );
@@ -131,7 +134,7 @@ function transformAggregates(
 
     const score: AnnotationScore = {
       id: aggregate.id,
-      name,
+      name: config.name,
       dataType,
       source,
       configId: config.id,

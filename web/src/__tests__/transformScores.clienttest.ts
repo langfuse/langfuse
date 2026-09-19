@@ -355,4 +355,40 @@ describe("transformToAnnotationScores - aggregates", () => {
     const result = transformToAnnotationScores({}, mockConfigs, "trace-1");
     expect(result).toEqual([]);
   });
+
+  it("should keep the config's original name when the aggregate key was normalized", () => {
+    // Aggregate keys replace "-" and "." in score names with "_", so the name
+    // recovered from the key must not be used as the score's name.
+    const hyphenatedConfig: ScoreConfigDomain = {
+      id: "config-3",
+      name: "my-score.v2",
+      dataType: "NUMERIC",
+      minValue: 0,
+      maxValue: 10,
+      isArchived: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      projectId: "project-1",
+    };
+    const aggregates: ScoreAggregate = {
+      "my_score_v2-ANNOTATION-NUMERIC": {
+        id: "score-9",
+        type: "NUMERIC",
+        values: [7],
+        average: 7,
+        comment: null,
+        timestamp: new Date(),
+      },
+    };
+
+    const result = transformToAnnotationScores(
+      aggregates,
+      [...mockConfigs, hyphenatedConfig],
+      "trace-1",
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].configId).toBe("config-3");
+    expect(result[0].name).toBe("my-score.v2");
+  });
 });
