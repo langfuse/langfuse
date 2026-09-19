@@ -49,7 +49,7 @@ types:
         type: nullable<string>
         docs: The user identifier associated with the trace
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: The metadata associated with the trace. Can be any JSON.
       tags:
         type: list<string>
@@ -139,7 +139,7 @@ types:
         type: nullable<string>
         docs: The model used for the observation
       modelParameters:
-        type: unknown
+        type: optional<map<string, MapValue>>
         docs: The parameters of the model used for the observation
       input:
         type: unknown
@@ -148,7 +148,7 @@ types:
         type: nullable<string>
         docs: The version of the observation
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Additional metadata of the observation
       output:
         type: unknown
@@ -309,7 +309,7 @@ types:
 
       # Metadata fields (field group: metadata)
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
@@ -320,7 +320,7 @@ types:
         type: optional<nullable<string>>
         docs: The internal model ID matched by Langfuse
       modelParameters:
-        type: optional<unknown>
+        type: optional<map<string, MapValue>>
         docs: The parameters of the model used for the observation
 
       # Usage fields (field group: usage)
@@ -454,7 +454,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -539,7 +539,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -640,13 +640,13 @@ types:
         type: nullable<string>
         docs: Description of the dataset
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the dataset
       inputSchema:
-        type: nullable<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: JSON Schema for validating dataset item inputs
       expectedOutputSchema:
-        type: nullable<unknown>
+        type: optional<nullable<map<string, unknown>>>
         docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
@@ -663,7 +663,7 @@ types:
         type: unknown
         docs: Expected output for the dataset item
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the dataset item
       sourceTraceId:
         type: nullable<string>
@@ -744,7 +744,7 @@ types:
         type: nullable<string>
         docs: Description of the run
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata of the dataset run
       datasetId:
         type: string
@@ -803,7 +803,7 @@ types:
         type: nullable<string>
       tokenizerConfig:
         docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
-        type: unknown
+        type: optional<map<string, unknown>>
       isLangfuseManaged:
         type: boolean
       createdAt:
