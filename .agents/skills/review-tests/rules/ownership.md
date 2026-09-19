@@ -4,13 +4,24 @@ Is the test asserting on something we own and could break?
 
 ## Axioms
 
-**1 (axiom 2). Test the contract, not the implementation.** Assert what a caller
-is promised. A test that knows which private helper ran, in what order, or how
-many times, fails on every honest refactor and passes when the contract breaks.
+Quoted verbatim from the canonical list in `SKILL.md`; the line under each is
+this repository's gloss.
 
-**2 (axiom 3). Do not test the type system or the framework.** TypeScript
-already proves the field exists. Zod already rejects the wrong shape. Vitest
-already calls the callback. Prisma already runs the query.
+**Axiom 2.** Test the contract, not the implementation. A test that asserts on
+internal calls, private state, or ordering that the public API doesn't promise
+will break on refactors without catching bugs. Delete or rewrite against
+observable behavior.
+
+> Assert what a caller is promised. A test that knows which private helper ran,
+> in what order, or how many times, fails on every honest refactor and passes
+> when the contract breaks.
+
+**Axiom 3.** Don't test the type system or the framework. Asserting that a
+constructor sets a field, that a getter returns what the setter stored, or that
+an ORM saves a row is testing someone else's code.
+
+> TypeScript already proves the field exists. Zod already rejects the wrong
+> shape. Vitest already calls the callback. Prisma already runs the query.
 
 ## Flag
 

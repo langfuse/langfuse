@@ -5,15 +5,25 @@ it proves?
 
 ## Axioms
 
-**1 (axiom 6). Prefer the lowest layer that exercises the logic.** Integration
-tests are for wiring — that the pieces are connected, the transport carries the
-shape, the migration applies. Branch logic, parsing, arithmetic, and formatting
-belong in a unit test that runs in milliseconds without Postgres, ClickHouse, or
-Redis.
+Quoted verbatim from the canonical list in `SKILL.md`; the line under each is
+this repository's gloss.
 
-**2 (axiom 8). Setup complexity is a signal.** When the fixture is larger than
-the code under test, the test is usually proving the fixture. Either the seam is
-wrong or the assertion is smaller than the scaffolding implies.
+**Axiom 6.** Prefer the lowest layer that exercises the logic. If a unit test
+covers a branch, an integration test that walks the same branch through three
+extra layers adds cost without coverage. Keep integration tests for wiring, not
+logic.
+
+> Wiring means the pieces are connected, the transport carries the shape, the
+> migration applies. Branch logic, parsing, arithmetic, and formatting belong in
+> a unit test that runs in milliseconds without Postgres, ClickHouse, or Redis.
+
+**Axiom 8.** Setup complexity is a signal. If a test needs more fixture than the
+code it tests, either the code is badly factored or the test is covering
+something already covered elsewhere.
+
+> When the fixture is larger than the code under test, the test is usually
+> proving the fixture. Either the seam is wrong or the assertion is smaller than
+> the scaffolding implies.
 
 ## Repository layers
 

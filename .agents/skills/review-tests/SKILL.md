@@ -33,6 +33,42 @@ This skill asks one question of each changed test:
 A test with no answer is redundant. Findings are advisory until a human engages
 with them; `--fix` reads that engagement and applies what survived.
 
+## The axioms
+
+Every finding cites one of these by number. This list is canonical; the rule
+files quote it and add repository-specific guidance, they do not restate it.
+
+1. **One failing reason per test.** If two tests can only fail together, one of
+   them is redundant. Ask: what bug would this catch that no other test catches?
+2. **Test the contract, not the implementation.** A test that asserts on
+   internal calls, private state, or ordering that the public API doesn't
+   promise will break on refactors without catching bugs. Delete or rewrite
+   against observable behavior.
+3. **Don't test the type system or the framework.** Asserting that a
+   constructor sets a field, that a getter returns what the setter stored, or
+   that an ORM saves a row is testing someone else's code.
+4. **Equivalence classes over enumerations.** Inputs that take the same code
+   path are one test. Keep one representative per class plus each boundary;
+   drop the rest.
+5. **A test must be able to fail.** Mocks that return exactly what the
+   assertion checks, tautological asserts, tests that pass with the
+   implementation deleted — these are noise. Mutation testing (or just stubbing
+   the function body) exposes them quickly.
+6. **Prefer the lowest layer that exercises the logic.** If a unit test covers
+   a branch, an integration test that walks the same branch through three extra
+   layers adds cost without coverage. Keep integration tests for wiring, not
+   logic.
+7. **No test for a bug that can't recur.** Regression tests for behaviors now
+   enforced by types, schemas, or removed code paths can go.
+8. **Setup complexity is a signal.** If a test needs more fixture than the code
+   it tests, either the code is badly factored or the test is covering
+   something already covered elsewhere.
+
+The rule files group them by the question a judge asks: `uniqueness` (1, 4, 5,
+7) — would deleting this let a bug through nothing else catches? `ownership`
+(2, 3) — is the assertion on our contract or on framework, types, internals?
+`placement` (6, 8) — cheapest layer, proportionate fixture?
+
 ## Shape
 
 Two pieces, in order. Only the judges, adversaries and gates cost tokens.
@@ -194,7 +230,9 @@ covered**. End with `<N> reviewed, <M> kept`. Say `no findings` when clean.
 One review, not a stream of comments.
 
 - **Summary comment** — the verdict table, `<N> reviewed, <M> kept`, whether the
-  run was degraded, and how to apply: `/review-tests --fix`.
+  run was degraded, how to apply (`/review-tests --fix`), and the eight axioms
+  verbatim inside a collapsed `<details>` block, so a reviewer who meets
+  `axiom 4` on an inline comment can read it without leaving GitHub.
 - **Inline comment** per finding, anchored to `file:line`. `comment` findings
   post inline too; a `keep` posts nothing.
 - **Rewrites** carry a GitHub ```suggestion``` block holding the whole

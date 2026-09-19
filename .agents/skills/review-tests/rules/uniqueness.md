@@ -9,20 +9,37 @@ If you cannot name that bug in one concrete sentence, the test is redundant.
 
 ## Axioms
 
-**1. One failing reason per test.** Two tests that can only ever fail together
-are one test. The second costs a name, a fixture, and a line in every future
-reader's head.
+Quoted verbatim from the canonical list in `SKILL.md`; the line under each is
+this repository's gloss.
 
-**2 (axiom 4). Equivalence classes over enumerations.** One representative per
-class, plus the boundaries. Five currencies through the same code path are one
-class; `0`, `-1`, and `MAX_SAFE_INTEGER` are boundaries and each earn a case.
+**Axiom 1.** One failing reason per test. If two tests can only fail together,
+one of them is redundant. Ask: what bug would this catch that no other test
+catches?
 
-**3 (axiom 5). A test must be able to fail.** A test that cannot fail is worse
-than no test: it reports safety it does not provide.
+> The second test costs a name, a fixture, and a line in every future reader's
+> head, and buys nothing.
 
-**4 (axiom 7). No test for a bug that cannot recur.** When the type system, a
-Zod schema, a database constraint, or the deletion of the code makes the old bug
-unrepresentable, the regression test is a monument, not a guard.
+**Axiom 4.** Equivalence classes over enumerations. Inputs that take the same
+code path are one test. Keep one representative per class plus each boundary;
+drop the rest.
+
+> Five currencies through the same code path are one class; `0`, `-1`, and
+> `MAX_SAFE_INTEGER` are boundaries and each earn a case.
+
+**Axiom 5.** A test must be able to fail. Mocks that return exactly what the
+assertion checks, tautological asserts, tests that pass with the implementation
+deleted — these are noise. Mutation testing (or just stubbing the function
+body) exposes them quickly.
+
+> The rewrite gate is this axiom made mechanical: a replacement ships only after
+> it has been seen failing with the function under test stubbed out.
+
+**Axiom 7.** No test for a bug that can't recur. Regression tests for behaviors
+now enforced by types, schemas, or removed code paths can go.
+
+> When TypeScript, a Zod schema, a database constraint, or the deletion of the
+> code makes the old bug unrepresentable, the regression test is a monument, not
+> a guard. Name the construct that now prevents it.
 
 ## Flag
 
