@@ -214,7 +214,7 @@ types:
     properties:
       completionStartTime: optional<datetime>
       model: optional<string>
-      modelParameters: optional<map<string, commons.MapValue>>
+      modelParameters: optional<map<string, unknown>>
       usage: optional<IngestionUsage>
       usageDetails: optional<UsageDetails>
       costDetails: optional<map<string, double>>
@@ -226,7 +226,7 @@ types:
     properties:
       completionStartTime: optional<datetime>
       model: optional<string>
-      modelParameters: optional<map<string, commons.MapValue>>
+      modelParameters: optional<map<string, unknown>>
       usage: optional<IngestionUsage>
       promptName: optional<string>
       usageDetails: optional<UsageDetails>
@@ -243,7 +243,7 @@ types:
       endTime: optional<datetime>
       completionStartTime: optional<datetime>
       model: optional<string>
-      modelParameters: optional<map<string, commons.MapValue>>
+      modelParameters: optional<map<string, unknown>>
       input: optional<unknown>
       version: optional<string>
       metadata: optional<map<string, unknown>>

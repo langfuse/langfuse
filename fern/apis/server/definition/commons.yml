@@ -50,7 +50,7 @@ types:
         docs: The user identifier associated with the trace
       metadata:
         type: optional<map<string, unknown>>
-        docs: The metadata associated with the trace. Can be any JSON.
+        docs: Metadata associated with the trace
       tags:
         type: list<string>
         docs: The tags associated with the trace.
@@ -139,7 +139,7 @@ types:
         type: nullable<string>
         docs: The model used for the observation
       modelParameters:
-        type: optional<map<string, MapValue>>
+        type: optional<map<string, unknown>>
         docs: The parameters of the model used for the observation
       input:
         type: unknown
@@ -320,7 +320,7 @@ types:
         type: optional<nullable<string>>
         docs: The internal model ID matched by Langfuse
       modelParameters:
-        type: optional<map<string, MapValue>>
+        type: optional<map<string, unknown>>
         docs: The parameters of the model used for the observation
 
       # Usage fields (field group: usage)

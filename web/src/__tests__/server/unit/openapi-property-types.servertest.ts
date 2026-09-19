@@ -71,7 +71,7 @@ describe("OpenAPI property types", () => {
     }
   });
 
-  it("defines modelParameters as an object with MapValue references on read and write observation schemas", () => {
+  it("defines modelParameters as an object with additionalProperties on read and write observation schemas", () => {
     const modelParamSchemas = [
       "Observation",
       "ObservationV2",
@@ -93,8 +93,8 @@ describe("OpenAPI property types", () => {
       ).toBe("object");
       expect(
         modelParameters?.additionalProperties,
-        `${schemaName}.modelParameters should reference MapValue`,
-      ).toEqual({ $ref: "#/components/schemas/MapValue" });
+        `${schemaName}.modelParameters should allow additionalProperties`,
+      ).toBe(true);
     }
   });
 

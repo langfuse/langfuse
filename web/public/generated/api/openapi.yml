@@ -9394,7 +9394,7 @@ components:
           type: object
           additionalProperties: true
           nullable: true
-          description: The metadata associated with the trace. Can be any JSON.
+          description: Metadata associated with the trace
         tags:
           type: array
           items:
@@ -9561,8 +9561,7 @@ components:
           description: The model used for the observation
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
           description: The parameters of the model used for the observation
         input:
@@ -9845,8 +9844,7 @@ components:
           description: The internal model ID matched by Langfuse
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
           description: The parameters of the model used for the observation
         usageDetails:
@@ -13811,8 +13809,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
@@ -13847,8 +13844,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
@@ -13902,8 +13898,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         input:
           nullable: true
