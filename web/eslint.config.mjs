@@ -78,6 +78,74 @@ export default [
     },
   },
   {
+    name: "langfuse/web/no-abstracted-overlay-trigger",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.story.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": [
+        "warn",
+        {
+          overlayFamilies: [
+            {
+              module: "@/src/components/ui/dialog",
+              root: "Dialog",
+              trigger: "DialogTrigger",
+              contents: ["DialogContent"],
+            },
+            {
+              module: "@/src/components/ui/alert-dialog",
+              root: "AlertDialog",
+              trigger: "AlertDialogTrigger",
+              contents: ["AlertDialogContent"],
+            },
+            {
+              module: "@/src/components/ui/dropdown-menu",
+              root: "DropdownMenu",
+              trigger: "DropdownMenuTrigger",
+              contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
+            },
+            {
+              module: "@/src/components/ui/drawer",
+              root: "Drawer",
+              trigger: "DrawerTrigger",
+              contents: ["DrawerContent"],
+            },
+            {
+              module: "@/src/components/ui/popover",
+              root: "Popover",
+              trigger: "PopoverTrigger",
+              contents: ["PopoverContent"],
+            },
+            {
+              module: "@/src/components/ui/sheet",
+              root: "Sheet",
+              trigger: "SheetTrigger",
+              contents: ["SheetContent"],
+            },
+          ],
+          overlayControllerFamilies: [
+            {
+              module:
+                "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+              root: "ConfirmationDialogController",
+            },
+            {
+              module:
+                "@/src/components/design-system/DialogController/DialogController",
+              root: "DialogController",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
     ignores: [
       ".storybook/**/*",
@@ -213,12 +281,13 @@ export default [
   // Root design-system components follow `Name/Name.tsx`, optionally alongside
   // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
   // match that folder's name, and expose a matching named runtime export. The
-  // table and internal subtrees are domain-specific exceptions with their own
-  // structure.
+  // factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: [
+      "src/components/design-system/factories/**",
       "src/components/design-system/internal/**",
       "src/components/design-system/table/**",
     ],
@@ -318,9 +387,6 @@ export default [
           ],
         },
       ],
-
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
     },
   },
 

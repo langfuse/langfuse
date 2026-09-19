@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";

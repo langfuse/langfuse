@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";

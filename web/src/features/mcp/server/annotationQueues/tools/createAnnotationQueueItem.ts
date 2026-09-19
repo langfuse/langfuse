@@ -10,6 +10,7 @@ export const [createAnnotationQueueItemTool, handleCreateAnnotationQueueItem] =
     name: "createAnnotationQueueItem",
     description:
       "Add an annotation queue item, one trace or observation to review, to a queue.",
+    action: "annotationQueues:CUD",
     baseSchema: CreateAnnotationQueueItemToolSchema,
     inputSchema: CreateAnnotationQueueItemToolSchema,
     handler: async (input, context) =>

@@ -14,7 +14,7 @@ ENV PATH="$PNPM_HOME:$PATH"
 ARG NODE_USE_ENV_PROXY
 RUN npm install --global corepack@0.36.0 \
     && corepack enable \
-    && corepack prepare pnpm@12.3.1 --activate
+    && corepack prepare pnpm@12.4.1 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them

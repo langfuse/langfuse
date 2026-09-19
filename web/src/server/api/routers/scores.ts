@@ -15,7 +15,7 @@ import {
   orderBy,
   paginationZod,
   normalizeOrderByForTable,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
@@ -74,7 +74,7 @@ import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTyp
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
 });
 
@@ -1145,7 +1145,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
         fromTimestamp: z.date().optional(),
         toTimestamp: z.date().optional(),
       }),

@@ -29,6 +29,20 @@ export const FTS_TEXT_FIELDS: ReadonlySet<string> = new Set([
 ]);
 export const FTS_METADATA_FIELD = "metadata";
 
+// events_full carries ngrambf_v1 skip indexes on lower(<col>) for these
+// human-readable substring-search columns. A predicate uses them only when
+// lower(col) appears directly under a supported function (=, LIKE, IN), so
+// StringFilter/StringOptionsFilter emit a lower() conjunct for these fields.
+// trace_name is intentionally excluded: it maps to a COALESCE expression, not a
+// bare column, and needs a branch-aware rewrite. span_id/trace_id match by
+// equality against their bloom_filter/primary key (handled by the search
+// id-lane), so they need no ngram treatment here.
+const FTS_NGRAM_SUBSTRING_FIELDS: ReadonlySet<string> = new Set([
+  "name",
+  "user_id",
+  "session_id",
+]);
+
 // Column mappings may carry a table prefix (e.g. "e.input"); strip to the bare
 // field name before set lookup.
 export const bareFtsField = (field: string): string => {
@@ -66,6 +80,19 @@ export const isFtsMetadataTarget = (
   clickhouseTable: string,
   field: string,
 ): boolean => isFtsEventsTable(clickhouseTable) && isFtsMetadataField(field);
+
+const isNgramSubstringField = (field: string): boolean =>
+  FTS_NGRAM_SUBSTRING_FIELDS.has(bareFtsField(field));
+
+// True when a filter targets an events-family table column backed by an
+// events_full lower(col) ngram index. The filter layer cannot tell events_core
+// from events_full (physical selection happens later in EventsQueryBuilder); on
+// events_core the emitted lower() conjunct is simply an unindexed, correct, and
+// cheap extra comparison on these small columns.
+export const isNgramSubstringTarget = (
+  clickhouseTable: string,
+  field: string,
+): boolean => isFtsEventsTable(clickhouseTable) && isNgramSubstringField(field);
 
 export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
   FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);

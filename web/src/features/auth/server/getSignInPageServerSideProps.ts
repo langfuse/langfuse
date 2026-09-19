@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type GetServerSideProps } from "next";
 import { env } from "@/src/env.mjs";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";

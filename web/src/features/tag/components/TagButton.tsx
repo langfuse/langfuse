@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 import { TagIcon } from "lucide-react";
 import React from "react";
@@ -8,25 +9,40 @@ export const TagButton: React.FC<{
   loading: boolean;
   viewOnly?: boolean;
   isTableCell?: boolean;
-}> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => (
-  <Button
-    key={tag}
-    variant="tertiary"
-    size="icon-sm"
-    disabled={viewOnly}
-    className={cn(viewOnly && "cursor-default", "w-fit max-w-40 min-w-16")}
-    loading={loading}
-  >
-    <TagIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
-    <span
-      className={cn(
-        "overflow-hidden text-ellipsis whitespace-nowrap",
-        !isTableCell && "text-xs",
-      )}
-      title={tag}
+}> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => {
+  const label = (
+    <>
+      <TagIcon className="size-3 shrink-0" />
+      <span
+        className={cn(
+          "overflow-hidden text-ellipsis whitespace-nowrap",
+          !isTableCell && "text-xs",
+        )}
+        title={tag}
+      >
+        {tag}
+      </span>
+    </>
+  );
+
+  if (viewOnly) {
+    return (
+      <span className="inline-flex max-w-40 min-w-0">
+        <BadgeShell color="neutral">{label}</BadgeShell>
+      </span>
+    );
+  }
+
+  return (
+    <Button
+      key={tag}
+      variant="tertiary"
+      size="icon-sm"
+      className="w-fit max-w-40 min-w-16 gap-1"
+      loading={loading}
     >
-      {tag}
-    </span>
-  </Button>
-));
+      {label}
+    </Button>
+  );
+});
 TagButton.displayName = "TagButton";

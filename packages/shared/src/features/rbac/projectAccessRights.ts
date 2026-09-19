@@ -87,12 +87,12 @@ export const projectScopes = [
   "traces:create",
   "scores:read",
   "scores:create",
+  "media:read",
   "media:create",
   "sessions:read",
   "metrics:read",
   "models:read",
   "experiments:read",
-  "mcp:access",
   "feedback:create",
 ] as const;
 

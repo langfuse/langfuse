@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
 import { asRecord, parseIfString, parseRecord } from "../utils/json";

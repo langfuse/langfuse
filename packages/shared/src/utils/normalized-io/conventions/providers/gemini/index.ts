@@ -213,7 +213,10 @@ function geminiSystemMessage(
 
   const config = asRecord(root.config);
   const systemInstruction =
-    config?.system_instruction ?? config?.systemInstruction;
+    root.systemInstruction ??
+    root.system_instruction ??
+    config?.system_instruction ??
+    config?.systemInstruction;
   if (!systemInstruction) return undefined;
 
   return {
