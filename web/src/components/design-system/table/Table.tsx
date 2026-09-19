@@ -2,6 +2,8 @@
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
+  type OnChangeFn,
+  type VisibilityState,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -37,6 +39,8 @@ export interface TableProps<TData> {
   loadingRowCount?: number;
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
 }
 
 export function Table<TData extends object>({
@@ -49,6 +53,8 @@ export function Table<TData extends object>({
   loadingRowCount = 8,
   noResultsMessage = "No results",
   onRowClick,
+  columnVisibility,
+  onColumnVisibilityChange,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -96,6 +102,8 @@ export function Table<TData extends object>({
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     columnResizeMode: "onChange",
+    state: { columnVisibility },
+    onColumnVisibilityChange,
   });
 
   const visibleColumns = table.getVisibleLeafColumns();

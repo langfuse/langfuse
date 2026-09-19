@@ -8,7 +8,17 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 
-function ConfirmationDialogController({
+type ConfirmationDialogValueCallback<TValue, TResult> = [TValue] extends [
+  undefined,
+]
+  ? () => TResult
+  : (value: TValue) => TResult;
+
+type ConfirmationDialogContent<TValue> =
+  | string
+  | ([TValue] extends [undefined] ? never : (value: TValue) => string);
+
+function ConfirmationDialogController<TValue = undefined>({
   children,
   confirmationText,
   confirmLabel,
@@ -22,29 +32,49 @@ function ConfirmationDialogController({
 }: {
   children: (control: {
     isOpen: boolean;
-    openDialog: () => void;
+    openDialog: ConfirmationDialogValueCallback<TValue, void>;
   }) => React.ReactNode;
   confirmationText?: string;
   confirmLabel: string;
   disabled?: boolean;
   error?: string;
   loading?: boolean;
-  onConfirm: () => void | Promise<void>;
-  text: string;
-  title: string;
+  onConfirm: ConfirmationDialogValueCallback<TValue, void | Promise<void>>;
+  text: ConfirmationDialogContent<TValue>;
+  title: ConfirmationDialogContent<TValue>;
   variant: "default" | "destructive";
 }) {
   const [confirmationInput, setConfirmationInput] = React.useState("");
+
+  const [selectedValue, setSelectedValue] = React.useState<TValue>();
+
   const confirmationInputId = React.useId();
   const requiresConfirmationInput = Boolean(confirmationText);
+
+  let resolvedTitle = "";
+  if (typeof title === "string") {
+    resolvedTitle = title;
+  } else if (selectedValue !== undefined) {
+    resolvedTitle = (title as (value: TValue) => string)(selectedValue);
+  }
+
+  let resolvedText = "";
+  if (typeof text === "string") {
+    resolvedText = text;
+  } else if (selectedValue !== undefined) {
+    resolvedText = (text as (value: TValue) => string)(selectedValue);
+  }
 
   return (
     <DialogController
       onBeforeClose={() => !loading}
-      onDismiss={() => setConfirmationInput("")}
+      onDismiss={() => {
+        setConfirmationInput("");
+        setSelectedValue(undefined);
+      }}
       renderDialog={({ closeDialog }) => (
         <Dialog
-          title={title}
+          title={resolvedTitle}
           actions={[
             {
               disabled:
@@ -55,7 +85,11 @@ function ConfirmationDialogController({
               loading,
               onClick: async () => {
                 try {
-                  await onConfirm();
+                  await (
+                    onConfirm as (
+                      value: TValue | undefined,
+                    ) => void | Promise<void>
+                  )(selectedValue);
                 } catch {
                   return;
                 }
@@ -67,7 +101,7 @@ function ConfirmationDialogController({
           ]}
         >
           <Dialog.Body>
-            <p className="text-muted-foreground text-sm">{text}</p>
+            <p className="text-muted-foreground text-sm">{resolvedText}</p>
             {error ? (
               <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                 <p className="font-bold">Error:</p>
@@ -97,7 +131,15 @@ function ConfirmationDialogController({
         </Dialog>
       )}
     >
-      {children}
+      {(control) =>
+        children({
+          isOpen: control.isOpen,
+          openDialog: ((value?: TValue) => {
+            setSelectedValue(() => value);
+            control.openDialog();
+          }) as ConfirmationDialogValueCallback<TValue, void>,
+        })
+      }
     </DialogController>
   );
 }
