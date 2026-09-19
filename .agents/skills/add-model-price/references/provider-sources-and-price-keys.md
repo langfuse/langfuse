@@ -685,6 +685,27 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   Daybreak/Rosalind restricted family only if OpenAI publishes public,
   unauthenticated documentation confirming a model ID and price on its own
   dedicated page.
+- **September 19 2026 audit: full re-fetch found no price or catalog drift;
+  Rosalind now has a documented billing start date; a new Gemini Live wave
+  confirmed out of scope** — Re-fetched the Anthropic pricing page, the
+  Anthropic models-overview table, the OpenAI aggregate Standard/Fast-mode/Flex
+  pricing tables, the full OpenAI model catalog, and both Gemini pricing pages
+  plus the Gemini models catalog. Every price already in the file — including
+  every `gpt-6-astra`, `gpt-5.6-sol/terra/luna`, `gemini-3.6/3.7/3.8-flash`, and
+  `claude-fable-5-1`/`claude-mythos-5-1` tier — matched verbatim; no updates
+  were needed. Two refinements: (1) the OpenAI aggregate pricing table's "Life
+  Sciences" section now states `gpt-rosalind-research` billing "begins October
+  5, 2026" (previously only a price with no start date) — the model is still
+  "approved organizations only," its dedicated model page still 404s, and the
+  price remains uncorroborated by a dedicated page, so it is still not added
+  under the existing restricted-access skip rule; re-check whether a dedicated
+  page appears on or after that date. (2) the Gemini models catalog now lists
+  `gemini-3.8-live` and `gemini-3.8-live-extended-thinking` alongside the
+  already-noted `gemini-3.1-flash-live-preview` — both are Live API
+  (voice/audio-first, real-time dialogue) models, the same modality-specific
+  class as the existing Gemini Live/audio wave exclusion, so neither was added.
+  Re-investigate only if one of them gains a standard text-generation mode with
+  its own per-token text pricing.
 
 Capture:
 
