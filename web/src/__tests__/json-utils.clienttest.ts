@@ -179,14 +179,19 @@ describe("deepParseJson (recursive)", () => {
   });
 
   describe("size limiting", () => {
-    it("should skip parsing objects exceeding maxSize", () => {
-      const largeObject = {
-        data: "x".repeat(600_000),
+    it("should parse eligible nested JSON while leaving oversized strings raw", () => {
+      const parseable = '{"key":"value"}';
+      const oversized = JSON.stringify({ data: "x".repeat(50) });
+      const input = {
+        oversized,
+        parseable,
       };
 
-      const result = deepParseJson(largeObject, { maxSize: 500_000 });
-      // Should return original object unchanged
-      expect(result).toBe(largeObject);
+      const result = deepParseJson(input, { maxSize: parseable.length });
+      expect(result).toEqual({
+        oversized,
+        parseable: { key: "value" },
+      });
     });
 
     it("should parse objects within size limit", () => {
@@ -403,14 +408,21 @@ describe("deepParseJsonIterative", () => {
   });
 
   describe("size limiting", () => {
-    it("should skip parsing objects exceeding maxSize", () => {
-      const largeObject = {
-        data: "x".repeat(600_000),
+    it("should parse eligible nested JSON while leaving oversized strings raw", () => {
+      const parseable = '{"key":"value"}';
+      const oversized = JSON.stringify({ data: "x".repeat(50) });
+      const input = {
+        oversized,
+        parseable,
       };
 
-      const result = deepParseJsonIterative(largeObject, { maxSize: 500_000 });
-      // Should return original object unchanged
-      expect(result).toBe(largeObject);
+      const result = deepParseJsonIterative(input, {
+        maxSize: parseable.length,
+      });
+      expect(result).toEqual({
+        oversized,
+        parseable: { key: "value" },
+      });
     });
 
     it("should parse objects within size limit", () => {

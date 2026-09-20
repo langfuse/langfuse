@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseJsonPrioritised } from "./json";
+import {
+  deepParseJson,
+  deepParseJsonIterative,
+  parseJsonPrioritised,
+} from "./json";
 
 // Focused on the precision path (UNSAFE_NUMBER_PATTERN hit -> source-access
 // reviver). Complementary coverage elsewhere: basic parseJsonPrioritised
@@ -50,6 +54,56 @@ describe("parseJsonPrioritised precision path", () => {
     // parsing makes both paths consistently last-wins.
     expect(parseJsonPrioritised('{"a": 1, "a": 9223372036854775807}')).toEqual({
       a: "9223372036854775807",
+    });
+  });
+});
+
+const deepParseImplementations: Array<
+  [string, typeof deepParseJson]
+> = [
+  ["deepParseJson", deepParseJson],
+  ["deepParseJsonIterative", deepParseJsonIterative],
+];
+
+describe.each(deepParseImplementations)("%s maxSize budget", (_name, parse) => {
+  it("parses small nested JSON even when a sibling string is over budget", () => {
+    const parseable = '{"ok":true}';
+    const oversized = JSON.stringify({ value: "x".repeat(50) });
+    const input = {
+      oversized,
+      parseable,
+    };
+
+    expect(parse(input, { maxSize: parseable.length })).toEqual({
+      oversized,
+      parseable: { ok: true },
+    });
+  });
+
+  it("stops attempting string parses after the budget is spent", () => {
+    const first = '{"first":true}';
+    const second = '{"second":true}';
+    const input = {
+      first,
+      second,
+    };
+
+    expect(parse(input, { maxSize: first.length })).toEqual({
+      first: { first: true },
+      second,
+    });
+  });
+
+  it("does not spend budget on discarded dangerous keys", () => {
+    const discarded = '{"discarded":true}';
+    const safe = '{"safe":true}';
+    const input = {
+      constructor: discarded,
+      safe,
+    };
+
+    expect(parse(input, { maxSize: safe.length })).toEqual({
+      safe: { safe: true },
     });
   });
 });

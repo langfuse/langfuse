@@ -46,10 +46,14 @@ function tryParsePythonDict(str: string): unknown {
  * Options for deepParseJson
  */
 export interface DeepParseJsonOptions {
-  /** Maximum size in bytes before skipping parsing (default: 500KB) */
+  /** Maximum total string characters to attempt parsing (default: 500KB) */
   maxSize?: number;
   /** Maximum recursion depth (default: 3) */
   maxDepth?: number;
+}
+
+interface ParseBudget {
+  remaining: number;
 }
 
 /**
@@ -65,19 +69,24 @@ export function deepParseJson(
   options: DeepParseJsonOptions = {},
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
-
-  // Size check: skip parsing for large objects to prevent UI freeze
-  if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
-  }
+  const parseBudget: ParseBudget = { remaining: maxSize };
 
   // Perform depth-limited parsing
-  const result = deepParseJsonRecursive(json, 0, maxDepth);
+  const result = deepParseJsonRecursive(json, 0, maxDepth, parseBudget);
 
   return result;
+}
+
+function reserveStringParseBudget(
+  value: string,
+  budget: ParseBudget,
+): boolean {
+  if (value.length > budget.remaining) {
+    return false;
+  }
+
+  budget.remaining -= value.length;
+  return true;
 }
 
 /**
@@ -87,6 +96,7 @@ function deepParseJsonRecursive(
   json: unknown,
   currentDepth: number,
   maxDepth: number,
+  parseBudget: ParseBudget,
 ): unknown {
   // Stop recursing if we've hit max depth
   if (currentDepth >= maxDepth) {
@@ -98,13 +108,25 @@ function deepParseJsonRecursive(
     // numeric strings and, critically, big integers that would lose precision
     // if coerced to a JS number (issue #6628).
     if (isJsonNumberLiteral(json)) return json;
+    if (!reserveStringParseBudget(json, parseBudget)) return json;
+
     try {
       const parsed = parsePreservingPrecision(json);
-      return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
+      return deepParseJsonRecursive(
+        parsed,
+        currentDepth + 1,
+        maxDepth,
+        parseBudget,
+      ); // Recursively parse parsed value
     } catch {
       const pythonParsed = tryParsePythonDict(json);
       if (pythonParsed !== json) {
-        return deepParseJsonRecursive(pythonParsed, currentDepth + 1, maxDepth);
+        return deepParseJsonRecursive(
+          pythonParsed,
+          currentDepth + 1,
+          maxDepth,
+          parseBudget,
+        );
       }
       return json; // If it's not a valid JSON string, just return the original string
     }
@@ -112,7 +134,12 @@ function deepParseJsonRecursive(
     // Handle arrays
     if (Array.isArray(json)) {
       for (let i = 0; i < json.length; i++) {
-        json[i] = deepParseJsonRecursive(json[i], currentDepth + 1, maxDepth);
+        json[i] = deepParseJsonRecursive(
+          json[i],
+          currentDepth + 1,
+          maxDepth,
+          parseBudget,
+        );
       }
     } else {
       // Handle nested objects
@@ -127,6 +154,7 @@ function deepParseJsonRecursive(
               (json as Record<string, unknown>)[key],
               currentDepth + 1,
               maxDepth,
+              parseBudget,
             );
           }
         }
@@ -172,14 +200,7 @@ export function deepParseJsonIterative(
   options: DeepParseJsonOptions = {},
 ): unknown {
   const { maxSize = 500_000, maxDepth = 3 } = options;
-
-  // Size check: skip parsing for large objects to prevent UI freeze
-  if (typeof json === "object" && json !== null) {
-    const size = JSON.stringify(json).length;
-    if (size > maxSize) {
-      return json;
-    }
-  }
+  const parseBudget: ParseBudget = { remaining: maxSize };
 
   // Root entry
   const rootEntry: ParseStackEntry = {
@@ -222,6 +243,20 @@ export function deepParseJsonIterative(
         continue;
       }
 
+      if (entry.parsedEntry) {
+        if (processed.has(entry.parsedEntry)) {
+          entry.output = entry.parsedEntry.output;
+          processed.add(entry);
+        }
+        continue;
+      }
+
+      if (!reserveStringParseBudget(input, parseBudget)) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+
       let parsed: unknown;
       let wasParsed = false;
 
@@ -247,33 +282,19 @@ export function deepParseJsonIterative(
           continue;
         }
 
-        // Check if we've already created the parsed entry
-        if (!(entry as any).parsedEntry) {
-          // Create a new entry for the parsed value at depth + 1
-          // This matches the recursive version's behavior: parse string, recurse at depth + 1
-          const parsedEntry: ParseStackEntry = {
-            input: parsed,
-            parent: entry,
-            key: null, // Not a child of a collection
-            depth: depth + 1,
-            childrenToProcess: 0,
-          };
+        // Create a new entry for the parsed value at depth + 1. This matches
+        // the recursive version's behavior: parse string, recurse at depth + 1.
+        const parsedEntry: ParseStackEntry = {
+          input: parsed,
+          parent: entry,
+          key: null, // Not a child of a collection
+          depth: depth + 1,
+          childrenToProcess: 0,
+        };
 
-          (entry as any).parsedEntry = parsedEntry;
-          stack.push(parsedEntry);
-          continue;
-        } else {
-          // Parsed entry has been processed, use its output
-          const parsedEntry = (entry as any).parsedEntry as ParseStackEntry;
-          if (processed.has(parsedEntry)) {
-            entry.output = parsedEntry.output;
-            processed.add(entry);
-            continue;
-          } else {
-            // Not ready yet
-            continue;
-          }
-        }
+        entry.parsedEntry = parsedEntry;
+        stack.push(parsedEntry);
+        continue;
       } else {
         // Not valid JSON (and the Python-dict fallback also failed), keep as-is.
         // Bare numeric literals never reach here — isJsonNumberLiteral above
@@ -299,10 +320,9 @@ export function deepParseJsonIterative(
 
       // Use a property to store children results
       if (!entry.childrenResults) {
-        (entry as any).childrenResults = [];
+        entry.childrenResults = [];
       }
-      const childrenResults = (entry as any)
-        .childrenResults as ParseStackEntry[];
+      const childrenResults = entry.childrenResults;
 
       // If we haven't added children yet, add them now
       if (childrenResults.length === 0) {
@@ -324,7 +344,10 @@ export function deepParseJsonIterative(
           const obj = input as Record<string, unknown>;
           for (let i = keys!.length - 1; i >= 0; i--) {
             const key = keys![i];
-            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            if (
+              Object.prototype.hasOwnProperty.call(obj, key) &&
+              !DANGEROUS_KEYS.has(key)
+            ) {
               const childEntry = {
                 input: obj[key],
                 parent: entry,
