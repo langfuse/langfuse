@@ -42,6 +42,13 @@ function finiteNumber(raw: string | null): number | undefined {
  * uniformly `0.0` on a streamed response while the total is absent, so a reader
  * that trusts them records an exact zero for a request that was never priced.
  * The total is the only one of these headers that is either correct or missing.
+ *
+ * Streamed calls therefore report no cost here, and cannot until Langfuse asks
+ * for stream usage: the header is flushed before the first chunk, when the cost
+ * is not yet known, and LiteLLM puts the figure on a final usage chunk that is
+ * only emitted when the request carried `stream_options.include_usage`. The
+ * openai-compatible provider sends that only when built with `includeUsage`,
+ * which nothing sets today, so a streamed response carries no usage at all.
  */
 const litellmAdapter: GatewayCostAdapter = {
   id: "litellm",
