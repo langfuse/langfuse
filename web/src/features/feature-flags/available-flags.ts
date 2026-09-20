@@ -52,7 +52,6 @@ export const isFeaturePreviewAvailable = (
 export const availableFlags = [
   ...featurePreviewFlags,
   ...restrictedFlags,
-  "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
