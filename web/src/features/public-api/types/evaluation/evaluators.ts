@@ -203,6 +203,7 @@ export const ListEvaluatorsQuery = z
   .object({
     limit: publicApiPaginationLimitZod,
     cursor: EncodedResourceCursor.optional(),
+    name: z.string().optional(),
   })
   .strict();
 

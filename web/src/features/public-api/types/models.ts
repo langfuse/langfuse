@@ -131,6 +131,7 @@ export function prismaToApiModelDefinition({
 // GET /models
 export const GetModelsV1Query = z.object({
   ...publicApiPaginationZod,
+  name: z.string().optional(),
 });
 export const GetModelsV1Response = z
   .object({

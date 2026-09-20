@@ -158,9 +158,13 @@ export async function listRulesCursor(params: {
   prisma: PrismaClient;
   input: Omit<ListRulesInput, "page"> & {
     cursor?: { createdAt: Date; id: string };
+    name?: string;
   };
 }) {
-  const baseWhere = ruleWhere(params.input);
+  const baseWhere = {
+    ...ruleWhere(params.input),
+    ...(params.input.name === undefined ? {} : { name: params.input.name }),
+  };
   const where: Prisma.EvaluationRuleWhereInput = params.input.cursor
     ? {
         AND: [

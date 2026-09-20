@@ -150,6 +150,7 @@ export const PutScoreConfigResponse = APIScoreConfig;
 // GET /score-configs
 export const GetScoreConfigsQuery = z.object({
   ...publicApiPaginationZod,
+  name: z.string().optional(),
 });
 
 export const GetScoreConfigsResponse = z.object({

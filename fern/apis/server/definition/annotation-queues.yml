@@ -20,6 +20,9 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          name:
+            type: optional<string>
+            docs: Exact annotation queue name to match
       response: PaginatedAnnotationQueues
 
     createQueue:

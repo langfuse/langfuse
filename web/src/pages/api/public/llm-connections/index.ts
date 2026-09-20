@@ -27,7 +27,11 @@ export default withMiddlewares({
     responseSchema: GetLlmConnectionsV1Response,
     isAdminApiKeyAuthAllowed: true,
     fn: async ({ query, auth }) => {
-      const { limit, page } = query;
+      const { limit, page, name } = query;
+      const where = {
+        projectId: auth.scope.projectId,
+        ...(name === undefined ? {} : { provider: name }),
+      };
 
       // Explicitly select only safe fields to prevent secret leakage
       const llmConnections = await prisma.llmApiKeys.findMany({
@@ -45,9 +49,7 @@ export default withMiddlewares({
           updatedAt: true,
           // Explicitly exclude: secretKey, extraHeaders
         },
-        where: {
-          projectId: auth.scope.projectId,
-        },
+        where,
         orderBy: {
           createdAt: "desc",
         },
@@ -56,9 +58,7 @@ export default withMiddlewares({
       });
 
       const totalItems = await prisma.llmApiKeys.count({
-        where: {
-          projectId: auth.scope.projectId,
-        },
+        where,
       });
 
       // Transform and validate through strict schema

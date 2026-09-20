@@ -32,6 +32,7 @@ export const LlmConnectionResponse = z
 export const GetLlmConnectionsV1Query = z
   .object({
     ...publicApiPaginationZod,
+    name: z.string().optional(),
   })
   .strict();
 

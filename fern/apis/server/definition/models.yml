@@ -33,6 +33,9 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          name:
+            type: optional<string>
+            docs: Exact model name to match
       response: PaginatedModels
     get:
       method: GET

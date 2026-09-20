@@ -45,6 +45,7 @@ export type AnnotationQueue = z.infer<typeof AnnotationQueueSchema>;
 export const GetAnnotationQueuesQuery = z
   .object({
     ...publicApiPaginationZod,
+    name: z.string().optional(),
   })
   .strict();
 

@@ -45,6 +45,9 @@ service:
           cursor:
             type: optional<string>
             docs: Opaque cursor returned by the previous page.
+          name:
+            type: optional<string>
+            docs: Exact evaluator name to match.
       response: EvaluatorsPage
       errors:
         - errors.BadRequestError

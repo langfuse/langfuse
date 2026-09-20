@@ -35,6 +35,7 @@ export async function listEvaluatorsForPublicApi(params: {
   projectId: string;
   limit: number;
   cursor?: ResourceCursorType;
+  name?: string;
   auditScope: ApiAccessScope;
 }) {
   const result = await evaluatorService(params.auditScope).listCursor({
@@ -46,6 +47,7 @@ export async function listEvaluatorsForPublicApi(params: {
           id: params.cursor.lastId,
         }
       : undefined,
+    name: params.name,
   });
   return {
     data: result.evaluators.map(toPublicEvaluator),

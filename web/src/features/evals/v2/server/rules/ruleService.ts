@@ -78,6 +78,7 @@ export class RuleService {
   async listCursor(
     input: Omit<ListRulesInput, "page"> & {
       cursor?: { createdAt: Date; id: string };
+      name?: string;
     },
   ) {
     const { rules, nextCursor } = await repository.listRulesCursor({

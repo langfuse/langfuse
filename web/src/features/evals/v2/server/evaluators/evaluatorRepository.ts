@@ -332,8 +332,12 @@ export async function listEvaluatorsCursor(params: {
   limit: number;
   cursor?: { createdAt: Date; id: string };
   search?: string;
+  name?: string;
 }) {
-  const baseWhere = await evaluatorWhere(params);
+  const baseWhere = {
+    ...(await evaluatorWhere(params)),
+    ...(params.name === undefined ? {} : { name: params.name }),
+  };
   const where: Prisma.EvaluatorWhereInput = params.cursor
     ? {
         AND: [

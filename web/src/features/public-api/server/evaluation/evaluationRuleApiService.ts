@@ -37,6 +37,7 @@ export async function listEvaluationRulesForPublicApi(params: {
   projectId: string;
   limit: number;
   cursor?: ResourceCursorType;
+  name?: string;
   auditScope: ApiAccessScope;
 }) {
   const result = await ruleService(params.auditScope).listCursor({
@@ -48,6 +49,7 @@ export async function listEvaluationRulesForPublicApi(params: {
           id: params.cursor.lastId,
         }
       : undefined,
+    name: params.name,
   });
   return {
     data: result.rules.map(toPublicRule),

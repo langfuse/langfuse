@@ -164,6 +164,7 @@ export class EvaluatorService {
     limit: number;
     cursor?: { createdAt: Date; id: string };
     search?: string;
+    name?: string;
   }) {
     const page = await repository.listEvaluatorsCursor({
       prisma: this.prisma,

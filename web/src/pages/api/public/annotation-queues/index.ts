@@ -23,6 +23,7 @@ export default withMiddlewares({
         projectId: auth.scope.projectId,
         page: query.page,
         limit: query.limit,
+        name: query.name,
       }),
   }),
 

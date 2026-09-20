@@ -53,6 +53,9 @@ service:
           cursor:
             type: optional<string>
             docs: Opaque cursor returned by the previous page.
+          name:
+            type: optional<string>
+            docs: Exact evaluation rule name to match.
       response: EvaluationRulesPage
       errors:
         - errors.BadRequestError

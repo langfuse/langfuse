@@ -85,6 +85,7 @@ export const ListEvaluationRulesQuery = z
   .object({
     limit: publicApiPaginationLimitZod,
     cursor: EncodedResourceCursor.optional(),
+    name: z.string().optional(),
   })
   .strict();
 

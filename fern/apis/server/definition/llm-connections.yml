@@ -19,6 +19,9 @@ service:
           limit:
             type: optional<integer>
             docs: limit of items per page
+          name:
+            type: optional<string>
+            docs: Exact provider name to match
       response: PaginatedLlmConnections
     upsert:
       method: PUT

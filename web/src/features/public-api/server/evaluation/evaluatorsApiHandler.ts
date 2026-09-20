@@ -24,6 +24,7 @@ export const evaluatorsApiHandler = withStablePublicApiMiddlewares({
         projectId: auth.scope.projectId,
         limit: query.limit,
         cursor: query.cursor,
+        name: query.name,
         auditScope: auth.scope,
       }),
   }),

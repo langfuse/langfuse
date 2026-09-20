@@ -60,6 +60,13 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: name
+          in: query
+          description: Exact annotation queue name to match
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -1727,6 +1734,13 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: name
+          in: query
+          description: Exact evaluation rule name to match.
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -2085,6 +2099,13 @@ paths:
         - name: cursor
           in: query
           description: Opaque cursor returned by the previous page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Exact evaluator name to match.
           required: false
           schema:
             type: string
@@ -3473,6 +3494,13 @@ paths:
           schema:
             type: integer
             nullable: true
+        - name: name
+          in: query
+          description: Exact provider name to match
+          required: false
+          schema:
+            type: string
+            nullable: true
       responses:
         '200':
           description: ''
@@ -4148,6 +4176,13 @@ paths:
           required: false
           schema:
             type: integer
+            nullable: true
+        - name: name
+          in: query
+          description: Exact model name to match
+          required: false
+          schema:
+            type: string
             nullable: true
       responses:
         '200':
@@ -6386,6 +6421,13 @@ paths:
           required: false
           schema:
             type: integer
+            nullable: true
+        - name: name
+          in: query
+          description: Exact score config name to match
+          required: false
+          schema:
+            type: string
             nullable: true
       responses:
         '200':
