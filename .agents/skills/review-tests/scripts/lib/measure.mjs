@@ -18,6 +18,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { packageRootOf } from "./candidates.mjs";
 import { maskCode, scanTests } from "./scan-tests.mjs";
 
 export const markerFor = (symbol) => `review-tests-stub:${symbol}`;
@@ -320,6 +321,27 @@ function blockTableFor(tests, repoRoot) {
   return table;
 }
 
+/**
+ * The command that runs one test file, derived from its path so a caller need
+ * not supply one: web files go through the web project (client tests through
+ * its `test-client` script), worker and shared through theirs.
+ *
+ * @param {string} file repo-relative test file
+ * @returns {string}
+ */
+export function runCommandFor(file) {
+  const root = packageRootOf(file);
+  if (root === "web") {
+    const script = /\.clienttest\.tsx?$/.test(file) ? "test-client" : "test";
+    return `pnpm --filter web run ${script} ${file}`;
+  }
+  if (root === "worker") return `pnpm --filter worker run test ${file}`;
+  if (root === "packages/shared") {
+    return `pnpm --filter @langfuse/shared run test ${file}`;
+  }
+  return `pnpm --filter ${root.split("/").pop()} run test ${file}`;
+}
+
 // Runs one test file with the JSON reporter and returns the parsed report.
 // Vitest exits non-zero when tests fail — expected, since the stub is meant to
 // fail them — so the exit code is ignored and the written report is the signal;
@@ -352,7 +374,8 @@ function defaultRunFile(runCommand, repoRoot) {
  *
  * @param {object} args
  * @param {string} args.symbol `<module file>#<export>`
- * @param {Array<{file: string, runCommand: string}>} args.tests referencing tests
+ * @param {Array<{file: string, runCommand?: string}>} args.tests referencing
+ *   tests; each file's runner is derived from its path unless `runCommand` overrides it
  * @param {string} [args.repoRoot]
  * @param {(runCommand: string, repoRoot: string) => object} [args.runFile] injectable runner
  * @returns {Promise<object>} the measurement contract
@@ -387,7 +410,7 @@ export async function measure({
     for (const { file, runCommand } of tests) {
       let report;
       try {
-        report = runFile(runCommand, repoRoot);
+        report = runFile(runCommand ?? runCommandFor(file), repoRoot);
       } catch (error) {
         return {
           ok: false,

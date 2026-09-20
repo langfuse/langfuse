@@ -1,11 +1,13 @@
-// Picks the tests most likely to already cover a changed test.
+// Resolves a test's imports to production modules, extracts the production
+// *functions* the test body calls, and indexes those symbols by how many test
+// files call them.
 //
-// The unit of comparison is the production *function* a test calls, not the
-// file it imports. Every worker test imports `@langfuse/shared/src/server`, so
-// file overlap says nothing; two tests that both call
-// `getGenerationsForAnalyticsIntegrations(` very likely fail together. Symbols
-// are weighted by how many test files use them, so fixture helpers every test
-// calls — `createOrgProjectAndApiKey` — count for almost nothing.
+// The unit is the production function a test calls, not the file it imports.
+// Every worker test imports `@langfuse/shared/src/server`, so file overlap says
+// nothing; two tests that both call `getGenerationsForAnalyticsIntegrations(`
+// very likely fail together. A symbol's breadth — how many test files call it —
+// tells a helper every test calls (`createOrgProjectAndApiKey`) apart from the
+// one function a test actually targets.
 
 import { maskCode } from "./scan-tests.mjs";
 
@@ -149,152 +151,3 @@ export function symbolWeight(index, sym) {
   const breadth = index.get(sym)?.size ?? 1;
   return 1 / Math.log2(breadth + 1);
 }
-
-/**
- * Ranks tests in other files by weighted shared symbols with `target`,
- * descending.
- * @returns {Array<{test, overlap: number, shared: string[]}>}
- */
-export function rankTests({ target, byTestId, index }) {
-  const mine = new Set(byTestId.get(target.id)?.symbols ?? []);
-  if (!mine.size) return [];
-  const scored = [];
-  for (const [id, entry] of byTestId) {
-    if (entry.file === target.file) continue;
-    const shared = entry.symbols.filter((s) => mine.has(s));
-    if (!shared.length) continue;
-    const overlap = shared.reduce((sum, s) => sum + symbolWeight(index, s), 0);
-    scored.push({
-      test: entry.test,
-      overlap: Number(overlap.toFixed(4)),
-      shared,
-    });
-  }
-  return scored.sort(
-    (a, b) =>
-      b.overlap - a.overlap ||
-      a.test.file.localeCompare(b.test.file) ||
-      a.test.line - b.test.line,
-  );
-}
-
-const STOP_WORDS = new Set([
-  "a",
-  "an",
-  "and",
-  "the",
-  "is",
-  "are",
-  "be",
-  "to",
-  "of",
-  "for",
-  "with",
-  "when",
-  "then",
-  "it",
-  "its",
-  "that",
-  "this",
-  "should",
-  "does",
-  "do",
-  "not",
-  "no",
-  "returns",
-  "return",
-  "given",
-]);
-
-/** Tokens shared between two test names or assertion lists, as a 0..1 ratio. */
-export function similarity(a, b) {
-  const tokens = (text) =>
-    new Set(
-      text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((t) => t.length > 2 && !STOP_WORDS.has(t)),
-    );
-  const left = tokens(a);
-  const right = tokens(b);
-  if (!left.size || !right.size) return 0;
-  let shared = 0;
-  for (const t of left) if (right.has(t)) shared += 1;
-  return shared / Math.min(left.size, right.size);
-}
-
-const fingerprint = (test) => `${test.name} ${test.assertions.join(" ")}`;
-
-/**
- * Chooses the candidate tests shown to a judge. Siblings in the same file get
- * up to half the budget — two tests that can only fail together usually sit
- * next to each other — ordered by shared symbols, then by name and assertion
- * similarity. Ranked tests from other files fill the rest, at most two per
- * file so one large suite cannot crowd out every other source.
- *
- * @returns {Array<{id, file, name, line, source, overlap, basis, sharedSymbols}>}
- */
-export function selectCandidates({
-  target,
-  testsByFile,
-  byTestId,
-  index,
-  limit = 5,
-}) {
-  const out = [];
-  const siblingBudget = Math.ceil(limit / 2);
-  const mine = new Set(byTestId.get(target.id)?.symbols ?? []);
-
-  // A rarely-shared production call is strong evidence and outweighs any name
-  // match; a helper every test calls weighs so little that a near-identical
-  // name and assertion list wins instead. Symbol weight is doubled so a
-  // function shared by only two files (weight 0.63) beats a perfect word match.
-  const siblings = (testsByFile.get(target.file) ?? [])
-    .filter((t) => t.id !== target.id)
-    .map((t) => {
-      const shared = (byTestId.get(t.id)?.symbols ?? []).filter((s) =>
-        mine.has(s),
-      );
-      const symbolScore = shared.reduce(
-        (sum, s) => sum + symbolWeight(index, s),
-        0,
-      );
-      const words = similarity(fingerprint(target), fingerprint(t));
-      return { test: t, shared, score: 2 * symbolScore + words };
-    })
-    .sort((a, b) => b.score - a.score || a.test.line - b.test.line)
-    .slice(0, siblingBudget);
-
-  for (const { test, shared, score } of siblings) {
-    out.push({
-      ...pick(test),
-      overlap: Number(score.toFixed(4)),
-      basis: "sibling",
-      sharedSymbols: shared,
-    });
-  }
-
-  const perFile = new Map();
-  for (const entry of rankTests({ target, byTestId, index })) {
-    if (out.length >= limit) break;
-    const used = perFile.get(entry.test.file) ?? 0;
-    if (used >= 2) continue;
-    perFile.set(entry.test.file, used + 1);
-    out.push({
-      ...pick(entry.test),
-      overlap: entry.overlap,
-      basis: "symbols",
-      sharedSymbols: entry.shared,
-    });
-  }
-
-  return out.slice(0, limit);
-}
-
-const pick = (t) => ({
-  id: t.id,
-  file: t.file,
-  name: t.name,
-  line: t.line,
-  source: t.source,
-});

@@ -16,6 +16,7 @@ import {
   markerFor,
   measure,
   parseReport,
+  runCommandFor,
 } from "./measure.mjs";
 
 const SYMBOL = "packages/shared/src/server/index.ts#getGenerations";
@@ -227,6 +228,25 @@ test("matches by ancestor titles when fullName is absent, sorted by file then li
   ]);
 });
 
+test("runCommandFor derives the runner from the file path", () => {
+  assert.equal(
+    runCommandFor("web/src/a.servertest.ts"),
+    "pnpm --filter web run test web/src/a.servertest.ts",
+  );
+  assert.equal(
+    runCommandFor("web/src/a.clienttest.tsx"),
+    "pnpm --filter web run test-client web/src/a.clienttest.tsx",
+  );
+  assert.equal(
+    runCommandFor("worker/src/a.test.ts"),
+    "pnpm --filter worker run test worker/src/a.test.ts",
+  );
+  assert.equal(
+    runCommandFor("packages/shared/src/a.test.ts"),
+    "pnpm --filter @langfuse/shared run test packages/shared/src/a.test.ts",
+  );
+});
+
 // A throwaway repo: one production module and one referencing test file.
 const scaffold = (files) => {
   const root = mkdtempSync(join(tmpdir(), "review-tests-repo-"));
@@ -251,24 +271,28 @@ test("measure stubs, runs, reports failures, and reverts the source", async () =
       "});\n",
   });
   const marker = markerFor(`${moduleFile}#getGenerations`);
-  const runFile = () => ({
-    testResults: [
-      {
-        name: join(root, testFile),
-        assertionResults: [
-          {
-            status: "failed",
-            fullName: "getGenerations returns rows",
-            failureMessages: [`Error: ${marker}`],
-          },
-        ],
-      },
-    ],
-  });
+  const commands = [];
+  const runFile = (runCommand) => {
+    commands.push(runCommand);
+    return {
+      testResults: [
+        {
+          name: join(root, testFile),
+          assertionResults: [
+            {
+              status: "failed",
+              fullName: "getGenerations returns rows",
+              failureMessages: [`Error: ${marker}`],
+            },
+          ],
+        },
+      ],
+    };
+  };
   try {
     const result = await measure({
       symbol: `${moduleFile}#getGenerations`,
-      tests: [{ file: testFile, runCommand: "pnpm test x" }],
+      tests: [{ file: testFile }],
       repoRoot: root,
       runFile,
     });
@@ -277,7 +301,40 @@ test("measure stubs, runs, reports failures, and reverts the source", async () =
       code: { symbol: `${moduleFile}#getGenerations`, line: 1 },
       tests: [{ marker: true, file: testFile, line: 2 }],
     });
+    // The runner ran the command derived from the file's path, not one supplied.
+    assert.deepEqual(commands, [
+      "pnpm --filter web run test web/src/x.servertest.ts",
+    ]);
     assert.equal(readFileSync(join(root, moduleFile), "utf8"), source);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("measure lets a supplied runCommand override the derived one", async () => {
+  const moduleFile = "packages/shared/src/server/index.ts";
+  const source =
+    "export function getGenerations(input) {\n  return real(input);\n}\n";
+  const testFile = "web/src/x.servertest.ts";
+  const root = scaffold({
+    [moduleFile]: source,
+    [testFile]: 'it("returns rows", () => { getGenerations(); });\n',
+  });
+  const commands = [];
+  const runFile = (runCommand) => {
+    commands.push(runCommand);
+    return {
+      testResults: [{ name: join(root, testFile), assertionResults: [] }],
+    };
+  };
+  try {
+    await measure({
+      symbol: `${moduleFile}#getGenerations`,
+      tests: [{ file: testFile, runCommand: "pnpm custom runner" }],
+      repoRoot: root,
+      runFile,
+    });
+    assert.deepEqual(commands, ["pnpm custom runner"]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -292,7 +349,7 @@ test("measure reports ok:false for a member symbol without running anything", as
   try {
     const result = await measure({
       symbol: `${moduleFile}#prisma.trace.findMany`,
-      tests: [{ file: "web/src/y.servertest.ts", runCommand: "pnpm test y" }],
+      tests: [{ file: "web/src/y.servertest.ts" }],
       repoRoot: root,
       runFile: () => {
         ran = true;
@@ -322,7 +379,7 @@ test("measure reports ok:false when a runner crashes, and still reverts", async 
   try {
     const result = await measure({
       symbol: `${moduleFile}#getGenerations`,
-      tests: [{ file: testFile, runCommand: "pnpm test x" }],
+      tests: [{ file: testFile }],
       repoRoot: root,
       runFile: () => {
         throw new Error("connect ECONNREFUSED");
