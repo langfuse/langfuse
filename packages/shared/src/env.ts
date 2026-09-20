@@ -127,6 +127,18 @@ const EnvSchema = z.object({
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: z.coerce.number().int().default(9000),
   CLICKHOUSE_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  // Added new env schema for clickhouse client request timeout
+  CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
+  // Added new env schema for clickhouse server timeout
+  CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(5),
   LANGFUSE_JSON_BAD_UNICODE_ESCAPE: z
     .enum(["auto", "no_throw", "sanitize"])
     .optional(),

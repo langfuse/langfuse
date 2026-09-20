@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
       | undefined,
     CLICKHOUSE_KEEP_ALIVE_IDLE_SOCKET_TTL: 9000,
     CLICKHOUSE_MAX_OPEN_CONNECTIONS: 25,
+    CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS: 30_000,
+    CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS: 5,
     CLICKHOUSE_ASYNC_INSERT_MAX_DATA_SIZE: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MS: undefined,
     CLICKHOUSE_ASYNC_INSERT_BUSY_TIMEOUT_MIN_MS: undefined,
@@ -51,6 +53,8 @@ describe("ClickHouseClientManager compatibility settings", () => {
     mocks.close.mockClear();
     mocks.createClient.mockReset();
     mocks.createClient.mockReturnValue({ close: mocks.close });
+    mocks.env.CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+    mocks.env.CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
     mocks.env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION = "auto";
     mocks.env.CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN = "auto";
     setClickHouseCompatibilityVersionForTests(null);
@@ -101,6 +105,20 @@ describe("ClickHouseClientManager compatibility settings", () => {
     ).toMatchObject({
       timeout_before_checking_execution_speed: 0,
       max_execution_time: 35,
+    });
+  });
+
+  it("uses configured default timeout and server grace from env", () => {
+    mocks.env.CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 45_000;
+    mocks.env.CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 7;
+
+    clickhouseClient();
+
+    expect(
+      mocks.createClient.mock.calls[0][0].clickhouse_settings,
+    ).toMatchObject({
+      timeout_before_checking_execution_speed: 0,
+      max_execution_time: 52,
     });
   });
 

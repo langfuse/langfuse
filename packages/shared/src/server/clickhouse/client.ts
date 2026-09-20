@@ -29,9 +29,6 @@ type RequestTimeoutClickHouseSettings = ClickHouseSettings & {
   timeout_before_checking_execution_speed?: number;
 };
 
-const CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS = 5;
-
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
  * It creates and reuses clients based on their configuration to avoid creating
@@ -142,7 +139,7 @@ export class ClickHouseClientManager {
       timeout_before_checking_execution_speed: 0,
       max_execution_time:
         Math.ceil(requestTimeout / 1000) +
-        CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS,
+        env.CLICKHOUSE_SERVER_TIMEOUT_GRACE_SECONDS,
     };
   }
 
@@ -184,11 +181,13 @@ export class ClickHouseClientManager {
         propagation.inject(context.active(), settings.http_headers);
       }
 
+      const defaultRequestTimeout =
+        env.CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
       const clickHouseRequestTimeout =
-        opts.request_timeout ?? CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+        opts.request_timeout ?? defaultRequestTimeout;
       const shouldSendProgressInHttpHeaders =
         opts.request_timeout !== undefined &&
-        opts.request_timeout > CLICKHOUSE_CLIENT_DEFAULT_REQUEST_TIMEOUT_MS;
+        opts.request_timeout > defaultRequestTimeout;
 
       const client = createClient({
         ...opts,
