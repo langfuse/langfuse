@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * LogViewToolbar - Controls for log view search and actions.
  *
@@ -30,6 +31,7 @@ import {
 } from "@/src/components/ui/hover-card";
 import { cn } from "@/src/utils/tailwind";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 
 export interface LogViewToolbarProps {
   /** Current search query */
@@ -54,8 +56,7 @@ export interface LogViewToolbarProps {
   isCopyOrDownloadCacheOnly?: boolean;
   /** Callback to copy JSON */
   onCopyJson?: () => void;
-  /** Current view type (pretty/json/json-beta) */
-  currentView?: "pretty" | "json" | "json-beta";
+  currentView?: JsonViewPreference;
   /** Whether indent visualization is enabled */
   indentEnabled?: boolean;
   /** Whether indent toggle is disabled (tree too deep) */

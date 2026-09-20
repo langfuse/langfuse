@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
@@ -9,11 +10,13 @@ import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,
+  bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
   isFtsMetadataField,
   isFtsTextField,
   isFtsTextTarget,
+  isNgramSubstringTarget,
 } from "./fts";
 
 export type ClickhouseOperator =
@@ -36,6 +39,13 @@ const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
 
+// ClickHouse `lower()` (used by the events_full ngram indexes) lowercases ASCII
+// A-Z only, byte-wise, leaving multi-byte UTF-8 untouched. Mirror that exactly
+// so a JS-lowered IN set matches the index and never prunes a real match. Full
+// String.toLowerCase() would diverge on non-ASCII and is unsafe here.
+const clickhouseAsciiLower = (value: string): string =>
+  value.replace(/[A-Z]/g, (c) => c.toLowerCase());
+
 // Substring operators with an empty value skip the ngram prefilter and degrade
 // to a full-scan "does this key exist" over the whole time window — a confirmed
 // events_full timeout vector. Callers who want key existence must use the
@@ -43,6 +53,15 @@ const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
 const NON_EMPTY_VALUE_METADATA_OPERATORS = new Set<
   (typeof filterOperators)["stringObject"][number]
 >(["contains", "starts with", "ends with"]);
+
+// Event tables expose these computed map aliases while storing each map as a
+// pair of physical arrays. Null checks must target the corresponding names
+// array because the qualified map aliases are not physical columns.
+const EVENTS_METADATA_MAP_FIELDS = new Set([
+  "metadata",
+  "experiment_metadata",
+  "experiment_item_metadata",
+]);
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
@@ -75,6 +94,20 @@ export class StringFilter implements Filter {
 
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
 
+    // events_full carries an ngrambf_v1 skip index on lower(<col>) for these
+    // columns. Emit a lower() conjunct so the index can prune; the exact
+    // predicate below keeps the original (case-sensitive) semantics.
+    const ngramTarget = isNgramSubstringTarget(
+      this.clickhouseTable,
+      this.field,
+    );
+    const ngramParams: Record<string, string> = {};
+    const ngramLikeConjunct = (pattern: string): string => {
+      const p = `stringFilterNgram${clickhouseCompliantRandomCharacters()}`;
+      ngramParams[p] = pattern;
+      return `lower(${fieldWithPrefix}) LIKE lower({${p}: String}) AND `;
+    };
+
     // '' ≡ NULL: when filtering with empty value, match both '' and NULL.
     // ClickHouse functions like startsWith/endsWith/position return NULL (not true)
     // for NULL inputs, so we need an explicit OR IS NULL guard.
@@ -102,19 +135,30 @@ export class StringFilter implements Filter {
             `{${varName}: String}`,
             query,
           );
+        } else if (ngramTarget) {
+          query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
         }
         break;
       case "contains":
         query = `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        }
         break;
       case "does not contain":
         query = `position(${fieldWithPrefix}, {${varName}: String}) = 0`;
         break;
       case "starts with":
         query = `startsWith(${fieldWithPrefix}, {${varName}: String})`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        }
         break;
       case "ends with":
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}`)}${query})`;
+        }
         break;
       case "is not empty":
         query = `(${fieldWithPrefix} != '' AND ${fieldWithPrefix} IS NOT NULL)`;
@@ -145,7 +189,10 @@ export class StringFilter implements Filter {
 
     return {
       query,
-      params: this.operator === "is not empty" ? {} : { [varName]: this.value },
+      params:
+        this.operator === "is not empty"
+          ? {}
+          : { [varName]: this.value, ...ngramParams },
     };
   }
 }
@@ -259,9 +306,25 @@ export class StringOptionsFilter implements Filter {
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
     const hasEmpty = this.emptyEqualsNull && this.values.includes("");
 
+    // events_full ngram index prefilter for the positive (any of) set. `none of`
+    // (NOT IN) cannot be pruned by a presence bloom, so it is left untouched.
+    const ngramParams: Record<string, string[]> = {};
+    let ngramConjunct = "";
+    if (
+      this.operator === "any of" &&
+      isNgramSubstringTarget(this.clickhouseTable, this.field) &&
+      this.values.length > 0
+    ) {
+      const loweredVar = `stringOptionsFilterNgram${clickhouseCompliantRandomCharacters()}`;
+      ngramParams[loweredVar] = this.values.map(clickhouseAsciiLower);
+      ngramConjunct = `lower(${fieldWithPrefix}) IN ({${loweredVar}: Array(String)}) AND `;
+    }
+
     let query =
       this.operator === "any of"
-        ? `${fieldWithPrefix} IN ({${varName}: Array(String)})`
+        ? ngramConjunct
+          ? `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`
+          : `${fieldWithPrefix} IN ({${varName}: Array(String)})`
         : `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
 
     if (hasEmpty && this.operator === "any of") {
@@ -277,7 +340,7 @@ export class StringOptionsFilter implements Filter {
 
     return {
       query,
-      params: { [varName]: this.values },
+      params: { [varName]: this.values, ...ngramParams },
     };
   }
 }
@@ -582,6 +645,22 @@ export class NullFilter implements Filter {
 
   apply(): ClickhouseFilter {
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    // Event metadata aliases are computed maps. Their physical names arrays
+    // are non-nullable, so emptiness represents a null/absent map.
+    if (
+      isFtsEventsTable(this.clickhouseTable) &&
+      EVENTS_METADATA_MAP_FIELDS.has(bareFtsField(this.field))
+    ) {
+      const metadataNames = `${fieldWithPrefix}_names`;
+      return {
+        query:
+          this.operator === "is null"
+            ? `empty(${metadataNames})`
+            : `notEmpty(${metadataNames})`,
+        params: {},
+      };
+    }
 
     // '' ≡ NULL: treat empty string and NULL as the same value
     if (this.emptyEqualsNull) {

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import Link from "next/link";
 import { useFieldArray, useForm } from "react-hook-form";

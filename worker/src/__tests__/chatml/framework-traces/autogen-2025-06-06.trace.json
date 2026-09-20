@@ -5,10 +5,7 @@
     "name": "autogen-chat-trace",
     "timestamp": "2025-06-06T11:31:33.965Z",
     "environment": "default",
-    "tags": [
-      "autogen",
-      "dev"
-    ],
+    "tags": ["autogen", "dev"],
     "bookmarked": false,
     "release": null,
     "version": "1.0.0",
@@ -19,7 +16,7 @@
     "output": "\"Hello World!\"",
     "createdAt": "2025-06-06T11:31:35.000Z",
     "updatedAt": "2025-06-06T11:31:35.337Z",
-    "metadata": "{\"email\":\"user@langfuse.com\",\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+    "metadata": "{\"email\":\"user@langfuse.com\",\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc\"}}}",
     "scores": [],
     "corrections": [],
     "latency": 0.645,
@@ -170,7 +167,7 @@
       "toolDefinitions": {},
       "toolCalls": [],
       "toolCallNames": [],
-      "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+      "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc\"}}}",
       "internalModel": null
     },
     {
@@ -232,7 +229,7 @@
       "toolDefinitions": {},
       "toolCalls": [],
       "toolCallNames": [],
-      "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba\"}}}",
+      "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.33.1\",\"service.name\":\"unknown_service\"},\"scope\":{\"name\":\"langfuse-sdk\",\"version\":\"3.0.0\",\"attributes\":{\"public_key\":\"pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc\"}}}",
       "internalModel": "b9854a5c92dc496b997d99d20"
     }
   ]

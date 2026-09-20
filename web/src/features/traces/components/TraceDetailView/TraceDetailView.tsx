@@ -43,6 +43,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
+import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
@@ -104,11 +108,8 @@ export function TraceDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  // The Formatted view shares the pretty layout; JSON views differ.
-  const isPrettyLikeView = currentView === "pretty";
 
-  const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+  const selectedViewTab = jsonViewToggleTab(jsonViewPreference);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -120,10 +121,10 @@ export function TraceDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [
@@ -400,22 +401,12 @@ export function TraceDetailView({
                     : "overflow-auto pb-4"
                 }`}
               >
-                {/* Tags Section - scrolls with content except in JSON Beta (virtualized) */}
-                {trace.tags.length > 0 && (
-                  <>
-                    <div
-                      className={`px-2 pt-2 text-sm font-bold ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      Tags
-                    </div>
-                    <div
-                      className={`flex flex-wrap gap-x-1 gap-y-1 px-2 pb-2 ${!isPrettyLikeView ? "shrink-0" : ""}`}
-                    >
-                      <TagList selectedTags={trace.tags} isLoading={false} />
-                    </div>
-                  </>
+                {isAnnotationMode && trace.tags.length > 0 && (
+                  <div className="space-y-1 px-2 pt-1 pb-2">
+                    <div className="text-sm font-bold">Tags</div>
+                    <TagList selectedTags={trace.tags} isLoading={false} />
+                  </div>
                 )}
-
                 {/* I/O Preview (includes metadata in both views) */}
                 <IOPreview
                   key={trace.id + "-io"}

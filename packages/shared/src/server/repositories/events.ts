@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../db";
 import {
   TupleParam,

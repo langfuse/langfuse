@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";

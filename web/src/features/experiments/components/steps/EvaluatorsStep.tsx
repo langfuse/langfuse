@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React from "react";
 import { FormItem, FormLabel, FormMessage } from "@/src/components/ui/form";
 import {
