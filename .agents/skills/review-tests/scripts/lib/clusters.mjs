@@ -70,11 +70,12 @@ export function buildReferenceBlocks(byTestId) {
 
 /**
  * Turns seed symbols into hypothesis clusters. A symbol called from more than
- * `threshold` test files is not discriminating and is dropped. A symbol whose
- * definition cannot be located — a member or method symbol, an unlocatable
- * export, or a module that cannot be read — is emitted as `{ok: false}` and
- * never handed to `measure` as runnable. The rest carry the export's line and
- * the test blocks that reference it.
+ * `threshold` test files is not discriminating and is dropped, as is a symbol
+ * no in-scope test block references. The v1 pipeline never stubs, so a symbol
+ * whose definition cannot be located (a member or method symbol, an export
+ * re-exported through a barrel, a module that cannot be read) is still a valid
+ * cluster: the judges reason from the symbol name and the referencing tests.
+ * `code.line` is filled when the definition is locatable and omitted otherwise.
  *
  * @param {object} args
  * @param {string[]} args.seeds sorted seed symbols
@@ -97,24 +98,15 @@ export function buildClusters({
   for (const symbol of seeds) {
     const breadth = index.get(symbol)?.size ?? 0;
     if (breadth > threshold) continue;
+    const tests = blocks.get(symbol) ?? [];
+    if (!tests.length) continue;
     const modulePath = symbol.slice(0, symbol.indexOf("#"));
     const source = readSource(modulePath);
     const span = source == null ? null : locate(symbol, source);
-    if (!span) {
-      clusters.push({
-        ok: false,
-        error:
-          source == null
-            ? "could not read module source"
-            : "could not locate export definition to stub",
-        code: { symbol },
-      });
-      continue;
-    }
     clusters.push({
       ok: true,
-      code: { symbol, line: span.line },
-      tests: blocks.get(symbol) ?? [],
+      code: span ? { symbol, line: span.line } : { symbol },
+      tests,
     });
   }
   return clusters;

@@ -67,11 +67,12 @@ test("buildReferenceBlocks lists each symbol's referencing blocks, sorted", () =
   assert.deepEqual(blocks.get("m#bar"), [{ file: "x.test.ts", line: 3 }]);
 });
 
-test("buildClusters keeps discriminating, locatable symbols and pre-filters the rest", () => {
+test("buildClusters keeps every referenced, discriminating symbol; line is best-effort", () => {
   const broad = new Set(Array.from({ length: 13 }, (_, i) => `f${i}.test.ts`));
   const index = new Map([
     ["m/a.ts#foo", new Set(["x.test.ts", "y.test.ts"])],
     ["m/a.ts#bar", broad],
+    ["m/a.ts#lonely", new Set(["x.test.ts"])],
     ["m/db.ts#prisma.trace.findMany", new Set(["z.test.ts"])],
     ["m/missing.ts#gone", new Set(["w.test.ts"])],
   ]);
@@ -83,6 +84,8 @@ test("buildClusters keeps discriminating, locatable symbols and pre-filters the 
         { file: "y.test.ts", line: 9 },
       ],
     ],
+    ["m/db.ts#prisma.trace.findMany", [{ file: "z.test.ts", line: 2 }]],
+    ["m/missing.ts#gone", [{ file: "w.test.ts", line: 7 }]],
   ]);
   const sources = {
     "m/a.ts":
@@ -93,6 +96,7 @@ test("buildClusters keeps discriminating, locatable symbols and pre-filters the 
     seeds: [
       "m/a.ts#bar",
       "m/a.ts#foo",
+      "m/a.ts#lonely",
       "m/db.ts#prisma.trace.findMany",
       "m/missing.ts#gone",
     ],
@@ -103,7 +107,9 @@ test("buildClusters keeps discriminating, locatable symbols and pre-filters the 
     locate: locateExport,
   });
   assert.deepEqual(clusters, [
-    // `m/a.ts#bar` is dropped: breadth 13 exceeds the threshold.
+    // `m/a.ts#bar` dropped (breadth 13 > threshold); `m/a.ts#lonely` dropped
+    // (no referencing block). The member symbol and the unreadable module are
+    // kept: v1 never stubs, so an unlocatable definition still reviews.
     {
       ok: true,
       code: { symbol: "m/a.ts#foo", line: 1 },
@@ -113,14 +119,14 @@ test("buildClusters keeps discriminating, locatable symbols and pre-filters the 
       ],
     },
     {
-      ok: false,
-      error: "could not locate export definition to stub",
+      ok: true,
       code: { symbol: "m/db.ts#prisma.trace.findMany" },
+      tests: [{ file: "z.test.ts", line: 2 }],
     },
     {
-      ok: false,
-      error: "could not read module source",
+      ok: true,
       code: { symbol: "m/missing.ts#gone" },
+      tests: [{ file: "w.test.ts", line: 7 }],
     },
   ]);
 });
