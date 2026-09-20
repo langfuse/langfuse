@@ -64,6 +64,7 @@ import {
   usePaginationWindowPin,
 } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
@@ -287,12 +288,15 @@ function TracesTableInternal({
   // upper bound pinned, so that offset paging does not repeat or skip rows while
   // the window keeps taking in newly ingested ones.
   const dateRangeFilter: FilterState = toTimestampFilter(dateRange);
-  const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(
-      dateRange,
-      limitRows ? 0 : paginationState.pageIndex,
-      { enabled: isLiveTailTimeSort(orderByState, "timestamp") },
-    );
+  const {
+    range: rowsDateRange,
+    pinOnLeavingFirstPage,
+    resetPin,
+  } = usePaginationWindowPin(
+    dateRange,
+    limitRows ? 0 : paginationState.pageIndex,
+    { enabled: isLiveTailTimeSort(orderByState, "timestamp") },
+  );
   const rowsDateRangeFilter: FilterState = toTimestampFilter(rowsDateRange);
   const userIdFilter: FilterState = userId
     ? [
@@ -486,11 +490,18 @@ function TracesTableInternal({
     orderBy: null,
   };
 
-  // Deliberately NOT placeholder-backed, unlike the row query: its key only
-  // changes when the filter does, and keeping the previous value would pair rows
-  // for the new filter with a count for the old one. It reports as loading
-  // instead until it catches up.
+  const placeholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter:
+      externalFilterState ??
+      queryFilter.effectiveFilterState.concat(userIdFilter),
+    searchQuery,
+    searchType,
+    timeRange: externalDateRange ?? timeRange,
+  });
+
   const totalCountQuery = api.traces.countAll.useQuery(tracesAllCountFilter, {
+    ...placeholderOptions,
     enabled: environmentFilterOptions.data !== undefined,
   });
 
@@ -503,14 +514,11 @@ function TracesTableInternal({
     orderBy: orderByState,
   };
 
-  // A filter/page/sort change (or a re-anchored window) is a new query key:
-  // keep the rows that are on screen until the new ones land, so only a genuine
-  // cold load renders skeletons.
   const traces = api.traces.all.useQuery(tracesAllQueryFilter, {
+    ...placeholderOptions,
     enabled: environmentFilterOptions.data !== undefined,
     refetchOnMount: false,
     refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
   });
   const traceMetrics = api.traces.metrics.useQuery(
     {
@@ -519,10 +527,10 @@ function TracesTableInternal({
       traceIds: traces.data?.traces.map((t) => t.id) ?? [],
     },
     {
+      ...placeholderOptions,
       enabled: traces.data !== undefined,
       refetchOnMount: false,
       refetchOnWindowFocus: true,
-      placeholderData: (prev) => prev,
     },
   );
 
@@ -1287,6 +1295,12 @@ function TracesTableInternal({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
+    onViewSelected: () => {
+      resetPin();
+      setPaginationState({ ...paginationState, pageIndex: 0 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
   });
   viewControllersRef.current = viewControllers;
 

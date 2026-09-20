@@ -7,6 +7,9 @@ const mocks = vi.hoisted(() => ({
   bulkInputs: [] as any[],
   perColumnInputs: [] as any[],
   perColumnData: {} as Record<string, Record<string, unknown>>,
+  bulkData: {} as Record<string, unknown>,
+  bulkIsPlaceholderData: false,
+  bulkIsFetching: false,
 }));
 
 // Capture the tRPC inputs the hook builds, to assert the plan is wired through
@@ -18,8 +21,9 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: (input: any) => {
           mocks.bulkInputs.push(input);
           return {
-            data: {},
-            isFetching: false,
+            data: mocks.bulkData,
+            isFetching: mocks.bulkIsFetching,
+            isPlaceholderData: mocks.bulkIsPlaceholderData,
             isError: false,
             isPending: false,
           };
@@ -89,6 +93,31 @@ describe("useEventsFilterOptions filtered facet counts (LFE-14489)", () => {
     mocks.bulkInputs = [];
     mocks.perColumnInputs = [];
     mocks.perColumnData = {};
+    mocks.bulkData = {};
+    mocks.bulkIsPlaceholderData = false;
+    mocks.bulkIsFetching = false;
+  });
+
+  it("hides the previous filter's approximate count until the new count arrives", () => {
+    mocks.bulkData = { approxTotalCount: 120, approxTotalCountIsPartial: true };
+    const { result, rerender } = renderHook(() =>
+      useEventsFilterOptions({ projectId: "p", includeApproxCount: true }),
+    );
+    expect(result.current.approxTotalCount).toBe(120);
+
+    mocks.bulkIsPlaceholderData = true;
+    mocks.bulkIsFetching = true;
+    rerender();
+    expect(result.current.approxTotalCount).toBeNull();
+    expect(result.current.isApproxTotalCountLoading).toBe(true);
+    expect(result.current.approxTotalCountIsPartialScope).toBe(false);
+
+    mocks.bulkData = { approxTotalCount: 7, approxTotalCountIsPartial: false };
+    mocks.bulkIsPlaceholderData = false;
+    mocks.bulkIsFetching = false;
+    rerender();
+    expect(result.current.approxTotalCount).toBe(7);
+    expect(result.current.isApproxTotalCountLoading).toBe(false);
   });
 
   it("sends only the start-time scope and no refining filter when idle", () => {

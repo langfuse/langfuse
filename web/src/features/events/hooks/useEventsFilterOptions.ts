@@ -429,7 +429,9 @@ export function useEventsFilterOptions({
   // Approximate total observation count ("Total ≈ X"). Read from the eager
   // query only — lazy per-column responses omit the count and must not clobber
   // it. `null` until the first bulk response resolves.
-  const approxTotalCount = eagerQuery.data?.approxTotalCount ?? null;
+  const approxTotalCount = eagerQuery.isPlaceholderData
+    ? null
+    : (eagerQuery.data?.approxTotalCount ?? null);
   const isApproxTotalCountLoading =
     includeApproxCount && approxTotalCount === null && eagerQuery.isFetching;
   // The bulk scan honours the refining filter (incl. scores) but the server
@@ -437,7 +439,8 @@ export function useEventsFilterOptions({
   // active. Full-text search isn't part of this query — callers OR in their
   // own searchQuery signal.
   const approxTotalCountIsPartialScope =
-    eagerQuery.data?.approxTotalCountIsPartial ?? false;
+    !eagerQuery.isPlaceholderData &&
+    (eagerQuery.data?.approxTotalCountIsPartial ?? false);
 
   return {
     filterOptions: newFilterOptions,
