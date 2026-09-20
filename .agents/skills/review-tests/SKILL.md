@@ -106,6 +106,72 @@ there is no confirm, defend, or gate stage in this version — those belonged to
 an earlier design that ran tests to confirm coverage claims. Judge from source
 alone.
 
+## Running the review
+
+This skill is orchestrated by the agent that invokes it; the steps are:
+
+1. **Parse the invocation.** Path arguments mean sweep those; none means the
+   branch diff. Note `--post`, `--rules`, and `--model judge=... reviewer=...`.
+
+2. **Gather** (deterministic, no model):
+
+   ```sh
+   node .agents/skills/review-tests/scripts/gather.mjs [paths...] [--base <ref>]
+   ```
+
+   Parse the JSON. Empty `clusters` means no changed test calls a
+   discriminating symbol: say `no findings` and stop. Surface `baseKind` (if it
+   is not a merge-base, the scope may be wider than the branch's own work),
+   `unscannable`, and `truncated`.
+
+3. **Review** (the only token-costing stage). Call the Workflow tool with
+   `scriptPath: "<skillDir>/workflows/review.js"` and
+
+   ```json
+   {
+     "skillDir": "<this skill's base directory>",
+     "evidence": "<the parsed gather output>",
+     "onlyRules": ["uniqueness", "ownership"],
+     "models": { "judge": "...", "reviewer": "..." }
+   }
+   ```
+
+   Omit `onlyRules` and `models` unless a flag set them. It returns
+   `{ findings, counts, unscannable, truncated, skipped }`; each finding is
+   `{ file, line, verdict, comment, suggestion?, coveredBy?, fold?, absorbs? }`
+   with `verdict` one of `delete` or `edit`, and `keep` already omitted.
+
+4. **Render through `report.mjs`.** Never hand-format the output; that module
+   owns the exact shape, the footer, and the dash sanitizing. Write the review
+   result to a scratch file and run it through the renderer:
+
+   ```sh
+   node --input-type=module -e '
+     import { renderLocal } from "<skillDir>/scripts/lib/report.mjs";
+     import { readFileSync } from "node:fs";
+     const { findings, counts } = JSON.parse(readFileSync(process.argv[1], "utf8"));
+     const link = (file, line) => `${file}:${line}`;
+     console.log(renderLocal({ findings, reviewed: counts.reviewed, link }));
+   ' <scratch.json>
+   ```
+
+   Print that to chat. A local run stops here.
+
+5. **`--post` only.** Post one PR review instead of printing:
+   - Find the open PR whose head is the current branch (`mcp__github__*` list or
+     search pull requests, filtered by head) and read its head SHA; take
+     `owner/repo` from the git remote.
+   - `permalink(file, line)` is
+     `https://github.com/<owner>/<repo>/blob/<headSha>/<file>#L<line>`.
+   - `buildPostPayload({ findings, reviewed: counts.reviewed, permalink })`
+     returns `{ summary, comments: [{ path, line, body }] }`, each body already
+     footered.
+   - Create one review: a pending review with `summary` as its body and each
+     entry as an inline comment at its `path` and `line`, then submit. A finding
+     whose line falls outside the PR diff cannot take an inline review comment;
+     post that one body as an ordinary PR comment instead (its permalink still
+     resolves), so a delete that folds into it still links.
+
 ## Verdicts
 
 Every test in scope ends at exactly one of:
@@ -144,33 +210,33 @@ read back.
 
 ### Locally (default)
 
-Findings grouped by file, one line each — line, name, then the verdict's
-evidence, in plain language, with no axiom numbers:
+`renderLocal` prints the one-line summary, then the findings grouped by file,
+each anchored by line and rendered in the same plain-language shape as a posted
+comment (no axiom numbers, no dashes):
 
 ```
-worker/src/queues/__tests__/exportQueue.test.ts
-  :446  delete  "added redundant test"
-        exportQueue.test.ts:302 already asserts the same rejection from the
-        same fixture; dropping this one loses no coverage.
-  :120  edit    "maps usage units from usage_details"
-        asserts a mapped value through a full database round-trip with no
-        query logic in between; call mapUsage directly and drop the fixture.
+**review-tests**: reviewed 12, flagged 2 (1 to remove, 1 to fix). Details inline.
+
+## worker/src/queues/__tests__/exportQueue.test.ts
+
+:446
+**Remove this test.**
+
+Covered by [exportQueue.test.ts:302](...). It already asserts the same rejection from the same fixture, so dropping this one loses no coverage.
 ```
 
-Then, when present: **Not reviewed** (files the evidence could not scan), and
-**Not covered** (something a human flagged that no judge reported — never
-turned into an edit, only noted). End with `<N> reviewed, <M> kept`. Say
-`no findings` when clean.
+When nothing is flagged the summary line stands alone (`no findings`), followed
+by the footer.
 
 ### On a PR (`--post`)
 
 One review, not a stream of comments. This is the contract the reviewer stage
 implements; the pipeline produces it, this skill exists to describe it.
 
-- **Summary comment** — a one-line verdict count (`<N> reviewed, <M> edited,
-<K> deleted, <J> kept`), and nothing else framework-shaped. No axiom list,
-  collapsed or otherwise — a reader never needs to learn this skill's internal
-  vocabulary to act on a comment.
+- **Summary comment** the one line `report.mjs` builds:
+  `**review-tests**: reviewed N, flagged M (X to remove, Y to fix). Details inline.`
+  and nothing else. No axiom list, collapsed or otherwise; a reader never needs
+  this skill's internal vocabulary to act on a comment.
 - **Inline comment per finding**, anchored to `file:line`. A `keep` posts
   nothing.
 - **Delete comment** — bold first line `**Remove this test.**`, a blank line,
