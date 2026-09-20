@@ -62,6 +62,7 @@ import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import {
   toAbsoluteTimeRange,
@@ -627,10 +628,26 @@ export default function ObservationsTable({
     orderBy,
   };
 
+  const placeholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter:
+      externalFilterState ??
+      queryFilter.effectiveFilterState.concat(
+        promptNameFilter,
+        promptVersionFilter,
+        modelIdFilter,
+      ),
+    searchQuery,
+    searchType,
+    timeRange: externalDateRange ?? timeRange,
+  });
+
   const generations = api.generations.all.useQuery(getAllPayload, {
+    ...placeholderOptions,
     refetchOnWindowFocus: true,
   });
   const totalCountQuery = api.generations.countAll.useQuery(getCountPayload, {
+    ...placeholderOptions,
     refetchOnWindowFocus: true,
   });
   const totalCount = totalCountQuery.data?.totalCount ?? null;
@@ -1228,6 +1245,10 @@ export default function ObservationsTable({
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
+    onViewSelected: () => {
+      setPaginationState({ ...paginationState, pageIndex: 0 });
+      observationsTableStore.getState().actions.clearSelection();
+    },
   });
   viewControllersRef.current = viewControllers;
 

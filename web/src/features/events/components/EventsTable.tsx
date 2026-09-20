@@ -506,12 +506,15 @@ export default function ObservationsEventsTable({
   // Facets describe the whole window (see facetStartTimeFilter below); the paged
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
-  const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(
-      dateRange,
-      limitRows ? 0 : paginationState.page - 1,
-      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
-    );
+  const {
+    range: rowsDateRange,
+    pinOnLeavingFirstPage,
+    resetPin,
+  } = usePaginationWindowPin(
+    dateRange,
+    limitRows ? 0 : paginationState.page - 1,
+    { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+  );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -908,6 +911,15 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
+    tableDataScope: {
+      projectId,
+      filter:
+        externalFilterState ??
+        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      searchQuery,
+      searchType,
+      timeRange: externalDateRange ?? timeRange,
+    },
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
@@ -1658,6 +1670,12 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewSelected: () => {
+      resetPin();
+      setPaginationState({ ...paginationState, page: 1 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
     onViewApplied: (viewState) =>
       resetSearchBarDraft({
         filters: projectFiltersForSearchBar(viewState.filters),
