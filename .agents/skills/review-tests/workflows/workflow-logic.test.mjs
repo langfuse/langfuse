@@ -1,6 +1,6 @@
 // Exercises review.js with mocked agent()/parallel()/pipeline() so the
-// deterministic layer — which flags survive, which agents are worth spawning,
-// when the run aborts — is checked without spending tokens.
+// deterministic layer — which flags become candidates, how clusters chunk,
+// which reviewer verdicts survive — is checked without spending tokens.
 //
 //   node .agents/skills/review-tests/workflows/workflow-logic.test.mjs
 //
@@ -61,73 +61,33 @@ export async function run(file, { args, agent }) {
 }
 
 const REVIEW = new URL("./review.js", import.meta.url).pathname;
-
-const COVERING_ID = "b.test.ts::token validation rejects expired";
 const SYMBOL = "web/src/features/auth/validateToken.ts#validateToken";
 
+// One cluster: the flagged test a.test.ts:10 and its sibling survivor b.test.ts:88.
 const mkEvidence = (overrides = {}) => ({
   mode: "diff",
-  candidateBasis: "production functions each test calls",
-  tests: [
+  base: "sha",
+  baseKind: "merge-base with origin/main",
+  breadthThreshold: 12,
+  clusters: [
     {
-      id: "a.test.ts::rejects expired token",
-      file: "a.test.ts",
-      name: "rejects expired token",
-      line: 10,
-      endLine: 14,
-      parameterized: false,
-      layer: "server-db",
-      touchesServices: true,
-      runCommand: "pnpm --filter web run test a.test.ts",
-      source: 'it("rejects expired token", () => { expect(v(t)).toBe(false) })',
-      assertions: ["expect(v(t)).toBe(false)"],
-      symbols: [SYMBOL],
-      imports: ["web/src/features/auth/validateToken.ts"],
-      candidates: [
-        {
-          id: COVERING_ID,
-          file: "b.test.ts",
-          line: 88,
-          name: "token validation rejects expired",
-          source:
-            'it("token validation rejects expired", () => { expect(v(t)).toBe(false) })',
-          overlap: 1.2,
-          basis: "symbols",
-          sharedSymbols: [SYMBOL],
-          layer: "server-db",
-          runCommand: "pnpm --filter web run test b.test.ts",
-        },
+      ok: true,
+      code: { symbol: SYMBOL, line: 3 },
+      tests: [
+        { file: "a.test.ts", line: 10 },
+        { file: "b.test.ts", line: 88 },
       ],
     },
   ],
+  unscannable: [],
+  truncated: null,
   ...overrides,
 });
 
-const PASS = {
-  verdict: "pass",
-  axiom: "",
-  reason: "",
-  confidence: "high",
-  action: "comment",
-  covered_by: [],
-};
-const AXIOM1_FLAG = {
-  verdict: "flag",
-  axiom: "1",
-  reason: "same fixture, same rejection assertion",
-  confidence: "high",
-  action: "delete",
-  covered_by: [{ id: COVERING_ID, why: "same assertion" }],
-};
-const CONFIRMED = {
-  ran: true,
-  stubbed: SYMBOL,
-  target_failed: true,
-  covering: [{ id: COVERING_ID, failed: true }],
-  evidence:
-    "pnpm --filter web run test a.test.ts -> 1 failed; b.test.ts -> 1 failed",
-};
-const NO_GAP = { gap_found: false, checked: "same input, same assertion" };
+const flag = (file, line, reason = "same input, same assertion") => ({
+  flags: [{ file, line, reason }],
+});
+const NO_FLAGS = { flags: [] };
 
 // A mock that answers each phase from a table and records what ran.
 const scripted =
@@ -136,7 +96,7 @@ const scripted =
     seen.push({
       phase: opts.phase,
       label: opts.label,
-      isolation: opts.isolation,
+      model: opts.model,
       prompt,
     });
     const answer = table[opts.phase];
@@ -144,66 +104,10 @@ const scripted =
     return typeof answer === "function" ? answer(prompt, opts) : answer;
   };
 
-// --- case 1: flag -> confirmed by stubbing -> no gap -> deletion stands ---
+// --- case 1: a flag the reviewer confirms becomes one delete linking the survivor ---
 {
   const seen = [];
   const { result, logs } = await run(REVIEW, {
-    args: { skillDir: "/skill", evidence: mkEvidence() },
-    agent: scripted(
-      {
-        Judge: (p, o) =>
-          o.label.startsWith("judge:uniqueness") ? AXIOM1_FLAG : PASS,
-        Confirm: CONFIRMED,
-        Defend: NO_GAP,
-      },
-      seen,
-    ),
-  });
-  assert.equal(result.failed, false);
-  assert.equal(result.findings.length, 1, "one finding");
-  const f = result.findings[0];
-  assert.equal(f.action, "delete");
-  assert.equal(f.confirmation.status, "confirmed");
-  assert.equal(f.confirmation.stubbed, SYMBOL);
-  assert.equal(f.layer, "server-db");
-  assert.equal(f.defence.gapFound, false);
-  const confirmCall = seen.find((s) => s.phase === "Confirm");
-  assert.equal(
-    confirmCall.isolation,
-    "worktree",
-    "confirm runs in a disposable worktree",
-  );
-  assert.match(
-    confirmCall.prompt,
-    /pnpm --filter web run test a\.test\.ts/,
-    "target run command in prompt",
-  );
-  assert.match(
-    confirmCall.prompt,
-    /pnpm --filter web run test b\.test\.ts/,
-    "covering run command derived",
-  );
-  assert.match(
-    confirmCall.prompt,
-    new RegExp(SYMBOL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-    "shared symbol is the stub target",
-  );
-  assert.equal(result.counts.kept, 0);
-  assert.equal(result.counts.confirmed, 1);
-  assert.ok(
-    logs.some((l) => l.includes("1 covering claims confirmed")),
-    logs.join("|"),
-  );
-  console.log(
-    "case 1 OK  confirmed deletion stands; counts:",
-    JSON.stringify(result.counts),
-  );
-}
-
-// --- case 2: covering test does not fail under the stub -> claim refuted, no adversary spent ---
-{
-  const seen = [];
-  const { result } = await run(REVIEW, {
     args: {
       skillDir: "/skill",
       evidence: mkEvidence(),
@@ -211,119 +115,97 @@ const scripted =
     },
     agent: scripted(
       {
-        Judge: AXIOM1_FLAG,
-        Confirm: {
-          ...CONFIRMED,
-          covering: [{ id: COVERING_ID, failed: false }],
-        },
-        Defend: NO_GAP,
-      },
-      seen,
-    ),
-  });
-  assert.deepEqual(result.findings, [], "a refuted claim is not a finding");
-  assert.equal(result.refuted.length, 1);
-  assert.match(result.refuted[0].reason, /no named covering test/);
-  assert.ok(
-    !seen.some((s) => s.phase === "Defend"),
-    "no adversary on a refuted flag",
-  );
-  assert.equal(result.counts.kept, 1, "the test is kept");
-  console.log(
-    "case 2 OK  refuted when covering test survives the stub; no adversary spend",
-  );
-}
-
-// --- case 3: flagged test itself survives the stub -> premise wrong, refuted ---
-{
-  const { result } = await run(REVIEW, {
-    args: {
-      skillDir: "/skill",
-      evidence: mkEvidence(),
-      onlyRules: ["uniqueness"],
-    },
-    agent: scripted({
-      Judge: AXIOM1_FLAG,
-      Confirm: { ...CONFIRMED, target_failed: false },
-    }),
-  });
-  assert.deepEqual(result.findings, []);
-  assert.match(result.refuted[0].reason, /did not fail the flagged test/);
-  console.log(
-    "case 3 OK  refuted when the flagged test does not depend on the stubbed function",
-  );
-}
-
-// --- case 4: the stub run could not execute -> the whole review aborts, nothing reported ---
-{
-  const { result, logs } = await run(REVIEW, {
-    args: { skillDir: "/skill", evidence: mkEvidence() },
-    agent: scripted({
-      Judge: (p, o) =>
-        o.label.startsWith("judge:uniqueness")
-          ? AXIOM1_FLAG
-          : {
-              ...PASS,
-              verdict: "flag",
-              axiom: "6",
-              action: "comment",
-              reason: "db round-trip for a pure mapping",
+        Judge: flag("a.test.ts", 10),
+        Review: {
+          findings: [
+            {
+              file: "a.test.ts",
+              line: 10,
+              verdict: "delete",
+              comment: "same rejection assertion as the sibling",
+              coveredBy: { file: "b.test.ts", line: 88 },
+              fold: false,
             },
-      Confirm: {
-        ran: false,
-        reason_not_run: "connect ECONNREFUSED 127.0.0.1:5432",
-        stubbed: SYMBOL,
-        target_failed: false,
-        covering: [],
-        evidence: "",
-      },
-      Defend: NO_GAP,
-    }),
-  });
-  assert.equal(result.failed, true);
-  assert.deepEqual(
-    result.findings,
-    [],
-    "no findings at all, not even the placement comment",
-  );
-  assert.equal(result.failures[0].stage, "confirm");
-  assert.match(result.failures[0].reason, /ECONNREFUSED/);
-  assert.ok(
-    logs.some((l) => l.startsWith("ABORTED")),
-    logs.join("|"),
-  );
-  console.log("case 4 OK  an unrunnable stub aborts the run with the reason");
-}
-
-// --- case 5: unevidenced axiom-1 flag is dropped before any confirm/adversary spend ---
-{
-  const evidence = mkEvidence();
-  evidence.tests[0].candidates = [];
-  const seen = [];
-  const { result } = await run(REVIEW, {
-    args: { skillDir: "/skill", evidence, onlyRules: ["uniqueness"] },
-    agent: scripted(
-      {
-        Judge: {
-          ...AXIOM1_FLAG,
-          covered_by: [{ id: "ghost.test.ts::nope", why: "invented" }],
+          ],
         },
       },
       seen,
     ),
   });
-  assert.deepEqual(result.findings, []);
-  assert.deepEqual(result.refuted, []);
+  assert.equal(result.findings.length, 1);
+  const f = result.findings[0];
+  assert.equal(f.verdict, "delete");
+  assert.deepEqual(f.coveredBy, { file: "b.test.ts", line: 88 });
+  assert.equal(f.fold, false);
+  assert.equal(
+    result.counts.reviewed,
+    2,
+    "both member blocks are the population",
+  );
+  assert.equal(result.counts.deletes, 1);
+  assert.equal(result.counts.candidates, 1);
+  const judgeCall = seen.find((s) => s.phase === "Judge");
+  assert.equal(judgeCall.model, "claude-sonnet-4-6", "judge default model");
+  assert.match(judgeCall.prompt, /a\.test\.ts:10/);
+  const reviewCall = seen.find((s) => s.phase === "Review");
+  assert.equal(reviewCall.model, "claude-opus-4-8", "reviewer default model");
   assert.ok(
-    seen.every((s) => s.phase === "Judge"),
-    "only judges ran",
+    logs.some((l) => l.includes("1 findings")),
+    logs.join("|"),
   );
   console.log(
-    "case 5 OK  unevidenced axiom-1 flag discarded, no confirm or adversary spend",
+    "case 1 OK  confirmed flag becomes a delete linking the survivor",
   );
 }
 
-// --- case 6: a judge citing a candidate that was not offered is discarded ---
+// --- case 2: a flagged candidate the reviewer keeps (omits) produces no finding ---
+{
+  const seen = [];
+  const { result } = await run(REVIEW, {
+    args: {
+      skillDir: "/skill",
+      evidence: mkEvidence(),
+      onlyRules: ["uniqueness"],
+    },
+    agent: scripted(
+      { Judge: flag("a.test.ts", 10), Review: { findings: [] } },
+      seen,
+    ),
+  });
+  assert.deepEqual(result.findings, [], "keep is silent");
+  assert.equal(
+    result.counts.candidates,
+    1,
+    "the flag still counted as reviewed",
+  );
+  assert.ok(
+    seen.some((s) => s.phase === "Review"),
+    "a chunk with a flag is reviewed",
+  );
+  console.log("case 2 OK  a kept (omitted) candidate yields no finding");
+}
+
+// --- case 3: a judge flag that cites a non-member block is discarded before chunking ---
+{
+  const seen = [];
+  const { result } = await run(REVIEW, {
+    args: {
+      skillDir: "/skill",
+      evidence: mkEvidence(),
+      onlyRules: ["uniqueness"],
+    },
+    agent: scripted({ Judge: flag("ghost.test.ts", 1) }, seen),
+  });
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.counts.candidates, 0, "the invented flag is dropped");
+  assert.ok(
+    !seen.some((s) => s.phase === "Review"),
+    "no chunk, so no reviewer spend",
+  );
+  console.log("case 3 OK  a flag citing a non-member block is discarded");
+}
+
+// --- case 4: the reviewer's verdict on an invented location is dropped ---
 {
   const { result } = await run(REVIEW, {
     args: {
@@ -332,19 +214,28 @@ const scripted =
       onlyRules: ["uniqueness"],
     },
     agent: scripted({
-      Judge: {
-        ...AXIOM1_FLAG,
-        covered_by: [
-          { id: "hallucinated.test.ts::not offered", why: "made up" },
+      Judge: flag("a.test.ts", 10),
+      Review: {
+        findings: [
+          {
+            file: "hallucinated.test.ts",
+            line: 999,
+            verdict: "delete",
+            comment: "made up",
+            coveredBy: { file: "b.test.ts", line: 88 },
+            fold: false,
+          },
         ],
       },
     }),
   });
-  assert.deepEqual(result.findings, []);
-  console.log("case 6 OK  hallucinated covering test filtered");
+  assert.deepEqual(result.findings, [], "an out-of-chunk finding is dropped");
+  console.log(
+    "case 4 OK  a reviewer verdict on an invented location is dropped",
+  );
 }
 
-// --- case 7: adversary finds a gap on a confirmed flag -> downgraded to comment ---
+// --- case 5: a delete with no survivor named is dropped (loses coverage) ---
 {
   const { result } = await run(REVIEW, {
     args: {
@@ -353,155 +244,175 @@ const scripted =
       onlyRules: ["uniqueness"],
     },
     agent: scripted({
-      Judge: AXIOM1_FLAG,
-      Confirm: CONFIRMED,
-      Defend: {
-        gap_found: true,
-        gap: "only this test passes a null token",
-        quote: "expect(v(null))",
-        covering_test: COVERING_ID,
+      Judge: flag("a.test.ts", 10),
+      Review: {
+        findings: [
+          { file: "a.test.ts", line: 10, verdict: "delete", comment: "gone" },
+        ],
       },
     }),
   });
-  const f = result.findings[0];
-  assert.equal(f.action, "comment");
-  assert.equal(f.downgraded, true);
-  assert.equal(
-    f.confirmation.status,
-    "confirmed",
-    "confirmation is kept on the comment",
+  assert.deepEqual(
+    result.findings,
+    [],
+    "a delete without coveredBy is unusable",
   );
-  assert.equal(result.counts.kept, 1);
-  console.log(
-    "case 7 OK  defended flag downgraded; counts:",
-    JSON.stringify(result.counts),
-  );
+  console.log("case 5 OK  a delete naming no survivor is dropped");
 }
 
-// --- case 8: rewrite gate outcomes, including an unrunnable gate aborting the run ---
-for (const [gateOut, expected] of [
-  [{ ran: true, ambiguous: false, failed_when_stubbed: true }, "rewrite"],
-  [{ ran: true, ambiguous: false, failed_when_stubbed: false }, "comment"],
-  [{ ran: true, ambiguous: true, failed_when_stubbed: false }, "suggest-only"],
-  [
-    {
-      ran: false,
-      reason_not_run: "clickhouse: connection refused",
-      ambiguous: false,
-      failed_when_stubbed: false,
-    },
-    "ABORT",
-  ],
-]) {
+// --- case 6: two clusters sharing a member block are unioned into one reviewer call ---
+{
+  const seen = [];
+  const evidence = mkEvidence({
+    clusters: [
+      {
+        ok: true,
+        code: { symbol: "m/a.ts#alpha", line: 1 },
+        tests: [
+          { file: "a.test.ts", line: 10 },
+          { file: "shared.test.ts", line: 5 },
+        ],
+      },
+      {
+        ok: true,
+        code: { symbol: "m/b.ts#beta", line: 1 },
+        tests: [
+          { file: "b.test.ts", line: 20 },
+          { file: "shared.test.ts", line: 5 },
+        ],
+      },
+    ],
+  });
+  const { result } = await run(REVIEW, {
+    args: { skillDir: "/skill", evidence, onlyRules: ["uniqueness"] },
+    agent: scripted(
+      {
+        // Each cluster's judge flags its own member so both participate.
+        Judge: (p) =>
+          p.includes("m/a.ts#alpha")
+            ? flag("a.test.ts", 10)
+            : flag("b.test.ts", 20),
+        Review: { findings: [] },
+      },
+      seen,
+    ),
+  });
+  const reviewCalls = seen.filter((s) => s.phase === "Review");
+  assert.equal(reviewCalls.length, 1, "the shared block unions both clusters");
+  assert.match(reviewCalls[0].prompt, /m\/a\.ts#alpha/);
+  assert.match(reviewCalls[0].prompt, /m\/b\.ts#beta/);
+  assert.equal(result.counts.chunks, 1);
+  assert.equal(result.counts.reviewed, 3, "three distinct member blocks");
+  console.log("case 6 OK  clusters sharing a member block chunk together");
+}
+
+// --- case 7: a delete-that-folds pairs with an edit on the survivor and they link ---
+{
   const { result } = await run(REVIEW, {
     args: {
       skillDir: "/skill",
       evidence: mkEvidence(),
-      onlyRules: ["ownership"],
+      onlyRules: ["uniqueness"],
     },
     agent: scripted({
-      Judge: {
-        verdict: "flag",
-        axiom: "2",
-        reason: "asserts on a spy",
-        confidence: "high",
-        action: "rewrite",
-        covered_by: [],
-      },
-      Defend: NO_GAP,
-      Gate: (p, o) => {
-        assert.equal(
-          o.isolation,
-          "worktree",
-          "gate runs in an isolated worktree",
-        );
-        assert.match(
-          p,
-          /pnpm --filter web run test a\.test\.ts/,
-          "gate uses the evidence's run command",
-        );
-        return {
-          replacement: 'it("rewritten", () => { expect(result).toEqual(row) })',
-          subject: "validateToken",
-          evidence: "-> 1 failed",
-          ...gateOut,
-        };
+      Judge: flag("a.test.ts", 10),
+      Review: {
+        findings: [
+          {
+            file: "a.test.ts",
+            line: 10,
+            verdict: "delete",
+            comment: "its null-token case is the only unique input",
+            coveredBy: { file: "b.test.ts", line: 88 },
+            fold: true,
+          },
+          {
+            file: "b.test.ts",
+            line: 88,
+            verdict: "edit",
+            comment: "cover expired and null together",
+            suggestion: "it('rejects expired and null', () => {})",
+            absorbs: [{ file: "a.test.ts", line: 10 }],
+          },
+        ],
       },
     }),
   });
-  if (expected === "ABORT") {
-    assert.equal(result.failed, true);
-    assert.equal(result.failures[0].stage, "gate");
-    console.log("case 8 OK  unrunnable gate aborts the run");
-    continue;
-  }
-  const f = result.findings[0];
-  assert.equal(
-    f.action,
-    expected,
-    `gate(${JSON.stringify(gateOut)}) -> ${expected}, got ${f.action}`,
+  assert.equal(result.findings.length, 2);
+  const del = result.findings.find((f) => f.verdict === "delete");
+  const edit = result.findings.find((f) => f.verdict === "edit");
+  assert.equal(del.fold, true);
+  assert.deepEqual(del.coveredBy, { file: "b.test.ts", line: 88 });
+  assert.deepEqual(
+    edit.absorbs,
+    [{ file: "a.test.ts", line: 10 }],
+    "the edit folds in the deleted test",
   );
-  if (expected === "rewrite") assert.ok(f.replacement && f.gate.passed);
-  if (expected === "comment") assert.equal(f.gate.passed, false);
-  console.log(`case 8 OK  gate ${JSON.stringify(gateOut)} -> ${f.action}`);
+  assert.equal(result.counts.deletes, 1);
+  assert.equal(result.counts.edits, 1);
+  console.log("case 7 OK  a fold delete and its survivor edit link both ways");
 }
 
-// --- case 9: empty scope returns cleanly without spawning agents ---
+// --- case 8: onlyRules restricts which judges run; models override the defaults ---
 {
-  let spawned = 0;
-  const { result, logs } = await run(REVIEW, {
-    args: { skillDir: "/skill", evidence: mkEvidence({ tests: [] }) },
-    agent: async () => {
-      spawned += 1;
-      return null;
-    },
-  });
-  assert.equal(spawned, 0);
-  assert.deepEqual(result.findings, []);
-  assert.equal(result.failed, false);
-  assert.ok(logs.some((l) => l.includes("no changed tests")));
-  console.log("case 9 OK  empty scope short-circuits");
-}
-
-// --- case 10: a dead judge agent (null) does not crash the pipeline ---
-{
-  const { result } = await run(REVIEW, {
-    args: { skillDir: "/skill", evidence: mkEvidence() },
-    agent: async () => null,
-  });
-  assert.deepEqual(result.findings, []);
-  assert.equal(
-    result.failed,
-    false,
-    "a silent judge is a pass, not an environment failure",
-  );
-  console.log("case 10 OK  null judge tolerated");
-}
-
-// --- case 11: the judge sees layer, run command and shared symbols ---
-{
-  let prompt = "";
+  const seen = [];
   await run(REVIEW, {
     args: {
       skillDir: "/skill",
       evidence: mkEvidence(),
-      onlyRules: ["placement"],
+      onlyRules: ["ownership"],
+      models: { judge: "sonnet-x", reviewer: "opus-x" },
     },
-    agent: scripted({
-      Judge: (p) => {
-        prompt = p;
-        return PASS;
-      },
-    }),
+    agent: scripted({ Judge: NO_FLAGS }, seen),
   });
-  assert.match(prompt, /layer: server-db \(uses database or redis\)/);
-  assert.match(prompt, /runs with: pnpm --filter web run test a\.test\.ts/);
-  assert.match(prompt, /both call validateToken/);
-  assert.match(prompt, /will be CONFIRMED after you return by stubbing/);
-  assert.doesNotMatch(prompt, /DEGRADED/);
-  console.log(
-    "case 11 OK  judge prompt carries layer, runner and shared symbols",
+  const judges = seen.filter((s) => s.phase === "Judge");
+  assert.equal(judges.length, 1, "one rule, one cluster, one judge");
+  assert.ok(
+    judges.every((s) => s.label.startsWith("judge:ownership")),
+    "only the ownership judge ran",
   );
+  assert.equal(judges[0].model, "sonnet-x", "judge model override honored");
+  console.log("case 8 OK  onlyRules and per-stage model overrides honored");
+}
+
+// --- case 9: only located clusters are reviewed; the rest are reported as skipped ---
+{
+  const seen = [];
+  const evidence = mkEvidence({
+    clusters: [
+      {
+        ok: false,
+        error: "could not locate export definition to stub",
+        code: { symbol: "m/x.ts#gone" },
+      },
+    ],
+  });
+  const { result, logs } = await run(REVIEW, {
+    args: { skillDir: "/skill", evidence, onlyRules: ["uniqueness"] },
+    agent: scripted({}, seen),
+  });
+  assert.equal(seen.length, 0, "no agents for an all-unlocated evidence");
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.counts.reviewed, 0);
+  assert.equal(result.skipped.length, 1);
+  assert.equal(result.skipped[0].symbol, "m/x.ts#gone");
+  assert.ok(logs.some((l) => l.includes("no clusters to review")));
+  console.log("case 9 OK  unlocated clusters are skipped, not reviewed");
+}
+
+// --- case 10: a null reviewer agent does not crash the run ---
+{
+  const { result } = await run(REVIEW, {
+    args: {
+      skillDir: "/skill",
+      evidence: mkEvidence(),
+      onlyRules: ["uniqueness"],
+    },
+    agent: async (prompt, opts) =>
+      opts.phase === "Judge" ? flag("a.test.ts", 10) : null,
+  });
+  assert.deepEqual(result.findings, [], "a dead reviewer yields no findings");
+  console.log("case 10 OK  a null reviewer is tolerated");
 }
 
 console.log("\nall dry-run cases passed");
