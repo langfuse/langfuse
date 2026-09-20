@@ -7,6 +7,9 @@ Does this test earn its place? The collapsing question:
 
 If you cannot name that bug in one concrete sentence, the test is redundant.
 
+Axioms are internal reasoning. They drive this judgment; they never appear in
+an emitted review comment, inline or in a summary.
+
 ## Axioms
 
 Quoted verbatim from the canonical list in `SKILL.md`; the line under each is
@@ -17,7 +20,9 @@ one of them is redundant. Ask: what bug would this catch that no other test
 catches?
 
 > The second test costs a name, a fixture, and a line in every future reader's
-> head, and buys nothing.
+> head, and buys nothing. If the fixture for that reason is larger than the
+> code it tests, that is itself part of the case for dropping it: the test is
+> mostly proving its own setup.
 
 **Axiom 4.** Equivalence classes over enumerations. Inputs that take the same
 code path are one test. Keep one representative per class plus each boundary;
@@ -31,8 +36,10 @@ assertion checks, tautological asserts, tests that pass with the implementation
 deleted — these are noise. Mutation testing (or just stubbing the function
 body) exposes them quickly.
 
-> The rewrite gate is this axiom made mechanical: a replacement ships only after
-> it has been seen failing with the function under test stubbed out.
+> Stubbing the function under test and watching a mock-pinned or tautological
+> assertion still pass is the sharpest way to see this axiom; it does not need
+> a live run to reason about — read the assertion and ask whether any real
+> change to the function's behavior could make it fail.
 
 **Axiom 7.** No test for a bug that can't recur. Regression tests for behaviors
 now enforced by types, schemas, or removed code paths can go.
@@ -47,6 +54,10 @@ now enforced by types, schemas, or removed code paths can go.
   input class and asserts the same outcome. Different wording, same failure.
 - **axiom 1** — the test asserts a superset or subset of a candidate's
   assertions with no new input. The weaker one goes.
+- **axiom 1** — the fixture (arrange block, factory calls, seeded rows, mock
+  wiring) is several times the size of the behaviour asserted, and a candidate
+  already exercises that behaviour. The setup weight is evidence toward
+  deleting, not a separate flag.
 - **axiom 4** — a parameterized case list whose rows differ only in a value that
   the code under test never branches on. Keep one row per branch plus the
   boundaries; say which rows collapse.
@@ -70,8 +81,8 @@ now enforced by types, schemas, or removed code paths can go.
   empty, null, max, and off-by-one are distinct reasons to fail.
 - A test whose candidates are all `basis: "sibling"` and which asserts a
   different outcome than every one of them.
-- Setup-heavy integration tests that share a fixture with a unit test but assert
-  wiring rather than logic. That is `placement`'s call, not yours.
+- A heavy fixture with no candidate covering the same behaviour. Setup weight
+  only counts alongside a real covering test, never on its own.
 - Snapshot tests, unless the snapshot is of a value the test literally wrote.
 - A test in a file the evidence lists under `unscannable`.
 - **When `candidates` is empty, do not raise an axiom 1 flag at all.** There is
@@ -86,16 +97,17 @@ from the candidates given is not a finding — return `pass`.
 
 Candidates were chosen because they call the same production functions as the
 test under review; each one lists the shared functions. Prefer candidates that
-share the function the test is actually *about* over ones sharing only fixture
-helpers. Your flag will be confirmed after you return: the shared function is
-stubbed and both tests are run, and the claim stands only if both fail. So
-judge from the sources — same input class, same asserted outcome — and leave
-the proof to the confirmer. Do not lower confidence for lack of coverage data;
-the confirmation supplies it.
+share the function the test is actually _about_ over ones sharing only fixture
+helpers. There is no live run to lean on — the suite is assumed green, and
+nothing in this pipeline executes it. Judge from the sources alone: same input
+class, same asserted outcome, same failure. Read the candidate's full source
+before naming it in `covered_by`, not just its shared symbols.
 
 ## Verdict
 
 - `delete` — the covering test already fails for this bug.
-- `rewrite` — the test has a real unique reason buried in a redundant or
+- `edit` — the test has a real unique reason buried in a redundant or
   unfailable shape (collapse the case list, assert the real outcome).
-- `comment` — worth a reader's attention, not worth a change.
+- Anything short of one of these two — a hunch, a style preference, a gap you
+  cannot name concretely — is not a finding. Return `pass`; the test is kept,
+  silently.

@@ -228,22 +228,24 @@ test("matches by ancestor titles when fullName is absent, sorted by file then li
   ]);
 });
 
-test("runCommandFor derives the runner from the file path", () => {
+test("runCommandFor derives the runner from the file path, relative to its package", () => {
+  // pnpm --filter runs the script with the package directory as cwd, so the
+  // path Vitest is given must drop the package's own prefix.
   assert.equal(
     runCommandFor("web/src/a.servertest.ts"),
-    "pnpm --filter web run test web/src/a.servertest.ts",
+    "pnpm --filter web run test src/a.servertest.ts",
   );
   assert.equal(
     runCommandFor("web/src/a.clienttest.tsx"),
-    "pnpm --filter web run test-client web/src/a.clienttest.tsx",
+    "pnpm --filter web run test-client src/a.clienttest.tsx",
   );
   assert.equal(
     runCommandFor("worker/src/a.test.ts"),
-    "pnpm --filter worker run test worker/src/a.test.ts",
+    "pnpm --filter worker run test src/a.test.ts",
   );
   assert.equal(
     runCommandFor("packages/shared/src/a.test.ts"),
-    "pnpm --filter @langfuse/shared run test packages/shared/src/a.test.ts",
+    "pnpm --filter @langfuse/shared run test src/a.test.ts",
   );
 });
 
@@ -301,9 +303,10 @@ test("measure stubs, runs, reports failures, and reverts the source", async () =
       code: { symbol: `${moduleFile}#getGenerations`, line: 1 },
       tests: [{ marker: true, file: testFile, line: 2 }],
     });
-    // The runner ran the command derived from the file's path, not one supplied.
+    // The runner ran the command derived from the file's path, not one
+    // supplied, and that path is relative to the web package, not the repo.
     assert.deepEqual(commands, [
-      "pnpm --filter web run test web/src/x.servertest.ts",
+      "pnpm --filter web run test src/x.servertest.ts",
     ]);
     assert.equal(readFileSync(join(root, moduleFile), "utf8"), source);
   } finally {
@@ -320,21 +323,95 @@ test("measure lets a supplied runCommand override the derived one", async () => 
     [moduleFile]: source,
     [testFile]: 'it("returns rows", () => { getGenerations(); });\n',
   });
+  const marker = markerFor(`${moduleFile}#getGenerations`);
   const commands = [];
   const runFile = (runCommand) => {
     commands.push(runCommand);
     return {
-      testResults: [{ name: join(root, testFile), assertionResults: [] }],
+      testResults: [
+        {
+          name: join(root, testFile),
+          assertionResults: [
+            {
+              status: "failed",
+              fullName: "returns rows",
+              failureMessages: [`Error: ${marker}`],
+            },
+          ],
+        },
+      ],
     };
   };
   try {
-    await measure({
+    const result = await measure({
       symbol: `${moduleFile}#getGenerations`,
       tests: [{ file: testFile, runCommand: "pnpm custom runner" }],
       repoRoot: root,
       runFile,
     });
+    assert.equal(result.ok, true);
     assert.deepEqual(commands, ["pnpm custom runner"]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("measure reports ok:false when a run's command matches 0 tests", async () => {
+  const moduleFile = "packages/shared/src/server/index.ts";
+  const source =
+    "export function getGenerations(input) {\n  return real(input);\n}\n";
+  const testFile = "web/src/x.servertest.ts";
+  const root = scaffold({
+    [moduleFile]: source,
+    [testFile]: 'it("returns rows", () => { getGenerations(); });\n',
+  });
+  try {
+    const result = await measure({
+      symbol: `${moduleFile}#getGenerations`,
+      tests: [{ file: testFile }],
+      repoRoot: root,
+      // A repo-relative path resolved against the package's cwd matches
+      // nothing — Vitest reports the file with no assertions at all.
+      runFile: () => ({
+        testResults: [{ name: join(root, testFile), assertionResults: [] }],
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /matched 0 tests/);
+    assert.equal(readFileSync(join(root, moduleFile), "utf8"), source);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("measure reports ok:false when the stub marker never turns up in a failure", async () => {
+  const moduleFile = "packages/shared/src/server/index.ts";
+  const source =
+    "export function getGenerations(input) {\n  return real(input);\n}\n";
+  const testFile = "web/src/x.servertest.ts";
+  const root = scaffold({
+    [moduleFile]: source,
+    [testFile]: 'it("returns rows", () => { getGenerations(); });\n',
+  });
+  try {
+    const result = await measure({
+      symbol: `${moduleFile}#getGenerations`,
+      tests: [{ file: testFile }],
+      repoRoot: root,
+      // The test ran and passed — the stub was never observed to fire, so
+      // this must not be reported as an empty (proven) co-dependency list.
+      runFile: () => ({
+        testResults: [
+          {
+            name: join(root, testFile),
+            assertionResults: [{ status: "passed", fullName: "returns rows" }],
+          },
+        ],
+      }),
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error, /never observed/);
+    assert.equal(readFileSync(join(root, moduleFile), "utf8"), source);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

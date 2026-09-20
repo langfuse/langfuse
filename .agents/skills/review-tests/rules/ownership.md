@@ -2,6 +2,9 @@
 
 Is the test asserting on something we own and could break?
 
+Axioms are internal reasoning. They drive this judgment; they never appear in
+an emitted review comment, inline or in a summary.
+
 ## Axioms
 
 Quoted verbatim from the canonical list in `SKILL.md`; the line under each is
@@ -67,8 +70,9 @@ an ORM saves a row is testing someone else's code.
 
 ## Verdict
 
-- `rewrite` — the right assertion exists and is reachable; name it (assert the
+- `edit` — the right assertion exists and is reachable; name it (assert the
   returned value, the persisted row, the thrown type).
 - `delete` — nothing of ours is under test and no rewrite recovers one.
-- `comment` — the coupling is real but the alternative assertion is not
-  available at this layer.
+- The coupling is real but no alternative assertion is available at this layer
+  is not a finding either way. Return `pass`; do not flag a test for a gap you
+  cannot name a fix for.

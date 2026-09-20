@@ -321,25 +321,34 @@ function blockTableFor(tests, repoRoot) {
   return table;
 }
 
+// pnpm runs a filtered package script with that package's directory as cwd,
+// and Vitest's positional path argument is resolved against cwd — a
+// repo-relative path (`worker/src/a.test.ts`) does not exist under that cwd
+// and matches nothing.
+const relativeToPackage = (file, root) =>
+  file.startsWith(`${root}/`) ? file.slice(root.length + 1) : file;
+
 /**
  * The command that runs one test file, derived from its path so a caller need
  * not supply one: web files go through the web project (client tests through
- * its `test-client` script), worker and shared through theirs.
+ * its `test-client` script), worker and shared through theirs. The path is
+ * rewritten relative to the package, since that is the runner's cwd.
  *
  * @param {string} file repo-relative test file
  * @returns {string}
  */
 export function runCommandFor(file) {
   const root = packageRootOf(file);
+  const rel = relativeToPackage(file, root);
   if (root === "web") {
     const script = /\.clienttest\.tsx?$/.test(file) ? "test-client" : "test";
-    return `pnpm --filter web run ${script} ${file}`;
+    return `pnpm --filter web run ${script} ${rel}`;
   }
-  if (root === "worker") return `pnpm --filter worker run test ${file}`;
+  if (root === "worker") return `pnpm --filter worker run test ${rel}`;
   if (root === "packages/shared") {
-    return `pnpm --filter @langfuse/shared run test ${file}`;
+    return `pnpm --filter @langfuse/shared run test ${rel}`;
   }
-  return `pnpm --filter ${root.split("/").pop()} run test ${file}`;
+  return `pnpm --filter ${root.split("/").pop()} run test ${rel}`;
 }
 
 // Runs one test file with the JSON reporter and returns the parsed report.
@@ -367,10 +376,12 @@ function defaultRunFile(runCommand, repoRoot) {
 
 /**
  * Stubs one symbol's function body to throw a unique marker, runs the tests
- * that reference it, and reports which failed. `ok: false` only when no
- * trustworthy per-test results could be produced — the export could not be
- * located or stubbed, or a runner crashed. Individual test failures are the
- * result, not an error.
+ * that reference it, and reports which failed. `ok: false` whenever no
+ * trustworthy per-test results could be produced: the export could not be
+ * located or stubbed, a runner crashed, a run's command matched 0 tests, or
+ * the marker never turned up in any failure, which would otherwise read as
+ * "nothing co-depends" when it may just mean the stub never took effect.
+ * Individual test failures are the result, not an error.
  *
  * @param {object} args
  * @param {string} args.symbol `<module file>#<export>`
@@ -420,15 +431,34 @@ export async function measure({
       if (!report || !Array.isArray(report.testResults)) {
         return { ok: false, error: `no per-test results for ${file}` };
       }
+      const assertionCount = report.testResults.reduce(
+        (n, suite) => n + (suite.assertionResults?.length ?? 0),
+        0,
+      );
+      if (assertionCount === 0) {
+        return {
+          ok: false,
+          error: `matched 0 tests for ${file} — the run command's path must be relative to its package, not the repo`,
+        };
+      }
       suites.push(...report.testResults);
     }
   } finally {
     writeFileSync(modulePath, original);
   }
 
+  const measured = parseReport({ testResults: suites }, marker, blockTable);
+  if (!measured.some((row) => row.marker)) {
+    return {
+      ok: false,
+      error:
+        "the stub was never observed in a failure — it may not be in effect, or none of the given tests reach this export at runtime",
+    };
+  }
+
   return {
     ok: true,
     code: { symbol, line: span.line },
-    tests: parseReport({ testResults: suites }, marker, blockTable),
+    tests: measured,
   };
 }
