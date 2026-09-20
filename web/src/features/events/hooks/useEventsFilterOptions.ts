@@ -7,6 +7,7 @@ import {
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 import { sortOptionValues } from "@/src/features/filters";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -235,6 +236,24 @@ export function useEventsFilterOptions({
     [splitFilter.refiningFilter, lazy, columns, lazyColumns],
   );
 
+  const countPlaceholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter: (plan.bulk.filter ?? []).concat(
+      baseInput.startTimeFilter ?? [],
+      isRootObservation === undefined
+        ? []
+        : [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: isRootObservation,
+            },
+          ],
+    ),
+    timeRange: undefined,
+  });
+
   // Eager bulk query: one ClickHouse scan for the plan's shared columns. Only
   // this query carries includeApproxCount, so the approximate total ("Total ≈
   // X") is computed once here (riding this scan), not per lazy per-column facet.
@@ -249,6 +268,17 @@ export function useEventsFilterOptions({
       enabled,
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
+      meta: countPlaceholderOptions.meta,
+      // Facets remain visible across scopes; counts also require matching scope.
+      placeholderData: (previousData, previousQuery) =>
+        countPlaceholderOptions.placeholderData(previousData, previousQuery) ??
+        (previousData
+          ? {
+              ...previousData,
+              approxTotalCount: null,
+              approxTotalCountIsPartial: false,
+            }
+          : undefined),
     },
   );
 
@@ -429,9 +459,7 @@ export function useEventsFilterOptions({
   // Approximate total observation count ("Total ≈ X"). Read from the eager
   // query only — lazy per-column responses omit the count and must not clobber
   // it. `null` until the first bulk response resolves.
-  const approxTotalCount = eagerQuery.isPlaceholderData
-    ? null
-    : (eagerQuery.data?.approxTotalCount ?? null);
+  const approxTotalCount = eagerQuery.data?.approxTotalCount ?? null;
   const isApproxTotalCountLoading =
     includeApproxCount && approxTotalCount === null && eagerQuery.isFetching;
   // The bulk scan honours the refining filter (incl. scores) but the server
@@ -439,8 +467,7 @@ export function useEventsFilterOptions({
   // active. Full-text search isn't part of this query — callers OR in their
   // own searchQuery signal.
   const approxTotalCountIsPartialScope =
-    !eagerQuery.isPlaceholderData &&
-    (eagerQuery.data?.approxTotalCountIsPartial ?? false);
+    eagerQuery.data?.approxTotalCountIsPartial ?? false;
 
   return {
     filterOptions: newFilterOptions,
