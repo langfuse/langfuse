@@ -69,16 +69,31 @@ function LabelWithTooltip({
   );
 }
 
+export type ScoreOutputConstraints = {
+  /** Data types the evaluator can produce. Defaults to all three. */
+  dataTypes?: ScoreOutputDataType[];
+  /** Whether a categorical score may return several categories. Defaults to true. */
+  allowMultipleMatches?: boolean;
+};
+
 export function ScoreOutputSection({
   state,
   onChange,
   readOnly = false,
+  constraints,
 }: {
   state: ScoreOutputSelectorState;
   onChange: (next: ScoreOutputSelectorState) => void;
   readOnly?: boolean;
+  constraints?: ScoreOutputConstraints;
 }) {
   const boundsId = useId();
+  const dataTypeOptions = constraints?.dataTypes
+    ? DATA_TYPE_OPTIONS.filter((option) =>
+        constraints.dataTypes?.includes(option.value),
+      )
+    : DATA_TYPE_OPTIONS;
+  const allowMultipleMatches = constraints?.allowMultipleMatches ?? true;
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [editingChoiceIndex, setEditingChoiceIndex] = useState<number | null>(
     null,
@@ -152,7 +167,8 @@ export function ScoreOutputSection({
       </LabelWithTooltip>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span>Return</span>
-        {state.dataType === ScoreDataTypeEnum.CATEGORICAL ? (
+        {state.dataType === ScoreDataTypeEnum.CATEGORICAL &&
+        allowMultipleMatches ? (
           <Select
             value={state.shouldAllowMultipleMatches ? "multiple" : "one"}
             disabled={readOnly}
@@ -175,11 +191,11 @@ export function ScoreOutputSection({
             </SelectContent>
           </Select>
         ) : (
-          <span>a</span>
+          <span>{allowMultipleMatches ? "a" : "one"}</span>
         )}
         <Select
           value={state.dataType}
-          disabled={readOnly}
+          disabled={readOnly || dataTypeOptions.length < 2}
           onValueChange={(value) =>
             handleDataTypeChange(value as ScoreOutputDataType)
           }
@@ -188,7 +204,7 @@ export function ScoreOutputSection({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {DATA_TYPE_OPTIONS.map((option) => (
+            {dataTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.value === ScoreDataTypeEnum.CATEGORICAL &&
                 state.shouldAllowMultipleMatches

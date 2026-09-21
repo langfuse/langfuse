@@ -1,6 +1,6 @@
 import {
-  EvalTemplateType,
   observationVariableMappingList,
+  hasManagedVariableMapping,
 } from "@langfuse/shared";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type {
@@ -26,7 +26,7 @@ export function prepareRuleCloneDraft(
         evaluatorType: assignment.evaluator.type,
         defaultVariableMapping: preparedDefault.defaultVariableMapping,
         variableMapping:
-          assignment.evaluator.type === EvalTemplateType.CODE ||
+          hasManagedVariableMapping(assignment.evaluator.type) ||
           assignment.variableMapping == null
             ? preparedDefault.initialVariableMapping
             : observationVariableMappingList

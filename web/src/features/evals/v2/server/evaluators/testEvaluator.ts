@@ -1,17 +1,22 @@
 import {
   getCodeEvalVariableMapping,
+  getDecisionModelVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
   compileLangfuseMediaMessages,
+  createTypeSafeDecisionModelClient,
   createW3CTraceId,
   DefaultEvalModelService,
   createLLMOutput,
+  executeDecisionModelEvaluator,
   executeLlmEvaluator,
   extractObservationVariables,
   findModel,
   generateLLMText,
+  isDecisionModelAdapter,
   LangfuseInternalTraceEnvironment,
   mapLegacyLLMCompletionParams,
   matchPricingTier,
@@ -48,6 +53,8 @@ export async function testEvaluator(params: {
   let variableMapping;
   if (params.definition.type === "CODE") {
     variableMapping = getCodeEvalVariableMapping();
+  } else if (params.definition.type === "DECISION_MODEL") {
+    variableMapping = getDecisionModelVariableMapping();
   } else {
     const llmVariableMapping = params.definition.variableMapping ?? [];
     assertCompleteEvaluatorVariableMapping({
@@ -70,25 +77,103 @@ export async function testEvaluator(params: {
     targetObservationId: params.observationId,
   });
 
-  const result =
-    params.definition.type === "CODE"
-      ? await testCodeEvaluator({
-          orgId: params.orgId,
-          projectId: params.projectId,
-          evaluatorId: params.evaluatorId,
-          definition: params.definition,
-          variables,
-          ...executionData,
-        })
-      : await testLlmEvaluator({
-          projectId: params.projectId,
-          evaluatorId: params.evaluatorId,
-          definition: params.definition,
-          variables,
-          ...executionData,
-        });
+  const result = await runEvaluatorTest({
+    ...params,
+    variables,
+    ...executionData,
+  });
 
   return { ...result, durationMs: Date.now() - startedAt };
+}
+
+async function runEvaluatorTest(params: {
+  orgId: string;
+  projectId: string;
+  evaluatorId: string;
+  definition: NormalizedEvaluatorDefinition;
+  variables: ExtractedVariable[];
+  executionMetadata: Record<string, string>;
+  evaluationContext: ReturnType<
+    typeof buildEvalExecutionData
+  >["evaluationContext"];
+}) {
+  switch (params.definition.type) {
+    case "CODE":
+      return testCodeEvaluator({ ...params, definition: params.definition });
+    case "DECISION_MODEL":
+      return testDecisionModelEvaluator({
+        projectId: params.projectId,
+        definition: params.definition,
+        variables: params.variables,
+      });
+    case "LLM_AS_JUDGE":
+      return testLlmEvaluator({ ...params, definition: params.definition });
+  }
+}
+
+/**
+ * Decision models return no rationale, so the "prompt" shown to the user is
+ * the exact request: the state built from the observation and the question.
+ */
+async function testDecisionModelEvaluator(params: {
+  projectId: string;
+  definition: Extract<
+    NormalizedEvaluatorDefinition,
+    { type: "DECISION_MODEL" }
+  >;
+  variables: ExtractedVariable[];
+}) {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return { success: false as const, error: modelConfig.error };
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    return {
+      success: false as const,
+      error: `Connection "${params.definition.provider}" is not a decision-model connection.`,
+    };
+  }
+
+  const executionTraceId = createW3CTraceId();
+  let interpolatedPrompt: string | undefined;
+  try {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: decrypt(modelConfig.config.apiKey.secretKey),
+      model: modelConfig.config.model,
+    });
+    const execution = await executeDecisionModelEvaluator({
+      instructions: params.definition.prompt,
+      variables: params.variables,
+      outputDefinition: params.definition.outputDefinition,
+      client: {
+        evaluateChoice: (request) => {
+          interpolatedPrompt = JSON.stringify(request, null, 2);
+          return client.evaluateChoice(request);
+        },
+      },
+    });
+
+    return {
+      success: true as const,
+      result: execution.output,
+      interpolatedPrompt,
+      model: execution.evaluation.model,
+      provider: modelConfig.config.provider,
+      executionTraceId,
+      estimatedCostUsd: null,
+    };
+  } catch (error) {
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : String(error),
+      interpolatedPrompt,
+      executionTraceId,
+    };
+  }
 }
 
 async function testLlmEvaluator(params: {

@@ -8,6 +8,7 @@ type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
   | "promptMessages"
+  | "instructions"
   | "sourceCode"
   | "sourceCodeLanguage"
   | "scoreOutput"
@@ -29,6 +30,28 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
           variableFields: params.variableFields,
         })
       : [];
+
+  if (params.type === "DECISION_MODEL") {
+    const instructions = params.instructions.trim();
+    const definition =
+      outputDefinition &&
+      outputDefinition.dataType === "CATEGORICAL" &&
+      !outputDefinition.score.shouldAllowMultipleMatches &&
+      instructions &&
+      params.selectedModel
+        ? {
+            type: params.type,
+            prompt: instructions,
+            modelConfig: {
+              provider: params.selectedModel.provider,
+              model: params.selectedModel.model,
+            },
+            outputDefinition,
+          }
+        : null;
+    return { definition, mappings };
+  }
+
   const definition =
     params.type === "LLM_AS_JUDGE"
       ? outputDefinition && promptMessagesValid

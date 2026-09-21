@@ -1,8 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
-import type {
-  EvalTemplateType,
-  ObservationVariableMapping,
+import {
+  hasManagedVariableMapping,
+  type EvalTemplateType,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { memo, type ReactNode, useState } from "react";
 import { useStore } from "zustand";
@@ -59,7 +60,7 @@ export const EvaluatorMappingRow = memo(function EvaluatorMappingRow({
     (state) => state.actions.detachEvaluator,
   );
   const variableMapping = useVariableMappingController();
-  const isCodeEvaluator = evaluatorType === "CODE";
+  const isCodeEvaluator = hasManagedVariableMapping(evaluatorType);
   const mapping = variableMappingOverride ?? defaultVariableMapping;
   const mappings = mapping.map((entry) => ({
     variable: entry.templateVariable,

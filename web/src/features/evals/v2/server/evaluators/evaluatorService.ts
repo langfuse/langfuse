@@ -7,6 +7,7 @@ import {
   type FilterState,
   getBlockReasonForInvalidModelConfig,
   getCodeEvalVariableMapping,
+  getDecisionModelVariableMapping,
   getEvaluatorBlockMetadata,
   getEvaluatorPromptMessages,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
@@ -59,6 +60,7 @@ type SuggestEvaluatorTextParams = {
           "promptMessages"
         >
       | { sourceCode: string }
+      | { prompt: string }
     );
 };
 
@@ -109,6 +111,13 @@ function prepareEvaluatorDefinitionForPersistence(
     return {
       ...definition,
       variableMapping: getCodeEvalVariableMapping(),
+    };
+  }
+
+  if (definition.type === EvalTemplateType.DECISION_MODEL) {
+    return {
+      ...definition,
+      variableMapping: getDecisionModelVariableMapping(),
     };
   }
 
@@ -917,34 +926,54 @@ export function toEvaluatorDefinition(
     sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
   },
 ): NormalizedEvaluatorDefinition {
-  const definition = EvaluatorDefinitionSchema.parse(
-    type === EvalTemplateType.LLM_AS_JUDGE
-      ? {
-          type,
-          promptMessages: reconcileEvaluatorPromptMessages({
-            prompt: version.prompt,
-            promptMessages: version.promptMessages,
-          }),
-          provider: version.provider,
-          model: version.model,
-          modelParams: version.modelParams,
-          vars: version.vars,
-          variableMapping: version.variableMapping,
-          outputDefinition: version.outputDefinition,
-        }
-      : {
-          type,
-          sourceCode: version.sourceCode ?? "",
-          sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
-        },
+  return EvaluatorDefinitionSchema.parse(
+    toEvaluatorDefinitionInput(type, version),
   );
-  return definition;
+}
+
+function toEvaluatorDefinitionInput(
+  type: EvalTemplateType,
+  version: Parameters<typeof toEvaluatorDefinition>[1],
+) {
+  switch (type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
+        type,
+        promptMessages: reconcileEvaluatorPromptMessages({
+          prompt: version.prompt,
+          promptMessages: version.promptMessages,
+        }),
+        provider: version.provider,
+        model: version.model,
+        modelParams: version.modelParams,
+        vars: version.vars,
+        variableMapping: version.variableMapping,
+        outputDefinition: version.outputDefinition,
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        type,
+        prompt: version.prompt ?? "",
+        provider: version.provider ?? "",
+        model: version.model ?? "",
+        outputDefinition: version.outputDefinition,
+      };
+    case EvalTemplateType.CODE:
+      return {
+        type,
+        sourceCode: version.sourceCode ?? "",
+        sourceCodeLanguage: version.sourceCodeLanguage ?? "PYTHON",
+      };
+  }
 }
 
 function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
-  return "promptMessages" in params.definition
-    ? getLegacyEvaluatorPrompt(params.definition.promptMessages)
-    : params.definition.sourceCode;
+  if ("promptMessages" in params.definition) {
+    return getLegacyEvaluatorPrompt(params.definition.promptMessages);
+  }
+  return "sourceCode" in params.definition
+    ? params.definition.sourceCode
+    : params.definition.prompt;
 }
 
 async function defaultNameGenerator(

@@ -13,6 +13,7 @@ import {
   type UpdateEvaluatorBodyType,
 } from "@/src/features/public-api/types/evaluation/evaluators";
 import {
+  isPublicApiEvaluatorType,
   toEvaluatorServiceDefinition,
   toPublicEvaluator,
   toPublicEvaluatorVersion,
@@ -48,7 +49,9 @@ export async function listEvaluatorsForPublicApi(params: {
       : undefined,
   });
   return {
-    data: result.evaluators.map(toPublicEvaluator),
+    data: result.evaluators
+      .filter((evaluator) => isPublicApiEvaluatorType(evaluator.type))
+      .map(toPublicEvaluator),
     meta: result.nextCursor
       ? {
           cursor: encodeResourceCursor({

@@ -4,6 +4,12 @@ import {
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
+import {
+  buildDecisionModelChoiceQuestion,
+  DecisionModelEvaluatorError,
+  DefaultEvalModelService,
+  isDecisionModelAdapter,
+} from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
@@ -117,6 +123,15 @@ export async function assertEvaluatorConfigurationValid(params: {
     return;
   }
 
+  if (params.definition.type === EvalTemplateType.DECISION_MODEL) {
+    await assertDecisionModelDefinitionValid({
+      projectId: params.projectId,
+      name: params.name,
+      definition: params.definition,
+    });
+    return;
+  }
+
   const promptMessagesValidationError = getPromptMessagesValidationError(
     params.definition.promptMessages,
   );
@@ -150,4 +165,38 @@ export async function assertEvaluatorConfigurationValid(params: {
     },
   });
   if (error) throw new EvaluatorModelConfigurationError(error);
+}
+
+async function assertDecisionModelDefinitionValid(params: {
+  projectId: string;
+  name: string;
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  try {
+    buildDecisionModelChoiceQuestion({
+      instructions: params.definition.prompt,
+      outputDefinition: params.definition.outputDefinition,
+    });
+  } catch (error) {
+    if (error instanceof DecisionModelEvaluatorError) {
+      throw new InvalidRequestError(error.message);
+    }
+    throw error;
+  }
+
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    throw new EvaluatorModelConfigurationError(
+      `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`,
+    );
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    throw new EvaluatorModelConfigurationError(
+      `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`,
+    );
+  }
 }

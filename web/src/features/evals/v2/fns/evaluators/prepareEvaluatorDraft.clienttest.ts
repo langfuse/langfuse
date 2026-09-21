@@ -24,6 +24,7 @@ describe("prepareEvaluatorDraft", () => {
       prepareEvaluatorDraft({
         type: "LLM_AS_JUDGE",
         promptMessages: [{ role: "user", content: "Judge {{output}}" }],
+        instructions: "",
         sourceCode: "",
         sourceCodeLanguage: "TYPESCRIPT",
         scoreOutput: {
@@ -70,6 +71,7 @@ describe("prepareEvaluatorDraft", () => {
         { role: "user", content: "Judge {{output}}" },
         { role: "system", content: "Be strict" },
       ],
+      instructions: "",
       sourceCode: "",
       sourceCodeLanguage: "TYPESCRIPT",
       scoreOutput: {
@@ -100,6 +102,7 @@ describe("prepareEvaluatorDraft", () => {
         { role: "user", content: "Judge {{output}}" },
         { role: "assistant", content: "   " },
       ],
+      instructions: "",
       sourceCode: "",
       sourceCodeLanguage: "TYPESCRIPT",
       scoreOutput: {

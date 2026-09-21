@@ -1,6 +1,7 @@
 import { auditLog } from "@/src/features/audit-logs/server";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
+  isPublicApiEvaluatorType,
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
@@ -51,15 +52,19 @@ export function toMcpEvaluationRule(
     enabled: rule.enabled,
     sampling: rule.sampling,
     filter: rule.filter,
-    evaluators: rule.assignments.map((assignment) => ({
-      evaluatorId: assignment.evaluator.id,
-      evaluatorName: assignment.evaluator.name,
-      evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
-      variableMapping:
-        assignment.variableMapping === null
-          ? null
-          : toApiReadMappings(assignment.variableMapping),
-    })),
+    evaluators: rule.assignments
+      .filter((assignment) =>
+        isPublicApiEvaluatorType(assignment.evaluator.type),
+      )
+      .map((assignment) => ({
+        evaluatorId: assignment.evaluator.id,
+        evaluatorName: assignment.evaluator.name,
+        evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
+        variableMapping:
+          assignment.variableMapping === null
+            ? null
+            : toApiReadMappings(assignment.variableMapping),
+      })),
     createdAt: rule.createdAt,
     updatedAt: rule.updatedAt,
   });

@@ -1,4 +1,8 @@
-import { EvalTargetObject, getCodeEvalVariableMapping } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  getCodeEvalVariableMapping,
+  getDecisionModelVariableMapping,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
@@ -391,6 +395,45 @@ describe("EvaluatorService", () => {
     expect(created.versions[0]?.variableMapping).toEqual(
       getCodeEvalVariableMapping(),
     );
+  });
+
+  it("writes the managed state mapping when creating a decision-model evaluator", async () => {
+    const created = await createService().create(
+      {
+        projectId,
+        name: "Send readiness",
+        description: null,
+        definition: {
+          type: "DECISION_MODEL",
+          prompt: "Is this reply ready to send?",
+          provider: "typesafe",
+          model: "jev-1.13.0",
+          outputDefinition: {
+            dataType: "CATEGORICAL",
+            reasoning: { description: "" },
+            score: {
+              description: "",
+              categories: ["ready", "needs_revision"],
+              shouldAllowMultipleMatches: false,
+            },
+          },
+        },
+      },
+      null,
+    );
+
+    expect(created.type).toBe("DECISION_MODEL");
+    expect(created.versions[0]).toMatchObject({
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: [],
+      variableMapping: getDecisionModelVariableMapping(),
+      // The service normalizes every version prompt into prompt messages, so
+      // the question instructions arrive as a single user message.
+      promptMessages: [
+        { role: "user", content: "Is this reply ready to send?" },
+      ],
+    });
   });
 
   it("returns the filter from the first assigned rule", async () => {

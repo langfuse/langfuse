@@ -260,10 +260,13 @@ const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
+      // The legacy editor only knows LLM and code templates.
       type:
         templateTypeSelectorMode === "code-only"
           ? EvalTemplateType.CODE
-          : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
+          : props.preFilledFormValues?.type === EvalTemplateType.CODE
+            ? EvalTemplateType.CODE
+            : EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       sourceCode: props.preFilledFormValues?.sourceCode

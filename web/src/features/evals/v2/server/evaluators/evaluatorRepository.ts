@@ -85,8 +85,9 @@ function versionData(
         : (definition.variableMapping as Prisma.InputJsonValue),
   };
 
-  return definition.type === EvalTemplateType.LLM_AS_JUDGE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
         ...commonVersionData,
         prompt: definition.prompt,
         promptMessages: definition.promptMessages,
@@ -98,12 +99,23 @@ function versionData(
             : (definition.modelParams as Prisma.InputJsonValue),
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        ...commonVersionData,
+        prompt: definition.prompt,
+        provider: definition.provider,
+        model: definition.model,
+        vars: [],
+        outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.CODE:
+      return {
         ...commonVersionData,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
       };
+  }
 }
 
 type EvaluatorModelFilter = Extract<

@@ -4,6 +4,8 @@ import { type EvalTemplateType } from "@langfuse/shared";
 
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { EvaluationTypeToggle } from "./components/EvaluationTypeToggle/EvaluationTypeToggle";
 
 /** Shared execution row; its container owns which mode-specific selector follows it. */
@@ -18,6 +20,11 @@ export function EvaluationTypeConfiguration({
   disabled: boolean;
   children: ReactNode;
 }) {
+  const projectId = useProjectIdFromURL();
+  const showDecisionModel = useIsFeatureEnabled("decisionModelEvaluators", {
+    projectId,
+  });
+
   return (
     <div className="flex flex-col gap-2">
       <Label className="flex items-center gap-1.5">
@@ -27,6 +34,9 @@ export function EvaluationTypeConfiguration({
             Use custom code for deterministic checks like exact matches, regex,
             or schema validation. Use an LLM when the check needs judgment, such
             as rating helpfulness, tone, or answer quality.
+            {showDecisionModel
+              ? " Use a decision model (experimental) for a fast, cheap label with calibrated probabilities when the possible answers are known upfront."
+              : null}
           </InfoTooltip>
         </span>
       </Label>
@@ -36,6 +46,7 @@ export function EvaluationTypeConfiguration({
           value={mode}
           onValueChange={onModeChange}
           disabled={disabled}
+          showDecisionModel={showDecisionModel}
         />
         <span>{mode === "CODE" ? "written in" : "with"}</span>
         {children}

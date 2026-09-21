@@ -9,7 +9,9 @@ type DefinitionStepProps = {
   onOpenChange: (open: boolean) => void;
   onTypeChange: (type: EvalTemplateType) => void;
   isEditing: boolean;
-} & (
+} & DefinitionStepContent;
+
+type DefinitionStepContent =
   | {
       type: "LLM_AS_JUDGE";
       typeConfiguration: ReactNode;
@@ -21,7 +23,33 @@ type DefinitionStepProps = {
       typeConfiguration: ReactNode;
       codeEditor: ReactNode;
     }
-);
+  | {
+      type: "DECISION_MODEL";
+      typeConfiguration: ReactNode;
+      instructionsEditor: ReactNode;
+      scoreOutputEditor: ReactNode;
+    };
+
+function DefinitionStepBody(props: DefinitionStepContent) {
+  switch (props.type) {
+    case "LLM_AS_JUDGE":
+      return (
+        <>
+          {props.promptEditor}
+          {props.scoreOutputEditor}
+        </>
+      );
+    case "CODE":
+      return props.codeEditor;
+    case "DECISION_MODEL":
+      return (
+        <>
+          {props.instructionsEditor}
+          {props.scoreOutputEditor}
+        </>
+      );
+  }
+}
 
 export function DefinitionStep(props: DefinitionStepProps) {
   return (
@@ -39,14 +67,7 @@ export function DefinitionStep(props: DefinitionStepProps) {
       >
         {props.typeConfiguration}
       </EvaluationTypeConfiguration>
-      {props.type === "LLM_AS_JUDGE" ? (
-        <>
-          {props.promptEditor}
-          {props.scoreOutputEditor}
-        </>
-      ) : (
-        props.codeEditor
-      )}
+      <DefinitionStepBody {...props} />
     </Stepper>
   );
 }

@@ -1,5 +1,4 @@
 import {
-  EvalTemplateType,
   EvalTargetObject,
   InvalidRequestError,
   isExperimentEvaluationRule,
@@ -9,6 +8,7 @@ import {
   validateEvaluatorFiltersForTarget,
   type FilterState,
   type ObservationVariableMapping,
+  hasManagedVariableMapping,
 } from "@langfuse/shared";
 import {
   JobConfigState,
@@ -777,10 +777,10 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      if (evaluator.type === EvalTemplateType.CODE) {
+      if (hasManagedVariableMapping(evaluator.type)) {
         if (assignment.variableMapping !== null) {
           throw new InvalidRequestError(
-            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
+            "Mappings for this evaluator type are managed by Langfuse and cannot be provided.",
           );
         }
         return {

@@ -69,9 +69,24 @@ export const CodeEvaluatorDefinitionSchema = z.object({
   variableMapping: z.never().optional(),
 });
 
+/**
+ * Decision-model evaluators (experimental) hold the question instructions in
+ * `prompt`; the observation fields are the model state, so there is no user
+ * variable mapping and the model connection is always explicit.
+ */
+const DecisionModelEvaluatorDefinitionSchema = z.object({
+  type: z.literal(EvalTemplateType.DECISION_MODEL),
+  prompt: z.string().trim().min(1).max(20_000),
+  provider: z.string().min(1),
+  model: z.string().min(1),
+  outputDefinition: PersistedEvalOutputDefinitionSchema,
+  variableMapping: z.never().optional(),
+});
+
 export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   LlmEvaluatorDefinitionSchema,
   CodeEvaluatorDefinitionSchema,
+  DecisionModelEvaluatorDefinitionSchema,
 ]);
 
 export const EvaluatorModelConfigSchema = z.object({
@@ -87,32 +102,50 @@ const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
   outputDefinition: EvalOutputDefinitionSchema,
 });
 
+const DecisionModelEvaluatorDefinitionInputSchema = z.object({
+  type: z.literal(EvalTemplateType.DECISION_MODEL),
+  prompt: z.string().trim().min(1).max(20_000),
+  modelConfig: EvaluatorModelConfigSchema.pick({ provider: true, model: true }),
+  outputDefinition: EvalOutputDefinitionSchema,
+});
+
 export const EvaluatorDefinitionInputSchema = z
   .discriminatedUnion("type", [
     LlmEvaluatorDefinitionInputSchema,
     CodeEvaluatorDefinitionSchema,
+    DecisionModelEvaluatorDefinitionInputSchema,
   ])
-  .transform(
-    (definition): z.infer<typeof EvaluatorDefinitionSchema> =>
-      definition.type === EvalTemplateType.CODE
-        ? definition
-        : {
-            type: EvalTemplateType.LLM_AS_JUDGE,
-            promptMessages: definition.promptMessages,
-            provider: definition.modelConfig?.provider ?? null,
-            model: definition.modelConfig?.model ?? null,
-            modelParams: definition.modelConfig?.modelParams ?? null,
-            vars: [
-              ...new Set(
-                definition.promptMessages.flatMap(({ content }) =>
-                  extractVariables(content),
-                ),
+  .transform((definition): z.infer<typeof EvaluatorDefinitionSchema> => {
+    switch (definition.type) {
+      case EvalTemplateType.CODE:
+        return definition;
+      case EvalTemplateType.DECISION_MODEL:
+        return {
+          type: EvalTemplateType.DECISION_MODEL,
+          prompt: definition.prompt,
+          provider: definition.modelConfig.provider,
+          model: definition.modelConfig.model,
+          outputDefinition: definition.outputDefinition,
+        };
+      case EvalTemplateType.LLM_AS_JUDGE:
+        return {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: definition.promptMessages,
+          provider: definition.modelConfig?.provider ?? null,
+          model: definition.modelConfig?.model ?? null,
+          modelParams: definition.modelConfig?.modelParams ?? null,
+          vars: [
+            ...new Set(
+              definition.promptMessages.flatMap(({ content }) =>
+                extractVariables(content),
               ),
-            ],
-            variableMapping: definition.variableMapping,
-            outputDefinition: definition.outputDefinition,
-          },
-  );
+            ),
+          ],
+          variableMapping: definition.variableMapping,
+          outputDefinition: definition.outputDefinition,
+        };
+    }
+  });
 
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
@@ -258,6 +291,10 @@ export const SuggestEvaluatorTextSchema = z.object({
       type: z.literal(EvalTemplateType.CODE),
       sourceCode: z.string().min(1),
     }),
+    z.object({
+      type: z.literal(EvalTemplateType.DECISION_MODEL),
+      prompt: z.string().min(1),
+    }),
   ]),
 });
 
@@ -269,6 +306,12 @@ export type EvaluatorDefinitionForPersistence =
       promptMessages: PersistedEvaluatorPromptMessages;
     })
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
+      variableMapping: ObservationVariableMapping[];
+    })
+  | (Omit<
+      Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+      "variableMapping"
+    > & {
       variableMapping: ObservationVariableMapping[];
     });
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;

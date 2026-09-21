@@ -28,6 +28,21 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 Input: {{input}}
 Response: {{output}}`;
 
+// Decision models see the observation fields as state, so the instructions
+// are a single question and the categories below are its possible answers.
+const DEFAULT_DECISION_MODEL_INSTRUCTIONS =
+  "Does the output answer the input accurately and completely?";
+
+const DEFAULT_DECISION_MODEL_SCORE_OUTPUT: ScoreOutputFormState = {
+  dataType: "CATEGORICAL",
+  scoreDescription: "",
+  reasoningDescription: "",
+  choices: [{ label: "pass" }, { label: "fail" }],
+  shouldAllowMultipleMatches: false,
+  minValue: "",
+  maxValue: "",
+};
+
 function buildInitialVariableFields(
   definition: NormalizedEvaluatorDefinition | null | undefined,
 ): Record<string, VariableFieldState> {
@@ -55,8 +70,25 @@ function buildInitialVariableFields(
   );
 }
 
+function buildInitialScoreOutput(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+  type: EvalTemplateType,
+): ScoreOutputFormState {
+  if (
+    definition?.type === "LLM_AS_JUDGE" ||
+    definition?.type === "DECISION_MODEL"
+  ) {
+    return toScoreOutputFormState(definition.outputDefinition);
+  }
+  if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    return DEFAULT_DECISION_MODEL_SCORE_OUTPUT;
+  }
+  return toScoreOutputFormState(null);
+}
+
 type EvaluatorSetupStoreActions = {
   setType: (type: EvalTemplateType) => void;
+  setInstructions: (instructions: string) => void;
   setPromptMessage: (index: number, message: EvaluatorPromptMessage) => void;
   addPromptMessage: () => void;
   removePromptMessage: (index: number) => void;
@@ -91,6 +123,8 @@ export type EvaluatorSetupStoreState = {
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
+  /** Decision-model question instructions; persisted as the version prompt. */
+  instructions: string;
   sourceCode: string;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
   sourceCodeDrafts: Partial<Record<EvalTemplateSourceCodeLanguage, string>>;
@@ -114,11 +148,18 @@ export type EvaluatorSetupStoreState = {
 
 export type EvaluatorSetupStore = StoreApi<EvaluatorSetupStoreState>;
 
-export const selectHasValidModel = (state: EvaluatorSetupStoreState) =>
-  state.type !== EvalTemplateTypeEnum.LLM_AS_JUDGE ||
-  Boolean(
-    state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
-  );
+export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
+  if (state.type === EvalTemplateTypeEnum.LLM_AS_JUDGE) {
+    return Boolean(
+      state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
+    );
+  }
+  // Decision models have no project default; a connection must be picked.
+  if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    return Boolean(state.selectedModel);
+  }
+  return true;
+};
 
 export function createEvaluatorSetupStore({
   initialEvaluator,
@@ -150,25 +191,27 @@ export function createEvaluatorSetupStore({
     initialDefinition?.type === "LLM_AS_JUDGE"
       ? initialDefinition.promptMessages
       : [{ role: "user" as const, content: DEFAULT_PROMPT }];
+  const type =
+    initialDefinition?.type ?? initialType ?? EvalTemplateTypeEnum.LLM_AS_JUDGE;
+  const hasModelSelection =
+    initialDefinition?.type === "LLM_AS_JUDGE" ||
+    initialDefinition?.type === "DECISION_MODEL";
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
-    type:
-      initialDefinition?.type ??
-      initialType ??
-      EvalTemplateTypeEnum.LLM_AS_JUDGE,
+    type,
     promptMessages: initialPromptMessages,
     promptMessageIds: initialPromptMessages.map(() => safeRandomUUID()),
+    instructions:
+      initialDefinition?.type === "DECISION_MODEL"
+        ? initialDefinition.prompt
+        : DEFAULT_DECISION_MODEL_INSTRUCTIONS,
     sourceCode: initialSourceCode,
     sourceCodeLanguage: initialSourceCodeLanguage,
     sourceCodeDrafts: {
       [initialSourceCodeLanguage]: initialSourceCode,
     },
-    scoreOutput: toScoreOutputFormState(
-      initialDefinition?.type === "LLM_AS_JUDGE"
-        ? initialDefinition.outputDefinition
-        : null,
-    ),
+    scoreOutput: buildInitialScoreOutput(initialDefinition, type),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
     openSteps: { 1: true, 2: true, 3: true },
@@ -176,14 +219,13 @@ export function createEvaluatorSetupStore({
     activeMapping: null,
     modelPickerOpen: false,
     modelMode:
-      initialDefinition?.type === "LLM_AS_JUDGE" && initialDefinition.model
+      (initialDefinition?.type === "LLM_AS_JUDGE" && initialDefinition.model) ||
+      type === EvalTemplateTypeEnum.DECISION_MODEL
         ? "custom"
         : "default",
     defaultModel,
     selectedModel:
-      initialDefinition?.type === "LLM_AS_JUDGE" &&
-      initialDefinition.provider &&
-      initialDefinition.model
+      hasModelSelection && initialDefinition.provider && initialDefinition.model
         ? {
             provider: initialDefinition.provider,
             model: initialDefinition.model,
@@ -200,7 +242,25 @@ export function createEvaluatorSetupStore({
     promptPreviewEnabled: false,
     testPanelOpen: true,
     actions: {
-      setType: (type) => set({ type }),
+      setType: (type) =>
+        set((state) =>
+          // Decision models always answer with one category; switching to one
+          // replaces a numeric or boolean output with a categorical default.
+          type === EvalTemplateTypeEnum.DECISION_MODEL
+            ? {
+                type,
+                modelMode: "custom",
+                scoreOutput:
+                  state.scoreOutput.dataType === "CATEGORICAL"
+                    ? {
+                        ...state.scoreOutput,
+                        shouldAllowMultipleMatches: false,
+                      }
+                    : DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
+              }
+            : { type },
+        ),
+      setInstructions: (instructions) => set({ instructions }),
       setPromptMessage: (index, message) =>
         set((state) => {
           const promptMessages = state.promptMessages.map((current, i) =>
@@ -328,6 +388,18 @@ export function createEvaluatorSetupStore({
                   model: definition.model,
                 }
               : null;
+
+          if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            return {
+              type: definition.type,
+              instructions: definition.prompt,
+              scoreOutput: toScoreOutputFormState(definition.outputDefinition),
+              activeMapping: null,
+              modelMode: "custom",
+              selectedModel,
+              modelParams: null,
+            };
+          }
 
           return {
             type: definition.type,
