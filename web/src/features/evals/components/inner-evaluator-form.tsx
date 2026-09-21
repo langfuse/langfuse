@@ -128,7 +128,6 @@ const ObservationsTable = lazy(() =>
     default: m.ObservationsTable,
   })),
 );
-);
 
 const EventsTable = lazy(
   () => import("@/src/features/events/components/EventsTable"),
