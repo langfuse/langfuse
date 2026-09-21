@@ -15,7 +15,7 @@ which traces are processed:
 - `topic_rules`: editable names, observation filters and optional random/latest
   sample size. `topic_rule_facet_assignments` attaches stable facets to rules;
   editing a rule does not create prompt versions.
-- At trigger, the execution manifest freezes the rule ID, filter, time window,
+- At trigger, the request freezes the rule ID, filter, time window,
   sampling seed, exclusions, resolved trace IDs, selected prompt versions and
   runtime summary/embedding configuration. Retries never re-evaluate a rule.
 
@@ -28,11 +28,11 @@ topics, rather than owning separate maps.
 
 ## Setup
 
-Use the normal local Postgres, ClickHouse, Redis, object storage, web, and worker stack. Apply the
+Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
 worker. Topics is enabled only when `NODE_ENV=development` and `NEXTAUTH_URL` has a
-loopback hostname. Web and worker use the same databases and event-upload bucket;
-no shared filesystem is needed.
+loopback hostname. Web and worker use the same databases and Redis. Topics does
+not write to object storage or require a shared filesystem; ingestion storage is unchanged.
 
 Build the numerical addon from the repository root (the normal worker build and
 dev commands also build it):
@@ -45,8 +45,8 @@ The worker reads `OPENAI_API_KEY` from its environment through the normal `.env`
 loader. Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary records set `unit_type=trace`, `unit_id` to the source trace ID, and
-`trigger_type=manual_poc`. Clustering runs record the first start in `started_at`;
-retries preserve it.
+`trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
+attempt while keeping the previous published map available.
 
 The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
 `gpt-5.6-luna` with reasoning disabled. Embeddings use `text-embedding-3-small`
@@ -92,8 +92,8 @@ before summarization, including the absence of a map. Retries keep that choice.
 New requests can use a map published while an earlier request was running.
 
 An update selects the latest summary per trace, then keeps only complete results
-matching the selected facet version and embedding configuration. It freezes
-those IDs before fitting. Non-applicable or incompatible newer summaries never
+matching the selected facet version and embedding configuration. The attempt uses
+that in-memory population for fitting; a failed update selects it again on retry. Non-applicable or incompatible newer summaries never
 revive older eligible results. A change to embedding dimensions must first be
 processed explicitly; topic updates do not silently re-embed historical data.
 The explicit update always attempts a fit subject to its minimum count. There
@@ -111,13 +111,13 @@ previous membership; processing failures do not. Topic filtering happens after
 latest selection. A late older job may win by timestamp, intentionally accepted
 for this PoC. Execution links continue to show historical results.
 
-## Algorithm and checkpoints
+## Algorithm and queue recovery
 
 The worker loads and assembles each trace once per processing attempt, shares
 the same in-memory transcript across all selected facets, and releases it before
-processing the next trace. Loading is lazy: accepted summaries and frozen cohorts
-replay without reading the source. It does not persist source
-snapshots, transcripts, projections, or model request bodies. Shared deterministic
+processing the next trace. Loading is lazy: accepted summary references in the
+batch job resume without reading the source. It does not persist source
+snapshots, transcripts, or model request bodies. Shared deterministic
 assembly is used by the worker and the on-demand summary inspector. Accepted
 summaries and embeddings are saved in ClickHouse; accepted names are saved in Postgres.
 Successful extraction writes the summary and embedding together to ClickHouse.
@@ -136,9 +136,9 @@ processor; the stored operation determines the path. Embeddings retain their
 separate `topics-embedding` queue with two worker slots.
 The processing coordinator releases its worker slot while waiting. Its BullMQ job records
 pending embedding batch IDs; unchanged polls read only Redis queue states, with
-no Postgres, S3 or ClickHouse work. Completed batches are removed from the wait
-list. When pending jobs finish or need recovery, the coordinator resumes from
-frozen batch references without rewriting earlier progress prefixes. Missing/expired payloads fail the batch explicitly; start a new
+no Postgres or ClickHouse work. Completed batches are removed from the wait
+list. When pending jobs finish or need recovery, the batch resumes from references
+in its BullMQ job. Missing/expired payloads fail the batch explicitly; start a new
 execution to regenerate them. Redis staging is temporary, not a durable archive:
 Redis data loss or expiry before persistence can require repeating inference.
 Unchanged effective input and summary recipe reuse accepted summary text. Embedding
@@ -167,8 +167,7 @@ across facets. This is a normalized representation, not a lossless export.
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. The canonical transcript text
-determines input identity. Accepted checkpoints and updates from stored
-summaries retain their inputs and provenance.
+determines input identity. Stored summaries retain their input and model provenance.
 
 Extraction prompt versions participate in cache identity. The tested nano prompt
 and schema write the summary before deciding applicability. Check
@@ -195,8 +194,8 @@ The Rust adapter adds one to `minSamples` because the library includes the point
 itself in its neighbor count. Rust owns the fixed reduction and cluster-selection
 defaults; the worker passes only minimum population, cluster size, and samples.
 The numerical backend version is recorded per run.
-Accepted numerical checkpoints retain their original version on replay; an
-unfinished fit records the installed backend before retrying.
+Numerical results are held in memory until their assignments and coordinates are
+saved in ClickHouse. An unpublished attempt is rerun from scratch after failure.
 
 The synchronous native fit runs in a credential-free Node child process with a
 120-second kill deadline and output limits proportional to cohort size. No trace
@@ -218,8 +217,8 @@ No informative clusters yields a terminal `no_topics` result and publishes an
 empty map with explicit outlier assignments for the selected cohort. HDBSCAN's single root cluster is disabled, so
 a single overall population is not forced into a topic; validating that case
 needs a future coherence policy. Maps are
-published only after their frozen initial assignment cohort is readable in
-ClickHouse. Topic definitions and initial manifests remain immutable while later
+published only after their initial assignments and coordinates are readable in
+ClickHouse. Topic definitions and initial assignments remain immutable while later
 assignments can extend a map's live membership. Updates match final memberships to the previous published map for that facet
 version. Changed embedding spaces use membership evidence without comparing
 centroids. Continuing
@@ -228,8 +227,8 @@ splits/merges receive new IDs with predecessor lineage in topic metadata.
 
 ## Cost and recovery
 
-The Topics page renders the saved 2D coordinates against the frozen discovery
-manifest. This view uses the same scale on both axes, with topic filtering,
+The Topics page renders saved 2D coordinates from the map's initial ClickHouse
+assignments. This view uses the same scale on both axes, with topic filtering,
 summary selection and trace links. It does not recompute clusters or charge a
 model. Later assigned traces remain unpositioned until a new discovery map;
 the numerical worker does not retain a UMAP transform.
@@ -241,14 +240,15 @@ requested from the model. A non-applicable result containing a summary is reject
 not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
-Postgres stores one `batch_actions` row per manual Process traces request and
-one `topic_clustering_runs` row per selected facet for Update topics requests.
-These rows store aggregate execution progress; there are no per-trace rows. Selected trace IDs, summary references,
-and numerical fits use content-addressed objects under the event-upload bucket's
-`topics/` prefix. ID lists are chunked; their contents never enter Postgres.
-ClickHouse stores summary text, embeddings, assignment outcomes, and map coordinates.
-Postgres stores each accepted cluster label separately, with evidence IDs only.
-Transcripts stay in memory. There are no per-call output files or shared-disk state.
+Postgres stores one `batch_actions` row per manual Process traces request,
+compact update coordinator rows per facet, and one clustering-run row per attempt.
+These contain settings and aggregate progress, not per-trace records or paid outputs.
+BullMQ jobs carry bounded batches of up to 100 trace IDs, accepted summary references,
+and temporary retry state. ClickHouse stores summary text, embeddings, assignment
+outcomes, and map coordinates. Explicit `awaiting_topics` assignments preserve
+membership for batches that have no map yet, including reused summaries.
+Postgres stores topic names, descriptions and prototypes. Transcripts stay in memory.
+There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
 Processing reads cached summaries in batches of 100 traces and records accepted
 summary references before queueing embeddings. ClickHouse writes are additionally
@@ -273,28 +273,28 @@ input/output failures stop immediately. A manual resume can retry a failed batch
 while its Redis payload still exists; each manual resume resets the three-attempt
 retry budget.
 
-A persisted summary, embedding, or cluster name can be reused without another charge. If a worker
-stops after a provider call succeeds but before saving its result, a manual
-resume may repeat that call.
+A persisted summary or embedding can be reused without another charge. A failed
+clustering attempt restarts its fit and naming; a published attempt is recognized
+without repeating them. If a worker stops after a provider call succeeds but
+before saving its result, a manual resume may repeat that call.
 
-Resume advances pending or failed stages from their accepted checkpoints.
-Once extraction finishes, the accepted summary cohort and its failed-trace count
-are frozen before assignment. Topic updates freeze one compatible summary-ID
-cohort ordered by trace ID. The execution and clustering run reference that same
-S3 artifact, including for progress, replay and historical reads. Numerical
-labels and coordinates retain this order on retries. Downstream retries reuse that cohort
-without loading traces again, including when some traces failed.
-To process those traces later, create a new execution; do not reinterpret a
-published map's initial manifest. This PoC has one queue owner per execution and no automatic discovery schedule,
-arrival catch-up, or object-retention job. The planned six-hour scheduler should
-invoke the same update path as the manual button. Large per-project discovery,
-all-member naming, and distributed stream processing remain follow-up work;
-these changes are not a 100-million-traces/day throughput validation.
+Trace retries reuse accepted summary references from their bounded BullMQ job.
+The summary payload itself still expires after three hours; expiry requires a new
+execution. Completed results and historical batch membership live in ClickHouse.
+An interrupted update starts a new attempt from current compatible summaries,
+then fits and names from scratch. Partially named failed attempts cannot overwrite
+the previous published map. After publication, an acknowledgement retry recognizes
+the completed attempt without fitting again.
+
+There is no automatic discovery schedule or stream producer yet. The planned
+six-hour scheduler should invoke the same update path as the manual button.
+Large per-project discovery, all-member naming, and distributed stream processing
+remain follow-up work; this is not a 100-million-traces/day throughput validation.
 
 Trace deletion removes stored facet summaries (including embeddings), assignments
 and map coordinates through the existing batched ClickHouse deletion path.
 It does not cancel in-flight Topics jobs, which can write results after deletion.
-S3 checkpoint cleanup and topic-name/centroid refresh are separate lifecycle work.
+Topic-name/centroid refresh remains separate lifecycle work.
 
 ### Datadog metrics
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -540,7 +541,13 @@ export type TQueueJobTypes = {
     timestamp: Date;
     id: string;
     name: QueueJobs.Topics;
-    payload: { projectId: string; executionId: string };
+    payload: {
+      projectId: string;
+      executionId: string;
+      traceIds?: string[];
+      batchId?: string;
+    };
+    batchState?: TopicProcessBatchState;
     pendingEmbeddingBatchIds?: string[];
   };
   [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];

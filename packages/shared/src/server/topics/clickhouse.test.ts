@@ -5,6 +5,8 @@ import {
   readTopicSummaries,
   readTopicAssignments,
   readTopicMapAssignments,
+  readTopicExecutionSummaryIds,
+  readTopicRunSummaryIds,
   writeTopicAssignments,
   readLatestTopicAssignments,
   getLatestFacetSummaries,
@@ -233,6 +235,43 @@ describe("Topics summary provenance storage", () => {
 });
 
 describe("Topics assignment outcomes", () => {
+  it("derives batch and map membership from project-scoped assignments", async () => {
+    mocks.query.mockResolvedValueOnce([
+      { facetVersionId: "facet-v1", summaryId: "cached-summary" },
+    ]);
+    expect(
+      await readTopicExecutionSummaryIds("project-a", "execution-a"),
+    ).toEqual([{ facetVersionId: "facet-v1", summaryId: "cached-summary" }]);
+    const executionQuery = mocks.query.mock.calls[0][0];
+    expect(executionQuery.params).toEqual({
+      projectId: "project-a",
+      executionId: "execution-a",
+    });
+    expect(executionQuery.query).toContain("FROM topic_assignments");
+    expect(executionQuery.query).toContain("project_id = {projectId:String}");
+    expect(executionQuery.query).toContain(
+      "execution_id = {executionId:String}",
+    );
+
+    mocks.query.mockResolvedValueOnce([{ summaryId: "discovery-summary" }]);
+    expect(
+      await readTopicRunSummaryIds("project-a", "run-a", "discovery-a"),
+    ).toEqual(["discovery-summary"]);
+    const discoveryQuery = mocks.query.mock.calls[1][0];
+    expect(discoveryQuery.params).toEqual({
+      projectId: "project-a",
+      runId: "run-a",
+      executionId: "discovery-a",
+    });
+    for (const filter of [
+      "project_id = {projectId:String}",
+      "clustering_run_id = {runId:String}",
+      "execution_id = {executionId:String}",
+      "origin = 'initial'",
+    ])
+      expect(discoveryQuery.query).toContain(filter);
+  });
+
   it("batches assignment rows without dropping any results", async () => {
     const rows = Array.from({ length: 10_001 }, (_, index) => ({
       ...assignmentFixture,
@@ -249,36 +288,39 @@ describe("Topics assignment outcomes", () => {
     ).toEqual(rows.map((row) => row.id));
   });
 
-  it("stores terminal no-map results without retaining topic identities", async () => {
-    const row = assignmentFixture;
-    await writeTopicAssignments([row]);
-    expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
-      unit_type: "trace",
-      clustering_run_id: "",
-      run_sequence: "0",
-      outcome: "not_applicable",
-      execution_id: "execution-a",
-      coordinates: [],
-    });
-    await expect(
-      writeTopicAssignments([{ ...row, topicId: "stale-topic" }]),
-    ).rejects.toThrow("Invalid Topics assignment");
-    mocks.query.mockResolvedValue([
-      {
-        ...row,
-        runId: "",
-        runSequence: "0",
-        topicId: "",
-        topicVersionId: "",
+  it.each(["not_applicable", "awaiting_topics"] as const)(
+    "stores %s results without retaining topic identities",
+    async (outcome) => {
+      const row = { ...assignmentFixture, outcome };
+      await writeTopicAssignments([row]);
+      expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
+        unit_type: "trace",
+        clustering_run_id: "",
+        run_sequence: "0",
+        outcome,
+        execution_id: "execution-a",
         coordinates: [],
-        traceTimestampMs: Date.parse(row.traceTimestamp).toString(),
-        assignedAtMs: Date.parse(row.assignedAt).toString(),
-      },
-    ]);
-    expect(
-      await readLatestTopicAssignments("project-a", { facetId: "facet-a" }),
-    ).toEqual([row]);
-  });
+      });
+      await expect(
+        writeTopicAssignments([{ ...row, topicId: "stale-topic" }]),
+      ).rejects.toThrow("Invalid Topics assignment");
+      mocks.query.mockResolvedValue([
+        {
+          ...row,
+          runId: "",
+          runSequence: "0",
+          topicId: "",
+          topicVersionId: "",
+          coordinates: [],
+          traceTimestampMs: Date.parse(row.traceTimestamp).toString(),
+          assignedAtMs: Date.parse(row.assignedAt).toString(),
+        },
+      ]);
+      expect(
+        await readLatestTopicAssignments("project-a", { facetId: "facet-a" }),
+      ).toEqual([row]);
+    },
+  );
 
   it("loads original map coordinates by execution before choosing the latest assignment", async () => {
     mocks.query.mockResolvedValue([]);
@@ -293,6 +335,7 @@ describe("Topics assignment outcomes", () => {
       "project_id = {projectId:String}",
       "clustering_run_id = {runId:String}",
       "execution_id = {executionId:String}",
+      "origin = 'initial'",
       "length(coordinates) = 2",
     ]) {
       expect(query.indexOf(filter)).toBeGreaterThan(0);

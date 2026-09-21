@@ -2018,7 +2018,6 @@ model TopicClusteringRun {
   status            String            @default("pending")
   phase             String            @default("snapshot")
   config            Json              @default("{}")
-  manifestPath      String            @default("") @map("manifest_path")
   metrics           Json              @default("{}")
   error             String?
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)

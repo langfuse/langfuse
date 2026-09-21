@@ -12,9 +12,10 @@ import {
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
-  readTopicExecution,
   readTopicExecutionForRequest,
   readTopicExecutionSummary,
+  readTopicExecutionSummaryIds,
+  readTopicExecutionTraceErrors,
   getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
@@ -181,14 +182,15 @@ async function publishedTopicMap(input: {
   executionId: string;
   facetVersionId: string;
 }): Promise<TopicMap> {
-  const execution = await readTopicExecution(
+  const execution = await readTopicExecutionSummary(
     input.projectId,
     input.executionId,
   );
   const facet = execution?.facets.find(
     (item) => item.facetVersionId === input.facetVersionId,
   );
-  if (!facet) throw new LangfuseNotFoundError("Execution facet not found.");
+  if (!execution || !facet)
+    throw new LangfuseNotFoundError("Execution facet not found.");
   const unavailable: TopicMap = {
     status: "unavailable",
     reason: "This batch does not have a published map.",
@@ -217,7 +219,10 @@ async function publishedTopicMap(input: {
       ...unavailable,
       reason: "The discovery cohort is unavailable for this map.",
     };
-  const origin = await readTopicExecution(input.projectId, originId.data);
+  const origin = await readTopicExecutionSummary(
+    input.projectId,
+    originId.data,
+  );
   if (
     !origin ||
     origin.input.operation !== "update" ||
@@ -257,8 +262,14 @@ async function publishedTopicMap(input: {
         "Saved coordinates are not fully available for the discovery cohort.",
     };
 
-  const executionIds = new Set(facet.summaryIds);
-  const summaryIds = [...new Set([...run.summaryIds, ...facet.summaryIds])];
+  const executionIds = new Set(
+    execution.input.operation === "update"
+      ? run.summaryIds
+      : (await readTopicExecutionSummaryIds(input.projectId, input.executionId))
+          .filter((row) => row.facetVersionId === input.facetVersionId)
+          .map((row) => row.summaryId),
+  );
+  const summaryIds = [...new Set([...run.summaryIds, ...executionIds])];
   const summaries = await readTopicSummaries(input.projectId, summaryIds);
   const byId = new Map(
     summaries
@@ -388,12 +399,12 @@ export const topicsRouter = createTRPCRouter({
   traceErrors: topicsProcedure
     .input(executionInput)
     .query(async ({ input }) => {
-      const execution = await readTopicExecution(
+      const execution = await readTopicExecutionSummary(
         input.projectId,
         input.executionId,
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
-      return execution.traceErrors;
+      return readTopicExecutionTraceErrors(input.projectId, input.executionId);
     }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
@@ -460,6 +471,9 @@ export const topicsRouter = createTRPCRouter({
           input.projectId,
           execution.id,
           execution.input.operation,
+          execution.input.operation === "process"
+            ? execution.input.traceIds
+            : undefined,
         );
       return { id: execution.id };
     }),
@@ -498,21 +512,33 @@ export const topicsRouter = createTRPCRouter({
   results: topicsProcedure
     .input(executionInput.extend({ facetVersionId: topicIdSchema }))
     .query(async ({ input }) => {
-      const execution = await readTopicExecution(
+      const execution = await readTopicExecutionSummary(
         input.projectId,
         input.executionId,
       );
       const facet = execution?.facets.find(
         (f) => f.facetVersionId === input.facetVersionId,
       );
-      if (!facet) throw new LangfuseNotFoundError("Execution facet not found.");
+      if (!execution || !facet)
+        throw new LangfuseNotFoundError("Execution facet not found.");
       const run = facet.runId
         ? await getTopicRun(input.projectId, facet.runId)
         : null;
+      const summaryIds =
+        execution.input.operation === "update"
+          ? (run?.summaryIds ?? [])
+          : (
+              await readTopicExecutionSummaryIds(
+                input.projectId,
+                input.executionId,
+              )
+            )
+              .filter((row) => row.facetVersionId === input.facetVersionId)
+              .map((row) => row.summaryId);
       const [summaries, assignments] = await Promise.all([
-        readTopicSummaries(input.projectId, facet.summaryIds),
+        readTopicSummaries(input.projectId, summaryIds),
         run?.publishedAt
-          ? readTopicAssignments(input.projectId, facet.summaryIds, run.id)
+          ? readTopicAssignments(input.projectId, summaryIds, run.id)
           : Promise.resolve([]),
       ]);
       return {
@@ -574,13 +600,31 @@ export const topicsRouter = createTRPCRouter({
   inspect: topicsProcedure
     .input(executionInput.extend({ summaryId: topicIdSchema }))
     .query(async ({ input }) => {
-      const execution = await readTopicExecution(
+      const execution = await readTopicExecutionSummary(
         input.projectId,
         input.executionId,
       );
-      if (
-        !execution?.facets.some((f) => f.summaryIds.includes(input.summaryId))
-      )
+      if (!execution)
+        throw new LangfuseNotFoundError("Summary not in this execution.");
+      const accepted =
+        execution.input.operation === "update"
+          ? (
+              await Promise.all(
+                execution.facets.map(async ({ runId }) =>
+                  runId
+                    ? ((await getTopicRun(input.projectId, runId))
+                        ?.summaryIds ?? [])
+                    : [],
+                ),
+              )
+            ).flat()
+          : (
+              await readTopicExecutionSummaryIds(
+                input.projectId,
+                input.executionId,
+              )
+            ).map((row) => row.summaryId);
+      if (!accepted.includes(input.summaryId))
         throw new LangfuseNotFoundError("Summary not in this execution.");
       const [summary] = await readTopicSummaries(input.projectId, [
         input.summaryId,
@@ -617,14 +661,14 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input }) => {
-      const execution = await readTopicExecution(
+      const execution = await readTopicExecutionSummary(
         input.projectId,
         input.executionId,
       );
       const facet = execution?.facets.find(
         (item) => item.facetVersionId === input.facetVersionId,
       );
-      if (!facet?.runId)
+      if (!execution || !facet?.runId)
         throw new LangfuseNotFoundError("Execution map not found.");
       const [current, other] = await Promise.all([
         getTopicRun(input.projectId, facet.runId),
@@ -638,9 +682,20 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Compare published maps of the same facet version.",
         );
+      const summaryIds =
+        execution.input.operation === "update"
+          ? current.summaryIds
+          : (
+              await readTopicExecutionSummaryIds(
+                input.projectId,
+                input.executionId,
+              )
+            )
+              .filter((row) => row.facetVersionId === input.facetVersionId)
+              .map((row) => row.summaryId);
       const [currentRows, otherRows] = await Promise.all([
-        readTopicAssignments(input.projectId, facet.summaryIds, current.id),
-        readTopicAssignments(input.projectId, facet.summaryIds, other.id),
+        readTopicAssignments(input.projectId, summaryIds, current.id),
+        readTopicAssignments(input.projectId, summaryIds, other.id),
       ]);
       const byId = new Map(otherRows.map((row) => [row.summaryId, row]));
       const flows = new Map<
@@ -665,7 +720,7 @@ export const topicsRouter = createTRPCRouter({
       }
       return {
         compared,
-        total: facet.summaryIds.length,
+        total: summaryIds.length,
         flows: [...flows.values()].sort((a, b) => b.count - a.count),
       };
     }),

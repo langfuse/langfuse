@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
-import { env } from "../../env";
+import { getTopicProcessingMapIds } from "./postgres";
 import { InvalidRequestError } from "../../errors";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
@@ -11,27 +11,14 @@ import {
   type TopicExecutionSummary,
   type TopicFacetProgress,
 } from "../../topics";
-import { getS3EventStorageClient } from "../s3";
 
-const MANIFEST_CHUNK_SIZE = 1000;
 export const TOPICS_PROCESS_TRACES_ACTION = "trace-process-topics";
-type ObjectReference = { key: string; hash: string };
-type InputManifest = {
-  settings: Record<string, unknown>;
-  ids: ObjectReference[];
-};
-type ProgressManifest = {
-  facets: { facetVersionId: string; summaryIds: ObjectReference[] }[];
-  traceErrors: ObjectReference[];
-};
 type ExecutionMetadata = {
   header: Omit<TopicExecution, "input" | "facets" | "traceErrors">;
   inputSettings: TopicExecutionSummary["input"];
-  inputManifest: ObjectReference;
   inputHash: string;
   requestHash: string;
-  progressManifest: ObjectReference | null;
-  artifacts: Record<string, ObjectReference>;
+  progressVersion?: number;
 };
 type FacetMetadata = Omit<TopicFacetProgress, "summaryIds">;
 type RunMetadata = ExecutionMetadata & { facet: FacetMetadata };
@@ -56,70 +43,6 @@ const metadata = (row: RunRow) =>
   row.executionMetadata as unknown as RunMetadata;
 const batchMetadata = (row: BatchRow) => row.config as unknown as BatchMetadata;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
-const storage = () =>
-  getS3EventStorageClient(env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET);
-
-function objectKey(projectId: string, executionId: string, digest: string) {
-  return `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}topics/${topicIdSchema.parse(projectId)}/${topicIdSchema.parse(executionId)}/${digest}.json`;
-}
-
-async function writeObject(
-  projectId: string,
-  executionId: string,
-  value: unknown,
-  previous?: ObjectReference | null,
-): Promise<ObjectReference> {
-  const body = { value };
-  const digest = hash(body);
-  const key = objectKey(projectId, executionId, digest);
-  if (previous?.key === key && previous.hash === digest) return previous;
-  await storage().uploadJson(key, body);
-  return { key, hash: digest };
-}
-
-async function readObject<T>(
-  projectId: string,
-  executionId: string,
-  reference: ObjectReference,
-): Promise<T> {
-  if (reference.key !== objectKey(projectId, executionId, reference.hash))
-    throw new Error("Topics object scope mismatch.");
-  const body = JSON.parse(await storage().download(reference.key));
-  if (hash(body) !== reference.hash)
-    throw new Error("Topics object does not match its accepted hash.");
-  return body.value as T;
-}
-
-async function writeChunks<T>(
-  projectId: string,
-  executionId: string,
-  values: T[],
-  previous: ObjectReference[] = [],
-) {
-  const chunks: ObjectReference[] = [];
-  for (let offset = 0; offset < values.length; offset += MANIFEST_CHUNK_SIZE)
-    chunks.push(
-      await writeObject(
-        projectId,
-        executionId,
-        values.slice(offset, offset + MANIFEST_CHUNK_SIZE),
-        previous[offset / MANIFEST_CHUNK_SIZE],
-      ),
-    );
-  return chunks;
-}
-
-async function readChunks<T>(
-  projectId: string,
-  executionId: string,
-  chunks: ObjectReference[],
-) {
-  const values: T[] = [];
-  for (const reference of chunks)
-    values.push(...(await readObject<T[]>(projectId, executionId, reference)));
-  return values;
-}
-
 async function lockExecution(
   tx: Prisma.TransactionClient,
   projectId: string,
@@ -130,17 +53,18 @@ async function lockExecution(
   await tx.$queryRaw`SELECT id FROM batch_actions WHERE project_id = ${projectId} AND id = ${executionId} FOR UPDATE`;
 }
 
-function executionRows(
+async function executionRows(
   projectId: string,
   executionId: string,
   db: Pick<Prisma.TransactionClient, "topicClusteringRun"> = prisma,
 ) {
   topicIdSchema.parse(projectId);
   topicIdSchema.parse(executionId);
-  return db.topicClusteringRun.findMany({
+  const rows = await db.topicClusteringRun.findMany({
     where: { projectId, executionId },
     orderBy: { id: "asc" },
   });
+  return rows.filter((row) => metadata(row).header);
 }
 
 async function storedExecution(
@@ -197,7 +121,7 @@ function summaryResult(stored: StoredExecution): TopicExecutionSummary {
   };
 }
 
-/** Postgres owns execution progress; object storage holds immutable input and cohort references. */
+/** Postgres owns compact execution settings and progress, never per-trace payloads. */
 export class TopicExecutionStore {
   async create(
     rawInput: TopicExecutionInput,
@@ -224,29 +148,36 @@ export class TopicExecutionStore {
     const existing = await storedExecution(input.projectId, id);
     if (existing) {
       checkOriginalRequest(existing.state);
-      return (await this.read(input.projectId, id))!;
+      checkRequest(existing.state, input);
+      return {
+        ...summaryResult(existing),
+        input,
+        facets: existing.facets.map((facet) => ({ ...facet, summaryIds: [] })),
+        traceErrors: [],
+      };
     }
     const { projectId } = input;
-    const { ids, settings, inputSettings } =
+    const { ids, inputSettings } =
       input.operation === "process"
         ? (() => {
-            const { traceIds, traceSelection, ...compact } = input;
-            return {
-              ids: traceIds,
-              settings: { ...compact, traceSelection },
-              inputSettings: compact,
-            };
+            const { traceIds, traceSelection: _selection, ...compact } = input;
+            return { ids: traceIds, inputSettings: compact };
           })()
-        : { ids: [], settings: input, inputSettings: input };
-    const inputManifest = await writeObject(projectId, id, {
-      settings,
-      ids: await writeChunks(projectId, id, ids),
-    } satisfies InputManifest);
+        : { ids: [], inputSettings: input };
+    const mapIds =
+      input.operation === "process"
+        ? await getTopicProcessingMapIds(
+            projectId,
+            input.facetVersionIds,
+            input.embeddingConfig,
+          )
+        : {};
     await prisma.$transaction(async (tx) => {
       await lockExecution(tx, projectId, id);
       const current = await storedExecution(projectId, id, tx);
       if (current) {
         checkOriginalRequest(current.state);
+        checkRequest(current.state, input);
         return;
       }
       const [sequence] = await tx.$queryRaw<
@@ -265,17 +196,14 @@ export class TopicExecutionStore {
           error: null,
         },
         inputSettings,
-        inputManifest,
         inputHash: hash(input),
         requestHash,
-        progressManifest: null,
-        artifacts: {},
       };
       const facets: FacetMetadata[] = input.facetVersionIds.map(
         (facetVersionId) => ({
           facetVersionId,
           outcome: "pending",
-          runId: null,
+          runId: mapIds[facetVersionId] ?? null,
           error: null,
           counts: {
             requested: ids.length,
@@ -297,7 +225,7 @@ export class TopicExecutionStore {
             actionType: TOPICS_PROCESS_TRACES_ACTION,
             tableName: "traces",
             status: BatchActionStatus.Queued,
-            query: json({ inputManifest }),
+            query: json({ operation: "process" }),
             config: json({ ...state, facets } satisfies BatchMetadata),
             totalCount: ids.length,
             processedCount: 0,
@@ -318,14 +246,20 @@ export class TopicExecutionStore {
         });
       }
     });
-    return (await this.read(projectId, id))!;
+    const result = (await this.readSummary(projectId, id))!;
+    return {
+      ...result,
+      input,
+      facets: result.facets.map((facet) => ({ ...facet, summaryIds: [] })),
+      traceErrors: [],
+    };
   }
 
   async readForRequest(
     projectId: string,
     requestId: string,
     requestHash: string,
-  ): Promise<TopicExecution | null> {
+  ): Promise<TopicExecutionSummary | null> {
     topicIdSchema.parse(requestId);
     const id = executionIdForRequest(projectId, requestId);
     const stored = await storedExecution(projectId, id);
@@ -334,7 +268,7 @@ export class TopicExecutionStore {
       throw new InvalidRequestError(
         "This request ID already belongs to a different Topics request.",
       );
-    return this.read(projectId, id);
+    return summaryResult(stored);
   }
 
   async readSummary(
@@ -343,81 +277,6 @@ export class TopicExecutionStore {
   ): Promise<TopicExecutionSummary | null> {
     const stored = await storedExecution(projectId, executionId);
     return stored ? summaryResult(stored) : null;
-  }
-
-  async read(
-    projectId: string,
-    executionId: string,
-  ): Promise<TopicExecution | null> {
-    const stored = await storedExecution(projectId, executionId);
-    if (!stored) return null;
-    const { state } = stored;
-    const manifest = await readObject<InputManifest>(
-      projectId,
-      executionId,
-      state.inputManifest,
-    );
-    const input = topicExecutionInputSchema.parse({
-      ...manifest.settings,
-      ...(manifest.settings.operation === "process"
-        ? {
-            traceIds: await readChunks<string>(
-              projectId,
-              executionId,
-              manifest.ids,
-            ),
-          }
-        : {}),
-    });
-    checkRequest(state, input);
-    if (
-      state.header.id !== executionId ||
-      state.header.projectId !== projectId ||
-      input.projectId !== projectId
-    )
-      throw new Error("Topics execution scope mismatch.");
-    const progress = state.progressManifest
-      ? await readObject<ProgressManifest>(
-          projectId,
-          executionId,
-          state.progressManifest,
-        )
-      : null;
-    const facets: TopicFacetProgress[] = [];
-    for (const facet of summaryResult(stored).facets) {
-      const manifestPath = stored.rows.find(
-        (row) => row.facetVersionId === facet.facetVersionId,
-      )?.manifestPath;
-      const cohort = manifestPath
-        ? await readObject<{ summaryIds: string[] }>(
-            projectId,
-            executionId,
-            state.artifacts[manifestPath],
-          )
-        : null;
-      facets.push({
-        ...facet,
-        summaryIds:
-          cohort?.summaryIds ??
-          (await readChunks<string>(
-            projectId,
-            executionId,
-            progress?.facets.find(
-              (item) => item.facetVersionId === facet.facetVersionId,
-            )?.summaryIds ?? [],
-          )),
-      });
-    }
-    return {
-      ...state.header,
-      input,
-      facets,
-      traceErrors: await readChunks<TopicExecution["traceErrors"][number]>(
-        projectId,
-        executionId,
-        progress?.traceErrors ?? [],
-      ),
-    };
   }
 
   async list(projectId: string): Promise<TopicExecutionSummary[]> {
@@ -452,14 +311,18 @@ export class TopicExecutionStore {
         summaryResult({ state, facets: state.facets, batch: row, rows: [] }),
       );
     }
-    for (const row of rows) {
+    for (const row of rows.filter((row) => metadata(row).header)) {
       if (executions.has(row.executionId)) continue;
       executions.set(
         row.executionId,
         summaryResult({
           state: metadata(row),
           facets: rows
-            .filter((candidate) => candidate.executionId === row.executionId)
+            .filter(
+              (candidate) =>
+                candidate.executionId === row.executionId &&
+                metadata(candidate).header,
+            )
             .map((candidate) => metadata(candidate).facet),
           rows: [],
           batch: null,
@@ -471,47 +334,22 @@ export class TopicExecutionStore {
       .slice(0, 100);
   }
 
-  async write(execution: TopicExecution): Promise<void> {
+  async write(
+    execution: TopicExecutionSummary,
+    progressVersion?: number,
+  ): Promise<void> {
     const { projectId, id } = execution;
-    const existing = await storedExecution(projectId, id);
-    if (!existing) throw new Error("Topics execution does not exist.");
-    checkRequest(existing.state, execution.input);
-    const previousReference = existing.state.progressManifest;
-    const previous = previousReference
-      ? await readObject<ProgressManifest>(projectId, id, previousReference)
-      : null;
-    const progress: ProgressManifest = { facets: [], traceErrors: [] };
-    for (const facet of execution.input.operation === "process"
-      ? execution.facets
-      : [])
-      progress.facets.push({
-        facetVersionId: facet.facetVersionId,
-        summaryIds: await writeChunks(
-          projectId,
-          id,
-          facet.summaryIds,
-          previous?.facets.find(
-            (item) => item.facetVersionId === facet.facetVersionId,
-          )?.summaryIds,
-        ),
-      });
-    progress.traceErrors = await writeChunks(
-      projectId,
-      id,
-      execution.traceErrors,
-      previous?.traceErrors,
-    );
-    const progressManifest = await writeObject(
-      projectId,
-      id,
-      progress,
-      previousReference,
-    );
     await prisma.$transaction(async (tx) => {
       await lockExecution(tx, projectId, id);
       const current = await storedExecution(projectId, id, tx);
       if (!current) throw new Error("Topics execution does not exist.");
-      checkRequest(current.state, execution.input);
+      if (hash(current.state.inputSettings) !== hash(execution.input))
+        throw new Error("Topics execution settings cannot change.");
+      if (
+        progressVersion !== undefined &&
+        progressVersion <= (current.state.progressVersion ?? 0)
+      )
+        return;
       if (current.state.header.revision !== execution.revision)
         throw new Error("Topics execution revision cannot change.");
       if (
@@ -525,14 +363,32 @@ export class TopicExecutionStore {
       )
         throw new Error("Topics execution facets cannot change.");
       const {
-        input: _input,
-        facets: _facets,
-        traceErrors: _traceErrors,
-        ...header
+        id: executionId,
+        projectId: owner,
+        revision,
+        status: executionStatus,
+        phase: executionPhase,
+        createdAt,
+        error,
       } = execution;
-      header.updatedAt = new Date().toISOString();
+      const header: ExecutionMetadata["header"] = {
+        id: executionId,
+        projectId: owner,
+        revision,
+        status: executionStatus,
+        phase: executionPhase,
+        createdAt,
+        updatedAt: new Date().toISOString(),
+        error,
+      };
       const facets = execution.facets.map(
-        ({ summaryIds: _ids, ...facet }) => facet,
+        ({ facetVersionId, outcome, runId, error, counts }) => ({
+          facetVersionId,
+          outcome,
+          runId,
+          error,
+          counts,
+        }),
       );
       if (current.batch) {
         const terminal =
@@ -550,7 +406,7 @@ export class TopicExecutionStore {
             config: json({
               ...current.state,
               header,
-              progressManifest,
+              ...(progressVersion === undefined ? {} : { progressVersion }),
               facets,
             } satisfies BatchMetadata),
             status: statuses[execution.status],
@@ -595,7 +451,7 @@ export class TopicExecutionStore {
             executionMetadata: json({
               ...metadata(row),
               header,
-              progressManifest,
+              ...(progressVersion === undefined ? {} : { progressVersion }),
               facet,
             } satisfies RunMetadata),
             ...(!row.publishedAt
@@ -614,62 +470,6 @@ export class TopicExecutionStore {
       }
     });
   }
-
-  async readArtifact<T>(
-    projectId: string,
-    executionId: string,
-    key: string,
-  ): Promise<T | null> {
-    topicIdSchema.parse(key);
-    const stored = await storedExecution(projectId, executionId);
-    const reference = stored?.state.artifacts[key];
-    return reference ? readObject<T>(projectId, executionId, reference) : null;
-  }
-
-  async writeArtifact(
-    projectId: string,
-    executionId: string,
-    key: string,
-    value: unknown,
-  ): Promise<void> {
-    topicIdSchema.parse(key);
-    if (!/^(numeric|cohort|baseline)-/.test(key))
-      throw new Error(
-        "Only cohort references and numerical results are Topics artifacts.",
-      );
-    const reference = await writeObject(projectId, executionId, value);
-    await prisma.$transaction(async (tx) => {
-      await lockExecution(tx, projectId, executionId);
-      const current = await storedExecution(projectId, executionId, tx);
-      if (!current) throw new Error("Topics execution does not exist.");
-      const { state } = current;
-      const existing = state.artifacts[key];
-      if (existing) {
-        if (existing.hash !== reference.hash)
-          throw new Error("An accepted Topics artifact cannot be replaced.");
-        return;
-      }
-      const artifacts = { ...state.artifacts, [key]: reference };
-      if (current.batch) {
-        await tx.batchAction.update({
-          where: { projectId, id: executionId },
-          data: {
-            config: json({
-              ...state,
-              facets: current.facets,
-              artifacts,
-            } satisfies BatchMetadata),
-          },
-        });
-      } else {
-        const [row] = current.rows;
-        await tx.topicClusteringRun.update({
-          where: { projectId_id: { projectId, id: row.id } },
-          data: { executionMetadata: json({ ...metadata(row), artifacts }) },
-        });
-      }
-    });
-  }
 }
 
 export const createTopicExecution = (
@@ -683,23 +483,11 @@ export const readTopicExecutionForRequest = (
   requestHash: string,
 ) =>
   new TopicExecutionStore().readForRequest(projectId, requestId, requestHash);
-export const readTopicExecution = (projectId: string, id: string) =>
-  new TopicExecutionStore().read(projectId, id);
 export const readTopicExecutionSummary = (projectId: string, id: string) =>
   new TopicExecutionStore().readSummary(projectId, id);
 export const listTopicExecutions = (projectId: string) =>
   new TopicExecutionStore().list(projectId);
-export const writeTopicExecution = (execution: TopicExecution) =>
-  new TopicExecutionStore().write(execution);
-export const readTopicArtifact = <T>(
-  projectId: string,
-  executionId: string,
-  key: string,
-) => new TopicExecutionStore().readArtifact<T>(projectId, executionId, key);
-export const writeTopicArtifact = (
-  projectId: string,
-  executionId: string,
-  key: string,
-  value: unknown,
-) =>
-  new TopicExecutionStore().writeArtifact(projectId, executionId, key, value);
+export const writeTopicExecution = (
+  execution: TopicExecutionSummary,
+  progressVersion?: number,
+) => new TopicExecutionStore().write(execution, progressVersion);

@@ -4,8 +4,10 @@ import {
   ensureDefaultTopicFacets,
   createTopicRun,
   getPublishedTopicRun,
+  getPublishedTopicRunForExecution,
   getTopicDefinitions,
   getTopicRun,
+  getTopicProcessingMapIds,
   saveTopicRun,
 } from "./postgres";
 
@@ -14,28 +16,36 @@ const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
   create: vi.fn(),
   runFind: vi.fn(),
+  runFindMany: vi.fn(),
+  runCreate: vi.fn(),
   runUpdate: vi.fn(),
   runUpdateMany: vi.fn(),
   upsertTopic: vi.fn(),
-  writeArtifact: vi.fn(),
-  readArtifact: vi.fn(),
+  readRunSummaryIds: vi.fn(async () => [] as string[]),
   facetFind: vi.fn(),
   facetFindUnique: vi.fn(),
   facetFindMany: vi.fn(),
   facetCreate: vi.fn(),
   facetUpdate: vi.fn(),
   topicFind: vi.fn(),
+  versionFindMany: vi.fn(),
 }));
 vi.mock("../../db", () => ({
   Prisma: {},
   prisma: {
-    topicClusteringRun: { findFirst: mocks.runFind, update: mocks.runUpdate },
+    topicClusteringRun: {
+      findFirst: mocks.runFind,
+      findMany: mocks.runFindMany,
+      create: mocks.runCreate,
+      update: mocks.runUpdate,
+    },
     topicFacet: {
       findFirst: mocks.facetFind,
       findUnique: mocks.facetFindUnique,
       findMany: mocks.facetFindMany,
     },
     topic: { findMany: mocks.topicFind },
+    topicFacetVersion: { findMany: mocks.versionFindMany },
     $transaction: (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
         $queryRaw: mocks.lock,
@@ -57,9 +67,8 @@ vi.mock("../../db", () => ({
       }),
   },
 }));
-vi.mock("./journal", () => ({
-  readTopicArtifact: mocks.readArtifact,
-  writeTopicArtifact: mocks.writeArtifact,
+vi.mock("./clickhouse", () => ({
+  readTopicRunSummaryIds: mocks.readRunSummaryIds,
 }));
 
 describe("Topics default facets", () => {
@@ -156,8 +165,8 @@ describe("Topics facet prompt versions", () => {
   });
 });
 
-describe("Topics run start checkpoint", () => {
-  it("configures the trigger-created run without replacing execution metadata", async () => {
+describe("Topics clustering attempts", () => {
+  it("creates fresh attempts and derives only published cohorts from assignments", async () => {
     vi.resetAllMocks();
     const row = {
       id: "run-a",
@@ -170,48 +179,71 @@ describe("Topics run start checkpoint", () => {
       config: {},
       metrics: {},
       error: null,
-      manifestPath: "",
       topics: [],
       createdAt: new Date(),
       startedAt: null,
       finishedAt: null,
       publishedAt: null,
-      executionMetadata: { durable: "request" },
+      executionMetadata: {},
     };
-    mocks.runFind.mockResolvedValue(row);
-    mocks.runUpdate.mockImplementation(async ({ data }) => ({
+    mocks.runFind.mockResolvedValue(null);
+    mocks.runCreate.mockImplementation(async ({ data }) => ({
       ...row,
       ...data,
     }));
-    mocks.readArtifact.mockResolvedValue({ summaryIds: ["summary-a"] });
+    mocks.readRunSummaryIds.mockResolvedValue(["summary-a"]);
     const run = await createTopicRun({
       id: row.id,
       projectId: row.projectId,
+      executionId: row.executionId,
       facetVersionId: row.facetVersionId,
       config: { executionId: row.executionId, dimensions: 256 },
-      manifestPath: "cohort-facet-v1",
     });
-    expect(run.summaryIds).toEqual(["summary-a"]);
-    expect(mocks.writeArtifact).not.toHaveBeenCalled();
-    expect(mocks.readArtifact).toHaveBeenCalledWith(
-      "project-a",
-      "execution-a",
-      "cohort-facet-v1",
+    expect(run.summaryIds).toEqual([]);
+    expect(mocks.readRunSummaryIds).not.toHaveBeenCalled();
+    expect(mocks.runCreate).toHaveBeenCalledWith({
+      data: {
+        id: row.id,
+        projectId: row.projectId,
+        executionId: row.executionId,
+        facetVersionId: row.facetVersionId,
+        config: { executionId: row.executionId, dimensions: 256 },
+      },
+      include: { topics: true },
+    });
+    mocks.runFind.mockResolvedValue({
+      ...row,
+      status: "completed",
+      publishedAt: new Date(),
+    });
+    const published = await getPublishedTopicRunForExecution(
+      row.projectId,
+      row.executionId,
+      row.facetVersionId,
     );
-    expect(mocks.runUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: {
-          config: { executionId: "execution-a", dimensions: 256 },
-          manifestPath: "cohort-facet-v1",
-        },
-      }),
+    expect(published?.summaryIds).toEqual(["summary-a"]);
+    expect(mocks.readRunSummaryIds).toHaveBeenCalledWith(
+      row.projectId,
+      row.id,
+      row.executionId,
     );
+    expect(mocks.runFind).toHaveBeenLastCalledWith({
+      where: {
+        projectId: row.projectId,
+        executionId: row.executionId,
+        facetVersionId: row.facetVersionId,
+        status: "completed",
+        publishedAt: { not: null },
+      },
+      orderBy: { runSequence: "desc" },
+      include: { topics: true },
+    });
     await expect(
       createTopicRun({
         id: row.id,
         projectId: row.projectId,
+        executionId: row.executionId,
         facetVersionId: "another-facet",
-        manifestPath: "cohort-facet-v1",
       }),
     ).rejects.toThrow("facet version");
   });
@@ -228,7 +260,6 @@ describe("Topics run start checkpoint", () => {
       config: {},
       metrics: {},
       error: null,
-      manifestPath: "",
       topics: [],
       createdAt: new Date("2026-09-16T00:00:00Z"),
       startedAt: null as Date | null,
@@ -280,6 +311,47 @@ describe("Topics run start checkpoint", () => {
 describe("Topics published results", () => {
   beforeEach(() => vi.resetAllMocks());
 
+  it("pins only maps compatible with the selected prompt version and embedding space", async () => {
+    mocks.versionFindMany.mockResolvedValue([
+      { id: "intent-v1", facet: { publishedRunId: "intent-map" } },
+      { id: "intent-v2", facet: { publishedRunId: "intent-map" } },
+      { id: "outcome-v1", facet: { publishedRunId: "outcome-map" } },
+    ]);
+    mocks.runFindMany.mockResolvedValue([
+      {
+        id: "intent-map",
+        facetVersionId: "intent-v1",
+        config: { embeddingModel: "text-embedding-3-small", dimensions: 256 },
+      },
+      {
+        id: "outcome-map",
+        facetVersionId: "outcome-v1",
+        config: { embeddingModel: "text-embedding-3-small", dimensions: 512 },
+      },
+    ]);
+    expect(
+      await getTopicProcessingMapIds(
+        "project-a",
+        ["intent-v1", "intent-v2", "outcome-v1"],
+        { embeddingModel: "text-embedding-3-small", embeddingDimensions: 256 },
+      ),
+    ).toEqual({
+      "intent-v1": "intent-map",
+      "intent-v2": null,
+      "outcome-v1": null,
+    });
+    expect(mocks.runFindMany).toHaveBeenCalledWith({
+      where: {
+        projectId: "project-a",
+        id: { in: ["intent-map", "outcome-map"] },
+        status: "completed",
+        publishedAt: { not: null },
+      },
+      select: { id: true, facetVersionId: true, config: true },
+    });
+    expect(mocks.readRunSummaryIds).not.toHaveBeenCalled();
+  });
+
   it("keeps accepted labels and only upserts the next completed topic", async () => {
     const topic = {
       topicVersionId: "topic-a",
@@ -304,7 +376,6 @@ describe("Topics published results", () => {
       config: {},
       metrics: {},
       error: null,
-      manifestPath: "",
       topics: [topic],
       createdAt: new Date(),
       startedAt: new Date(),
@@ -386,7 +457,6 @@ describe("Topics published results", () => {
       config: {},
       metrics: {},
       error: null,
-      manifestPath: "",
       topics: [],
       createdAt: new Date("2026-09-16T00:00:00Z"),
       startedAt: null,

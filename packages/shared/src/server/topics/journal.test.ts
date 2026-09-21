@@ -1,35 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
 import { TopicExecutionStore } from "./journal";
 import { type TopicExecutionInput } from "../../topics";
 
 const state = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>>(),
   batches: new Map<string, Record<string, unknown>>(),
-  objects: new Map<string, string>(),
   revision: 0,
   writes: vi.fn(),
-  uploads: vi.fn(),
-  downloads: vi.fn(),
 }));
-vi.mock("../../env", () => ({
-  env: {
-    LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "events",
-    LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "ingestion/",
-  },
-}));
-vi.mock("../s3", () => ({
-  getS3EventStorageClient: () => ({
-    uploadJson: async (key: string, value: unknown) => {
-      state.uploads(key);
-      state.objects.set(key, JSON.stringify(value));
-    },
-    download: async (key: string) => {
-      state.downloads(key);
-      if (!state.objects.has(key)) throw new Error("Object unavailable");
-      return state.objects.get(key)!;
-    },
-  }),
+vi.mock("./postgres", () => ({
+  getTopicProcessingMapIds: async (
+    _projectId: string,
+    facetVersionIds: string[],
+  ) => Object.fromEntries(facetVersionIds.map((id) => [id, null])),
 }));
 vi.mock("../../db", () => {
   const matches = (
@@ -66,7 +49,6 @@ vi.mock("../../db", () => {
         state.rows.set(String(row.id), {
           config: {},
           metrics: {},
-          manifestPath: "",
           publishedAt: null,
           createdAt: new Date(),
           runSequence: BigInt(state.rows.size + 1),
@@ -165,15 +147,12 @@ const updateInput: TopicExecutionInput = {
 beforeEach(() => {
   state.rows.clear();
   state.batches.clear();
-  state.objects.clear();
   state.revision = 0;
   state.writes.mockClear();
-  state.uploads.mockClear();
-  state.downloads.mockClear();
 });
 
-describe("durable Topics execution storage", () => {
-  it("tracks a manual request with one batch row and keeps uncapped input IDs in object storage", async () => {
+describe("compact Topics execution storage", () => {
+  it("returns uncapped trace input to the caller but persists only settings and aggregate progress", async () => {
     const traceIds = Array.from(
       { length: 2001 },
       (_, index) => `request:${index}/opaque`,
@@ -185,14 +164,7 @@ describe("durable Topics execution storage", () => {
         traceIds,
         ruleId: "rule-a",
         traceSelection: {
-          filter: [
-            {
-              type: "datetime",
-              column: "startTime",
-              operator: ">=",
-              value: new Date("2026-09-01"),
-            },
-          ],
+          filter: [],
           from: new Date("2026-09-01"),
           to: new Date("2026-09-02"),
           limit: null,
@@ -204,17 +176,11 @@ describe("durable Topics execution storage", () => {
       undefined,
       "user-a",
     );
-    expect(execution.input).toMatchObject({ ruleId: "rule-a" });
-    expect(
-      execution.input.operation === "process" && execution.input.traceSelection,
-    ).toMatchObject({
-      from: new Date("2026-09-01"),
-      to: new Date("2026-09-02"),
-      filter: [{ value: new Date("2026-09-01") }],
-      excludedTraceIds: ["excluded"],
-    });
     expect(execution.input).toMatchObject({
+      traceIds,
+      ruleId: "rule-a",
       processingConfig: input.processingConfig,
+      traceSelection: { excludedTraceIds: ["excluded"] },
     });
     expect(state.rows.size).toBe(0);
     expect(state.batches.size).toBe(1);
@@ -224,176 +190,167 @@ describe("durable Topics execution storage", () => {
       status: "QUEUED",
       totalCount: 2001,
     });
-    const database = JSON.stringify([...state.batches.values()], (_, value) =>
-      typeof value === "bigint" ? String(value) : value,
-    );
-    expect(database).not.toContain("request:0/opaque");
-    expect(database).not.toContain("excluded");
-    expect(execution.facets.map((facet) => facet.counts.requested)).toEqual([
+    const progress = (await store.readSummary(input.projectId, execution.id))!;
+    expect(progress.facets.map((facet) => facet.counts.requested)).toEqual([
       2001, 2001,
     ]);
-    expect(
-      [...state.objects.values()]
-        .filter((value) => value.includes("request:"))
-        .map((value) => JSON.parse(value).value.length),
-    ).toEqual([1000, 1000, 1]);
-    expect(
-      (await new TopicExecutionStore().read(input.projectId, execution.id))
-        ?.input,
-    ).toMatchObject({ traceIds });
+    const noisyProgress = {
+      ...progress,
+      status: "running" as const,
+      traceErrors: [{ traceId: "failed-trace", error: "Read failed" }],
+      facets: progress.facets.map((facet) => ({
+        ...facet,
+        summaryIds: ["paid-summary-id"],
+        counts: { ...facet.counts, complete: 1 },
+      })),
+    };
+    await store.write(noisyProgress, 1);
+    const restored = await store.readSummary(input.projectId, execution.id);
+    expect(restored).toMatchObject({ status: "running" });
+    expect(restored?.facets[0].counts.complete).toBe(1);
+    const database = JSON.stringify([...state.batches.values()]);
+    for (const value of [
+      "traceIds",
+      "traceSelection",
+      "summaryIds",
+      "traceErrors",
+      "request:0/opaque",
+      "excluded",
+      "paid-summary-id",
+      "failed-trace",
+    ])
+      expect(database).not.toContain(value);
   });
 
-  it("creates one actual clustering run per facet for an update", async () => {
-    const execution = await new TopicExecutionStore().create(updateInput);
-    expect(state.batches.size).toBe(0);
-    expect(state.rows.size).toBe(2);
-    for (const facetId of input.facetVersionIds) {
-      const id = createHash("sha256")
-        .update(JSON.stringify([execution.id, facetId, "run"]))
-        .digest("hex")
-        .slice(0, 48);
-      expect(state.rows.get(id)).toMatchObject({
-        executionId: execution.id,
-        facetVersionId: facetId,
-        status: "pending",
-      });
-    }
-  });
-
-  it("hydrates update progress from its accepted run cohort", async () => {
+  it("creates one clustering control row per selected facet", async () => {
     const store = new TopicExecutionStore();
     const execution = await store.create(updateInput);
-    const row = [...state.rows.values()].find(
-      (row) => row.facetVersionId === execution.facets[0].facetVersionId,
-    )!;
-    const summaryIds = ["summary-b", "summary-a"];
-    await store.writeArtifact(
-      input.projectId,
-      execution.id,
-      "cohort-selected",
-      {
-        summaryIds,
-      },
+    expect(state.batches.size).toBe(0);
+    expect(state.rows.size).toBe(2);
+    expect([...state.rows.values()]).toEqual(
+      expect.arrayContaining(
+        input.facetVersionIds.map((facetVersionId) =>
+          expect.objectContaining({
+            executionId: execution.id,
+            facetVersionId,
+            status: "pending",
+          }),
+        ),
+      ),
     );
-    row.manifestPath = "cohort-selected";
-    execution.facets[0].runId = String(row.id);
-    await store.write(execution);
-
-    const restored = await store.read(input.projectId, execution.id);
-    expect(restored?.facets[0].summaryIds).toEqual(summaryIds);
     expect(
-      [...state.objects.values()].filter((body) => body.includes("summary-b")),
-    ).toHaveLength(1);
+      (await store.readSummary(input.projectId, execution.id))?.input,
+    ).toEqual(updateInput);
   });
 
-  it("accepts a concurrent duplicate once and rejects a changed request", async () => {
+  it("accepts concurrent identical requests once and scopes reads and writes to the project", async () => {
     const store = new TopicExecutionStore();
     const [a, b] = await Promise.all([
-      store.create(input, undefined, "user-a"),
-      store.create(input, undefined, "user-a"),
+      store.create(input, "request-hash", "user-a"),
+      store.create(input, "request-hash", "user-a"),
     ]);
     expect(a.revision).toBe(b.revision);
     expect(state.batches.size).toBe(1);
-    expect(state.rows.size).toBe(0);
     expect(await store.list(input.projectId)).toHaveLength(1);
-    await expect(
-      store.create({ ...input, traceIds: ["other"] }, undefined, "user-a"),
-    ).rejects.toThrow("different Topics request");
-    expect(await store.read("project-b", a.id)).toBeNull();
-    expect(await store.list("project-b")).toEqual([]);
-  });
-
-  it("reuses the first frozen cohort when a filtered request is retried after new traces arrive", async () => {
-    const store = new TopicExecutionStore();
-    const requestHash = "original-filter-request-hash";
-    const first = await store.create(input, requestHash, "user-a");
-    const later = await store.create(
-      { ...input, traceIds: ["new-trace"] },
-      requestHash,
-      "user-a",
-    );
-    expect(later.input).toEqual(first.input);
+    const summary = (await store.readSummary(input.projectId, a.id))!;
     expect(
-      await store.readForRequest(input.projectId, input.requestId, requestHash),
-    ).toEqual(first);
-    await expect(
-      store.readForRequest(
+      await store.readForRequest(
         input.projectId,
         input.requestId,
-        "different-filter",
+        "request-hash",
+      ),
+    ).toEqual(summary);
+    expect(summary.input).not.toHaveProperty("traceIds");
+    await expect(
+      store.readForRequest(input.projectId, input.requestId, "changed-hash"),
+    ).rejects.toThrow("different Topics request");
+    await expect(
+      store.create(
+        { ...input, traceIds: ["new-trace"] },
+        "request-hash",
+        "user-a",
       ),
     ).rejects.toThrow("different Topics request");
+    expect(await store.readSummary("project-b", a.id)).toBeNull();
+    expect(
+      await store.readForRequest("project-b", input.requestId, "request-hash"),
+    ).toBeNull();
+    expect(await store.list("project-b")).toEqual([]);
+    await expect(
+      store.write({ ...summary, projectId: "project-b" }),
+    ).rejects.toThrow("does not exist");
   });
 
-  it("restores progress after restart without storing summary references or errors in Postgres", async () => {
+  it("rejects a different resolved cohort racing under the same original request", async () => {
     const store = new TopicExecutionStore();
-    const execution = await store.create(input, undefined, "user-a");
-    execution.status = "running";
-    execution.phase = "embedding";
-    execution.facets[0].summaryIds = ["paid-summary-id"];
-    execution.traceErrors = [{ traceId: "failed-trace", error: "Read failed" }];
-    await store.write(execution);
-    const restored = await new TopicExecutionStore().read(
-      input.projectId,
-      execution.id,
-    );
-    expect(restored).toMatchObject({
+    const results = await Promise.allSettled([
+      store.create(input, "request-hash", "user-a"),
+      store.create(
+        { ...input, traceIds: ["new-trace"] },
+        "request-hash",
+        "user-a",
+      ),
+    ]);
+    expect(results.map((result) => result.status)).toEqual([
+      "fulfilled",
+      "rejected",
+    ]);
+    expect(state.batches.size).toBe(1);
+    expect(state.batches.values().next().value).toMatchObject({
+      totalCount: 2,
+    });
+  });
+
+  it("ignores stale aggregate snapshots and rejects mutated execution settings", async () => {
+    const store = new TopicExecutionStore();
+    const created = await store.create(input, undefined, "user-a");
+    const progress = (await store.readSummary(input.projectId, created.id))!;
+    const newer = {
+      ...progress,
+      status: "running" as const,
+      phase: "embedding",
+      facets: progress.facets.map((facet) => ({
+        ...facet,
+        counts: { ...facet.counts, complete: 2 },
+      })),
+    };
+    await store.write(newer, 2);
+    state.writes.mockClear();
+    await store.write(progress, 1);
+    await store.write(progress, 2);
+    expect(state.writes).not.toHaveBeenCalled();
+    expect(await store.readSummary(input.projectId, created.id)).toMatchObject({
       status: "running",
       phase: "embedding",
-      traceErrors: execution.traceErrors,
+      facets: newer.facets,
     });
-    expect(restored?.facets[0].summaryIds).toEqual(["paid-summary-id"]);
-    const database = JSON.stringify(
-      [...state.batches.values(), ...state.rows.values()],
-      (_, value) => (typeof value === "bigint" ? String(value) : value),
+    await expect(store.write({ ...newer, revision: "999" }, 3)).rejects.toThrow(
+      "revision cannot change",
     );
-    expect(database).not.toContain("paid-summary-id");
-    expect(database).not.toContain("failed-trace");
     await expect(
-      store.write({ ...execution, revision: "999" }),
-    ).rejects.toThrow("revision cannot change");
-  });
-
-  it("keeps accepted numeric results immutable and preserves them during progress updates", async () => {
-    const store = new TopicExecutionStore();
-    const execution = await store.create(input, undefined, "user-a");
-    const value = { coordinates: [[1, 2]], labels: [0] };
-    await store.writeArtifact(
-      input.projectId,
-      execution.id,
-      "numeric-fit",
-      value,
-    );
-    await store.write(execution);
-    expect(
-      await new TopicExecutionStore().readArtifact(
-        input.projectId,
-        execution.id,
-        "numeric-fit",
+      store.write(
+        {
+          ...newer,
+          input: {
+            ...newer.input,
+            embeddingConfig: {
+              ...newer.input.embeddingConfig,
+              embeddingDimensions: 512,
+            },
+          },
+        },
+        3,
       ),
-    ).toEqual(value);
-    await store.writeArtifact(
-      input.projectId,
-      execution.id,
-      "numeric-fit",
-      value,
-    );
+    ).rejects.toThrow("settings cannot change");
     await expect(
-      store.writeArtifact(input.projectId, execution.id, "numeric-fit", {
-        labels: [1],
-      }),
-    ).rejects.toThrow("cannot be replaced");
-    expect(
-      await store.readArtifact("project-b", execution.id, "numeric-fit"),
-    ).toBeNull();
-    await expect(
-      store.writeArtifact(input.projectId, execution.id, "../execution", {}),
-    ).rejects.toThrow();
+      store.write({ ...newer, facets: newer.facets.slice(0, 1) }, 3),
+    ).rejects.toThrow("facets cannot change");
   });
 
   it("preserves a published map when writing execution progress", async () => {
     const store = new TopicExecutionStore();
-    const execution = await store.create(updateInput);
+    const created = await store.create(updateInput);
+    const progress = (await store.readSummary(input.projectId, created.id))!;
     const row = [...state.rows.values()][0];
     state.rows.set(String(row.id), {
       ...row,
@@ -401,7 +358,7 @@ describe("durable Topics execution storage", () => {
       phase: "published",
       publishedAt: new Date(),
     });
-    await store.write({ ...execution, status: "running", phase: "processing" });
+    await store.write({ ...progress, status: "running", phase: "processing" });
     expect(state.rows.get(String(row.id))).toMatchObject({
       status: "completed",
       phase: "published",
@@ -410,17 +367,18 @@ describe("durable Topics execution storage", () => {
 
   it("preserves a completed facet and its finish time when another facet fails", async () => {
     const store = new TopicExecutionStore();
-    const execution = await store.create(updateInput);
-    execution.status = "running";
-    execution.facets[0].outcome = "no_applicable_summaries";
-    await store.write(execution);
+    const created = await store.create(updateInput);
+    const progress = (await store.readSummary(input.projectId, created.id))!;
+    progress.status = "running";
+    progress.facets[0].outcome = "no_applicable_summaries";
+    await store.write(progress);
     const completed = [...state.rows.values()].find(
       (row) => row.facetVersionId === input.facetVersionIds[0],
     )!;
-    execution.status = "failed";
-    execution.phase = "failed";
-    execution.error = "Provider unavailable";
-    await store.write(execution);
+    progress.status = "failed";
+    progress.phase = "failed";
+    progress.error = "Provider unavailable";
+    await store.write(progress);
     expect(state.rows.get(String(completed.id))).toMatchObject({
       status: "completed",
       phase: "no_applicable_summaries",
@@ -438,38 +396,22 @@ describe("durable Topics execution storage", () => {
     });
   });
 
-  it("reads progress and history without loading input or result manifests", async () => {
+  it("ignores numerical attempt rows without execution metadata in progress and history", async () => {
     const store = new TopicExecutionStore();
-    const execution = await store.create(input, undefined, "user-a");
-    execution.facets[0].summaryIds = ["summary-a"];
-    execution.facets[0].counts.complete = 1;
-    await store.write(execution);
-    await store.create(updateInput);
-    state.downloads.mockClear();
-    const summary = await store.readSummary(input.projectId, execution.id);
-    expect(summary?.input).not.toHaveProperty("traceIds");
-    expect(summary?.facets[0]).not.toHaveProperty("summaryIds");
-    expect(summary?.facets[0].counts.complete).toBe(1);
-    expect(await store.list(input.projectId)).toHaveLength(2);
-    expect(state.downloads).not.toHaveBeenCalled();
-  });
-
-  it("uploads only changed progress chunks across successive batches", async () => {
-    const store = new TopicExecutionStore();
-    const execution = await store.create(input, undefined, "user-a");
-    execution.facets[0].summaryIds = Array.from(
-      { length: 2000 },
-      (_, index) => `summary-${index}`,
+    const created = await store.create(updateInput);
+    const row = [...state.rows.values()][0];
+    state.rows.set("attempt", { ...row, id: "attempt", executionMetadata: {} });
+    state.rows.set("other-attempt", {
+      ...row,
+      id: "other-attempt",
+      executionId: "attempt-only",
+      executionMetadata: {},
+    });
+    const progress = await store.readSummary(input.projectId, created.id);
+    expect(progress?.facets.map((facet) => facet.facetVersionId)).toEqual(
+      input.facetVersionIds,
     );
-    await store.write(execution);
-    state.uploads.mockClear();
-    await store.write({ ...execution, phase: "naming" });
-    expect(state.uploads).not.toHaveBeenCalled();
-    execution.facets[0].summaryIds.push("summary-2000");
-    await store.write(execution);
-    expect(state.uploads).toHaveBeenCalledTimes(2);
-    expect(
-      (await store.read(input.projectId, execution.id))?.facets[0].summaryIds,
-    ).toHaveLength(2001);
+    expect(await store.readSummary(input.projectId, "attempt-only")).toBeNull();
+    expect(await store.list(input.projectId)).toEqual([progress]);
   });
 });

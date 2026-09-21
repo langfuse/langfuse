@@ -493,7 +493,13 @@ function ExecutionPanel({
               {traceErrors.error && (
                 <ErrorMessage message={traceErrors.error.message} />
               )}
-              {traceErrors.data?.map((item) => (
+              {traceErrors.data?.expired && (
+                <p>
+                  Trace error details have expired. The run counts are still
+                  available.
+                </p>
+              )}
+              {traceErrors.data?.errors.map((item) => (
                 <p
                   key={`${item.traceId}:${item.error}`}
                   className="break-words"
@@ -507,9 +513,11 @@ function ExecutionPanel({
                   : {item.error}
                 </p>
               ))}
-              {traceErrors.data?.length === 0 && (
-                <p>No trace-level errors were recorded.</p>
-              )}
+              {traceErrors.data &&
+                !traceErrors.data.expired &&
+                traceErrors.data.errors.length === 0 && (
+                  <p>No trace-level errors were recorded.</p>
+                )}
             </div>
           )}
         </details>

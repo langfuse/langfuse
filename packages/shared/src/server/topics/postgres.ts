@@ -6,8 +6,9 @@ import {
   type TopicRun,
   type TopicRule,
   type TopicDefinition,
+  type TopicEmbeddingConfig,
 } from "../../topics";
-import { readTopicArtifact } from "./journal";
+import { readTopicRunSummaryIds } from "./clickhouse";
 import { chunk, isEqual } from "lodash";
 import { InvalidRequestError } from "../../errors";
 
@@ -243,13 +244,6 @@ export async function saveTopicRule(
 }
 
 async function runResult(row: RunRow): Promise<TopicRun> {
-  const manifest = row.manifestPath
-    ? await readTopicArtifact<{ summaryIds: string[] }>(
-        row.projectId,
-        row.executionId,
-        row.manifestPath,
-      )
-    : null;
   return {
     id: row.id,
     projectId: row.projectId,
@@ -262,7 +256,9 @@ async function runResult(row: RunRow): Promise<TopicRun> {
     finishedAt: row.finishedAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
-    summaryIds: manifest?.summaryIds ?? [],
+    summaryIds: row.publishedAt
+      ? await readTopicRunSummaryIds(row.projectId, row.id, row.executionId)
+      : [],
     metrics: row.metrics as Record<string, unknown>,
     error: row.error,
     topics: row.topics.map((topic) => ({
@@ -278,6 +274,25 @@ export async function getTopicRun(
 ): Promise<TopicRun | null> {
   const row = await prisma.topicClusteringRun.findFirst({
     where: { projectId, id },
+    include: { topics: true },
+  });
+  return row ? runResult(row) : null;
+}
+
+export async function getPublishedTopicRunForExecution(
+  projectId: string,
+  executionId: string,
+  facetVersionId: string,
+): Promise<TopicRun | null> {
+  const row = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      executionId,
+      facetVersionId,
+      status: "completed",
+      publishedAt: { not: null },
+    },
+    orderBy: { runSequence: "desc" },
     include: { topics: true },
   });
   return row ? runResult(row) : null;
@@ -303,6 +318,46 @@ export async function getPublishedTopicRun(
     include: { topics: true },
   });
   return row ? runResult(row) : null;
+}
+
+/** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
+export async function getTopicProcessingMapIds(
+  projectId: string,
+  facetVersionIds: string[],
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<Record<string, string | null>> {
+  const versions = await prisma.topicFacetVersion.findMany({
+    where: { projectId, id: { in: facetVersionIds } },
+    select: { id: true, facet: { select: { publishedRunId: true } } },
+  });
+  const runIds = versions.flatMap(({ facet }) =>
+    facet.publishedRunId ? [facet.publishedRunId] : [],
+  );
+  const runs = runIds.length
+    ? await prisma.topicClusteringRun.findMany({
+        where: {
+          projectId,
+          id: { in: [...new Set(runIds)] },
+          status: "completed",
+          publishedAt: { not: null },
+        },
+        select: { id: true, facetVersionId: true, config: true },
+      })
+    : [];
+  const compatible = new Map(
+    runs
+      .filter((run) => {
+        const config = run.config as Record<string, unknown>;
+        return (
+          config.embeddingModel === embeddingConfig.embeddingModel &&
+          config.dimensions === embeddingConfig.embeddingDimensions
+        );
+      })
+      .map((run) => [run.facetVersionId, run.id]),
+  );
+  return Object.fromEntries(
+    facetVersionIds.map((id) => [id, compatible.get(id) ?? null]),
+  );
 }
 
 export async function getTopicDefinitions(
@@ -337,27 +392,30 @@ export async function listTopicRuns(projectId: string): Promise<TopicRun[]> {
 export async function createTopicRun(input: {
   id: string;
   projectId: string;
+  executionId: string;
   facetVersionId: string;
   config?: Record<string, unknown>;
-  manifestPath: string;
 }): Promise<TopicRun> {
   const { id, projectId } = input;
   const existing = await prisma.topicClusteringRun.findFirst({
     where: { projectId, id },
     include: { topics: true },
   });
-  if (!existing)
-    throw new Error(
-      "Create the Topics update before configuring its clustering run.",
-    );
-  if (existing.facetVersionId !== input.facetVersionId)
-    throw new Error("Run facet version cannot change.");
-  if (existing.publishedAt || existing.manifestPath) return runResult(existing);
-  const row = await prisma.topicClusteringRun.update({
-    where: { projectId_id: { projectId, id } },
+  if (existing) {
+    if (
+      existing.facetVersionId !== input.facetVersionId ||
+      existing.executionId !== input.executionId
+    )
+      throw new Error("Run execution and facet version cannot change.");
+    return runResult(existing);
+  }
+  const row = await prisma.topicClusteringRun.create({
     data: {
+      id,
+      projectId,
+      executionId: input.executionId,
+      facetVersionId: input.facetVersionId,
       config: (input.config ?? {}) as Prisma.InputJsonValue,
-      manifestPath: input.manifestPath,
     },
     include: { topics: true },
   });

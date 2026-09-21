@@ -261,6 +261,7 @@ export async function writeTopicAssignments(
       (row.outcome !== "assigned" && (row.topicId || row.topicVersionId)) ||
       ((row.outcome === "assigned" || row.outcome === "outlier") &&
         (!row.runId || !row.runSequence)) ||
+      (row.outcome === "awaiting_topics" && row.runId !== null) ||
       (row.runId === null) !== (row.runSequence === null) ||
       (row.distance !== null && !Number.isFinite(row.distance)) ||
       (row.runnerUpDistance !== null &&
@@ -341,6 +342,40 @@ function assignmentResult({
   };
 }
 
+/** Assignments record this execution's membership, including reused summaries. */
+export async function readTopicExecutionSummaryIds(
+  projectId: string,
+  executionId: string,
+): Promise<{ facetVersionId: string; summaryId: string }[]> {
+  return queryClickhouse<{ facetVersionId: string; summaryId: string }>({
+    query: `SELECT DISTINCT facet_version_id AS facetVersionId,
+        facet_summary_id AS summaryId FROM topic_assignments
+      WHERE project_id = {projectId:String} AND execution_id = {executionId:String}
+        AND unit_type = 'trace'
+      ORDER BY facetVersionId, summaryId`,
+    params: { projectId, executionId },
+    tags: { route: "topics-execution-summaries", projectId },
+  });
+}
+
+/** A published map's cohort excludes later online assignments to the same map. */
+export async function readTopicRunSummaryIds(
+  projectId: string,
+  runId: string,
+  executionId: string,
+): Promise<string[]> {
+  const rows = await queryClickhouse<{ summaryId: string }>({
+    query: `SELECT DISTINCT facet_summary_id AS summaryId FROM topic_assignments
+      WHERE project_id = {projectId:String} AND clustering_run_id = {runId:String}
+        AND execution_id = {executionId:String} AND origin = 'initial'
+        AND unit_type = 'trace'
+      ORDER BY summaryId`,
+    params: { projectId, runId, executionId },
+    tags: { route: "topics-run-summaries", projectId },
+  });
+  return rows.map((row) => row.summaryId);
+}
+
 /** Discovery coordinates belong to their originating execution, even after later assignments. */
 export async function readTopicMapAssignments(
   projectId: string,
@@ -351,7 +386,7 @@ export async function readTopicMapAssignments(
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String}
         AND clustering_run_id = {runId:String} AND execution_id = {executionId:String}
-        AND length(coordinates) = 2
+        AND origin = 'initial' AND length(coordinates) = 2
       ORDER BY assigned_at DESC, id DESC, result_version DESC
       LIMIT 1 BY project_id, clustering_run_id, facet_summary_id`,
     params: { projectId, runId, executionId },

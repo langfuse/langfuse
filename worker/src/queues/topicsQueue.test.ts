@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DelayedError } from "bullmq";
 
-const mocks = vi.hoisted(() => ({ state: vi.fn(), process: vi.fn() }));
+import {
+  topicExecutionInputSchema,
+  type TopicProcessBatchState,
+} from "@langfuse/shared/topics";
+
+const mocks = vi.hoisted(() => ({
+  state: vi.fn(),
+  process: vi.fn(),
+  progress: vi.fn(),
+}));
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueJobs: { Topics: "topics" },
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicEmbeddingBatchState: mocks.state,
+  recordTopicProcessBatchProgress: mocks.progress,
 }));
 vi.mock("../features/topics/processTopicsExecution", () => ({
   processTopicsExecution: mocks.process,
@@ -15,11 +25,16 @@ vi.mock("../features/topics/processTopicsExecution", () => ({
 import { topicsQueueProcessor } from "./topicsQueue";
 
 function waitingJob() {
-  const data = {
+  const data: Parameters<typeof topicsQueueProcessor>[0]["data"] = {
     id: "execution",
     name: "topics",
     timestamp: new Date(),
-    payload: { projectId: "project", executionId: "execution" },
+    payload: {
+      projectId: "project",
+      executionId: "execution",
+      batchId: "0",
+      traceIds: ["trace"],
+    },
     pendingEmbeddingBatchIds: ["batch-a", "batch-b"],
   };
   return {
@@ -30,6 +45,52 @@ function waitingJob() {
     updateData: vi.fn(async (updated: typeof data) =>
       Object.assign(data, updated),
     ),
+  };
+}
+
+function acceptedState(): TopicProcessBatchState {
+  return {
+    execution: {
+      id: "execution",
+      projectId: "project",
+      revision: "1",
+      input: topicExecutionInputSchema.parse({
+        operation: "process",
+        projectId: "project",
+        requestId: "request",
+        facetVersionIds: ["facet"],
+        traceIds: ["trace"],
+      }),
+      status: "running",
+      phase: "embedding",
+      createdAt: "2026-09-16T00:00:00.000Z",
+      updatedAt: "2026-09-16T00:00:00.000Z",
+      error: null,
+      traceErrors: [],
+      facets: [
+        {
+          facetVersionId: "facet",
+          outcome: "pending",
+          runId: null,
+          summaryIds: ["summary"],
+          error: null,
+          counts: {
+            requested: 1,
+            complete: 0,
+            nonApplicable: 0,
+            insufficientInput: 0,
+            failed: 0,
+            assigned: 0,
+            outlier: 0,
+          },
+        },
+      ],
+    },
+    summaries: [
+      { summaryId: "summary", facetVersionId: "facet", traceId: "trace" },
+    ],
+    failedTraceIds: {},
+    summarized: true,
   };
 }
 
@@ -62,7 +123,12 @@ describe("Topics coordinator waiting", () => {
 
     mocks.state.mockResolvedValue("complete");
     await run();
-    expect(mocks.process).toHaveBeenCalledExactlyOnceWith(job.data.payload);
+    expect(mocks.process).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        ...job.data.payload,
+        saveBatchState: expect.any(Function),
+      }),
+    );
     expect(job.data.pendingEmbeddingBatchIds).toEqual([]);
   });
 
@@ -74,8 +140,91 @@ describe("Topics coordinator waiting", () => {
       await topicsQueueProcessor(
         job as unknown as Parameters<typeof topicsQueueProcessor>[0],
       );
-      expect(mocks.process).toHaveBeenCalledExactlyOnceWith(job.data.payload);
+      expect(mocks.process).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          ...job.data.payload,
+          saveBatchState: expect.any(Function),
+        }),
+      );
       expect(job.moveToDelayed).not.toHaveBeenCalled();
     },
   );
+  it("persists accepted summary references before delaying and restores them after embedding", async () => {
+    const job = waitingJob();
+    job.data.pendingEmbeddingBatchIds = [];
+    const accepted = acceptedState();
+    mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
+      await saveBatchState(accepted);
+      expect(mocks.progress).toHaveBeenCalledWith("0", accepted);
+      return { pendingEmbeddingBatchIds: ["embedding-batch"] };
+    });
+    const run = () =>
+      topicsQueueProcessor(
+        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+      );
+    await expect(run()).rejects.toBeInstanceOf(DelayedError);
+    expect(job.data.batchState).toBe(accepted);
+    expect(job.data.pendingEmbeddingBatchIds).toEqual(["embedding-batch"]);
+    expect(mocks.progress).toHaveBeenLastCalledWith("0", accepted);
+    const progressCalls = mocks.progress.mock.calls.length;
+    await expect(run()).rejects.toBeInstanceOf(DelayedError);
+    expect(mocks.process).toHaveBeenCalledOnce();
+    expect(mocks.progress).toHaveBeenCalledTimes(progressCalls);
+
+    mocks.state.mockResolvedValue("complete");
+    mocks.process.mockImplementationOnce(
+      async ({ batchState, saveBatchState }) => {
+        expect(batchState).toBe(accepted);
+        await saveBatchState({
+          ...batchState,
+          execution: { ...batchState.execution, status: "completed" },
+        });
+      },
+    );
+    await run();
+    expect(job.data.batchState?.summaries).toEqual(accepted.summaries);
+    expect(mocks.progress).toHaveBeenLastCalledWith(
+      "0",
+      expect.objectContaining({
+        execution: expect.objectContaining({ status: "completed" }),
+      }),
+    );
+  });
+
+  it("retains accepted work and records progress when processing throws", async () => {
+    const job = waitingJob();
+    job.data.pendingEmbeddingBatchIds = [];
+    const accepted = acceptedState();
+    mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
+      await saveBatchState(accepted);
+      mocks.progress.mockClear();
+      throw new Error("provider unavailable");
+    });
+    await expect(
+      topicsQueueProcessor(
+        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+      ),
+    ).rejects.toThrow("provider unavailable");
+    expect(job.data.batchState).toBe(accepted);
+    expect(mocks.progress).toHaveBeenCalledExactlyOnceWith("0", accepted);
+    expect(job.moveToDelayed).not.toHaveBeenCalled();
+  });
+
+  it("keeps a reported failed facet retryable in BullMQ", async () => {
+    const job = waitingJob();
+    job.data.pendingEmbeddingBatchIds = [];
+    const failed = acceptedState();
+    failed.execution.status = "completed_with_errors";
+    failed.execution.facets[0].outcome = "failed";
+    mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
+      await saveBatchState(failed);
+    });
+    await expect(
+      topicsQueueProcessor(
+        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+      ),
+    ).rejects.toThrow("Resume to retry");
+    expect(mocks.progress).toHaveBeenLastCalledWith("0", failed);
+    expect(job.data.batchState).toBe(failed);
+  });
 });

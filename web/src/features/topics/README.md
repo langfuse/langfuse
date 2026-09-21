@@ -31,7 +31,8 @@ existing local-development and project-access checks still apply.
   are configured per execution; updates select matching stored embeddings and
   never regenerate them. History and progress responses omit trace IDs, summary
   IDs, and per-trace errors, using aggregate counts for progress.
-  Expanding Trace errors loads failed trace IDs and reasons on demand.
+  Expanding Trace errors loads failed trace IDs and reasons on demand from
+  retained queue state. When it expires, the UI says so; permanent counts remain.
   Saved topic rules hold reusable filters, sampling and stable facet IDs, like
   evaluator rules. Selecting a rule loads its criteria and each facet's latest
   prompt version; editing criteria or facets becomes an ad hoc run until explicitly
@@ -88,15 +89,17 @@ existing local-development and project-access checks still apply.
   no embedding vectors; the scatter remains the latest map's discovery snapshot.
 - `server/topicsRouter.ts` owns project authorization and the public result
   contract. The map joins persisted assignment coordinates and summaries by ID
-  in the discovery manifest’s order. It returns only map points and counts for
+  in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Resume only enqueues work: the worker exclusively advances existing execution
-  journals, including finalization after all facet results have been saved.
+  Results, inspection, and comparison resolve processing membership from persisted
+  ClickHouse outcomes; updates use their selected run's original cohort so failed
+  attempts cannot leak into a later map. Both survive transient job state expiry.
+  Resume requeues retained job inputs; if they have expired, start a new run.
   Facet prompt edits create versions independently of saved selection rules.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.
   Trace IDs are opaque data; URL path segments are decoded once, while internal
-  execution and object-storage identifiers retain the restricted ID format.
+  execution identifiers retain the restricted ID format.
 
 The plot is an approximate 2D view, separate from clustering and classification.
 It always shows the original discovery cohort. Later assignment batches keep

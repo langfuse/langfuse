@@ -57,12 +57,14 @@
 
 - `@langfuse/shared/topics`: client-safe local Topics execution and result contracts.
 - `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
-  queue access and Postgres run progress with object-storage input/cohort manifests.
+  bounded queue jobs and compact Postgres execution progress.
   `process` executions use one `BatchAction` per manual request; `update`
   executions use one clustering run per facet. The `topics` and `topics-update`
   queues isolate processing from numerical fitting/naming; enqueue and queue-state
   helpers route by the stored operation. Progress/history use compact
-  execution summaries; workers and result-detail readers hydrate manifests.
+  execution summaries; history and maps read membership from ClickHouse assignments.
+  Processing jobs carry at most 100 trace IDs and accepted summary references.
+  Cluster retries create fresh unpublished attempts; Topics does not use object storage.
   Summaries, embeddings, assignments and map coordinates live in ClickHouse.
   `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
   enqueues reference-only embedding batches. Consumers persist completed results

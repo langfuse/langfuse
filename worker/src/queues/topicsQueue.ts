@@ -4,7 +4,11 @@ import {
   QueueName,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
-import { getTopicEmbeddingBatchState } from "@langfuse/shared/topics/server";
+import {
+  getTopicEmbeddingBatchState,
+  recordTopicProcessBatchProgress,
+} from "@langfuse/shared/topics/server";
+import type { TopicProcessBatchState } from "@langfuse/shared/topics";
 import { processTopicsExecution } from "../features/topics/processTopicsExecution";
 
 export const topicsQueueProcessor: Processor<
@@ -23,7 +27,7 @@ export const topicsQueueProcessor: Processor<
         state: await getTopicEmbeddingBatchState(job.data.payload, batchId),
       })),
     );
-    // Failed or evicted jobs need the coordinator's persisted cohort to recover.
+    // Accepted references remain in the processing job when an embedding job fails.
     if (
       !states.some(({ state }) => state === "failed" || state === "missing")
     ) {
@@ -38,7 +42,47 @@ export const topicsQueueProcessor: Processor<
       if (remaining.length) return delay();
     }
   }
-  const waiting = await processTopicsExecution(job.data.payload);
+  let batchState = job.data.batchState;
+  let lastProgress = batchState
+    ? `${batchState.execution.status}:${batchState.execution.phase}`
+    : null;
+  let waiting;
+  try {
+    waiting = await processTopicsExecution({
+      ...job.data.payload,
+      batchState,
+      saveBatchState: async (state: TopicProcessBatchState) => {
+        await job.updateData({ ...job.data, batchState: state });
+        batchState = state;
+        const progress = `${state.execution.status}:${state.execution.phase}`;
+        if (
+          progress !== lastProgress &&
+          job.data.payload.batchId !== undefined
+        ) {
+          await recordTopicProcessBatchProgress(
+            job.data.payload.batchId,
+            state,
+          );
+          lastProgress = progress;
+        }
+      },
+    });
+  } finally {
+    if (batchState && job.data.payload.batchId !== undefined)
+      await recordTopicProcessBatchProgress(
+        job.data.payload.batchId,
+        batchState,
+      );
+  }
+  if (
+    batchState &&
+    (batchState.execution.status === "failed" ||
+      batchState.execution.facets.some((facet) => facet.outcome === "failed"))
+  )
+    throw new Error(
+      batchState.execution.error ??
+        "Topics batch failed. Resume to retry unfinished work.",
+    );
   if (waiting) {
     await job.updateData({
       ...job.data,

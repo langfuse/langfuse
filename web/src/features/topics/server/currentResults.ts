@@ -57,11 +57,14 @@ export async function currentTopicResults(projectId: string) {
           const summary = assignment
             ? summaries.get(assignment.summaryId)
             : latest;
-          const awaitingUpdate = Boolean(
-            latest &&
-            latest.id !== assignment?.summaryId &&
-            latest.state === "complete",
-          );
+          const awaitingMap = assignment?.outcome === "awaiting_topics";
+          const awaitingUpdate =
+            awaitingMap ||
+            Boolean(
+              latest &&
+              latest.id !== assignment?.summaryId &&
+              latest.state === "complete",
+            );
           const topic = assignment?.topicVersionId
             ? topicByVersion.get(assignment.topicVersionId)
             : undefined;
@@ -71,11 +74,12 @@ export async function currentTopicResults(projectId: string) {
             summary: summary?.summary ?? "",
             facetVersion:
               summary?.facetVersion ?? assignment?.facetVersion ?? null,
-            outcome:
-              assignment?.outcome ??
-              (latest?.state === "complete"
-                ? "awaiting_map"
-                : (latest?.state ?? "unavailable")),
+            outcome: awaitingMap
+              ? "awaiting_map"
+              : (assignment?.outcome ??
+                (latest?.state === "complete"
+                  ? "awaiting_map"
+                  : (latest?.state ?? "unavailable"))),
             topicId:
               assignment?.outcome === "assigned" ? assignment.topicId : null,
             topicVersionId: assignment?.topicVersionId ?? null,

@@ -175,7 +175,12 @@ export interface TopicAssignment {
   runSequence: string | null;
   topicId: string | null;
   topicVersionId: string | null;
-  outcome: "assigned" | "outlier" | "not_applicable" | "insufficient_input";
+  outcome:
+    | "assigned"
+    | "outlier"
+    | "not_applicable"
+    | "insufficient_input"
+    | "awaiting_topics";
   distance: number | null;
   runnerUpDistance: number | null;
   rejectionReason: string;
@@ -241,7 +246,19 @@ export interface TopicExecution {
   error: string | null;
 }
 
-/** Progress and history omit input/cohort manifests and per-trace errors. */
+/** Retry state for one bounded trace batch, retained with its BullMQ job. */
+export interface TopicProcessBatchState {
+  execution: TopicExecution;
+  summaries: {
+    summaryId: string;
+    facetVersionId: string;
+    traceId: string;
+  }[];
+  failedTraceIds: Record<string, string[]>;
+  summarized: boolean;
+}
+
+/** Progress and history omit per-trace inputs, summary references and errors. */
 export type TopicExecutionSummary = Omit<
   TopicExecution,
   "input" | "facets" | "traceErrors"
