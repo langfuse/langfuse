@@ -262,6 +262,8 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: agent setup tests
+        run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
