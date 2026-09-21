@@ -96,17 +96,6 @@ function normalizeDefinitionItem(
   return normalizeLooseToolDefinition(value, options);
 }
 
-/**
- * Normalizes one tool-definition carrier value: an array, a single
- * definition record, or (with `allowToolMap`) a map keyed by tool name.
- */
-export function normalizeToolDefinitionValue(
-  value: unknown,
-  options: ToolDefinitionOptions = {},
-): ToolDefinition[] {
-  return parseToolDefinitionValue(value, options).definitions;
-}
-
 export function parseToolDefinitionValue(
   value: unknown,
   options: ToolDefinitionOptions = {},
