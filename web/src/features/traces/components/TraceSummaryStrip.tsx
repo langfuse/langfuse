@@ -13,6 +13,7 @@ import { LatencyBadge } from "@/src/features/traces/components/ObservationMetada
 import {
   CostBadge,
   UsageBadge,
+  hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -50,7 +51,8 @@ export function TraceSummaryStrip() {
             />
           )}
         {aggregatedMetrics.hasGenerationLike &&
-          aggregatedMetrics.usageDetails && (
+          aggregatedMetrics.usageDetails &&
+          hasBreakdown(aggregatedMetrics.usageDetails) && (
             <UsageBadge
               inputUsage={aggregatedMetrics.inputUsage}
               outputUsage={aggregatedMetrics.outputUsage}
