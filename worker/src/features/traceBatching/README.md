@@ -164,10 +164,15 @@ Metric delivery and percentile configuration must be verified after deployment.
 Each completed trace emits a `trace-batch-transcript` child span under the batch
 processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
 and `langfuse.trace.url` (a peek link using the configured product base URL).
-Under `langfuse.trace_batch`, the span records `transcript_tokens`,
+Under `langfuse.trace_batch`, the span records `transcript_tokens`, `transcript_characters`,
 `transcript_assembly_duration_ms`, `observation_count` (rows before observation
 deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
 No transcript content is attached, and IDs are not distribution metric tags.
+`transcript_characters` measures the complete transcript JSON's JavaScript string
+length (UTF-16 code units, including JSON syntax), or zero for a null transcript.
+It is recorded before tokenization, so remains available if token estimation fails.
+Only recording spans serialize this extra temporary copy; it is not retained
+while tokenization runs or included in the assembly-duration measurement.
 
 The span stays open until token estimation settles, so its duration includes
 tokenization and pool waits. Use the assembly-duration attribute for assembly

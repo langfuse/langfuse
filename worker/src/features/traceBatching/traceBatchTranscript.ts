@@ -69,6 +69,13 @@ export function recordTraceBatchTranscript(
         assemblyDurationMs,
       "langfuse.trace_batch.has_transcript": transcript !== null,
     });
+    if (span.isRecording()) {
+      // JSON string length in UTF-16 code units; do not retain the serialized copy.
+      span.setAttribute(
+        "langfuse.trace_batch.transcript_characters",
+        transcript === null ? 0 : JSON.stringify(transcript).length,
+      );
+    }
 
     if (transcript === null) {
       recordDistribution("langfuse.trace_batch.transcript_tokens", 0, {

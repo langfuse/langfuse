@@ -178,6 +178,9 @@ describe("trace batch queue", () => {
         expect(spans[1].attributes).not.toHaveProperty(
           "langfuse.trace_batch.transcript_tokens",
         );
+        expect(
+          spans[1].attributes["langfuse.trace_batch.transcript_characters"],
+        ).toBeGreaterThan(0);
         for (const span of spans) {
           expect(span.parentSpanContext?.spanId).toBe(
             processingSpan.spanContext().spanId,
@@ -299,6 +302,8 @@ describe("trace batch queue", () => {
         "langfuse.trace_batch.has_transcript": index === 0,
         "langfuse.trace_batch.transcript_tokens":
           index === 0 ? tokenCount(estimates[0][0]) : 0,
+        "langfuse.trace_batch.transcript_characters":
+          index === 0 ? serializedTranscript.length : 0,
         "langfuse.trace_batch.transcript_assembly_duration_ms":
           expect.any(Number),
       });
