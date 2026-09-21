@@ -244,3 +244,95 @@ export const TestDisabledLink = meta.story({
     await expect(link).toHaveAttribute("tabindex", "-1");
   },
 });
+
+const onCheckboxChange = fn();
+const onNestedAction = fn();
+
+export const TestCheckboxAndSubmenu = meta.story({
+  name: "(Test) Checkbox and submenu",
+  args: {
+    items: [
+      {
+        type: "checkbox",
+        id: "include-output",
+        title: "Include output",
+        checked: false,
+        onCheckedChange: onCheckboxChange,
+      },
+      {
+        type: "submenu",
+        id: "destinations",
+        title: "Destinations",
+        search: { placeholder: "Search destinations…" },
+        items: [
+          {
+            type: "item",
+            id: "dataset",
+            title: "Dataset",
+            onClick: onNestedAction,
+          },
+          {
+            type: "item",
+            id: "playground",
+            title: "Playground",
+            onClick: fn(),
+          },
+        ],
+      },
+      {
+        type: "submenu",
+        id: "unavailable",
+        title: "Unavailable",
+        disabled: { reason: "This submenu is unavailable." },
+        items: [
+          {
+            type: "item",
+            id: "hidden-item",
+            title: "Hidden item",
+            onClick: fn(),
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    onCheckboxChange.mockClear();
+    onNestedAction.mockClear();
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    const trigger = canvas.getByRole("button", { name: "Open menu" });
+    trigger.focus();
+    await userEvent.keyboard("{ArrowDown}");
+    const menu = await body.findByRole("menu", { name: "Actions" });
+    const checkbox = body.getByRole("menuitemcheckbox", {
+      name: "Include output",
+    });
+    await expect(checkbox).toHaveFocus();
+    checkbox.focus();
+    await userEvent.keyboard("{ArrowUp}");
+    await expect(
+      body.getByRole("menuitem", { name: "Destinations" }),
+    ).toHaveFocus();
+    await userEvent.click(checkbox);
+    await expect(onCheckboxChange).toHaveBeenCalledWith(true);
+    await expect(menu).toBeVisible();
+
+    await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
+    const submenu = await body.findByRole("menu", { name: "Destinations" });
+    await waitFor(() => expect(submenu).toBeVisible());
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search destinations…" }),
+      "data",
+    );
+    await userEvent.keyboard("{ArrowDown}");
+    await expect(body.getByRole("menuitem", { name: "Dataset" })).toHaveFocus();
+    await userEvent.click(body.getByRole("button", { name: "Dataset" }));
+    await expect(onNestedAction).toHaveBeenCalledOnce();
+    await expect(body.queryByRole("menu", { name: "Actions" })).toBeNull();
+
+    await userEvent.click(trigger);
+    await userEvent.hover(body.getByRole("menuitem", { name: "Unavailable" }));
+    await expect(body.queryByRole("menu", { name: "Unavailable" })).toBeNull();
+  },
+});

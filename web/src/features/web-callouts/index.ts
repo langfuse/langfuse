@@ -3,6 +3,5 @@
 export {
   useWebCalloutAction,
   WebCalloutButton,
-  WebCalloutMenuItem,
 } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 export { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
