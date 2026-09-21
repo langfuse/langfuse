@@ -25,7 +25,7 @@ import {
   invalidateProjectEvalConfigCaches,
   logger,
 } from "@langfuse/shared/src/server";
-import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server/availability";
+import { resolveLangfuseAiFeatureAvailability } from "@/src/features/ai-features/server";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
   type CreateEvaluatorInput,

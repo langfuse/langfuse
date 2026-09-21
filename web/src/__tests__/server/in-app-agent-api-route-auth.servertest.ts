@@ -30,7 +30,7 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
+vi.mock("@/src/features/entitlements/server", () => ({
   hasEntitlement: entitlementMocks.hasEntitlement,
 }));
 

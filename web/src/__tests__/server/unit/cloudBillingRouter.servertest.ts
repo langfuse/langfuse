@@ -13,7 +13,7 @@ vi.mock("@/src/ee/features/billing/server/resolveBillingService", () => ({
   resolveBillingService: mocks.resolveBillingService,
 }));
 
-vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
+vi.mock("@/src/features/entitlements/server", () => ({
   throwIfNoEntitlement: mocks.throwIfNoEntitlement,
 }));
 
@@ -21,7 +21,7 @@ vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   throwIfNoOrganizationAccess: mocks.throwIfNoOrganizationAccess,
 }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 

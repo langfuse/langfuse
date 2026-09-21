@@ -43,8 +43,7 @@ import {
   AuthMethod,
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key/types";
-
+} from "@/src/features/llm-api-key";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 /**

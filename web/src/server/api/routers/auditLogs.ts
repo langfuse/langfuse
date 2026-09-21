@@ -8,7 +8,7 @@ import {
   throwIfNoProjectAccess,
   throwIfNoOrganizationAccess,
 } from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { paginationZod } from "@langfuse/shared";
 import { AuditLogRecordType, type AuditLog } from "@langfuse/shared/src/db";
 
