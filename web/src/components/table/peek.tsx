@@ -313,20 +313,25 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           open={!!itemId}
           onOpenChange={handleOpenChange}
           forceDirection="bottom"
+          modal={false}
         >
-          <DrawerContent
-            size="full"
-            className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
-            onPointerDownOutside={preventDismissOnKeptOpen}
-            onInteractOutside={preventDismissOnKeptOpen}
-          >
-            <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
-            <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
-              <div className="bg-muted h-1.5 w-12 rounded-full" />
-            </div>
-            {header}
-            {content}
-          </DrawerContent>
+          {/* Vaul does not forward modal to its Radix root. Keep its gestures,
+              but give portaled child dialogs the same non-modal host as desktop. */}
+          <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
+            <DrawerContent
+              size="full"
+              className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
+              onPointerDownOutside={preventDismissOnKeptOpen}
+              onInteractOutside={preventDismissOnKeptOpen}
+            >
+              <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
+              <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
+                <div className="bg-muted h-1.5 w-12 rounded-full" />
+              </div>
+              {header}
+              {content}
+            </DrawerContent>
+          </Sheet>
         </Drawer>
       ) : (
         // Desktop: a docked-right, resizable panel that stays on top of the
