@@ -77,11 +77,12 @@ export async function buildVertexModel(params: {
 
   // Langfuse-operated AI carries no persisted connection, so its location comes
   // from the instance env instead of the connection config.
-  const { location } = shouldUseLangfuseAPIKey
-    ? { location: getLangfuseAIVertexLocation() }
-    : config
-      ? VertexAIConfigSchema.parse(config)
-      : { location: undefined };
+  let location: string | undefined;
+  if (shouldUseLangfuseAPIKey) {
+    location = getLangfuseAIVertexLocation();
+  } else if (config) {
+    location = VertexAIConfigSchema.parse(config).location;
+  }
   assertValidVertexLocation(location);
 
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);

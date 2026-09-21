@@ -8,7 +8,9 @@ let googleAuth: GoogleAuth | undefined;
 let projectIdPromise: Promise<string> | undefined;
 
 function getVertexGoogleAuth(): GoogleAuth {
-  googleAuth ??= new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES });
+  if (!googleAuth) {
+    googleAuth = new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES });
+  }
   return googleAuth;
 }
 
@@ -34,12 +36,14 @@ function getVertexGoogleAuth(): GoogleAuth {
  * copy constructs GoogleAuth itself.
  */
 export async function resolveVertexProjectIdFromADC(): Promise<string> {
-  projectIdPromise ??= getVertexGoogleAuth()
-    .getProjectId()
-    .catch((error: unknown) => {
-      projectIdPromise = undefined;
-      throw error;
-    });
+  if (!projectIdPromise) {
+    projectIdPromise = getVertexGoogleAuth()
+      .getProjectId()
+      .catch((error: unknown) => {
+        projectIdPromise = undefined;
+        throw error;
+      });
+  }
 
   return projectIdPromise;
 }
