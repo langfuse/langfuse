@@ -58,4 +58,6 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  // Experimental: TypeSafe Jev decision-model evaluators and connections.
+  "decisionModelEvaluators",
 ] as const;

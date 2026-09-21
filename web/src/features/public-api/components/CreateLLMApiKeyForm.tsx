@@ -11,7 +11,9 @@ import {
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  isDecisionModelAdapter,
 } from "@langfuse/shared";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
@@ -276,8 +278,19 @@ export function CreateLLMApiKeyForm({
   const existingKeys = api.llmApiKey.all.useQuery(
     {
       projectId: projectId as string,
+      includeDecisionModels: true,
     },
     { enabled: Boolean(projectId) },
+  );
+  const isDecisionModelEnabled = useIsFeatureEnabled(
+    "decisionModelEvaluators",
+    { projectId },
+  );
+  const adapterOptions = Object.values(LLMAdapter).filter(
+    (adapter) =>
+      isDecisionModelEnabled ||
+      !isDecisionModelAdapter(adapter) ||
+      existingKey?.adapter === adapter,
   );
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
@@ -712,9 +725,11 @@ export function CreateLLMApiKeyForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {Object.values(LLMAdapter).map((provider) => (
+                    {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {provider}
+                        {isDecisionModelAdapter(provider)
+                          ? `${provider} (experimental, decision models only)`
+                          : provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (

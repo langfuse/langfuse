@@ -36,6 +36,7 @@ export function LlmApiKeyList(props: { projectId: string }) {
   const apiKeys = api.llmApiKey.all.useQuery(
     {
       projectId: props.projectId,
+      includeDecisionModels: true,
     },
     {
       enabled: hasAccess,

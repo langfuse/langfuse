@@ -391,5 +391,21 @@ function getDefaultAdapterParams(
         maxReasoningTokens: { value: 0, enabled: false },
         providerOptions: { value: {}, enabled: false },
       };
+
+    // Decision models take no sampling parameters. Their connections are
+    // filtered out of the playground; this branch only keeps the switch total.
+    case LLMAdapter.TypeSafe:
+      return {
+        adapter: {
+          value: adapter,
+          enabled: true,
+        },
+        temperature: { value: 0, enabled: false },
+        maxTemperature: { value: 0, enabled: false },
+        max_tokens: { value: 0, enabled: false },
+        top_p: { value: 1, enabled: false },
+        maxReasoningTokens: { value: 0, enabled: false },
+        providerOptions: { value: {}, enabled: false },
+      };
   }
 }
