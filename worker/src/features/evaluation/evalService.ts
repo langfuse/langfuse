@@ -1232,14 +1232,16 @@ export async function runLLMAsJudgeEvaluation({
   );
 }
 
-function toNormalizedScores(params: {
+export function toNormalizedScores(params: {
   outputResult: EvalOutputResult;
   scoreName: string;
+  metadata?: Record<string, unknown>;
 }): CodeEvalScoreWithName[] {
   const { outputResult, scoreName } = params;
   const baseFields = {
     name: scoreName,
     comment: outputResult.reasoning,
+    ...(params.metadata ? { metadata: params.metadata } : {}),
   };
 
   if (outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {

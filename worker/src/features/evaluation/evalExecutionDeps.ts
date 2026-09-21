@@ -3,10 +3,12 @@ import { z } from "zod";
 import { JobExecutionStatus } from "@prisma/client";
 import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEventBucketPrefix,
   compileLangfuseMediaMessages,
   createLLMOutput,
+  createTypeSafeDecisionModelClient,
   DefaultEvalModelService,
   generateLLMText,
   IngestionQueue,
@@ -16,6 +18,8 @@ import {
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
   type ChatMessage,
+  type DecisionModelChoiceQuestion,
+  type DecisionModelEvaluation,
 } from "@langfuse/shared/src/server";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
@@ -66,6 +70,15 @@ interface LLMCallParams {
     metadata: Record<string, unknown>;
     evaluationContext?: EvalExecutionContext;
   };
+}
+
+/**
+ * Parameters for asking a decision model one Choice question.
+ */
+interface DecisionModelCallParams {
+  modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
+  state: Record<string, unknown>;
+  question: DecisionModelChoiceQuestion;
 }
 
 /**
@@ -140,6 +153,11 @@ export interface EvalExecutionDeps {
   fetchModelConfig: (
     params: FetchModelConfigParams,
   ) => Promise<ModelConfigResult>;
+
+  // Decision-model operations (experimental)
+  callDecisionModel: (
+    params: DecisionModelCallParams,
+  ) => Promise<DecisionModelEvaluation>;
 }
 
 // Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
@@ -313,6 +331,29 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       // Cast to our simplified ModelConfigResult type for the interface
       return result as ModelConfigResult;
     },
+
+    callDecisionModel: async (params) => {
+      const { apiKey } = params.modelConfig;
+      if (apiKey.adapter !== LLMAdapter.TypeSafe) {
+        throw new Error(
+          `Decision-model adapter is not supported: ${apiKey.adapter}`,
+        );
+      }
+      const secretKey = apiKey.secretKey;
+      if (typeof secretKey !== "string") {
+        throw new Error("TypeSafe connection is missing its secret key");
+      }
+
+      const client = createTypeSafeDecisionModelClient({
+        apiKey: decrypt(secretKey),
+        model: params.modelConfig.model,
+      });
+
+      return client.evaluateChoice({
+        state: params.state,
+        question: params.question,
+      });
+    },
   };
 }
 
@@ -333,6 +374,19 @@ export function createMockEvalExecutionDeps(
       valid: false,
       error: "Mock - no config",
     }),
+    callDecisionModel: async ({ question }) => {
+      const [choice = "mock"] = Object.keys(question.criteria);
+      return {
+        model: "mock-decision-model",
+        answer: {
+          type: "choice",
+          choice,
+          probabilities: { [choice]: 1 },
+          confidence: 1,
+        },
+        usage: null,
+      };
+    },
   };
 
   return { ...defaultMock, ...overrides };

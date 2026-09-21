@@ -6,7 +6,11 @@ import type {
 } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
-export const TYPESAFE_DEFAULT_BASE_URL = "https://api.typesafe.ai/v1";
+/**
+ * TypeSafe connections have no custom base URL: every request goes to the
+ * public API, so a connection is only an API key.
+ */
+export const TYPESAFE_BASE_URL = "https://api.typesafe.ai/v1";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -54,14 +58,9 @@ const QUESTION_ID = "verdict";
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
-  baseURL?: string | null;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
 }): DecisionModelClient {
-  const baseURL = (params.baseURL?.trim() || TYPESAFE_DEFAULT_BASE_URL).replace(
-    /\/+$/,
-    "",
-  );
   const fetchImpl =
     params.fetchImpl ??
     createSecureLlmFetch({ logContext: "TypeSafe decision model" });
@@ -79,7 +78,7 @@ export function createTypeSafeDecisionModelClient(params: {
 
       let response: Response;
       try {
-        response = await fetchImpl(`${baseURL}/systemone`, {
+        response = await fetchImpl(`${TYPESAFE_BASE_URL}/systemone`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${params.apiKey}`,

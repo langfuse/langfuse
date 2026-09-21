@@ -9,6 +9,7 @@ import {
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   getCodeEvalVariableMapping,
+  getDecisionModelVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -35,6 +36,7 @@ import {
 } from "../evalExecutionDeps";
 import { runLLMAsJudgeEvaluation } from "../evalService";
 import { executeCodeBasedEvaluation } from "../codeBased";
+import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
 
@@ -74,6 +76,22 @@ function createObservationEvalProcessorDeps(): ObservationEvalProcessorDeps {
 type ObservationEvalExecutionType =
   | typeof EvalTemplateType.LLM_AS_JUDGE
   | typeof EvalTemplateType.CODE;
+
+/**
+ * Evaluator types each queue executes. Decision models share the LLM-as-judge
+ * queue: both are remote model calls with the same retry semantics, and only
+ * code evaluators need the sandbox dispatcher.
+ */
+const EVALUATOR_TYPES_BY_EXECUTION_TYPE: Record<
+  ObservationEvalExecutionType,
+  EvalTemplateType[]
+> = {
+  [EvalTemplateType.LLM_AS_JUDGE]: [
+    EvalTemplateType.LLM_AS_JUDGE,
+    EvalTemplateType.DECISION_MODEL,
+  ],
+  [EvalTemplateType.CODE]: [EvalTemplateType.CODE],
+};
 
 export type ObservationEvalProcessorOutcome =
   | "completed"
@@ -274,6 +292,15 @@ export async function processObservationEval(
           : {}),
       });
       break;
+    case EvalTemplateType.DECISION_MODEL:
+      executionResult = await runDecisionModelEvaluation({
+        ...executionParams,
+        template,
+        ...(resolved.type === "v2"
+          ? { evaluatorId: resolved.evaluatorId }
+          : {}),
+      });
+      break;
   }
 
   await completeEvalExecution({
@@ -320,6 +347,9 @@ async function resolveObservationEvalExecution(params: {
 }) {
   const { event, job, executionType } = params;
   const { projectId, evaluatorId, evaluationRuleId } = event;
+  const evaluatorTypeFilter = {
+    in: EVALUATOR_TYPES_BY_EXECUTION_TYPE[executionType],
+  };
 
   if (!evaluatorId) {
     const migratedAssignment =
@@ -327,7 +357,7 @@ async function resolveObservationEvalExecution(params: {
         where: {
           projectId,
           evaluationRuleId: job.jobConfigurationId,
-          evaluator: { projectId, type: executionType },
+          evaluator: { projectId, type: evaluatorTypeFilter },
         },
         include: {
           evaluationRule: true,
@@ -355,7 +385,7 @@ async function resolveObservationEvalExecution(params: {
   // the user's selection already authorized the run.
   if (!evaluationRuleId) {
     const evaluator = await prisma.evaluator.findFirst({
-      where: { id: evaluatorId, projectId, type: executionType },
+      where: { id: evaluatorId, projectId, type: evaluatorTypeFilter },
       include: evaluatorInclude,
     });
     if (!evaluator) {
@@ -381,7 +411,7 @@ async function resolveObservationEvalExecution(params: {
       projectId,
       evaluationRuleId,
       evaluatorId,
-      evaluator: { projectId, type: executionType },
+      evaluator: { projectId, type: evaluatorTypeFilter },
     },
     include: {
       evaluationRule: true,
@@ -411,12 +441,12 @@ const evaluatorInclude = {
 
 function normalizeEvalTemplate(
   template: EvalTemplate & { promptMessages?: unknown },
-  executionType: ObservationEvalExecutionType,
+  evaluatorType: EvalTemplateType,
 ): EvalTemplateWithType {
-  switch (executionType) {
+  switch (evaluatorType) {
     case EvalTemplateType.LLM_AS_JUDGE:
       if (
-        template.type !== executionType ||
+        template.type !== evaluatorType ||
         template.prompt === null ||
         template.outputDefinition === null
       ) {
@@ -426,7 +456,7 @@ function normalizeEvalTemplate(
       }
       return {
         ...template,
-        type: executionType,
+        type: evaluatorType,
         prompt: template.prompt,
         outputDefinition: template.outputDefinition,
         sourceCode: null,
@@ -434,7 +464,7 @@ function normalizeEvalTemplate(
       };
     case EvalTemplateType.CODE:
       if (
-        template.type !== executionType ||
+        template.type !== evaluatorType ||
         template.sourceCode === null ||
         template.sourceCodeLanguage === null
       ) {
@@ -444,11 +474,29 @@ function normalizeEvalTemplate(
       }
       return {
         ...template,
-        type: executionType,
+        type: evaluatorType,
         prompt: null,
         outputDefinition: null,
         sourceCode: template.sourceCode,
         sourceCodeLanguage: template.sourceCodeLanguage,
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      if (
+        template.type !== evaluatorType ||
+        template.prompt === null ||
+        template.outputDefinition === null
+      ) {
+        throw new UnrecoverableError(
+          "Evaluator template is incomplete for DECISION_MODEL execution",
+        );
+      }
+      return {
+        ...template,
+        type: evaluatorType,
+        prompt: template.prompt,
+        outputDefinition: template.outputDefinition,
+        sourceCode: null,
+        sourceCodeLanguage: null,
       };
   }
 }
@@ -487,7 +535,9 @@ function buildV2Execution(params: {
     version.variableMapping ??
     (evaluator.type === EvalTemplateType.CODE
       ? getCodeEvalVariableMapping()
-      : []);
+      : evaluator.type === EvalTemplateType.DECISION_MODEL
+        ? getDecisionModelVariableMapping()
+        : []);
   const config = {
     id: rule?.id ?? evaluator.id,
     createdAt: rule?.createdAt ?? evaluator.createdAt,
