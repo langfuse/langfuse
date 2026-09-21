@@ -21,7 +21,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  transformFiltersForBackend,
+  sortOptionValues,
+} from "@/src/features/filters";
+
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -41,8 +44,7 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
@@ -69,7 +71,7 @@ import React, {
 import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";

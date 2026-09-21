@@ -1,6 +1,16 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { type Job } from "bullmq";
-import { trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
 import {
   getCurrentSpan,
   getTraceBatchEventStream,
@@ -42,7 +52,20 @@ const processingSpan = trace.wrapSpanContext({
   spanId: "0123456789abcdef",
   traceFlags: 1,
 });
+const exporter = new tracing.InMemorySpanExporter();
+const sdk = new NodeSDK({
+  spanProcessors: [new tracing.SimpleSpanProcessor(exporter)],
+  autoDetectResources: false,
+  instrumentations: [],
+});
+beforeAll(() => sdk.start());
+afterAll(async () => {
+  await sdk.shutdown();
+  trace.disable();
+  context.disable();
+});
 beforeEach(() => {
+  exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
   vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
@@ -117,10 +140,14 @@ describe("trace batch queue", () => {
           },
         },
       } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
-      const processing = traceBatchQueueProcessor(job, undefined).then(
-        (result) => ({ result, error: undefined }),
-        (error: unknown) => ({ result: undefined, error }),
-      );
+      const processing = context
+        .with(trace.setSpan(context.active(), processingSpan), () =>
+          traceBatchQueueProcessor(job, undefined),
+        )
+        .then(
+          (result) => ({ result, error: undefined }),
+          (error: unknown) => ({ result: undefined, error }),
+        );
       void processing.then(() => (settled = true));
       try {
         // While a is being tokenized, all of b can arrive. At c's boundary,
@@ -128,6 +155,7 @@ describe("trace batch queue", () => {
         await vi.waitFor(() => expect(suppliedThirdTrace).toBe(true));
         expect(reachedEnd).toBe(false);
         expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+        expect(exporter.getFinishedSpans()).toHaveLength(0);
         resolveFirst(100);
         await vi.waitFor(() => expect(reachedEnd).toBe(true));
         expect(tokenCountAsync).toHaveBeenCalledTimes(2);
@@ -137,6 +165,28 @@ describe("trace batch queue", () => {
         rejectSecond(new Error("token count timed out"));
         const outcome = await processing;
         expect(outcome.error).toBe(streamFails ? failure : undefined);
+        const spans = exporter.getFinishedSpans();
+        expect(spans).toHaveLength(streamFails ? 2 : 3);
+        expect(spans[0].attributes).toMatchObject({
+          "langfuse.trace.id": "a",
+          "langfuse.trace_batch.transcript_tokens": 100,
+        });
+        expect(spans[1].attributes).toMatchObject({
+          "langfuse.trace.id": "b",
+          "langfuse.trace_batch.token_estimation": "failed",
+        });
+        expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
+        expect(spans[1].attributes).not.toHaveProperty(
+          "langfuse.trace_batch.transcript_tokens",
+        );
+        expect(
+          spans[1].attributes["langfuse.trace_batch.transcript_characters"],
+        ).toBeGreaterThan(0);
+        for (const span of spans) {
+          expect(span.parentSpanContext?.spanId).toBe(
+            processingSpan.spanContext().spanId,
+          );
+        }
         expect(recordIncrement).toHaveBeenCalledWith(
           "langfuse.trace_batch.token_estimation_failed",
           1,
@@ -240,6 +290,28 @@ describe("trace batch queue", () => {
         expect.any(Number),
         { has_transcript: hasTranscript },
       );
+    }
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(2);
+    for (const [index, projectId] of ["a", "b"].entries()) {
+      const span = spans[index];
+      expect(span.name).toBe("trace-batch-transcript");
+      expect(span.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "langfuse.trace.id": "shared-trace",
+        "langfuse.trace_batch.observation_count": 2,
+        "langfuse.trace_batch.has_transcript": index === 0,
+        "langfuse.trace_batch.transcript_tokens":
+          index === 0 ? tokenCount(estimates[0][0]) : 0,
+        "langfuse.trace_batch.transcript_characters":
+          index === 0 ? serializedTranscript.length : 0,
+        "langfuse.trace_batch.transcript_assembly_duration_ms":
+          expect.any(Number),
+      });
+      const url = new URL(String(span.attributes["langfuse.trace.url"]));
+      expect(url.pathname).toBe(`/project/${projectId}/traces`);
+      expect(url.searchParams.get("peek")).toBe("shared-trace");
+      expect(JSON.stringify(span.attributes)).not.toContain("first question");
     }
   });
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {

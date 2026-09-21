@@ -1,5 +1,5 @@
-import { promptFilterConfig } from "@/src/features/filters/config/prompts-config";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import { promptFilterConfig } from "@/src/features/filters";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 
 const facetColumns = new Set(
   promptFilterConfig.facets.map((facet) => facet.column),

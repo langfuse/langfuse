@@ -18,13 +18,15 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   getSessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
-} from "@/src/features/filters/config/sessions-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+  buildSidebarFilterSessionContextId,
+  transformFiltersForBackend,
+  sortOptionValues,
+  sessionsFieldRegistry,
+} from "@/src/features/filters";
+
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type FilterState,
@@ -36,8 +38,7 @@ import {
   type TimeFilter,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -67,11 +68,10 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
+import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
+
+import { useHasProjectAccess } from "@/src/features/rbac";
 export type SessionTableRow = {
   id: string;
   createdAt: Date;

@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { CompareViewAdapter } from "@/src/features/scores/adapters";
 import {

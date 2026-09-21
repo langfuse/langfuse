@@ -3,6 +3,7 @@ import {
   asRecord,
   compact,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
 } from "../../../core/utils/json";
 import {
@@ -197,16 +198,17 @@ export const aiSdkProvider = {
   name: "ai-sdk",
   claimMessages: (root, kind): MessageSource[] => {
     if (kind !== "input" || root.messages !== undefined) return [];
-    if (typeof root.prompt === "string") {
-      return [{ kind: "single", value: root.prompt, fallbackRole: "user" }];
+    const prompt = root.prompt;
+    if (typeof prompt === "string") {
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "single", value: prompt, fallbackRole: "user" }];
     }
     if (
-      Array.isArray(root.prompt) &&
-      root.prompt.every(
-        (message) => typeof asRecord(message)?.role === "string",
-      )
+      Array.isArray(prompt) &&
+      prompt.every((message) => typeof asRecord(message)?.role === "string")
     ) {
-      return [{ kind: "sequence", values: root.prompt, fallbackRole: "user" }];
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "sequence", values: prompt, fallbackRole: "user" }];
     }
     return [];
   },

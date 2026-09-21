@@ -8,6 +8,7 @@ import {
   optionalString,
   parseArray,
   parseIfString,
+  recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -430,6 +431,23 @@ function openAiReasoningParts(
   return parts;
 }
 
+function isResponsesRequest(root: Record<string, unknown>): boolean {
+  if (typeof root.input === "string" && typeof root.model === "string") {
+    return true;
+  }
+  const responseInput = parseArray(root.input);
+  return Boolean(
+    responseInput?.length &&
+    responseInput.every((item) => {
+      const record = asRecord(item);
+      return (
+        record &&
+        (typeof record.role === "string" || typeof record.type === "string")
+      );
+    }),
+  );
+}
+
 /**
  * OpenAI response envelopes: Chat Completions `choices[]` (finish reason
  * per choice) and Responses' `output[]` item array.
@@ -440,25 +458,17 @@ function openAiMessages(
 ): MessageSource[] {
   // Responses API uses `input` instead of Chat Completions' `messages`:
   if (kind === "input") {
-    if (typeof root.input === "string" && typeof root.model === "string") {
-      return [{ kind: "single", value: root.input, fallbackRole: "user" }];
-    }
-    const responseInput = parseArray(root.input);
-    if (
-      responseInput?.length &&
-      responseInput.every((item) => {
-        const record = asRecord(item);
-        return (
-          record &&
-          (typeof record.role === "string" || typeof record.type === "string")
-        );
-      })
-    ) {
-      return [
-        { kind: "sequence", values: responseInput, fallbackRole: "user" },
-      ];
-    }
-    return [];
+    if (!isResponsesRequest(root)) return [];
+    const input = recordKeyAsParsed(root, "input");
+    return typeof input === "string" && typeof root.model === "string"
+      ? [{ kind: "single", value: input, fallbackRole: "user" }]
+      : [
+          {
+            kind: "sequence",
+            values: parseArray(input) ?? [],
+            fallbackRole: "user",
+          },
+        ];
   }
   if (kind !== "output") return [];
 
@@ -640,10 +650,10 @@ export const openAiProvider: IOConvention = {
   getSystemMessage: (root, kind) =>
     kind === "input" &&
     typeof root.instructions === "string" &&
-    openAiMessages(root, kind).length > 0
+    isResponsesRequest(root)
       ? {
           kind: "single",
-          value: root.instructions,
+          value: recordKeyAsParsed(root, "instructions"),
           fallbackRole: "user",
           roleOverride: "system",
         }
