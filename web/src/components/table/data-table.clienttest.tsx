@@ -94,3 +94,37 @@ describe("DataTable column sorting affordances", () => {
     expect(statusHeader).not.toHaveTextContent("▼");
   });
 });
+
+describe("DataTable empty state", () => {
+  it("updates its retry action after a cached empty result finishes refetching", () => {
+    const onRetry = vi.fn();
+    const props = {
+      tableName: "emptyResultsTest",
+      columns,
+      hidePagination: true,
+      data: { isLoading: false, isError: false, data: [] as Row[] },
+      peekView: {
+        itemType: "TRACE" as const,
+        tableName: "emptyResultsTest",
+        isV4: true,
+        closePeek: vi.fn(),
+      },
+    };
+    const { rerender } = render(<DataTable {...props} isFetching />);
+    expect(screen.getByText("No results.")).toBeInTheDocument();
+
+    rerender(
+      <DataTable
+        {...props}
+        isFetching={false}
+        noResultsMessage={<button onClick={onRetry}>Retry search</button>}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry search" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+
+    rerender(<DataTable {...props} isFetching />);
+    expect(screen.queryByRole("button", { name: "Retry search" })).toBeNull();
+    expect(screen.getByText("No results.")).toBeInTheDocument();
+  });
+});
