@@ -51,15 +51,20 @@ describe("trace review panel sessions", () => {
     actions.setCommentsDraft(commentsKey, true);
     actions.openAnnotation(annotation);
     const annotationSession = store.getState().annotation;
+    const refresh = vi.fn();
+    store.annotationFormRef.current = { refresh };
     actions.openComments({ target, confirmDiscard: () => false });
-    actions.openAnnotation({ ...annotation, scores: [] });
+    const refreshed = { ...annotation, scores: [] };
+    actions.openAnnotation(refreshed);
 
     expect(store.getState().active).toBe("annotate");
     expect(store.getState().comments).toMatchObject({
       key: commentsKey,
       hasDraft: true,
     });
-    expect(store.getState().annotation).toBe(annotationSession);
+    expect(store.getState().annotation?.key).toBe(annotationSession?.key);
+    expect(store.getState().annotation?.data).toBe(refreshed);
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(refreshed);
   });
 
   it("returns focus to a connected trigger on close and ignores a removed trigger", () => {

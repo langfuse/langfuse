@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import Link from "next/link";
 import { Settings2 } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -35,6 +35,7 @@ import type {
   PreparedAnnotationTarget,
   ScoreTarget,
   AnnotationForm as AnnotationFormType,
+  AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
 
 function AnnotateHeader({
@@ -85,10 +86,12 @@ export function AnnotationFormContent({
   targets,
   actionButtons,
   isActive = true,
+  refreshRef,
 }: {
   targets: PreparedAnnotationTarget[];
   actionButtons?: React.ReactNode;
   isActive?: boolean;
+  refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }) {
   const capture = usePostHogClientCapture();
   const primaryTarget = targets[0]!;
@@ -126,6 +129,30 @@ export function AnnotationFormContent({
       deleteScore: deleteMutation.mutateAsync,
     }),
   );
+  useImperativeHandle(refreshRef, () => ({
+    refresh(data) {
+      const refreshed = targets.flatMap((target) => {
+        const primary =
+          target.scoreTarget.type === data.scoreTarget.type &&
+          (target.scoreTarget.type !== "trace" ||
+            data.scoreTarget.type !== "trace" ||
+            target.scoreTarget.observationId ===
+              data.scoreTarget.observationId);
+        const scores = primary ? data.scores : data.companionTrace?.scores;
+        if (!scores) return [];
+        const selected = form
+          .getValues("scoreData")
+          .filter((field) => field.targetKey === target.key)
+          .map((field) => field.configId);
+        return prepareAnnotationFormData(
+          transformToAnnotationScores(scores, target.configControl.configs),
+          target.configControl.configs,
+          selected,
+        ).map((field) => ({ ...field, targetKey: target.key }));
+      });
+      actions.reconcileServerFields(refreshed);
+    },
+  }));
   // The analytics session follows the mounted form, not query refetches.
   useEffect(() => {
     actions.open();
@@ -405,6 +432,7 @@ export function AnnotationForm<Target extends ScoreTarget>(
       targets={[target]}
       actionButtons={props.actionButtons}
       isActive={props.isActive}
+      refreshRef={props.refreshRef}
     />
   );
 }

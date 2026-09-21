@@ -91,6 +91,7 @@ function TraceAnnotationPanel() {
     >
       <AnnotationPanelContent
         data={annotation.data}
+        refreshRef={store.annotationFormRef}
         actionButtons={<CloseReviewPanelButton />}
         isActive={active}
       />
