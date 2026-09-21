@@ -202,7 +202,7 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
       <TraceHeader />
       <div className="min-h-0 flex-1">{panels}</div>
     </div>
