@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
+import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import {
   createCommentOverlayStore,
   type CommentTarget,
@@ -54,6 +55,7 @@ export function CommentDrawerController({
   onCommentChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
+  const reviewPanel = useTraceReviewPanelOptional();
   const [store] = useState(createCommentOverlayStore);
   const utils = api.useUtils();
   const hasReadAccess = useHasProjectAccess({
@@ -73,6 +75,21 @@ export function CommentDrawerController({
         disabled,
         openDrawer: (target) => {
           if (disabled) return;
+          if (reviewPanel) {
+            const actions = reviewPanel.getState().actions;
+            actions.rememberTrigger(
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null,
+            );
+            actions.openComments({
+              target,
+              onCommentChange,
+              confirmDiscard: () =>
+                window.confirm("Discard your unsent comment?"),
+            });
+            return;
+          }
           store.getState().actions.open({
             target,
             canWrite: hasWriteAccess,
@@ -87,7 +104,7 @@ export function CommentDrawerController({
           });
         },
       })}
-      {router.isReady && hasReadAccess ? (
+      {!reviewPanel && router.isReady && hasReadAccess ? (
         <CommentOverlayState store={store} initialState={initialState}>
           {(overlay) => (
             <CommentOverlayHost

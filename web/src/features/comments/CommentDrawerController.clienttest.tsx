@@ -6,8 +6,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { vi } from "vitest";
+import { useStore } from "zustand";
 
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+import {
+  TraceReviewPanelProvider,
+  useTraceReviewPanel,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import {
   CommentDrawerController,
   type CommentDrawerControllerProps,
@@ -65,6 +70,18 @@ const target = {
   objectType: "TRACE" as const,
 };
 
+function EmbeddedReviewState() {
+  const store = useTraceReviewPanel();
+  const active = useStore(store, (state) => state.active);
+  const objectId = useStore(store, (state) => state.comments?.target.objectId);
+  return (
+    <>
+      <output>{active === "comments" ? objectId : "closed"}</output>
+      <button onClick={store.getState().actions.close}>Close review</button>
+    </>
+  );
+}
+
 describe("CommentDrawerController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +89,33 @@ describe("CommentDrawerController", () => {
     router.isReady = true;
     fetchComments.mockResolvedValue([]);
     invalidateComments.mockResolvedValue(undefined);
+  });
+
+  it("opens embedded comments immediately without a lookup or rerendering the trigger", () => {
+    const renderView = vi.fn(
+      ({
+        openDrawer,
+      }: Parameters<CommentDrawerControllerProps["children"]>[0]) => (
+        <button onClick={() => openDrawer(target)}>Open comments</button>
+      ),
+    );
+    render(
+      <TraceReviewPanelProvider projectId="project-id">
+        <CommentDrawerController projectId="project-id" count={0}>
+          {renderView}
+        </CommentDrawerController>
+        <EmbeddedReviewState />
+      </TraceReviewPanelProvider>,
+    );
+    const initialRenders = renderView.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Open comments" }));
+    expect(screen.getByRole("status")).toHaveTextContent(target.objectId);
+    expect(fetchComments).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(renderView).toHaveBeenCalledTimes(initialRenders);
+    fireEvent.click(screen.getByRole("button", { name: "Close review" }));
+    expect(screen.getByRole("status")).toHaveTextContent("closed");
+    expect(renderView).toHaveBeenCalledTimes(initialRenders);
   });
 
   it("uses the fetched thread when counts are missing or stale, then opens the discussion after posting", async () => {

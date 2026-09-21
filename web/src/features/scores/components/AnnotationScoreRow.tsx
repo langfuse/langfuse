@@ -56,17 +56,19 @@ import { cn } from "@/src/utils/tailwind";
 
 function CommentField({
   savedComment,
+  localValue,
+  onValueChange,
   disabled,
   loading,
   onSave,
 }: {
   savedComment: string | null;
+  localValue: string;
+  onValueChange: (value: string | null) => void;
   disabled: boolean;
   loading: boolean;
   onSave: (comment: string | null) => void;
 }) {
-  const [localValue, setLocalValue] = useState(savedComment || "");
-
   const hasChanges = localValue.trim() !== (savedComment || "");
 
   return (
@@ -81,7 +83,10 @@ function CommentField({
                 type="button"
                 size="icon-xs"
                 loading={loading}
-                onClick={() => onSave(null)}
+                onClick={() => {
+                  onSave(null);
+                  onValueChange(null);
+                }}
               >
                 <Trash className="h-3 w-3" />
               </Button>
@@ -92,7 +97,7 @@ function CommentField({
       <Textarea
         className="text-xs"
         value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        onChange={(e) => onValueChange(e.target.value)}
         disabled={disabled}
       />
 
@@ -107,7 +112,7 @@ function CommentField({
               disabled={disabled}
               loading={loading}
               onClick={() => {
-                setLocalValue(savedComment || "");
+                onValueChange(null);
               }}
             >
               Discard Changes
@@ -122,6 +127,7 @@ function CommentField({
               loading={loading}
               onClick={() => {
                 onSave(localValue);
+                onValueChange(null);
               }}
             >
               Save Changes
@@ -144,6 +150,7 @@ export function AnnotationScoreRow({
   formRootRef,
   commentSaving,
   targetOptions,
+  isActive = true,
 }: {
   form: UseFormReturn<AnnotateFormSchemaType>;
   actions: AnnotationFormActions;
@@ -155,7 +162,11 @@ export function AnnotationScoreRow({
   formRootRef: React.RefObject<HTMLDivElement | null>;
   commentSaving: boolean;
   targetOptions: { target: PreparedAnnotationTarget; hasField: boolean }[];
+  isActive?: boolean;
 }) {
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
     control: form.control,
@@ -223,7 +234,10 @@ export function AnnotationScoreRow({
             {config.description ||
             isPresent(config.maxValue) ||
             isPresent(config.minValue) ? (
-              <HoverCard>
+              <HoverCard
+                open={isActive && detailsOpen}
+                onOpenChange={setDetailsOpen}
+              >
                 <HoverCardTrigger asChild>
                   <span
                     className={cn(
@@ -249,7 +263,10 @@ export function AnnotationScoreRow({
                 {score.name}
               </span>
             )}
-            <Popover>
+            <Popover
+              open={isActive && commentOpen}
+              onOpenChange={setCommentOpen}
+            >
               <PopoverTrigger asChild>
                 <Button
                   variant="link"
@@ -274,7 +291,11 @@ export function AnnotationScoreRow({
                   )}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent>
+              <PopoverContent
+                onCloseAutoFocus={(event) => {
+                  if (!isActive) event.preventDefault();
+                }}
+              >
                 <FormField
                   control={form.control}
                   name={`scoreData.${index}.comment`}
@@ -283,6 +304,8 @@ export function AnnotationScoreRow({
                       <FormControl>
                         <CommentField
                           savedComment={score.comment ?? null}
+                          localValue={commentDraft ?? score.comment ?? ""}
+                          onValueChange={setCommentDraft}
                           disabled={config.isArchived}
                           loading={commentSaving}
                           onSave={(newComment) => {
@@ -398,6 +421,7 @@ export function AnnotationScoreRow({
                   <FormItem>
                     <FormControl>
                       <CategoricalScoreInput
+                        isActive={isActive}
                         projectId={target.scoreMetadata.projectId}
                         config={config}
                         categories={categories}
@@ -429,11 +453,13 @@ export function AnnotationScoreRow({
           {hasScoreValue || invalid || targetOptions.length > 0 ? (
             <DropdownMenuController
               align="end"
+              isActive={isActive}
               onCloseAutoFocus={(event) => {
                 event.preventDefault();
                 const nextFocus = focusFieldKey.current;
                 focusFieldKey.current = fieldKey;
                 commitDeferredScore();
+                if (!isActive) return;
                 formRootRef.current
                   ?.querySelector<HTMLElement>(
                     `[data-score-row="${actions.indexOf(nextFocus)}"]`,

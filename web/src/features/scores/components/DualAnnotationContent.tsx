@@ -16,6 +16,8 @@ interface DualAnnotationContentProps {
   observationEnvironment: string;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
+  actionButtons?: React.ReactNode;
+  isActive?: boolean;
 }
 
 export function DualAnnotationContent({
@@ -27,6 +29,8 @@ export function DualAnnotationContent({
   observationEnvironment,
   observationScores,
   traceScores,
+  actionButtons,
+  isActive = true,
 }: DualAnnotationContentProps) {
   const observation = usePreparedAnnotationFormTarget({
     serverScores: observationScores,
@@ -51,6 +55,8 @@ export function DualAnnotationContent({
             observation.target,
             trace.target,
           ])}
+          actionButtons={actionButtons}
+          isActive={isActive}
         />
       )}
     </div>

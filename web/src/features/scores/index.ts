@@ -10,7 +10,6 @@ export {
 } from "@/src/features/scores/adapters";
 export { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 export { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
-export { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 export { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 export { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 export { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";

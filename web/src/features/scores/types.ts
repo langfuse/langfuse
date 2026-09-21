@@ -74,6 +74,21 @@ export type AnalyticsData = {
     | "SessionTable";
 };
 
+export type AnnotationPanelData = {
+  analyticsData: AnalyticsData;
+  scoreMetadata: {
+    projectId: string;
+    queueId?: string;
+    environment?: string;
+  };
+  scoreTarget: ScoreTarget;
+  scores?: WithStringifiedMetadata<ScoreDomain>[];
+  companionTrace?: {
+    environment: string;
+    scores: WithStringifiedMetadata<ScoreDomain>[];
+  };
+};
+
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
 export type AnnotationScoreSchemaType = z.infer<
   typeof AnnotationScoreDataSchema
@@ -102,6 +117,7 @@ export type ScoreConfigSelection =
   | { mode: "selectable" };
 
 export type AnnotationForm<Target extends ScoreTarget> = {
+  isActive?: boolean;
   scoreTarget: Target;
   serverScores: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate;
   scoreMetadata: {

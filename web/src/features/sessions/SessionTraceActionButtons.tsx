@@ -182,7 +182,7 @@ export function SessionTraceActionButtons({
               className="gap-1.5"
             >
               <ListPlus className="h-4 w-4" />
-              <span>Add to human annotation queue</span>
+              <span>Queue</span>
               {totalCount > 0 && <ActionButtonCountBadge count={totalCount} />}
               <ChevronDown className="h-3 w-3" />
             </Button>

@@ -24,6 +24,7 @@ import {
 } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
+import { cloneElement } from "react";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   capture: vi.fn(),
   headerRender: vi.fn(),
+  hasConfigAccess: false,
 }));
 const defaultConfig = {
   id: "quality",
@@ -59,7 +61,9 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => false }));
+vi.mock("@/src/features/rbac", () => ({
+  useHasProjectAccess: () => mocks.hasConfigAccess,
+}));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => mocks.capture,
@@ -73,7 +77,14 @@ vi.mock("@/src/utils/api", async () => {
     api: {
       scoreConfigs: {
         all: { useQuery: () => ({ isLoading: false, data: { configs } }) },
+        appendCategory: {
+          useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+        },
       },
+      useUtils: () => ({
+        scoreConfigs: { invalidate: vi.fn() },
+        annotationQueues: { invalidate: vi.fn() },
+      }),
       scores: {
         createAnnotationScore: {
           useMutation: (
@@ -141,6 +152,7 @@ function renderContent(children = content) {
 describe("unified annotation targets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.hasConfigAccess = false;
     Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
@@ -164,6 +176,132 @@ describe("unified annotation targets", () => {
   afterEach(() => {
     configs.splice(1);
     vi.unstubAllGlobals();
+  });
+
+  it("preserves inactive drafts without handling keyboard navigation until reopened", () => {
+    configs.push({
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: null,
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["quality", "feedback"]),
+    );
+    const rendered = renderContent();
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Keep this draft" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    fireEvent.keyDown(document.body, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(document.body);
+    expect(mocks.create).not.toHaveBeenCalled();
+    rendered.rerenderContent(content);
+    expect(screen.getByRole("textbox")).toHaveValue("Keep this draft");
+    fireEvent.keyDown(document.body, { key: "ArrowDown" });
+    expect(screen.getByRole("group", { name: "Feedback" })).toHaveFocus();
+  });
+
+  it.each(["picker", "row menu", "category"])(
+    "hides an open %s portal while annotation is inactive",
+    async (control) => {
+      if (control === "category") {
+        configs.push({
+          ...defaultConfig,
+          id: "accuracy",
+          name: "Accuracy",
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "Fully correct", value: 1 },
+            { label: "Partly correct", value: 0 },
+          ],
+        });
+        localStorage.setItem(
+          "emptySelectedConfigIds:observation",
+          JSON.stringify(["accuracy"]),
+        );
+      }
+      const rendered = renderContent();
+      if (control === "row menu") {
+        fireEvent.keyDown(
+          screen.getByRole("button", { name: "Score actions for Quality" }),
+          { key: "ArrowDown" },
+        );
+        expect(await screen.findByRole("menu")).toBeVisible();
+      } else {
+        const trigger =
+          control === "picker"
+            ? screen.getByRole("combobox", { name: "Scores" })
+            : within(screen.getByRole("group", { name: "Accuracy" })).getByRole(
+                "combobox",
+              );
+        fireEvent.click(trigger);
+        expect(await screen.findByRole("listbox")).toBeVisible();
+      }
+      rendered.rerenderContent(cloneElement(content, { isActive: false }));
+      await waitFor(() => {
+        expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("hides the score comment portal without losing its unsaved draft", async () => {
+    mocks.create.mockResolvedValue({});
+    const rendered = renderContent();
+    fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Saved"),
+    );
+    fireEvent.click(screen.getByTitle("Add or view score comment"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Unsent score comment" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument(),
+    );
+    rendered.rerenderContent(content);
+    expect(await screen.findByRole("textbox")).toHaveValue(
+      "Unsent score comment",
+    );
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("retains an unfinished new category while its annotation panel is inactive", async () => {
+    mocks.hasConfigAccess = true;
+    configs.push({
+      ...defaultConfig,
+      id: "accuracy",
+      name: "Accuracy",
+      dataType: "CATEGORICAL",
+      categories: [{ label: "Good", value: 1 }],
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["accuracy"]),
+    );
+    const rendered = renderContent();
+    fireEvent.click(screen.getByRole("button", { name: "Add new category" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Category name" }), {
+      target: { value: "Needs follow-up" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Add category" }),
+      ).not.toBeInTheDocument(),
+    );
+    rendered.rerenderContent(content);
+    expect(
+      await screen.findByRole("textbox", { name: "Category name" }),
+    ).toHaveValue("Needs follow-up");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it("chooses a level before the first save and cannot change it during or after saving", async () => {
