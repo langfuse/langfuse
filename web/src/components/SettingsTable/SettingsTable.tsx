@@ -59,7 +59,14 @@ export function SettingsTable<TData extends object>({
     columnOrderKey ?? `${tableProps.tableName}ColumnOrder`,
     columns,
   );
-  const [searchValue, setSearchValue] = useState(search?.value ?? "");
+  const [searchDraft, setSearchDraft] = useState(() => ({
+    value: search?.value ?? "",
+    committedValue: search?.value ?? "",
+  }));
+  const searchValue =
+    search && search.value !== searchDraft.committedValue
+      ? search.value
+      : searchDraft.value;
 
   const hasToolbar = Boolean(search || columnVisibilityKey || toolbarActions);
 
@@ -73,7 +80,7 @@ export function SettingsTable<TData extends object>({
                 value={searchValue}
                 placeholder={search.placeholder}
                 onChange={(value) => {
-                  setSearchValue(value);
+                  setSearchDraft({ value, committedValue: search.value });
                   if (value === "") search.onChange("");
                 }}
                 onSubmit={search.onChange}
