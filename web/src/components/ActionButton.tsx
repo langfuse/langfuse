@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type ActionButtonProps = Pick<
+export type ActionButtonProps = Pick<
   ButtonProps,
   "disabled" | "onClick" | "size" | "title" | "type" | "variant"
 > & {

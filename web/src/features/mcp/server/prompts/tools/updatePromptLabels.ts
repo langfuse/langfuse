@@ -86,6 +86,7 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
 
         const { updatedPrompt } = await updatePromptLabelsForApi({
           context,
+          ctx: context.auth,
           promptName: name,
           promptVersion: version,
           newLabels,

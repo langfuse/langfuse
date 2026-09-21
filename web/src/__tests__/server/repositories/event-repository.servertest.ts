@@ -191,6 +191,7 @@ describe("Clickhouse Events Repository Test", () => {
     let otherProjectWindowRowSeen = false;
     let repeatedIntervalRowCount = 0;
     const foundTraces = new Set<string>();
+    const traceGroups: string[] = [];
     for await (const event of getTraceBatchEventStream({
       traces: [
         {
@@ -241,7 +242,9 @@ describe("Clickhouse Events Repository Test", () => {
       ],
     })) {
       rowCount++;
-      foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+      const traceKey = JSON.stringify([event.project_id, event.trace_id]);
+      foundTraces.add(traceKey);
+      if (traceGroups.at(-1) !== traceKey) traceGroups.push(traceKey);
       if (event.span_id === companionOnlyRow.span_id) {
         companionOnlyRowSeen = true;
       }
@@ -267,6 +270,9 @@ describe("Clickhouse Events Repository Test", () => {
     expect(companionOnlyRowSeen).toBe(false);
     expect(otherProjectWindowRowSeen).toBe(false);
     expect(repeatedIntervalRowCount).toBe(1);
+    // Interleaved timestamps across minutes must not reopen a completed trace;
+    // the same trace ID in another project must form its own group.
+    expect(traceGroups).toEqual([...foundTraces].sort());
     expect(foundTraces).toEqual(
       new Set([
         JSON.stringify([batchProjectId, firstTraceId]),
