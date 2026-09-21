@@ -1995,14 +1995,13 @@ model TopicRule {
 }
 
 model TopicRuleFacetAssignment {
-  id        String     @id @default(cuid())
   projectId String     @map("project_id")
   ruleId    String     @map("rule_id")
   rule      TopicRule  @relation(fields: [projectId, ruleId], references: [projectId, id], onDelete: Cascade)
   facetId   String     @map("facet_id")
   facet     TopicFacet @relation(fields: [projectId, facetId], references: [projectId, id], onDelete: Cascade)
 
-  @@unique([ruleId, facetId])
+  @@id([ruleId, facetId])
   @@index([projectId, facetId])
   @@map("topic_rule_facet_assignments")
 }

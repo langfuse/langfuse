@@ -116,12 +116,11 @@ CREATE TABLE "topic_rules" (
 
 -- CreateTable
 CREATE TABLE "topic_rule_facet_assignments" (
-    "id" TEXT NOT NULL,
     "project_id" TEXT NOT NULL,
     "rule_id" TEXT NOT NULL,
     "facet_id" TEXT NOT NULL,
 
-    CONSTRAINT "topic_rule_facet_assignments_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "topic_rule_facet_assignments_pkey" PRIMARY KEY ("rule_id", "facet_id")
 );
 
 -- CreateIndex
@@ -132,9 +131,6 @@ CREATE UNIQUE INDEX "topic_rules_project_id_id_key" ON "topic_rules"("project_id
 
 -- CreateIndex
 CREATE INDEX "topic_rule_facet_assignments_project_id_facet_id_idx" ON "topic_rule_facet_assignments"("project_id", "facet_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "topic_rule_facet_assignments_rule_id_facet_id_key" ON "topic_rule_facet_assignments"("rule_id", "facet_id");
 
 -- AddForeignKey
 ALTER TABLE "topic_rules" ADD CONSTRAINT "topic_rules_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
