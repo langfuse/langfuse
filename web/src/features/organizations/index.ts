@@ -7,15 +7,15 @@
 // buildAdminOrgContext live on `server/index.ts` so this client barrel
 // never reaches auth/onboarding.
 //
-// ConnectedNewOrganizationForm and OrganizationProjectOverview stay off
-// this door. The barrel is already imported by CommandMenu for the
-// settings-pages hook; adding those forms would pull organizationNameSchema
-// and the new-org form graph into every hook consumer.
+// ConnectedNewOrganizationForm, OrganizationProjectOverview, and
+// useOrganizationSettingsPages stay off this door. The barrel is already
+// imported by projects/hooks (useQueryOrganization); adding the settings
+// page would pull ai-gateway and search-bar into every useQueryProject
+// consumer, including filter-builder on the filters door that
+// ComposerTokens already imports.
 //
-// filter-builder (re-exported from the filters door) keeps importing
-// useLangfuseCloudRegion and openAIFeaturesSettings by file path. This
-// barrel also loads OrganizationSettingsPage, which pulls ai-gateway and
-// search-bar, and ComposerTokens already imports the filters door.
+// filter-builder keeps importing useLangfuseCloudRegion and
+// openAIFeaturesSettings by file path for the same reason.
 export {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
@@ -29,4 +29,3 @@ export {
   useLangfuseV4WriteMode,
   useQueryOrganization,
 } from "@/src/features/organizations/hooks";
-export { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
