@@ -61,6 +61,8 @@ const STOP_WORDS = new Set([
   "it",
   "as",
   "how",
+  "should",
+  "can",
   "what",
   "which",
   "and",

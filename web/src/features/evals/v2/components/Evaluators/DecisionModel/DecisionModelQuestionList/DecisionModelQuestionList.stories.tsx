@@ -29,6 +29,65 @@ const callbacks = {
   onMove: fn(),
 };
 
+type StoryArgs = React.ComponentProps<typeof DecisionModelQuestionList>;
+
+/** Shared by the editable stories: local state so add / edit / reorder / remove work in the canvas. */
+function InteractiveQuestionList(args: StoryArgs) {
+  const [questions, setQuestions] = useState(args.questions);
+  const [expandedId, setExpandedId] = useState(args.expandedId);
+  const nextId = () => `q-${Date.now()}`;
+  return (
+    <DecisionModelQuestionList
+      {...args}
+      questions={questions}
+      expandedId={expandedId}
+      onExpandedChange={(id) => {
+        setExpandedId(id);
+        args.onExpandedChange(id);
+      }}
+      onChange={(next) => {
+        setQuestions((current) =>
+          current.map((question) =>
+            question.id === next.id ? next : question,
+          ),
+        );
+        args.onChange(next);
+      }}
+      onAdd={() => {
+        const question = createEmptyQuestion(nextId());
+        setQuestions((current) => [...current, question]);
+        setExpandedId(question.id);
+        args.onAdd();
+      }}
+      onAddExample={(type) => {
+        const question = { id: nextId(), ...QUESTION_EXAMPLES[type] };
+        setQuestions((current) => [...current, question]);
+        setExpandedId(question.id);
+        args.onAddExample(type);
+      }}
+      onRemove={(id) => {
+        setQuestions((current) =>
+          current.filter((question) => question.id !== id),
+        );
+        args.onRemove(id);
+      }}
+      onMove={(id, direction) => {
+        setQuestions((current) => {
+          const index = current.findIndex((question) => question.id === id);
+          const target = index + direction;
+          if (index < 0 || target < 0 || target >= current.length)
+            return current;
+          const next = [...current];
+          const [item] = next.splice(index, 1);
+          next.splice(target, 0, item!);
+          return next;
+        });
+        args.onMove(id, direction);
+      }}
+    />
+  );
+}
+
 /** Full editing flow: add, edit, reorder, remove, collapse. */
 export const Default = meta.story({
   args: {
@@ -37,62 +96,7 @@ export const Default = meta.story({
     expandedId: "q1",
     stateKeys: STATE_KEYS,
   },
-  render: (args) => {
-    const [questions, setQuestions] = useState(args.questions);
-    const [expandedId, setExpandedId] = useState(args.expandedId);
-    let counter = questions.length;
-    const nextId = () => `q${++counter}-${Date.now()}`;
-    return (
-      <DecisionModelQuestionList
-        {...args}
-        questions={questions}
-        expandedId={expandedId}
-        onExpandedChange={(id) => {
-          setExpandedId(id);
-          args.onExpandedChange(id);
-        }}
-        onChange={(next) => {
-          setQuestions((current) =>
-            current.map((question) =>
-              question.id === next.id ? next : question,
-            ),
-          );
-          args.onChange(next);
-        }}
-        onAdd={() => {
-          const question = createEmptyQuestion(nextId());
-          setQuestions((current) => [...current, question]);
-          setExpandedId(question.id);
-          args.onAdd();
-        }}
-        onAddExample={(type) => {
-          const question = { id: nextId(), ...QUESTION_EXAMPLES[type] };
-          setQuestions((current) => [...current, question]);
-          setExpandedId(question.id);
-          args.onAddExample(type);
-        }}
-        onRemove={(id) => {
-          setQuestions((current) =>
-            current.filter((question) => question.id !== id),
-          );
-          args.onRemove(id);
-        }}
-        onMove={(id, direction) => {
-          setQuestions((current) => {
-            const index = current.findIndex((question) => question.id === id);
-            const target = index + direction;
-            if (index < 0 || target < 0 || target >= current.length)
-              return current;
-            const next = [...current];
-            const [item] = next.splice(index, 1);
-            next.splice(target, 0, item!);
-            return next;
-          });
-          args.onMove(id, direction);
-        }}
-      />
-    );
-  },
+  render: (args) => <InteractiveQuestionList {...args} />,
 });
 
 export const Empty = meta.story({
@@ -102,6 +106,7 @@ export const Empty = meta.story({
     expandedId: null,
     stateKeys: STATE_KEYS,
   },
+  render: (args) => <InteractiveQuestionList {...args} />,
 });
 
 export const AllCollapsed = meta.story({
