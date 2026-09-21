@@ -273,13 +273,46 @@ const normalizeOpenAiResponsesCustomToolCall: PartHandler = (value) =>
 const normalizeOpenAiReasoningText: PartHandler = (value) =>
   claimed(reasoningPart(value.text));
 
+function isReasoningTextArray(
+  value: unknown,
+  expectedType: "summary_text" | "reasoning_text",
+): boolean {
+  if (!Array.isArray(value)) return false;
+
+  return value.every((entry) => {
+    const part = asRecord(entry);
+    return part?.type === expectedType && typeof part.text === "string";
+  });
+}
+
 const normalizeOpenAiReasoning: PartHandler = (value, context) => {
-  if (
-    !Array.isArray(value.summary) &&
-    typeof value.encrypted_content !== "string"
-  ) {
+  if (!isReasoningTextArray(value.summary, "summary_text")) {
     return unmatched;
   }
+
+  const hasInvalidContent =
+    value.content !== undefined &&
+    !isReasoningTextArray(value.content, "reasoning_text");
+
+  if (hasInvalidContent) {
+    return unmatched;
+  }
+
+  const encryptedContent = value.encrypted_content;
+  const isValidEncryptedContent =
+    encryptedContent === undefined ||
+    encryptedContent === null ||
+    typeof encryptedContent === "string";
+
+  if (!isValidEncryptedContent) {
+    return unmatched;
+  }
+
+  // Text-based reasoning belongs to the shared handler.
+  if (value.text !== undefined) {
+    return unmatched;
+  }
+
   return claimed(openAiReasoningParts(value, [], context));
 };
 
