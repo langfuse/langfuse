@@ -285,6 +285,7 @@ function DesktopTraceWorkspace({
         key={desktopLayout.groupId}
         {...desktopLayout}
         reviewOpen={reviewOpen}
+        reviewPanel={reviewPanel}
       >
         <TraceLayoutDesktop.NavigationPanel>
           <TracePanelNavigationLayoutDesktop>
@@ -295,9 +296,6 @@ function DesktopTraceWorkspace({
         <TraceLayoutDesktop.DetailPanel>
           <TracePanelDetail />
         </TraceLayoutDesktop.DetailPanel>
-        <TraceLayoutDesktop.ReviewPanel>
-          {reviewPanel}
-        </TraceLayoutDesktop.ReviewPanel>
       </TraceLayoutDesktop>
     </div>
   );
