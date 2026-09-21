@@ -7,6 +7,7 @@ import {
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
 } from "@/src/utils/sentryFilters";
 
@@ -1152,7 +1153,7 @@ describe("isDenylistedNoiseEvent", () => {
     it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {
       // Same Chrome message as LANGFUSE-5ZS, but the URL is ours. This is a
       // real client failure (stale tab after deploy, truncated download) and
-      // must still reach Sentry.
+      // must still reach Sentry (grouped, not dropped).
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent(
@@ -1675,6 +1676,115 @@ describe("isReactDevtoolsInternalEvent", () => {
 
     it("keeps an event with no exception/message/logentry text", () => {
       expect(isReactDevtoolsInternalEvent({} as ErrorEvent)).toBe(false);
+    });
+  });
+});
+
+/**
+ * Next.js route-loader `script.onerror`: capture_console from
+ * `Error rendering page: ` + `Failed to load script: <hashed chunk URL>`.
+ */
+function chunkLoadErrorEvent(
+  value = "Failed to load script: https://us.cloud.langfuse.com/_next/static/chunks/31w9e6884-o68.js",
+): ErrorEvent {
+  return {
+    exception: {
+      values: [
+        {
+          type: "Error",
+          value,
+          mechanism: { type: "auto.core.capture_console", handled: true },
+          stacktrace: {
+            frames: [
+              {
+                filename: "node_modules/next/src/client/route-loader.ts",
+                function: "script.onerror",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  } as ErrorEvent;
+}
+
+describe("isStaleChunkLoadErrorEvent", () => {
+  describe("matches first-party chunk LOAD failures (grouped, not dropped)", () => {
+    it("matches Next.js route-loader script.onerror (hashed chunk URL)", () => {
+      expect(isStaleChunkLoadErrorEvent(chunkLoadErrorEvent())).toBe(true);
+    });
+
+    it("matches regardless of the (per-deploy hashed) chunk filename", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          chunkLoadErrorEvent(
+            "Failed to load script: https://static-hipaa.langfuse.com/_next/static/chunks/abc123-xyz.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches a first-party dynamic import() chunk failure", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isStaleChunkLoadErrorEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: http://localhost:3000/_next/static/chunks/app.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("is grouped by beforeSend, NOT dropped by the denylist", () => {
+      expect(isDenylistedNoiseEvent(chunkLoadErrorEvent())).toBe(false);
+    });
+  });
+
+  describe("NEVER matches unrelated load failures", () => {
+    it("keeps a third-party script.onerror (no Next chunk path)", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          chunkLoadErrorEvent(
+            "Failed to load script: https://cdn.example.com/vendor.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps UI copy that quotes Failed to load without a chunk URL", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent("Failed to load evaluators: upstream timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps worker importScripts failures (separate family)", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "[ELK layout] worker failed to load: Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'https://us.cloud.langfuse.com/_next/static/chunks/27ywx138-jmac.js' failed to load.",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a browser-extension dynamic import() failure", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/chunk.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
     });
   });
 });
