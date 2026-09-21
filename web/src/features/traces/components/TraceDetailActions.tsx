@@ -1,81 +1,151 @@
-import { api } from "@/src/utils/api";
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
+import {
+  CopyIcon,
+  Download,
+  Globe,
+  Loader2,
+  MoreVertical,
+  Share2,
+  TrashIcon,
+} from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
+import {
+  PublishTraceSwitch,
+  ShareObjectPanel,
+  usePublishTrace,
+} from "@/src/components/publish-object-switch";
+import { Button } from "@/src/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
+import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
+import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
+import { api } from "@/src/utils/api";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+type TraceDetailData = NonNullable<
+  ReturnType<typeof useTraceDetailData>["data"]
+>;
 
 /**
- * Trace-level header actions (publish / delete) shared by the peek and
- * the standalone trace page, so both surfaces expose the same controls. Each
- * sub-component renders DISABLED (not hidden) when the user lacks the relevant
- * project scope, matching the page's long-standing behavior.
+ * Trace-level header actions shared by the peek and the standalone trace page.
  *
- * `layout="toolbar"` (default) is the inline icon row; `layout="menu"` renders
- * the same controls as full-width labeled rows for the peek's overflow popover
- * (whole row clickable) — Share keeps its URL popover, Delete its confirm.
+ * `layout="toolbar"` (default) renders the icon row: Download JSON plus a kebab
+ * holding Share, Copy trace ID, Copy trace name and Delete. `layout="menu"`
+ * renders the same actions as full-width labeled rows for the peek's overflow
+ * popover and the mobile header menu.
  *
- * Delete always targets the whole trace (same as the page, even when reached
- * from an observation/event row — the surface shows that trace). Behavior
- * differs only by surface:
+ * Delete always targets the whole trace. Behavior differs only by surface:
  * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
  * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. It
  *   receives the deleted trace id so the peek can stay open if K/J-navigation
- *   already moved on to another trace (LFE-10535). We invalidate broadly
- *   because the peek is hosted over many different lists (traces, observations,
- *   events, sessions, experiments, datasets), each backed by a different query
- *   — so the deleted row disappears everywhere.
+ *   already moved on to another trace. We invalidate broadly because the peek
+ *   is hosted over many different lists, each backed by a different query.
  */
 export function TraceDetailActions({
-  traceId,
-  projectId,
-  isPublic,
+  trace,
+  traceContext,
   shareUrl,
-  name,
   timestamp,
   deleteRedirectUrl,
   onAfterDelete,
-  size = "icon-xs",
   layout = "toolbar",
 }: {
-  traceId: string;
-  projectId: string;
-  isPublic: boolean;
+  trace: TraceDetailData;
+  traceContext: "fullscreen" | "peek";
   shareUrl?: string;
-  name?: string | null;
   timestamp?: Date;
   deleteRedirectUrl?: string;
   onAfterDelete?: (deletedTraceId: string) => void;
-  size?: "icon" | "icon-xs";
   layout?: "toolbar" | "menu";
 }) {
   const utils = api.useUtils();
-  const isMenu = layout === "menu";
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const publish = usePublishTrace({
+    traceId: trace.id,
+    projectId: trace.projectId,
+    timestamp,
+  });
+  const [handleDownload, isDownloading] = useDownloadTraceAsJson({
+    trace,
+    observations: trace.observations,
+    traceContext,
+  });
 
-  // The page path navigates away (redirectUrl) and never calls this. The peek
-  // path is hosted over many different lists, so invalidate all queries to
-  // refresh whichever list is behind the peek, then close it. We hand the
-  // deleted trace id to onAfterDelete so the peek can skip closing when it has
-  // already navigated to a different trace (LFE-10535).
   const onDeleteInvalidate = () => {
     utils.invalidate();
-    onAfterDelete?.(traceId);
+    onAfterDelete?.(trace.id);
   };
 
-  if (isMenu) {
+  const copyToClipboard = async (text: string) => {
+    await copyTextToClipboard(text);
+    toast.success("Copied to clipboard");
+  };
+
+  const downloadIcon = isDownloading ? (
+    <Loader2 className="h-4 w-4 animate-spin" />
+  ) : (
+    <Download className="h-4 w-4" />
+  );
+
+  if (layout === "menu") {
     return (
       <div className="flex w-full flex-col gap-0.5">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 font-normal"
+          disabled={isDownloading}
+          onClick={() => handleDownload()}
+        >
+          {downloadIcon}
+          <span className="text-sm">Download JSON</span>
+        </Button>
         <PublishTraceSwitch
-          projectId={projectId}
-          traceId={traceId}
+          projectId={trace.projectId}
+          traceId={trace.id}
           timestamp={timestamp}
-          isPublic={isPublic}
+          isPublic={trace.public}
           shareUrl={shareUrl}
-          label="Share"
+          label="Share link"
         />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 font-normal"
+          onClick={() => copyToClipboard(trace.id)}
+        >
+          <CopyIcon className="h-4 w-4" />
+          <span className="text-sm">Copy trace ID</span>
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start gap-2 font-normal"
+          disabled={!trace.name}
+          onClick={() => copyToClipboard(trace.name ?? "")}
+        >
+          <CopyIcon className="h-4 w-4" />
+          <span className="text-sm">Copy trace name</span>
+        </Button>
         <DeleteTraceButton
-          itemId={traceId}
-          projectId={projectId}
+          itemId={trace.id}
+          projectId={trace.projectId}
           redirectUrl={deleteRedirectUrl}
           invalidateFunc={onDeleteInvalidate}
-          deleteConfirmation={name ?? ""}
+          deleteConfirmation={trace.name ?? ""}
           variant="ghost"
           size="sm"
           className="w-full justify-start font-normal"
@@ -86,27 +156,89 @@ export function TraceDetailActions({
 
   return (
     <div className="flex flex-row items-center gap-1">
-      <PublishTraceSwitch
-        projectId={projectId}
-        traceId={traceId}
-        timestamp={timestamp}
-        isPublic={isPublic}
-        shareUrl={shareUrl}
-        size={size}
-        tooltip={isPublic ? "Shared (public)" : "Share"}
+      <HeaderActionButton
+        label="Download JSON"
+        icon={downloadIcon}
+        disabled={isDownloading}
+        onClick={() => handleDownload()}
       />
       <DeleteTraceButton
-        itemId={traceId}
-        projectId={projectId}
+        itemId={trace.id}
+        projectId={trace.projectId}
         redirectUrl={deleteRedirectUrl}
         invalidateFunc={onDeleteInvalidate}
-        deleteConfirmation={name ?? ""}
-        icon
-        // Match Publish so both icons share one row height and a ghost (not
-        // boxed "outline") style.
-        size={size}
-        variant="ghost"
-      />
+        deleteConfirmation={trace.name ?? ""}
+      >
+        {({ openDialog, disabled }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <HeaderActionButton
+                label="More actions"
+                icon={<MoreVertical className="h-4 w-4" />}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <Popover
+                open={isShareOpen}
+                onOpenChange={(open) => {
+                  if (!publish.isPending) setIsShareOpen(open);
+                }}
+              >
+                <PopoverTrigger asChild>
+                  <DropdownMenuItem
+                    disabled={!publish.hasAccess || publish.isPending}
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    {trace.public ? (
+                      <Globe
+                        className="mr-2 h-4 w-4"
+                        fill="#b3d9ff"
+                        stroke="#4d94ff"
+                        strokeWidth={2}
+                      />
+                    ) : (
+                      <Share2 className="mr-2 h-4 w-4" />
+                    )}
+                    Share link
+                  </DropdownMenuItem>
+                </PopoverTrigger>
+                <PopoverContent>
+                  <ShareObjectPanel
+                    itemName="trace"
+                    isPublic={trace.public}
+                    shareUrl={shareUrl}
+                    isLoading={publish.isPending}
+                    onToggle={() => {
+                      setIsShareOpen(false);
+                      publish.toggle(!trace.public);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+              <DropdownMenuItem onClick={() => copyToClipboard(trace.id)}>
+                <CopyIcon className="mr-2 h-4 w-4" />
+                Copy trace ID
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!trace.name}
+                onClick={() => copyToClipboard(trace.name ?? "")}
+              >
+                <CopyIcon className="mr-2 h-4 w-4" />
+                Copy trace name
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                disabled={disabled}
+                onSelect={openDialog}
+                className="text-destructive focus:text-destructive"
+              >
+                <TrashIcon className="mr-2 h-4 w-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </DeleteTraceButton>
     </div>
   );
 }

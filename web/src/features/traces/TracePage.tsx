@@ -83,6 +83,7 @@ export function TracePage({
       </Button>
     )
   ) : undefined;
+  const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
     <Badge variant="outline" className="text-xs font-bold">
       Public
@@ -129,13 +130,11 @@ export function TracePage({
                 return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
               }}
               listKey="traces"
-              size="sm"
+              compact
             />
             <TraceDetailActions
-              traceId={trace.data.id}
-              projectId={trace.data.projectId}
-              isPublic={trace.data.public}
-              name={trace.data.name}
+              trace={trace.data}
+              traceContext={traceContext}
               timestamp={timestamp}
               deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
@@ -146,10 +145,8 @@ export function TracePage({
         // inline icon toolbar. Trace-to-trace nav is desktop-only.
         actionButtonsMenu: (
           <TraceDetailActions
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            isPublic={trace.data.public}
-            name={trace.data.name}
+            trace={trace.data}
+            traceContext={traceContext}
             timestamp={timestamp}
             deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             layout="menu"
@@ -160,7 +157,7 @@ export function TracePage({
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
         <TraceDetailBody
           trace={trace.data}
-          context={router.query.peek !== undefined ? "peek" : "fullscreen"}
+          context={traceContext}
           truncatedAtObservations={trace.truncatedAtObservations}
         />
       </div>

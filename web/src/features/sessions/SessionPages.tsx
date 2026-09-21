@@ -108,6 +108,7 @@ import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualize
 import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailStore";
 import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
@@ -1644,16 +1645,6 @@ const LoadedSessionEventsPage: React.FC<{
                 {webCalloutAction && (
                   <WebCalloutButton action={webCalloutAction} />
                 )}
-                {!router.query.peek && (
-                  <DetailPageNav
-                    key="nav"
-                    currentId={encodeURIComponent(sessionId)}
-                    path={(entry) =>
-                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
-                    }
-                    listKey="sessions"
-                  />
-                )}
                 <CommentDrawerController
                   key="comment"
                   projectId={projectId}
@@ -1765,6 +1756,17 @@ const LoadedSessionEventsPage: React.FC<{
                     )}
                   </AnnotationQueueItemDropdownMenuController>
                 </div>
+                {!router.query.peek && (
+                  <DetailPageNav
+                    key="nav"
+                    currentId={encodeURIComponent(sessionId)}
+                    path={(entry) =>
+                      `/project/${projectId}/sessions/${encodeURIComponent(entry.id)}`
+                    }
+                    listKey="sessions"
+                    compact
+                  />
+                )}
                 {!isModernSessionEnabled ? (
                   <label className="flex items-center gap-1.5">
                     <Switch
@@ -1795,13 +1797,10 @@ const LoadedSessionEventsPage: React.FC<{
                       : {})}
                   >
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        aria-label="Session actions"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
+                      <HeaderActionButton
+                        label="Session actions"
+                        icon={<MoreVertical className="h-4 w-4" />}
+                      />
                     </DropdownMenuTrigger>
                   </ModernSessionHeaderActionsController>
                 )}

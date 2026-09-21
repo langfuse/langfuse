@@ -4,7 +4,7 @@
  *
  * Responsibilities:
  * - Render search input
- * - Render toolbar buttons (expand/collapse, settings, download, timeline)
+ * - Render toolbar buttons (expand/collapse, settings, timeline)
  * - Manage search input state via SearchContext
  *
  * Search moves to a second row when space is tight, while keeping the same DOM
@@ -21,15 +21,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { useReadPath } from "@/src/features/events";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {
   ChevronDown,
   FoldVertical,
   UnfoldVertical,
-  Download,
-  Loader2,
   MoreHorizontal,
 } from "lucide-react";
 import {
@@ -49,18 +46,11 @@ import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
 } from "../TraceSettingsDropdown";
-import {
-  downloadLegacyTraceAsJson,
-  downloadServerTraceAsJson,
-} from "../../fns/downloadTrace";
 import { TracePanelNavigationButton } from "./components/TracePanelNavigationButton";
 import { PlaybackControls, PlaybackMenuItems } from "../PlaybackControls";
 import { useDesktopLayoutContextOptional } from "../TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { toast } from "sonner";
-import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
-import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import { useElementSize } from "@/src/hooks/useElementSize";
 
 interface TracePanelNavigationHeaderProps {
@@ -102,13 +92,12 @@ function TracePanelNavigationHeaderExpanded({
   const { searchInputValue, setSearchInputValue, setSearchQueryImmediate } =
     useSearch();
   const { expandAll, collapseAll, collapsedNodes } = useSelection();
-  const { roots, trace, observations } = useTraceData();
+  const { roots } = useTraceData();
   const {
     isGraphViewAvailable,
     graphAvailability,
     isLoading: isGraphLoading,
   } = useTraceGraphData();
-  const { isV4 } = useReadPath();
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -162,37 +151,6 @@ function TracePanelNavigationHeaderExpanded({
     analyticsDimensions,
   ]);
 
-  const [handleDownload, isDownloading] =
-    useWatchedPromiseCallback(async () => {
-      capture("trace_detail:download_button_click", analyticsDimensions);
-      try {
-        if (!isV4) {
-          downloadLegacyTraceAsJson({
-            trace,
-            observations,
-          });
-          return;
-        }
-
-        await downloadServerTraceAsJson({
-          traceId: trace.id,
-          projectId: trace.projectId,
-        });
-
-        if (observations.length >= TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD) {
-          toast.warning(
-            `Trace download excludes IO, metadata, toolDefinitions, and toolCalls for traces with ${TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD}+ observations.`,
-          );
-        }
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to download trace JSON",
-        );
-      }
-    }, [isV4, observations, trace, capture, analyticsDimensions]);
-
   // Hold the Graph segment while its query loads, else it vanishes and returns
   // on every trace switch. Stale ?view=graph then falls back to tree.
   const graphResolved = isGraphViewAvailable || isGraphLoading;
@@ -227,13 +185,6 @@ function TracePanelNavigationHeaderExpanded({
           <FoldVertical className="mr-2 h-3.5 w-3.5" />
         )}
         {isEverythingCollapsed ? "Expand all" : "Collapse all"}
-      </DropdownMenuItem>
-      <DropdownMenuItem
-        onSelect={() => handleDownload()}
-        disabled={isDownloading}
-      >
-        <Download className="mr-2 h-3.5 w-3.5" />
-        Download trace as JSON
       </DropdownMenuItem>
       <PlaybackMenuItems />
       <DropdownMenuSeparator />
@@ -306,21 +257,6 @@ function TracePanelNavigationHeaderExpanded({
               </Button>
 
               <TraceSettingsDropdown />
-
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                title="Download trace as JSON"
-                className="h-7 w-7"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-              </Button>
             </div>
 
             <div className="@min-[510px]/navheader:hidden">

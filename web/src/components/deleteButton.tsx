@@ -35,6 +35,11 @@ export type DeleteButtonProps = {
   // forwarded explicitly because the base component does not spread unknown
   // props onto the rendered button
   "aria-label"?: string;
+  children?: (control: {
+    openDialog: () => void;
+    disabled: boolean;
+    disabledReason?: string;
+  }) => React.ReactNode;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -82,6 +87,7 @@ export function DeleteButton({
   deleteBlocker,
   onPopoverOpenChange,
   "aria-label": ariaLabel,
+  children,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -89,6 +95,9 @@ export function DeleteButton({
   const capture = usePostHogClientCapture();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: scope });
+  const disabledReason = hasAccess
+    ? undefined
+    : `You don't have permission to delete this ${entityToDeleteName}.`;
 
   const onDeleteSuccess = useMemo(() => {
     return () => {
@@ -121,17 +130,24 @@ export function DeleteButton({
         loading={isDeleteMutationLoading || isDeleted}
         onConfirm={() => executeDeleteMutation(onDeleteSuccess)}
       >
-        {({ openDialog }) =>
-          icon ? (
+        {({ openDialog }) => {
+          if (children) {
+            return children({
+              openDialog: () => {
+                captureDeleteOpen(capture, isTableAction);
+                onPopoverOpenChange?.(true);
+                openDialog();
+              },
+              disabled: !hasAccess || !enabled,
+              disabledReason,
+            });
+          }
+          return icon ? (
             <IconOnlyButton
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
-              disabledReason={
-                hasAccess
-                  ? undefined
-                  : `You don't have permission to delete this ${entityToDeleteName}.`
-              }
+              disabledReason={disabledReason}
               variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
@@ -165,8 +181,8 @@ export function DeleteButton({
               )}
               Delete
             </Button>
-          )
-        }
+          );
+        }}
       </ConfirmationDialogController>
     );
   }
@@ -180,7 +196,22 @@ export function DeleteButton({
         onPopoverOpenChange?.(o);
       }}
     >
-      {icon ? (
+      {children && (
+        <PopoverAnchor asChild>
+          <span className="inline-flex">
+            {children({
+              openDialog: () => {
+                captureDeleteOpen(capture, isTableAction);
+                setOpen(true);
+                onPopoverOpenChange?.(true);
+              },
+              disabled: !enabled,
+              disabledReason,
+            })}
+          </span>
+        </PopoverAnchor>
+      )}
+      {!children && icon && (
         // Icon-only: a compact button with a built-in tooltip; the popover is
         // opened from onClick since the tooltip wrapper can't be a trigger.
         <PopoverAnchor asChild>
@@ -189,11 +220,7 @@ export function DeleteButton({
               icon={<TrashIcon className="h-4 w-4" />}
               label={title ?? "Delete"}
               aria-label={ariaLabel ?? "delete"}
-              disabledReason={
-                hasAccess
-                  ? undefined
-                  : `You don't have permission to delete this ${entityToDeleteName}.`
-              }
+              disabledReason={disabledReason}
               variant={variant ?? "outline"}
               size={size ?? "icon"}
               className={className}
@@ -210,7 +237,8 @@ export function DeleteButton({
             />
           </span>
         </PopoverAnchor>
-      ) : (
+      )}
+      {!children && !icon && (
         <PopoverTrigger asChild>
           <Button
             variant={variant ?? "ghost"}
