@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -53,6 +55,7 @@ export function getInAppAgentToolDisplayName(toolName: string): string {
 const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   addDashboardPlacement: "Adding widget to dashboard",
   bash: "Running command",
+  batchUpsertDatasetItems: "Saving dataset items",
   createAnnotationQueueAssignment: "Assigning annotation queue",
   createAnnotationQueueItem: "Adding to annotation queue",
   createChatPrompt: "Creating chat prompt",

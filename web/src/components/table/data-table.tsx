@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -25,7 +26,6 @@ import {
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
-import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
   TableBody,
@@ -56,6 +56,7 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+
 import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
@@ -470,7 +471,7 @@ export function DataTable<TData extends object, TValue>({
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
-                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                      .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
@@ -490,6 +491,8 @@ export function DataTable<TData extends object, TValue>({
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
+                          columnDef.headerClassName,
+                          columnDef.hideBelowMd && "hidden md:table-cell",
                         )}
                         style={{
                           ...getCommonPinningStyles(header.column),
@@ -837,11 +840,10 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (rowIsSelected || shouldHighlightAllRows) &&
-          "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
-          ? "bg-muted/40 dark:bg-muted"
+          ? "bg-accent dark:bg-accent"
           : undefined,
+        (rowIsSelected || shouldHighlightAllRows) && "bg-accent dark:bg-accent",
         getRowClassName?.(row.original),
       )}
     >
@@ -894,6 +896,8 @@ function TableBodyComponent<TData>({
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
                     getCellBackgroundClassName(columnDef.cellBackground),
+                    columnDef.cellClassName,
+                    columnDef.hideBelowMd && "hidden md:table-cell",
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -959,6 +963,8 @@ function TableBodyComponent<TData>({
                   isSmallRowHeight && "whitespace-nowrap",
                   getPinningClasses(cell.column),
                   getCellBackgroundClassName(columnDef.cellBackground),
+                  columnDef.cellClassName,
+                  columnDef.hideBelowMd && "hidden md:table-cell",
                 )}
                 style={{
                   ...getCommonPinningStyles(cell.column),

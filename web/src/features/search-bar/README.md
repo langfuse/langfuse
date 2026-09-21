@@ -102,7 +102,7 @@ follow-up.)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the
 facet sidebar's `useSidebarFilterState`) plus `searchQuery`/`searchType` (the
-`search`/`searchType` params, owned by `useFullTextSearch`) — is the **single
+`search`/`searchType` params, owned by `hooks/useFullTextSearch`) — is the **single
 source of truth**. The bar is a _controlled editor_ over it; the facet sidebar
 is another. Neither stores a second copy.
 

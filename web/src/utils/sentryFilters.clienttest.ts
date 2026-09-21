@@ -1919,6 +1919,67 @@ describe("isPosthogRecorderInternalEvent", () => {
       expect(isPosthogRecorderInternalEvent(event)).toBe(true);
     });
 
+    it("drops the path-versioned recorder script (LANGFUSE-621 setTimeout wrap)", () => {
+      const recorder = "app:///static/1.417.1/posthog-recorder.js";
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: 'string "" is not a function',
+              mechanism: {
+                type: "auto.browser.browserapierrors.setTimeout",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                    "r",
+                  ),
+                  frame(recorder),
+                  frame(recorder, "Object.Ec"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+
+    it("drops the path-versioned addEventListener wrap (LANGFUSE-620)", () => {
+      const recorder = "app:///static/1.417.1/posthog-recorder.js";
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: 'string "" is not a function',
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  frame(
+                    "node_modules/.pnpm/@sentry+browser@10.64.0/node_modules/@sentry/browser/src/helpers.ts",
+                    "r",
+                  ),
+                  frame(recorder, "l"),
+                  frame(recorder, "callback"),
+                  frame(recorder, "fr"),
+                  frame(recorder, "emit"),
+                  frame(recorder, "Object.onRRwebEmit"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(true);
+    });
+
     it("drops the addEventListener-wrapped variant with a source-mapped Sentry SDK frame (LANGFUSE-5VY stored shape)", () => {
       const event = {
         exception: {
@@ -2004,6 +2065,25 @@ describe("isPosthogRecorderInternalEvent", () => {
             {
               type: "TypeError",
               value: "boom",
+              stacktrace: {
+                frames: [
+                  frame("app:///_next/static/chunks/0r47ep231kqhy.js", "fn"),
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isPosthogRecorderInternalEvent(event)).toBe(false);
+    });
+
+    it("keeps the empty-string TypeError when it is thrown from an app chunk", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: 'string "" is not a function',
               stacktrace: {
                 frames: [
                   frame("app:///_next/static/chunks/0r47ep231kqhy.js", "fn"),

@@ -4,6 +4,7 @@ import {
   compact,
   optionalString,
   parseArray,
+  recordKeyAsParsed,
   toJsonValue,
 } from "../../../core/utils/json";
 import {
@@ -177,8 +178,10 @@ function normalizeGeminiPart(
 function geminiToolDefinitionSources(
   carrier: ToolDefinitionCarrier,
 ): ToolDefinitionSource[] {
-  const tools = parseArray(asRecord(carrier.root?.config)?.tools);
+  if (!carrier.root) return [];
+  const tools = parseArray(asRecord(carrier.root.config)?.tools);
   if (!tools) return [];
+  recordKeyAsParsed(carrier.root, "config", "tools");
 
   return tools.map((tool, index) => {
     const toolGroup = asRecord(tool);
@@ -210,9 +213,11 @@ function geminiSystemMessage(
 ): MessageSource | undefined {
   if (kind !== "input") return undefined;
 
-  const config = asRecord(root.config);
   const systemInstruction =
-    config?.system_instruction ?? config?.systemInstruction;
+    recordKeyAsParsed(root, "systemInstruction") ??
+    recordKeyAsParsed(root, "system_instruction") ??
+    recordKeyAsParsed(root, "config", "system_instruction") ??
+    recordKeyAsParsed(root, "config", "systemInstruction");
   if (!systemInstruction) return undefined;
 
   return {
@@ -233,16 +238,15 @@ function geminiMessages(
     if ("new_message" in root) {
       sources.push({
         kind: "single",
-        value: root.new_message,
+        value: recordKeyAsParsed(root, "new_message"),
         fallbackRole: "user",
       });
       return sources;
     }
 
     if ("contents" in root) {
-      const contents = Array.isArray(root.contents)
-        ? root.contents
-        : [root.contents];
+      const rawContents = recordKeyAsParsed(root, "contents");
+      const contents = Array.isArray(rawContents) ? rawContents : [rawContents];
       sources.push({
         kind: "sequence",
         values: contents,

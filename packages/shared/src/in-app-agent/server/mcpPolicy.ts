@@ -100,6 +100,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "datasets:CUD" },
   },
+  batchUpsertDatasetItems: {
+    approval: "approval",
+    availability: { scope: "datasets:CUD" },
+  },
   listDatasetItems: {
     approval: "auto",
     availability: { scope: "datasets:read" },

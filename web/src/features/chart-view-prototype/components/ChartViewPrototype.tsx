@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";

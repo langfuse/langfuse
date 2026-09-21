@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 

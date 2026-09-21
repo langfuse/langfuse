@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Statistical calculation utilities for score comparison analytics
  * Provides functions for calculating Cohen's Kappa, F1 Score, Overall Agreement,

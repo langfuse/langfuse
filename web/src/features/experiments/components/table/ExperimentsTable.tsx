@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
@@ -718,7 +719,7 @@ export default function ExperimentsTable({
       headerTooltip: {
         description: "Average duration of the root span per experiment item.",
       },
-      formatter: (value) => `${numberFormatter(value / 1000, 4)}s`,
+      formatter: (value) => `Ø ${numberFormatter(value / 1000, 4)}s`,
       metricsLoading,
     }),
     createExperimentMetricColumn<ExperimentsTableRow>({

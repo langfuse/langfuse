@@ -4,9 +4,10 @@ use axum::{
     http::{HeaderMap, Response},
 };
 use tokio::sync::Semaphore;
+use tracing::Instrument;
 
 use crate::{
-    providers::openai::{OpenAiProvider, ProviderError, RequestPermit},
+    providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -16,6 +17,7 @@ pub struct InferenceService {
     control_plane: ControlPlaneClient,
     provider: OpenAiProvider,
     resolution_capacity: Semaphore,
+    telemetry: Option<crate::telemetry::Telemetry>,
 }
 
 pub(crate) enum RequestPreparationError {
@@ -36,12 +38,19 @@ impl InferenceService {
         if !(1..=Semaphore::MAX_PERMITS).contains(&max_concurrent_resolutions) {
             return Err(ResolutionError::Configuration);
         }
+        let telemetry = crate::telemetry::Telemetry::new(&config)?;
         Ok(Self {
             control_plane: ControlPlaneClient::new(config)?,
             provider: OpenAiProvider::new(max_active_requests)
-                .map_err(|_| ResolutionError::Configuration)?,
+                .map_err(|_| ResolutionError::Configuration)?
+                .with_telemetry(telemetry.clone()),
             resolution_capacity: Semaphore::new(max_concurrent_resolutions),
+            telemetry: Some(telemetry),
         })
+    }
+
+    pub fn telemetry(&self) -> Option<crate::telemetry::Telemetry> {
+        self.telemetry.clone()
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
@@ -49,11 +58,37 @@ impl InferenceService {
         &self,
         gateway_key: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let span = tracing::info_span!(
+            "resolution",
+            otel.kind = "internal",
+            gateway.outcome = tracing::field::Empty
+        );
+        async {
+            let prepared = self.prepare(gateway_key).await;
+            tracing::Span::current().record(
+                "gateway.outcome",
+                match &prepared {
+                    Ok(_) => "admitted",
+                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
+                    Err(RequestPreparationError::Provider(_)) => "busy",
+                },
+            );
+            prepared
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn prepare(
+        &self,
+        gateway_key: &str,
+    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
-            let _permit = self
-                .resolution_capacity
-                .try_acquire()
-                .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
+            let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
+                crate::observability::rejected("resolution");
+                RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            })?;
+            let _active = crate::observability::Active::new("resolution");
             self.control_plane
                 .resolve(gateway_key, ApiFormat::OpenAiResponses)
                 .await
@@ -72,8 +107,11 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        route: OpenAiRoute,
     ) -> Result<Response<Body>, ProviderError> {
-        self.provider.forward(permit, context, headers, body).await
+        self.provider
+            .forward_route(permit, context, headers, body, route)
+            .await
     }
 
     #[cfg(test)]
@@ -86,6 +124,7 @@ impl InferenceService {
             control_plane,
             provider,
             resolution_capacity: Semaphore::new(resolutions),
+            telemetry: None,
         }
     }
 }

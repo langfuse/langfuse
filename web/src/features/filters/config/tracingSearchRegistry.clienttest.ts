@@ -2,10 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import {
+  planCommit,
+  filterStateToQueryText,
+  runSearchBarInvariants,
+  validateQuery,
+} from "@/src/features/search-bar";
+
 import { getTraceFilterConfig } from "./traces-config";
 import { getObservationsFilterConfig } from "./observations-config";
 import {

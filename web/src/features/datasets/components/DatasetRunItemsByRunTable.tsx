@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -115,7 +116,7 @@ export function DatasetRunItemsByRunTable(props: {
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${datasetItemId}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(datasetItemId)}${versionParam}`,
             value: datasetItemId,
           },
         };

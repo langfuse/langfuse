@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -82,6 +83,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -92,6 +94,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -350,7 +353,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: false,
-      featureFlags: {},
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)
           ? [

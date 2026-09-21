@@ -369,6 +369,44 @@ describe("evaluation rule v2 repository", () => {
     });
   });
 
+  describe("findActiveRuleWithMatchingFilterAndSampling", () => {
+    it("dedups a legacy empty-substring metadata filter against a coerced is-set candidate", async () => {
+      const evaluator = await createEvaluator();
+      await createRule({
+        evaluatorId: evaluator.id,
+        filter: [
+          {
+            type: "stringObject",
+            column: "metadata",
+            key: "user_id",
+            operator: "contains",
+            value: "",
+          },
+        ] as FilterState,
+      });
+
+      const candidate: FilterState = [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "user_id",
+          operator: "is set",
+          value: "",
+        },
+      ];
+
+      const match =
+        await ruleRepository.findActiveRuleWithMatchingFilterAndSampling({
+          prisma,
+          projectId,
+          filter: candidate,
+          sampling: 1,
+        });
+
+      expect(match).not.toBeNull();
+    });
+  });
+
   describe("createRule", () => {
     it("persists fixed observation-rule fields and assignments", async () => {
       const evaluator = await createEvaluator();

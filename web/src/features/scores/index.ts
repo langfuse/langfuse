@@ -59,3 +59,5 @@ export type {
   ScoreData,
   ScoreTarget,
 } from "@/src/features/scores/types";
+
+export { default as ScoresTable } from "@/src/features/scores/ScoresTable";

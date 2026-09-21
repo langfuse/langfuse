@@ -21,6 +21,7 @@ import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWith
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
+import { plexMono } from "@/src/styles/fonts";
 import { AppLayout } from "@/src/components/layouts/app-layout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
@@ -84,7 +85,6 @@ import { ResilientSessionProvider } from "@/src/features/auth/components/Resilie
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
@@ -92,6 +92,7 @@ import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InA
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getPostHogClientConfig,
@@ -171,7 +172,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <>
+    <div className={`${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
@@ -186,22 +187,22 @@ const MyApp: AppType<{ session: Session | null }> = ({
         />
       </Head>
       <DefaultHead />
-      <QueryParamProvider
-        adapter={NextAdapterPagesWithReadyGuard}
-        options={{ enableBatching: true }}
-      >
-        <TooltipProvider>
-          <CommandMenuProvider>
-            <PostHogProvider client={posthog}>
-              <SessionProvider
-                session={session}
-                refetchOnWindowFocus={true}
-                refetchInterval={5 * 60} // 5 minutes
-                basePath={authBasePath}
-              >
-                <ResilientSessionProvider basePath={authBasePath}>
-                  <DetailPageListsProvider>
-                    <MarkdownContextProvider>
+      <LayerProvider>
+        <QueryParamProvider
+          adapter={NextAdapterPagesWithReadyGuard}
+          options={{ enableBatching: true }}
+        >
+          <TooltipProvider>
+            <CommandMenuProvider>
+              <PostHogProvider client={posthog}>
+                <SessionProvider
+                  session={session}
+                  refetchOnWindowFocus={true}
+                  refetchInterval={5 * 60} // 5 minutes
+                  basePath={authBasePath}
+                >
+                  <ResilientSessionProvider basePath={authBasePath}>
+                    <DetailPageListsProvider>
                       <MarkdownRenderCharacterLimitProvider>
                         <ThemeProvider
                           attribute="class"
@@ -225,15 +226,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                           </ScoreCacheProvider>
                         </ThemeProvider>
                       </MarkdownRenderCharacterLimitProvider>
-                    </MarkdownContextProvider>
-                  </DetailPageListsProvider>
-                </ResilientSessionProvider>
-              </SessionProvider>
-            </PostHogProvider>
-          </CommandMenuProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
-    </>
+                    </DetailPageListsProvider>
+                  </ResilientSessionProvider>
+                </SessionProvider>
+              </PostHogProvider>
+            </CommandMenuProvider>
+          </TooltipProvider>
+        </QueryParamProvider>
+      </LayerProvider>
+    </div>
   );
 };
 

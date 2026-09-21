@@ -107,6 +107,10 @@ overrides:
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
   fflate@0.8.1: 0.8.3
+  # CVE-2026-86472: fast-uri mishandles case sensitivity when comparing URI
+  # scheme and host. ajv declares ^3.0.1, which 3.1.7 already satisfies, so
+  # only an override moves it to the patched release.
+  fast-uri: 3.1.8
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
@@ -115,11 +119,15 @@ overrides:
   # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
   # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
   "@storybook/addon-vitest>@vitest/browser": 4.1.11
+  # CVE-2026-93981: XSS in hono, fixed in 4.13.7. Its dependents declare ^4
+  # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
+  # override moves it to the patched release.
+  hono: 4.13.7
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
-  # Remove once next-auth allows nodemailer ^9.
-  "next-auth>nodemailer": "^9.1.1"
+  # Remove once next-auth allows nodemailer ^10.
+  "next-auth>nodemailer": "^10.0.5"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -141,34 +149,9 @@ publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
 minimumReleaseAgeExclude:
-  # Temporary exact exceptions for the pnpm 12 migration.
-  - '@pnpm/exe.darwin-arm64@12.3.1'
-  - '@pnpm/exe.darwin-x64@12.3.1'
-  - '@pnpm/exe.linux-arm64@12.3.1'
-  - '@pnpm/exe.linux-arm64-musl@12.3.1'
-  - '@pnpm/exe.linux-x64@12.3.1'
-  - '@pnpm/exe.linux-x64-musl@12.3.1'
-  - '@pnpm/exe.win32-arm64@12.3.1'
-  - '@pnpm/exe.win32-x64@12.3.1'
-  - '@next/env@16.3.3'
-  - '@next/eslint-plugin-next@16.3.3'
-  - '@next/swc-darwin-arm64@16.3.3'
-  - '@next/swc-darwin-x64@16.3.3'
-  - '@next/swc-linux-arm64-gnu@16.3.3'
-  - '@next/swc-linux-arm64-musl@16.3.3'
-  - '@next/swc-linux-x64-gnu@16.3.3'
-  - '@next/swc-linux-x64-musl@16.3.3'
-  - '@next/swc-win32-arm64-msvc@16.3.3'
-  - '@next/swc-win32-x64-msvc@16.3.3'
-  - next@16.3.3
-  - pnpm@12.3.1
-  - qs@6.16.0
-  # Host confusion + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
-  - fast-uri@3.1.7
-  # Certificate validation, request smuggling, and resource-exhaustion fixes
-  # in the 7.x line (CVE-2026-84961, CVE-2026-18540, CVE-2026-84890 and more).
-  - undici@7.29.1
-  # Uncaught-exception and request-smuggling fixes for the 6.x line pulled in
-  # transitively by @ai-sdk/provider-utils (CVE-2026-85024, CVE-2026-19534,
-  # CVE-2026-18540).
-  - undici@6.28.1
+  # Case-sensitivity handling fix (CVE-2026-86472) on top of the host confusion
+  # + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.8
+  # User impersonation via trusted-proxy confusion (CVE-2026-90711); 2.0.8 is
+  # the only patched release, pulled in transitively through express.
+  - proxy-addr@2.0.8

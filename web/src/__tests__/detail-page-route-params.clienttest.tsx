@@ -63,7 +63,7 @@ vi.mock("@/src/features/experiments/components/table", () => ({
 }));
 
 import TracePageRoute from "@/src/pages/project/[projectId]/traces/[traceId]";
-import SessionPageRoute from "@/src/pages/project/[projectId]/sessions/[sessionId]";
+import SessionPageRoute from "@/src/features/sessions/SessionDetailPage";
 import AnnotationQueueItemRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/items/[itemId]";
 import AnnotationQueueItemsIndexRoute from "@/src/pages/project/[projectId]/annotation-queues/[queueId]/index";
 import DatasetExperimentsRoute from "@/src/pages/project/[projectId]/datasets/[datasetId]/experiments/index";

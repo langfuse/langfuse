@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { FilteredRunPills } from "@/src/components/table/filtered-run-pills";
@@ -144,7 +145,7 @@ function DatasetCompareRunsTableInternal(props: {
         return {
           type: "link",
           props: {
-            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${id}`,
+            path: `/project/${props.projectId}/datasets/${props.datasetId}/items/${encodeURIComponent(id)}`,
             value: id,
           },
         };

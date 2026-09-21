@@ -13,7 +13,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { api } from "@/src/utils/api";
 

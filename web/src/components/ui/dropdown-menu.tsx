@@ -14,8 +14,7 @@ import {
 import Link from "next/link";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -510,12 +509,6 @@ const DropdownMenuItemWithSecondaryAction = (
   );
 };
 
-const DropdownMenuLoadingItem = () => (
-  <DropdownMenuItem disabled aria-label="Loading">
-    <Skeleton variant="contrast" className="h-4 w-24" />
-  </DropdownMenuItem>
-);
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -609,7 +602,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
-  DropdownMenuLoadingItem,
   DropdownMenuCheckboxItem,
   DropdownMenuRadioItem,
   DropdownMenuLabel,

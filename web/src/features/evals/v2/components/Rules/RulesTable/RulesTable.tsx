@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
@@ -63,8 +64,8 @@ import {
   omitFilterFacets,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {

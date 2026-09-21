@@ -22,7 +22,7 @@ export function SessionBadge({
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -41,7 +41,7 @@ export function UserIdBadge({
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -60,7 +60,7 @@ export function TargetTraceBadge({
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }

@@ -2,6 +2,56 @@ import type { SpanIO, ToolDefinition } from "../../../types";
 
 import type { NormalizedIOFixture } from "../fixture-types";
 
+// Docs-derived requests, not captured traces:
+// https://ai-sdk.dev/docs/reference/ai-sdk-core/generate-text
+export const documentedPromptFixtures: NormalizedIOFixture[] = [
+  { name: "string prompt", input: { prompt: "Weather in San Francisco?" } },
+  {
+    name: "system and prompt",
+    input: { system: "Answer briefly.", prompt: "Weather in San Francisco?" },
+  },
+  {
+    name: "message prompt",
+    input: { prompt: [{ role: "user", content: "Weather in San Francisco?" }] },
+  },
+  {
+    name: "messages",
+    input: {
+      messages: [{ role: "user", content: "Weather in San Francisco?" }],
+    },
+  },
+].flatMap(({ name, input }) =>
+  [false, true].map(
+    (serialized): NormalizedIOFixture => ({
+      name: `documented AI SDK ${name}${serialized ? " (JSON)" : ""}`,
+      spanIO: {
+        input: serialized ? JSON.stringify(input) : input,
+        output: undefined,
+        metadata: undefined,
+      },
+      expected: {
+        messages: [
+          ...(input.system
+            ? [
+                {
+                  source: "input" as const,
+                  role: "system" as const,
+                  parts: [{ type: "text" as const, text: input.system }],
+                },
+              ]
+            : []),
+          {
+            source: "input",
+            role: "user",
+            parts: [{ type: "text", text: "Weather in San Francisco?" }],
+          },
+        ],
+        toolDefinitions: [],
+      },
+    }),
+  ),
+);
+
 const inputToolCallId = "call_5iGKBMczvh1pevPChrZNGSFB";
 const outputToolCallId = "toolu_01XXtujJ3DBaYEZGzn96xpGt";
 
@@ -560,3 +610,49 @@ export const vercelAiSdkOutputToolCallFixture = {
     ],
   },
 } satisfies NormalizedIOFixture;
+
+// Verbatim stored observation IO from ChatML integration-example exports.
+export const capturedTraceFixtures: NormalizedIOFixture[] = [
+  // Source: worker/src/__tests__/chatml/framework-traces/vercel-aisdk-2025-11-17.trace.json; observation 1dc6768109615657
+  // Host and user identifiers in metadata resourceAttributes replaced with
+  // placeholders; input and output are unmodified.
+  {
+    name: "verbatim vercel-aisdk-2025-11-17.trace.json / 1dc6768109615657",
+    spanIO: {
+      input: '{"prompt":"What is the weather like today in San Francisco?"}',
+      output:
+        '[{"toolCallId":"call_DgKARp7a7IhJPDczfifMp6Ra","toolName":"getWeather","input":"{\\"location\\":\\"San Francisco\\"}"}]',
+      metadata:
+        '{"attributes":{"operation.name":"ai.generateText","ai.operationId":"ai.generateText","ai.model.provider":"openai.responses","ai.model.id":"gpt-5","ai.settings.maxRetries":"2","ai.request.headers.user-agent":"ai/5.0.76","ai.response.finishReason":"tool-calls","ai.response.providerMetadata":"{\\"openai\\":{\\"responseId\\":\\"resp_097184780dc1e1bc00691b3756e6848195a954cd789a29c378\\",\\"serviceTier\\":\\"default\\"}}","ai.usage.promptTokens":"62","ai.usage.completionTokens":"85"},"resourceAttributes":{"host.name":"dev-machine.local","host.arch":"arm64","host.id":"00000000-0000-0000-0000-000000000000","process.pid":22217,"process.executable.name":"deno","process.executable.path":"/opt/homebrew/bin/deno","process.command_args":["/opt/homebrew/bin/deno","/Users/dev/Documents/GitHub/langfuse-docs/cookbook/$deno$jupyter.mts"],"process.runtime.version":"20.11.1","process.runtime.name":"nodejs","process.runtime.description":"Node.js","process.command":"/Users/dev/Documents/GitHub/langfuse-docs/cookbook/$deno$jupyter.mts","process.owner":"dev","service.name":"unknown_service:/opt/homebrew/bin/deno","telemetry.sdk.language":"nodejs","telemetry.sdk.name":"opentelemetry","telemetry.sdk.version":"2.1.0"},"scope":{"name":"ai","attributes":{}}}',
+    },
+    expected: {
+      messages: [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              text: "What is the weather like today in San Francisco?",
+            },
+          ],
+          source: "input",
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool-call",
+              toolCallId: "call_DgKARp7a7IhJPDczfifMp6Ra",
+              toolName: "getWeather",
+              input: {
+                location: "San Francisco",
+              },
+            },
+          ],
+          source: "output",
+        },
+      ],
+      toolDefinitions: [],
+    },
+  },
+];

@@ -30,6 +30,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
     'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
     'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
   ].join("\n"),
+  action: "traces:read",
   baseSchema: GetObservationBaseSchema,
   inputSchema: GetObservationBaseSchema,
   handler: async (input, context) => {

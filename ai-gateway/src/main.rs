@@ -1,9 +1,10 @@
 use std::{error::Error, io, net::SocketAddr, process::ExitCode};
 
 use ai_gateway::{
-    config::{GatewayConfig, LogFormat},
+    config::GatewayConfig,
     http,
     inference::InferenceService,
+    observability,
     server::{self, GatewayLifecycleState},
 };
 use tokio::net::TcpListener;
@@ -21,13 +22,7 @@ async fn main() -> ExitCode {
 
 async fn run() -> Result<(), Box<dyn Error>> {
     let config = GatewayConfig::from_env()?;
-    let logging = tracing_subscriber::fmt()
-        .with_max_level(config.log_level)
-        .with_target(false);
-    match config.log_format {
-        LogFormat::Text => logging.compact().init(),
-        LogFormat::Json => logging.json().init(),
-    }
+    let observability = observability::init(&config)?;
     let inference = config
         .control_plane
         .map(|control_plane| {
@@ -39,18 +34,49 @@ async fn run() -> Result<(), Box<dyn Error>> {
         })
         .transpose()?;
     let inference_enabled = inference.is_some();
+    let telemetry = inference.as_ref().and_then(InferenceService::telemetry);
     let state = if inference_enabled {
         GatewayLifecycleState::default()
     } else {
         GatewayLifecycleState::unconfigured()
     };
-    let app = server::router(state.clone()).merge(http::router(inference, state.clone()));
+    let app = server::router(state.clone()).merge(observability::instrument(http::router(
+        inference,
+        state.clone(),
+    )));
     let shutdown = shutdown_signal()?;
     let listener = bind_listener(config.listen_address, config.auto_increment_listen_port).await?;
-    tracing::info!(address = %listener.local_addr()?, inference_enabled, "gateway listening");
-    server::serve(listener, app, state, shutdown, config.shutdown_timeout).await?;
-    tracing::info!("gateway stopped");
-    Ok(())
+    tracing::info!(address = %listener.local_addr()?, inference_enabled, max_active_requests = config.max_active_requests, max_concurrent_resolutions = config.max_concurrent_resolutions, shutdown_timeout_seconds = config.shutdown_timeout.as_secs(), "gateway listening");
+    let result = server::serve(
+        listener,
+        app,
+        state.clone(),
+        shutdown,
+        config.shutdown_timeout,
+    )
+    .await;
+    if let Some(telemetry) = telemetry {
+        telemetry
+            .shutdown(
+                state
+                    .drain_deadline()
+                    .unwrap_or_else(tokio::time::Instant::now),
+            )
+            .await;
+    }
+    if result.is_err() {
+        tracing::error!("gateway shutdown failed");
+    } else {
+        tracing::info!("gateway stopped");
+    }
+    observability
+        .shutdown(
+            state
+                .drain_deadline()
+                .unwrap_or_else(tokio::time::Instant::now),
+        )
+        .await;
+    result.map_err(Into::into)
 }
 
 async fn bind_listener(

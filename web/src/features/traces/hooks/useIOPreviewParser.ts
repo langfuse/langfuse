@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { type Prisma, deepParseJson } from "@langfuse/shared";
 import { normalizeSpanIO } from "@langfuse/shared/src/utils/normalized-io";
@@ -114,7 +115,7 @@ export function useIOPreviewParser(
         output: parsedOutput,
         metadata: parsedMetadata,
       });
-      normalizedResult = toIOPreview(normalized, parsedInput);
+      normalizedResult = toIOPreview(normalized);
     } catch {
       // The legacy parser remains the visible fallback for malformed input.
     }
