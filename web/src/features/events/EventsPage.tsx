@@ -10,7 +10,7 @@ import {
 } from "@/src/features/navigation/utils/tracing-tabs";
 import { useQueryProject } from "@/src/features/projects/hooks";
 
-export default function Events() {
+export default function EventsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { project } = useQueryProject();

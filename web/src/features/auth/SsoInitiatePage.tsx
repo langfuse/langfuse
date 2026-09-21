@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { ErrorPageWithSentry } from "@/src/components/error-page";
 import { Spinner } from "@/src/components/layouts/spinner";
 
-export default function SSOInitiate() {
+export default function SsoInitiatePage() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
 

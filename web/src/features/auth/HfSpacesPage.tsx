@@ -26,7 +26,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   };
 };
 
-export default function HfSpaces({ deploymentDomain }: PageProps) {
+export default function HfSpacesPage({ deploymentDomain }: PageProps) {
   return (
     <>
       <Head>

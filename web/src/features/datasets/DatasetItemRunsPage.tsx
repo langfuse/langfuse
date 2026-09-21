@@ -50,7 +50,7 @@ function DatasetItemRuns({
     router,
   ]);
 
-  if (isExperimentsBetaActive) return null;
+  if (isExperimentsBetaActive) return <RouteParamsPendingFallback />;
 
   return (
     <DatasetItemDetailPage

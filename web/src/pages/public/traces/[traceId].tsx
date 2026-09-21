@@ -2,7 +2,7 @@
 
 import TraceRedirectPage, {
   getServerSideProps,
-} from "@/src/pages/trace/[traceId]";
+} from "@/src/features/traces/TraceRedirectPage";
 
 export { getServerSideProps };
 

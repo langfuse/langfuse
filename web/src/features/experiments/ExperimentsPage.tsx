@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
-export default function Experiments() {
+export default function ExperimentsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =

@@ -1,48 +1,48 @@
 import { useRouter } from "next/router";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import Page from "@/src/components/layouts/page";
-import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ConnectedDashboardWidgetTable } from "@/src/features/widgets";
 import {
   getDashboardTabs,
   DASHBOARD_TABS,
 } from "@/src/features/navigation/utils/dashboard-tabs";
 
-export default function Dashboards() {
+export default function WidgetsPage() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "dashboards:CUD",
+    scope: "prompts:CUD",
   });
 
   return (
     <Page
       headerProps={{
-        title: "Dashboards",
+        title: "Widgets",
         help: {
-          description: "Manage and create dashboards for your project.",
+          description: "Manage and create widgets for your dashboard.",
           href: "https://langfuse.com/docs/metrics/features/custom-dashboards",
         },
         tabsProps: {
           tabs: getDashboardTabs(projectId),
-          activeTab: DASHBOARD_TABS.DASHBOARDS,
+          activeTab: DASHBOARD_TABS.WIDGETS,
         },
         actionButtonsRight: (
           <ActionButton
             icon={<PlusIcon className="h-4 w-4" aria-hidden="true" />}
             hasAccess={hasCUDAccess}
-            href={`/project/${projectId}/dashboards/new`}
-            trackingEventName="dashboard:new_dashboard_form_open"
+            href={`/project/${projectId}/widgets/new`}
+            trackingEventName="dashboard:new_widget_form_open"
             variant="default"
           >
-            New dashboard
+            New widget
           </ActionButton>
         ),
       }}
     >
-      <ConnectedDashboardTable />
+      <ConnectedDashboardWidgetTable />
     </Page>
   );
 }

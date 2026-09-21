@@ -78,7 +78,7 @@ const TraceRedirectPage = ({
     );
   }
 
-  return null;
+  return <div>Redirecting...</div>;
 };
 
 export default TraceRedirectPage;

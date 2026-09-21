@@ -9,7 +9,7 @@ import { DatasetsOnboarding } from "@/src/components/onboarding/DatasetsOnboardi
 import { LockIcon, PlusIcon } from "lucide-react";
 import { useQueryParam, StringParam } from "use-query-params";
 
-export default function Datasets() {
+export default function DatasetsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const [currentFolderPath] = useQueryParam("folder", StringParam);
