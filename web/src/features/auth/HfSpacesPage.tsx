@@ -7,23 +7,11 @@ import { Button } from "@/src/components/ui/button";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import Head from "next/head";
 import Link from "next/link";
-import { type GetServerSideProps } from "next";
-import { env } from "@/src/env.mjs";
 import { PlusIcon } from "lucide-react";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 
-type PageProps = {
+export type PageProps = {
   deploymentDomain: string;
-};
-
-export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
-  // remove /api/auth from the URL as it needs to be added for custom base url
-  const deploymentDomain = env.NEXTAUTH_URL?.replace("/api/auth", "");
-  return {
-    props: {
-      deploymentDomain,
-    },
-  };
 };
 
 export default function HfSpacesPage({ deploymentDomain }: PageProps) {
