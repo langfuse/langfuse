@@ -513,6 +513,9 @@ describe("Authenticate API calls", () => {
       const apiKey = await prisma.apiKey.findUnique({
         where: { publicKey: legacyPublicKey },
       });
+      const organization = await prisma.organization.findUniqueOrThrow({
+        where: { id: testApiKey.orgId },
+      });
 
       expect(apiKey).not.toBeNull();
       expect(apiKey?.fastHashedSecretKey).not.toBeNull();
@@ -552,6 +555,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -668,6 +672,7 @@ describe("Authenticate API calls", () => {
           },
         ],
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
       });
 
@@ -798,10 +803,11 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        organizationCreatedAt: expect.any(String),
       });
     });
 
-    it("ttl should be increased when reading from redis", async () => {
+    it("ttl should not be extended when reading from redis", async () => {
       // Mock prisma
       const mockPrisma = {
         apiKey: {
@@ -841,14 +847,21 @@ describe("Authenticate API calls", () => {
       expect(shortenedTtl).toBeGreaterThan(0);
       expect(shortenedTtl).toBeLessThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS);
 
-      await new ApiAuthService(
+      // A cache hit must not push the expiry out. The entry has to age out a
+      // fixed TTL after it was written, so that revoking a key which is still
+      // in use takes effect within one TTL even if the eviction is missed.
+      const cachedAuth = await new ApiAuthService(
         mockPrisma as unknown as PrismaClient,
         redis,
       ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
 
+      expect(cachedAuth.validKey).toBe(true);
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+
       const ttl2 = await getRedisTtl(redis, redisKey);
 
-      expect(ttl2).toBeGreaterThan(env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS - 2);
+      expect(ttl2).toBeGreaterThan(0);
+      expect(ttl2).toBeLessThanOrEqual(10);
     });
 
     it("should delete API keys from cache and db", async () => {
@@ -885,6 +898,7 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         createdAt: apiKey?.createdAt.toISOString(),
+        organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
         isIngestionSuspended: expect.anything(),
       });
@@ -905,6 +919,59 @@ describe("Authenticate API calls", () => {
         `api-key:${apiKey?.fastHashedSecretKey}`,
       );
       expect(deletedCachedKey).toBeNull();
+    });
+
+    it("should revoke a key even if a request re-caches it mid-deletion", async () => {
+      // generates the fast hashed secret key the cache is keyed by
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+
+      const apiKey = await prisma.apiKey.findUnique({
+        where: { publicKey: testApiKey.publicKey },
+      });
+      expect(apiKey?.fastHashedSecretKey).not.toBeNull();
+
+      const redisKey = `api-key:${apiKey?.fastHashedSecretKey}`;
+      await redis.del(redisKey);
+
+      // Drives a request into the gap between the two steps of the deletion.
+      // It misses the cache, still finds the row, and writes the key back with
+      // a full TTL - so the eviction has to be the step that happens last.
+      const racingPrisma = {
+        apiKey: {
+          findFirstOrThrow: () =>
+            prisma.apiKey.findFirstOrThrow({ where: { id: apiKey!.id } }),
+          delete: async () => {
+            await new ApiAuthService(
+              prisma,
+              redis,
+            ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+            expect(await getRedisValue(redis, redisKey)).not.toBeNull();
+
+            return prisma.apiKey.delete({ where: { id: apiKey!.id } });
+          },
+        },
+      } as unknown as PrismaClient;
+
+      await new ApiAuthService(racingPrisma, redis).deleteApiKey(
+        apiKey!.id,
+        apiKey!.projectId!,
+        "PROJECT",
+      );
+
+      expect(
+        await prisma.apiKey.findUnique({ where: { id: apiKey!.id } }),
+      ).toBeNull();
+      expect(await getRedisValue(redis, redisKey)).toBeNull();
+
+      const afterRevocation = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(afterRevocation.validKey).toBe(false);
     });
   });
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Tooltip,
   TooltipContent,
@@ -73,11 +74,7 @@ export const BreakdownTooltip = ({
     return acc + value;
   }, 0);
   const contributionEntries = inputEntries.concat(outputEntries, otherEntries);
-  const costFractionDigits = getCostFractionDigits(
-    contributionEntries.length > 0
-      ? contributionEntries
-      : [["total", aggregatedDetails.total]],
-  );
+  const costFractionDigits = getCostFractionDigits(entries);
   const formatValue = (value: number | Decimal) => {
     if (!isCost) {
       const numericValue = value instanceof Decimal ? value.toNumber() : value;
@@ -345,16 +342,31 @@ function sumEntries(entries: [string, number | undefined][]) {
 }
 
 function getCostFractionDigits(entries: [string, number | undefined][]) {
-  return Math.min(
-    12,
-    Math.max(
-      2,
-      ...entries
-        .map(([, value]) => value)
-        .filter((value): value is number => Boolean(value))
-        .map((value) => new Decimal(value).decimalPlaces()),
-    ),
+  return Math.max(
+    2,
+    ...entries
+      .map(([, value]) => value)
+      .filter((value): value is number => Boolean(value))
+      .map(getArtifactFreeFractionDigits),
   );
+}
+
+function getArtifactFreeFractionDigits(value: number) {
+  const decimalValue = new Decimal(value);
+
+  for (let fractionDigits = 2; fractionDigits <= 12; fractionDigits++) {
+    const roundingUnit = new Decimal(10).pow(-fractionDigits);
+    const distanceToRoundedValue = decimalValue
+      .minus(decimalValue.toDecimalPlaces(fractionDigits))
+      .abs();
+
+    // Treat values within 1/10,000 of a decimal grid point as transport noise.
+    if (distanceToRoundedValue.lte(roundingUnit.div(10_000))) {
+      return fractionDigits;
+    }
+  }
+
+  return 12;
 }
 
 function createWaterfallSegments(

@@ -3,6 +3,59 @@ import * as typescriptEslintParser from "@typescript-eslint/parser";
 
 import rule from "./no-abstracted-overlay-trigger.js";
 
+const ruleOptions = {
+  overlayFamilies: [
+    {
+      module: "@/src/components/ui/dialog",
+      root: "Dialog",
+      trigger: "DialogTrigger",
+      contents: ["DialogContent"],
+    },
+    {
+      module: "@/src/components/ui/alert-dialog",
+      root: "AlertDialog",
+      trigger: "AlertDialogTrigger",
+      contents: ["AlertDialogContent"],
+    },
+    {
+      module: "@/src/components/ui/dropdown-menu",
+      root: "DropdownMenu",
+      trigger: "DropdownMenuTrigger",
+      contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
+    },
+    {
+      module: "@/src/components/ui/drawer",
+      root: "Drawer",
+      trigger: "DrawerTrigger",
+      contents: ["DrawerContent"],
+    },
+    {
+      module: "@/src/components/ui/popover",
+      root: "Popover",
+      trigger: "PopoverTrigger",
+      contents: ["PopoverContent"],
+    },
+    {
+      module: "@/src/components/ui/sheet",
+      root: "Sheet",
+      trigger: "SheetTrigger",
+      contents: ["SheetContent"],
+    },
+  ],
+  overlayControllerFamilies: [
+    {
+      module:
+        "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+      root: "ConfirmationDialogController",
+    },
+    {
+      module:
+        "@/src/components/design-system/DialogController/DialogController",
+      root: "DialogController",
+    },
+  ],
+};
+
 const ruleTester = new RuleTester({
   languageOptions: {
     parser: typescriptEslintParser,
@@ -29,6 +82,67 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
     `export default function () { return <main />; }`,
     `export default class Component {}`,
     `
+      import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+
+      export function ControllerOnly() {
+        return <ConfirmationDialogController />;
+      }
+    `,
+    `
+      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+      export function NonInteractivePresentation({ visible }) {
+        return (
+          <DialogController>
+            {() => (
+              <div>
+                <section />
+                {visible && <aside />}
+                <Menu.Button />
+              </div>
+            )}
+          </DialogController>
+        );
+      }
+    `,
+    `
+      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+      export function ComplexPresentation({ visible }) {
+        return (
+          <DialogController>
+            {() => (
+              <div>
+                {visible && <Button />}
+                <span />
+                <i />
+                <b />
+                <em />
+              </div>
+            )}
+          </DialogController>
+        );
+      }
+    `,
+    `
+      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+      export function ControllerOnly() {
+        return <DialogController />;
+      }
+    `,
+    `
+      import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+      export function DelegatingController({ children }) {
+        return (
+          <DialogController>
+            {({ openDialog }) => children({ openDialog })}
+          </DialogController>
+        );
+      }
+    `,
+    `
       import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 
       export function DialogController({ children }) {
@@ -48,6 +162,24 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
           <DialogController>
             <DialogTrigger />
           </DialogController>
+        );
+      }
+    `,
+    `
+      import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+
+      export function IntegrationForm() {
+        return (
+          <ConfirmationDialogController>
+            {({ openDialog }) => (
+              <Form>
+                <FormField><Input /></FormField>
+                <FormField><Select /></FormField>
+                <FormField><Switch /></FormField>
+                <Button onClick={openDialog}>Reset</Button>
+              </Form>
+            )}
+          </ConfirmationDialogController>
         );
       }
     `,
@@ -191,8 +323,140 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         }
       }
     `,
-  ],
+  ].map((test) =>
+    typeof test === "string" ? { code: test, options: [ruleOptions] } : test,
+  ),
   invalid: [
+    {
+      code: `
+          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function DeletePrompt() {
+          return (
+            <DialogController>
+              {() => <><button>Delete</button></>}
+            </DialogController>
+          );
+        }
+      `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function LinkedPrompt() {
+          return <DialogController>{() => <a href="#open">Open</a>}</DialogController>;
+        }
+      `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function ConditionalPrompt({ visible }) {
+          return (
+            <DialogController>
+              {() => (
+                <div>{visible ? <aside /> : <Button />}</div>
+              )}
+            </DialogController>
+          );
+        }
+      `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function InputPrompt() {
+          return <DialogController>{() => <input type="button" />}</DialogController>;
+        }
+      `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function DeletePrompt() {
+          return (
+            <DialogController>
+              {({ openDialog }) => <button onClick={openDialog}>Delete</button>}
+            </DialogController>
+          );
+        }
+      `,
+      errors: [
+        {
+          messageId: "abstractedTrigger",
+          data: { overlay: "DialogController" },
+        },
+      ],
+    },
+    {
+      code: `
+        import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+        export function DeletePrompt() {
+          return (
+            <DialogController>
+              {({ openDialog }) => (
+                <div>
+                  <Button onClick={openDialog}>
+                    <Icon />
+                    Delete
+                  </Button>
+                </div>
+              )}
+            </DialogController>
+          );
+        }
+      `,
+      errors: [{ messageId: "abstractedTrigger" }],
+    },
+    {
+      code: `
+          import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+
+          export function DeletePrompt() {
+            return (
+              <DialogController>
+                {({ openDialog }) => {
+                  return <button onClick={openDialog}>Delete</button>;
+                }}
+              </DialogController>
+            );
+          }
+        `,
+      errors: [
+        {
+          messageId: "abstractedTrigger",
+          data: { overlay: "DialogController" },
+        },
+      ],
+    },
+    {
+      code: `
+          import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+
+        export function ArchiveButton({ children }) {
+          return (
+            <ConfirmationDialogController>
+              {({ openDialog }) => <button onClick={openDialog}>Archive</button>}
+            </ConfirmationDialogController>
+          );
+        }
+      `,
+      errors: [
+        {
+          messageId: "abstractedTrigger",
+          data: { overlay: "ConfirmationDialogController" },
+        },
+      ],
+    },
     {
       code: `
         import {
@@ -550,5 +814,12 @@ ruleTester.run("no-abstracted-overlay-trigger", rule, {
         `,
       errors: [{ messageId: "abstractedTrigger" }],
     },
-  ],
+  ].map((test) => ({
+    ...test,
+    errors: test.errors.map((error) => ({
+      ...error,
+      messageId: "abstractedTrigger" as const,
+    })),
+    options: [ruleOptions],
+  })),
 });

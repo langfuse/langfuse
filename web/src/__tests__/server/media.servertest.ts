@@ -1,3 +1,5 @@
+/* eslint-disable @repo/no-exotic-operators */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
 import type { Session } from "next-auth";
@@ -63,14 +65,7 @@ describe("Media Upload API", () => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,

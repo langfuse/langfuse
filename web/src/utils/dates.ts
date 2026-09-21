@@ -85,7 +85,7 @@ export const buildLocalIsoDatePresentation = ({
 
   return {
     display: formatLocalIsoDate(date, false, accuracy),
-    title: `UTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
+    title: `Local: ${formatLocalIsoDate(date, false, "millisecond")}\nUTC: ${formatLocalIsoDate(date, true, "millisecond")}`,
   };
 };
 

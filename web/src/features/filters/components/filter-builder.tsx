@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -446,6 +447,8 @@ export function InlineFilterBuilder({
   columnIdentifier = "name",
   disabled,
   columnsWithCustomSelect,
+  onOptionsOpen,
+  loadingOptionColumns = [],
   columnsHiddenUnlessSelected,
   stringObjectValueOptions,
   onStringObjectKeyChange,
@@ -461,6 +464,8 @@ export function InlineFilterBuilder({
   columnIdentifier?: ColumnIdentifier;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  onOptionsOpen?: (columnId: string) => void;
+  loadingOptionColumns?: string[];
   /**
    * Column ids/names that stay in the picker only for rows that already use
    * them. Used to grandfather retired columns without offering them on new rows.
@@ -519,6 +524,8 @@ export function InlineFilterBuilder({
         onChange={setWipFilterState}
         disabled={disabled}
         columnsWithCustomSelect={columnsWithCustomSelect}
+        onOptionsOpen={onOptionsOpen}
+        loadingOptionColumns={loadingOptionColumns}
         columnsHiddenUnlessSelected={columnsHiddenUnlessSelected}
         stringObjectValueOptions={stringObjectValueOptions}
         onStringObjectKeyChange={onStringObjectKeyChange}
@@ -566,6 +573,8 @@ function FilterBuilderForm({
   onChange,
   disabled,
   columnsWithCustomSelect = [],
+  onOptionsOpen,
+  loadingOptionColumns = [],
   columnsHiddenUnlessSelected = [],
   stringObjectValueOptions = {},
   onStringObjectKeyChange,
@@ -579,6 +588,8 @@ function FilterBuilderForm({
   onChange: Dispatch<SetStateAction<WipFilterState>>;
   disabled?: boolean;
   columnsWithCustomSelect?: string[];
+  onOptionsOpen?: (columnId: string) => void;
+  loadingOptionColumns?: string[];
   /**
    * Column ids/names that stay in the picker only for rows that already use
    * them. Used to grandfather retired columns without offering them on new rows.
@@ -912,7 +923,10 @@ function FilterBuilderForm({
               operator: value as any,
               // Value-less operators keep an empty string for schema compatibility.
               value:
-                filter.type === "null" || value === "is not empty"
+                filter.type === "null" ||
+                value === "is not empty" ||
+                value === "is set" ||
+                value === "is not set"
                   ? ""
                   : (filter.value as any),
             },
@@ -939,7 +953,10 @@ function FilterBuilderForm({
     const valueControl = keyPending ? (
       <Input disabled />
     ) : filter.type === "string" &&
-      filter.operator === "is not empty" ? null : stringObjectSuggest &&
+      filter.operator === "is not empty" ? null : filter.type ===
+        "stringObject" &&
+      (filter.operator === "is set" ||
+        filter.operator === "is not set") ? null : stringObjectSuggest &&
       filter.type === "stringObject" ? (
       <SingleSelect
         title="Value"
@@ -1013,6 +1030,10 @@ function FilterBuilderForm({
         chipsOnly={compact}
         className="min-w-[100px]"
         options={column?.type === filter.type ? column.options : []}
+        isLoading={!!column && loadingOptionColumns.includes(column.id)}
+        onOpenChange={(open) => {
+          if (open && column) onOptionsOpen?.(column.id);
+        }}
         onValueChange={(value) => handleFilterChange({ ...filter, value }, i)}
         values={Array.isArray(filter.value) ? filter.value : []}
         disabled={disabled}

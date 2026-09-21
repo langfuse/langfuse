@@ -657,6 +657,34 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   no confirmed model ID or price to add even if the scope exclusion were
   lifted. Re-investigate only if OpenAI publishes a public model ID and
   per-token price for it.
+- **September 17 2026 audit: full re-fetch found no price or catalog drift;
+  GPT-Rosalind and the Daybreak cyber family now show prices in the aggregate
+  table but remain unconfirmed and restricted** — Re-fetched the Anthropic
+  pricing page, the Anthropic models-overview table, the OpenAI aggregate
+  Standard/Fast-mode/Flex/Batch pricing tables, the full OpenAI model catalog,
+  and the Gemini pricing and models catalog pages. Every price already in the
+  file — including every `gpt-6-astra`, `gemini-3.6/3.7/3.8-flash`, and
+  `claude-fable-5-1`/`claude-mythos-5-1` tier, plus a re-confirmation of
+  `gpt-5-chat-latest` via its dedicated model page ($1.25/$0.125/$10, no
+  large-context tier) — matched verbatim; no updates were needed. Two
+  refinements to prior restricted-access findings: (1) the OpenAI aggregate
+  pricing table's "Life Sciences" section now lists a price for
+  **`gpt-rosalind-research`** ($5/MTok input, $0.50/MTok cached input, $25/MTok
+  output, no cache-write column), a more specific slug than the bare
+  "GPT-Rosalind" name seen in the September 15 2026 catalog entry — but a
+  dedicated fetch of `developers.openai.com/api/docs/models/gpt-rosalind-research`
+  still 404s, and the model catalog still describes it as "approved
+  organizations only." Treat this price as unconfirmed (no dedicated official
+  page corroborates the slug or the number) and the model as still out of
+  scope under the existing restricted-access skip rule; (2) the aggregate
+  table's "Cyber Models" section now also shows a price for **`gpt-5.5-cyber`**
+  ($12.50/MTok input, $1.25/MTok cached input, $75/MTok output, no cache-write
+  column shown, standard tier only) — same restricted Daybreak-program class as
+  `gpt-5.6-cyber`, still not added. `gpt-5.4-cyber` (the third Daybreak cyber
+  sibling) still shows no price in this run's fetch. Re-investigate the whole
+  Daybreak/Rosalind restricted family only if OpenAI publishes public,
+  unauthenticated documentation confirming a model ID and price on its own
+  dedicated page.
 
 Capture:
 

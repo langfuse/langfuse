@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
   AGGREGATION_LABELS,

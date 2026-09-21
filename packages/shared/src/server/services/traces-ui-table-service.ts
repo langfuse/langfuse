@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { tracesTableUiColumnDefinitions } from "../tableMappings";

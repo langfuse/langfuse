@@ -85,6 +85,7 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
     "",
     "Accepts: name, prompt (string), optional labels, config, tags, commitMessage",
   ].join("\n"),
+  action: "prompts:CUD",
   baseSchema: CreateTextPromptBaseSchema,
   inputSchema: CreateTextPromptInputSchema,
   handler: async (input, context) => {
@@ -98,6 +99,7 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
       fn: async (span) => {
         const createdPrompt = await createPromptForApi({
           context,
+          ctx: context.auth,
           input: CreatePromptSchema.parse({
             name: input.name,
             type: PromptType.Text,

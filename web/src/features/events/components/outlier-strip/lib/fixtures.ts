@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-exotic-operators */
 import {
   prepareOutlierSeries,
   type OutlierStripBin,

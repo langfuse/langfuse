@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 
@@ -21,11 +22,11 @@ const mockSession = ({
       environment: { enableExperimentalFeatures },
       user: {
         admin,
-        featureFlags: { aiGateway: false },
+        featureFlags: testFeatureFlags({ aiGateway: false }),
         organizations: [
           {
             id: "org-1",
-            featureFlags: { aiGateway },
+            featureFlags: testFeatureFlags({ aiGateway }),
             projects: [],
           },
         ],

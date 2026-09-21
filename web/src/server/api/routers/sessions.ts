@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   applyCommentFilters,
   traceException,
@@ -43,7 +43,7 @@ import {
   orderBy,
   paginationZod,
   type PrismaClient,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   type SessionOptions,
   type ScoreDomain,
@@ -60,7 +60,7 @@ import {
 
 const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
 });
 const SessionFilterOptions = SessionCountOptions.extend({
@@ -71,7 +71,7 @@ const SessionTraceObservationsInput = z.object({
   projectId: z.string(),
   sessionId: z.string(),
   traceId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
 });
 
 /**

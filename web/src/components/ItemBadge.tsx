@@ -68,16 +68,16 @@ const iconMap = {
 const iconVariants = cva("h-4 w-4", {
   variants: {
     type: {
-      TRACE: "text-dark-green",
-      GENERATION: "text-muted-magenta",
-      EVENT: "text-muted-green",
-      SPAN: "text-muted-blue",
-      AGENT: "text-purple-600",
-      TOOL: "text-orange-600",
-      CHAIN: "text-pink-600",
-      RETRIEVER: "text-teal-600",
-      EMBEDDING: "text-amber-600",
-      GUARDRAIL: "text-red-600",
+      TRACE: "text-observation-trace",
+      GENERATION: "text-observation-generation",
+      EVENT: "text-observation-event",
+      SPAN: "text-observation-span",
+      AGENT: "text-observation-agent",
+      TOOL: "text-observation-tool",
+      CHAIN: "text-observation-chain",
+      RETRIEVER: "text-observation-retriever",
+      EMBEDDING: "text-observation-embedding",
+      GUARDRAIL: "text-observation-guardrail",
       SESSION: "text-primary-accent",
       USER: "text-primary-accent",
       QUEUE_ITEM: "text-primary-accent",
@@ -86,12 +86,24 @@ const iconVariants = cva("h-4 w-4", {
       DATASET_ITEM: "text-primary-accent",
       ANNOTATION_QUEUE: "text-primary-accent",
       PROMPT: "text-primary-accent",
-      EVALUATOR: "text-primary-accent", // usually text-indigo-600
+      EVALUATOR: "text-observation-evaluator",
       RUNNING_EVALUATOR: "text-primary-accent",
       EXPERIMENT: "text-primary-accent",
     },
   },
 });
+
+/** The type icon alone, no badge chrome. */
+export function ItemTypeIcon({
+  type,
+  className,
+}: {
+  type: LangfuseItemType;
+  className?: string;
+}) {
+  const Icon = iconMap[type];
+  return <Icon className={cn("shrink-0", iconVariants({ type }), className)} />;
+}
 
 export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
@@ -100,6 +112,16 @@ export function renderFilterIcon(value: string): React.ReactNode {
   return (
     <Icon className={cn("h-3.5 w-3.5 shrink-0", iconVariants({ type }))} />
   );
+}
+
+/**
+ * `"DATASET_RUN"` -> `{ label: "Dataset_run", displayLabel: "Dataset run" }`.
+ * `label` titles the element, `displayLabel` is what the user reads.
+ */
+export function getItemTypeLabels(type: LangfuseItemType) {
+  const label =
+    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
+  return { label, displayLabel: label.replace(/_/g, " ") };
 }
 
 export function ItemBadge({
@@ -123,10 +145,7 @@ export function ItemBadge({
     className,
   );
 
-  const label =
-    String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
-
-  const displayLabel = label.replace(/_/g, " ");
+  const { label, displayLabel } = getItemTypeLabels(type);
 
   return (
     <Badge

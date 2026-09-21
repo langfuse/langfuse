@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -8,7 +9,8 @@ import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   type ColumnDefinition,
@@ -31,7 +33,7 @@ import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -57,7 +59,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,

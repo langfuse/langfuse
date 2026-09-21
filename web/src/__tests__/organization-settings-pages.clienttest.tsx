@@ -3,10 +3,10 @@ import { renderHook } from "@testing-library/react";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,
@@ -16,13 +16,17 @@ vi.mock("@/src/components/layouts/header", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/features/rbac/components/MembershipInvitesPage", () => ({
-  MembershipInvitesPage: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable",
+  () => ({
+    ConnectedMembershipInvitesSettingsTable: () => null,
+  }),
+);
 
-vi.mock("@/src/features/rbac/components/MembersTable", () => ({
-  MembersTable: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable",
+  () => ({ ConnectedMembersSettingsTable: () => null }),
+);
 
 vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   JSONView: () => null,

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useEffect, useRef } from "react";
 import {
   ArrowDown,
