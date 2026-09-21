@@ -464,6 +464,7 @@ export function ConnectedObservationDetailView({
                       </Tabs>
                     </div>
                     {selectedViewTab === "json" &&
+                      selectedTab !== "attributes" &&
                       !(selectedTab === "log" && isLogViewVirtualized) && (
                         <div className="mr-1 flex items-center gap-1.5">
                           <Switch
