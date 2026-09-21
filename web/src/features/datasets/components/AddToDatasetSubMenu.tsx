@@ -1,19 +1,14 @@
 import { Database, ExternalLink } from "lucide-react";
-import { useState } from "react";
 
 import {
   DropdownMenuItem,
   DropdownMenuItemWithSecondaryAction,
   DropdownMenuPortal,
-  DropdownMenuSearchInput,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { api, type RouterOutputs } from "@/src/utils/api";
-
-const SEARCHABLE_FROM = 8;
 
 type AddToDatasetSubMenuProps = {
   projectId: string;
@@ -28,18 +23,11 @@ export function AddToDatasetSubMenu({
   existingDatasetItems,
   onSelectDataset,
 }: AddToDatasetSubMenuProps) {
-  const [query, setQuery] = useState("");
   const datasets = api.datasets.allDatasetMeta.useQuery(
     { projectId },
     { enabled: !disabled },
   );
   const allDatasets = datasets.data ?? [];
-  const normalizedQuery = query.trim().toLowerCase();
-  const filteredDatasets = normalizedQuery
-    ? allDatasets.filter((dataset) =>
-        dataset.name.toLowerCase().includes(normalizedQuery),
-      )
-    : allDatasets;
 
   const renderItems = () => {
     if (datasets.isLoading) {
@@ -48,10 +36,7 @@ export function AddToDatasetSubMenu({
     if (allDatasets.length === 0) {
       return <DropdownMenuItem disabled>No datasets yet</DropdownMenuItem>;
     }
-    if (filteredDatasets.length === 0) {
-      return <DropdownMenuItem disabled>No matching datasets</DropdownMenuItem>;
-    }
-    return filteredDatasets.map((dataset) => {
+    return allDatasets.map((dataset) => {
       const existingItem = existingDatasetItems.find(
         (item) => item.datasetId === dataset.id,
       );
@@ -88,18 +73,8 @@ export function AddToDatasetSubMenu({
         Dataset
       </DropdownMenuSubTrigger>
       <DropdownMenuPortal>
-        <DropdownMenuSubContent className="flex max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] flex-col">
-          {allDatasets.length >= SEARCHABLE_FROM && (
-            <>
-              <DropdownMenuSearchInput
-                value={query}
-                onChange={setQuery}
-                placeholder="Search datasets..."
-              />
-              <DropdownMenuSeparator />
-            </>
-          )}
-          <div className="overflow-y-auto">{renderItems()}</div>
+        <DropdownMenuSubContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
+          {renderItems()}
         </DropdownMenuSubContent>
       </DropdownMenuPortal>
     </DropdownMenuSub>

@@ -51,6 +51,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
             <DialogTitle>Add item to datasets</DialogTitle>
           </DialogHeader>
           <NewDatasetItemForm
+            key={state.datasetId ?? ""}
             traceId={state.traceId}
             observationId={state.observationId}
             projectId={props.projectId}

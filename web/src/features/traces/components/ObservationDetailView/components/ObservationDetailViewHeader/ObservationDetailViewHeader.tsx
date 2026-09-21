@@ -4,7 +4,7 @@
  *
  * Contains:
  * - Title row with ItemBadge, observation name, actions (Add to, Score,
- *   Comments) and the options menu
+ *   Comment) and the options menu
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
@@ -85,9 +85,13 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { cn } from "@/src/utils/tailwind";
 import { resolveEvaluatorIdMetadata } from "@/src/features/traces/fns/resolveEvaluatorIdMetadata";
 import { api } from "@/src/utils/api";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+
+const HEADER_ACTION_CLASS =
+  "text-foreground-secondary hover:bg-accent hover:text-foreground-secondary";
 
 export interface ObservationDetailViewHeaderProps {
   observation: ObservationReturnTypeWithMetadata;
@@ -421,7 +425,7 @@ export const ObservationDetailViewHeader = memo(
                     ) : (
                       <MessageSquare className="h-4 w-4" />
                     )}
-                    <span className="text-sm">Comments</span>
+                    <span className="text-sm">Comment</span>
                     {!commentDrawerControl.disabled && commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}
@@ -467,6 +471,14 @@ export const ObservationDetailViewHeader = memo(
                                 }
                               />
                             )}
+                            {observationWithIO &&
+                              isGenerationLike(observationWithIO.type) && (
+                                <JumpToPlaygroundSubMenu
+                                  source="generation"
+                                  generation={observationWithIO}
+                                  analyticsEventName="trace_detail:test_in_playground_button_click"
+                                />
+                              )}
                           </>
                         )}
                       >
@@ -475,7 +487,7 @@ export const ObservationDetailViewHeader = memo(
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="gap-1.5"
+                              className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                             >
                               <PlusIcon
                                 className="h-3.5 w-3.5"
@@ -502,7 +514,7 @@ export const ObservationDetailViewHeader = memo(
                           variant="ghost"
                           size="sm"
                           disabled={!hasAnnotationAccess}
-                          className="gap-1.5"
+                          className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                         >
                           {!hasAnnotationAccess ? (
                             <LockIcon className="h-3 w-3" />
@@ -531,7 +543,7 @@ export const ObservationDetailViewHeader = memo(
                           variant="ghost"
                           size="sm"
                           disabled={disabled}
-                          className="gap-1.5"
+                          className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                           onClick={() =>
                             openDrawer({
                               scoreTarget: {
@@ -567,14 +579,14 @@ export const ObservationDetailViewHeader = memo(
                   size="sm"
                   disabled={commentDrawerControl.disabled}
                   onClick={commentDrawerControl.openDrawer}
-                  className="gap-1.5"
+                  className={cn(HEADER_ACTION_CLASS, "gap-1.5")}
                 >
                   {commentDrawerControl.disabled ? (
                     <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
                   ) : (
                     <MessageSquare className="h-3.5 w-3.5" />
                   )}
-                  Comments
+                  Comment
                   {!commentDrawerControl.disabled && commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
                   ) : null}
@@ -604,22 +616,12 @@ export const ObservationDetailViewHeader = memo(
                 sessionId: observation.sessionId ?? null,
               }}
               align="end"
-              leadingItems={
-                observationWithIO &&
-                isGenerationLike(observationWithIO.type) ? (
-                  <JumpToPlaygroundSubMenu
-                    source="generation"
-                    generation={observationWithIO}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                  />
-                ) : undefined
-              }
             >
               {({ Trigger }) => (
                 <Trigger asChild>
                   <Button
                     aria-label="Options"
-                    className="shrink-0"
+                    className={cn(HEADER_ACTION_CLASS, "shrink-0")}
                     size="icon-xs"
                     title="Options"
                     variant="ghost"
