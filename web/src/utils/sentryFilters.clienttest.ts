@@ -1681,7 +1681,7 @@ describe("isReactDevtoolsInternalEvent", () => {
 });
 
 /**
- * Next.js route-loader `script.onerror` (LANGFUSE-61H): capture_console from
+ * Next.js route-loader `script.onerror`: capture_console from
  * `Error rendering page: ` + `Failed to load script: <hashed chunk URL>`.
  */
 function chunkLoadErrorEvent(
@@ -1710,7 +1710,7 @@ function chunkLoadErrorEvent(
 
 describe("isStaleChunkLoadErrorEvent", () => {
   describe("matches first-party chunk LOAD failures (grouped, not dropped)", () => {
-    it("matches Next.js route-loader script.onerror (LANGFUSE-61H shape)", () => {
+    it("matches Next.js route-loader script.onerror (hashed chunk URL)", () => {
       expect(isStaleChunkLoadErrorEvent(chunkLoadErrorEvent())).toBe(true);
     });
 
