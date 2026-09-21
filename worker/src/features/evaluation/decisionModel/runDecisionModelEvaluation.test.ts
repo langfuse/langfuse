@@ -35,8 +35,8 @@ import {
   EvalTemplateType,
 } from "@langfuse/shared";
 import {
-  DecisionModelRequestError,
   EvaluatorBlockSource,
+  LLMValidationError,
 } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { createMockEvalExecutionDeps } from "../evalExecutionDeps";
@@ -218,32 +218,36 @@ describe("runDecisionModelEvaluation", () => {
     expect(deps.callDecisionModel).not.toHaveBeenCalled();
   });
 
-  it("fails permanently on rejected requests and retries on rate limits", async () => {
-    const rejected = createMockEvalExecutionDeps({
+  it("applies the LLM error policy to provider failures", async () => {
+    // A connection-level failure pauses the evaluator like an LLM judge would.
+    const unreachable = new LLMValidationError({
+      code: "endpoint-unreachable",
+      message: "Cannot reach TypeSafe",
+    });
+    const blocked = createMockEvalExecutionDeps({
       fetchModelConfig: vi.fn().mockResolvedValue(typeSafeModelConfig),
-      callDecisionModel: vi.fn().mockRejectedValue(
-        new DecisionModelRequestError({
-          message: "TypeSafe returned HTTP 401",
-          statusCode: 401,
-          isRetryable: false,
-        }),
-      ),
+      callDecisionModel: vi.fn().mockRejectedValue(unreachable),
     });
     await expect(
-      runDecisionModelEvaluation({ ...baseParams, deps: rejected }),
-    ).rejects.toBeInstanceOf(UnrecoverableError);
+      runDecisionModelEvaluation({ ...baseParams, deps: blocked }),
+    ).rejects.toBe(unreachable);
+    expect(mocks.blockEvaluator).toHaveBeenCalledWith(
+      expect.objectContaining({
+        evaluatorId: "evaluator-1",
+        source: EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+      }),
+    );
 
-    const rateLimited = new DecisionModelRequestError({
-      message: "TypeSafe returned HTTP 429",
-      statusCode: 429,
-      isRetryable: true,
-    });
-    const throttled = createMockEvalExecutionDeps({
+    // Anything else propagates untouched so the queue decides on retries.
+    mocks.blockEvaluator.mockClear();
+    const transient = new Error("socket hang up");
+    const failing = createMockEvalExecutionDeps({
       fetchModelConfig: vi.fn().mockResolvedValue(typeSafeModelConfig),
-      callDecisionModel: vi.fn().mockRejectedValue(rateLimited),
+      callDecisionModel: vi.fn().mockRejectedValue(transient),
     });
     await expect(
-      runDecisionModelEvaluation({ ...baseParams, deps: throttled }),
-    ).rejects.toBe(rateLimited);
+      runDecisionModelEvaluation({ ...baseParams, deps: failing }),
+    ).rejects.toBe(transient);
+    expect(mocks.blockEvaluator).not.toHaveBeenCalled();
   });
 });

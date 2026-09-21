@@ -12,8 +12,8 @@ import {
 } from "@langfuse/shared";
 import {
   blockEvaluator,
+  classifyEvaluatorLlmError,
   DecisionModelEvaluatorError,
-  DecisionModelRequestError,
   EvaluatorBlockSource,
   executeDecisionModelEvaluator,
   instrumentAsync,
@@ -26,14 +26,17 @@ import { createW3CTraceId } from "../../utils";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
 import { toNormalizedScores } from "../evalService";
-import { buildEvalExecutionSpanAttributes } from "../evalSpanAttributes";
+import {
+  buildEvalExecutionSpanAttributes,
+  buildEvaluatorLlmErrorSpanAttributes,
+} from "../evalSpanAttributes";
 
 /**
  * Executes a decision-model evaluator (experimental): resolves the TypeSafe
  * connection, asks one Choice question about the observation, and returns a
- * single categorical score. Permanent failures (bad definition, rejected
- * request, unknown answer) are unrecoverable; rate limits and upstream
- * outages propagate so the queue retries them.
+ * single categorical score. Definition and answer problems are unrecoverable.
+ * Provider failures are AI SDK errors and follow the LLM-as-a-judge policy:
+ * the queue retries rate limits, and credential failures pause the evaluator.
  */
 export async function runDecisionModelEvaluation({
   projectId,
@@ -175,18 +178,21 @@ export async function runDecisionModelEvaluation({
           span.setAttribute("eval.execution.outcome", "invalid_model_output");
           throw new UnrecoverableError(e.message);
         }
-        if (e instanceof DecisionModelRequestError) {
-          span.setAttributes({
-            "eval.execution.outcome": e.isRetryable
-              ? "upstream_error"
-              : "customer_error",
-            ...(e.statusCode !== undefined
-              ? { "eval.decision_model.status_code": e.statusCode }
-              : {}),
-          });
-          if (!e.isRetryable) {
-            throw new UnrecoverableError(e.message);
-          }
+
+        const classification = classifyEvaluatorLlmError(e);
+        span.setAttributes(
+          buildEvaluatorLlmErrorSpanAttributes(classification),
+        );
+        span.setAttribute(
+          "eval.execution.outcome",
+          classification?.blockReason ? "blocked" : "llm_error",
+        );
+        if (classification?.blockReason) {
+          await pauseEvaluator(
+            classification.blockReason,
+            EvaluatorBlockSource.LLM_COMPLETION_ERROR,
+          );
+          span.setAttribute("eval.llm.block.applied", true);
         }
         throw e;
       }

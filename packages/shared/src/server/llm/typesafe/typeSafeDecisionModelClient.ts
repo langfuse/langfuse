@@ -1,170 +1,73 @@
-import { z } from "zod";
+import { createTypeSafeAi } from "@ai-sdk/typesafe-ai";
+import { experimental_evaluate as evaluate, type JSONValue } from "ai";
 import type {
-  DecisionModelChoiceQuestion,
   DecisionModelClient,
   DecisionModelEvaluation,
 } from "../../evals/decisionModelEvaluatorExecution";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
-/**
- * TypeSafe connections have no custom base URL: every request goes to the
- * public API, so a connection is only an API key.
- */
-export const TYPESAFE_BASE_URL = "https://api.typesafe.ai/v1";
-
-const DEFAULT_TIMEOUT_MS = 30_000;
-
-/**
- * HTTP failure from the TypeSafe API. Rate limits and server errors are
- * retryable; every other client error is permanent for the job.
- */
-export class DecisionModelRequestError extends Error {
-  readonly statusCode: number | undefined;
-  readonly isRetryable: boolean;
-
-  constructor(params: {
-    message: string;
-    statusCode?: number;
-    isRetryable: boolean;
-    cause?: unknown;
-  }) {
-    super(params.message, { cause: params.cause });
-    this.name = "DecisionModelRequestError";
-    this.statusCode = params.statusCode;
-    this.isRetryable = params.isRetryable;
-  }
-}
-
-const SystemOneChoiceAnswerSchema = z.object({
-  type: z.literal("choice"),
-  choice: z.string(),
-  confidence: z.number().nullish(),
-  probabilities: z.record(z.string(), z.number()),
-});
-
-const SystemOneResponseSchema = z.object({
-  model: z.string(),
-  answers: z.record(z.string(), z.unknown()),
-  usage: z
-    .object({
-      input_tokens: z.number().nullish(),
-      output_tokens: z.number().nullish(),
-    })
-    .nullish(),
-});
-
 const QUESTION_ID = "verdict";
 
+/**
+ * TypeSafe connections have no custom base URL: the AI SDK provider always
+ * talks to the public API, so a connection is only an API key. Failures
+ * surface as AI SDK `APICallError`s and flow through the same evaluator error
+ * policy as LLM-as-a-judge calls.
+ */
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
   fetchImpl?: typeof fetch;
-  timeoutMs?: number;
 }): DecisionModelClient {
-  const fetchImpl =
-    params.fetchImpl ??
-    createSecureLlmFetch({ logContext: "TypeSafe decision model" });
-  const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const provider = createTypeSafeAi({
+    apiKey: params.apiKey,
+    fetch:
+      params.fetchImpl ??
+      createSecureLlmFetch({ logContext: "TypeSafe decision model" }),
+  });
+  const model = provider.evaluationModel(params.model);
 
   return {
     evaluateChoice: async ({ state, question }) => {
-      const body = {
-        model: params.model,
-        state,
-        questions: {
-          [QUESTION_ID]: toSystemOneQuestion(question),
-        },
-      };
+      const result = await evaluate({
+        model,
+        // Observation fields are parsed JSON, so the state is JSON-serializable.
+        state: state as Record<string, JSONValue>,
+        questions: { [QUESTION_ID]: question },
+        maxRetries: 1,
+      });
 
-      let response: Response;
-      try {
-        response = await fetchImpl(`${TYPESAFE_BASE_URL}/systemone`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${params.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-      } catch (cause) {
-        throw new DecisionModelRequestError({
-          message: `TypeSafe request failed: ${
-            cause instanceof Error ? cause.message : String(cause)
-          }`,
-          isRetryable: true,
-          cause,
-        });
-      }
-
-      if (!response.ok) {
-        const detail = await readErrorDetail(response);
-        throw new DecisionModelRequestError({
-          message: `TypeSafe returned HTTP ${response.status}${
-            detail ? `: ${detail}` : ""
-          }`,
-          statusCode: response.status,
-          isRetryable: response.status === 429 || response.status >= 500,
-        });
-      }
-
-      const parsed = SystemOneResponseSchema.safeParse(
-        await response.json().catch(() => undefined),
-      );
-      if (!parsed.success) {
-        throw new DecisionModelRequestError({
-          message: "TypeSafe returned an unexpected response body",
-          statusCode: response.status,
-          isRetryable: false,
-          cause: parsed.error,
-        });
-      }
-
-      const answer = SystemOneChoiceAnswerSchema.safeParse(
-        parsed.data.answers[QUESTION_ID],
-      );
-      if (!answer.success) {
-        throw new DecisionModelRequestError({
-          message: "TypeSafe returned no choice answer for the question",
-          statusCode: response.status,
-          isRetryable: false,
-          cause: answer.error,
-        });
-      }
+      const answer = result.answers[QUESTION_ID];
+      // The SDK moves TypeSafe's confidence out of the answer into provider
+      // metadata; read it back so the score metadata keeps both axes.
+      const confidence = readConfidence(result.providerMetadata);
 
       const evaluation: DecisionModelEvaluation = {
-        model: parsed.data.model,
+        model: result.response.modelId,
         answer: {
           type: "choice",
-          choice: answer.data.choice,
-          probabilities: answer.data.probabilities,
-          confidence: answer.data.confidence ?? null,
+          choice: answer.choice,
+          probabilities: answer.probabilities ?? { [answer.choice]: 1 },
+          confidence,
         },
-        usage: parsed.data.usage
-          ? {
-              inputTokens: parsed.data.usage.input_tokens ?? null,
-              outputTokens: parsed.data.usage.output_tokens ?? null,
-            }
-          : null,
+        usage: {
+          inputTokens: result.usage.inputTokens ?? null,
+          outputTokens: result.usage.outputTokens ?? null,
+        },
       };
       return evaluation;
     },
   };
 }
 
-function toSystemOneQuestion(question: DecisionModelChoiceQuestion) {
-  return {
-    type: "choice",
-    instructions: question.instructions,
-    criteria: question.criteria,
-  };
-}
-
-async function readErrorDetail(response: Response): Promise<string | null> {
-  try {
-    const text = await response.text();
-    return text ? text.slice(0, 300) : null;
-  } catch {
+function readConfidence(providerMetadata: unknown): number | null {
+  if (typeof providerMetadata !== "object" || providerMetadata === null) {
     return null;
   }
+  const typesafe = (providerMetadata as Record<string, unknown>).typesafe;
+  if (typeof typesafe !== "object" || typesafe === null) return null;
+  const confidence = (typesafe as Record<string, unknown>).confidence;
+  if (typeof confidence !== "object" || confidence === null) return null;
+  const value = (confidence as Record<string, unknown>)[QUESTION_ID];
+  return typeof value === "number" ? value : null;
 }
