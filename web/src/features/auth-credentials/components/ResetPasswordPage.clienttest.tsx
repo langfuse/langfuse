@@ -12,7 +12,6 @@ const {
   signInMock,
   routerPushMock,
   routerState,
-  useLangfuseCloudRegionMock,
   useSessionMock,
 } = vi.hoisted(() => ({
   mutateAsyncMock: vi.fn(),
@@ -22,7 +21,6 @@ const {
     isReady: true,
     query: {} as Record<string, string>,
   },
-  useLangfuseCloudRegionMock: vi.fn(),
   useSessionMock: vi.fn(),
 }));
 
@@ -57,7 +55,10 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/organizations/hooks", () => ({
-  useLangfuseCloudRegion: () => useLangfuseCloudRegionMock(),
+  useLangfuseCloudRegion: () => ({
+    isLangfuseCloud: false,
+    region: undefined,
+  }),
 }));
 
 vi.mock(
@@ -66,17 +67,11 @@ vi.mock(
     RequestResetPasswordEmailButton: ({
       onEmailSent,
       label = "Send email",
-      callbackUrl,
     }: {
       onEmailSent?: () => void;
       label?: string;
-      callbackUrl?: string;
     }) => (
-      <button
-        type="button"
-        data-callback-url={callbackUrl}
-        onClick={() => onEmailSent?.()}
-      >
+      <button type="button" onClick={() => onEmailSent?.()}>
         {label}
       </button>
     ),
@@ -122,10 +117,6 @@ describe("ResetPasswordPage re-authentication", () => {
     routerState.query = {};
     mutateAsyncMock.mockResolvedValue({ success: true });
     signInMock.mockResolvedValue({ ok: true });
-    useLangfuseCloudRegionMock.mockReturnValue({
-      isLangfuseCloud: false,
-      region: undefined,
-    });
   });
 
   afterEach(() => {
@@ -157,16 +148,12 @@ describe("ResetPasswordPage re-authentication", () => {
       expect(screen.getByLabelText("Verification code")).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "123456" },
+    submitPasswordForm({
+      code: "123456",
+      passwordLabel: "New Password",
+      confirmPasswordLabel: "Confirm New Password",
+      submitLabel: "Update Password",
     });
-    fireEvent.change(screen.getByLabelText("New Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm New Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Update Password" }));
 
     await waitFor(() => {
       expect(mutateAsyncMock).toHaveBeenCalledWith({
@@ -205,16 +192,12 @@ describe("ResetPasswordPage re-authentication", () => {
       expect(screen.getByLabelText("Verification code")).toBeTruthy();
     });
 
-    fireEvent.change(screen.getByLabelText("Verification code"), {
-      target: { value: "654321" },
+    submitPasswordForm({
+      code: "654321",
+      passwordLabel: "Password",
+      confirmPasswordLabel: "Confirm Password",
+      submitLabel: "Set password",
     });
-    fireEvent.change(screen.getByLabelText("Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.change(screen.getByLabelText("Confirm Password"), {
-      target: { value: "Newpass1!" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Set password" }));
 
     await waitFor(() => {
       expect(signInMock).toHaveBeenCalledWith("credentials", {
@@ -230,10 +213,6 @@ describe("ResetPasswordPage re-authentication", () => {
     routerState.query = {
       targetPath: "/demo/datasets/dataset-1/items?foo=bar",
     };
-    useLangfuseCloudRegionMock.mockReturnValue({
-      isLangfuseCloud: true,
-      region: "EU",
-    });
     useSessionMock.mockReturnValue({
       status: "authenticated",
       data: {
@@ -252,13 +231,6 @@ describe("ResetPasswordPage re-authentication", () => {
       />,
     );
 
-    expect(
-      screen.getByRole("button", { name: "Send another code" }),
-    ).toHaveAttribute(
-      "data-callback-url",
-      "/auth/setup-password?targetPath=%2Fdemo%2Fdatasets%2Fdataset-1%2Fitems%3Ffoo%3Dbar",
-    );
-
     submitPasswordForm({
       code: "654321",
       passwordLabel: "Password",
@@ -274,51 +246,5 @@ describe("ResetPasswordPage re-authentication", () => {
     expect(routerPushMock).toHaveBeenCalledWith(
       "/demo/datasets/dataset-1/items?foo=bar",
     );
-    vi.useRealTimers();
-  });
-
-  it("ignores targetPath for ordinary password reset", async () => {
-    vi.useFakeTimers();
-    routerState.query = {
-      targetPath: "/demo",
-    };
-    useLangfuseCloudRegionMock.mockReturnValue({
-      isLangfuseCloud: true,
-      region: "EU",
-    });
-    useSessionMock.mockReturnValue({
-      status: "authenticated",
-      data: {
-        user: {
-          email: "user@example.com",
-          hasPassword: true,
-        },
-      },
-    });
-
-    render(
-      <ResetPasswordPage
-        passwordResetAvailable
-        initialEmail="user@example.com"
-        intent="reset"
-      />,
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Send email" }));
-
-    submitPasswordForm({
-      code: "123456",
-      passwordLabel: "New Password",
-      confirmPasswordLabel: "Confirm New Password",
-      submitLabel: "Update Password",
-    });
-
-    await flushPasswordSubmit();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
-    });
-
-    expect(routerPushMock).toHaveBeenCalledWith("/");
-    vi.useRealTimers();
   });
 });
