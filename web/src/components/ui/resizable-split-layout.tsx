@@ -69,6 +69,9 @@ export function ResizableSplitLayout({
   persistId,
 }: ResizableSplitLayoutProps) {
   const hasCollapsedRail = collapsedSecondarySize !== "0%";
+  // Kept-mounted panels need the imperative collapse API to release their
+  // space when closed, including panels that collapse completely to 0%.
+  const secondaryCollapsible = hasCollapsedRail || keepSecondaryMounted;
   const instanceId = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const groupId = persistId
     ? `resizable-layout-${persistId}`
@@ -206,8 +209,10 @@ export function ResizableSplitLayout({
           defaultSize={secondaryDefaultSize}
           minSize={secondaryMinSize}
           maxSize={secondaryMaxSize}
-          collapsible={hasCollapsedRail}
-          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
+          collapsible={secondaryCollapsible}
+          collapsedSize={
+            secondaryCollapsible ? collapsedSecondarySize : undefined
+          }
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}
@@ -238,8 +243,10 @@ export function ResizableSplitLayout({
           defaultSize={secondaryDefaultSize}
           minSize={secondaryMinSize}
           maxSize={secondaryMaxSize}
-          collapsible={hasCollapsedRail}
-          collapsedSize={hasCollapsedRail ? collapsedSecondarySize : undefined}
+          collapsible={secondaryCollapsible}
+          collapsedSize={
+            secondaryCollapsible ? collapsedSecondarySize : undefined
+          }
           onResize={handleSecondaryResize}
           className={secondaryPanelClassName}
           style={{ overscrollBehaviorY: "none" }}
