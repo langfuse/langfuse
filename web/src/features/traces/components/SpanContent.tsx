@@ -6,7 +6,7 @@
  * Responsibilities:
  * - Render span-specific data (name, metrics, badges, scores)
  * - Apply view preferences (show/hide features)
- * - Format metrics; a row that is most of the trace reads in foreground bold
+ * - Format metrics; a row that is most of the trace reads in foreground
  *
  * Does NOT know about:
  * - Tree structure (indents, lines, collapse buttons)
@@ -155,7 +155,7 @@ export function SpanContent({
                 className={cn(
                   "text-xs",
                   emphasizeDuration
-                    ? "text-foreground font-bold"
+                    ? "text-foreground"
                     : "text-foreground-tertiary",
                 )}
               >
@@ -197,7 +197,7 @@ export function SpanContent({
                 className={cn(
                   "text-xs",
                   emphasizeCost
-                    ? "text-foreground font-bold"
+                    ? "text-foreground"
                     : "text-foreground-tertiary",
                 )}
               >
