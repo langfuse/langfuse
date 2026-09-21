@@ -4,21 +4,33 @@ import { Pencil, Trash2, TriangleAlert, X } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
 
+/**
+ * How the mapped name is rendered: as a prompt template `{{variable}}`, or as
+ * a state key for evaluators whose mapping builds a JSON object.
+ */
+export type VariableDisplay = "template" | "stateKey";
+
 function VariableMappingCardHeaderContent({
   variable,
+  variableDisplay = "template",
   mapping,
   isUnmapped,
   warningMessage,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   mapping: React.ReactNode;
   isUnmapped: boolean;
   warningMessage?: string | null;
 }) {
   return (
     <>
-      <span className="text-primary-accent shrink-0 font-mono font-bold">{`{{${variable}}}`}</span>
-      <span className="text-muted-foreground shrink-0">maps to</span>
+      <span className="text-primary-accent shrink-0 font-mono font-bold">
+        {variableDisplay === "stateKey" ? variable : `{{${variable}}}`}
+      </span>
+      <span className="text-muted-foreground shrink-0">
+        {variableDisplay === "stateKey" ? "from" : "maps to"}
+      </span>
       {isUnmapped ? (
         <span className="text-dark-yellow flex min-w-0 items-center gap-1.5 font-bold">
           <TriangleAlert className="h-4 w-4 shrink-0" />
@@ -45,6 +57,7 @@ function VariableMappingCardHeaderContent({
 /** Presentational shell for one editable prompt-variable mapping. */
 function VariableMappingCardShell({
   variable,
+  variableDisplay,
   mapping,
   isUnmapped,
   warningMessage,
@@ -56,6 +69,7 @@ function VariableMappingCardShell({
   children,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   mapping?: React.ReactNode;
   isUnmapped: boolean;
   warningMessage?: string | null;
@@ -84,6 +98,7 @@ function VariableMappingCardShell({
       header={
         <VariableMappingCardHeaderContent
           variable={variable}
+          variableDisplay={variableDisplay}
           mapping={mapping}
           isUnmapped={isUnmapped}
           warningMessage={warningMessage}
@@ -115,7 +130,11 @@ function VariableMappingCardShell({
               variant="ghost"
               size="icon-xs"
               className="hover:text-destructive"
-              title={`Remove {{${variable}}} from the prompt`}
+              title={
+                variableDisplay === "stateKey"
+                  ? `Remove ${variable} from the state`
+                  : `Remove {{${variable}}} from the prompt`
+              }
               onClick={onDelete}
             >
               <Trash2 className="h-3.5 w-3.5" />

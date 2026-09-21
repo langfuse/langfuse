@@ -1,0 +1,137 @@
+import { DecisionModelQuestionType } from "@langfuse/shared";
+import { Gauge, ListChecks, ToggleLeft, type LucideIcon } from "lucide-react";
+
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { cn } from "@/src/utils/tailwind";
+
+export const QUESTION_TYPE_COPY: Record<
+  DecisionModelQuestionType,
+  {
+    label: string;
+    icon: LucideIcon;
+    summary: string;
+    writes: string;
+    example: string;
+    whenToUse: string;
+  }
+> = {
+  [DecisionModelQuestionType.CHOICE]: {
+    label: "Choice",
+    icon: ListChecks,
+    summary: "Pick one of a fixed set of labels.",
+    writes: "categorical score",
+    example: "Which team should handle this ticket?",
+    whenToUse:
+      "The answer is one of a few options with no order between them. Add an “other” option if the list may not cover every input.",
+  },
+  [DecisionModelQuestionType.SCORE]: {
+    label: "Score",
+    icon: Gauge,
+    summary: "Rate along ordered levels you describe.",
+    writes: "numeric score (expected level)",
+    example: "How frustrated is the customer?",
+    whenToUse:
+      "The answer sits on a spectrum you can describe in steps. Describe situations, not degrees: “broken but a workaround exists” beats “moderately severe”.",
+  },
+  [DecisionModelQuestionType.NOUL]: {
+    label: "Yes / no",
+    icon: ToggleLeft,
+    summary: "Get the probability a statement is true.",
+    writes: "numeric score (probability 0–1)",
+    example: "Does the message request a refund?",
+    whenToUse:
+      "A clean yes/no where the probability itself is the signal. Define the condition precisely; 0.5 means undecided, not “medium”.",
+  },
+};
+
+const ORDER: DecisionModelQuestionType[] = [
+  DecisionModelQuestionType.CHOICE,
+  DecisionModelQuestionType.SCORE,
+  DecisionModelQuestionType.NOUL,
+];
+
+/**
+ * Picks the question type. `tabs` is a compact segmented control with the
+ * descriptor of the active type below; `cards` shows all three side by side
+ * with their descriptor, trading space for discoverability.
+ */
+export function QuestionTypeSelector({
+  value,
+  onValueChange,
+  layout = "tabs",
+  disabled = false,
+}: {
+  value: DecisionModelQuestionType;
+  onValueChange: (value: DecisionModelQuestionType) => void;
+  layout?: "tabs" | "cards";
+  disabled?: boolean;
+}) {
+  if (layout === "cards") {
+    return (
+      <div
+        role="radiogroup"
+        aria-label="Question type"
+        className="grid gap-2 sm:grid-cols-3"
+      >
+        {ORDER.map((type) => {
+          const copy = QUESTION_TYPE_COPY[type];
+          const selected = type === value;
+          return (
+            <button
+              key={type}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              disabled={disabled}
+              onClick={() => onValueChange(type)}
+              className={cn(
+                "flex flex-col gap-1 rounded-md border p-3 text-left text-sm transition-colors",
+                "hover:bg-muted/50 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-hidden",
+                selected
+                  ? "border-primary-accent bg-primary-accent/5 ring-primary-accent ring-1"
+                  : "border-border",
+                disabled && "cursor-not-allowed opacity-60",
+              )}
+            >
+              <span className="flex items-center gap-1.5 font-bold">
+                <copy.icon className="h-4 w-4 shrink-0" />
+                {copy.label}
+              </span>
+              <span className="text-muted-foreground">{copy.summary}</span>
+              <span className="text-muted-foreground text-xs italic">
+                e.g. “{copy.example}”
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const active = QUESTION_TYPE_COPY[value];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Tabs
+        value={value}
+        onValueChange={(next) =>
+          onValueChange(next as DecisionModelQuestionType)
+        }
+      >
+        <Tabs.List variant="outline" aria-label="Question type">
+          {ORDER.map((type) => (
+            <Tabs.Trigger
+              key={type}
+              value={type}
+              disabled={disabled}
+              icon={QUESTION_TYPE_COPY[type].icon}
+              label={QUESTION_TYPE_COPY[type].label}
+            />
+          ))}
+        </Tabs.List>
+      </Tabs>
+      <p className="text-muted-foreground text-xs">
+        {active.summary} Writes a {active.writes}. {active.whenToUse}
+      </p>
+    </div>
+  );
+}

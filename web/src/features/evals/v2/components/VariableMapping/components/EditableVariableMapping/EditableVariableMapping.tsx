@@ -14,7 +14,10 @@ import type {
 } from "@/src/features/evals/v2/types/variableMapping";
 import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
-import { VariableMappingCardShell } from "../VariableMappingCardShell";
+import {
+  VariableMappingCardShell,
+  type VariableDisplay,
+} from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
@@ -253,6 +256,7 @@ function TreeSelectorBody({
  */
 function VariableMappingRow({
   variable,
+  variableDisplay,
   unmapped,
   expanded,
   editing,
@@ -267,6 +271,7 @@ function VariableMappingRow({
   onDelete,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   unmapped: boolean;
   expanded: boolean;
   editing: boolean;
@@ -389,6 +394,7 @@ function VariableMappingRow({
   return (
     <VariableMappingCardShell
       variable={variable}
+      variableDisplay={variableDisplay}
       mapping={
         !unmapped && columnLabel ? (
           <VariableMappingBinding
@@ -431,6 +437,8 @@ export type EditableVariableMappingProps = {
   /** Selected source columns that have no value in this sample and cannot be validated. */
   unvalidatedSourceColumnIds?: string[];
   sourceUnavailableMessage?: string;
+  /** Renders names as prompt templates (default) or as state keys. */
+  variableDisplay?: VariableDisplay;
 };
 
 export function EditableVariableMapping({
@@ -443,6 +451,7 @@ export function EditableVariableMapping({
   hasMatchingObservations,
   unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage,
+  variableDisplay,
 }: EditableVariableMappingProps) {
   return (
     <div data-variable-mapping-root="" className="flex flex-col gap-4">
@@ -450,6 +459,7 @@ export function EditableVariableMapping({
         <VariableMappingRow
           key={item.variable}
           variable={item.variable}
+          variableDisplay={variableDisplay}
           unmapped={!item.fieldState.selectedColumnId}
           expanded={
             activeMapping?.variable === item.variable &&
