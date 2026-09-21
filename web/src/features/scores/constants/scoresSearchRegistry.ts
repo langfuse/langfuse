@@ -1,6 +1,6 @@
 import { getScoreFilterConfig } from "@/src/features/filters/config/scores-config";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
+import type { FilterConfig } from "@/src/features/filters";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar";
 
 export function scoresFieldRegistry(config: FilterConfig) {
   const facetColumns = new Set(config.facets.map((facet) => facet.column));
