@@ -1,7 +1,13 @@
 /* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
-import { asRecord, parseIfString, parseRecord } from "../utils/json";
+import {
+  asRecord,
+  parseArray,
+  parseIfString,
+  parseRecord,
+  recordKeyAsParsed,
+} from "../utils/json";
 import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
@@ -16,7 +22,6 @@ import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 export type ParsedIOValue = {
   value: unknown;
   record?: Record<string, unknown>;
-  messages?: unknown[];
 };
 
 function collectToolDefinitionsFromRecord(
@@ -38,6 +43,7 @@ function collectRootToolDefinitions(
   accumulator: NormalizedIOAccumulator,
 ): void {
   collectToolDefinitionsFromRecord(root, accumulator);
+  recordKeyAsParsed(root, "tools");
 
   // Definitions are independent of the message claim. A record can contain
   // an OpenAI `choices` carrier and, next to it, a framework `messages` or
@@ -199,66 +205,74 @@ function emitRootSource(
   );
 }
 
+function findSystemMessage(
+  root: Record<string, unknown>,
+  source: "input" | "output",
+): MessageSource | undefined {
+  for (const provider of registeredProviders) {
+    const systemMessage = provider.getSystemMessage?.(root, source);
+    if (systemMessage) return systemMessage;
+  }
+  return undefined;
+}
+
+function claimMessages(
+  root: Record<string, unknown>,
+  source: "input" | "output",
+  parserContext: ParserContext,
+): MessageSource[] {
+  for (const provider of registeredProviders) {
+    const sources = provider.claimMessages?.(root, source) ?? [];
+    if (sources.length > 0) {
+      parserContext.preferredProvider = provider;
+      return sources;
+    }
+  }
+  return [];
+}
+
 function collectRecordMessages(
-  parsedValue: ParsedIOValue,
+  root: Record<string, unknown>,
   parserContext: ParserContext,
   accumulator: NormalizedIOAccumulator,
 ): void {
-  const record = parsedValue.record;
-  if (!record) return;
-
   const { source } = parserContext;
   const fallbackRole = source === "input" ? "user" : "assistant";
 
-  const providerClaims = registeredProviders.map((provider) => ({
-    provider,
-    sources: provider.claimMessages?.(record, source) ?? [],
-    systemMessage: provider.getSystemMessage?.(record, source),
-  }));
-  const selectedClaim = providerClaims.find(
-    ({ sources }) => sources.length > 0,
-  );
-
-  if (selectedClaim) {
-    parserContext.preferredProvider = selectedClaim.provider;
-  }
+  const systemMessage =
+    source === "input" ? findSystemMessage(root, source) : undefined;
+  const claimedSources = claimMessages(root, source, parserContext);
+  const rootMessages = parseArray(root.messages);
 
   const messages: NormalizedMessage[] = [];
-  const claimedSources = selectedClaim?.sources;
 
-  if (claimedSources && claimedSources.length > 0) {
+  if (claimedSources.length > 0) {
     for (const rootSource of claimedSources) {
       emitRootSource(rootSource, parserContext, messages, accumulator);
     }
-  } else if (parsedValue.messages) {
+  } else if (rootMessages) {
+    recordKeyAsParsed(root, "messages");
     collectMessageSequence(
-      parsedValue.messages,
+      rootMessages,
       fallbackRole,
       parserContext,
       messages,
       accumulator,
     );
   } else {
-    const recordMessage = normalizeMessage(record, fallbackRole, parserContext);
-    if (recordMessage) addMessage(messages, recordMessage, parserContext);
+    const recordMessage = normalizeMessage(root, fallbackRole, parserContext);
+    if (recordMessage) {
+      addMessage(messages, recordMessage, parserContext);
+      delete accumulator.unparsedKeys[source];
+    }
   }
 
   // System instructions supplement the selected input conversation. Defer
   // them until after message normalization so an existing system message
   // suppresses every top-level system sidecar.
-  if (source === "input" && !parserContext.hasSystemMessage) {
+  if (systemMessage && source === "input" && !parserContext.hasSystemMessage) {
     const systemMessages: NormalizedMessage[] = [];
-    for (const { systemMessage } of providerClaims) {
-      if (systemMessage) {
-        emitRootSource(
-          systemMessage,
-          parserContext,
-          systemMessages,
-          accumulator,
-        );
-      }
-      if (parserContext.hasSystemMessage) break;
-    }
+    emitRootSource(systemMessage, parserContext, systemMessages, accumulator);
     messages.unshift(...systemMessages);
   }
 
@@ -285,7 +299,7 @@ export function collectIO(
 
   if (Array.isArray(parsedValue.value)) {
     collectMessageSequence(
-      parsedValue.messages ?? parsedValue.value,
+      parsedValue.value,
       fallbackRole,
       context,
       accumulator.messages,
@@ -295,8 +309,10 @@ export function collectIO(
   }
 
   if (parsedValue.record) {
-    collectRootToolDefinitions(parsedValue.record, accumulator);
-    collectRecordMessages(parsedValue, context, accumulator);
+    const unparsedKeys = { ...parsedValue.record };
+    accumulator.unparsedKeys[source] = unparsedKeys;
+    collectRootToolDefinitions(unparsedKeys, accumulator);
+    collectRecordMessages(unparsedKeys, context, accumulator);
     return;
   }
 
