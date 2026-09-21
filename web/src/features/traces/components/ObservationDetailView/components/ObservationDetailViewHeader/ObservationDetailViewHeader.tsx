@@ -171,6 +171,14 @@ export const ObservationDetailViewHeader = memo(
           }
         : undefined;
 
+    const timestampBadge = preparedDate && (
+      <Badge
+        color="ghost"
+        text={preparedDate.display}
+        title={preparedDate.title}
+      />
+    );
+
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
@@ -477,77 +485,73 @@ export const ObservationDetailViewHeader = memo(
         </div>
 
         {/* Metadata line */}
-        <CollapsibleBadgeRow>
-          {preparedDate && (
-            <Badge
-              color="ghost"
-              text={preparedDate.display}
-              title={preparedDate.title}
+        {isAnnotationMode ? (
+          timestampBadge && (
+            <div className="flex items-center">{timestampBadge}</div>
+          )
+        ) : (
+          <CollapsibleBadgeRow>
+            {timestampBadge}
+            <LatencyBadge latencySeconds={latencySeconds} />
+            <TimeToFirstTokenBadge
+              timeToFirstToken={observation.timeToFirstToken}
             />
-          )}
-          {!isAnnotationMode && (
-            <>
-              <LatencyBadge latencySeconds={latencySeconds} />
-              <TimeToFirstTokenBadge
-                timeToFirstToken={observation.timeToFirstToken}
+            {evaluatorId &&
+              (observation.environment ===
+                LangfuseInternalTraceEnvironment.LLMJudge ||
+                observation.environment ===
+                  LangfuseInternalTraceEnvironment.CodeEval) &&
+              !evaluatorId.startsWith("managed:") && (
+                <EvaluatorBadge
+                  evaluatorId={evaluatorId}
+                  evaluatorName={evaluator.data?.name}
+                  projectId={projectId}
+                />
+              )}
+            {displayedTotalCost != null && displayedCostDetails && (
+              <CostBadge
+                totalCost={displayedTotalCost}
+                costDetails={displayedCostDetails}
+                costSource={costSource}
+                priceSource={priceSource}
               />
-              {evaluatorId &&
-                (observation.environment ===
-                  LangfuseInternalTraceEnvironment.LLMJudge ||
-                  observation.environment ===
-                    LangfuseInternalTraceEnvironment.CodeEval) &&
-                !evaluatorId.startsWith("managed:") && (
-                  <EvaluatorBadge
-                    evaluatorId={evaluatorId}
-                    evaluatorName={evaluator.data?.name}
-                    projectId={projectId}
+            )}
+            {subtreeMetrics
+              ? subtreeMetrics.hasGenerationLike &&
+                subtreeMetrics.usageDetails &&
+                hasBreakdown(subtreeMetrics.usageDetails) && (
+                  <UsageBadge
+                    totalUsage={subtreeMetrics.totalUsage}
+                    usageDetails={subtreeMetrics.usageDetails}
+                  />
+                )
+              : isGenerationLike(observation.type) &&
+                observation.usageDetails &&
+                hasBreakdown(observation.usageDetails) && (
+                  <UsageBadge
+                    totalUsage={totalUsage}
+                    usageDetails={observation.usageDetails}
                   />
                 )}
-              {displayedTotalCost != null && displayedCostDetails && (
-                <CostBadge
-                  totalCost={displayedTotalCost}
-                  costDetails={displayedCostDetails}
-                  costSource={costSource}
-                  priceSource={priceSource}
-                />
-              )}
-              {subtreeMetrics
-                ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails &&
-                  hasBreakdown(subtreeMetrics.usageDetails) && (
-                    <UsageBadge
-                      totalUsage={subtreeMetrics.totalUsage}
-                      usageDetails={subtreeMetrics.usageDetails}
-                    />
-                  )
-                : isGenerationLike(observation.type) &&
-                  observation.usageDetails &&
-                  hasBreakdown(observation.usageDetails) && (
-                    <UsageBadge
-                      totalUsage={totalUsage}
-                      usageDetails={observation.usageDetails}
-                    />
-                  )}
-              {observation.model && (
-                <ModelBadge
-                  model={observation.model}
-                  internalModelId={observation.internalModelId}
-                  projectId={projectId}
-                  usageDetails={observation.usageDetails}
-                />
-              )}
-              {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge level={observation.level} />
-              )}
-              {observation.promptId && (
-                <PromptBadge
-                  promptId={observation.promptId}
-                  projectId={projectId}
-                />
-              )}
-            </>
-          )}
-        </CollapsibleBadgeRow>
+            {observation.model && (
+              <ModelBadge
+                model={observation.model}
+                internalModelId={observation.internalModelId}
+                projectId={projectId}
+                usageDetails={observation.usageDetails}
+              />
+            )}
+            {observation.level !== "DEFAULT" && (
+              <ObservationLevelBadge level={observation.level} />
+            )}
+            {observation.promptId && (
+              <PromptBadge
+                promptId={observation.promptId}
+                projectId={projectId}
+              />
+            )}
+          </CollapsibleBadgeRow>
+        )}
       </div>
     );
   },
