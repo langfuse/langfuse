@@ -39,7 +39,7 @@ export function CostBadge({
 }
 
 /** A breakdown of nothing but zeros has nothing to say. */
-const hasBreakdown = (details: Record<string, number>) =>
+export const hasBreakdown = (details: Record<string, number>) =>
   Object.values(details).some((value) => value > 0);
 
 export function UsageBadge({
