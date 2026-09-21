@@ -539,7 +539,12 @@ const EnvSchema = z.object({
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
   // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-  LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+  // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+  // authenticates through the instance credential chain (GCP application
+  // default credentials) and takes no key.
+  LANGFUSE_AI_PROVIDER: z
+    .enum(["bedrock", "anthropic", "openai", "vertex"])
+    .optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -567,6 +572,7 @@ const EnvSchema = z.object({
       },
     ),
   LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
   LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
   LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
     .enum(["url", "inline", "disabled"])

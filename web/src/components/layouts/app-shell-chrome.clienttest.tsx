@@ -115,6 +115,19 @@ describe("app shell chrome row", () => {
     expect(container.querySelector(".h-1.flex-1.border-b")).toBeNull();
   });
 
+  it("sizes each page-header flex line as a full chrome row", () => {
+    const { container } = render(<Shell />);
+
+    const pageHeaderRow = container.querySelector(
+      `#page-header [data-testid="${APP_SHELL_CHROME_ROW_TEST_ID}"]`,
+    );
+    const rowContent = pageHeaderRow?.firstElementChild;
+
+    expect(rowContent?.className).toContain("gap-y-px");
+    expect(rowContent?.firstElementChild?.className).toContain("min-h-[43px]");
+    expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
+  });
+
   it("sizes the desktop sidebar toggle to the same 20px as the wordmark", () => {
     const { container } = render(<Shell />);
 

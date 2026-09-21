@@ -32,6 +32,8 @@
   the worker owns experiment enablement and lifecycle. Reader options control
   per-query threads/block size and experiment attribution; retain exact tenant
   pairs and per-trace time windows when changing parameter chunking.
+  Rows must stay contiguous by project and trace ID so consumers can finish a
+  trace at the next pair or successful EOF; time buckets must not precede trace ID.
 - Code evaluator dispatcher/error contract: `src/server/evals/codeEvalDispatcherTypes.ts`. Keep provider mappings, user-visible messages, and worker terminal-outcome classification aligned when adding an error code.
 - Dashboard/monitor query feature (data model + server-only builder/executor): `src/features/query/*`
 - Query-builder AST (server half, WIP): `src/server/query-ast/*` — the Kysely

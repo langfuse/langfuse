@@ -1,6 +1,17 @@
 /* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import {
+  useEventsSearchBar,
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
+
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -55,16 +66,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  buildAiContext,
-  EventsSearchBarRow,
-  filterStateToQueryText,
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  useSearchBarEnabled,
-  withMetadataPathOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
@@ -102,7 +104,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";

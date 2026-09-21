@@ -1,7 +1,7 @@
 import { createVertex } from "@ai-sdk/google-vertex";
 import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic";
 import type { LanguageModel } from "ai";
-import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
+import { type GoogleAuthOptions } from "google-auth-library";
 
 import { env } from "../../../../env";
 import {
@@ -10,10 +10,8 @@ import {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
 } from "../../../../interfaces/customLLMProviderConfigSchemas";
-
-const VERTEX_AI_AUTH_SCOPES = [
-  "https://www.googleapis.com/auth/cloud-platform",
-];
+import type { LLMCredentialSource } from "./types";
+import { resolveVertexProjectIdFromADC } from "./vertexAuth";
 
 const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
 
@@ -50,31 +48,47 @@ export function assertValidVertexLocation(location: string | undefined): void {
 }
 
 /**
+ * Vertex location for Langfuse-operated AI (Assistant, Ask AI). Undefined
+ * falls back to the same "global" endpoint existing connections default to.
+ */
+export function getLangfuseAIVertexLocation(): string | undefined {
+  return env.LANGFUSE_AI_VERTEX_LOCATION;
+}
+
+/**
  * Builds a Vertex AI model: Gemini via `@ai-sdk/google-vertex`, Claude via its
  * `/anthropic` entry point (Anthropic Messages over Vertex `rawPredict`).
  *
  * The decrypted secret is either a GCP service account key (project taken from
  * the key; user-supplied project IDs are never honored) or the ADC sentinel,
- * allowed only in self-hosted deployments, in which case the project is
- * resolved from the default credential chain.
+ * allowed for self-hosted deployments and for Langfuse-operated AI, in which
+ * case the project is resolved from the default credential chain.
  */
 export async function buildVertexModel(params: {
   modelId: string;
   apiKey: string;
   config?: LLMConnectionConfig | null;
   extraHeaders?: Record<string, string>;
+  credentialSource: LLMCredentialSource;
   fetch: typeof fetch;
 }): Promise<LanguageModel> {
-  const { modelId, apiKey, config, extraHeaders } = params;
+  const { modelId, apiKey, config, extraHeaders, credentialSource } = params;
+  const shouldUseLangfuseAPIKey = credentialSource === "langfuse";
 
-  const { location } = config
-    ? VertexAIConfigSchema.parse(config)
-    : { location: undefined };
+  // Langfuse-operated AI carries no persisted connection, so its location comes
+  // from the instance env instead of the connection config.
+  let location: string | undefined;
+  if (shouldUseLangfuseAPIKey) {
+    location = getLangfuseAIVertexLocation();
+  } else if (config) {
+    location = VertexAIConfigSchema.parse(config).location;
+  }
   assertValidVertexLocation(location);
 
   const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
   const shouldUseDefaultCredentials =
-    apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS && !isLangfuseCloud;
+    apiKey === VERTEXAI_USE_DEFAULT_CREDENTIALS &&
+    (!isLangfuseCloud || shouldUseLangfuseAPIKey);
 
   // Security: with ADC we intentionally ignore user-provided project IDs to
   // prevent privilege escalation via the server's credentials.
@@ -91,8 +105,7 @@ export async function buildVertexModel(params: {
   // The AI SDK requires an explicit project for URL construction (it does not
   // ask the auth library); resolve it from ADC when no key is configured.
   const project =
-    serviceAccountKey?.project_id ??
-    (await new GoogleAuth({ scopes: VERTEX_AI_AUTH_SCOPES }).getProjectId());
+    serviceAccountKey?.project_id ?? (await resolveVertexProjectIdFromADC());
 
   // Existing connections default the location to "global" for both families.
   const resolvedLocation = location ?? "global";

@@ -10,7 +10,15 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[[example]]
+name = "native_codec_test_driver"
+test = false
+
 [dependencies]
+bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
+clickhouse = { version = "=0.15.2", default-features = false }
+clickhouse-types = "=0.1.3"
 hdbscan-rs = { version = "=0.6.1", default-features = false }
 holomap = { version = "=0.3.0", default-features = false }
 metrics = "0.24"
@@ -18,8 +26,14 @@ metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
 ndarray = "0.16"
+rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
+serde = "1"
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+[dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 
 [build-dependencies]
 napi-build = "2"

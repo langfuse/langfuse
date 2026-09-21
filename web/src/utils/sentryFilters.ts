@@ -367,6 +367,22 @@ const CHROME_EXTENSION_PORT_MESSAGES: readonly string[] = [
 ];
 
 /**
+ * Chromium wording when Next.js Pages Router `initialize()` does
+ * `window.__NEXT_DATA__ = initialData` and that Window property is
+ * getter-only. Observed: LANGFUSE-61R (`/auth/sign-up`, us-prod, 0 users,
+ * stack is only Next.js `client/index.tsx` + turbopack). Langfuse never
+ * assigns this property. A page-world extension / SES lockdown / named
+ * Window property made it a getter; we cannot make it writable after
+ * `initialize` has thrown.
+ *
+ * Whole-message only — an app error that quotes the phrase is longer
+ * and is KEPT. Stored without a trailing period because
+ * {@link coreMessage} strips one.
+ */
+const CHROMIUM_GETTER_ONLY_WINDOW_NEXT_DATA_MESSAGE =
+  "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter";
+
+/**
  * A `TRPCClientError` re-wraps its cause's message. Depending on capture path
  * the Sentry `value` may be the bare cause message (`Failed to fetch`) or carry
  * the wrapper prefix (`TRPCClientError: Failed to fetch`). We strip ONLY this
@@ -465,6 +481,9 @@ export function isReactDevtoolsInternalEvent(event: ErrorEvent): boolean {
  *  - first-party `Failed to fetch dynamically imported module` of a
  *    `/_next/static/chunks/` URL — same Chrome wording as the extension
  *    family, but our chunks (stale tab / CDN); kept.
+ *  - an UNCAUGHT `window.__NEXT_DATA__` getter-only TypeError (global
+ *    `onerror`) — Next.js Pages Router failed to boot; kept as a diagnostic.
+ *    Only the console-captured sibling is dropped (LANGFUSE-61R).
  */
 export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
   const exception = event.exception?.values?.[0];
@@ -650,6 +669,26 @@ export function isDenylistedNoiseEvent(event: ErrorEvent): boolean {
       mechanismType.startsWith("auto.browser.") &&
       isInvalidUrlConstructorMessage(exceptionValue) &&
       isDataDocumentUrl(event)
+    ) {
+      return true;
+    }
+
+    // Next.js Pages Router boots with `window.__NEXT_DATA__ = initialData`
+    // (`next/src/client/index.tsx`). When that Window property is
+    // getter-only, Chromium throws TypeError. Observed as a console
+    // capture (LANGFUSE-61R): extra args are `Error was not caught` +
+    // the TypeError (that wrapper string is not in Next.js 16.3.3 —
+    // page-world). We never assign `__NEXT_DATA__` ourselves.
+    //
+    // Guarded to `capture_console` so an UNCAUGHT throw (page failed to
+    // hydrate via global onerror) is KEPT — that is a real diagnostic.
+    // An app-captured exception that merely quotes the phrase (`generic`)
+    // is also KEPT.
+    if (
+      exceptionType === "TypeError" &&
+      mechanismType === "auto.core.capture_console" &&
+      coreMessage(exceptionValue) ===
+        CHROMIUM_GETTER_ONLY_WINDOW_NEXT_DATA_MESSAGE
     ) {
       return true;
     }

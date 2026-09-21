@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {

@@ -48,8 +48,8 @@ import {
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */

@@ -12,7 +12,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";

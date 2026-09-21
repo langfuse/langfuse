@@ -1,7 +1,9 @@
 /* eslint-disable no-nested-ternary */
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
+import { type Observation } from "@langfuse/shared";
 import {
+  convertObservation,
   getCurrentSpan,
   getTraceBatchEventStream,
   logger,
@@ -13,6 +15,7 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatchTranscript";
 
 const JOB_MAX_AGE_MS = 2 * 60 * 60_000;
 let activeReads = 0;
@@ -128,8 +131,10 @@ export const traceBatchQueueProcessor: Processor<
     }
 
     activeReads++;
+    let pendingTokenization: Promise<void> | undefined;
     try {
       recordTraceBatchActiveReads();
+      let traceObservations: Observation[] = [];
       for await (const event of getTraceBatchEventStream(batch, queryOptions)) {
         observationCount++;
         foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
@@ -140,6 +145,39 @@ export const traceBatchQueueProcessor: Processor<
         for (const [key, value] of Object.entries(event.metadata)) {
           metadataBytes += Buffer.byteLength(key) + Buffer.byteLength(value);
         }
+        const previous = traceObservations[0];
+        if (
+          previous &&
+          (previous.projectId !== event.project_id ||
+            previous.traceId !== event.trace_id)
+        ) {
+          // Overlap tokenization with reading the next trace, but allow only
+          // one pending estimate per batch so queued payloads stay bounded.
+          await pendingTokenization;
+          pendingTokenization = recordTraceBatchTranscript(traceObservations);
+          traceObservations = [];
+        }
+        traceObservations.push(
+          convertObservation({
+            ...event,
+            id: event.span_id,
+            parent_observation_id: event.parent_span_id,
+            // These required converter fields are not used by the transcript.
+            environment: "default",
+            created_at: event.event_ts,
+            updated_at: event.event_ts,
+            is_deleted: 0,
+            provided_usage_details: {},
+            provided_cost_details: {},
+            usage_details: {},
+            cost_details: {},
+          }),
+        );
+      }
+      // Reaching EOF completes the last trace; a failed stream must not flush it.
+      if (traceObservations.length) {
+        await pendingTokenization;
+        pendingTokenization = recordTraceBatchTranscript(traceObservations);
       }
     } catch (error) {
       // Only rows consumed before the failure; never count these as successful throughput.
@@ -154,8 +192,13 @@ export const traceBatchQueueProcessor: Processor<
       }
       throw error;
     } finally {
-      activeReads--;
-      recordTraceBatchActiveReads();
+      try {
+        // Drain accepted tokenization promises even when the stream fails.
+        await pendingTokenization;
+      } finally {
+        activeReads--;
+        recordTraceBatchActiveReads();
+      }
     }
 
     recordDistribution(

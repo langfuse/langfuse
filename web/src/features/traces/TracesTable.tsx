@@ -83,13 +83,13 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
-} from "@/src/features/filters/config/traces-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+  buildSidebarFilterSessionContextId,
+  sortOptionValues,
+  tracesFieldRegistry,
+} from "@/src/features/filters";
+
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -99,7 +99,7 @@ import {
   toObservedOptions,
   useFullTextSearch,
 } from "@/src/features/search-bar";
-import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
+
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
@@ -111,7 +111,7 @@ import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTabl
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 

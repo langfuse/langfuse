@@ -998,6 +998,50 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("J. drops console-captured getter-only window.__NEXT_DATA__ TypeError", () => {
+    // Real shape (LANGFUSE-61R): Next.js Pages Router `initialize()` does
+    // `window.__NEXT_DATA__ = initialData`. When that Window property is
+    // getter-only, Chromium throws. An injected wrapper logs
+    // `Error was not caught` + the TypeError; captureConsoleIntegration
+    // mints the issue. Stack is Next.js / turbopack only. 0 users.
+    const getterOnlyWindowNextDataEvent = (
+      value: string,
+      mechanismType = "auto.core.capture_console",
+      type = "TypeError",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: true },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-61R Chromium TypeError via capture_console", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          getterOnlyWindowNextDataEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          getterOnlyWindowNextDataEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter.",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1357,6 +1401,57 @@ describe("isDenylistedNoiseEvent", () => {
         },
       } as ErrorEvent;
       expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps an UNCAUGHT getter-only window.__NEXT_DATA__ TypeError (hydration crash)", () => {
+      // LANGFUSE-61R drops only the console-captured sibling. A global
+      // onerror means Next.js Pages Router failed to boot — keep it.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured getter-only window.__NEXT_DATA__ TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a longer message that merely quotes the __NEXT_DATA__ TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "hydrate failed: Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
     it("keeps a listener TypeError that is not the Chromium Java-bridge wording", () => {

@@ -37,14 +37,15 @@ WORKDIR /app
 # The toolchain comes from the official Rust image for the same Alpine release,
 # so the addon compiles with the exact version pinned in
 # packages/native/rust-toolchain.toml; bump the two together. gcc and musl-dev
-# provide the linker and C runtime objects the build needs.
+# provide the linker and C runtime objects the build needs; curl and patch
+# prepare the small clickhouse source overlay used by the native encoder.
 COPY --from=rust:1.98.0-alpine3.24 /usr/local/rustup /usr/local/rustup
 COPY --from=rust:1.98.0-alpine3.24 /usr/local/cargo /usr/local/cargo
 ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo PATH=/usr/local/cargo/bin:$PATH
 # rustc's musl targets default to a `<arch>-linux-musl-gcc` linker name that
 # Alpine does not ship; its gcc is reachable as `cc`.
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=cc CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=cc
-RUN apk add --no-cache gcc musl-dev
+RUN apk add --no-cache gcc musl-dev curl patch
 
 # First install the dependencies (as they change less often)
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml

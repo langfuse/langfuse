@@ -41,12 +41,13 @@ export function resolveAiSdkModelConfig(params: {
       credentialSource === "langfuse" &&
       model.adapter !== LLMAdapter.Bedrock &&
       model.adapter !== LLMAdapter.Anthropic &&
-      model.adapter !== LLMAdapter.OpenAI
+      model.adapter !== LLMAdapter.OpenAI &&
+      model.adapter !== LLMAdapter.VertexAI
     ) {
       throw new LLMValidationError({
         code: "invalid-connection",
         message:
-          "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, and OpenAI",
+          "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, OpenAI, and Vertex AI",
       });
     }
 
