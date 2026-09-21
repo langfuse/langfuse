@@ -542,7 +542,7 @@ export function ModernSessionHeader({
   };
 
   return (
-    <div className="border-b px-4 py-2">
+    <div className="border-b px-4 pt-1.5 pb-6">
       <SingleLineOverflowList
         spacing="comfortable"
         items={visiblePills}
