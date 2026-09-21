@@ -37,7 +37,7 @@ import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
  *   - HeatmapCard: Score comparison heatmaps
  *
  */
-export default function ScoresAnalyticsV2Page() {
+export default function ScoresAnalyticsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 

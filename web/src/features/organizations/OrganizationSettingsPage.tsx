@@ -286,7 +286,7 @@ export const getOrganizationSettingsPages = ({
   },
 ];
 
-const OrgSettingsPage = () => {
+const OrganizationSettingsPage = () => {
   const organization = useQueryOrganization();
   const router = useRouter();
   const { page } = router.query;
@@ -311,4 +311,4 @@ const OrgSettingsPage = () => {
   );
 };
 
-export default OrgSettingsPage;
+export default OrganizationSettingsPage;

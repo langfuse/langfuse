@@ -87,7 +87,7 @@ function joinPromptCoreAndMetricData(
   return { status: "success", combinedData };
 }
 
-export default function PromptVersionTable({
+export default function PromptMetricsPage({
   promptName: promptNameProp,
   // Defaults to true because this component always renders its own `Page`, so
   // the header controls slot is available. Set false if ever embedded without

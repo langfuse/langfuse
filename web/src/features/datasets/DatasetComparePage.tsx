@@ -236,7 +236,7 @@ function asArrayValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value : [value];
 }
 
-export default function DatasetCompare() {
+export default function DatasetComparePage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const runsQuery = router.query.runs;

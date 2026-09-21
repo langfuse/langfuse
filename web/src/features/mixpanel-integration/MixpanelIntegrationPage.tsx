@@ -56,7 +56,7 @@ import { useForm } from "react-hook-form";
 import { type z } from "zod";
 import { Info, ExternalLink } from "lucide-react";
 
-export default function MixpanelIntegrationSettings() {
+export default function MixpanelIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 

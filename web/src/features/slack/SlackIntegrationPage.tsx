@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 
-export default function SlackIntegrationSettings() {
+export default function SlackIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
