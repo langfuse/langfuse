@@ -23,6 +23,9 @@ export function CostBadge({
   priceSource?: PriceSource;
   costSource?: CostSource;
 }) {
+  if (!hasBreakdown(costDetails)) {
+    return <Badge text={usdFormatter(totalCost)} />;
+  }
   return (
     <BreakdownTooltip
       details={costDetails}
@@ -39,6 +42,10 @@ export function CostBadge({
   );
 }
 
+/** A breakdown of nothing but zeros has nothing to say. */
+const hasBreakdown = (details: Record<string, number>) =>
+  Object.values(details).some((value) => value > 0);
+
 export function UsageBadge({
   inputUsage,
   outputUsage,
@@ -51,6 +58,10 @@ export function UsageBadge({
   usageDetails: Record<string, number>;
 }) {
   const tokenText = formatTokenCounts(inputUsage, outputUsage, totalUsage);
+
+  if (tokenText && !hasBreakdown(usageDetails)) {
+    return <Badge text={tokenText} />;
+  }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>

@@ -48,6 +48,7 @@ import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
@@ -342,23 +343,33 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
   };
 
+  const placeholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter: queryFilter.effectiveFilterState.concat(userIdFilter),
+    timeRange,
+  });
+
   const sessionsV3 = api.sessions.all.useQuery(payloadGetAll, {
+    ...placeholderOptions,
     enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionsV4 = api.sessions.allFromEvents.useQuery(payloadGetAll, {
+    ...placeholderOptions,
     enabled: isV4,
     refetchOnWindowFocus: true,
   });
   const sessions = isV4 ? sessionsV4 : sessionsV3;
 
   const sessionCountQueryV3 = api.sessions.countAll.useQuery(payloadCount, {
+    ...placeholderOptions,
     enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionCountQueryV4 = api.sessions.countAllFromEvents.useQuery(
     payloadCount,
     {
+      ...placeholderOptions,
       enabled: isV4,
       refetchOnWindowFocus: true,
     },
@@ -392,6 +403,7 @@ export default function SessionsTable({
       sessionIds: sessionsV3.data?.sessions.map((s) => s.id) ?? [],
     },
     {
+      ...placeholderOptions,
       enabled: sessionsV3.data !== undefined && !isV4,
       refetchOnWindowFocus: true,
     },
@@ -404,6 +416,7 @@ export default function SessionsTable({
       queryFromTimestamp: dateRange?.from ?? null,
     },
     {
+      ...placeholderOptions,
       enabled: sessionsV4.data !== undefined && isV4,
       refetchOnWindowFocus: true,
     },
@@ -753,6 +766,11 @@ export default function SessionsTable({
     },
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
+    onViewSelected: () => {
+      setPaginationState({ ...paginationState, pageIndex: 0 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
   });
   viewControllersRef.current = viewControllers;
 
