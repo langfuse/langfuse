@@ -776,7 +776,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     );
     recordDistribution("langfuse.trace_batch.snapshot_size", members.length);
 
-    const enqueue = async (batch: PendingTrace[]) => {
+    const enqueueBatch = async (batch: PendingTrace[]) => {
       await this.extendLockOnProgress(true);
       if (this.stopping) return;
       const traces = batch.map(({ trace }) => trace);
@@ -888,6 +888,36 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
         "langfuse.trace_batch.reactivated_traces",
         batch.length - removed,
       );
+    };
+
+    // Apply the byte budget after all selection and partial coalescing, so
+    // every enqueue path is bounded without changing locality selection.
+    const enqueue = async (selected: PendingTrace[]) => {
+      const budget = env.LANGFUSE_TRACE_BATCH_MAX_ESTIMATED_BYTES;
+      if (budget === 0) return enqueueBatch(selected);
+      let batch: PendingTrace[] = [];
+      let estimatedBytes = 0;
+      for (const entry of selected) {
+        if (this.stopping) return;
+        const bytes = entry.estimates?.serializedEventBytes;
+        if (
+          batch.length > 0 &&
+          (bytes === undefined || estimatedBytes + bytes > budget)
+        ) {
+          await enqueueBatch(batch);
+          batch = [];
+          estimatedBytes = 0;
+        }
+        // A trace is indivisible. Isolate unknown or oversized work rather
+        // than dropping it or treating missing estimates as zero bytes.
+        if (bytes === undefined || bytes > budget) {
+          await enqueueBatch([entry]);
+          continue;
+        }
+        batch.push(entry);
+        estimatedBytes += bytes;
+      }
+      if (batch.length > 0) await enqueueBatch(batch);
     };
 
     let projectBatchTail: PendingTrace[] = [];
