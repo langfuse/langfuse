@@ -63,11 +63,13 @@ export function createUserTableColumn<
     loadingCell,
     renderCell: (value, context) => {
       if (!getUser && (value === null || value === undefined)) {
-        return nullValue ? (
-          <span className="block w-full truncate" title={nullValue}>
-            {nullValue}
+        const placeholder = nullValue ?? emptyValue;
+        if (!placeholder) return null;
+        return (
+          <span className="block w-full truncate" title={placeholder}>
+            {placeholder}
           </span>
-        ) : null;
+        );
       }
 
       let cell: UserTableColumnCell;

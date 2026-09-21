@@ -59,7 +59,8 @@ type MembersSettingsTableProps = Pick<
   hasProjectCudAccess: boolean;
   projectRolesEntitlement: boolean;
   showFeaturePreviews: boolean;
-  isUpdatingRole: boolean;
+  updatingOrgRoleMembershipIds: ReadonlySet<string>;
+  updatingProjectRoleMembershipIds: ReadonlySet<string>;
   onDelete: (member: MembersSettingsTableRow) => void;
   onUpdateOrgRole: (member: MembersSettingsTableRow, role: Role) => void;
   onUpdateProjectRole: (member: MembersSettingsTableRow, role: Role) => void;
@@ -79,7 +80,8 @@ export function MembersSettingsTable({
   hasProjectCudAccess,
   projectRolesEntitlement,
   showFeaturePreviews,
-  isUpdatingRole,
+  updatingOrgRoleMembershipIds,
+  updatingProjectRoleMembershipIds,
   onDelete,
   onUpdateOrgRole,
   onUpdateProjectRole,
@@ -115,7 +117,13 @@ export function MembersSettingsTable({
           const select = (
             <RoleSelect
               value={row.original.orgRole}
-              disabled={!hasOrgCudAccess || Boolean(project) || isUpdatingRole}
+              disabled={
+                !hasOrgCudAccess ||
+                Boolean(project) ||
+                updatingOrgRoleMembershipIds.has(
+                  row.original.meta.orgMembershipId,
+                )
+              }
               onChange={(role) => onUpdateOrgRole(row.original, role)}
             />
           );
@@ -157,7 +165,9 @@ export function MembersSettingsTable({
                     isProjectRole
                     disabled={
                       (!hasOrgCudAccess && !hasProjectCudAccess) ||
-                      isUpdatingRole
+                      updatingProjectRoleMembershipIds.has(
+                        row.original.meta.orgMembershipId,
+                      )
                     }
                     onChange={(role) => onUpdateProjectRole(row.original, role)}
                   />
@@ -213,13 +223,14 @@ export function MembersSettingsTable({
     [
       hasOrgCudAccess,
       hasProjectCudAccess,
-      isUpdatingRole,
       onUpdateOrgRole,
       onUpdateProjectRole,
       orgId,
       project,
       projectRolesEntitlement,
       showFeaturePreviews,
+      updatingOrgRoleMembershipIds,
+      updatingProjectRoleMembershipIds,
     ],
   );
   const actions = useCallback<
@@ -254,6 +265,9 @@ export function MembersSettingsTable({
         project
           ? "membersColumnVisibilityProject"
           : "membersColumnVisibilityOrg"
+      }
+      columnOrderKey={
+        project ? "membersColumnOrderProject" : "membersColumnOrderOrg"
       }
       search={{
         value: search.value,

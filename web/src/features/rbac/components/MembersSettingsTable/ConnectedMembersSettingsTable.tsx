@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
@@ -53,6 +53,12 @@ export function ConnectedMembersSettingsTable({
   });
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
+  const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
+    useState<Set<string>>(() => new Set());
+  const [
+    updatingProjectRoleMembershipIds,
+    setUpdatingProjectRoleMembershipIds,
+  ] = useState<Set<string>>(() => new Set());
 
   const [searchQuery, setSearchQuery] = useQueryParam(
     "search",
@@ -190,9 +196,8 @@ export function ConnectedMembersSettingsTable({
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
           }
-          isUpdatingRole={
-            updateOrgRole.isPending || updateProjectRole.isPending
-          }
+          updatingOrgRoleMembershipIds={updatingOrgRoleMembershipIds}
+          updatingProjectRoleMembershipIds={updatingProjectRoleMembershipIds}
           onDelete={(member) => {
             const isCurrentUser = member.meta.userId === session.data?.user?.id;
             if (
@@ -218,11 +223,21 @@ export function ConnectedMembersSettingsTable({
             ) {
               return;
             }
-            updateOrgRole.mutate({
-              orgId,
-              orgMembershipId: member.meta.orgMembershipId,
-              role,
-            });
+            const membershipId = member.meta.orgMembershipId;
+            setUpdatingOrgRoleMembershipIds((current) =>
+              new Set(current).add(membershipId),
+            );
+            updateOrgRole.mutate(
+              { orgId, orgMembershipId: membershipId, role },
+              {
+                onSettled: () =>
+                  setUpdatingOrgRoleMembershipIds((current) => {
+                    const next = new Set(current);
+                    next.delete(membershipId);
+                    return next;
+                  }),
+              },
+            );
           }}
           onUpdateProjectRole={(member, projectRole) => {
             if (!project) return;
@@ -234,13 +249,27 @@ export function ConnectedMembersSettingsTable({
             ) {
               return;
             }
-            updateProjectRole.mutate({
-              orgId,
-              orgMembershipId: member.meta.orgMembershipId,
-              projectId: project.id,
-              userId: member.meta.userId,
-              projectRole,
-            });
+            const membershipId = member.meta.orgMembershipId;
+            setUpdatingProjectRoleMembershipIds((current) =>
+              new Set(current).add(membershipId),
+            );
+            updateProjectRole.mutate(
+              {
+                orgId,
+                orgMembershipId: membershipId,
+                projectId: project.id,
+                userId: member.meta.userId,
+                projectRole,
+              },
+              {
+                onSettled: () =>
+                  setUpdatingProjectRoleMembershipIds((current) => {
+                    const next = new Set(current);
+                    next.delete(membershipId);
+                    return next;
+                  }),
+              },
+            );
           }}
           data={tableData}
           loadingRowCount={paginationState.pageSize}

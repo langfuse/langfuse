@@ -25,6 +25,7 @@ function ConfirmationDialogController<TValue = undefined>({
   disabled = false,
   error,
   loading = false,
+  onAfterDismiss,
   onConfirm,
   text,
   title,
@@ -39,6 +40,7 @@ function ConfirmationDialogController<TValue = undefined>({
   disabled?: boolean;
   error?: string;
   loading?: boolean;
+  onAfterDismiss?: () => void;
   onConfirm: ConfirmationDialogValueCallback<TValue, void | Promise<void>>;
   text: ConfirmationDialogContent<TValue>;
   title: ConfirmationDialogContent<TValue>;
@@ -71,6 +73,7 @@ function ConfirmationDialogController<TValue = undefined>({
       onDismiss={() => {
         setConfirmationInput("");
         setSelectedValue(undefined);
+        onAfterDismiss?.();
       }}
       renderDialog={({ closeDialog }) => (
         <Dialog

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -14,7 +15,10 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useColumnVisibility } from "@/src/features/column-visibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 
 type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps
@@ -27,6 +31,7 @@ export type SettingsTableProps<TData extends object> = Omit<
   "columns"
 > & {
   columns: LangfuseColumnDef<TData>[];
+  columnOrderKey?: string;
   columnVisibilityKey?: string;
   search?: {
     value: string;
@@ -39,6 +44,7 @@ export type SettingsTableProps<TData extends object> = Omit<
 
 export function SettingsTable<TData extends object>({
   columns,
+  columnOrderKey,
   columnVisibilityKey,
   search,
   toolbarActions,
@@ -49,6 +55,11 @@ export function SettingsTable<TData extends object>({
     columnVisibilityKey ?? `${tableProps.tableName}ColumnVisibility`,
     columns,
   );
+  const [columnOrder, setColumnOrder] = useColumnOrder(
+    columnOrderKey ?? `${tableProps.tableName}ColumnOrder`,
+    columns,
+  );
+  const [searchValue, setSearchValue] = useState(search?.value ?? "");
 
   const hasToolbar = Boolean(search || columnVisibilityKey || toolbarActions);
 
@@ -59,9 +70,12 @@ export function SettingsTable<TData extends object>({
           {search ? (
             <div className="w-full max-w-sm">
               <SearchInput
-                value={search.value}
+                value={searchValue}
                 placeholder={search.placeholder}
-                onChange={search.onChange}
+                onChange={(value) => {
+                  setSearchValue(value);
+                  if (value === "") search.onChange("");
+                }}
                 onSubmit={search.onChange}
               />
             </div>
@@ -75,6 +89,8 @@ export function SettingsTable<TData extends object>({
                 columns={columns}
                 columnVisibility={columnVisibility}
                 setColumnVisibility={setColumnVisibility}
+                columnOrder={columnOrder}
+                setColumnOrder={setColumnOrder}
                 tableName={tableProps.tableName}
                 isV4
               />
@@ -93,6 +109,8 @@ export function SettingsTable<TData extends object>({
           columns={columns}
           columnVisibility={columnVisibility}
           onColumnVisibilityChange={setColumnVisibility}
+          columnOrder={columnOrder}
+          onColumnOrderChange={setColumnOrder}
           {...tableProps}
         />
         <PaginationBar {...pagination} />

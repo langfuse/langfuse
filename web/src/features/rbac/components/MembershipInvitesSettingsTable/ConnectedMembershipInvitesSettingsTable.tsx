@@ -80,6 +80,7 @@ export function ConnectedMembershipInvitesSettingsTable({
       variant="destructive"
       loading={deleteInvite.isPending}
       error={deleteInvite.error?.message}
+      onAfterDismiss={deleteInvite.reset}
       onConfirm={async (invite) => {
         await deleteInvite.mutateAsync({
           inviteId: invite.inviteId,

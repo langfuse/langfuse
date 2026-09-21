@@ -2,6 +2,7 @@
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
+  type ColumnOrderState,
   type OnChangeFn,
   type VisibilityState,
   flexRender,
@@ -41,6 +42,8 @@ export interface TableProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  columnOrder?: ColumnOrderState;
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
 }
 
 export function Table<TData extends object>({
@@ -55,6 +58,8 @@ export function Table<TData extends object>({
   onRowClick,
   columnVisibility,
   onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -102,8 +107,9 @@ export function Table<TData extends object>({
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     columnResizeMode: "onChange",
-    state: { columnVisibility },
+    state: { columnVisibility, columnOrder },
     onColumnVisibilityChange,
+    onColumnOrderChange,
   });
 
   const visibleColumns = table.getVisibleLeafColumns();
