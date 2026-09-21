@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 import type { ReactNode } from "react";
 

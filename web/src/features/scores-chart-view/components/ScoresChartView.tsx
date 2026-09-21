@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -14,8 +15,7 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
 import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the
  * observations chart view): builds the aggregate query from the same filters

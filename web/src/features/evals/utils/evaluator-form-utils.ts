@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
   EvalTargetObjectSchema,
-  singleFilter,
+  singleFilterList,
   type langfuseObjects,
   TimeScopeSchema,
   wipVariableMapping,
@@ -15,7 +15,7 @@ export const evalConfigFormSchema = z
   .object({
     scoreName: z.string(),
     target: EvalTargetObjectSchema,
-    filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
+    filter: singleFilterList.nullable(),
     mapping: z.array(wipVariableMapping),
     sampling: z.coerce.number().gt(0).lte(1),
     delay: z.coerce.number().min(0).optional().default(10),

@@ -26,6 +26,7 @@ const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
 const mockGetDefaultUseQuery = vi.fn();
 const mockGetByIdUseQuery = vi.fn();
+const mockViewSelected = vi.fn();
 
 const queryParamStore = new Map<string, unknown>();
 
@@ -143,20 +144,22 @@ function ViewManagerHarness({
   tableName?: TableViewPresetTableName;
 }) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
-  const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName,
-    projectId: "project-1",
-    stateUpdaters: {
-      setFilters: setAppliedFilters,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
-    },
-    validationContext: {
-      columns: [],
-      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
-    },
-    currentFilterState: appliedFilters,
-  });
+  const { selectedViewId, handleSetViewId, applyViewState } =
+    useTableViewManager({
+      tableName,
+      projectId: "project-1",
+      stateUpdaters: {
+        setFilters: setAppliedFilters,
+        setColumnOrder: () => {},
+        setColumnVisibility: () => {},
+      },
+      validationContext: {
+        columns: [],
+        filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+      },
+      currentFilterState: appliedFilters,
+      onViewSelected: mockViewSelected,
+    });
 
   return (
     <div>
@@ -168,6 +171,21 @@ function ViewManagerHarness({
         set-view-replace
       </button>
       <button onClick={() => handleSetViewId("view-1")}>set-view</button>
+      <button
+        onClick={() =>
+          applyViewState(
+            {
+              filters: TEST_FILTERS,
+              orderBy: null,
+              columnOrder: [],
+              columnVisibility: {},
+            },
+            { trigger: "select", viewId: "view-1" },
+          )
+        }
+      >
+        apply-view
+      </button>
     </div>
   );
 }
@@ -223,6 +241,14 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
       isSuccess: false,
       isError: false,
     });
+  });
+
+  it("resets table state for an explicit view selection, including reapplication", () => {
+    render(<ViewManagerHarness />);
+    expect(mockViewSelected).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("apply-view"));
+    fireEvent.click(screen.getByText("apply-view"));
+    expect(mockViewSelected).toHaveBeenCalledTimes(2);
   });
 
   it("strips a stale frontend system-preset viewId with a replace, not a push", async () => {
@@ -346,6 +372,7 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
       expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
       expect(screen.getByTestId("applied-filter-count").textContent).toBe("1");
     });
+    expect(mockViewSelected).not.toHaveBeenCalled();
 
     const viewIdWrites = urlParamWrites.filter(
       (write) => write.key === "viewId",

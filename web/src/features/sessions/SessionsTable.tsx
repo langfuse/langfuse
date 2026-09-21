@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -17,13 +18,15 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   getSessionFilterConfig,
   SESSION_COLUMN_TO_BACKEND_KEY,
   type SessionOmittableFilterColumn,
-} from "@/src/features/filters/config/sessions-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+  buildSidebarFilterSessionContextId,
+  transformFiltersForBackend,
+  sortOptionValues,
+  sessionsFieldRegistry,
+} from "@/src/features/filters";
+
 import {
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
   type FilterState,
@@ -35,8 +38,7 @@ import {
   type TimeFilter,
   type ScoreAggregate,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
@@ -47,6 +49,7 @@ import type Decimal from "decimal.js";
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
 import TagList from "@/src/features/tag/components/TagList";
@@ -65,11 +68,10 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { sessionsFieldRegistry } from "@/src/features/filters/config/sessionsSearchRegistry";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
+import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
+
+import { useHasProjectAccess } from "@/src/features/rbac";
 export type SessionTableRow = {
   id: string;
   createdAt: Date;
@@ -341,23 +343,33 @@ export default function SessionsTable({
     limit: paginationState.pageSize,
   };
 
+  const placeholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter: queryFilter.effectiveFilterState.concat(userIdFilter),
+    timeRange,
+  });
+
   const sessionsV3 = api.sessions.all.useQuery(payloadGetAll, {
+    ...placeholderOptions,
     enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionsV4 = api.sessions.allFromEvents.useQuery(payloadGetAll, {
+    ...placeholderOptions,
     enabled: isV4,
     refetchOnWindowFocus: true,
   });
   const sessions = isV4 ? sessionsV4 : sessionsV3;
 
   const sessionCountQueryV3 = api.sessions.countAll.useQuery(payloadCount, {
+    ...placeholderOptions,
     enabled: !isV4,
     refetchOnWindowFocus: true,
   });
   const sessionCountQueryV4 = api.sessions.countAllFromEvents.useQuery(
     payloadCount,
     {
+      ...placeholderOptions,
       enabled: isV4,
       refetchOnWindowFocus: true,
     },
@@ -391,6 +403,7 @@ export default function SessionsTable({
       sessionIds: sessionsV3.data?.sessions.map((s) => s.id) ?? [],
     },
     {
+      ...placeholderOptions,
       enabled: sessionsV3.data !== undefined && !isV4,
       refetchOnWindowFocus: true,
     },
@@ -403,6 +416,7 @@ export default function SessionsTable({
       queryFromTimestamp: dateRange?.from ?? null,
     },
     {
+      ...placeholderOptions,
       enabled: sessionsV4.data !== undefined && isV4,
       refetchOnWindowFocus: true,
     },
@@ -752,6 +766,11 @@ export default function SessionsTable({
     },
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,
+    onViewSelected: () => {
+      setPaginationState({ ...paginationState, pageIndex: 0 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
   });
   viewControllersRef.current = viewControllers;
 

@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared";
 import { useCallback, useRef } from "react";
 import { useStore } from "zustand";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { useEventsSearchBar } from "@/src/features/search-bar";
 import {
   type FilterConfig,
   useSidebarFilterState,

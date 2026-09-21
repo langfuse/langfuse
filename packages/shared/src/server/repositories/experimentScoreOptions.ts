@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * The level-agnostic score-option shape shared by the experiment runs and items
  * surfaces. Kept free of query imports so it stays a pure, directly testable

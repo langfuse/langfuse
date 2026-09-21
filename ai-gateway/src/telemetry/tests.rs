@@ -20,6 +20,7 @@ fn facts(project: &str) -> InferenceFacts {
         start_time_unix_ms: 1_735_689_600_000,
         duration_ms: 100,
         first_byte_ms: Some(10),
+        completion_start_ms: None,
         http_status: Some(200),
         metadata: json!({"project_id": project, "ingestion_mode": "usage"}),
         outcome: RelayOutcome::Eof,
@@ -28,7 +29,11 @@ fn facts(project: &str) -> InferenceFacts {
 }
 
 async fn grant() -> DeliveryContext {
-    DeliveryContext::from_resolved(&resolved_request_context("provider-secret").await)
+    DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+        None,
+    )
 }
 
 fn uploader(url: &str) -> Uploader {
@@ -120,7 +125,10 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["project_id"].as_str().unwrap().to_owned(),
+                metadata["langfuse.gateway.project.id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
             ));
             response(200, "{}")
         }
@@ -283,14 +291,19 @@ async fn retained_byte_budget_is_released_after_successful_drain() {
     let grant = grant().await;
     let budget = serde_json::to_vec(&facts("project-1")).unwrap().len()
         + grant.access_token.len()
-        + grant.project_id.len();
+        + grant.project_id.len()
+        + serde_json::to_vec(&grant.generation).unwrap().len();
     let telemetry = Telemetry::with_uploader(uploader(&web.url), 2, budget);
     telemetry.record(grant, facts("project-1"));
     tokio::time::timeout(Duration::from_secs(2), started.notified())
         .await
         .unwrap();
     assert_eq!(telemetry.0.bytes.available_permits(), 0);
-    let second = DeliveryContext::from_resolved(&resolved_request_context("provider-secret").await);
+    let second = DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+        None,
+    );
     telemetry.record(second, facts("project-1"));
     assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
     release.notify_one();

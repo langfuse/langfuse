@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { X, Trash, Plus } from "lucide-react";

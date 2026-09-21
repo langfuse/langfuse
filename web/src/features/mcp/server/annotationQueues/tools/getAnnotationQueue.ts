@@ -11,6 +11,7 @@ export const [getAnnotationQueueTool, handleGetAnnotationQueue] = defineTool({
   name: "getAnnotationQueue",
   description:
     "Get an annotation queue, a worklist of trace or observation items for human review and scoring, by ID.",
+  action: "annotationQueues:read",
   baseSchema: GetAnnotationQueueByIdQuery,
   inputSchema: GetAnnotationQueueByIdQuery,
   handler: async (input, context) =>

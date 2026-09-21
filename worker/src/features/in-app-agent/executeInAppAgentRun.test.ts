@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { randomUUID } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

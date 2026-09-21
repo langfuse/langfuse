@@ -11,6 +11,7 @@ export const [
 ] = defineTool({
   name: "deleteAnnotationQueueAssignment",
   description: "Remove a project user's assignment from an annotation queue.",
+  action: "annotationQueueAssignments:CUD",
   baseSchema: DeleteAnnotationQueueAssignmentToolSchema,
   inputSchema: DeleteAnnotationQueueAssignmentToolSchema,
   handler: async (input, context) =>

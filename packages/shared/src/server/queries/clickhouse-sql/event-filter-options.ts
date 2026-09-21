@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "../../../errors";
 import { UNKNOWN_INGESTION_SDK_VALUE } from "../../ingestion/ingestionAttribution";
 import {

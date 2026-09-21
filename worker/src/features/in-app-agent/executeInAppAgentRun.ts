@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {

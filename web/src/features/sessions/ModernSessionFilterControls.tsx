@@ -26,7 +26,7 @@ import type { useTableViewManager } from "@/src/components/table/table-view-pres
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 type ViewControllers = Pick<

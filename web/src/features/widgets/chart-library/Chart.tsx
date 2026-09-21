@@ -250,7 +250,6 @@ const ChartComponent = ({
         return (
           <PieChart
             data={renderedData.slice(0, rowLimit)}
-            config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />

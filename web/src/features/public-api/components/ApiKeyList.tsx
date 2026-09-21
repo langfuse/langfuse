@@ -16,7 +16,7 @@ import {
 } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { Check, Copy, TrashIcon } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import startCase from "lodash/startCase";
 import { useLangfuseEnvCode } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
@@ -79,50 +79,53 @@ export function ApiKeyList(props: { entityId: string; scope: ApiKeyScope }) {
   const apiKeysQuery =
     props.scope === "project" ? projectApiKeysQuery : organizationApiKeysQuery;
 
-  const columns: LangfuseColumnDef<ApiKeyRow>[] = [
-    createTextTableColumn<ApiKeyRow, Date>({
-      accessorKey: "createdAt",
-      header: "Created",
-      mapValue: (value) => value?.toLocaleDateString(),
-      hideBelowMd: true,
-    }),
-    {
-      accessorKey: "createdByUser",
-      header: "Created By",
-      hideBelowMd: true,
-      cell: ({ row }) => <ApiKeyCreatedBy apiKey={row.original} />,
-    },
-    {
-      accessorKey: "note",
-      header: "Note",
-      cell: ({ row }) => (
-        <ApiKeyNote apiKey={row.original} entityId={entityId} scope={scope} />
-      ),
-    },
-    {
-      accessorKey: "publicKey",
-      header: "Public Key",
-      cell: ({ row }) => <PublicKeyCell publicKey={row.original.publicKey} />,
-    },
-    {
-      accessorKey: "displaySecretKey",
-      header: "Secret Key",
-      cell: ({ getValue }) => (
-        <span className="font-mono">{getValue<string>()}</span>
-      ),
-    },
-    {
-      accessorKey: "id",
-      header: "",
-      cell: ({ row }) => (
-        <DeleteApiKeyButton
-          entityId={entityId}
-          apiKeyId={row.original.id}
-          scope={scope}
-        />
-      ),
-    },
-  ];
+  const columns = useMemo<LangfuseColumnDef<ApiKeyRow>[]>(
+    () => [
+      createTextTableColumn<ApiKeyRow, Date>({
+        accessorKey: "createdAt",
+        header: "Created",
+        mapValue: (value) => value?.toLocaleDateString(),
+        hideBelowMd: true,
+      }),
+      {
+        accessorKey: "createdByUser",
+        header: "Created By",
+        hideBelowMd: true,
+        cell: ({ row }) => <ApiKeyCreatedBy apiKey={row.original} />,
+      },
+      {
+        accessorKey: "note",
+        header: "Note",
+        cell: ({ row }) => (
+          <ApiKeyNote apiKey={row.original} entityId={entityId} scope={scope} />
+        ),
+      },
+      {
+        accessorKey: "publicKey",
+        header: "Public Key",
+        cell: ({ row }) => <PublicKeyCell publicKey={row.original.publicKey} />,
+      },
+      {
+        accessorKey: "displaySecretKey",
+        header: "Secret Key",
+        cell: ({ getValue }) => (
+          <span className="font-mono">{getValue<string>()}</span>
+        ),
+      },
+      {
+        accessorKey: "id",
+        header: "",
+        cell: ({ row }) => (
+          <DeleteApiKeyButton
+            entityId={entityId}
+            apiKeyId={row.original.id}
+            scope={scope}
+          />
+        ),
+      },
+    ],
+    [entityId, scope],
+  );
 
   if (!hasAccess) {
     return (
