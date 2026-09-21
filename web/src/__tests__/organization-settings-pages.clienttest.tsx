@@ -16,13 +16,17 @@ vi.mock("@/src/components/layouts/header", () => ({
   default: () => null,
 }));
 
-vi.mock("@/src/features/rbac/components/MembershipInvitesPage", () => ({
-  MembershipInvitesPage: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable",
+  () => ({
+    ConnectedMembershipInvitesSettingsTable: () => null,
+  }),
+);
 
-vi.mock("@/src/features/rbac/components/MembersTable", () => ({
-  MembersTable: () => null,
-}));
+vi.mock(
+  "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable",
+  () => ({ ConnectedMembersSettingsTable: () => null }),
+);
 
 vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
   JSONView: () => null,
