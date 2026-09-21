@@ -8,13 +8,12 @@ import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
-  NormalizedMessageRole,
 } from "../../types";
 import { asRecord, isRecord, optionalString, parseArray } from "../utils/json";
 import { normalizeFinishReason } from "./finish-reason";
 import { normalizeMediaPartsFromString } from "./message-parts/media";
 import { extractCitations } from "./message-parts/text";
-import { normalizeParts, normalizePartList } from "./part";
+import { normalizePartValue, normalizePartList } from "./part";
 import { coerceRole, normalizeRole } from "./role";
 import type { ParserContext } from "../parser-context";
 import { providersInOrder } from "../utils/providers";
@@ -23,7 +22,6 @@ import { providersInOrder } from "../utils/providers";
 function normalizeMessageContent(
   value: Record<string, unknown>,
   nestedContent: Record<string, unknown> | undefined,
-  role: NormalizedMessageRole,
   parserContext: ParserContext,
 ): NormalizedMessagePart[] {
   const rawParts = Array.isArray(value.parts)
@@ -41,7 +39,7 @@ function normalizeMessageContent(
     const parsedContent = parseArray(value.content);
     if (parsedContent?.length) {
       const parsedParts = parsedContent.map((part) =>
-        normalizeParts(part, parserContext),
+        normalizePartValue(part, parserContext),
       );
       if (
         parsedParts.every(
@@ -61,7 +59,7 @@ function normalizeMessageContent(
   }
 
   if (isRecord(value.content)) {
-    return normalizeParts(value.content, parserContext);
+    return normalizePartValue(value.content, parserContext);
   }
 
   return [];
@@ -81,7 +79,7 @@ function applySiblingFields(
   parserContext: ParserContext,
 ): void {
   const partContext: PartHandlerContext = {
-    normalizeParts: (part) => normalizeParts(part, parserContext),
+    normalizePartValue: (part) => normalizePartValue(part, parserContext),
     normalizePartList: (values) => normalizePartList(values, parserContext),
   };
   const contributions: SiblingPartContribution[] = [];
@@ -195,7 +193,7 @@ export function normalizeMessage(
   // Standalone tool-call/result values (no message keys): normalize once,
   // inspect the result, rather than shape-probing before normalizing.
   const directParts = !isMessageLike(value)
-    ? normalizeParts(value, parserContext)
+    ? normalizePartValue(value, parserContext)
     : [];
   const onlyToolCalls =
     directParts.length > 0 &&
@@ -221,7 +219,6 @@ export function normalizeMessage(
   const parts = normalizeMessageContent(
     value,
     nestedContent,
-    role,
     parserContext,
   );
   applySiblingFields(value, parts, parserContext);

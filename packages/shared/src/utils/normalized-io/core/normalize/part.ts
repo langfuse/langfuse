@@ -42,7 +42,7 @@ const SHARED_TYPED_PART_HANDLERS: Readonly<Record<string, PartHandler>> = {
 
 function createPartContext(parserContext?: ParserContext): PartHandlerContext {
   return {
-    normalizeParts: (value) => normalizeParts(value, parserContext),
+    normalizePartValue: (value) => normalizePartValue(value, parserContext),
     normalizePartList: (values) => normalizePartList(values, parserContext),
   };
 }
@@ -59,7 +59,7 @@ export function normalizePartList(
       continue;
     }
 
-    for (const part of normalizeParts(value, parserContext)) {
+    for (const part of normalizePartValue(value, parserContext)) {
       // Text parts frequently embed media reference tokens mid-string; split
       // them out. Refusals and annotated text stay intact.
       if (part.type === "text" && !part.providerMetadata && !part.refusal) {
@@ -258,7 +258,7 @@ function withProviderMetadata<T extends NormalizedMessagePart>(
   return providerMetadata ? ({ ...part, providerMetadata } as T) : part;
 }
 
-export function normalizeParts(
+export function normalizePartValue(
   value: unknown,
   parserContext?: ParserContext,
 ): NormalizedMessagePart[] {

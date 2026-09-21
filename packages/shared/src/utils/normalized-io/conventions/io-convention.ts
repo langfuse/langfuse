@@ -21,7 +21,7 @@ export const claimed = <T>(value: T | null): ConventionResult<T> => ({
 export const dropped = { matched: true, value: null } as const;
 
 export type PartHandlerContext = {
-  normalizeParts(value: unknown): NormalizedMessagePart[];
+  normalizePartValue(value: unknown): NormalizedMessagePart[];
   normalizePartList(values: unknown[]): NormalizedMessagePart[];
 };
 
