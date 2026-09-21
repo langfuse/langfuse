@@ -471,11 +471,12 @@ export function AnnotationScoreRow({
                   {targetOptions.length > 0 ? (
                     <>
                       <DropdownMenuLabel>
-                        Score level: {target.label}
+                        Applies to: {target.label}
                       </DropdownMenuLabel>
                       {score.id ? (
                         <div className="text-muted-foreground px-2 pb-2 text-xs">
-                          Saved scores keep their level.
+                          This score is saved on the{" "}
+                          {target.label.toLowerCase()} and cannot be moved.
                         </div>
                       ) : (
                         targetOptions.map(

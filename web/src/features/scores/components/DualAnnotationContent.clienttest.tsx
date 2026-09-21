@@ -472,7 +472,7 @@ describe("unified annotation targets", () => {
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
-  it("chooses a level before the first save and cannot change it during or after saving", async () => {
+  it("chooses a target before the first save and cannot change it during or after saving", async () => {
     const pending = deferred();
     mocks.create.mockReturnValue(pending.promise);
     renderContent();
@@ -517,7 +517,9 @@ describe("unified annotation targets", () => {
       { key: "ArrowDown" },
     );
     expect(
-      await screen.findByText("Saved scores keep their level."),
+      await screen.findByText(
+        "This score is saved on the trace and cannot be moved.",
+      ),
     ).toBeVisible();
     expect(
       screen.queryByRole("menuitem", { name: "Score observation instead" }),
@@ -699,6 +701,17 @@ describe("unified annotation targets", () => {
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
+    const scoreSelector = screen.getByRole("combobox", { name: "Scores" });
+    expect(
+      within(scoreSelector).getAllByRole("button", { name: /Remove.*Quality/ }),
+    ).toHaveLength(1);
+    fireEvent.click(scoreSelector);
+    const qualityOptions = screen.getAllByRole("option", { name: /Quality/ });
+    expect(qualityOptions).toHaveLength(1);
+    expect(qualityOptions[0]).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(screen.getByPlaceholderText("Search scores..."), {
+      key: "Escape",
+    });
     const cached = JSON.parse(
       screen.getByLabelText("Cached scores").textContent!,
     );
