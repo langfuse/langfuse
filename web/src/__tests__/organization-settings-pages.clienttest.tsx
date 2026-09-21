@@ -6,7 +6,7 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
+import { useOrganizationSettingsPages } from "@/src/features/organizations";
 
 vi.mock("@/src/components/PagedSettingsContainer", () => ({
   PagedSettingsContainer: () => null,

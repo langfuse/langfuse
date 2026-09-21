@@ -8,7 +8,7 @@ import {
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
 import { Card } from "@/src/components/ui/card";
-import { ConnectedNewOrganizationForm } from "@/src/features/organizations/components/ConnectedNewOrganizationForm";
+import { ConnectedNewOrganizationForm } from "@/src/features/organizations";
 import { NewProjectForm } from "@/src/features/projects/components/NewProjectForm";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";

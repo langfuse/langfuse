@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import {

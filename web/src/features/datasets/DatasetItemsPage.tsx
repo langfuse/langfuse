@@ -4,7 +4,7 @@ import {
   DATASET_TABS,
 } from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";

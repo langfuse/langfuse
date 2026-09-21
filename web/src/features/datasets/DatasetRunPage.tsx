@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical, Trash } from "lucide-react";
 import Link from "next/link";

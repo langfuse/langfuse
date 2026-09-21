@@ -20,7 +20,7 @@ import type {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";

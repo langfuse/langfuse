@@ -7,8 +7,10 @@ import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  DetailPageNav,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -16,7 +18,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -39,7 +41,7 @@ import {
   SquarePen,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,

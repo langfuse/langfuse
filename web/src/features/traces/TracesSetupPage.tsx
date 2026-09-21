@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { SubHeader } from "@/src/components/layouts/header";

@@ -13,7 +13,7 @@ import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import {
   DatasetCompareFieldsProvider,
   useDatasetCompareFields,

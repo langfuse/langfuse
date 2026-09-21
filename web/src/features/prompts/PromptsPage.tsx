@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { toast } from "sonner";
 
 export default function PromptsPage() {

@@ -16,7 +16,7 @@ import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { buildEventsTablePathForColumnFilter } from "@/src/features/events/lib/eventsTablePaths";
 import { attributeColumnFilter } from "@/src/features/traces/fns/attributeColumnFilter";
 import { attributeGrammar } from "@/src/features/traces/fns/attributeGrammar";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export type AttributeTableAction = "copy" | "include_filter" | "exclude_filter";
 

@@ -1,6 +1,6 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useState, useCallback } from "react";
 import { FlaskConical, MoreVertical } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -16,7 +16,7 @@ import { CreateExperimentsForm } from "@/src/features/experiments/components/Cre
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import {
   getDatasetTabs,

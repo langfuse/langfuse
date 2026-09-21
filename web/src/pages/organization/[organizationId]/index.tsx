@@ -1,1 +1,1 @@
-export { OrganizationProjectOverview as default } from "@/src/features/organizations/components/ProjectOverview";
+export { OrganizationProjectOverview as default } from "@/src/features/organizations";

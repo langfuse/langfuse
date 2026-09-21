@@ -39,7 +39,7 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
@@ -59,19 +59,21 @@ import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { type TableAction } from "@/src/features/table/types";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import {
+  useSelectAll,
+  type TableAction,
+  TableActionMenu,
+  TableSelectionManager,
+} from "@/src/features/table";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
 
 import { useHasProjectAccess } from "@/src/features/rbac";
+
 export type SessionTableRow = {
   id: string;
   createdAt: Date;

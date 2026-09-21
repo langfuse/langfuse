@@ -18,7 +18,7 @@ import {
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";

@@ -40,7 +40,7 @@ import {
 } from "@/src/features/column-visibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";

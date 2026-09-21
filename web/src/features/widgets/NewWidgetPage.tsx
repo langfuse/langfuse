@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export default function NewWidgetPage() {
   const router = useRouter();

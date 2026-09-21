@@ -19,7 +19,7 @@ import { useKeyedSessionStorageState } from "@/src/features/filters/hooks/useKey
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import isEqual from "lodash/isEqual";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateOrderBy, validateFilters } from "../validation";
 import { isSystemPresetId } from "../components/data-table-view-presets-drawer";
 import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";

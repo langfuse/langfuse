@@ -114,16 +114,18 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  useSelectAll,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";

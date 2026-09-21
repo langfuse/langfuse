@@ -32,7 +32,7 @@ import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";

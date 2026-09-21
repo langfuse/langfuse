@@ -82,7 +82,7 @@ import {
   canToggleV4,
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({

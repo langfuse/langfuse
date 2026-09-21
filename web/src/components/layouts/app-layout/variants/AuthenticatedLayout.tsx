@@ -30,8 +30,8 @@ import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
-} from "@/src/features/organizations/cloudRegions";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+  useLangfuseCloudRegion,
+} from "@/src/features/organizations";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -48,7 +48,7 @@ import { api } from "@/src/utils/api";
 import { usePlan } from "@/src/features/entitlements/hooks";
 import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";

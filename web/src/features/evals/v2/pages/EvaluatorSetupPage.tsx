@@ -32,7 +32,7 @@ import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluat
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -48,7 +48,7 @@ import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";

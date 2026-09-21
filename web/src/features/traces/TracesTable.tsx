@@ -38,7 +38,7 @@ import {
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
@@ -70,11 +70,13 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, Trash2 } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import {
+  TableActionMenu,
+  useSelectAll,
+  TableSelectionManager,
+  type TableAction,
+} from "@/src/features/table";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type TableAction } from "@/src/features/table/types";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -108,8 +110,7 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
