@@ -116,11 +116,12 @@ export async function runDecisionModelEvaluation({
         modelParams: null,
       });
 
-      const modelConfigError = !modelConfig.valid
-        ? modelConfig.error
-        : !isDecisionModelAdapter(modelConfig.config.adapter)
-          ? `Connection "${modelConfig.config.provider}" is not a decision-model connection`
-          : null;
+      let modelConfigError: string | null = null;
+      if (!modelConfig.valid) {
+        modelConfigError = modelConfig.error;
+      } else if (!isDecisionModelAdapter(modelConfig.config.adapter)) {
+        modelConfigError = `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
+      }
       if (!modelConfig.valid || modelConfigError !== null) {
         const blockReason = getBlockReasonForInvalidModelConfig({
           templateProvider: template.provider,

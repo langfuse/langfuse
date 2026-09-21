@@ -501,6 +501,18 @@ function normalizeEvalTemplate(
   }
 }
 
+/** Fallback mapping for versions persisted without one. */
+function getManagedVariableMapping(evaluatorType: EvalTemplateType) {
+  switch (evaluatorType) {
+    case EvalTemplateType.CODE:
+      return getCodeEvalVariableMapping();
+    case EvalTemplateType.DECISION_MODEL:
+      return getDecisionModelVariableMapping();
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return [];
+  }
+}
+
 type ResolvedEvaluator = Prisma.EvaluatorGetPayload<{
   include: typeof evaluatorInclude;
 }>;
@@ -533,11 +545,7 @@ function buildV2Execution(params: {
   const variableMapping =
     assignment?.variableMapping ??
     version.variableMapping ??
-    (evaluator.type === EvalTemplateType.CODE
-      ? getCodeEvalVariableMapping()
-      : evaluator.type === EvalTemplateType.DECISION_MODEL
-        ? getDecisionModelVariableMapping()
-        : []);
+    getManagedVariableMapping(evaluator.type);
   const config = {
     id: rule?.id ?? evaluator.id,
     createdAt: rule?.createdAt ?? evaluator.createdAt,
