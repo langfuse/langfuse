@@ -16,12 +16,15 @@ import {
   hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
+import { cn } from "@/src/utils/tailwind";
 
 const MAX_VISIBLE_TAGS = 3;
 
 export function TraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
+  const { traceContext } = useViewPreferences();
   const [showAllTags, setShowAllTags] = useState(false);
 
   const aggregatedMetrics = useMemo(
@@ -40,7 +43,12 @@ export function TraceHeader() {
   const hiddenTagCount = trace.tags.length - visibleTags.length;
 
   return (
-    <div className="shrink-0 border-b px-3 py-2">
+    <div
+      className={cn(
+        "shrink-0 border-b px-3",
+        traceContext === "fullscreen" ? "pt-1.5 pb-6" : "py-2",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-4">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
