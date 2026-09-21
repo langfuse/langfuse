@@ -94,7 +94,20 @@ describe.each([
     expect(input[0]).toBe(first);
   });
 
-  it("does not charge nested decoding against the input size again", () => {
+  it("counts encoded object fields once across nested decoding", () => {
+    const payload = "x".repeat(260_000);
+    const input = {
+      json: JSON.stringify({ nested: JSON.stringify({ payload }) }),
+    };
+
+    const result = parse(input, { maxDepth: 5 }) as {
+      json: { nested: { payload: string } };
+    };
+    expect(typeof result.json.nested).toBe("object");
+    expect(result.json.nested.payload).toBe(payload);
+  });
+
+  it("preserves nested decoding of root strings below the size limit", () => {
     const payload = "x".repeat(260_000);
     const input = JSON.stringify({ json: JSON.stringify({ payload }) });
 
