@@ -15,7 +15,20 @@ import z from "zod";
 export const EvalTemplateTypeEnum = {
   LLM_AS_JUDGE: "LLM_AS_JUDGE",
   CODE: "CODE",
+  DECISION_MODEL: "DECISION_MODEL",
 } as const satisfies Record<EvalTemplateType, EvalTemplateType>;
+
+/**
+ * Evaluator types whose variable mapping is owned by Langfuse rather than
+ * configured by the user: code evaluators receive the full observation
+ * payload, and decision models receive the observation fields as their state.
+ */
+export function hasManagedVariableMapping(type: EvalTemplateType): boolean {
+  return (
+    type === EvalTemplateTypeEnum.CODE ||
+    type === EvalTemplateTypeEnum.DECISION_MODEL
+  );
+}
 
 export const EvalTemplateSourceCodeLanguageEnum = {
   PYTHON: "PYTHON",
@@ -97,9 +110,25 @@ export type EvalTemplateCodeBased = EvalTemplate & {
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
 };
 
+/**
+ * Decision-model evaluators (experimental) call a System One model such as
+ * TypeSafe Jev. `prompt` holds the plain-text question instructions; the
+ * observation fields become the model state, so there are no prompt
+ * variables, and `outputDefinition` is always a single-match categorical
+ * definition whose categories are the answer choices.
+ */
+export type EvalTemplateDecisionModel = EvalTemplate & {
+  type: typeof EvalTemplateType.DECISION_MODEL;
+  prompt: string;
+  outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
+  sourceCode: null;
+  sourceCodeLanguage: null;
+};
+
 export type EvalTemplateWithType =
   | EvalTemplateLlmAsAJudge
-  | EvalTemplateCodeBased;
+  | EvalTemplateCodeBased
+  | EvalTemplateDecisionModel;
 
 export const EvalTargetObject = {
   TRACE: "trace",

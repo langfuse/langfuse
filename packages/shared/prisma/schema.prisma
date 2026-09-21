@@ -1019,6 +1019,7 @@ model EvaluatorVersion {
 enum EvalTemplateType {
   LLM_AS_JUDGE
   CODE
+  DECISION_MODEL
 }
 
 enum EvalTemplateSourceCodeLanguage {

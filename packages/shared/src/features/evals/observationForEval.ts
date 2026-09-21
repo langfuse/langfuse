@@ -246,6 +246,27 @@ export function getCodeEvalVariableMapping() {
   }));
 }
 
+/**
+ * Observation fields that form the state of a decision-model evaluator. The
+ * state is a JSON object keyed by these names; fields that are absent on the
+ * observation are omitted. Metadata is left out on purpose: System One models
+ * degrade with material the question does not need.
+ */
+export const DECISION_MODEL_STATE_VARIABLES = [
+  "input",
+  "output",
+  "toolCalls",
+  "experimentItemExpectedOutput",
+] as const satisfies readonly CodeEvalTemplateVariable[];
+
+export function getDecisionModelVariableMapping() {
+  return DECISION_MODEL_STATE_VARIABLES.map((variable) => ({
+    templateVariable: variable,
+    selectedColumnId: variable,
+    jsonSelector: null,
+  }));
+}
+
 export const eventTargetEvalVariableColumns: (ObservationEvalVariableColumn & {
   id: CodeEvalTemplateVariable;
 })[] = [

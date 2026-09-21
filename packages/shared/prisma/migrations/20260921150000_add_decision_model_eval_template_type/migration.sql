@@ -1,0 +1,1 @@
+ALTER TYPE "EvalTemplateType" ADD VALUE 'DECISION_MODEL';
