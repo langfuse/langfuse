@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Tree building utilities for trace component.
  *

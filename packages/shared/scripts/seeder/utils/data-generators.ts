@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { FileContent, DatasetItemInput } from "./types";
 import {
   REALISTIC_TRACE_NAMES,

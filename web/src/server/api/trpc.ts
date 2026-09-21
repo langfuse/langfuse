@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -89,6 +90,7 @@ import {
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  getActiveTraceId,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
@@ -107,6 +109,10 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        // OTEL trace id of the failing request, for frontend/support correlation
+        // with Datadog. Absent when OTEL is not running or the trace was not
+        // sampled (an unsampled id never reaches the tracing backend).
+        traceId: getActiveTraceId(),
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
         errorName:
@@ -478,6 +484,10 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
 /*
  * Protect trace-level getter routes.
  * - Users need to be member of the project to access the trace.
@@ -657,7 +667,7 @@ export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
  */
 
 const inputSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: z.string().min(1),
   projectId: z.string(),
 });
 

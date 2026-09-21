@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { JsonNested, Prisma } from "@langfuse/shared";
 import { mergeWith, merge } from "lodash";
 

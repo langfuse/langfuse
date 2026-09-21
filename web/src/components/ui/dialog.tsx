@@ -7,7 +7,8 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { DialogController as DesignSystemDialogController } from "@/src/components/design-system/DialogController/DialogController";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
@@ -173,63 +174,49 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 /**
  * Owns dialog open state while callers retain trigger and content presentation.
- * Prefer Trigger for direct user actions so Radix can provide trigger semantics,
- * keyboard behavior, and focus restoration. Use openDialog when the dialog must
- * open indirectly.
  */
-type DialogControllerProps = {
+type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
   children: (control: {
     isOpen: boolean;
-    openDialog: () => void;
-    Trigger: typeof DialogTrigger;
+    openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
   }) => React.ReactNode;
   closeOnInteractionOutside: boolean;
   onBeforeClose?: () => boolean;
   onDismiss?: () => void;
-  renderContent: (control: { closeDialog: () => void }) => React.ReactNode;
+  renderContent: (control: {
+    state: State;
+    closeDialog: () => void;
+  }) => React.ReactNode;
   size: React.ComponentProps<typeof DialogContent>["size"];
 };
 
-const DialogController = ({
+const DialogController = <State = void,>({
+  initialState,
   children,
   closeOnInteractionOutside,
   onBeforeClose,
   onDismiss,
   renderContent,
   size,
-}: DialogControllerProps) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const closeDialog = () => {
-    if (onBeforeClose?.() === false) return false;
-    setIsOpen(false);
-    return true;
-  };
-
-  return (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (open) {
-          setIsOpen(true);
-          return;
-        }
-        if (closeDialog()) onDismiss?.();
-      }}
-    >
-      {children({
-        isOpen,
-        openDialog: () => setIsOpen(true),
-        Trigger: DialogTrigger,
-      })}
+}: DialogControllerProps<State>) => (
+  <DesignSystemDialogController
+    initialState={initialState}
+    onBeforeClose={onBeforeClose}
+    onDismiss={onDismiss}
+    renderDialog={({ state, closeDialog }) => (
       <DialogContent
         size={size}
         closeOnInteractionOutside={closeOnInteractionOutside}
       >
-        {renderContent({ closeDialog })}
+        {renderContent({ state, closeDialog })}
       </DialogContent>
-    </Dialog>
-  );
-};
+    )}
+  >
+    {children}
+  </DesignSystemDialogController>
+);
 
 const dialogHeaderVariants = cva(
   "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",

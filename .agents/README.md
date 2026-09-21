@@ -124,25 +124,17 @@ to the repository. Generate it from `.agents/config.json`; never edit it by
 hand. `.cursor/Dockerfile` is also committed because it is an intentionally
 Cursor-specific runtime definition.
 
-Discovery files are committed as symlinks, not generated locally, so a fresh
-clone has guidance before `pnpm install` runs:
+Folder instructions use `AGENTS.md` directly. The root `AGENTS.md` is a
+committed symlink to `.agents/AGENTS.md`; package-local files live in the
+directories they describe. A fresh clone has its instructions before install,
+and adding a folder guide needs no generated companion file.
 
-- `AGENTS.md` -> `.agents/AGENTS.md`
-- `CLAUDE.md` -> `AGENTS.md`
-- a sibling `CLAUDE.md` -> `AGENTS.md` next to **every** `AGENTS.md` in the
-  tree, discovered by walking it (currently `web/`, `worker/`, `ee/`,
-  `packages/shared/`, `packages/shared/scripts/seeder/`)
-
-Claude reads a nested `CLAUDE.md` when it opens a file in that directory, so
-package-local guidance loads only when it is relevant. Dot-directories are
-skipped during discovery, which keeps vendored skill bundles such as
-`web/.agents/skills/vercel-*/AGENTS.md` from becoming directory-scoped
-instructions. A shim whose `AGENTS.md` is deleted or moved is swept on the next
-sync. Add an `AGENTS.md` anywhere and you must commit its generated shim —
-CI fails otherwise.
-
-This keeps provider discovery stable while `.agents/` remains the source of
-truth.
+Claude Code requires [2.1.277 or later](https://github.com/anthropics/claude-code/releases/tag/v2.1.277)
+with **Project instructions** set to the default `claude-md-or-agents-md`
+mode. That release does not support this mode on Bedrock, Vertex, or Foundry.
+Project-local `CLAUDE.md`, `.claude/CLAUDE.md`, or `CLAUDE.local.md` files can
+disable the fallback; remove local compatibility files or choose the mode
+that loads both formats. See the [instruction loader documentation](https://github.com/anthropics/claude-code/blob/main/mods/agents-md/README.md).
 
 ## Validation
 
@@ -152,6 +144,11 @@ Two levels, deliberately separated:
   config files and shims. This is what `postinstall` runs.
 - `pnpm run agents:check` adds `--check-paths`, which resolves every path an
   `AGENTS.md` cites and fails on a broken one. The lint job runs this.
+  Dot-directories, dependencies, build outputs, and skill bundles are excluded
+  from folder-guide discovery.
+
+Run `node --test scripts/agents/sync-agent-shims.test.mjs` for the sync and
+path-validation regression tests.
 
 Path validation is kept out of `postinstall` on purpose: failing it there would
 break `pnpm i`, and with it every CI job that installs, over a documentation
@@ -231,16 +228,6 @@ machine with Node.js 24 and nested Docker support. Builds run
 idempotent setup and then installs Cursor's Playwright system dependencies.
 Each agent run starts the six-service source stack with
 `scripts/agents/start-cursor-cloud.sh`.
-
-Identity recovery runs in both repo postinstall and Cursor Cloud start. When
-`LINEAR_API_KEY` is available, it verifies the viewer belongs to the Langfuse
-team and writes `.langfuse/me.md` (gitignored, inside the checkout) without
-exposing the key. A machine-level copy under `~/.config/langfuse` is also
-written when the harness allows home-dir access; OpenCode and similar
-workspace-scoped tools skip that path so they do not prompt on the user
-dir. Neither file is overwritten, so human corrections survive repeated
-installs and worktrees. Running it at Cloud start matters because
-environment builds do not rerun install for each new agent.
 
 The start script builds and waits for web, worker, PostgreSQL, ClickHouse,
 Redis, and MinIO, seeds the synthetic demo project, and verifies the web and

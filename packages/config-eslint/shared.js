@@ -33,6 +33,8 @@ export default [
       "no-void": "warn",
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",
+      "no-nested-ternary": "error",
+      "@repo/no-exotic-operators": "warn",
     },
   },
 

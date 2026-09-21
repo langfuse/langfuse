@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useState } from "react";
@@ -32,7 +33,7 @@ import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { type Prisma, WebhookProtectedHeaders } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentSetupSchema = z.object({
   url: z.url(),

@@ -10,7 +10,7 @@ import {
 import { DashboardWidget } from "@/src/features/widgets";
 import type { ResolvedReadPath } from "@/src/features/events";
 import { type FilterState } from "@langfuse/shared";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
@@ -113,6 +113,18 @@ export function DashboardGrid({
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
   const { containerRef, width } = useDebouncedContainerWidth(200);
+  const [contentHeights, setContentHeights] = useState<Record<string, number>>(
+    {},
+  );
+  const handleContentHeightChange = useCallback(
+    (placementId: string, height: number) => {
+      setContentHeights((current) => {
+        if (current[placementId] === height) return current;
+        return { ...current, [placementId]: height };
+      });
+    },
+    [],
+  );
   // Rows stay 16:9-proportional to column width, with a floor so tiles keep a
   // usable height on narrow screens — below the floor, widget content (chart
   // floors, table rows) no longer fits and tiles scroll internally; the grid
@@ -128,16 +140,26 @@ export function DashboardGrid({
   const isSmallScreen = useMediaQuery("(max-width: 1023.98px)");
 
   // Convert WidgetPlacement to react-grid-layout format
-  const layout = widgets.map((w) => ({
-    i: w.id,
-    x: w.x,
-    y: w.y,
-    w: w.x_size,
-    h: w.y_size,
-    isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
-    minW: 2,
-    minH: 2,
-  }));
+  const layout = widgets.map((w) => {
+    const contentHeight = contentHeights[w.id];
+    const contentRows = contentHeight
+      ? Math.ceil((contentHeight + 16) / (rowHeight + 16))
+      : 0;
+
+    return {
+      i: w.id,
+      x: w.x,
+      y: w.y,
+      w: w.x_size,
+      h:
+        w.type === "preset" && w.presetId === "home-score-analytics"
+          ? Math.max(w.y_size, contentRows)
+          : w.y_size,
+      isDraggable: canEdit && !isSmallScreen, // Disable dragging on small screens
+      minW: 2,
+      minH: 2,
+    };
+  });
 
   const handleLayoutChange = (newLayout: any[]) => {
     // Safety checks: prevent layout changes on small screens and when editing is disabled
@@ -182,6 +204,14 @@ export function DashboardGrid({
         onLockedEditAttempt={onLockedEditAttempt}
         readOnly={readOnly}
         onDuplicatePreset={onDuplicatePreset}
+        heightBehavior={
+          widget.presetId === "home-score-analytics"
+            ? {
+                mode: "content",
+                onHeightChange: handleContentHeightChange,
+              }
+            : { mode: "fixed" }
+        }
       />
     ) : (
       <DashboardWidget

@@ -9,13 +9,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ExternalLinkIcon } from "lucide-react";
@@ -115,24 +109,21 @@ export function PromptSelectionDialog({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="prompt-name">Prompt name</Label>
-              <Select
+              <SelectInput
+                id="prompt-name"
                 value={selectedPromptName}
                 onValueChange={(value) => {
                   setSelectedPromptName(value);
                   setSelectedVersionOrLabel("");
                 }}
-              >
-                <SelectTrigger id="prompt-name">
-                  <SelectValue placeholder="Select a text prompt" />
-                </SelectTrigger>
-                <SelectContent>
-                  {promptOptions?.map((prompt) => (
-                    <SelectItem key={prompt.name} value={prompt.name}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select a text prompt"
+                options={
+                  promptOptions?.map((prompt) => ({
+                    value: prompt.name,
+                    label: prompt.name,
+                  })) ?? []
+                }
+              />
               <p className="text-muted-foreground text-xs">
                 Only text prompts can be referenced inline.
               </p>
@@ -141,21 +132,19 @@ export function PromptSelectionDialog({
             {selectedPromptName && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="selection-type">Reference by</Label>
-                <Select
+                <SelectInput
+                  id="selection-type"
                   value={selectionType}
                   onValueChange={(value: "version" | "label") => {
                     setSelectionType(value);
                     setSelectedVersionOrLabel("");
                   }}
-                >
-                  <SelectTrigger id="selection-type">
-                    <SelectValue placeholder="Select link type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="label">Label</SelectItem>
-                    <SelectItem value="version">Version</SelectItem>
-                  </SelectContent>
-                </Select>
+                  placeholder="Select link type"
+                  options={[
+                    { value: "label", label: "Label" },
+                    { value: "version", label: "Version" },
+                  ]}
+                />
               </div>
             )}
 
@@ -165,36 +154,27 @@ export function PromptSelectionDialog({
                   {selectionType === "version" ? "Version" : "Label"}
                 </Label>
                 <div className="flex gap-2">
-                  <Select
+                  <SelectInput
+                    id="version-or-label"
                     value={selectedVersionOrLabel}
                     onValueChange={setSelectedVersionOrLabel}
-                  >
-                    <SelectTrigger id="version-or-label">
-                      <SelectValue
-                        placeholder={
-                          selectionType === "version"
-                            ? "Select a version"
-                            : "Select a label"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectionType === "version"
-                        ? selectedPrompt?.versions.map((version) => (
-                            <SelectItem
-                              key={version.toString()}
-                              value={version.toString()}
-                            >
-                              {version}
-                            </SelectItem>
-                          ))
-                        : selectedPrompt?.labels.map((label) => (
-                            <SelectItem key={label} value={label}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder={
+                      selectionType === "version"
+                        ? "Select a version"
+                        : "Select a label"
+                    }
+                    options={
+                      selectionType === "version"
+                        ? (selectedPrompt?.versions.map((version) => ({
+                            value: version.toString(),
+                            label: version.toString(),
+                          })) ?? [])
+                        : (selectedPrompt?.labels.map((label) => ({
+                            value: label,
+                            label,
+                          })) ?? [])
+                    }
+                  />
                   {selectedVersionOrLabel && (
                     <Link
                       href={`${getPromptDetailHref(projectId, selectedPromptName)}?${selectionType}=${encodeURIComponent(selectedVersionOrLabel)}`}

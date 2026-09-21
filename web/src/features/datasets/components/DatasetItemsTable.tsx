@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -34,7 +35,8 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFullTextSearch, TableSearchBar } from "@/src/features/search-bar";
+import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
 
@@ -88,6 +90,10 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const { selectedVersion } = useDatasetVersion();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
@@ -161,7 +167,7 @@ export function DatasetItemsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(id)}${versionParam}`,
             value: id,
           },
         };
@@ -333,7 +339,7 @@ export function DatasetItemsTable({
     columns,
   );
 
-  const batchExportButton = (
+  const batchExportButton = hasBatchExportAccess ? (
     <BatchExportTableButton
       key="batchExport"
       projectId={projectId}
@@ -348,16 +354,32 @@ export function DatasetItemsTable({
         },
       ]}
     />
-  );
+  ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
-  const setSearchQueryWithDebounce = useDebounce(setSearchQuery, 300);
 
   return (
     <>
+      <TableSearchBar
+        key={`${projectId}:${datasetId}:${selectedVersion?.toISOString() ?? "latest"}`}
+        projectId={projectId}
+        tableName="dataset-items"
+        registry={DATASET_ITEMS_FIELD_REGISTRY}
+        filterState={filterState}
+        setFilterState={setFilterState}
+        observed={undefined}
+        isV4={false}
+        search={{
+          query: searchQuery,
+          type: searchType,
+          setQuery: setSearchQuery,
+          setType: setSearchType,
+        }}
+      />
       <DataTableToolbar
         columns={columns}
         tableName="dataset-items"
+        isV4={false}
         filterColumnDefinition={datasetItemFilterColumns}
         filterState={filterState}
         setFilterState={setFilterStateWithDebounce}
@@ -368,19 +390,6 @@ export function DatasetItemsTable({
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
         actionButtons={[menuItems, batchExportButton].filter(Boolean)}
-        searchConfig={{
-          metadataSearchFields: ["ID"],
-          updateQuery: setSearchQueryWithDebounce,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: true,
-          setSearchType,
-          searchType,
-          customDropdownLabels: {
-            metadata: "IDs",
-            fullText: "Full Text",
-          },
-          hidePerformanceWarning: true,
-        }}
       />
       <DataTable
         tableName="datasetItems"

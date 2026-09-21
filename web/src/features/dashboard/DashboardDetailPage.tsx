@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -8,7 +9,8 @@ import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   type ColumnDefinition,
@@ -57,7 +59,7 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
@@ -85,7 +87,7 @@ import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placemen
 import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
 import {

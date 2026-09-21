@@ -14,7 +14,7 @@ export const V3_SUNSET_HUMAN = "November 16, 2026";
 // Shared deprecation reason — references the deprecated Langfuse v3 system
 // version (not an API version). Customer-facing wording lives here — edit once.
 export const V3_DELAY_NOTICE =
-  "Data on this API is delayed by about 10 minutes. Real-time is only OpenTelemetry writes plus v2 observations and v2 metrics reads.";
+  "The only path to live data is OpenTelemetry ingestion combined with GET /api/public/v2/observations and GET /api/public/v2/metrics. All other public APIs may have data delays of several minutes.";
 
 const V3_NOTICE = `On Langfuse Cloud, Langfuse v3 is deprecated and this endpoint will be removed on ${V3_SUNSET_HUMAN}. ${V3_DELAY_NOTICE}`;
 
@@ -26,6 +26,7 @@ const REPLACEMENT = {
   observationsV2BySession:
     "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
   scoresV3: "GET /api/public/v3/scores",
+  scoreCreate: "POST /api/public/scores",
   metricsV2: "GET /api/public/v2/metrics?query=<urlencoded json query>",
   otelTraces: "POST /api/public/otel/v1/traces",
   experimentItems:
@@ -42,6 +43,8 @@ const DOCS = {
   metricsV2: "https://langfuse.com/docs/metrics/features/metrics-api",
   compatibility: "https://langfuse.com/docs/compatibility",
   otel: "https://langfuse.com/integrations/native/opentelemetry",
+  otelMigration:
+    "https://langfuse.com/integrations/native/opentelemetry/migration-to-v4.md",
 } as const;
 
 export const OBSERVATIONS_V1_DEPRECATION: ApiDeprecationInfo = {
@@ -96,6 +99,16 @@ export const DATASET_RUNS_DEPRECATION: ApiDeprecationInfo = {
   message: `${V3_NOTICE} In Langfuse v4, dataset runs are replaced by experiments; use ${REPLACEMENT.experiments} instead.`,
   replacement: REPLACEMENT.experiments,
   docsUrl: DOCS.compatibility,
+  sunsetAt: V3_SUNSET_DATE,
+};
+
+// Legacy batch writes of traces/observations → score writes plus OTLP. Score
+// events survive the sunset date, so this family does not use V3_NOTICE
+// ("endpoint will be removed").
+export const INGESTION_DEPRECATION: ApiDeprecationInfo = {
+  message: `On Langfuse Cloud, this is the deprecated Langfuse v3 ingestion API and it is shut down on ${V3_SUNSET_HUMAN}, except for score events: from that date it accepts only score-create events and rejects all other event types. To write scores, prefer ${REPLACEMENT.scoreCreate} (${DOCS.scoresV3}). To write traces and observations, always prefer upgrading to the current Python and JS SDKs; if you use custom auto-instrumentation, send them to ${REPLACEMENT.otelTraces} (for example with curl). To read data back, use ${REPLACEMENT.observationsV2} and ${REPLACEMENT.metricsV2} (${DOCS.observationsV2}). ${V3_DELAY_NOTICE}`,
+  replacement: REPLACEMENT.otelTraces,
+  docsUrl: DOCS.otelMigration,
   sunsetAt: V3_SUNSET_DATE,
 };
 

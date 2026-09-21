@@ -2,6 +2,7 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
+import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   createTableColumn,
@@ -16,6 +17,10 @@ type UserTableColumnValue = {
 };
 
 type UserTableColumnPresentation = { variant: "avatar" } | { variant: "text" };
+type UserTableColumnCell =
+  | { type: "loading" }
+  | { type: "user"; user: UserTableColumnValue }
+  | undefined;
 
 export function createUserTableColumn<
   TData extends RowData,
@@ -23,11 +28,17 @@ export function createUserTableColumn<
 >({
   getUser,
   emptyValue,
+  nullValue,
   variant,
   ...options
 }: TableColumnOptions<TData, TValue> &
   UserTableColumnPresentation & {
-    emptyValue: string;
+    /**
+     * A word for a user whose identity is unknown, e.g. "Unknown". Defaults to
+     * the shared empty placeholder.
+     */
+    emptyValue?: string;
+    nullValue?: string;
     /**
      * Return undefined when the row has no associated user. Return a user with
      * an empty object when a user exists but their identity is unknown.
@@ -35,16 +46,13 @@ export function createUserTableColumn<
     getUser?: (
       value: TValue | null | undefined,
       context: CellContext<TData, TValue | null | undefined>,
-    ) =>
-      | { type: "loading" }
-      | { type: "user"; user: UserTableColumnValue }
-      | undefined;
+    ) => UserTableColumnCell;
   }) {
   const loadingCell =
     variant === "avatar" ? (
-      <div className="flex items-center space-x-2">
+      <div className="flex w-full min-w-0 items-center space-x-2">
         <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-4 max-w-24 min-w-12 flex-1" />
       </div>
     ) : (
       <Skeleton className="h-4 w-1/2" />
@@ -54,14 +62,29 @@ export function createUserTableColumn<
     ...options,
     loadingCell,
     renderCell: (value, context) => {
-      const cell = getUser
-        ? getUser(value, context)
-        : { type: "user" as const, user: value ?? {} };
+      if (!getUser && (value === null || value === undefined)) {
+        const placeholder = nullValue ?? emptyValue;
+        if (!placeholder) return null;
+        return (
+          <span className="block w-full truncate" title={placeholder}>
+            {placeholder}
+          </span>
+        );
+      }
+
+      let cell: UserTableColumnCell;
+      if (getUser) {
+        cell = getUser(value, context);
+      } else if (value !== null && value !== undefined) {
+        cell = { type: "user", user: value };
+      }
+
       if (!cell) return null;
       if (cell.type === "loading") return loadingCell;
 
       const { name, email, image, id } = cell.user;
-      const label = name ?? email ?? id ?? emptyValue;
+      const label =
+        name ?? email ?? id ?? emptyValue ?? EMPTY_VALUE_PLACEHOLDER;
       if (variant === "text") {
         return (
           <span className="block truncate" title={label}>

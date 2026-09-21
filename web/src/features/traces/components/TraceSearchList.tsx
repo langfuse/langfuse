@@ -14,6 +14,7 @@ import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHan
 import { useDesktopLayoutContextOptional } from "./TraceLayoutDesktop";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -40,20 +41,14 @@ export function TraceSearchList() {
     layout?.expandDetailPanel();
   };
 
-  // Co-located filtering - only this component re-renders on search query change
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-
-    const query = searchQuery.toLowerCase();
-    return searchItems.filter((item) => {
-      const node = item.node;
-      return (
-        node.type.toLowerCase().includes(query) ||
-        node.name.toLowerCase().includes(query) ||
-        node.id.toLowerCase().includes(query)
-      );
-    });
-  }, [searchItems, searchQuery]);
+  // Co-located filtering - only this component re-renders on search query change.
+  // What counts as a match lives in fns/matchesSearchQuery, because the Timeline
+  // highlights with the same rule and states a count next to it.
+  const searchResults = useMemo(
+    () =>
+      searchItems.filter((item) => matchesSearchQuery(item.node, searchQuery)),
+    [searchItems, searchQuery],
+  );
 
   // Empty state
   if (searchResults.length === 0 && searchQuery.trim()) {

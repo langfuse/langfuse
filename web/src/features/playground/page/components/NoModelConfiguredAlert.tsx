@@ -10,9 +10,9 @@ export function NoModelConfiguredAlert({
   projectId,
 }: NoModelConfiguredAlertProps) {
   return (
-    <div className="p-4">
+    <div className="px-4 pt-4">
       <Alert variant="warning" icon={AlertCircle}>
-        <Alert.Title>No Model Configured</Alert.Title>
+        <Alert.Title>No LLM Connection Configured</Alert.Title>
         <Alert.Description>
           To use the playground, you need to configure a model first. Go to{" "}
           <Link

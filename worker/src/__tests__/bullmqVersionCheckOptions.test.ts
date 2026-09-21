@@ -47,6 +47,7 @@ const mockIoredis = () => {
     public status = "ready";
     public isCluster = false;
     public on = vi.fn();
+    public once = vi.fn();
     public duplicate = vi.fn(() => new MockRedis(this.options));
 
     constructor(...args: unknown[]) {

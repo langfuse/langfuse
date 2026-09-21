@@ -22,24 +22,23 @@ import {
   TableViewPresetsDrawerContent,
   TableViewPresetsDrawerRoot,
 } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import type { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useViewData } from "@/src/components/table/table-view-presets/hooks/useViewData";
 import { useViewMutations } from "@/src/components/table/table-view-presets/hooks/useViewMutations";
 import { Dialog } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-type ViewControllers = {
-  selectedViewId: string | null;
-  appliedViewId: string | null;
-  handleSetViewId: (viewId: string | null) => void;
-  applyViewState: (
-    viewData: TableViewPresetState,
-    meta?: {
-      trigger: "select" | "permalink" | "default" | "system_preset";
-      viewId?: string | null;
-    },
-  ) => void;
-};
+type ViewControllers = Pick<
+  ReturnType<typeof useTableViewManager>,
+  | "selectedViewId"
+  | "appliedViewId"
+  | "viewUpdateTarget"
+  | "filterEditorResetKey"
+  | "handleSetViewId"
+  | "handleUserStateChange"
+  | "applyViewState"
+>;
 
 type ModernSessionFilterControlsProps = {
   projectId: string;
@@ -95,18 +94,16 @@ export function ModernSessionFilterControls({
   });
 
   const matchingSystemPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-    (preset) =>
-      preset.id === viewControllers.selectedViewId &&
-      isEqual(normalizeFilters(preset.filters), normalizeFilters(filterState)),
+    (preset) => preset.id === viewControllers.selectedViewId,
   );
   const matchingSavedView = TableViewPresetsList?.find(
-    (view) =>
-      view.id === viewControllers.selectedViewId &&
-      isEqual(normalizeFilters(view.filters), normalizeFilters(filterState)),
+    (view) => view.id === viewControllers.selectedViewId,
   );
-  const matchingUserView = matchingSavedView?.isSystem
-    ? undefined
-    : matchingSavedView;
+  const updateViewId =
+    viewControllers.selectedViewId ?? viewControllers.viewUpdateTarget?.viewId;
+  const updateView = TableViewPresetsList?.find(
+    (view) => view.id === updateViewId && !view.isSystem,
+  );
   const activeViewName = matchingSystemPreset?.name ?? matchingSavedView?.name;
 
   const openFilterDialog = () => {
@@ -173,30 +170,32 @@ export function ModernSessionFilterControls({
   };
 
   const updateCurrentView = (filters: FilterState) => {
-    if (!matchingUserView) return;
+    if (!updateView) return;
 
     capture("saved_views:update_config", {
       tableName: TableViewPresetTableName.SessionDetail,
-      viewId: matchingUserView.id,
-      name: matchingUserView.name,
+      viewId: updateView.id,
+      name: updateView.name,
     });
 
     const viewWasApplied =
-      viewControllers.appliedViewId === matchingUserView.id;
+      viewControllers.appliedViewId === updateView.id ||
+      (viewControllers.viewUpdateTarget?.viewId === updateView.id &&
+        viewControllers.viewUpdateTarget.columnsApplied);
     updateConfigMutation.mutate(
       {
         projectId,
-        name: matchingUserView.name,
-        id: matchingUserView.id,
+        name: updateView.name,
+        id: updateView.id,
         tableName: TableViewPresetTableName.SessionDetail,
         orderBy: null,
         filters,
         columnOrder: viewWasApplied
           ? currentViewState.columnOrder
-          : matchingUserView.columnOrder,
+          : updateView.columnOrder,
         columnVisibility: viewWasApplied
           ? currentViewState.columnVisibility
-          : matchingUserView.columnVisibility,
+          : updateView.columnVisibility,
         searchQuery: "",
       },
       {
@@ -249,8 +248,8 @@ export function ModernSessionFilterControls({
   };
 
   const clearFilters = () => {
+    viewControllers.handleUserStateChange(filterState, [], { force: true });
     onChange([]);
-    viewControllers.handleSetViewId(null);
     capture("filters:cleared", {
       surface: "filter_builder",
       tableName: "session-detail",
@@ -262,10 +261,10 @@ export function ModernSessionFilterControls({
   let filterDialogViewActions: ModernSessionFilterDialogViewActions = {
     type: "none",
   };
-  if (hasWriteAccess && matchingUserView) {
+  if (hasWriteAccess && updateView) {
     filterDialogViewActions = {
       type: "update",
-      viewName: matchingUserView.name,
+      viewName: updateView.name,
       isUpdating: updateConfigMutation.isPending,
       onCreate: openSaveViewDialog,
       onUpdate: updateCurrentView,
@@ -300,6 +299,7 @@ export function ModernSessionFilterControls({
       <Dialog open={filterDialogOpen} onOpenChange={setFilterDialogOpen}>
         {filterDialogOpen ? (
           <ModernSessionFilterDialogContent
+            key={viewControllers.filterEditorResetKey}
             initialFilters={filterState}
             filterColumns={filterColumns}
             filterColumnsWithCustomSelect={filterColumnsWithCustomSelect}

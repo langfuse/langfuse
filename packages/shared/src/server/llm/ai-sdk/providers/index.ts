@@ -109,6 +109,7 @@ export async function buildAiSdkModel(params: {
         apiKey,
         config,
         extraHeaders,
+        credentialSource,
         fetch: createFetch(
           isClaudeModel(model.id)
             ? "Anthropic Vertex AI endpoint"

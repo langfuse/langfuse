@@ -1,12 +1,7 @@
 import { type ReactNode } from "react";
 
-import {
-  DialogController,
-  DialogHeader,
-  DialogTitle,
-  type DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { CreateProjectMemberDialogContent } from "@/src/features/rbac/components/CreateProjectMemberDialogContent";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { CreateProjectMemberDialog } from "@/src/features/rbac/components/CreateProjectMemberDialog";
 import {
   useEntitlementLimit,
   useHasEntitlement,
@@ -29,7 +24,7 @@ type CreateProjectMemberDialogControllerProps = {
           max: number;
         }
       | undefined;
-    Trigger: typeof DialogTrigger;
+    openDialog: () => void;
   }) => ReactNode;
 };
 
@@ -90,57 +85,47 @@ export function CreateProjectMemberDialogController({
 
   return (
     <DialogController
-      closeOnInteractionOutside={false}
-      size="default"
-      renderContent={({ closeDialog }) => (
-        <>
-          <DialogHeader>
-            <DialogTitle>
-              Add new member to the{" "}
-              {hasOnlySingleProjectAccess ? "project" : "organization"}
-            </DialogTitle>
-          </DialogHeader>
-          <CreateProjectMemberDialogContent
-            project={project}
-            hasOnlySingleProjectAccess={hasOnlySingleProjectAccess}
-            hasProjectRoleEntitlement={hasProjectRoleEntitlement}
-            isSubmitting={createProjectMemberMutation.isPending}
-            createProjectMember={(values) => {
-              capture(
-                project
-                  ? "project_settings:send_membership_invitation"
-                  : "organization_settings:send_membership_invitation",
-                {
-                  orgRole: values.orgRole,
-                  projectRole: values.projectRole,
-                },
-              );
+      renderDialog={({ closeDialog }) => (
+        <CreateProjectMemberDialog
+          project={project}
+          hasOnlySingleProjectAccess={hasOnlySingleProjectAccess}
+          hasProjectRoleEntitlement={hasProjectRoleEntitlement}
+          isPending={createProjectMemberMutation.isPending}
+          createProjectMember={(values) => {
+            capture(
+              project
+                ? "project_settings:send_membership_invitation"
+                : "organization_settings:send_membership_invitation",
+              {
+                orgRole: values.orgRole,
+                projectRole: values.projectRole,
+              },
+            );
 
-              return createProjectMemberMutation
-                .mutateAsync({
-                  orgId,
-                  email: values.email,
-                  orgRole: values.orgRole,
-                  projectId: project?.id,
-                  projectRole:
-                    values.projectRole === "NONE"
-                      ? undefined
-                      : values.projectRole,
-                })
-                .then(() => undefined);
-            }}
-            onSuccess={closeDialog}
-          />
-        </>
+            return createProjectMemberMutation
+              .mutateAsync({
+                orgId,
+                email: values.email,
+                orgRole: values.orgRole,
+                projectId: project?.id,
+                projectRole:
+                  values.projectRole === "NONE"
+                    ? undefined
+                    : values.projectRole,
+              })
+              .then(() => undefined);
+          }}
+          onSuccess={closeDialog}
+        />
       )}
     >
-      {({ Trigger }) =>
+      {({ openDialog }) =>
         children({
           hasAccess,
           hasOnlySingleProjectAccess,
           isSubmitting: createProjectMemberMutation.isPending,
           usageLimit,
-          Trigger,
+          openDialog,
         })
       }
     </DialogController>

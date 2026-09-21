@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   createShaHash,
   deleteApiKeyFromDb,
+  formatSubmittedPublicKeyForLog,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
@@ -113,7 +114,10 @@ export class ApiAuthService {
               });
 
               if (!slowKey) {
-                logger.error("No key found for public key", publicKey);
+                logger.error(
+                  "No key found for public key",
+                  formatSubmittedPublicKeyForLog(publicKey),
+                );
                 if (this.redis) {
                   logger.info(
                     `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
@@ -132,7 +136,9 @@ export class ApiAuthService {
               );
 
               if (!isValid) {
-                logger.debug(`Old key is invalid: ${publicKey}`);
+                logger.debug(
+                  `Old key is invalid: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+                );
                 throw new Error("Invalid credentials");
               }
 
@@ -151,10 +157,12 @@ export class ApiAuthService {
             }
 
             if (!finalApiKey) {
-              logger.info("No project id found for key", publicKey);
+              logger.info(
+                "No project id found for key",
+                formatSubmittedPublicKeyForLog(publicKey),
+              );
               throw new Error("Invalid credentials");
             }
-
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
@@ -183,7 +191,7 @@ export class ApiAuthService {
             // credential rotation on the client.
             if (publicKey !== finalApiKey.publicKey) {
               logger.warn(
-                `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
+                `Public key mismatch on basic auth: submitted public key ${formatSubmittedPublicKeyForLog(publicKey)} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
               );
             }
 
@@ -193,6 +201,7 @@ export class ApiAuthService {
                 projectId: finalApiKey.projectId,
                 accessLevel,
                 orgId: finalApiKey.orgId,
+                organizationCreatedAt: finalApiKey.organizationCreatedAt,
                 plan: plan,
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
@@ -217,8 +226,12 @@ export class ApiAuthService {
               );
             }
 
-            const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-              this.extractOrgIdAndCloudConfig(dbKey);
+            const {
+              orgId,
+              organizationCreatedAt,
+              cloudConfig,
+              cloudFreeTierUsageThresholdState,
+            } = this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
             addUserToSpan(
@@ -238,6 +251,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores" as const,
                 orgId,
+                organizationCreatedAt: organizationCreatedAt.toISOString(),
                 plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
@@ -382,11 +396,12 @@ export class ApiAuthService {
     }
 
     try {
-      const redisApiKey = await this.redis.getex(
-        createApiKeyCacheKey(hash),
-        "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
-      );
+      // A plain GET, not GETEX: an entry expires a fixed TTL after it was
+      // written, never a TTL after it was last read. A sliding TTL lets an entry
+      // that is still being read outlive the API key it caches, so a request
+      // that repopulates the cache while the key is being revoked could keep the
+      // revoked key valid for as long as its holder kept using it.
+      const redisApiKey = await this.redis.get(createApiKeyCacheKey(hash));
 
       if (!redisApiKey) {
         return null;
@@ -439,6 +454,9 @@ export class ApiAuthService {
     const orgId =
       apiKeyAndOrganisation.project?.organization.id ??
       apiKeyAndOrganisation.organization?.id;
+    const organizationCreatedAt =
+      apiKeyAndOrganisation.project?.organization.createdAt ??
+      apiKeyAndOrganisation.organization?.createdAt;
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
@@ -447,7 +465,7 @@ export class ApiAuthService {
         .cloudFreeTierUsageThresholdState ??
       apiKeyAndOrganisation.organization?.cloudFreeTierUsageThresholdState;
 
-    if (!orgId) {
+    if (!orgId || !organizationCreatedAt) {
       logger.error(
         `No organization found for key: ${apiKeyAndOrganisation.publicKey}`,
       );
@@ -460,6 +478,7 @@ export class ApiAuthService {
 
     return {
       orgId,
+      organizationCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
     };
@@ -495,13 +514,18 @@ export class ApiAuthService {
       } | null;
     },
   ) {
-    const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-      this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
+    const {
+      orgId,
+      organizationCreatedAt,
+      cloudConfig,
+      cloudFreeTierUsageThresholdState,
+    } = this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
       orgId,
+      organizationCreatedAt: organizationCreatedAt.toISOString(),
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",

@@ -8,8 +8,8 @@ import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { MembershipInvitesPage } from "@/src/features/rbac/components/MembershipInvitesPage";
-import { MembersTable } from "@/src/features/rbac/components/MembersTable";
+import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
+import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
@@ -17,6 +17,7 @@ import { Card } from "@/src/components/ui/card";
 import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -33,9 +34,11 @@ import { ScoreConfigSettings } from "@/src/features/score-configs/components/Sco
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { api } from "@/src/utils/api";
 
 type ProjectSettingsPageEntry = {
   title: string;
@@ -158,15 +161,14 @@ const getProjectSettingsPages = ({
                 "Once you delete a project, there is no going back. Please be certain.",
               button: (
                 <DeleteProjectDialogController>
-                  {({ hasAccess, Trigger }) => (
-                    <Trigger asChild>
-                      <Button
-                        variant="destructive-secondary"
-                        disabled={!hasAccess}
-                      >
-                        Delete Project
-                      </Button>
-                    </Trigger>
+                  {({ hasAccess, openDialog }) => (
+                    <Button
+                      variant="destructive-secondary"
+                      disabled={!hasAccess}
+                      onClick={openDialog}
+                    >
+                      Delete Project
+                    </Button>
                   )}
                 </DeleteProjectDialogController>
               ),
@@ -247,20 +249,10 @@ const getProjectSettingsPages = ({
     slug: "members",
     cmdKKeywords: ["invite", "user"],
     content: (
-      <div>
-        <Header title="Project Members" />
-        <MembersTable
-          orgId={organization.id}
-          project={{ id: project.id, name: project.name }}
-          showSettingsCard
-        />
-        <div>
-          <MembershipInvitesPage
-            orgId={organization.id}
-            projectId={project.id}
-          />
-        </div>
-      </div>
+      <ProjectMembersSettings
+        orgId={organization.id}
+        project={{ id: project.id, name: project.name }}
+      />
     ),
   },
   {
@@ -347,6 +339,64 @@ export default function ProjectSettingsPage() {
         pages={pages}
       />
     </ContainerPage>
+  );
+}
+
+function ProjectMembersSettings({
+  orgId,
+  project,
+}: {
+  orgId: string;
+  project: { id: string; name: string };
+}) {
+  const [invitesPagination, setInvitesPagination] = useSessionStorage(
+    `projectInvites_${project.id}_pagination`,
+    { pageIndex: 0, pageSize: 10 },
+  );
+
+  const hasOrgViewAccess = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:read",
+  });
+
+  const hasProjectViewAccess =
+    useHasProjectAccess({
+      projectId: project.id,
+      scope: "projectMembers:read",
+    }) || hasOrgViewAccess;
+
+  const membershipInvites = api.members.allInvitesFromProject.useQuery(
+    {
+      projectId: project.id,
+      page: invitesPagination.pageIndex,
+      limit: invitesPagination.pageSize,
+    },
+    { enabled: hasProjectViewAccess },
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Header title="Project Members" />
+        <ConnectedMembersSettingsTable orgId={orgId} project={project} />
+      </div>
+      {hasProjectViewAccess && (
+        <div
+          className={
+            membershipInvites.data?.totalCount === 0 ? "hidden" : undefined
+          }
+        >
+          <Header title="Membership Invites" />
+          <ConnectedMembershipInvitesSettingsTable
+            orgId={orgId}
+            projectId={project.id}
+            query={membershipInvites}
+            paginationState={invitesPagination}
+            setPaginationState={setInvitesPagination}
+          />
+        </div>
+      )}
+    </div>
   );
 }
 

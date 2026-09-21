@@ -69,6 +69,7 @@ import {
   handleListComments,
 } from "@/src/features/mcp/server/comments/tools";
 import {
+  handleBatchUpsertDatasetItems,
   handleCreateDatasetRunItem,
   handleDeleteDatasetItem,
   handleDeleteDatasetRun,
@@ -161,6 +162,7 @@ describe("MCP public API tools", () => {
         "getEvaluationRule",
         "createEvaluationRule",
         "createDashboardWidget",
+        "batchUpsertDatasetItems",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -252,6 +254,7 @@ describe("MCP public API tools", () => {
       [
         "addDashboardPlacement",
         "attachEvaluatorToEvaluationRule",
+        "batchUpsertDatasetItems",
         "createChatPrompt",
         "createDashboard",
         "createDashboardWidget",
@@ -539,7 +542,7 @@ describe("MCP public API tools", () => {
       additionalProperties: false,
     };
     const datasetExpectedOutputSchema = {
-      type: "object",
+      type: ["object", "null"],
       properties: { answer: { type: "string" } },
       required: ["answer"],
       additionalProperties: false,
@@ -640,6 +643,85 @@ describe("MCP public API tools", () => {
       context,
     )) as { id: string; datasetName: string };
     expect(datasetItem.datasetName).toBe(renamedDatasetName);
+
+    await expect(
+      handleUpsertDatasetItem(
+        {
+          datasetId: dataset.id,
+          id: datasetItem.id,
+          expectedOutput: null,
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({ expectedOutput: null });
+
+    const firstBatchItemId = uuidv4();
+    const batchResult = (await handleBatchUpsertDatasetItems(
+      {
+        datasetId: dataset.id,
+        items: [
+          {
+            id: firstBatchItemId,
+            input: { question: "first batch question" },
+            expectedOutput: { answer: "first batch answer" },
+          },
+          {
+            input: { question: "second batch question" },
+            expectedOutput: { answer: "second batch answer" },
+          },
+        ],
+      },
+      context,
+    )) as {
+      data: Array<{ id: string; input: unknown; url: string }>;
+    };
+    expect(batchResult.data).toHaveLength(2);
+    expect(batchResult.data[0]).toMatchObject({
+      id: firstBatchItemId,
+      input: { question: "first batch question" },
+      url: expect.stringContaining(firstBatchItemId),
+    });
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        {
+          datasetId: dataset.id,
+          items: [
+            {
+              id: firstBatchItemId,
+              input: { question: "updated batch question" },
+              expectedOutput: null,
+            },
+          ],
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({
+      data: [
+        {
+          id: firstBatchItemId,
+          input: { question: "updated batch question" },
+          expectedOutput: null,
+        },
+      ],
+    });
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        { datasetId: dataset.id, items: [] },
+        context,
+      ),
+    ).rejects.toThrow("Validation failed");
+
+    await expect(
+      handleBatchUpsertDatasetItems(
+        {
+          datasetId: dataset.id,
+          items: Array.from({ length: 101 }, () => ({ input: {} })),
+        },
+        context,
+      ),
+    ).rejects.toThrow("Validation failed");
 
     const datasetItems = (await handleListDatasetItems(
       { datasetId: dataset.id, page: 1, limit: 10 },

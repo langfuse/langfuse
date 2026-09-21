@@ -1,8 +1,10 @@
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
   compact,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
   toProviderMetadata,
 } from "../../../core/utils/json";
@@ -206,7 +208,7 @@ function anthropicSystemMessage(
   if (kind !== "input" || !("system" in root)) return undefined;
   return {
     kind: "single",
-    value: { content: root.system },
+    value: { content: recordKeyAsParsed(root, "system") },
     fallbackRole: "user",
     roleOverride: "system",
   };

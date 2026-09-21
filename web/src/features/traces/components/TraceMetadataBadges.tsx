@@ -1,9 +1,7 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * TraceMetadataBadges - Extracted badge components for trace metadata
  *
  * Following the pattern from ObservationDetailView/ObservationMetadataBadgesSimple.tsx
- * Each badge handles its own null check and returns null when data is unavailable.
  */
 
 import Link from "next/link";
@@ -14,11 +12,9 @@ export function SessionBadge({
   sessionId,
   projectId,
 }: {
-  sessionId: string | null;
+  sessionId: string;
   projectId: string;
 }) {
-  if (!sessionId) return null;
-
   const text = `Session: ${sessionId}`;
 
   return (
@@ -26,7 +22,7 @@ export function SessionBadge({
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -35,11 +31,9 @@ export function UserIdBadge({
   userId,
   projectId,
 }: {
-  userId: string | null;
+  userId: string;
   projectId: string;
 }) {
-  if (!userId) return null;
-
   const text = `User ID: ${userId}`;
 
   return (
@@ -47,7 +41,7 @@ export function UserIdBadge({
       href={`/project/${projectId}/users/${encodeURIComponent(userId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
@@ -56,11 +50,9 @@ export function TargetTraceBadge({
   targetTraceId,
   projectId,
 }: {
-  targetTraceId: string | null;
+  targetTraceId: string;
   projectId: string;
 }) {
-  if (!targetTraceId) return null;
-
   const text = `Target Trace: ${targetTraceId}`;
 
   return (
@@ -68,26 +60,19 @@ export function TargetTraceBadge({
       href={`/project/${projectId}/traces/${encodeURIComponent(targetTraceId)}`}
       className="ph-no-capture inline-flex"
     >
-      <Badge color="primary" text={text} trailingIcon={ExternalLinkIcon} />
+      <Badge text={text} trailingIcon={ExternalLinkIcon} />
     </Link>
   );
 }
 
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null;
-}) {
-  if (!environment) return null;
+export function EnvironmentBadge({ environment }: { environment: string }) {
   return <Badge text={`Env: ${environment}`} />;
 }
 
-export function ReleaseBadge({ release }: { release: string | null }) {
-  if (!release) return null;
+export function ReleaseBadge({ release }: { release: string }) {
   return <Badge text={`Release: ${release}`} />;
 }
 
-export function VersionBadge({ version }: { version: string | null }) {
-  if (!version) return null;
+export function VersionBadge({ version }: { version: string }) {
   return <Badge text={`Version: ${version}`} />;
 }

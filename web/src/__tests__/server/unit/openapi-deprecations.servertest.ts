@@ -14,6 +14,7 @@ import {
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
   METRICS_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
@@ -29,9 +30,16 @@ type OpenApiOperation = {
   description?: string;
   security?: unknown;
 };
+type OpenApiSchema = {
+  description?: string;
+};
 type OpenApiDocument = {
   paths: Record<string, Record<string, OpenApiOperation>>;
+  components: {
+    schemas: Record<string, OpenApiSchema>;
+  };
 };
+type FernUnion = Record<string, { docs?: string; type: string }>;
 
 const definitionDirectory = path.resolve(
   process.cwd(),
@@ -117,6 +125,16 @@ describe("OpenAPI deprecations", () => {
     );
   });
 
+  // Score writes are the successor the ingestion sunset message points at, so
+  // deprecating them would contradict that guidance.
+  it("keeps the score write endpoint free of a deprecation", () => {
+    const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
+    const scoreCreate = openApi.paths["/api/public/scores"].post;
+
+    expect(scoreCreate.deprecated).toBeUndefined();
+    expect(scoreCreate.description ?? "").not.toContain("Deprecated:");
+  });
+
   it("carries every Fern deprecation message into the operation description", () => {
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
 
@@ -135,6 +153,16 @@ describe("OpenAPI deprecations", () => {
       definitionDirectory,
     )) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
+      const isIngestion =
+        method === "post" && endpointPath === "/api/public/ingestion";
+
+      // Ingestion is not removed: v4-only write mode rejects traces, scores stay.
+      if (isIngestion) {
+        expect(message, operation).toContain(V3_SUNSET_HUMAN);
+        expect(message, operation).not.toContain("will be removed");
+        expect(message, operation).not.toContain("becomes unavailable");
+        continue;
+      }
 
       expect(message, operation).toContain(
         `will be removed on ${V3_SUNSET_HUMAN}.`,
@@ -167,8 +195,8 @@ describe("OpenAPI deprecations", () => {
   });
 
   // Every family that already stamps `_deprecation` shares V3_NOTICE, so a new
-  // family that forgets it would ship without the delay warning.
-  it("puts the 10-minute delay on every legacy `_deprecation.message`", () => {
+  // family that forgets it would ship without the live-read delay warning.
+  it("puts the live-read delay notice on every legacy `_deprecation.message`", () => {
     const families = [
       OBSERVATIONS_V1_DEPRECATION,
       TRACES_DEPRECATION,
@@ -177,10 +205,118 @@ describe("OpenAPI deprecations", () => {
       METRICS_DEPRECATION,
       DATASET_RUN_ITEMS_DEPRECATION,
       DATASET_RUNS_DEPRECATION,
+      INGESTION_DEPRECATION,
     ];
 
     for (const family of families) {
       expect(family.message).toContain(V3_DELAY_NOTICE);
+    }
+  });
+
+  it("leads with the ingestion sunset and names the write successors", () => {
+    const ingestion = getFernDeprecatedOperations(definitionDirectory).find(
+      ({ method, endpointPath }) =>
+        method === "post" && endpointPath === "/api/public/ingestion",
+    );
+
+    for (const message of [INGESTION_DEPRECATION.message, ingestion?.message]) {
+      expect(message).toContain(`shut down on ${V3_SUNSET_HUMAN}`);
+      expect(message).toContain("except for score events");
+      expect(message).toContain("rejects all other event types");
+      expect(message).toContain("POST /api/public/scores");
+      expect(message).toContain(
+        "prefer upgrading to the current Python and JS SDKs",
+      );
+      expect(message).toContain("custom auto-instrumentation");
+      expect(message).toContain("curl");
+      expect(message).toContain("POST /api/public/otel/v1/traces");
+      expect(message).toContain(
+        "The only path to live data is OpenTelemetry ingestion",
+      );
+      expect(message).toContain(
+        "other public APIs may have data delays of several minutes",
+      );
+    }
+
+    // Read guidance points at the live v2 surfaces and their docs.
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/observations",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/metrics",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    );
+    expect(ingestion?.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
+    );
+    expect(ingestion?.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    );
+    expect(ingestion?.message).toContain(
+      "https://langfuse.com/docs/metrics/features/metrics-api",
+    );
+  });
+
+  it("warns every sunset ingestion event type in the request body", () => {
+    const ingestionDefinition = parse(
+      fs.readFileSync(path.join(definitionDirectory, "ingestion.yml"), "utf8"),
+    ) as {
+      types: { IngestionEvent: { union: FernUnion } };
+    };
+    const ingestionEvents = ingestionDefinition.types.IngestionEvent.union;
+    const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
+    const supportedEventTypes = new Set(["score-create"]);
+    const expectedEventTypes = new Set([
+      "trace-create",
+      "score-create",
+      "span-create",
+      "span-update",
+      "generation-create",
+      "generation-update",
+      "event-create",
+      "observation-create",
+      "observation-update",
+    ]);
+
+    expect(new Set(Object.keys(ingestionEvents))).toEqual(expectedEventTypes);
+
+    for (const [eventType, event] of Object.entries(ingestionEvents)) {
+      const generatedSchema = openApi.components.schemas[event.type];
+
+      if (supportedEventTypes.has(eventType)) {
+        expect(event.docs, eventType).not.toContain("Sunset warning");
+        expect(generatedSchema.description ?? "", eventType).not.toContain(
+          "Sunset warning",
+        );
+        continue;
+      }
+
+      // Every rejected event type carries the full endpoint guidance, so a
+      // caller reading one variant does not have to find the endpoint docs.
+      for (const description of [event.docs, generatedSchema.description]) {
+        expect(description, eventType).toContain("Sunset warning");
+        expect(description, eventType).toContain(
+          `shut down on ${V3_SUNSET_HUMAN}`,
+        );
+        expect(description, eventType).toContain(
+          "rejects all other event types, including this one",
+        );
+        expect(description, eventType).toContain("POST /api/public/scores");
+        expect(description, eventType).toContain(
+          "POST /api/public/otel/v1/traces",
+        );
+        expect(description, eventType).toContain(
+          "The only path to live data is OpenTelemetry ingestion",
+        );
+        expect(description, eventType).toContain(
+          "other public APIs may have data delays of several minutes",
+        );
+      }
     }
   });
 
