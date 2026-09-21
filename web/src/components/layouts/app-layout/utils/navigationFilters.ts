@@ -5,8 +5,7 @@
 
 import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
 import type { Session } from "next-auth";
 
 /** Organization type from user session (can be null when not in project/org context) */

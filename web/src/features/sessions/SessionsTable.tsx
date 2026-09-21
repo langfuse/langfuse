@@ -71,8 +71,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 
 import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
 
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 export type SessionTableRow = {
   id: string;
   createdAt: Date;

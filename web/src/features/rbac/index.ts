@@ -1,12 +1,20 @@
-// The rbac feature's public surface (RFC rule 8). Named re-exports only —
-// this is the whole list of what anything outside the feature may use, and it
-// starts as exactly what they already imported, nothing added for the future.
+// The rbac feature's public client surface (RFC rule 8). Named
+// re-exports only — exactly what other features already imported.
 //
-// Access helpers live in utils/ and mix a React hook with TRPC throws in the
-// same file. Re-exporting them here does not change the bundle versus today's
-// deep import of those files. `server/` is deliberately absent: membersRouter
-// stays a direct import from the tRPC root, which is not a feature.
-
+// Access helpers live in utils/ and mix a React hook with TRPC throws
+// in the same file. Re-exporting them here does not change the bundle
+// versus today's deep import of those files.
+//
+// `server/` is deliberately absent: membersRouter stays a direct import
+// from the tRPC root, which is not a feature.
+//
+// auth/policy/types.ts keeps importing organizationAccessRights by file
+// path: it needs the runtime `organizationScopes` value, and routing
+// that module through this door would pull the React access hooks into
+// the policy types graph. auth/policy/contextResolver.ts keeps importing
+// apiKeyAccessRights by file path for the same reason, and because that
+// file already imports auth/policy/types — putting it on this door would
+// close a cycle if types ever moved onto the door too.
 export {
   hasProjectAccess,
   throwIfNoProjectAccess,
@@ -23,3 +31,6 @@ export {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
+
+export { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
+export { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
