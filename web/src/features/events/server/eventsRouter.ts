@@ -434,7 +434,8 @@ export const eventsRouter = createTRPCRouter({
   /**
    * Assemble the message transcript of a trace from its generations and tools,
    * see `loadTraceTranscript`. Internal surface: Langfuse admins and
-   * deployments with experimental features enabled only.
+   * deployments with experimental features enabled only, and only where the
+   * events tables are written.
    */
   transcriptByTraceId: protectedGetEventsTraceProcedure
     .input(
@@ -455,6 +456,12 @@ export const eventsRouter = createTRPCRouter({
         throw new TRPCError({
           code: "FORBIDDEN",
           message: "Transcripts are an internal preview.",
+        });
+      }
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Transcripts need the events-backed trace view.",
         });
       }
       // The trace timestamp bounds the observation read; the trace is loaded

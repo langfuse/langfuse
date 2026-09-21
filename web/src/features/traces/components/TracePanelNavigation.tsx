@@ -26,6 +26,7 @@ import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact"
 import { TraceGraphView } from "./TraceGraphView/TraceGraphView";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useReadPath } from "@/src/features/events";
 import { useMemo } from "react";
 
 export function TracePanelNavigation() {
@@ -33,11 +34,13 @@ export function TracePanelNavigation() {
   const { isGraphViewAvailable, isLoading: isGraphLoading } =
     useTraceGraphData();
   const [viewMode] = useQueryParam("view", StringParam);
-  const messagesEnabled = useIsFeatureEnabled("traceMessages");
+  const { isV4 } = useReadPath();
+  const messagesEnabled = useIsFeatureEnabled("traceMessages") && isV4;
 
   const hasQuery = searchQuery.trim().length > 0;
   const isTimelineView = viewMode === "timeline";
-  // Internal preview; a stale ?view=messages falls back to tree for others.
+  // Internal preview of the events-backed trace view; a stale ?view=messages
+  // falls back to tree for everyone else.
   const isMessagesView = viewMode === "messages" && messagesEnabled;
   // Availability is false while the graph query loads, so hold the view until it
   // resolves. Stale ?view=graph then falls back to tree.

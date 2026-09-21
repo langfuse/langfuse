@@ -104,7 +104,9 @@ function TracePanelNavigationHeaderExpanded({
     isLoading: isGraphLoading,
   } = useTraceGraphData();
   const { isV4 } = useReadPath();
-  const messagesEnabled = useIsFeatureEnabled("traceMessages");
+  // Internal preview of the events-backed trace view; legacy traces have no
+  // transcript to offer.
+  const messagesEnabled = useIsFeatureEnabled("traceMessages") && isV4;
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();

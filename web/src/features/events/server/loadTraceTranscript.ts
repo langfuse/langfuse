@@ -6,6 +6,11 @@ import {
   type Transcript,
 } from "@langfuse/shared/src/server";
 
+/** Generations and tools whose I/O one transcript reads at most. */
+export const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
+
+const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
+
 /**
  * Load a trace's observations from the events table, walk them in trace tree
  * order, and assemble the transcript of its generations and tools.
@@ -15,7 +20,11 @@ export async function loadTraceTranscript(trace: {
   traceId: string;
   /** Trace timestamp; observations from one hour before it onwards are read. */
   timestamp: Date;
-}): Promise<{ transcript: Transcript | null; cutoff: boolean }> {
+}): Promise<{
+  transcript: Transcript | null;
+  /** The trace has more observations than the transcript could read. */
+  cutoff: boolean;
+}> {
   // The structure of every observation orders the walk; only generations and
   // tools carry I/O, which is what the transcript reads.
   const [structure, content] = await Promise.all([
@@ -24,17 +33,21 @@ export async function loadTraceTranscript(trace: {
       ...trace,
       selectIOAndMetadata: true,
       types: ["GENERATION", "TOOL"],
+      limit: MAX_TRANSCRIPT_OBSERVATIONS,
     }),
   ]);
-  // Both reads stop at the per-trace observation cap. The structure decides
-  // what exists, so the transcript ends where the trace tree ends; content
-  // rows past that point are dropped and `cutoff` tells the caller.
   const contentById = new Map(content.observations.map((o) => [o.id, o]));
-  const observations = structure.observations.map(
-    (o) => contentById.get(o.id) ?? o,
-  );
+  // Generations and tools past the content cap have no I/O to show; leaving
+  // them out beats rendering them as empty turns. `cutoff` tells the caller.
+  const observations = structure.observations.flatMap((o) => {
+    const withContent = contentById.get(o.id);
+    if (withContent) return [withContent];
+    return TRANSCRIPT_OBSERVATION_TYPES.has(o.type) ? [] : [o];
+  });
   return {
     transcript: assembleTranscript(orderObservations(observations)),
-    cutoff: structure.totalCount > MAX_OBSERVATIONS_PER_TRACE,
+    cutoff:
+      structure.totalCount > MAX_OBSERVATIONS_PER_TRACE ||
+      content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
   };
 }

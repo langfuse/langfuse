@@ -8,6 +8,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { ErrorBoundary } from "@sentry/nextjs";
 import type { NormalizedMessage } from "@langfuse/shared/src/utils/normalized-io";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -23,6 +24,10 @@ type Transcript = NonNullable<
   RouterOutputs["events"]["transcriptByTraceId"]["transcript"]
 >;
 type Thread = Transcript["threads"][number];
+
+// Media is looked up per contributing observation; bound the request fan-out
+// of agentic turns with very many tool calls.
+const MAX_MEDIA_LOOKUPS_PER_TURN = 20;
 
 export function TraceMessagesView() {
   const { trace, observations } = useTraceData();
@@ -44,31 +49,33 @@ export function TraceMessagesView() {
   }
   if (!data?.transcript) {
     return (
-      <Notice>
-        No messages. Transcripts are assembled from generations and tool
-        observations with chat-shaped input and output.
-      </Notice>
+      <div className="flex flex-col">
+        {data?.cutoff && <CutoffNotice />}
+        <Notice>
+          No messages. Transcripts are assembled from generations and tool
+          observations with chat-shaped input and output.
+        </Notice>
+      </div>
     );
   }
 
   const { threads } = data.transcript;
   return (
     <div className="flex h-full w-full flex-col gap-6 overflow-y-auto p-3">
-      {data.cutoff && (
-        <Notice>
-          This trace exceeds the observation cap. Later observations are not
-          part of the transcript.
-        </Notice>
-      )}
+      {data.cutoff && <CutoffNotice />}
       {threads.map((thread, index) => (
-        <ThreadBlock
+        <ErrorBoundary
           key={index}
-          thread={thread}
-          title={threads.length > 1 ? `Thread ${index + 1}` : undefined}
-          observationNames={observationNames}
-          projectId={trace.projectId}
-          traceId={trace.id}
-        />
+          fallback={<Notice>Unprocessable content.</Notice>}
+        >
+          <ThreadBlock
+            thread={thread}
+            title={threads.length > 1 ? `Thread ${index + 1}` : undefined}
+            observationNames={observationNames}
+            projectId={trace.projectId}
+            traceId={trace.id}
+          />
+        </ErrorBoundary>
       ))}
     </div>
   );
@@ -94,12 +101,14 @@ function ThreadBlock({
   // Media of the emitting observations, so inline references resolve the way
   // they do in the formatted view. History has no emitter to ask.
   const mediaQueries = api.useQueries((t) =>
-    thread.currentTurn.observations.map(({ id }) =>
-      t.media.getByTraceOrObservationId(
-        { projectId, traceId, observationId: id },
-        { refetchOnWindowFocus: false, staleTime: 50 * 60 * 1000 },
+    thread.currentTurn.observations
+      .slice(0, MAX_MEDIA_LOOKUPS_PER_TURN)
+      .map(({ id }) =>
+        t.media.getByTraceOrObservationId(
+          { projectId, traceId, observationId: id },
+          { refetchOnWindowFocus: false, staleTime: 50 * 60 * 1000 },
+        ),
       ),
-    ),
   );
   const media = mediaQueries.flatMap((query) => query.data ?? []);
 
@@ -199,6 +208,15 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
       {children}
       <span className="bg-border h-px flex-1" />
     </div>
+  );
+}
+
+function CutoffNotice() {
+  return (
+    <Notice>
+      This trace exceeds the observation cap. Later observations are not part of
+      the transcript.
+    </Notice>
   );
 }
 
