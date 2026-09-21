@@ -153,6 +153,24 @@ export async function assertEvaluatorConfigurationValid(params: {
     });
   }
 
+  // A decision-model connection cannot generate text, so it is never a valid
+  // judge model even though it resolves like any other connection.
+  if (params.definition.provider !== null) {
+    const connection = await DefaultEvalModelService.fetchValidModelConfig(
+      params.projectId,
+      params.definition.provider,
+      params.definition.model ?? undefined,
+    );
+    if (
+      connection.valid &&
+      isDecisionModelAdapter(connection.config.apiKey.adapter)
+    ) {
+      throw new EvaluatorModelConfigurationError(
+        `Connection "${params.definition.provider}" is a decision-model connection and cannot be used for LLM-as-a-judge. Choose a text-generation model or switch the evaluator type to decision model.`,
+      );
+    }
+  }
+
   const error = await getEvaluatorDefinitionConfigurationError({
     projectId: params.projectId,
     template: {
@@ -165,6 +183,34 @@ export async function assertEvaluatorConfigurationValid(params: {
     },
   });
   if (error) throw new EvaluatorModelConfigurationError(error);
+}
+
+/**
+ * Returns why a decision-model evaluator cannot run, or `null` when its
+ * connection resolves to a decision-model adapter. Shared by creation and
+ * reactivation so a paused evaluator can be resumed once the connection is
+ * restored.
+ */
+export async function getDecisionModelConfigurationError(params: {
+  projectId: string;
+  name: string;
+  definition: Pick<
+    Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+    "provider" | "model"
+  >;
+}): Promise<string | null> {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`;
+  }
+  return null;
 }
 
 async function assertDecisionModelDefinitionValid(params: {
@@ -184,19 +230,6 @@ async function assertDecisionModelDefinitionValid(params: {
     throw error;
   }
 
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
-    params.projectId,
-    params.definition.provider,
-    params.definition.model,
-  );
-  if (!modelConfig.valid) {
-    throw new EvaluatorModelConfigurationError(
-      `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`,
-    );
-  }
-  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
-    throw new EvaluatorModelConfigurationError(
-      `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`,
-    );
-  }
+  const error = await getDecisionModelConfigurationError(params);
+  if (error) throw new EvaluatorModelConfigurationError(error);
 }

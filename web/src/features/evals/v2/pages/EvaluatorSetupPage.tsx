@@ -307,8 +307,9 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
+    // Decision-model instructions travel as normalized prompt messages too.
     promptMessages:
-      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
+      initialEvaluator?.type === "CODE" ? null : version.promptMessages,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],

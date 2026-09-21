@@ -40,8 +40,9 @@ describe("executeDecisionModelEvaluator", () => {
       variables: [
         { var: "input", value: { question: "refund?" } },
         { var: "output", value: "Yes, within 30 days." },
-        { var: "toolCalls", value: null },
+        { var: "toolCalls", value: "" },
         { var: "experimentItemExpectedOutput", value: undefined },
+        { var: "metadata", value: null },
       ],
       outputDefinition,
       client,
@@ -51,6 +52,7 @@ describe("executeDecisionModelEvaluator", () => {
       state: {
         input: { question: "refund?" },
         output: "Yes, within 30 days.",
+        toolCalls: "",
       },
       question: {
         type: "choice",
@@ -95,27 +97,30 @@ describe("executeDecisionModelEvaluator", () => {
     });
   });
 
-  it("rejects a choice outside the configured categories", async () => {
-    const { client } = createClient({
-      model: "jev-1.13.0",
-      answer: {
-        type: "choice",
-        choice: "unsure",
-        probabilities: { unsure: 1 },
-        confidence: 1,
-      },
-      usage: null,
-    });
+  it.each(["unsure", "constructor", "__proto__"])(
+    "rejects the choice %j because it is not a configured category",
+    async (choice) => {
+      const { client } = createClient({
+        model: "jev-1.13.0",
+        answer: {
+          type: "choice",
+          choice,
+          probabilities: { [choice]: 1 },
+          confidence: 1,
+        },
+        usage: null,
+      });
 
-    await expect(
-      executeDecisionModelEvaluator({
-        instructions: "Is the reply ready to send?",
-        variables: [],
-        outputDefinition,
-        client,
-      }),
-    ).rejects.toBeInstanceOf(DecisionModelEvaluatorError);
-  });
+      await expect(
+        executeDecisionModelEvaluator({
+          instructions: "Is the reply ready to send?",
+          variables: [],
+          outputDefinition,
+          client,
+        }),
+      ).rejects.toBeInstanceOf(DecisionModelEvaluatorError);
+    },
+  );
 
   it("rejects non-categorical and multi-match output definitions before calling the model", async () => {
     const { client, evaluateChoice } = createClient({

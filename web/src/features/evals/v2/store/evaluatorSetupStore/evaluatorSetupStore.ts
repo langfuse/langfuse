@@ -243,23 +243,34 @@ export function createEvaluatorSetupStore({
     testPanelOpen: true,
     actions: {
       setType: (type) =>
-        set((state) =>
+        set((state) => {
+          if (type === state.type) return state;
           // Decision models always answer with one category; switching to one
           // replaces a numeric or boolean output with a categorical default.
-          type === EvalTemplateTypeEnum.DECISION_MODEL
-            ? {
-                type,
-                modelMode: "custom",
-                scoreOutput:
-                  state.scoreOutput.dataType === "CATEGORICAL"
-                    ? {
-                        ...state.scoreOutput,
-                        shouldAllowMultipleMatches: false,
-                      }
-                    : DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
-              }
-            : { type },
-        ),
+          if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            return {
+              type,
+              modelMode: "custom",
+              selectedModel: null,
+              modelParams: null,
+              scoreOutput:
+                state.scoreOutput.dataType === "CATEGORICAL"
+                  ? { ...state.scoreOutput, shouldAllowMultipleMatches: false }
+                  : DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
+            };
+          }
+          // A decision-model connection cannot serve as an LLM judge, so the
+          // model selection never survives leaving the decision-model type.
+          if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            return {
+              type,
+              modelMode: "default",
+              selectedModel: null,
+              modelParams: null,
+            };
+          }
+          return { type };
+        }),
       setInstructions: (instructions) => set({ instructions }),
       setPromptMessage: (index, message) =>
         set((state) => {

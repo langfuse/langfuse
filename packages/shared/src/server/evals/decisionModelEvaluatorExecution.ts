@@ -1,9 +1,19 @@
 import { ScoreDataTypeEnum } from "../../domain/scores";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import {
   resolvePersistedEvalOutputDefinition,
   type EvalOutputResult,
   type PersistedEvalOutputDefinition,
 } from "../../features/evals/outputDefinition";
+import { stringifyValue } from "../../utils/stringChecks";
+import {
+  INTERNAL_TRACE_EVENT_SOURCE,
+  type InternalTraceEventInput,
+} from "../llm/internalTraceEvents";
+import {
+  LangfuseInternalTraceEnvironment,
+  type InternalTraceWriteInput,
+} from "../llm/types";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
 /**
@@ -70,13 +80,9 @@ export function buildDecisionModelState(
 ): Record<string, unknown> {
   const state: Record<string, unknown> = {};
   for (const variable of variables) {
-    if (
-      variable.value === null ||
-      variable.value === undefined ||
-      variable.value === ""
-    ) {
-      continue;
-    }
+    // An empty string is a real value (a model that answered nothing); only
+    // fields the observation does not have are dropped.
+    if (variable.value === null || variable.value === undefined) continue;
     state[variable.var] = variable.value;
   }
   return state;
@@ -166,6 +172,59 @@ export function toDecisionModelScoreMetadata(
   };
 }
 
+/**
+ * One-span execution trace so the "view execution trace" link on a decision
+ * model score shows exactly what was sent (state and question) and returned.
+ */
+export function buildDecisionModelTraceInput(params: {
+  projectId: string;
+  executionTraceId: string;
+  traceStartTime: Date;
+  traceName: string;
+  state: Record<string, unknown>;
+  question: DecisionModelChoiceQuestion;
+  evaluation: DecisionModelEvaluation;
+  metadata: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
+}): InternalTraceWriteInput {
+  const usage = params.evaluation.usage;
+  const eventInput: InternalTraceEventInput = {
+    projectId: params.projectId,
+    traceId: params.executionTraceId,
+    spanId: params.executionTraceId,
+    startTimeISO: params.traceStartTime.toISOString(),
+    endTimeISO: new Date().toISOString(),
+    name: params.traceName,
+    traceName: params.traceName,
+    type: "GENERATION",
+    environment: LangfuseInternalTraceEnvironment.LLMJudge,
+    modelName: params.evaluation.model,
+    input: stringifyValue({
+      state: params.state,
+      questions: { verdict: params.question },
+    }),
+    output: stringifyValue(params.evaluation.answer),
+    ...(usage
+      ? {
+          providedUsageDetails: {
+            ...(usage.inputTokens !== null ? { input: usage.inputTokens } : {}),
+            ...(usage.outputTokens !== null
+              ? { output: usage.outputTokens }
+              : {}),
+          },
+        }
+      : {}),
+    metadata: params.metadata,
+    evaluationContext: params.evaluationContext,
+    source: INTERNAL_TRACE_EVENT_SOURCE,
+  };
+
+  return {
+    rootSpanId: params.executionTraceId,
+    eventInputs: [eventInput],
+  };
+}
+
 export async function executeDecisionModelEvaluator(params: {
   instructions: string;
   variables: ExtractedVariable[];
@@ -180,7 +239,7 @@ export async function executeDecisionModelEvaluator(params: {
 
   const evaluation = await params.client.evaluateChoice({ state, question });
 
-  if (!(evaluation.answer.choice in question.criteria)) {
+  if (!Object.hasOwn(question.criteria, evaluation.answer.choice)) {
     throw new DecisionModelEvaluatorError(
       `Decision model returned "${evaluation.answer.choice}", which is not one of the configured categories`,
     );

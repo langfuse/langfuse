@@ -69,5 +69,6 @@ function readConfidence(providerMetadata: unknown): number | null {
   const confidence = (typesafe as Record<string, unknown>).confidence;
   if (typeof confidence !== "object" || confidence === null) return null;
   const value = (confidence as Record<string, unknown>)[QUESTION_ID];
-  return typeof value === "number" ? value : null;
+  // Confidence is not part of the SDK's validated answer, so range-check it.
+  return typeof value === "number" && value >= 0 && value <= 1 ? value : null;
 }

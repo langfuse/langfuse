@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared";
 import {
   blockEvaluator,
+  buildDecisionModelTraceInput,
   classifyEvaluatorLlmError,
   DecisionModelEvaluatorError,
   EvaluatorBlockSource,
@@ -122,7 +123,11 @@ export async function runDecisionModelEvaluation({
       let modelConfigError: string | null = null;
       if (!modelConfig.valid) {
         modelConfigError = modelConfig.error;
-      } else if (!isDecisionModelAdapter(modelConfig.config.adapter)) {
+      } else if (
+        // The connection's adapter is authoritative; the resolved config only
+        // carries provider/model plus the stored connection.
+        !isDecisionModelAdapter(modelConfig.config.apiKey.adapter)
+      ) {
         modelConfigError = `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
       }
       if (!modelConfig.valid || modelConfigError !== null) {
@@ -151,7 +156,10 @@ export async function runDecisionModelEvaluation({
 
       span.setAttribute("eval.model.provider", modelConfig.config.provider);
       span.setAttribute("eval.model.name", modelConfig.config.model);
-      span.setAttribute("eval.model.adapter", modelConfig.config.adapter);
+      span.setAttribute(
+        "eval.model.adapter",
+        modelConfig.config.apiKey.adapter,
+      );
 
       const executionTraceId = createW3CTraceId(jobExecutionId);
       span.setAttributes({
@@ -159,6 +167,7 @@ export async function runDecisionModelEvaluation({
         "eval.execution.stage": "call_decision_model",
       });
 
+      const traceStartTime = new Date();
       let execution: Awaited<ReturnType<typeof executeDecisionModelEvaluator>>;
       try {
         execution = await executeDecisionModelEvaluator({
@@ -210,6 +219,29 @@ export async function runDecisionModelEvaluation({
       logger.debug(
         `Job ${jobExecutionId} received decision-model answer: ${execution.output.reasoning}`,
       );
+
+      // The trace is a debugging aid; a write failure must not fail the score.
+      try {
+        await deps.writeInternalTrace(
+          buildDecisionModelTraceInput({
+            projectId,
+            executionTraceId,
+            traceStartTime,
+            traceName: `Execute evaluator: ${template.name}`,
+            state: execution.state,
+            question: execution.question,
+            evaluation: execution.evaluation,
+            metadata: executionMetadata,
+            evaluationContext,
+          }),
+        );
+      } catch (error) {
+        logger.warn("Failed to write decision-model execution trace", {
+          jobExecutionId,
+          executionTraceId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
 
       const scores = toNormalizedScores({
         outputResult: execution.output,

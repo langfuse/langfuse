@@ -365,8 +365,13 @@ export async function listEvaluatorsCursor(params: {
   limit: number;
   cursor?: { createdAt: Date; id: string };
   search?: string;
+  /** Restricts the collection so limit and cursor apply to these types only. */
+  types?: EvalTemplateType[];
 }) {
-  const baseWhere = await evaluatorWhere(params);
+  const baseWhere: Prisma.EvaluatorWhereInput = {
+    ...(await evaluatorWhere(params)),
+    ...(params.types ? { type: { in: params.types } } : {}),
+  };
   const where: Prisma.EvaluatorWhereInput = params.cursor
     ? {
         AND: [
@@ -447,9 +452,8 @@ export async function listEvaluatorFilterOptions(params: {
     ].sort(),
     model: [
       ...new Set(
-        evaluators.flatMap(({ type, versions }) => {
-          if (type !== EvalTemplateType.LLM_AS_JUDGE) return [];
-          const model = versions[0]?.model ?? defaultModel?.model;
+        evaluators.flatMap((evaluator) => {
+          const model = getEffectiveModel(evaluator, defaultModel?.model);
           return model ? [model] : [];
         }),
       ),

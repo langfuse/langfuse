@@ -48,7 +48,10 @@ import {
   EvaluatorModelConfigurationError,
   EvaluatorVersionConflictError,
 } from "./evaluatorErrors";
-import { assertEvaluatorConfigurationValid } from "./evaluatorValidation";
+import {
+  assertEvaluatorConfigurationValid,
+  getDecisionModelConfigurationError,
+} from "./evaluatorValidation";
 
 type SuggestEvaluatorTextParams = {
   projectId: string;
@@ -173,6 +176,7 @@ export class EvaluatorService {
     limit: number;
     cursor?: { createdAt: Date; id: string };
     search?: string;
+    types?: EvalTemplateType[];
   }) {
     const page = await repository.listEvaluatorsCursor({
       prisma: this.prisma,
@@ -497,22 +501,29 @@ export class EvaluatorService {
     if (!version)
       throw new LangfuseNotFoundError("Evaluator version not found");
     const definition = toEvaluatorDefinition(evaluator.type, version);
-    if (definition.type !== EvalTemplateType.LLM_AS_JUDGE) {
+    if (definition.type === EvalTemplateType.CODE) {
       throw new EvaluatorConfigurationError(
-        "Only LLM evaluators can be reactivated with a model test.",
+        "Only LLM and decision-model evaluators can be reactivated with a model test.",
       );
     }
-    const error = await getEvaluatorDefinitionPreflightError({
-      projectId,
-      template: {
-        name: evaluator.name,
-        type: definition.type,
-        provider: definition.provider,
-        model: definition.model,
-        modelParams: definition.modelParams,
-        outputDefinition: definition.outputDefinition,
-      },
-    });
+    const error =
+      definition.type === EvalTemplateType.DECISION_MODEL
+        ? await getDecisionModelConfigurationError({
+            projectId,
+            name: evaluator.name,
+            definition,
+          })
+        : await getEvaluatorDefinitionPreflightError({
+            projectId,
+            template: {
+              name: evaluator.name,
+              type: definition.type,
+              provider: definition.provider,
+              model: definition.model,
+              modelParams: definition.modelParams,
+              outputDefinition: definition.outputDefinition,
+            },
+          });
     if (error) {
       const reason = getBlockReasonForInvalidModelConfig({
         templateProvider: definition.provider,

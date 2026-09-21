@@ -71,8 +71,13 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
  * Decision-model evaluators (experimental) are not part of the public API
  * contract yet; callers must skip them before mapping.
  */
+export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
+  EvalTemplateType.LLM_AS_JUDGE,
+  EvalTemplateType.CODE,
+];
+
 export function isPublicApiEvaluatorType(type: EvalTemplateType) {
-  return type !== EvalTemplateType.DECISION_MODEL;
+  return PUBLIC_API_EVALUATOR_TYPES.includes(type);
 }
 
 export function toPublicEvaluatorType(type: EvalTemplateType) {

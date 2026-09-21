@@ -1,4 +1,8 @@
-import { EvalTemplateType, ZodModelConfig } from "@langfuse/shared";
+import {
+  EvalTemplateType,
+  InvalidRequestError,
+  ZodModelConfig,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { ApiAccessScope } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -14,10 +18,28 @@ import {
 } from "@/src/features/public-api/types/evaluation/evaluators";
 import {
   isPublicApiEvaluatorType,
+  PUBLIC_API_EVALUATOR_TYPES,
   toEvaluatorServiceDefinition,
   toPublicEvaluator,
   toPublicEvaluatorVersion,
 } from "./evaluationAdapters";
+
+/**
+ * Experimental evaluator types are hidden from the public API. Mutations check
+ * the stored type before touching anything so a rejected request never commits.
+ */
+async function assertPublicApiEvaluator(
+  service: EvaluatorService,
+  projectId: string,
+  evaluatorId: string,
+) {
+  const evaluator = await service.get(projectId, evaluatorId);
+  if (!isPublicApiEvaluatorType(evaluator.type)) {
+    throw new InvalidRequestError(
+      "This evaluator type is experimental and not available through the public API",
+    );
+  }
+}
 
 function evaluatorService(auditScope: ApiAccessScope) {
   return new EvaluatorService(prisma, ({ action, evaluatorId, projectId }) =>
@@ -41,6 +63,7 @@ export async function listEvaluatorsForPublicApi(params: {
   const result = await evaluatorService(params.auditScope).listCursor({
     projectId: params.projectId,
     limit: params.limit,
+    types: PUBLIC_API_EVALUATOR_TYPES,
     cursor: params.cursor
       ? {
           createdAt: new Date(params.cursor.lastCreatedAt),
@@ -49,9 +72,7 @@ export async function listEvaluatorsForPublicApi(params: {
       : undefined,
   });
   return {
-    data: result.evaluators
-      .filter((evaluator) => isPublicApiEvaluatorType(evaluator.type))
-      .map(toPublicEvaluator),
+    data: result.evaluators.map(toPublicEvaluator),
     meta: result.nextCursor
       ? {
           cursor: encodeResourceCursor({
@@ -102,6 +123,7 @@ export async function updateEvaluatorForPublicApi(params: {
   auditScope: ApiAccessScope;
 }) {
   const service = evaluatorService(params.auditScope);
+  await assertPublicApiEvaluator(service, params.projectId, params.evaluatorId);
   let definition =
     "type" in params.input
       ? toEvaluatorServiceDefinition(params.input)
@@ -144,10 +166,9 @@ export async function deleteEvaluatorForPublicApi(params: {
   evaluatorId: string;
   auditScope: ApiAccessScope;
 }) {
-  await evaluatorService(params.auditScope).delete(
-    params.projectId,
-    params.evaluatorId,
-  );
+  const service = evaluatorService(params.auditScope);
+  await assertPublicApiEvaluator(service, params.projectId, params.evaluatorId);
+  await service.delete(params.projectId, params.evaluatorId);
   return { id: params.evaluatorId };
 }
 

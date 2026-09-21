@@ -20,7 +20,10 @@ import {
   type ChatMessage,
   type DecisionModelChoiceQuestion,
   type DecisionModelEvaluation,
+  type InternalTraceWriter,
+  writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
+import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
@@ -158,6 +161,8 @@ export interface EvalExecutionDeps {
   callDecisionModel: (
     params: DecisionModelCallParams,
   ) => Promise<DecisionModelEvaluation>;
+  /** Writes an execution trace for evaluators that do not go through the AI SDK trace hook. */
+  writeInternalTrace: InternalTraceWriter;
 }
 
 // Measure the schema as the JSON Schema LangChain ships, not Zod's _def.
@@ -341,11 +346,24 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       }
       const secretKey = apiKey.secretKey;
       if (typeof secretKey !== "string") {
-        throw new Error("TypeSafe connection is missing its secret key");
+        throw new UnrecoverableError(
+          "TypeSafe connection is missing its secret key",
+        );
+      }
+
+      // A secret that cannot be decrypted is a stored-connection problem, not
+      // a transient one; retrying the job would fail identically.
+      let decryptedSecretKey: string;
+      try {
+        decryptedSecretKey = decrypt(secretKey);
+      } catch {
+        throw new UnrecoverableError(
+          "TypeSafe connection secret could not be decrypted",
+        );
       }
 
       const client = createTypeSafeDecisionModelClient({
-        apiKey: decrypt(secretKey),
+        apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
       });
 
@@ -354,6 +372,8 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         question: params.question,
       });
     },
+
+    writeInternalTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),
   };
 }
 
@@ -387,6 +407,7 @@ export function createMockEvalExecutionDeps(
         usage: null,
       };
     },
+    writeInternalTrace: async () => {},
   };
 
   return { ...defaultMock, ...overrides };

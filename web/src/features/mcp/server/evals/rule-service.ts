@@ -7,6 +7,7 @@ import {
   toStoredMappingList,
 } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
@@ -42,6 +43,27 @@ export function toStoredAssignments(
 }
 
 type StoredRule = Awaited<ReturnType<RuleService["get"]>>;
+
+/**
+ * Rules whose assignments include experimental evaluator types are read back
+ * without them, so a replace-all update from that view would silently detach
+ * the hidden evaluators. Such rules must be edited in the Langfuse UI instead.
+ */
+export async function assertRuleAssignmentsReplaceableViaMcp(
+  service: RuleService,
+  projectId: string,
+  ruleId: string,
+) {
+  const rule = await service.get(projectId, ruleId);
+  const hidden = rule.assignments.filter(
+    (assignment) => !isPublicApiEvaluatorType(assignment.evaluator.type),
+  );
+  if (hidden.length > 0) {
+    throw new InvalidRequestError(
+      "This rule uses experimental evaluators that are not visible through MCP. Update its evaluator assignments in the Langfuse UI.",
+    );
+  }
+}
 
 export function toMcpEvaluationRule(
   rule: StoredRule,

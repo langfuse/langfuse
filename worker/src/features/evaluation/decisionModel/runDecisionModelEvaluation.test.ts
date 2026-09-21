@@ -119,7 +119,7 @@ describe("runDecisionModelEvaluation", () => {
       provider: "typesafe",
       model: "jev-1.13.0",
       apiKey: { adapter: "typesafe", secretKey: "encrypted" },
-      adapter: "typesafe" as never,
+      adapter: undefined as never,
       modelParams: {},
     },
   };
@@ -153,12 +153,28 @@ describe("runDecisionModelEvaluation", () => {
       },
       usage: { inputTokens: 200, outputTokens: 3 },
     });
+    const writeInternalTrace = vi.fn().mockResolvedValue(undefined);
     const deps = createMockEvalExecutionDeps({
       fetchModelConfig: vi.fn().mockResolvedValue(typeSafeModelConfig),
       callDecisionModel,
+      writeInternalTrace,
     });
 
     const result = await runDecisionModelEvaluation({ ...baseParams, deps });
+
+    // The persisted execution trace id must resolve to a written trace.
+    expect(writeInternalTrace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rootSpanId: result.executionTraceId,
+        eventInputs: [
+          expect.objectContaining({
+            traceId: result.executionTraceId,
+            name: "Execute evaluator: Send readiness",
+            modelName: "jev-1.13.0",
+          }),
+        ],
+      }),
+    );
 
     expect(callDecisionModel).toHaveBeenCalledWith({
       modelConfig: typeSafeModelConfig.config,
@@ -199,7 +215,6 @@ describe("runDecisionModelEvaluation", () => {
         config: {
           ...typeSafeModelConfig.config,
           provider: "openai",
-          adapter: "openai" as never,
           apiKey: { adapter: "openai", secretKey: "encrypted" },
         },
       }),
