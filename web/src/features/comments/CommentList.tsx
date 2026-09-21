@@ -93,7 +93,7 @@ function CommentThread({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden",
+        "flex h-full min-h-0 flex-col overflow-y-auto",
         cardView && "rounded-md",
       )}
     >

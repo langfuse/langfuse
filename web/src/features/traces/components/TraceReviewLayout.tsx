@@ -83,8 +83,8 @@ export function TraceReviewLayout({
   const vertical = reviewWidth < (collapsed ? 762 : 983);
   const openLayout = collapsed ? "review" : "review-navigation";
   const horizontalWorkspaceMinimum = collapsed ? "400px" : "621px";
-  const workspaceMinimum = vertical ? "25%" : horizontalWorkspaceMinimum;
-  const reviewMinimum = vertical ? "25%" : "360px";
+  const workspaceMinimum = vertical ? "240px" : horizontalWorkspaceMinimum;
+  const reviewMinimum = vertical ? "320px" : "360px";
 
   useLayoutEffect(() => {
     let cancelled = false;
@@ -113,14 +113,17 @@ export function TraceReviewLayout({
   return (
     <div
       ref={rootRef}
-      className="h-full min-h-0 min-w-0"
+      className="h-full min-h-0 min-w-0 overflow-y-auto"
       data-peek-layout={open ? openLayout : undefined}
       data-review-orientation={vertical ? "vertical" : "horizontal"}
     >
       <Group
         groupRef={groupRef}
         orientation={vertical ? "vertical" : "horizontal"}
-        className="h-full min-h-0 min-w-0"
+        className={cn(
+          "h-full min-h-0 min-w-0",
+          open && (vertical ? "min-h-[561px]" : "min-h-[320px]"),
+        )}
       >
         <Panel
           id="workspace"
