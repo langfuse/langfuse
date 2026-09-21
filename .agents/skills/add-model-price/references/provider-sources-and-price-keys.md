@@ -685,6 +685,39 @@ file and `openAIModels`in July 27 2026 audit. Official sources:`https://develope
   Daybreak/Rosalind restricted family only if OpenAI publishes public,
   unauthenticated documentation confirming a model ID and price on its own
   dedicated page.
+- **September 21 2026 audit: full re-fetch found no price or catalog drift;
+  a new specialized OpenAI model (`gpt-5-search-api`) found and confirmed out
+  of scope; `gpt-rosalind-research` gained a billing start date but is still
+  unconfirmed** — Re-fetched the Anthropic pricing page, the Anthropic
+  models-overview table, the OpenAI aggregate Standard/Batch/Flex/Fast-mode
+  pricing tables, the full OpenAI model catalog, both Gemini pricing pages,
+  and the Gemini models catalog page. Every price already in the file —
+  including every `gpt-6-astra`, `gpt-5.6-sol/terra/luna`, `gemini-3.6/3.7/
+  3.8-flash`, `gemini-3.1-pro-preview` (cache read $0.20/$0.40 reconfirmed),
+  and `claude-fable-5-1`/`claude-mythos-5-1` tier — matched verbatim; no
+  updates were needed. Two findings: (1) the aggregate pricing page's
+  "Specialized Models (Standard)" section now additionally lists
+  **`gpt-5-search-api`** at $1.25/MTok input, $0.125/MTok cached input,
+  $10.00/MTok output (no cache-write column) — but a dedicated fetch of
+  `developers.openai.com/api/docs/models/gpt-5-search-api` 404s, so there is
+  no confirmed model ID, usage shape, or endpoint documentation beyond the
+  bare aggregate-table row. Treat this the same as any other specialized
+  endpoint discovered only in the aggregate table without model-page
+  corroboration: not added, re-investigate only once a dedicated page exists;
+  (2) the same aggregate table's "Specialized Models (Standard)" section now
+  shows `gpt-rosalind-research` with an explicit note that "billing for
+  `gpt-rosalind-research` begins on October 5, 2026" — pricing unchanged at
+  $5/$0.50/—/$25 per MTok — but `developers.openai.com/api/docs/models/gpt-rosalind-research`
+  still 404s, so the model remains unconfirmed and out of scope per the
+  existing restricted-access skip rule; re-check after October 5, 2026 in
+  case a dedicated page appears once billing starts. Also reconfirmed the
+  `gemini-3.5-flash-lite` free/paid pricing-table column-collapse artifact
+  recurred yet again on a generic fetch (showed "Not available" for Paid-tier
+  context caching) and was resolved the same way as every prior occurrence: a
+  second, explicitly verbatim, Free-vs-Paid-separated fetch confirmed the
+  Paid tier is unchanged at $0.03/MTok cache read. This is now well past a
+  one-off quirk — always use the verbatim-quote fetch for this specific
+  model's caching row on the first attempt rather than as a fallback.
 
 Capture:
 
