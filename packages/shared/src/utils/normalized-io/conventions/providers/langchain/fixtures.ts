@@ -125,6 +125,7 @@ export const langchainSerializedGenerationResultFixture = {
       {
         source: "input",
         role: "user",
+        id: "123",
         parts: [{ type: "text", text: "office hours" }],
       },
       {
