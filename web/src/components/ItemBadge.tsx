@@ -93,6 +93,18 @@ const iconVariants = cva("h-4 w-4", {
   },
 });
 
+/** The type icon alone, no badge chrome. */
+export function ItemTypeIcon({
+  type,
+  className,
+}: {
+  type: LangfuseItemType;
+  className?: string;
+}) {
+  const Icon = iconMap[type];
+  return <Icon className={cn("shrink-0", iconVariants({ type }), className)} />;
+}
+
 export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];

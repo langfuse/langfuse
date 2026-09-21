@@ -3,11 +3,9 @@ import { TraceTranscriptDialogController } from "@/src/features/topics/TraceTran
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
-import {
-  TraceDetailActions,
-  TraceDetailBody,
-  traceDetailTitle,
-} from "@/src/features/traces";
+import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
+import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
