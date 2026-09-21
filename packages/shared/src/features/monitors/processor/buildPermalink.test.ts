@@ -136,6 +136,26 @@ describe("buildDataWindowPermalink", () => {
   );
 
   it.each([
+    { column: "name", type: "string", operator: "=", value: "\ud800" },
+    {
+      column: "timestamp",
+      type: "datetime",
+      operator: ">=",
+      value: new Date("invalid"),
+    },
+  ] satisfies FilterState)(
+    "omits the data link when a $type filter cannot be encoded",
+    (filter) => {
+      envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
+      expect(
+        buildDataWindowPermalink("proj_01", "scores-numeric", from, to, [
+          filter,
+        ]),
+      ).toBeUndefined();
+    },
+  );
+
+  it.each([
     ["=", false, 0],
     ["=", true, 1],
     ["<>", false, 1],

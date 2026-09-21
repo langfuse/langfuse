@@ -519,10 +519,11 @@ export function buildDataWindowPermalink(
     }
   }
 
-  const encodedFilters = encodeFiltersGeneric(tableFilters);
-  // The table canonicalizes its URL after decoding. Keys containing legacy
-  // delimiters or percent escapes must survive that round-trip unchanged.
+  let encodedFilters: string;
   try {
+    encodedFilters = encodeFiltersGeneric(tableFilters);
+    // The table canonicalizes its URL after decoding. Keys containing legacy
+    // delimiters or percent escapes must survive that round-trip unchanged.
     if (
       encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
       encodedFilters
