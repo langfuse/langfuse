@@ -187,7 +187,7 @@ export const ObservationDetailViewHeader = memo(
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
               className={cn(
-                "mb-0 min-w-0 truncate font-bold",
+                "mb-0 min-w-0 truncate text-lg leading-7 font-bold",
                 isMobile && "flex-1",
               )}
               title={observation.name || observation.id}
