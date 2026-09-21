@@ -496,6 +496,8 @@ export function TraceDetailView({
               >
                 <div className="flex h-full min-h-0 w-full flex-col overflow-hidden pr-3">
                   <ScoresTable
+                    // Remount per node: collapsed groups belong to one node.
+                    key={trace.id}
                     projectId={projectId}
                     traceId={trace.id}
                     hiddenColumns={[
@@ -505,6 +507,8 @@ export function TraceDetailView({
                       "jobConfigurationId",
                       "userId",
                     ]}
+                    // Rows under the same score group headers the chips use.
+                    groupByNamePrefix
                     localStorageSuffix="TracePreview"
                     disableUrlPersistence={isPeekMode || isAnnotationMode}
                   />

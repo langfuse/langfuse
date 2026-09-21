@@ -51,6 +51,13 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableCell, TableRow } from "@/src/components/ui/table";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import {
+  groupScoreRowsByPrefix,
+  type GroupedScoreRows,
+  type ScoreRowGroup,
+} from "@/src/features/scores/lib/groupScoreRows";
 
 import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
@@ -67,7 +74,11 @@ import React, {
   useMemo,
 } from "react";
 import type { TableAction } from "@/src/features/table/types";
-import type { RowSelectionState } from "@tanstack/react-table";
+import type {
+  Row,
+  RowSelectionState,
+  VisibilityState,
+} from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
@@ -101,6 +112,9 @@ export type ScoresTableRow = {
   level: ScoreLevel;
   dataType: ScoreDataTypeType;
   value: string;
+  /** The score's numeric value as stored (NUMERIC and BOOLEAN), for the
+      group summary; `value` is the display string. */
+  numericValue?: number | null;
   author: {
     userId?: string;
     image?: string;
@@ -130,6 +144,13 @@ export type ScoresTableProps = {
    */
   includeTraceLevelScores?: boolean;
   hiddenColumns?: ScoresTableHiddenColumn[];
+  /**
+   * Show the Metadata column without the reader opening the column picker.
+   * For the trace view's Scores tab, where an evaluator's per-metric details
+   * (judge, sample size) live in metadata and the table is the only place
+   * they are readable. Existing stored visibility is migrated once.
+   */
+  metadataVisibleByDefault?: boolean;
   localStorageSuffix?: string;
   disableUrlPersistence?: boolean;
   /**
@@ -141,6 +162,13 @@ export type ScoresTableProps = {
   showControlsInPageHeader?: boolean;
   /** Skip the default exclusion of internal environments. */
   showAllEnvironments?: boolean;
+  /**
+   * Group rows by name prefix under collapsible header rows, the rule
+   * the score chips use (groupScoresForChips): grouped rows first, ungrouped
+   * rows last under no header. For the trace / observation Scores tabs; the
+   * project-wide table keeps its flat rows.
+   */
+  groupByNamePrefix?: boolean;
   /** Page-owned peek panel; omit when embedded inside a trace/observation view. */
   renderTracePeek?: (api: {
     closePeek: () => void;
@@ -171,10 +199,12 @@ export default function ScoresTable({
   observationId,
   includeTraceLevelScores = false,
   hiddenColumns = [],
+  metadataVisibleByDefault = false,
   localStorageSuffix = "",
   disableUrlPersistence = false,
   showControlsInPageHeader = false,
   showAllEnvironments = false,
+  groupByNamePrefix = false,
   renderTracePeek,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
@@ -201,10 +231,16 @@ export default function ScoresTable({
   const chartViewVersion: ViewVersion = isV4 ? "v2" : "v1";
   const utils = api.useUtils();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const [paginationState, setPaginationState] = usePaginationState(0, 50, {
-    page: "pageIndex",
-    limit: "pageSize",
-  });
+  // Grouped tabs read a whole node's scores at once (p99 trace ~50), so one
+  // page should hold them; the footer only shows when it does not.
+  const [paginationState, setPaginationState] = usePaginationState(
+    0,
+    groupByNamePrefix ? 100 : 50,
+    {
+      page: "pageIndex",
+      limit: "pageSize",
+    },
+  );
   const { selectAll, setSelectAll } = useSelectAll(projectId, "scores");
 
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("scores", "s");
@@ -744,7 +780,7 @@ export default function ScoresTable({
         );
       },
       enableHiding: true,
-      defaultHidden: true,
+      defaultHidden: !metadataVisibleByDefault,
     },
     createLinkTableColumn<ScoresTableRow>({
       accessorKey: "traceName",
@@ -976,10 +1012,29 @@ export default function ScoresTable({
     (c) => !!c.id && !hiddenColumnSet.has(c.id),
   );
 
+  // A returning reader has `metadata: false` stored from the previous
+  // default; the one-time migration reveals it for them too.
+  const columnVisibilityMigrations = useMemo(
+    () =>
+      metadataVisibleByDefault
+        ? [
+            {
+              versionKey: `scoresColumnVisibility${localStorageSuffix}-metadataVisible-v1`,
+              apply: (visibility: VisibilityState) =>
+                visibility.metadata === true
+                  ? visibility
+                  : { ...visibility, metadata: true },
+            },
+          ]
+        : [],
+    [metadataVisibleByDefault, localStorageSuffix],
+  );
+
   const [columnVisibility, setColumnVisibility] =
     useColumnVisibility<ScoresTableRow>(
       "scoresColumnVisibility" + localStorageSuffix,
       columns,
+      columnVisibilityMigrations,
     );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ScoresTableRow>(
@@ -1001,6 +1056,7 @@ export default function ScoresTable({
         isNumericDataType(score.dataType) && isPresent(score.value)
           ? String(score.value)
           : (score.stringValue ?? ""),
+      numericValue: typeof score.value === "number" ? score.value : null,
       author: {
         userId: score.authorUserId ?? undefined,
         image: score.authorUserImage ?? undefined,
@@ -1047,6 +1103,7 @@ export default function ScoresTable({
           isNumericDataType(score.dataType) && isPresent(score.value)
             ? String(score.value)
             : (score.stringValue ?? ""),
+        numericValue: typeof score.value === "number" ? score.value : null,
         author: {
           userId: score.authorUserId ?? undefined,
           image: score.authorUserImage ?? undefined,
@@ -1068,6 +1125,44 @@ export default function ScoresTable({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scores.data, scoreMetrics.data, isV4]);
+
+  // Score groups: the page's rows reordered under headers, only while one
+  // page holds the whole node (the server caps a page at 100); a node with
+  // more scores lists flat rows with the normal pager rather than grouping a
+  // partial page. Grouped until the count says otherwise, so the common case
+  // never flickers.
+  const fitsOnePage =
+    totalCount === null || totalCount <= paginationState.pageSize;
+  const groupingActive = groupByNamePrefix && fitsOnePage;
+  const groupedRows = useMemo(
+    () =>
+      groupingActive && enrichedScores
+        ? groupScoreRowsByPrefix(
+            enrichedScores,
+            // Same inputs the chip hands groupSummary: the stored numeric
+            // value, and the string value for categorical / boolean rows.
+            (row) => ({
+              name: row.name,
+              dataType: row.dataType,
+              value: row.numericValue ?? null,
+              stringValue: isNumericDataType(row.dataType) ? null : row.value,
+            }),
+          )
+        : null,
+    [groupingActive, enrichedScores],
+  );
+  const tableRows = groupedRows ? groupedRows.rows : enrichedScores;
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const toggleGroup = useCallback((prefix: string) => {
+    setCollapsedGroups((previous) => {
+      const next = new Set(previous);
+      if (next.has(prefix)) next.delete(prefix);
+      else next.add(prefix);
+      return next;
+    });
+  }, []);
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
     tableName: TableViewPresetTableName.Scores,
@@ -1234,6 +1329,11 @@ export default function ScoresTable({
                 viewVersion={chartViewVersion}
               />
             )}
+            {groupByNamePrefix && !fitsOnePage ? (
+              <p className="text-muted-foreground border-b px-2 py-1.5 text-xs">
+                Grouping is off above {paginationState.pageSize} scores
+              </p>
+            ) : null}
             {chartActive && chartTimeRange ? (
               <ScoresChartView
                 projectId={projectId}
@@ -1273,14 +1373,37 @@ export default function ScoresTable({
                       : {
                           isLoading: false,
                           isError: false,
-                          data: enrichedScores ?? [],
+                          data: tableRows ?? [],
                         }
+                }
+                // Group header above a group's first row; a collapsed
+                // group's rows are not rendered. Replaces the default row
+                // (no row click here: the trace and observation tabs never
+                // open a peek).
+                renderRow={
+                  groupedRows
+                    ? ({ row, children }) => (
+                        <GroupedScoreRow
+                          row={row}
+                          grouped={groupedRows}
+                          collapsedGroups={collapsedGroups}
+                          onToggleGroup={toggleGroup}
+                        >
+                          {children}
+                        </GroupedScoreRow>
+                      )
+                    : undefined
                 }
                 pagination={{
                   totalCount,
                   onChange: setPaginationState,
                   state: paginationState,
                 }}
+                hidePagination={
+                  groupingActive &&
+                  paginationState.pageIndex === 0 &&
+                  totalCount !== null
+                }
                 setOrderBy={handleOrderByChange}
                 orderBy={orderByState}
                 rowSelection={selectedRows}
@@ -1332,5 +1455,86 @@ const ScoresMetadataCell = ({
 
   return (
     <ConnectedIOTableCell data={score.data?.metadata} singleLine={singleLine} />
+  );
+};
+
+const GroupedScoreRow = ({
+  row,
+  children,
+  grouped,
+  collapsedGroups,
+  onToggleGroup,
+}: {
+  row: Row<ScoresTableRow>;
+  children: React.ReactNode;
+  grouped: GroupedScoreRows<ScoresTableRow>;
+  collapsedGroups: Set<string>;
+  onToggleGroup: (prefix: string) => void;
+}) => {
+  const header = grouped.headerBefore.get(row.id);
+  const prefix = grouped.groupOf.get(row.id);
+  const collapsed = prefix !== undefined && collapsedGroups.has(prefix);
+  return (
+    <>
+      {header ? (
+        <ScoreGroupHeaderRow
+          group={header}
+          collapsed={collapsed}
+          colSpan={row.getVisibleCells().length}
+          onToggle={() => onToggleGroup(header.prefix)}
+        />
+      ) : null}
+      {collapsed ? null : (
+        <TableRow
+          className={cn(
+            "hover:bg-accent cursor-default",
+            row.getIsSelected() && "bg-muted/40 dark:bg-muted",
+          )}
+        >
+          {children}
+        </TableRow>
+      )}
+    </>
+  );
+};
+
+/** One row spanning the table: chevron, group prefix, metric count and
+    the chip's summary text. */
+const ScoreGroupHeaderRow = ({
+  group,
+  collapsed,
+  colSpan,
+  onToggle,
+}: {
+  group: ScoreRowGroup;
+  collapsed: boolean;
+  colSpan: number;
+  onToggle: () => void;
+}) => {
+  const Chevron = collapsed ? ChevronRight : ChevronDown;
+  return (
+    <TableRow className="bg-muted/30 hover:bg-muted/30">
+      <TableCell colSpan={colSpan} className="border-b p-0">
+        <button
+          type="button"
+          aria-expanded={!collapsed}
+          aria-label={`${collapsed ? "Expand" : "Collapse"} group ${group.prefix}`}
+          // Sticky so the label stays in view when the wide table scrolls
+          // sideways; the header cell spans every column.
+          className="sticky left-0 flex h-7 w-max max-w-full items-center gap-1.5 pr-3 pl-2 text-left text-xs"
+          onClick={onToggle}
+        >
+          <Chevron className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+          <span className="font-bold">
+            {group.prefix}({group.count}){group.summary ? ":" : ""}
+          </span>
+          {group.summary ? (
+            <span className="text-muted-foreground tabular-nums">
+              {group.summary}
+            </span>
+          ) : null}
+        </button>
+      </TableCell>
+    </TableRow>
   );
 };
