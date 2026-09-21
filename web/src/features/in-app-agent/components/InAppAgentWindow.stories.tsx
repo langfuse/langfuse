@@ -1,7 +1,14 @@
 import preview from "../../../../.storybook/preview";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
-import { startOfWeek, subDays, subHours, subWeeks } from "date-fns";
+import {
+  addDays,
+  isSameDay,
+  startOfWeek,
+  subDays,
+  subHours,
+  subWeeks,
+} from "date-fns";
 import {
   IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
   InAppAgentRunErrorCode,
@@ -600,11 +607,24 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
 
 function conversationHistoryFixtureDates(now = new Date()) {
   const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+  const yesterday = subDays(now, 1);
+  // Recency grouping treats today and yesterday first. On Monday/Tuesday the
+  // week start is one of those, so a Monday-week-start fixture collapses into
+  // Today and drops the This week heading. Walk forward to a day this week
+  // that is neither.
+  let thisWeek = weekStart;
+  for (let day = 0; day < 7; day++) {
+    const candidate = addDays(weekStart, day);
+    if (!isSameDay(candidate, now) && !isSameDay(candidate, yesterday)) {
+      thisWeek = candidate;
+      break;
+    }
+  }
 
   return {
     today: subHours(now, 2),
-    yesterday: subDays(now, 1),
-    thisWeek: weekStart,
+    yesterday,
+    thisWeek,
     lastWeek: subWeeks(weekStart, 1),
     older: subWeeks(now, 3),
   };
