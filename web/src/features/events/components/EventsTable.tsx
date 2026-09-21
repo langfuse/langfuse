@@ -2374,6 +2374,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowRunEvaluationDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}
@@ -2383,6 +2385,7 @@ export default function ObservationsEventsTable({
 
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
+          isV4
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
@@ -2395,6 +2398,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowAddToDatasetDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}

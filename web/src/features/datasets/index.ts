@@ -2,7 +2,6 @@
 // only — exactly what other features already imported. The public-API dataset
 // services live behind server/index.ts.
 export { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
-export type { DatasetFormRef } from "@/src/features/datasets/components/DatasetForm";
 export { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 export { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 export { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
