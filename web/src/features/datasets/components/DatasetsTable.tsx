@@ -31,9 +31,11 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
-import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
-import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
-import { buildFullPath } from "@/src/features/folders/utils";
+import {
+  useFolderPagination,
+  FolderBreadcrumb,
+  buildFullPath,
+} from "@/src/features/folders";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   createDatasetsTableStore,

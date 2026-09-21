@@ -91,7 +91,7 @@ import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRen
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
-import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { ScoreCacheProvider } from "@/src/features/scores";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";

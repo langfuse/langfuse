@@ -28,10 +28,7 @@ import {
   PRODUCTION_LABEL,
   PromptType,
 } from "@langfuse/shared";
-import {
-  getPromptTabs,
-  PROMPT_TABS,
-} from "@/src/features/navigation/utils/prompt-tabs";
+import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import { PromptHistoryNode } from "./prompt-history";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
@@ -68,19 +65,19 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
+import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+} from "@/src/features/comments";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { createBreadcrumbItems } from "@/src/features/folders";
 
 const getPythonCode = (
   name: string,

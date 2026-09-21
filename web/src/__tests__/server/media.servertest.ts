@@ -13,7 +13,7 @@ import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {

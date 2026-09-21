@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { env } from "@/src/env.mjs";
 import { hasOrganizationAccess } from "@/src/features/rbac";
 

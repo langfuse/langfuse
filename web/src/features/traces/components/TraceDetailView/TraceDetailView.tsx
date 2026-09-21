@@ -17,7 +17,8 @@ import { useCallback, useMemo, useState } from "react";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+  useCommentedPaths,
+} from "@/src/features/comments";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import {
@@ -34,7 +35,7 @@ import {
 
 // Preview tab components
 import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import { useParsedTrace } from "@/src/hooks/useParsedTrace";
@@ -53,7 +54,6 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
-import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 

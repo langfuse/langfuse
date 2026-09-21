@@ -19,12 +19,12 @@ import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { env } from "@/src/env.mjs";
 import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,

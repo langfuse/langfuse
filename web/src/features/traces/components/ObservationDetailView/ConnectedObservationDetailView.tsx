@@ -42,7 +42,8 @@ import {
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+  useCommentedPaths,
+} from "@/src/features/comments";
 import { useRouter } from "next/router";
 import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
@@ -63,7 +64,6 @@ import {
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components

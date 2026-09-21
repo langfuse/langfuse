@@ -12,7 +12,7 @@ import { PromptDetail } from "@/src/features/prompts/components/prompt-detail";
 import PromptMetrics from "@/src/features/prompts/PromptMetricsPage";
 import { useQueryParams, StringParam } from "use-query-params";
 import { useState } from "react";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { AutomationButton } from "@/src/features/automations";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
 import {

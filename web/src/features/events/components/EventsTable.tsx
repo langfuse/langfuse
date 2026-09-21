@@ -78,7 +78,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   getRowHeightIOCharLimit,
   useRowHeightLocalStorage,

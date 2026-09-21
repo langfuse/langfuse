@@ -42,7 +42,7 @@ import {
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,

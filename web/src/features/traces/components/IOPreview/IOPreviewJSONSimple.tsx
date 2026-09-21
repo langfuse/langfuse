@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
