@@ -124,7 +124,7 @@ function AnnotationQueueRunLoader({
     navigate: async (item, initialize) => {
       if (initialize && router.query.itemId === item.id) {
         if (item.observationId && !router.query.observation) {
-          await router.replace(
+          return router.replace(
             {
               pathname: router.pathname,
               query: { ...router.query, observation: item.observationId },
@@ -135,7 +135,7 @@ function AnnotationQueueRunLoader({
         }
         return;
       }
-      await router.push({
+      return router.push({
         pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${item.id}`,
         query: item.observationId
           ? { observation: item.observationId }
@@ -187,9 +187,14 @@ function AnnotationQueueRunContent({
   run: AnnotationQueueRun;
   dependencies: QueueRunDependencies;
 }) {
-  const { history, progressIndex, isTransitioning, exhausted } = useStore(
-    run.store,
-  );
+  const {
+    history,
+    progressIndex,
+    isTransitioning,
+    exhausted,
+    completedItemIds,
+    error,
+  } = useStore(run.store);
   const seenItemIds = history.map((item) => item.id);
   const itemId = history[progressIndex]?.id;
   const hasAccess = useHasProjectAccess({
@@ -211,7 +216,9 @@ function AnnotationQueueRunContent({
   const relevantItem = seenItemData.data;
   const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
   const isNextItemAvailable = totalItems > progressIndex + 1;
-  const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
+  const isPending =
+    relevantItem?.status === AnnotationQueueStatus.PENDING &&
+    !completedItemIds.has(itemId);
   const handleNavigateBack = useCallback(
     () => run.actions.back(dependencies),
     [run, dependencies],
@@ -290,7 +297,7 @@ function AnnotationQueueRunContent({
             active.blur();
           }
           pulse("complete");
-          handleComplete().catch(() => {});
+          handleComplete();
         }
         return;
       }
@@ -329,7 +336,7 @@ function AnnotationQueueRunContent({
         if (isNextItemAvailable) {
           event.preventDefault();
           pulse("next");
-          handleNavigateNext().catch(() => {});
+          handleNavigateNext();
         }
         return;
       }
@@ -338,7 +345,7 @@ function AnnotationQueueRunContent({
         if (progressIndex > 0) {
           event.preventDefault();
           pulse("back");
-          handleNavigateBack().catch(() => {});
+          handleNavigateBack();
         }
         return;
       }
@@ -432,6 +439,22 @@ function AnnotationQueueRunContent({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {renderContent()}
       </div>
+      {error && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-t px-3 py-2 text-sm"
+        >
+          <p>{error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isTransitioning || !hasAccess}
+            onClick={() => run.actions.retry(dependencies)}
+          >
+            Try again
+          </Button>
+        </div>
+      )}
       <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row items-center gap-2">
@@ -441,7 +464,7 @@ function AnnotationQueueRunContent({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={() => handleNavigateBack().catch(() => {})}
+                  onClick={handleNavigateBack}
                   variant="outline"
                   disabled={
                     progressIndex === 0 || !hasAccess || isTransitioning
@@ -490,7 +513,7 @@ function AnnotationQueueRunContent({
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={() => handleNavigateNext().catch(() => {})}
+                  onClick={handleNavigateNext}
                   disabled={
                     !isNextItemAvailable || !hasAccess || isTransitioning
                   }
@@ -519,11 +542,11 @@ function AnnotationQueueRunContent({
             </Tooltip>
           )}
           {!!relevantItem &&
-            (relevantItem.status === AnnotationQueueStatus.PENDING ? (
+            (isPending ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    onClick={() => handleComplete().catch(() => {})}
+                    onClick={handleComplete}
                     size="lg"
                     className={cn(
                       "mr-2 w-full gap-1.5 transition-colors duration-150",

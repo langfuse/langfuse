@@ -82,6 +82,7 @@ export function createAnnotationFormActions({
   );
   let sequence = 0;
   const latestSaves = new Map<string, number>();
+  const failedFields = new Set<string>();
 
   const beginSave = (
     kind: Parameters<
@@ -116,9 +117,10 @@ export function createAnnotationFormActions({
       (field.id ?? null) !== (confirmed?.id ?? null) ||
       hasChangedAnnotationValue(field, confirmed);
     latestSaves.set(key, operationSequence);
+    failedFields.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
-      failed: state.pending ? state.failed : false,
+      failed: failedFields.size > 0,
     }));
     // Promise-owned completion survives overlapping mutation observers.
     operation.then(
@@ -139,11 +141,15 @@ export function createAnnotationFormActions({
         tracked?.success();
       },
       () => {
-        if (latestSaves.get(key) === operationSequence) onFailure();
+        const isLatest = latestSaves.get(key) === operationSequence;
+        if (isLatest) {
+          failedFields.add(key);
+          onFailure();
+        }
         tracked?.failure();
         saveStore.setState((state) => ({
           pending: state.pending - 1,
-          failed: true,
+          failed: failedFields.size > 0,
         }));
       },
     );

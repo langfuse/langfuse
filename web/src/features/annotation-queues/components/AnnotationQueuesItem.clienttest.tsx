@@ -21,7 +21,7 @@ function render(ui: ReactNode) {
   });
 }
 
-const { router, fetchNext, complete, items } = vi.hoisted(() => ({
+const { router, fetchNext, complete, refreshItems, items } = vi.hoisted(() => ({
   router: {
     isReady: true,
     pathname: "/project/[projectId]/annotation-queues/[queueId]/items/[itemId]",
@@ -31,6 +31,7 @@ const { router, fetchNext, complete, items } = vi.hoisted(() => ({
   },
   fetchNext: vi.fn(),
   complete: vi.fn(),
+  refreshItems: vi.fn(),
   items: new Map<string, Record<string, unknown>>(),
 }));
 
@@ -61,7 +62,7 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     useUtils: () => ({
       annotationQueueItems: {
-        invalidate: vi.fn(),
+        invalidate: refreshItems,
         byId: {
           fetch: ({ itemId }: { itemId: string }) =>
             Promise.resolve(items.get(itemId) ?? null),
@@ -136,6 +137,11 @@ vi.mock("./processors/SessionAnnotationProcessor", () => ({
 }));
 beforeEach(() => {
   vi.clearAllMocks();
+  router.push.mockReset();
+  router.replace.mockReset();
+  fetchNext.mockReset();
+  complete.mockReset();
+  refreshItems.mockReset();
   items.clear();
   for (const queueId of ["first", "second"]) {
     items.set(`${queueId}-item`, {
@@ -173,7 +179,42 @@ beforeEach(() => {
     Promise.resolve(items.get(`${queueId}-item`)),
   );
   complete.mockResolvedValue(undefined);
+  refreshItems.mockResolvedValue(undefined);
 });
+
+it.each(["refresh", "advance", "navigation"])(
+  "retains completion and retries a failed %s without completing twice",
+  async (phase) => {
+    fetchNext.mockResolvedValueOnce(items.get("first-item"));
+    if (phase === "refresh")
+      refreshItems.mockRejectedValueOnce(new Error("Refresh failed"));
+    else if (phase === "advance")
+      fetchNext.mockRejectedValueOnce(new Error("Next item failed"));
+    fetchNext.mockResolvedValueOnce({
+      ...items.get("second-item"),
+      queueId: "first",
+    });
+    render(
+      <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+    );
+    expect(await screen.findByText("first-observation")).toBeVisible();
+    if (phase === "navigation")
+      router.push.mockRejectedValueOnce(new Error("Navigation failed"));
+    fireEvent.click(screen.getByRole("button", { name: /Mark Completed/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Item completed",
+    );
+    expect(screen.getByText("Completed", { exact: true })).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Mark Completed/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("second-observation")).toBeVisible();
+    expect(complete).toHaveBeenCalledTimes(1);
+    expect(fetchNext).toHaveBeenCalledTimes(phase === "advance" ? 3 : 2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  },
+);
 
 it("locks only one starting item during Strict Mode replay", async () => {
   render(
