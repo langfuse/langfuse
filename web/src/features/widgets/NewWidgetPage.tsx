@@ -13,13 +13,21 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  asSingleQueryParam,
+  RouteParamsPendingFallback,
+  useReadyRouteParams,
+} from "@/src/hooks/useReadyRouteParams";
 
 export default function NewWidgetPage() {
+  const route = useReadyRouteParams(["projectId"]);
+  if (!route.ready) return <RouteParamsPendingFallback />;
+  return <NewWidgetView projectId={route.params.projectId} />;
+}
+
+function NewWidgetView({ projectId }: { projectId: string }) {
   const router = useRouter();
-  const { projectId, dashboardId } = router.query as {
-    projectId: string;
-    dashboardId?: string;
-  };
+  const dashboardId = asSingleQueryParam(router.query.dashboardId);
   const { isV4, isResolved } = useReadPath();
   const capture = usePostHogClientCapture();
 
