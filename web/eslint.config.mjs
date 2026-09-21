@@ -387,9 +387,6 @@ export default [
           ],
         },
       ],
-
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
     },
   },
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
 

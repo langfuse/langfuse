@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState } from "react";
 import { CheckIcon, ChevronDown } from "lucide-react";
 

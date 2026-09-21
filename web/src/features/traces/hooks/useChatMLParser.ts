@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import type { z } from "zod";
 import { type Prisma, deepParseJson } from "@langfuse/shared";

@@ -3,7 +3,7 @@ use super::{
     MAX_CAPTURE_BYTES, MAX_FACT_STRING, MAX_ITEMS, bounded_string, facts::ProviderFacts,
     identity_encoding, sse::SseDecoder,
 };
-use crate::resolution::IngestionMode;
+use crate::{resolution::IngestionMode, telemetry};
 use axum::http::{HeaderMap, header};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
@@ -25,6 +25,7 @@ pub(super) struct OpenAiResponsesCapture {
     expected_items: Option<usize>,
     request_complete: bool,
     response_valid: bool,
+    client_metadata: Option<Map<String, Value>>,
 }
 
 impl OpenAiResponsesCapture {
@@ -39,18 +40,19 @@ impl OpenAiResponsesCapture {
             expected_items: None,
             request_complete: false,
             response_valid: true,
+            client_metadata: None,
         };
         if identity_encoding(headers)
             && body.len() <= MAX_CAPTURE_BYTES
             && let Ok(Value::Object(request)) = serde_json::from_slice(body)
         {
-            capture.request(request);
+            capture.capture_request(request);
             capture.request_complete = true;
         }
         capture
     }
 
-    pub fn response(&mut self, headers: &HeaderMap) {
+    pub fn record_response(&mut self, headers: &HeaderMap) {
         self.facts.provider_request_id = headers
             .get("x-request-id")
             .and_then(|v| v.to_str().ok())
@@ -77,13 +79,13 @@ impl OpenAiResponsesCapture {
         }
     }
 
-    pub fn bytes(&mut self, bytes: &[u8]) -> bool {
+    pub fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         let mut body = std::mem::replace(&mut self.body, ResponseBody::Unavailable);
         let mut completion_started = false;
         match &mut body {
             ResponseBody::Sse(sse) => {
                 sse.push(bytes, MAX_CAPTURE_BYTES, |event| {
-                    completion_started |= self.event(event);
+                    completion_started |= self.handle_event(event);
                 });
             }
             ResponseBody::Json(buffer)
@@ -105,10 +107,10 @@ impl OpenAiResponsesCapture {
         match std::mem::replace(&mut self.body, ResponseBody::Unavailable) {
             ResponseBody::Json(bytes) => match serde_json::from_slice::<Value>(&bytes) {
                 Ok(Value::Object(response)) => {
-                    self.response_facts(&response);
+                    self.capture_response_facts(&response);
                     if let Some(output) = response.get("output").and_then(Value::as_array) {
                         for (index, item) in output.iter().enumerate() {
-                            self.item(index as u64, item.clone());
+                            self.store_item(index as u64, item.clone());
                         }
                         self.facts.output_complete = self.response_valid;
                     }
@@ -131,19 +133,29 @@ impl OpenAiResponsesCapture {
     }
 
     pub fn into_facts(mut self) -> ProviderFacts {
+        if matches!(self.body, ResponseBody::Sse(_)) {
+            self.end_body();
+        }
         if self.mode == IngestionMode::Full {
             self.facts.output = Some(Value::Array(self.items.into_values().collect()));
         }
         self.facts
     }
 
-    fn request(&mut self, mut request: Map<String, Value>) {
+    /// The coding agent's `client_metadata` object removed from the request, if any.
+    pub fn client_metadata(&self) -> Option<&Map<String, Value>> {
+        self.client_metadata.as_ref()
+    }
+
+    fn capture_request(&mut self, mut request: Map<String, Value>) {
         self.facts.requested_model = request
             .get("model")
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
         request.remove("model");
+        // Agent identifiers are recorded as `agent.*` metadata in both ingestion modes.
+        self.client_metadata = telemetry::take_agent_client_metadata(&mut request);
         for key in [
             "temperature",
             "top_p",
@@ -193,7 +205,7 @@ impl OpenAiResponsesCapture {
         }
     }
 
-    fn event(&mut self, bytes: &[u8]) -> bool {
+    fn handle_event(&mut self, bytes: &[u8]) -> bool {
         let Ok(Value::Object(mut event)) = serde_json::from_slice(bytes) else {
             self.response_valid = false;
             return false;
@@ -228,7 +240,7 @@ impl OpenAiResponsesCapture {
                     event.get("output_index").and_then(Value::as_u64),
                     event.remove("item").filter(Value::is_object),
                 ) {
-                    self.item(index, item);
+                    self.store_item(index, item);
                 } else {
                     self.response_valid = false;
                 }
@@ -245,7 +257,7 @@ impl OpenAiResponsesCapture {
                     Some("response.completed" | "response.failed" | "response.incomplete")
                 );
                 if let Some(response) = event.get("response").and_then(Value::as_object) {
-                    self.response_facts(response);
+                    self.capture_response_facts(response);
                     if terminal {
                         self.terminal = true;
                         self.expected_items = response
@@ -259,14 +271,14 @@ impl OpenAiResponsesCapture {
             }
             Some("error") => {
                 self.facts.provider_status = Some("failed".to_owned());
-                self.error(&event);
+                self.record_error(&event);
             }
             _ => {}
         }
         false
     }
 
-    fn item(&mut self, index: u64, item: Value) {
+    fn store_item(&mut self, index: u64, item: Value) {
         if self.mode != IngestionMode::Full {
             return;
         }
@@ -285,9 +297,9 @@ impl OpenAiResponsesCapture {
         self.items.insert(index, item);
     }
 
-    fn response_facts(&mut self, response: &Map<String, Value>) {
+    fn capture_response_facts(&mut self, response: &Map<String, Value>) {
         if let Some(error) = response.get("error").and_then(Value::as_object) {
-            self.error(error);
+            self.record_error(error);
         }
         for (key, target) in [
             ("id", &mut self.facts.provider_response_id),
@@ -317,7 +329,7 @@ impl OpenAiResponsesCapture {
         }
     }
 
-    fn error(&mut self, error: &Map<String, Value>) {
+    fn record_error(&mut self, error: &Map<String, Value>) {
         // Provider error messages may echo prompt content, so retain them only in full mode.
         if self.mode != IngestionMode::Full {
             return;

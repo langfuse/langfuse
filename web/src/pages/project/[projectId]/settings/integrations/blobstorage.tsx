@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";

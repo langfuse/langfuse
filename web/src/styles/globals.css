@@ -76,6 +76,18 @@
   --color-muted-blue: hsl(var(--muted-blue));
   --color-muted-green: hsl(var(--muted-green));
   --color-muted-gray: hsl(var(--muted-gray));
+
+  --color-observation-trace: var(--observation-trace);
+  --color-observation-span: var(--observation-span);
+  --color-observation-generation: var(--observation-generation);
+  --color-observation-event: var(--observation-event);
+  --color-observation-agent: var(--observation-agent);
+  --color-observation-evaluator: var(--observation-evaluator);
+  --color-observation-tool: var(--observation-tool);
+  --color-observation-chain: var(--observation-chain);
+  --color-observation-retriever: var(--observation-retriever);
+  --color-observation-embedding: var(--observation-embedding);
+  --color-observation-guardrail: var(--observation-guardrail);
   --color-accent-light-green: hsl(var(--accent-light-green));
   --color-accent-dark-green: hsl(var(--accent-dark-green));
   /* These six status tokens hold complete oklch colors (tints carry baked
@@ -277,13 +289,13 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
+    /* Text between body and muted: slate-700. Content that is not a heading
+       and not a label, e.g. JSON values. */
+    --foreground-secondary: 215 25% 27%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */
     --foreground-tertiary: 215 12% 62%;
-    /* Text between body and muted: slate-700. Content that is not a heading
-       and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 25% 27%;
     /* Code blocks sit a step BELOW their surrounding surface ("code is a
          well"), matching the docs site's --surface-code convention. */
     --surface-code: 0 0% 92%;
@@ -356,6 +368,19 @@
     --muted-magenta: 330 90% 70%;
     --muted-blue: 239 84% 67%;
     --muted-gray: 210 50% 91.1%;
+
+    /* Observation type hues: one lightness and chroma so no type outweighs another */
+    --observation-trace: oklch(68% 0.18 163);
+    --observation-span: oklch(68% 0.18 265);
+    --observation-generation: oklch(68% 0.18 335);
+    --observation-event: oklch(68% 0.18 115);
+    --observation-agent: oklch(68% 0.18 310);
+    --observation-evaluator: oklch(68% 0.18 285);
+    --observation-tool: oklch(68% 0.18 55);
+    --observation-chain: oklch(68% 0.18 0);
+    --observation-retriever: oklch(68% 0.18 145);
+    --observation-embedding: oklch(68% 0.18 85);
+    --observation-guardrail: oklch(68% 0.18 25);
 
     --accent-light-green: 138 76.5% 98%;
     --accent-dark-green: 112 100% 32%;
@@ -473,8 +498,8 @@
 
     --muted: 0 0% 11.6%;
     --muted-foreground: 0 0% 54%;
-    --foreground-tertiary: 0 0% 40%;
     --foreground-secondary: 0 0% 62%;
+    --foreground-tertiary: 0 0% 40%;
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
 
@@ -535,6 +560,18 @@
     --muted-blue: 215 95% 73.1%;
     --muted-green: 142 76.7% 73.1%;
     --muted-magenta: 330 76.7% 73.1%;
+
+    --observation-trace: oklch(75% 0.12 163);
+    --observation-span: oklch(75% 0.12 265);
+    --observation-generation: oklch(75% 0.12 335);
+    --observation-event: oklch(75% 0.12 115);
+    --observation-agent: oklch(75% 0.12 310);
+    --observation-evaluator: oklch(75% 0.12 285);
+    --observation-tool: oklch(75% 0.12 55);
+    --observation-chain: oklch(75% 0.12 0);
+    --observation-retriever: oklch(75% 0.12 145);
+    --observation-embedding: oklch(75% 0.12 85);
+    --observation-guardrail: oklch(75% 0.12 25);
     /* Stays clearly above --card so chart grids (--chart-grid) and disabled
        badge fills stay discernible on elevated surfaces, without the harshness
        of --border-contrast (26%). */

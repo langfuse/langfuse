@@ -163,7 +163,7 @@ exception and must be wired explicitly by the caller.
    - Automatically detects peek context and uses it if available
 
 4. **`useFullTextSearch`** - Manages search query state
-   - Location: `web/src/components/table/use-cases/useFullTextSearch.tsx`
+   - Location: `web/src/features/search-bar/hooks/useFullTextSearch.ts`
    - Handles both search query and search type state
 
 ## Behavior
@@ -386,6 +386,6 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 
 - Peek state context: [`contexts/PeekTableStateContext.tsx`](./contexts/PeekTableStateContext.tsx)
 - Pagination hook: [`web/src/hooks/usePaginationState.ts`](../../../hooks/usePaginationState.ts)
-- Full text search hook: [`use-cases/useFullTextSearch.tsx`](../use-cases/useFullTextSearch.tsx)
+- Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)
 - Order by hook: [`web/src/features/orderBy/hooks/useOrderByState.ts`](../../../features/orderBy/hooks/useOrderByState.ts)

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { X, Plus, Link, MoreVertical, Pen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";

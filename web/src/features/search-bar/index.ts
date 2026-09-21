@@ -13,6 +13,7 @@ export {
 } from "@/src/features/search-bar/components/composer-chrome";
 export { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 export { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
+export { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 export { astToFilterState } from "@/src/features/search-bar/lib/adapter";
 export { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 export { planCommit } from "@/src/features/search-bar/lib/commit";

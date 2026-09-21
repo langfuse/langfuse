@@ -35,12 +35,12 @@ processing, and the shared queue accessor, including admin queue inspection.
 - `{trace-batch}:due`: sorted set, with JSON `[projectId, traceId]` members and
   Redis server time plus idle delay as the score.
 - `{trace-batch}:state`: hash with the same members and JSON
-  `{minStart, maxStart, revision}` values. Bounds describe observed event start
+  `{minStart, maxStart, revision, eventUpdateCount, serializedEventBytes}` values. Bounds describe observed event start
   times; revision protects newer ingestion from an older dispatch acknowledgment.
 - `{trace-batch}:dispatcher`: renewable dispatcher lease.
 
-No event payloads, per-trace byte counts or observation counts are stored here.
-Atomic Lua updates refresh bounds, revision and readiness. Each admitted intake
+No event payloads are stored here. Atomic Lua updates accumulate estimates and
+refresh bounds, revision and readiness. Each admitted intake
 sets a shared absolute expiry on both pending keys with `PEXPIREAT`, preserving
 any later existing expiry using `PEXPIRETIME` (Redis 7+). With no further intake,
 both keys expire after the retention period even if every application stops;
@@ -57,6 +57,31 @@ project, then hydrates and revalidates state in chunks of 1,000. Jobs contain up
 to the configured trace cap; project leftovers can share a job. The dispatcher
 enqueues before acknowledging matching revisions, so concurrent intake stays
 pending and failed enqueueing can be retried. Stable job IDs limit duplicates.
+
+### Pending-window size estimates
+
+Accepted direct-v4 writes contribute their final serialized UTF-8 event size after
+field overflow handling, reusing the writer's existing `event_bytes` calculation.
+The accounting field itself is excluded. Acceptance means admission to the writer,
+not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates,
+including retries and repeated observation versions; neither counter represents
+unique observations or a trace's lifetime total. Deletion after enqueue, readiness
+and two-hour retention are unchanged. Later arrivals start another pending window.
+Entries missing either counter remain unknown until dispatch or expiry removes them.
+
+The dispatcher emits `estimated_event_update_count` and
+`estimated_serialized_event_bytes` distributions under `langfuse.trace_batch`, tagged
+with `scope:trace|batch` and `strategy`. Batch totals require known estimates for
+every member; `estimates_unavailable` counts unknown traces and affected batches.
+Estimates stay out of queue payloads, job IDs and batch selection. They do not cap
+work or change oversized-trace handling. Dispatch retries can emit another sample.
+
+Serialized event bytes differ from the reader's `io_metadata_bytes` metric: they
+include the serialized event fields and JSON encoding, and do not represent RAM,
+network transfer or ClickHouse scan bytes. After rollout, collect a stable hour
+with unchanged sampling and batching settings; compare trace/batch distributions,
+unknown-estimate counts, ingestion latency and Redis command rate/CPU/memory with
+the baseline before choosing any size-aware batching policy.
 
 The worker streams full `events_full` payloads and records batch observation,
 trace, project and logical payload-byte metrics. The `input_bytes`, `output_bytes`
@@ -76,6 +101,104 @@ Queries use response compression and chunked multipart parameters for up to
 10,000 UUID-sized trace/project IDs. The fixed 30-second timeout fails the job
 rather than accepting partial results. This does not cap observation count,
 query memory or dispatcher snapshot memory.
+
+## Capacity measurements
+
+The following metrics use the `langfuse.trace_batch` prefix. All additions are
+inside the existing cloud experiment paths; normal ingestion with tracking
+disabled performs no new aggregation or Redis calls.
+
+| Metric | Kind / tags | Meaning |
+| --- | --- | --- |
+| `event_updates`, `serialized_event_bytes` | Counters; `stage:eligible\|sampled\|recorded` | Accepted, valid-start-time updates before sampling, after sampling, and in Redis-acknowledged chunks. Repeated updates count again. |
+| `read_attempts` | Counter; `outcome:success\|failure\|discard` | One outcome per processor invocation, including retries, validation failures and disabled/expired discards. |
+| `read_duration_ms` | Distribution; same outcome tags | Wall-clock processor duration, including failed and discarded attempts. |
+| `active_reads` | Per-process gauge | Streams currently being consumed; failures decrement the count too. |
+| `failed_read_observation_count`, `failed_read_input_bytes`, `failed_read_output_bytes`, `failed_read_metadata_bytes`, `failed_read_io_metadata_bytes` | Distributions | Partial logical rows/bytes consumed before a stream failure. Separate from successful throughput. |
+| `queue_depth` | Gauge; `type:waiting\|active\|delayed\|failed` | Global BullMQ snapshots; waiting includes paused work. |
+| `queue_waiting_head_age_ms` | Gauge | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty. |
+| `redis_key_bytes` | Gauge; `key:due\|state` | Estimated memory of each readiness key, including Redis overhead. |
+| `redis_key_entries` | Gauge; `key:due\|state` | `ZCARD` / `HLEN` at the memory snapshot. |
+
+The eligible/sampled counters reuse the already-computed serialized size and
+per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
+chunk: earlier chunks remain counted if a later one fails. A timeout can mean
+Redis applied an update without acknowledgement, so the stage difference includes
+uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
+the ClickHouse flush. No additional serialization is performed.
+
+`TraceBatchMetricsRunner` starts when either the dispatcher or consumer is
+enabled in a cloud worker, independently of the generic queue-metrics flag.
+It polls the queue every 30 seconds and map memory every 60 seconds per process,
+plus collection time. No completed jobs or progressing dispatcher are required.
+Queue-age collection reads only the next waiting/paused job IDs and their
+timestamp fields; it never fetches or parses batch payloads.
+One failed collection does not suppress the others; failed samples are not
+reported as zero. Check `langfuse.periodic_runner.completed` and
+`last_healthy_timestamp_seconds` with `runner:trace_batch_metrics` for freshness.
+
+Memory collection uses one bounded two-key Lua call with `MEMORY USAGE ...
+SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
+Missing keys report zero; there is no keyspace scan or exact full-hash traversal.
+Memory sampling estimates storage, not process RSS or event payload size.
+
+Queue/map snapshots are global and can be emitted by several workers: use
+max/latest across reporters, never sum duplicates. For map totals, first
+deduplicate reporters per `key`, then add the due/state estimates. In contrast,
+`active_reads` is local to a worker; distinct live worker series may be summed.
+It is emitted on stream start/finish and on each metrics-runner cycle, including
+zero when idle, so unchanged long-running reads remain visible.
+Instantaneous gauges can miss short-lived peaks. A retried job may re-enter
+behind newer jobs, so waiting-head age is a bounded-cost backlog indicator, not
+an exact oldest-created-job measurement across the entire queue.
+
+With an experiment ID, start/completion logs include `jobId`, `attempt`,
+`queryId` and `experimentId`, with the completion outcome. The per-read UUID is
+forwarded to ClickHouse as `query_id` and remains the root correlation ID for
+the stream. Discards and validation failures have no query ID. Identifiers are
+not metric tags and logs contain no event payloads. Successful batch metrics and
+job return values retain their existing meanings.
+
+Completion logs also correlate the requested `batchTraceCount`, distinct
+`batchProjectCount`, `eventTimeSpanMs` (outer event-time span, without query
+buffering), and `maxTraceSpanMs` with the outcome and `durationMs`. These are
+batch-locality proxies, not measured ClickHouse scan costs. `observationCount`,
+`foundTraceCount`, `foundProjectCount` and separate `inputBytes`, `outputBytes`,
+`metadataBytes` describe rows consumed by that attempt. `partial: true` marks
+failed reads, including failures before any row arrives; zero then does not mean
+the requested batch was empty. Successful counts cover the completed stream,
+not unique ingested events. Discarded/unparsed jobs omit stream counters.
+Use these existing logs to compare batch shape and volume across outcomes by
+query ID; no payload contents, project-ID lists or per-batch metric tags are added.
+
+With an experiment ID, the BullMQ processing span also carries attributes under
+`langfuse.trace_batch.*`: `experiment_id`, `job_id`, `attempt` (one-based),
+`query_id`, `batch_trace_count`, `batch_project_count`, `event_time_span_ms`,
+and `max_trace_span_ms`. Shape and query ID are attached before reading, so they
+remain available if the stream fails. Completion adds `outcome`, `duration_ms`,
+`observation_count`, `found_trace_count`, `found_project_count`, `input_bytes`,
+`output_bytes`, `metadata_bytes`, and `partial`, with the same semantics as the
+logs. Discards and validation failures omit query/stream fields. These reuse
+existing aggregates without additional queries or serialization. Payloads and
+project/trace-ID lists are not attached. Dispatcher size estimates remain aggregate
+metrics, not per-job span attributes; consumed bytes are not estimated total size.
+Span availability follows the existing tracing sampling and retention settings.
+
+For the initial scaling curve, use deterministic trace sampling at 10%, 20%,
+50%, then 100% across the same project population. Annotate fixed UTC windows;
+pause tracking and drain old readiness/queued work between settings. Warm up at
+least 20 minutes and compare a settled hour at each stage, holding batch/query
+settings fixed. Plot actual admitted updates/bytes and returned rows/bytes against
+CPU, memory and backlog rather than assuming configured percentages equal load.
+These additions do not generate amplified reads or change batching, query limits,
+late-arrival behavior, queue payloads or retention.
+
+Pair the metrics with per-worker RSS/CPU/event-loop and network telemetry, Redis
+primary telemetry, and experiment-filtered ClickHouse query logs. Include failed
+attempts in CPU cost, count successful root results once, and verify distributed
+CPU-counter accounting before summing query parts. Query memory peaks are not
+actual concurrent replica RAM. Validate live metric delivery and units before
+raising production load.
 
 ## Compare reader settings
 

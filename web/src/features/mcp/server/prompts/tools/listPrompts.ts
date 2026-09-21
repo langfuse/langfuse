@@ -86,6 +86,7 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
     "",
     "Pagination: page (default: 1), limit (default: 50, max: 100)",
   ].join("\n"),
+  action: "prompts:read",
   baseSchema: ListPromptsBaseSchema,
   inputSchema: ListPromptsInputSchema,
   handler: async (input, context) => {

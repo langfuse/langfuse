@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`public-api auth parity > legacy matches the main-captured baseline 1`] = `
+exports[`public-api auth parity > legacy matches the captured baseline except documented divergences 1`] = `
 {
   "DELETE annotation-queues/[queueId]/assignments | admin/admin": 401,
   "DELETE annotation-queues/[queueId]/assignments | agent/basic": 401,
@@ -709,6 +709,12 @@ exports[`public-api auth parity > legacy matches the main-captured baseline 1`] 
   "POST generations | org/bearer": 401,
   "POST generations | project/basic": 200,
   "POST generations | project/bearer": 403,
+  "POST ingestion | admin/admin": 401,
+  "POST ingestion | agent/basic": 401,
+  "POST ingestion | agent/bearer": 401,
+  "POST ingestion | org/bearer": 401,
+  "POST ingestion | project/basic": 400,
+  "POST ingestion | project/bearer": 400,
   "POST media/index | admin/admin": 401,
   "POST media/index | agent/basic": 401,
   "POST media/index | agent/bearer": 401,
@@ -723,6 +729,18 @@ exports[`public-api auth parity > legacy matches the main-captured baseline 1`] 
   "POST models/index | org/bearer": 401,
   "POST models/index | project/basic": 400,
   "POST models/index | project/bearer": 403,
+  "POST otel/v1/metrics/index | admin/admin": 401,
+  "POST otel/v1/metrics/index | agent/basic": 401,
+  "POST otel/v1/metrics/index | agent/bearer": 401,
+  "POST otel/v1/metrics/index | org/basic": 403,
+  "POST otel/v1/metrics/index | org/bearer": 401,
+  "POST otel/v1/metrics/index | project/basic": 200,
+  "POST otel/v1/metrics/index | project/bearer": 403,
+  "POST otel/v1/traces/index | admin/admin": 401,
+  "POST otel/v1/traces/index | agent/basic": 401,
+  "POST otel/v1/traces/index | agent/bearer": 401,
+  "POST otel/v1/traces/index | org/basic": 403,
+  "POST otel/v1/traces/index | org/bearer": 401,
   "POST projects/[projectId]/apiKeys/index | admin/admin": 401,
   "POST projects/[projectId]/apiKeys/index | agent/basic": 401,
   "POST projects/[projectId]/apiKeys/index | agent/bearer": 401,

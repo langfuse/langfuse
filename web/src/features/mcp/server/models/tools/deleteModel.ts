@@ -10,6 +10,7 @@ export const [deleteModelTool, handleDeleteModel] = defineTool({
   name: "deleteModel",
   description:
     "Delete a custom model definition from the current project. Built-in models cannot be deleted.",
+  action: "models:CUD",
   baseSchema: DeleteModelV1Query,
   inputSchema: DeleteModelV1Query,
   handler: async (input, context) =>
