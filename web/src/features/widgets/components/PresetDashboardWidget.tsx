@@ -1,6 +1,6 @@
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   CopyIcon,
   CopyPlusIcon,
@@ -55,6 +55,7 @@ export function PresetDashboardWidget({
   onLockedEditAttempt,
   readOnly,
   onDuplicatePreset,
+  heightBehavior,
 }: {
   projectId: string;
   dashboardId: string;
@@ -79,6 +80,12 @@ export function PresetDashboardWidget({
    * Passed only on editable (non-locked) dashboards.
    */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
+  heightBehavior:
+    | { mode: "fixed" }
+    | {
+        mode: "content";
+        onHeightChange: (placementId: string, height: number) => void;
+      };
 }) {
   const metricsVersion: ViewVersion = readPath === "v4" ? "v2" : "v1";
 
@@ -97,6 +104,35 @@ export function PresetDashboardWidget({
     Boolean(onLockedEditAttempt);
 
   const renderPreset = getHomePreset(placement.presetId);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const onHeightChange =
+    heightBehavior.mode === "content"
+      ? heightBehavior.onHeightChange
+      : undefined;
+
+  useEffect(() => {
+    if (!onHeightChange) return;
+
+    const element = contentRef.current;
+    if (!element) return;
+
+    const reportHeight = () => {
+      onHeightChange(
+        placement.id,
+        Math.max(element.getBoundingClientRect().height, element.scrollHeight),
+      );
+    };
+    const resizeObserver = new ResizeObserver(reportHeight);
+    const mutationObserver = new MutationObserver(reportHeight);
+    resizeObserver.observe(element);
+    mutationObserver.observe(element, { childList: true, subtree: true });
+    reportHeight();
+
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [onHeightChange, placement.id]);
 
   const ctx: PresetWidgetContext = useMemo(() => {
     const fromTimestamp = dateRange
@@ -133,9 +169,8 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      // Stretch to the tile; when the card's intrinsic content is taller
-      // (fixed chart min-heights, expanded tables) the wrapper scrolls
-      // instead of clipping.
+      // Most presets stretch to their fixed tile. Score Analytics is measured
+      // by the grid because each selected score adds another chart row.
       className: "min-h-full",
     };
   }, [
@@ -190,8 +225,19 @@ export function PresetDashboardWidget({
   }
 
   return (
-    <div className="group relative h-full w-full">
-      <div className="h-full w-full overflow-y-auto">{renderPreset(ctx)}</div>
+    <div
+      className={`group relative w-full ${heightBehavior.mode === "content" ? "" : "h-full"}`}
+    >
+      <div
+        ref={contentRef}
+        className={
+          heightBehavior.mode === "content"
+            ? "w-full"
+            : "h-full w-full overflow-y-auto"
+        }
+      >
+        {renderPreset(ctx)}
+      </div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
       <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
