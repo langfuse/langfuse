@@ -7,5 +7,6 @@
 export { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
 export { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 export { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
+export { AnnotationQueueItemSubMenu } from "@/src/features/annotation-queues/components/AnnotationQueueItemSubMenu";
 export { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 export { CommentsSection } from "@/src/features/annotation-queues/components/shared/CommentsSection";

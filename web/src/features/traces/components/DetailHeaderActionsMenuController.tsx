@@ -38,6 +38,8 @@ type DetailHeaderActionsMenuControllerProps = {
     observationId?: string | null;
     sessionId?: string | null;
   };
+  align?: ComponentProps<typeof DropdownMenuController>["align"];
+  leadingItems?: ReactNode;
   children: ComponentProps<typeof DropdownMenuController>["children"];
 };
 
@@ -97,6 +99,8 @@ export function DetailHeaderActionsMenuController({
   observation,
   spanName,
   webCallout,
+  align = "start",
+  leadingItems,
   children,
 }: DetailHeaderActionsMenuControllerProps) {
   const router = useRouter();
@@ -136,9 +140,15 @@ export function DetailHeaderActionsMenuController({
 
   return (
     <DropdownMenuController
-      align="start"
+      align={align}
       renderMenu={() => (
         <>
+          {leadingItems && (
+            <>
+              {leadingItems}
+              <DropdownMenuSeparator />
+            </>
+          )}
           {webCallout && (
             <WebCalloutActionController
               projectId={projectId}

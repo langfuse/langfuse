@@ -1,8 +1,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
+import { Terminal } from "lucide-react";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
+import {
+  DropdownMenuController,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -46,7 +53,7 @@ import {
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundDropdownMenuControllerProps = (
+type JumpToPlaygroundSource =
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -62,8 +69,9 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
         output: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    }
-) & {
+    };
+
+type JumpToPlaygroundDropdownMenuControllerProps = JumpToPlaygroundSource & {
   children: (control: {
     disabled: boolean;
     title: string;
@@ -75,9 +83,7 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
   }) => React.ReactNode;
 };
 
-export const JumpToPlaygroundDropdownMenuController = (
-  props: JumpToPlaygroundDropdownMenuControllerProps,
-) => {
+const useJumpToPlayground = (props: JumpToPlaygroundSource) => {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
@@ -187,6 +193,26 @@ export const JumpToPlaygroundDropdownMenuController = (
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  return {
+    isAvailable,
+    tooltipMessage,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  };
+};
+
+export const JumpToPlaygroundDropdownMenuController = (
+  props: JumpToPlaygroundDropdownMenuControllerProps,
+) => {
+  const {
+    isAvailable,
+    tooltipMessage,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  } = useJumpToPlayground(props);
+
   return (
     <DropdownMenuController
       align="end"
@@ -214,6 +240,37 @@ export const JumpToPlaygroundDropdownMenuController = (
         })
       }
     </DropdownMenuController>
+  );
+};
+
+export const JumpToPlaygroundSubMenu = (
+  props: Extract<JumpToPlaygroundSource, { source: "generation" }>,
+) => {
+  const {
+    isAvailable,
+    tooltipMessage,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  } = useJumpToPlayground(props);
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger disabled={!isAvailable} title={tooltipMessage}>
+        <Terminal className="mr-2 h-4 w-4" />
+        Playground
+      </DropdownMenuSubTrigger>
+      <DropdownMenuPortal>
+        <DropdownMenuSubContent>
+          <JumpToPlaygroundMenu
+            source="generation"
+            includeOutput={includeOutput}
+            onIncludeOutputChange={setIncludeOutput}
+            onPlaygroundAction={handlePlaygroundAction}
+          />
+        </DropdownMenuSubContent>
+      </DropdownMenuPortal>
+    </DropdownMenuSub>
   );
 };
 

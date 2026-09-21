@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Circle,
   Minus,
+  Search,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -582,6 +583,50 @@ const DropdownMenuSeparator = React.forwardRef<
 ));
 DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName;
 
+type DropdownMenuSearchInputProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+};
+
+const DropdownMenuSearchInput = ({
+  value,
+  onChange,
+  placeholder,
+}: DropdownMenuSearchInputProps) => (
+  <div className="flex items-center gap-2 px-2 py-1.5">
+    <Search
+      className="text-foreground-tertiary size-3.5 shrink-0"
+      aria-hidden="true"
+    />
+    <input
+      type="text"
+      data-1p-ignore
+      autoFocus
+      autoComplete="off"
+      autoCorrect="off"
+      spellCheck={false}
+      value={value}
+      placeholder={placeholder}
+      aria-label={placeholder}
+      className="placeholder:text-foreground-tertiary w-full min-w-0 bg-transparent text-sm outline-hidden"
+      onChange={(event) => onChange(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" || event.key === "Tab") return;
+        event.stopPropagation();
+        if (event.key !== "ArrowDown") return;
+        event.preventDefault();
+        event.currentTarget
+          .closest<HTMLElement>('[role="menu"]')
+          ?.querySelector<HTMLElement>(
+            '[role^="menuitem"]:not([data-disabled])',
+          )
+          ?.focus();
+      }}
+    />
+  </div>
+);
+
 const DropdownMenuShortcut = ({
   className,
   ...props
@@ -606,6 +651,7 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSearchInput,
   DropdownMenuGroup,
   DropdownMenuPortal,
   DropdownMenuSub,
