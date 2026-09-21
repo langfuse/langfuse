@@ -35,6 +35,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
@@ -328,6 +329,10 @@ function VerifiedSignupFlow({
   const targetPath = queryTargetPath
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
+  const demoTargetPath = getDemoTargetPath(targetPath);
+  const setupPasswordPath = demoTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(demoTargetPath)}`
+    : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
@@ -369,7 +374,7 @@ function VerifiedSignupFlow({
       // Send OTP email via NextAuth email provider
       const signInRes = await signIn("email", {
         email: values.email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
         redirect: false,
       });
 
@@ -387,7 +392,7 @@ function VerifiedSignupFlow({
         PASSWORD_SETUP_EMAIL_STORAGE_KEY,
         values.email.toLowerCase(),
       );
-      await router.push("/auth/setup-password");
+      await router.push(setupPasswordPath);
     } catch {
       setFormError("An error occurred. Please try again.");
     }

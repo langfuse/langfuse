@@ -27,6 +27,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 
 const resetPasswordSchema = z
   .object({
@@ -64,6 +65,13 @@ export function ResetPasswordPage({
 
   const isSetMode =
     intent === "setup" || session.data?.user?.hasPassword === false;
+  const setupTargetPath =
+    isSetMode && router.isReady
+      ? getDemoTargetPath(router.query.targetPath)
+      : undefined;
+  const setupPasswordPath = setupTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(setupTargetPath)}`
+    : "/auth/setup-password";
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const effectiveEmail = session.data?.user?.email ?? email;
@@ -113,7 +121,10 @@ export function ResetPasswordPage({
       }
 
       let target =
-        isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
+        setupTargetPath ??
+        (isSetMode && isLangfuseCloud && region !== "DEV"
+          ? "/onboarding"
+          : "/");
       // A password update revokes every existing JWT, including this
       // browser's, so the current session always has to be re-established.
       const signInResult = await signIn("credentials", {
@@ -281,9 +292,7 @@ export function ResetPasswordPage({
                     </div>
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
-                      callbackUrl={
-                        isSetMode ? "/auth/setup-password" : undefined
-                      }
+                      callbackUrl={isSetMode ? setupPasswordPath : undefined}
                       onEmailSent={() => setCodeRequested(true)}
                       label="Send another code"
                     />
@@ -291,7 +300,7 @@ export function ResetPasswordPage({
                 ) : (
                   <RequestResetPasswordEmailButton
                     email={effectiveEmail}
-                    callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                    callbackUrl={isSetMode ? setupPasswordPath : undefined}
                     onEmailSent={() => setCodeRequested(true)}
                   />
                 )}

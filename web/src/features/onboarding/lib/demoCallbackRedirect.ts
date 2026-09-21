@@ -13,15 +13,20 @@ const getCallbackPath = (url: string): string | null => {
   }
 };
 
+export const getDemoTargetPath = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const redirectPath = stripBasePath(getSafeRedirectPath(value));
+  const pathname = new URL(redirectPath, "https://langfuse.invalid").pathname;
+  return pathname === "/demo" || pathname.startsWith("/demo/")
+    ? redirectPath
+    : undefined;
+};
+
 export const getDemoCallbackRedirectPath = (
   value: unknown,
 ): string | undefined => {
   if (typeof value !== "string") return undefined;
   const callbackPath = getCallbackPath(value);
   if (!callbackPath) return undefined;
-  const redirectPath = stripBasePath(getSafeRedirectPath(callbackPath));
-  const pathname = new URL(redirectPath, window.location.origin).pathname;
-  return pathname === "/demo" || pathname.startsWith("/demo/")
-    ? redirectPath
-    : undefined;
+  return getDemoTargetPath(callbackPath);
 };

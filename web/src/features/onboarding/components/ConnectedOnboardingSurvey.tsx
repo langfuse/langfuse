@@ -14,9 +14,10 @@ export function ConnectedOnboardingSurvey() {
   const utils = api.useUtils();
   const onboardingStatus = api.onboarding.status.useQuery();
   const completeOnboardingMutation = api.onboarding.complete.useMutation();
-  const queryRedirectPath =
-    getDemoCallbackRedirectPath(router.query.targetPath) ??
-    getDemoCallbackRedirectPath(router.query.callbackUrl);
+  const queryRedirectPath = router.isReady
+    ? (getDemoCallbackRedirectPath(router.query.targetPath) ??
+      getDemoCallbackRedirectPath(router.query.callbackUrl))
+    : undefined;
   const [hasStartedOnboardingCompletion, setHasStartedOnboardingCompletion] =
     useState(false);
 
@@ -83,7 +84,11 @@ export function ConnectedOnboardingSurvey() {
     );
 
   useEffect(() => {
-    if (onboardingStatus.data?.completed && !hasStartedOnboardingCompletion) {
+    if (
+      router.isReady &&
+      onboardingStatus.data?.completed &&
+      !hasStartedOnboardingCompletion
+    ) {
       redirectCompletedOnboarding(
         queryRedirectPath ?? onboardingStatus.data.redirectTo,
       ).catch(() => undefined);
@@ -93,6 +98,7 @@ export function ConnectedOnboardingSurvey() {
     onboardingStatus.data,
     queryRedirectPath,
     redirectCompletedOnboarding,
+    router.isReady,
   ]);
 
   const onSubmit = useCallback(
@@ -106,6 +112,7 @@ export function ConnectedOnboardingSurvey() {
     hasStartedOnboardingCompletion ||
     isFinishingOnboarding ||
     isRedirectingCompletedOnboarding ||
+    !router.isReady ||
     onboardingStatus.isLoading ||
     onboardingStatus.data?.completed === true;
 
