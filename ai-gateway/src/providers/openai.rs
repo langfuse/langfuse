@@ -15,7 +15,7 @@ use tokio::{
 
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
-    resolution::ResolvedRequestContext,
+    resolution::{ApiFormat, ProviderCredential, ResolvedRequestContext},
     transport,
 };
 
@@ -50,6 +50,14 @@ impl OpenAiRoute {
 
     fn captures_generation(self) -> bool {
         !matches!(self, Self::Models)
+    }
+
+    /// The API format Web resolves for this route; all current routes use the
+    /// Responses connection.
+    pub(crate) fn api_format(self) -> ApiFormat {
+        match self {
+            Self::Responses | Self::ResponsesCompact | Self::Models => ApiFormat::OpenAiResponses,
+        }
     }
 }
 
@@ -171,9 +179,12 @@ impl OpenAiProvider {
         body: Bytes,
         route: OpenAiRoute,
     ) -> Result<Response<Body>, ProviderError> {
-        let mut authorization =
-            HeaderValue::from_str(&format!("Bearer {}", context.connection().provider_token()))
-                .map_err(|_| ProviderError::Configuration)?;
+        // Resolution already rejected any non-Bearer credential for OpenAI connections.
+        let ProviderCredential::Bearer(token) = context.connection().credential() else {
+            return Err(ProviderError::Configuration);
+        };
+        let mut authorization = HeaderValue::from_str(&format!("Bearer {token}"))
+            .map_err(|_| ProviderError::Configuration)?;
         authorization.set_sensitive(true);
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_openai_responses(&context, headers, &body);

@@ -5,10 +5,47 @@ use serde::{
 };
 use std::{collections::BTreeMap, fmt};
 
+/// Granular native API contract requested by the client and selected by Web.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ApiFormat {
     #[serde(rename = "openai.responses")]
     OpenAiResponses,
+    #[serde(rename = "anthropic.messages")]
+    AnthropicMessages,
+}
+
+/// Provider behind a resolved connection. Each provider has one official origin
+/// and one credential scheme; Web's registry is the source of truth for both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Provider {
+    OpenAi,
+    Anthropic,
+}
+
+impl Provider {
+    pub fn official_origin(self) -> &'static str {
+        match self {
+            Self::OpenAi => "https://api.openai.com/v1",
+            Self::Anthropic => "https://api.anthropic.com/v1",
+        }
+    }
+
+    fn supports(self, api_format: ApiFormat) -> bool {
+        matches!(
+            (self, api_format),
+            (Self::OpenAi, ApiFormat::OpenAiResponses)
+                | (Self::Anthropic, ApiFormat::AnthropicMessages)
+        )
+    }
+
+    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+        matches!(
+            (self, credential),
+            (Self::OpenAi, ProviderCredential::Bearer(_))
+                | (Self::Anthropic, ProviderCredential::XApiKey(_))
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -26,31 +63,77 @@ pub enum MetadataValue {
     Bool(bool),
 }
 
-#[derive(Deserialize)]
-enum Provider {
-    #[serde(rename = "openai")]
-    OpenAi,
+/// The provider credential in the header position the provider expects.
+/// Intentionally has no `Debug` implementation so it cannot reach logs.
+#[derive(Clone, Copy)]
+pub enum ProviderCredential<'a> {
+    /// `Authorization: Bearer <token>`
+    Bearer(&'a str),
+    /// `x-api-key: <key>`
+    XApiKey(&'a str),
+}
+
+impl<'a> ProviderCredential<'a> {
+    fn secret(self) -> &'a str {
+        match self {
+            Self::Bearer(token) | Self::XApiKey(token) => token,
+        }
+    }
 }
 
 #[derive(Deserialize)]
-enum TokenType {
+enum BearerType {
     Bearer,
 }
 
 #[derive(Deserialize)]
+enum XApiKeyType {
+    #[serde(rename = "x-api-key")]
+    XApiKey,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Auth {
+struct BearerAuth {
     #[serde(rename = "type", deserialize_with = "string_enum")]
-    _token_type: TokenType,
+    _token_type: BearerType,
     token: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct XApiKeyAuth {
+    #[serde(rename = "type", deserialize_with = "string_enum")]
+    _kind: XApiKeyType,
+    #[serde(rename = "header", deserialize_with = "string_enum")]
+    _header: XApiKeyType,
+    value: String,
+}
+
+// Both shapes carry a `type` discriminator, but each is a plain struct so
+// `deny_unknown_fields` still applies to every variant.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Auth {
+    Bearer(BearerAuth),
+    XApiKey(XApiKeyAuth),
+}
+
+impl Auth {
+    fn credential(&self) -> ProviderCredential<'_> {
+        match self {
+            Self::Bearer(auth) => ProviderCredential::Bearer(&auth.token),
+            Self::XApiKey(auth) => ProviderCredential::XApiKey(&auth.value),
+        }
+    }
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ProviderConnection {
     id: String,
-    #[serde(rename = "provider", deserialize_with = "string_enum")]
-    _provider: Provider,
+    #[serde(deserialize_with = "string_enum")]
+    provider: Provider,
     #[serde(deserialize_with = "string_enum")]
     api_format: ApiFormat,
     base_url: String,
@@ -61,14 +144,17 @@ impl ProviderConnection {
     pub fn id(&self) -> &str {
         &self.id
     }
+    pub fn provider(&self) -> Provider {
+        self.provider
+    }
     pub fn api_format(&self) -> ApiFormat {
         self.api_format
     }
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
-    pub fn provider_token(&self) -> &str {
-        &self.auth.token
+    pub fn credential(&self) -> ProviderCredential<'_> {
+        self.auth.credential()
     }
 }
 
@@ -105,7 +191,7 @@ impl RequestAttribution {
 pub struct IngestionGrant {
     access_token: String,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
-    _token_type: TokenType,
+    _token_type: BearerType,
     expires_at: u64,
 }
 
@@ -170,10 +256,15 @@ pub(super) fn decode(
         serde_json::from_slice(bytes).map_err(|_| ResolutionError::InvalidResponse)?;
     let connection = &response.connection;
     let attribution = &response.attribution;
+    let provider = connection.provider;
+    // Web selects the connection; Rust still refuses any pairing that is not an
+    // official origin serving its own native format with its own credential scheme.
     if response.version != 1
         || connection.api_format != expected_format
-        || connection.base_url != "https://api.openai.com/v1"
-        || !valid_token(&connection.auth.token)
+        || !provider.supports(connection.api_format)
+        || connection.base_url != provider.official_origin()
+        || !provider.accepts(connection.credential())
+        || !valid_token(connection.credential().secret())
         || !valid_token(&response.ingestion.access_token)
         || response.ingestion.expires_at <= now
         || [
