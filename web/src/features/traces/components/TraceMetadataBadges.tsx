@@ -22,7 +22,6 @@ export function SessionBadge({
     >
       <Badge
         color="ghost"
-        interactive="link"
         text="session"
         title={sessionId}
         trailingIcon={ArrowUpRight}
@@ -49,7 +48,6 @@ export function UserIdBadge({
     >
       <Badge
         color="ghost"
-        interactive="link"
         label={label}
         text={text}
         trailingIcon={ArrowUpRight}
@@ -76,7 +74,6 @@ export function TargetTraceBadge({
     >
       <Badge
         color="ghost"
-        interactive="link"
         label={label}
         text={text}
         trailingIcon={ArrowUpRight}

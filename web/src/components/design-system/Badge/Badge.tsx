@@ -20,8 +20,7 @@ const badgeVariants = cva(
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
       },
       interactive: {
-        true: "decoration-border-contrast underline decoration-dashed underline-offset-2",
-        link: "decoration-border-contrast underline underline-offset-2",
+        true: "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
         false: "",
       },
       size: {
@@ -90,10 +89,8 @@ export function Badge({
       <span
         className={cn(
           "overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap",
-          interactive === "link" &&
-            "decoration-border-contrast underline underline-offset-2",
-          interactive === true &&
-            "decoration-border-contrast underline decoration-dashed underline-offset-2",
+          interactive &&
+            "decoration-border-contrast underline decoration-dashed underline-offset-[3px]",
         )}
         title={title ?? text}
       >

@@ -27,12 +27,7 @@ export function ModelBadge({
         className="inline-flex"
         title="View model details"
       >
-        <Badge
-          color="ghost"
-          interactive="link"
-          text={model}
-          trailingIcon={ExternalLinkIcon}
-        />
+        <Badge color="ghost" text={model} trailingIcon={ExternalLinkIcon} />
       </Link>
     );
   }
