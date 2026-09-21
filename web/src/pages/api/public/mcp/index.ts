@@ -38,8 +38,10 @@ import { RateLimitService } from "@/src/features/public-api/server/RateLimitServ
 import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import {
+  shadowAuth,
+  __dangerouslySkipAuthz,
+} from "@/src/features/public-api/server";
 import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
 import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 

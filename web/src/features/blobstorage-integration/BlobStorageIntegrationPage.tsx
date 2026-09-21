@@ -4,7 +4,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useHasEntitlement } from "@/src/features/entitlements";

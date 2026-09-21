@@ -8,12 +8,12 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
+  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { MediaContentType } from "@/src/features/media/validation";
+  MediaContentType,
+} from "@/src/features/media/server";
 import {
   paginationZod,
   singleFilterList,

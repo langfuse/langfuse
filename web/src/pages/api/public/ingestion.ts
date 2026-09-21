@@ -38,8 +38,8 @@ import {
 import {
   shadowAuth,
   shadowAuthorize,
-} from "@/src/features/public-api/server/shadowAuth";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+  __dangerouslySkipAuthz,
+} from "@/src/features/public-api/server";
 import {
   type AuthorizationContext,
   type ProjectAction,

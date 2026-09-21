@@ -69,8 +69,7 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
-import TagManager from "@/src/features/tag/components/TagManager";
-
+import { TagManager } from "@/src/features/tag";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";

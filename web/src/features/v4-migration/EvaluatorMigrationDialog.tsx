@@ -14,7 +14,7 @@ import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { useHasOrganizationAccess } from "@/src/features/rbac";

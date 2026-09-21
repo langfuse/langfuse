@@ -44,7 +44,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 function DatasetCompareChartsLegacy() {

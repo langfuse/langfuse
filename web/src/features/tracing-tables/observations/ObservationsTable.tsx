@@ -50,7 +50,10 @@ import {
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
@@ -59,7 +62,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -71,7 +74,6 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {

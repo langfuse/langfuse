@@ -4,7 +4,7 @@ import {
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
-} from "@/src/features/public-api/server/evaluation/evaluationAdapters";
+} from "@/src/features/public-api/server";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";

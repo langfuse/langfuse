@@ -21,7 +21,7 @@ import { Card } from "@/src/components/ui/card";
 import { useReadPath } from "@/src/features/events";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "lucide-react";
 

@@ -24,7 +24,7 @@ import { Button } from "@/src/components/ui/button";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+} from "@/src/features/comments";
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
@@ -109,7 +109,7 @@ import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailS
 import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/features/sessions/useHistoryEntryRevisit";
