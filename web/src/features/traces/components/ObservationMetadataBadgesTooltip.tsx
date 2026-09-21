@@ -3,7 +3,7 @@
  * These badges use BreakdownTooltip to show detailed cost/usage information
  */
 
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
   type CostSource,
@@ -48,21 +48,15 @@ export function UsageBadge({
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
+  const tokenText = `${numberFormatter(totalUsage, 0)} tokens`;
 
-  if (tokenText && !hasBreakdown(usageDetails)) {
-    return <Badge color="ghost" text={`${tokenText} tokens`} />;
+  if (!hasBreakdown(usageDetails)) {
+    return <Badge color="ghost" text={tokenText} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      {tokenText ? (
-        <Badge color="ghost" interactive text={`${tokenText} tokens`} />
-      ) : (
-        <BadgeShell color="ghost" interactive aria-label="View usage breakdown">
-          tokens
-        </BadgeShell>
-      )}
+      <Badge color="ghost" interactive text={tokenText} />
     </BreakdownTooltip>
   );
 }

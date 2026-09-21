@@ -518,6 +518,7 @@ export const ObservationDetailViewHeader = memo(
             )}
             {subtreeMetrics
               ? subtreeMetrics.hasGenerationLike &&
+                subtreeMetrics.totalUsage > 0 &&
                 subtreeMetrics.usageDetails &&
                 hasBreakdown(subtreeMetrics.usageDetails) && (
                   <UsageBadge
@@ -526,6 +527,7 @@ export const ObservationDetailViewHeader = memo(
                   />
                 )
               : isGenerationLike(observation.type) &&
+                totalUsage > 0 &&
                 observation.usageDetails &&
                 hasBreakdown(observation.usageDetails) && (
                   <UsageBadge
