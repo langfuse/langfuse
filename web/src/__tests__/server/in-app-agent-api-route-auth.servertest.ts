@@ -30,9 +30,14 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server", () => ({
-  hasEntitlement: entitlementMocks.hasEntitlement,
-}));
+vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/src/features/entitlements/server")>();
+  return {
+    ...actual,
+    hasEntitlement: entitlementMocks.hasEntitlement,
+  };
+});
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
