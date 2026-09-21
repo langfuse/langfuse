@@ -14,8 +14,7 @@ vi.mock("@/src/ee/features/billing/server/resolveBillingService", () => ({
 }));
 
 vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/src/features/entitlements/server")>();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     throwIfNoEntitlement: mocks.throwIfNoEntitlement,

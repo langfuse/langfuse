@@ -31,8 +31,7 @@ vi.mock("@/src/server/auth", () => ({
 }));
 
 vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/src/features/entitlements/server")>();
+  const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     hasEntitlement: entitlementMocks.hasEntitlement,
