@@ -77,10 +77,7 @@ export function deepParseJson(
   return result;
 }
 
-function reserveStringParseBudget(
-  value: string,
-  budget: ParseBudget,
-): boolean {
+function reserveStringParseBudget(value: string, budget: ParseBudget): boolean {
   if (value.length > budget.remaining) {
     return false;
   }
@@ -178,6 +175,7 @@ interface ParseStackEntry {
   depth: number;
   childrenToProcess: number; // Count of children that need processing
   childrenResults?: ParseStackEntry[]; // Collected children for objects/arrays
+  childrenEnumerated?: boolean; // True once own keys/elements have been queued
   parsedEntry?: ParseStackEntry; // For strings that get parsed
 }
 
@@ -324,8 +322,12 @@ export function deepParseJsonIterative(
       }
       const childrenResults = entry.childrenResults;
 
-      // If we haven't added children yet, add them now
-      if (childrenResults.length === 0) {
+      // If we haven't added children yet, add them now. Use a dedicated flag,
+      // not childrenResults.length: skipping dangerous keys can leave that
+      // array empty even after enumeration, which would re-enter this branch
+      // forever.
+      if (!entry.childrenEnumerated) {
+        entry.childrenEnumerated = true;
         // Add children to stack in reverse order (so they process in correct order)
         if (isArray) {
           const arr = input as unknown[];

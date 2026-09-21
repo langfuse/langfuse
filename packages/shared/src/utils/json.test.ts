@@ -58,9 +58,7 @@ describe("parseJsonPrioritised precision path", () => {
   });
 });
 
-const deepParseImplementations: Array<
-  [string, typeof deepParseJson]
-> = [
+const deepParseImplementations: Array<[string, typeof deepParseJson]> = [
   ["deepParseJson", deepParseJson],
   ["deepParseJsonIterative", deepParseJsonIterative],
 ];
@@ -105,5 +103,14 @@ describe.each(deepParseImplementations)("%s maxSize budget", (_name, parse) => {
     expect(parse(input, { maxSize: safe.length })).toEqual({
       safe: { safe: true },
     });
+  });
+
+  it("returns an empty object when every own key is dangerous", () => {
+    const input = JSON.parse('{"__proto__":{"x":1}}') as Record<
+      string,
+      unknown
+    >;
+    expect(Object.prototype.hasOwnProperty.call(input, "__proto__")).toBe(true);
+    expect(parse(input)).toEqual({});
   });
 });
