@@ -141,6 +141,8 @@ async function evaluatorIdsMatchingModelFilters(params: {
     CASE
       WHEN evaluator.type = 'LLM_AS_JUDGE'
       THEN COALESCE(latest_version.model, default_model.model)
+      WHEN evaluator.type = 'DECISION_MODEL'
+      THEN latest_version.model
       ELSE NULL
     END
   `;
@@ -330,13 +332,31 @@ export async function listEvaluators(params: {
       hasActiveRules: assignments.some(
         ({ evaluationRule }) => evaluationRule.status === "ACTIVE",
       ),
-      effectiveModel:
-        evaluator.type === EvalTemplateType.LLM_AS_JUDGE
-          ? (evaluator.versions[0]?.model ?? defaultModel?.model ?? null)
-          : null,
+      effectiveModel: getEffectiveModel(evaluator, defaultModel?.model),
     })),
     totalItems,
   };
+}
+
+/**
+ * Mirrors the `effectiveModel` SQL expression used by the model filter: LLM
+ * judges fall back to the project default, decision models always pin one.
+ */
+function getEffectiveModel(
+  evaluator: {
+    type: EvalTemplateType;
+    versions: Array<{ model: string | null }>;
+  },
+  defaultModel: string | null | undefined,
+): string | null {
+  switch (evaluator.type) {
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return evaluator.versions[0]?.model ?? defaultModel ?? null;
+    case EvalTemplateType.DECISION_MODEL:
+      return evaluator.versions[0]?.model ?? null;
+    case EvalTemplateType.CODE:
+      return null;
+  }
 }
 
 export async function listEvaluatorsCursor(params: {
