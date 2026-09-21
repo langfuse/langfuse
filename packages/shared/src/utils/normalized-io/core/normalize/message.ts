@@ -5,10 +5,7 @@ import type {
   SiblingPartSlot,
 } from "../../conventions/io-convention";
 import { isMessageLike, isToolDefinitionMessage } from "../utils/format";
-import type {
-  NormalizedMessage,
-  NormalizedMessagePart,
-} from "../../types";
+import type { NormalizedMessage, NormalizedMessagePart } from "../../types";
 import { asRecord, isRecord, optionalString, parseArray } from "../utils/json";
 import { normalizeFinishReason } from "./finish-reason";
 import { normalizeMediaPartsFromString } from "./message-parts/media";
@@ -216,11 +213,7 @@ export function normalizeMessage(
     (nestedContent ? normalizeRole(nestedContent) : undefined) ??
     fallbackRole;
 
-  const parts = normalizeMessageContent(
-    value,
-    nestedContent,
-    parserContext,
-  );
+  const parts = normalizeMessageContent(value, nestedContent, parserContext);
   applySiblingFields(value, parts, parserContext);
   role = coerceRole(role, value, parts);
 
