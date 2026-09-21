@@ -31,7 +31,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 
-export default function PosthogIntegrationSettings() {
+export default function PostHogIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 

@@ -24,7 +24,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { toast } from "sonner";
 
-export default function PromptsWithFolder() {
+export default function PromptsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const routeSegments = router.query.folder;

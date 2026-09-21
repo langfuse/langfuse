@@ -35,7 +35,7 @@ const syncStatusFromConfig = (
     runStartedAt: config.runStartedAt ? new Date(config.runStartedAt) : null,
   });
 
-export default function BlobStorageIntegrationSettings() {
+export default function BlobStorageIntegrationPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const hasAccess = useHasProjectAccess({

@@ -14,7 +14,7 @@ import { getDefaultView } from "@/src/features/widgets/utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
-export default function NewWidget() {
+export default function NewWidgetPage() {
   const router = useRouter();
   const { projectId, dashboardId } = router.query as {
     projectId: string;

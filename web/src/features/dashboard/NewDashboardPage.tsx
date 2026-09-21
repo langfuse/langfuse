@@ -10,7 +10,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
-export default function NewDashboard() {
+export default function NewDashboardPage() {
   const router = useRouter();
   const { projectId } = router.query as { projectId: string };
 

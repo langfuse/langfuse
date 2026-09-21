@@ -10,7 +10,7 @@ import { type z } from "zod";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
-export default function EditWidget() {
+export default function EditWidgetPage() {
   const router = useRouter();
   const { projectId, widgetId, dashboardId } = router.query as {
     projectId: string;

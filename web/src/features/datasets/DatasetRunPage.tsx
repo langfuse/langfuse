@@ -172,7 +172,7 @@ function DatasetRunLegacy() {
   );
 }
 
-export default function DatasetRun() {
+export default function DatasetRunPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const runId = router.query.runId as string;

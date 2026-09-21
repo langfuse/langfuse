@@ -26,7 +26,7 @@ import {
   type ExperimentResultsLayout,
 } from "@/src/features/experiments/hooks/useExperimentResultsState";
 
-export default function ExperimentResults() {
+export default function ExperimentResultsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
