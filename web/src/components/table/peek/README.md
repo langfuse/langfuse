@@ -75,9 +75,9 @@ The full-page trace view keeps its own share-based, per-tab layout.
 
 The peek and the standalone trace page already share one beta-aware fetch
 ([`../../trace/useTraceDetailData.ts`](../../../features/traces)), one
-body + title
+body
 ([`../../trace/TraceDetailBody.tsx`](../../../features/traces) →
-`TraceDetailBody` / `traceDetailTitle`), and one action set
+`TraceDetailBody`), and one action set
 ([`../../trace/TraceDetailActions.tsx`](../../../features/traces) —
 star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
 hook. **Next slice:** collapse the `<Trace context>` branching and fold these

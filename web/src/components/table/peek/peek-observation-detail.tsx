@@ -6,7 +6,6 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import {
   TraceDetailActions,
   TraceDetailBody,
-  traceDetailTitle,
 } from "@/src/features/traces";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
@@ -72,7 +71,7 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceDetailTitle(trace.data, traceId)}
+      title={traceId}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
