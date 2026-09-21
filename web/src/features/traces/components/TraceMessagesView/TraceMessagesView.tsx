@@ -170,14 +170,11 @@ function MessageList({
   const characterLimit = useMarkdownRenderCharacterLimit();
   const preview = useMemo(
     () =>
-      toIOPreview(
-        {
-          messages,
-          toolDefinitions: [],
-          span: { input: undefined, output: undefined, metadata: undefined },
-        },
-        undefined,
-      ),
+      toIOPreview({
+        messages,
+        toolDefinitions: [],
+        span: { input: undefined, output: undefined, metadata: undefined },
+      }),
     [messages],
   );
   // Same size gate as the formatted view.
