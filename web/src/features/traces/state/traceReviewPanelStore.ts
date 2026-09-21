@@ -1,6 +1,9 @@
 import { createStore } from "zustand/vanilla";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
-import { type AnnotationPanelData } from "@/src/features/scores/types";
+import {
+  type AnnotationPanelData,
+  type AnnotationRefreshHandle,
+} from "@/src/features/scores/types";
 
 export type TraceCommentsSession = {
   key: number;
@@ -42,6 +45,9 @@ export function createTraceReviewPanelStore({
   initialComments?: CommentTarget;
 }) {
   let commentsKey = 0;
+  const annotationFormRef: { current: AnnotationRefreshHandle | null } = {
+    current: null,
+  };
   let trigger: HTMLElement | null = null;
   const createCommentsSession = (
     target: CommentTarget,
@@ -54,7 +60,7 @@ export function createTraceReviewPanelStore({
     mentionsOpen: false,
   });
 
-  return createStore<TraceReviewPanelState>((set, get) => ({
+  const store = createStore<TraceReviewPanelState>((set, get) => ({
     active: initialComments ? "comments" : null,
     comments: initialComments ? createCommentsSession(initialComments) : null,
     annotation: null,
@@ -97,9 +103,10 @@ export function createTraceReviewPanelStore({
           Boolean(data.companionTrace),
         ]);
         const current = get().annotation;
+        if (current?.key === key) annotationFormRef.current?.refresh(data);
         set({
           active: "annotate",
-          annotation: current?.key === key ? current : { key, data },
+          annotation: { key, data },
         });
       },
       rememberTrigger(element) {
@@ -135,6 +142,7 @@ export function createTraceReviewPanelStore({
       },
     },
   }));
+  return Object.assign(store, { annotationFormRef });
 }
 
 export type TraceReviewPanelStore = ReturnType<

@@ -24,7 +24,8 @@ import {
 } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
-import { cloneElement } from "react";
+import { cloneElement, createRef } from "react";
+import type { AnnotationRefreshHandle } from "../types";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -127,6 +128,33 @@ const content = (
     observationScores={[]}
   />
 );
+
+function serverQualityScore() {
+  return {
+    longStringValue: "",
+    executionTraceId: null,
+    datasetRunId: null,
+    id: "saved-quality",
+    configId: "quality",
+    name: "Quality",
+    source: "ANNOTATION",
+    dataType: "BOOLEAN",
+    value: 0,
+    stringValue: "False",
+    comment: "Saved comment",
+    traceId: "trace",
+    observationId: "observation",
+    projectId: "project",
+    timestamp: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    metadata: {},
+    environment: "default",
+    queueId: null,
+    sessionId: null,
+    authorUserId: null,
+  } satisfies ScoreDomain;
+}
 
 function renderContent(children = content) {
   const queryClient = new QueryClient({
@@ -248,6 +276,146 @@ describe("unified annotation targets", () => {
       expect(mocks.create).not.toHaveBeenCalled();
     },
   );
+
+  it("refreshes clean scores on reopening while retaining text and score-comment drafts", async () => {
+    configs.push({
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: undefined,
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["quality", "feedback"]),
+    );
+    const score = serverQualityScore();
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...score, metadata: "{}" }],
+        refreshRef,
+      }),
+    );
+    const quality = screen.getByRole("group", { name: "Quality" });
+    const feedback = within(
+      screen.getByRole("group", { name: "Feedback" }),
+    ).getByRole("textbox");
+    fireEvent.change(feedback, { target: { value: "Unsent feedback" } });
+    fireEvent.click(within(quality).getByTitle("Add or view score comment"));
+    const comment = await within(screen.getByRole("dialog")).findByRole(
+      "textbox",
+    );
+    fireEvent.change(comment, { target: { value: "Unsent score comment" } });
+    act(() =>
+      refreshRef.current?.refresh({
+        scoreTarget: {
+          type: "trace",
+          traceId: "trace",
+          observationId: "observation",
+        },
+        scoreMetadata: { projectId: "project" },
+        analyticsData: { type: "trace", source: "TraceDetail", isV4: true },
+        scores: [
+          {
+            ...score,
+            metadata: "{}",
+            value: 1,
+            stringValue: "True",
+            comment: "Updated remotely",
+          },
+        ],
+        companionTrace: {
+          environment: "default",
+          scores: [
+            {
+              ...score,
+              metadata: "{}",
+              id: "trace-quality",
+              observationId: null,
+              value: 1,
+              stringValue: "True",
+            },
+          ],
+        },
+      }),
+    );
+    expect(
+      within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
+        "radio",
+        { name: /True/ },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(quality).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(feedback).toHaveValue("Unsent feedback");
+    expect(comment).toHaveValue("Unsent score comment");
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("retains pending and just-saved values across lagging refreshes, then accepts acknowledged external edits", async () => {
+    const score = serverQualityScore();
+    const pending = deferred();
+    mocks.update.mockReturnValueOnce(pending.promise);
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...score, metadata: "{}" }],
+        refreshRef,
+      }),
+    );
+    const row = screen.getByRole("group", { name: "Quality" });
+    const refresh = (value: number, scoresPresent = true) =>
+      act(() =>
+        refreshRef.current?.refresh({
+          scoreTarget: {
+            type: "trace",
+            traceId: "trace",
+            observationId: "observation",
+          },
+          scoreMetadata: { projectId: "project" },
+          analyticsData: { type: "trace", source: "TraceDetail", isV4: true },
+          scores: scoresPresent
+            ? [
+                {
+                  ...score,
+                  metadata: "{}",
+                  value,
+                  stringValue: value ? "True" : "False",
+                },
+              ]
+            : [],
+          companionTrace: { environment: "default", scores: [] },
+        }),
+      );
+    fireEvent.click(within(row).getByRole("radio", { name: /True/ }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await act(async () => pending.resolve({}));
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    refresh(1);
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    refresh(0, false);
+    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(mocks.update).toHaveBeenCalledOnce();
+  });
 
   it("hides the score comment portal without losing its unsaved draft", async () => {
     mocks.create.mockResolvedValue({});

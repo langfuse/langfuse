@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, type Ref } from "react";
 import {
   filterAndValidateDbScoreList,
   ScoreDataTypeArray,
@@ -11,16 +11,21 @@ import { api } from "@/src/utils/api";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import { AnnotationForm } from "./AnnotationForm";
 import { DualAnnotationContent } from "./DualAnnotationContent";
-import { type AnnotationPanelData } from "../types";
+import {
+  type AnnotationPanelData,
+  type AnnotationRefreshHandle,
+} from "../types";
 
 export function AnnotationPanelContent({
   data,
   actionButtons,
   isActive,
+  refreshRef,
 }: {
   data: AnnotationPanelData;
   actionButtons: ReactNode;
   isActive: boolean;
+  refreshRef?: Ref<AnnotationRefreshHandle>;
 }) {
   const target = data.scoreTarget;
   const scoresQuery = api.events.scoresForTrace.useQuery(
@@ -87,6 +92,7 @@ export function AnnotationPanelContent({
       traceScores={data.companionTrace.scores}
       actionButtons={actionButtons}
       isActive={isActive}
+      refreshRef={refreshRef}
     />
   ) : (
     <AnnotationForm
@@ -96,6 +102,7 @@ export function AnnotationPanelContent({
       scoreMetadata={data.scoreMetadata}
       actionButtons={actionButtons}
       isActive={isActive}
+      refreshRef={refreshRef}
     />
   );
 }

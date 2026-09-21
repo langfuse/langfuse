@@ -19,3 +19,10 @@ own the opened panel or its lifetime.
 
 Changing comment targets confirms discarding an unsent draft. Selecting another
 trace destroys the workspace; drafts are not shared between traces or projects.
+
+Same-target annotation reopening passes the fresh header snapshot through the
+mounted form's imperative refresh handle. The form action reconciles by target
+and config, updating clean fields in place while preserving pending writes,
+invalid inputs, and row-local comment drafts. An unchanged pre-save snapshot
+cannot undo a confirmed local save. This refresh belongs to the open action;
+query updates do not reset mounted editors.
