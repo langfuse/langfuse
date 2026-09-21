@@ -7,7 +7,7 @@ import {
 } from "@langfuse/shared/src/server";
 
 /** Generations and tools whose I/O one transcript reads at most. */
-export const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
+const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
 
 const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
 

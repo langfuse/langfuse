@@ -20,7 +20,7 @@ export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
  * for deployments with experimental features enabled, and for nobody else:
  * they are not feature previews, cannot be granted, and are never persisted.
  */
-export const internalFlags = ["traceMessages"] as const;
+const internalFlags = ["traceMessages"] as const;
 
 type InternalFlag = (typeof internalFlags)[number];
 
