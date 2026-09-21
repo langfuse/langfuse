@@ -7,7 +7,7 @@ import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
 import type { ParserContext } from "../parser-context";
 import {
-  normalizePart,
+  normalizePartValue,
   normalizeMessage,
   normalizeFinishReason,
 } from "../normalize";
@@ -143,9 +143,11 @@ function collectMessageSequence(
     if (record?.type === "mcp_list_tools") continue;
 
     if (record && !isMessageLike(record)) {
-      const part = normalizePart(record, parserContext);
-      if (part?.type === "tool-call") {
-        standaloneToolCalls.push(part);
+      const parts = normalizePartValue(record, parserContext);
+      const onlyToolCalls =
+        parts.length > 0 && parts.every((part) => part.type === "tool-call");
+      if (onlyToolCalls) {
+        standaloneToolCalls.push(...parts);
         continue;
       }
     }
