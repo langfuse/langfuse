@@ -6,7 +6,7 @@
 - `datasetMappingStore.ts` owns the selected dataset ID, mapping drafts, create
   screen and submission state. Schema defaults are prepared when a dataset is
   selected or created, never when a field mounts or metadata refetches.
-- `DatasetMappingEditor.tsx` subscribes to mapping drafts and renders the shared
+- `DatasetMappingEditor.tsx` subscribes to mapping drafts and renders the mapping
   editor shell, keeping field edits out of the modal's query/lifecycle owner.
 - `DatasetCreateStep.tsx` adapts the shared dataset form. The form owns its
   submission and footer; event callbacks guard modal dismissal and return the
@@ -17,12 +17,12 @@
 - `submitDatasetBatch.ts` guards duplicate or invalid submissions and calls the
   existing batch API. Failure retains the draft and selection; the tRPC mutation
   reports the error. The worker remains responsible for all selected items.
-- `DatasetItemEditorLayout` in the datasets feature is the shared selector,
-  editor and live-preview shell. Single-object creation uses `NewDatasetItemForm`
-  with editable JSON, multiple datasets, schema checks and media uploads, then
-  calls the existing immediate creation API. Bulk creation uses mappings and a
-  sample preview, then shows background progress. No backend contract is shared
-  or changed by this presentation reuse.
+- `DatasetItemEditorLayout` in the datasets feature contains the bulk selector,
+  mapping editor and sample preview, followed by background progress after
+  submission. Single-object creation uses `NewDatasetItemForm` with one column
+  of editable JSON, multiple datasets, schema checks and media uploads, then
+  calls the existing immediate creation API. Both flows reuse dataset creation;
+  their item editors and submission adapters stay separate.
 
 The existing single-item submit analytics and evaluation analytics remain at
 their intent seams. Layout changes and cancellation do not add analytics events.

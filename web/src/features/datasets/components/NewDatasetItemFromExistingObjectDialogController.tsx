@@ -46,7 +46,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
     <DialogController<DatasetItemDialogState & { instance: number }>
       closeOnInteractionOutside={false}
       onBeforeClose={() => !submissionPending.current}
-      size="xxl"
+      size="lg"
       renderContent={({ state, closeDialog }) => (
         <>
           <DialogHeader>

@@ -48,10 +48,6 @@ import { generateSchemaExample } from "../lib/generateSchemaExample";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import {
-  DatasetItemEditorLayout,
-  DatasetItemPreviewField,
-} from "./DatasetItemEditorLayout";
-import {
   isValidDatasetJson,
   parseDatasetJson,
 } from "../utils/parseDatasetJson";
@@ -435,11 +431,9 @@ function InitializedNewDatasetItemForm({
         className={cn("flex h-full min-h-0 flex-col", props.className)}
       >
         <DialogBody className="min-h-0 overflow-hidden p-0">
-          <DatasetItemEditorLayout
-            preview={<FormPreview control={form.control} />}
-            previewDescription="Review the values that will be added to each selected dataset."
-            selector={
-              <div className="flex items-end gap-2">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="shrink-0 border-b p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <FormField
                   control={form.control}
                   name="datasetIds"
@@ -484,143 +478,146 @@ function InitializedNewDatasetItemForm({
                   Create dataset
                 </Button>
               </div>
-            }
-          >
-            <FormField
-              control={form.control}
-              name="input"
-              render={({ field }) => (
-                <FormItem className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <FormLabel>Input</FormLabel>
-                    {hasInputSchema &&
-                      selectedDatasets
-                        .filter((d) => d.inputSchema)
-                        .map((dataset) => (
-                          <DatasetSchemaHoverCard
-                            key={dataset.id}
-                            schema={dataset.inputSchema!}
-                            schemaType="input"
-                            showLabel
-                          />
-                        ))[0]}
-                    <DatasetItemFieldToolbar
-                      copyValue={field.value}
-                      disabled={isPending}
-                      onSelectFile={handleFileUpload(inputEditorRef)}
-                    />
-                  </div>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      editable={!isPending}
-                      value={field.value}
-                      onChange={(value) => {
-                        editedFields.current.add("input");
-                        field.onChange(value);
-                      }}
-                      editorRef={inputEditorRef}
-                      minHeight={140}
-                      extensions={mediaDropPasteExtensions}
-                      placeholder={`{
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
+              <FormField
+                control={form.control}
+                name="input"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Input</FormLabel>
+                      {hasInputSchema &&
+                        selectedDatasets
+                          .filter((d) => d.inputSchema)
+                          .map((dataset) => (
+                            <DatasetSchemaHoverCard
+                              key={dataset.id}
+                              schema={dataset.inputSchema!}
+                              schemaType="input"
+                              showLabel
+                            />
+                          ))[0]}
+                      <DatasetItemFieldToolbar
+                        copyValue={field.value}
+                        disabled={isPending}
+                        onSelectFile={handleFileUpload(inputEditorRef)}
+                      />
+                    </div>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        editable={!isPending}
+                        value={field.value}
+                        onChange={(value) => {
+                          editedFields.current.add("input");
+                          field.onChange(value);
+                        }}
+                        editorRef={inputEditorRef}
+                        minHeight={140}
+                        extensions={mediaDropPasteExtensions}
+                        placeholder={`{
   "question": "What is the capital of England?"
 }`}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <FieldSchemaErrors
-                    field="input"
-                    value={field.value}
-                    datasets={selectedDatasets}
-                    show={hasInitialValues || !!hasInteractedWithInput}
-                  />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="expectedOutput"
-              render={({ field }) => (
-                <FormItem className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <FormLabel>Expected output</FormLabel>
-                    {hasOutputSchema &&
-                      selectedDatasets
-                        .filter((d) => d.expectedOutputSchema)
-                        .map((dataset) => (
-                          <DatasetSchemaHoverCard
-                            key={dataset.id}
-                            schema={dataset.expectedOutputSchema!}
-                            schemaType="expectedOutput"
-                            showLabel
-                          />
-                        ))[0]}
-                    <DatasetItemFieldToolbar
-                      copyValue={field.value}
-                      disabled={isPending}
-                      onSelectFile={handleFileUpload(expectedOutputEditorRef)}
-                    />
-                  </div>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      editable={!isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <FieldSchemaErrors
+                      field="input"
                       value={field.value}
-                      onChange={(value) => {
-                        editedFields.current.add("expectedOutput");
-                        field.onChange(value);
-                      }}
-                      editorRef={expectedOutputEditorRef}
-                      minHeight={140}
-                      extensions={mediaDropPasteExtensions}
-                      placeholder={`{
+                      datasets={selectedDatasets}
+                      show={hasInitialValues || !!hasInteractedWithInput}
+                    />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="expectedOutput"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Expected output</FormLabel>
+                      {hasOutputSchema &&
+                        selectedDatasets
+                          .filter((d) => d.expectedOutputSchema)
+                          .map((dataset) => (
+                            <DatasetSchemaHoverCard
+                              key={dataset.id}
+                              schema={dataset.expectedOutputSchema!}
+                              schemaType="expectedOutput"
+                              showLabel
+                            />
+                          ))[0]}
+                      <DatasetItemFieldToolbar
+                        copyValue={field.value}
+                        disabled={isPending}
+                        onSelectFile={handleFileUpload(expectedOutputEditorRef)}
+                      />
+                    </div>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        editable={!isPending}
+                        value={field.value}
+                        onChange={(value) => {
+                          editedFields.current.add("expectedOutput");
+                          field.onChange(value);
+                        }}
+                        editorRef={expectedOutputEditorRef}
+                        minHeight={140}
+                        extensions={mediaDropPasteExtensions}
+                        placeholder={`{
   "answer": "London"
 }`}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                  <FieldSchemaErrors
-                    field="expectedOutput"
-                    value={field.value}
-                    datasets={selectedDatasets}
-                    show={hasInitialValues || !!hasInteractedWithExpectedOutput}
-                  />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="metadata"
-              render={({ field }) => (
-                <FormItem className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <FormLabel>Metadata</FormLabel>
-                    <DatasetItemFieldToolbar
-                      copyValue={field.value}
-                      disabled={isPending}
-                      onSelectFile={handleFileUpload(metadataEditorRef)}
-                    />
-                  </div>
-                  <FormControl>
-                    <CodeMirrorEditor
-                      mode="json"
-                      editable={!isPending}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <FieldSchemaErrors
+                      field="expectedOutput"
                       value={field.value}
-                      onChange={field.onChange}
-                      editorRef={metadataEditorRef}
-                      minHeight={100}
-                      extensions={mediaDropPasteExtensions}
+                      datasets={selectedDatasets}
+                      show={
+                        hasInitialValues || !!hasInteractedWithExpectedOutput
+                      }
                     />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormMediaAttachments
-              control={form.control}
-              pendingUploads={pendingUploads}
-            />
-          </DatasetItemEditorLayout>
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="metadata"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <FormLabel>Metadata</FormLabel>
+                      <DatasetItemFieldToolbar
+                        copyValue={field.value}
+                        disabled={isPending}
+                        onSelectFile={handleFileUpload(metadataEditorRef)}
+                      />
+                    </div>
+                    <FormControl>
+                      <CodeMirrorEditor
+                        mode="json"
+                        editable={!isPending}
+                        value={field.value}
+                        onChange={field.onChange}
+                        editorRef={metadataEditorRef}
+                        minHeight={100}
+                        extensions={mediaDropPasteExtensions}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormMediaAttachments
+                control={form.control}
+                pendingUploads={pendingUploads}
+              />
+            </div>
+          </div>
         </DialogBody>
         <DialogFooter>
           <div className="flex flex-col gap-4">
@@ -641,39 +638,6 @@ function InitializedNewDatasetItemForm({
         {mediaChipPortals}
       </form>
     </Form>
-  );
-}
-
-function FormPreview({
-  control,
-}: {
-  control: Control<NewDatasetItemFormValues>;
-}) {
-  const values = useWatch({
-    control,
-    name: ["input", "expectedOutput", "metadata"],
-  });
-  return (
-    <>
-      {["Input", "Expected output", "Metadata"].map((label, index) => {
-        const value = values[index] ?? "";
-        const valid = isValidDatasetJson(value);
-        return (
-          <DatasetItemPreviewField
-            key={label}
-            label={label}
-            value={valid ? parseDatasetJson(value) : undefined}
-            feedback={
-              !valid && (
-                <p className="text-destructive border-t px-3 py-2 text-xs">
-                  Enter valid JSON to preview this field.
-                </p>
-              )
-            }
-          />
-        );
-      })}
-    </>
   );
 }
 

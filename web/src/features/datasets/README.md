@@ -25,6 +25,8 @@ one `ActiveCellProvider` per project and dataset.
   fields; metadata refetches and obsolete generation results preserve drafts.
   Its opening source and callbacks belong to that form instance. Creating a
   dataset keeps the item draft and appends the created dataset to its targets.
+  A single editing column owns input, expected output and metadata; the dataset
+  selector and submit footer stay visible while the fields scroll.
 - `components/submitDatasetItems.ts` owns immediate submission and its pending
   guard. Edits, repeated submits and dialog dismissal stay blocked until the
   request settles; errors preserve the draft. The dialog controller scopes

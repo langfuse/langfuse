@@ -131,7 +131,7 @@ export const DatasetItemsOnboarding = ({
               hasAccess={hasProjectAccess}
             />
           </DialogTrigger>
-          <DialogContent size="xl">
+          <DialogContent size="lg">
             <DialogHeader>
               <DialogTitle>Create dataset item</DialogTitle>
             </DialogHeader>
