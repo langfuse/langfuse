@@ -572,6 +572,7 @@ export function ModernSessionHeader({
   return (
     <div className="bg-header border-b px-4 py-2">
       <SingleLineOverflowList
+        spacing="comfortable"
         items={visiblePills}
         additionalOverflowCount={
           overflowUserDetails.length + manuallyHiddenPills.length
