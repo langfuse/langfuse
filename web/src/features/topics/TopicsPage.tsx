@@ -32,11 +32,16 @@ import {
   type TopicFacet,
   type TopicExecutionStatus,
   type TopicFacetOutcome,
+  type TopicOperation,
 } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
 import { CurrentTopics } from "./CurrentTopics";
 import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
 
+const operationLabels: Record<TopicOperation, string> = {
+  process: "Process traces",
+  update: "Update topics",
+};
 const busy = (status: string) => status === "queued" || status === "running";
 const executionLabels: Record<TopicExecutionStatus, string> = {
   queued: "Run queued",
@@ -57,6 +62,7 @@ const facetOutcomeLabels: Record<TopicFacetOutcome, string> = {
   pending: "Waiting for results",
   published: "Topics ready",
   assigned: "Traces assigned",
+  awaiting_topics: "Awaiting topics",
   insufficient_data: "More traces needed",
   no_applicable_summaries: "No applicable traces",
   no_topics: "No topics found",
@@ -94,7 +100,6 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const canWrite = useHasProjectAccess({ projectId, scope: "topics:CUD" });
   const facets = api.topics.facets.useQuery({ projectId });
-  const runs = api.topics.runs.useQuery({ projectId });
   const executions = api.topics.executions.useQuery(
     { projectId },
     {
@@ -188,7 +193,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
                   className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
                 >
                   <span className="capitalize">
-                    {execution.input.operation} ·{" "}
+                    {operationLabels[execution.input.operation]} ·{" "}
                     {new Date(execution.createdAt).toLocaleString()}
                   </span>
                   <span>{execution.facets.length} facets</span>
@@ -266,8 +271,6 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     <TopicPipelineForm
       projectId={projectId}
       facets={facets.data}
-      runs={runs.data ?? []}
-      executions={executions.data ?? []}
       canWrite={canWrite}
       onTriggered={openExecution}
       facetEditor={
@@ -383,22 +386,23 @@ function ExecutionPanel({
   const retry = api.topics.retry.useMutation({
     onSuccess: () => query.refetch(),
   });
+  const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
+  const traceErrors = api.topics.traceErrors.useQuery(
+    { projectId, executionId },
+    { enabled: traceErrorsOpen },
+  );
   const execution = query.data;
   if (query.error) return <ErrorMessage message={query.error.message} />;
   if (!execution) return <p>Loading execution…</p>;
-  const selectionDescription =
-    execution.input.operation === "recluster"
-      ? `${execution.input.sourceExecutionIds.length.toLocaleString()} saved batches`
-      : `${execution.input.traceIds.length.toLocaleString()} selected traces`;
+  const isUpdate = execution.input.operation === "update";
+  const selectionDescription = isUpdate
+    ? `${execution.facets.reduce((count, facet) => count + facet.counts.requested, 0).toLocaleString()} stored facet summaries`
+    : `${Math.max(0, ...execution.facets.map((facet) => facet.counts.requested)).toLocaleString()} selected traces`;
   const facetCount = execution.facets.length;
-  const operationLabel = {
-    assign: "Assign to existing topics",
-    recluster: "Recluster saved summaries",
-    refresh: "Update topics",
-    discover: "Discover topics",
-  }[execution.input.operation];
-  let modeLabel = execution.input.exploratory ? "Small sample" : "Standard";
-  if (execution.input.operation === "assign") modeLabel = "Existing map";
+  const operationLabel = operationLabels[execution.input.operation];
+  let modeLabel = "Assign to current topics";
+  if (execution.input.operation === "update")
+    modeLabel = execution.input.exploratory ? "Small sample" : "Standard";
   let selectionPrefix = "Run selection: ";
   if (execution.status === "running") selectionPrefix = "Running on ";
   else if (execution.status === "queued") selectionPrefix = "Queued for ";
@@ -408,7 +412,7 @@ function ExecutionPanel({
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-bold">Topics</h2>
           <Badge variant="secondary">{executionLabels[execution.status]}</Badge>
-          {execution.input.operation !== "assign" &&
+          {execution.input.operation === "update" &&
             execution.input.exploratory && (
               <Badge variant="outline">Small sample · provisional</Badge>
             )}
@@ -434,7 +438,7 @@ function ExecutionPanel({
                 </dd>
                 <dt className="text-muted-foreground">Embedding dimensions</dt>
                 <dd>{execution.input.embeddingConfig.embeddingDimensions}</dd>
-                {execution.input.operation !== "assign" && (
+                {execution.input.operation === "update" && (
                   <>
                     <dt className="text-muted-foreground">
                       Minimum traces for clustering
@@ -463,7 +467,7 @@ function ExecutionPanel({
         role={busy(execution.status) ? "status" : undefined}
       >
         <p className="text-sm">
-          {selectionPrefix}
+          {operationLabel} · {selectionPrefix}
           {selectionDescription} across {facetCount.toLocaleString()}{" "}
           {facetCount === 1 ? "facet" : "facets"}.
         </p>
@@ -477,16 +481,37 @@ function ExecutionPanel({
         )}
       </div>
       {execution.error && <ErrorMessage message={execution.error} />}
-      {execution.traceErrors.length > 0 && (
-        <details>
-          <summary className="cursor-pointer text-sm">
-            {execution.traceErrors.length} trace errors
-          </summary>
-          {execution.traceErrors.map((item) => (
-            <p key={item.traceId} className="text-xs break-words">
-              {item.traceId}: {item.error}
-            </p>
-          ))}
+      {execution.facets.some((facet) => facet.counts.failed > 0) && (
+        <details
+          className="ph-no-capture text-sm"
+          onToggle={(event) => setTraceErrorsOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer">Trace errors</summary>
+          {traceErrorsOpen && (
+            <div className="flex flex-col gap-2 pt-2">
+              {traceErrors.isPending && <p>Loading trace errors…</p>}
+              {traceErrors.error && (
+                <ErrorMessage message={traceErrors.error.message} />
+              )}
+              {traceErrors.data?.map((item) => (
+                <p
+                  key={`${item.traceId}:${item.error}`}
+                  className="break-words"
+                >
+                  <Link
+                    className="underline"
+                    href={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
+                  >
+                    {item.traceId}
+                  </Link>
+                  : {item.error}
+                </p>
+              ))}
+              {traceErrors.data?.length === 0 && (
+                <p>No trace-level errors were recorded.</p>
+              )}
+            </div>
+          )}
         </details>
       )}
       {canWrite &&
@@ -545,34 +570,24 @@ function ExecutionPanel({
                 `${progress.counts.failed.toLocaleString()} failed`,
               ].join(" · ")}
             </p>
-            {execution.input.operation === "refresh" && progress.refresh && (
-              <p className="text-muted-foreground text-xs">
-                Ready and assignment counts include previously processed traces
-                in the combined cohort. Failures refer to the selected batch.
-              </p>
-            )}
-            {progress.refresh && (
-              <p className="text-muted-foreground text-sm">
-                {progress.refresh.shouldRefresh
-                  ? "Map refresh requested"
-                  : "Existing map retained"}
-                :{" "}
-                {progress.refresh.reasons
-                  .map((reason) => reason.replaceAll("_", " "))
-                  .join(", ")}
-                .
+            {progress.outcome === "awaiting_topics" && (
+              <p className="text-sm">
+                {progress.counts.complete.toLocaleString()} summaries are ready.
+                Run Update topics to create topics for this facet and embedding
+                configuration.
               </p>
             )}
             {progress.error && <ErrorMessage message={progress.error} />}
-            {progress.outcome === "insufficient_data" && (
-              <p className="text-sm">
-                Discovery needs at least{" "}
-                {execution.input.minimumTraceCount ??
-                  (execution.input.exploratory ? 10 : 100)}{" "}
-                usable trace summaries for this facet. Summaries are saved. Add
-                more traces or lower the minimum when starting a new run.
-              </p>
-            )}
+            {progress.outcome === "insufficient_data" &&
+              execution.input.operation === "update" && (
+                <p className="text-sm">
+                  Clustering needs at least{" "}
+                  {execution.input.minimumTraceCount ??
+                    (execution.input.exploratory ? 10 : 100)}{" "}
+                  compatible stored summaries for this facet. Process more
+                  traces or lower the minimum when starting a new update.
+                </p>
+              )}
             {progress.outcome === "no_topics" && (
               <p className="text-sm">
                 No stable groups found. Inspect the summaries, adjust the facet,
@@ -596,9 +611,10 @@ function ExecutionPanel({
           onClick={() => {
             utils.topics.runs.invalidate({ projectId });
             utils.topics.executions.invalidate({ projectId });
+            utils.topics.summaryCounts.invalidate({ projectId });
           }}
         >
-          Refresh available maps and batches
+          Refresh results and history
         </Button>
       )}
     </section>
@@ -778,8 +794,8 @@ function TopicComparison({
   facetVersionId: string;
   runId: string;
 }) {
-  const runs = api.topics.runs.useQuery({ projectId });
   const [otherRunId, setOtherRunId] = useState<string | null>(null);
+  const runs = api.topics.runs.useQuery({ projectId });
   const comparison = api.topics.compare.useQuery(
     {
       projectId,
@@ -799,8 +815,7 @@ function TopicComparison({
   if (!candidates.length)
     return (
       <p className="text-muted-foreground text-xs">
-        Recluster retained summaries to create a second map and compare
-        assignments.
+        Run Update topics again to create a second map and compare assignments.
       </p>
     );
   return (

@@ -1,10 +1,9 @@
 import type { TopicDefinition, TopicSummary } from "@langfuse/shared/topics";
-import { classifyTopic, normalizeVector } from "./classifier";
+import { normalizeVector } from "./classifier";
 
 type Membership = Pick<TopicSummary, "traceId" | "inputHash"> & {
   topicVersionId: string | null;
 };
-type Summary = Pick<TopicSummary, "traceId" | "inputHash" | "embedding">;
 
 const evidenceKey = (row: Pick<TopicSummary, "traceId" | "inputHash">) =>
   JSON.stringify([row.traceId, row.inputHash]);
@@ -183,86 +182,4 @@ export function matchTopicContinuity(input: {
       },
     };
   });
-}
-
-/**
- * Evaluates already embedded, usable summaries; never loads or regenerates data.
- * Provisional triggers: 20% new volume (minimum 20), 25% new outliers (minimum 10),
- * or 0.05 cosine drift supported by 10 newly assigned members of a topic.
- * Exploratory runs use 3 as each absolute minimum. Old evidence is never counted
- * again; outliers and drift are measured against the frozen previous map.
- */
-export function decideTopicRefresh(input: {
-  previousTopics: readonly TopicDefinition[] | null;
-  previousSummaries: readonly Summary[];
-  summaries: readonly Summary[];
-  exploratory: boolean;
-  compatibleEmbeddingSpace: boolean;
-  forceRefresh?: boolean;
-}) {
-  const previous = uniqueEvidence(input.previousSummaries);
-  const summaries = uniqueEvidence(input.summaries);
-  const added = [...summaries]
-    .filter(([key]) => !previous.has(key))
-    .map(([, row]) => row);
-  const minimumSupport = input.exploratory ? 3 : 10;
-  const volumeThreshold = Math.max(
-    input.exploratory ? 3 : 20,
-    Math.ceil(previous.size * 0.2),
-  );
-  const reasons: string[] = [];
-  if (input.forceRefresh) reasons.push("forced");
-  if (input.previousTopics === null) reasons.push("no_map");
-  if (input.previousTopics !== null && !input.compatibleEmbeddingSpace)
-    reasons.push("embedding_space_changed");
-  if (added.length >= volumeThreshold) reasons.push("new_volume");
-  let newOutlierCount = 0;
-  let maximumCentroidDrift = 0;
-  if (input.previousTopics !== null && input.compatibleEmbeddingSpace) {
-    const prototypes = input.previousTopics.map((topic) => ({
-      id: topic.topicVersionId,
-      centroid: topic.centroid,
-      radius: topic.radius,
-    }));
-    const groups = new Map<string, number[][]>();
-    for (const row of added) {
-      const assignment = classifyTopic(row.embedding, prototypes);
-      if (assignment.topicId === null) {
-        newOutlierCount++;
-        continue;
-      }
-      const vectors = groups.get(assignment.topicId) ?? [];
-      vectors.push(normalizeVector(row.embedding));
-      groups.set(assignment.topicId, vectors);
-    }
-    for (const topic of input.previousTopics) {
-      const vectors = groups.get(topic.topicVersionId);
-      if (!vectors || vectors.length < minimumSupport) continue;
-      const mean = vectors[0].map(
-        (_, index) =>
-          vectors.reduce((sum, vector) => sum + vector[index], 0) /
-          vectors.length,
-      );
-      const drift =
-        Math.hypot(...mean) < 1e-12 ? 2 : cosineDistance(mean, topic.centroid);
-      maximumCentroidDrift = Math.max(maximumCentroidDrift, drift);
-    }
-    if (
-      newOutlierCount >= minimumSupport &&
-      newOutlierCount / added.length >= 0.25
-    )
-      reasons.push("outliers");
-    if (maximumCentroidDrift >= 0.05) reasons.push("centroid_drift");
-  }
-  return {
-    shouldRefresh: reasons.length > 0,
-    reasons,
-    metrics: {
-      newSummaryCount: added.length,
-      newOutlierCount,
-      newOutlierFraction: added.length ? newOutlierCount / added.length : 0,
-      maximumCentroidDrift,
-      volumeThreshold,
-    },
-  };
 }

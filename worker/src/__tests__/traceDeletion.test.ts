@@ -85,6 +85,94 @@ describe("trace deletion", () => {
     expect(scores).toHaveLength(0);
   });
 
+  it("deletes all Topics results for selected traces without affecting other traces or projects", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const otherProjectId = randomUUID();
+    const traceId = randomUUID();
+    const retainedTraceId = randomUUID();
+    const timestamp = toClickhouseDateTime(new Date());
+    const rows = [
+      {
+        project_id: projectId,
+        unit_id: traceId,
+        facet_id: "intent",
+        facet_version_id: "v1",
+      },
+      {
+        project_id: projectId,
+        unit_id: traceId,
+        facet_id: "intent",
+        facet_version_id: "v2",
+      },
+      {
+        project_id: projectId,
+        unit_id: traceId,
+        facet_id: "outcome",
+        facet_version_id: "v1",
+      },
+      {
+        project_id: projectId,
+        unit_id: retainedTraceId,
+        facet_id: "intent",
+        facet_version_id: "v1",
+      },
+      {
+        project_id: otherProjectId,
+        unit_id: traceId,
+        facet_id: "intent",
+        facet_version_id: "v1",
+      },
+    ].map((row) => ({
+      ...row,
+      id: randomUUID(),
+      unit_type: "trace",
+      unit_timestamp: timestamp,
+    }));
+
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          processing_state: "complete",
+          summary: "A trace summary.",
+          embedding: [0.25, 0.75],
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          facet_summary_id: row.id,
+          outcome: "assigned",
+          coordinates: [0.1, 0.2],
+        })),
+      }),
+    ]);
+
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+      const remaining = await queryClickhouse<{
+        project_id: string;
+        unit_id: string;
+      }>({
+        query: `SELECT project_id, unit_id FROM ${table}
+          WHERE project_id IN ({projectIds: Array(String)})`,
+        params: { projectIds: [projectId, otherProjectId] },
+      });
+      expect(remaining).toHaveLength(2);
+      expect(remaining).toEqual(
+        expect.arrayContaining([
+          { project_id: projectId, unit_id: retainedTraceId },
+          { project_id: otherProjectId, unit_id: traceId },
+        ]),
+      );
+    }
+  });
+
   it("should delete S3 media files for deleted traces", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();

@@ -469,6 +469,9 @@ if (isTopicsEnabled()) {
   WorkerManager.register(QueueName.Topics, topicsQueueProcessor, {
     concurrency: 1,
   });
+  WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+    concurrency: 1,
+  });
   WorkerManager.register(
     QueueName.TopicsEmbedding,
     topicsEmbeddingQueueProcessor,

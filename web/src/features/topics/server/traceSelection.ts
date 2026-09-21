@@ -25,18 +25,10 @@ export const topicTraceSelectionSchema =
 export const topicTriggerInputSchema = z.union([
   topicExecutionInputSchema,
   topicExecutionInputSchema.options[0]
-    .omit({ traceIds: true, operation: true })
+    .omit({ traceIds: true, traceSelection: true })
     .extend({
-      operation: z.enum(["discover", "refresh", "assign"]),
-      targetRunIds: z.record(topicIdSchema, topicIdSchema).optional(),
       selection: topicTraceSelectionSnapshotSchema,
-    })
-    .refine(
-      (value) =>
-        value.operation !== "assign" ||
-        value.facetVersionIds.every((id) => value.targetRunIds?.[id]),
-      { message: "Select a target map for every facet." },
-    ),
+    }),
 ]);
 
 type TraceSelectionRow = {

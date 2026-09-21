@@ -45,7 +45,7 @@ export function CurrentTopics({
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {result.data?.length === 0 && (
         <p className="text-muted-foreground text-sm">
-          Run topics to discover patterns in your traces.
+          Process traces, then run Update topics to discover patterns.
         </p>
       )}
       {selectedFacet && (
@@ -145,8 +145,8 @@ function CurrentFacet({
       {!facet.map && (
         <p className="text-muted-foreground text-sm">
           {facet.usableCount.toLocaleString()} usable summaries collected for v
-          {facet.facetVersion ?? 1}. Standard discovery needs 100; smaller
-          batches remain saved.
+          {facet.facetVersion ?? 1}. Run Update topics to cluster stored
+          summaries. You can configure the minimum there.
         </p>
       )}
       <div className={cn("grid min-w-0 gap-3", split && "lg:grid-cols-2")}>

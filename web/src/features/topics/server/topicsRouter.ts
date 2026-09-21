@@ -6,7 +6,7 @@ import {
   topicIdSchema,
   topicTraceIdSchema,
   topicRuleConfigSchema,
-  type TopicExecution,
+  type TopicExecutionSummary,
   type TopicRun,
   type TopicSummary,
 } from "@langfuse/shared/topics";
@@ -14,6 +14,8 @@ import {
   createTopicExecution,
   readTopicExecution,
   readTopicExecutionForRequest,
+  readTopicExecutionSummary,
+  getTopicSummaryCounts,
   listTopicExecutions,
   listTopicFacets,
   ensureDefaultTopicFacets,
@@ -106,12 +108,12 @@ function publicRun(run: TopicRun) {
 }
 
 async function executionWithRecovery(projectId: string, executionId: string) {
-  const execution = await readTopicExecution(projectId, executionId);
+  const execution = await readTopicExecutionSummary(projectId, executionId);
   if (!execution) throw new LangfuseNotFoundError("Execution not found.");
   return recoverExecutionState(execution);
 }
 
-async function recoverExecutionState(execution: TopicExecution) {
+async function recoverExecutionState(execution: TopicExecutionSummary) {
   if (
     execution.status === "running" ||
     execution.status === "queued" ||
@@ -124,6 +126,7 @@ async function recoverExecutionState(execution: TopicExecution) {
     const queueState = await getTopicExecutionQueueState(
       execution.projectId,
       execution.id,
+      execution.input.operation,
     );
     if (
       [
@@ -217,7 +220,7 @@ async function publishedTopicMap(input: {
   const origin = await readTopicExecution(input.projectId, originId.data);
   if (
     !origin ||
-    origin.input.operation === "assign" ||
+    origin.input.operation !== "update" ||
     !origin.facets.some(
       (item) =>
         item.facetVersionId === input.facetVersionId && item.runId === run.id,
@@ -352,6 +355,26 @@ export const topicsRouter = createTRPCRouter({
   runs: topicsProcedure.query(async ({ input }) =>
     (await listTopicRuns(input.projectId)).map(publicRun),
   ),
+  summaryCounts: topicsProcedure
+    .input(
+      projectInput.extend({
+        facetVersionIds: z.array(topicIdSchema).min(1),
+        embeddingConfig: topicEmbeddingConfigSchema,
+      }),
+    )
+    .query(async ({ input }) => {
+      for (const id of input.facetVersionIds) {
+        if (!(await getTopicFacetVersion(input.projectId, id)))
+          throw new InvalidRequestError(
+            "Facet version not found in this project.",
+          );
+      }
+      return getTopicSummaryCounts(
+        input.projectId,
+        input.facetVersionIds,
+        input.embeddingConfig,
+      );
+    }),
   executions: topicsProcedure.query(async ({ input }) =>
     Promise.all(
       (await listTopicExecutions(input.projectId)).map(recoverExecutionState),
@@ -362,6 +385,16 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) =>
       executionWithRecovery(input.projectId, input.executionId),
     ),
+  traceErrors: topicsProcedure
+    .input(executionInput)
+    .query(async ({ input }) => {
+      const execution = await readTopicExecution(
+        input.projectId,
+        input.executionId,
+      );
+      if (!execution) throw new LangfuseNotFoundError("Execution not found.");
+      return execution.traceErrors;
+    }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
@@ -375,13 +408,16 @@ export const topicsRouter = createTRPCRouter({
       );
       if (existing) {
         if (existing.status === "queued")
-          await enqueueTopicExecution(input.projectId, existing.id);
+          await enqueueTopicExecution(
+            input.projectId,
+            existing.id,
+            existing.input.operation,
+          );
         return { id: existing.id };
       }
-      const rule = input.ruleId
-        ? await getTopicRule(input.projectId, input.ruleId)
-        : null;
-      if (input.ruleId && !rule)
+      const ruleId = input.operation === "process" ? input.ruleId : undefined;
+      const rule = ruleId ? await getTopicRule(input.projectId, ruleId) : null;
+      if (ruleId && !rule)
         throw new InvalidRequestError("Topic rule not found in this project.");
       if (rule && !("selection" in input))
         throw new InvalidRequestError(
@@ -395,50 +431,8 @@ export const topicsRouter = createTRPCRouter({
             "Facet version not found in this project.",
           );
         facetIds.add(version.facetId);
-        if (input.operation === "assign") {
-          const run = await getTopicRun(
-            input.projectId,
-            input.targetRunIds?.[id]!,
-          );
-          if (!run?.publishedAt || run.facetVersionId !== id)
-            throw new InvalidRequestError(
-              "Select a published map of the same facet version.",
-            );
-          const embeddingConfig = runEmbeddingConfig(run);
-          if (
-            !embeddingConfig ||
-            embeddingConfig.embeddingModel !==
-              input.embeddingConfig.embeddingModel ||
-            embeddingConfig.embeddingDimensions !==
-              input.embeddingConfig.embeddingDimensions
-          )
-            throw new InvalidRequestError(
-              "The selected map uses different embedding settings. Match its model and dimensions before assigning traces.",
-            );
-        }
       }
-      if (input.operation === "recluster") {
-        for (const id of input.sourceExecutionIds) {
-          const source = await readTopicExecution(input.projectId, id);
-          if (
-            !source ||
-            !["completed", "completed_with_errors"].includes(source.status)
-          )
-            throw new InvalidRequestError(
-              "Select completed source executions from this project.",
-            );
-          if (
-            !input.facetVersionIds.every((facetVersionId) =>
-              source.facets.some(
-                (facet) => facet.facetVersionId === facetVersionId,
-              ),
-            )
-          )
-            throw new InvalidRequestError(
-              "Each source execution must contain every selected facet version.",
-            );
-        }
-      }
+
       if (
         rule &&
         (rule.facetIds.length !== facetIds.size ||
@@ -459,9 +453,14 @@ export const topicsRouter = createTRPCRouter({
       const execution = await createTopicExecution(
         await resolveTopicTraceSelection(input, ctx.prisma),
         requestHash,
+        ctx.session.user.id,
       );
       if (execution.status === "queued")
-        await enqueueTopicExecution(input.projectId, execution.id);
+        await enqueueTopicExecution(
+          input.projectId,
+          execution.id,
+          execution.input.operation,
+        );
       return { id: execution.id };
     }),
   retry: topicsWriteProcedure
@@ -484,7 +483,11 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
         );
-      await enqueueTopicExecution(input.projectId, execution.id);
+      await enqueueTopicExecution(
+        input.projectId,
+        execution.id,
+        execution.input.operation,
+      );
       return {
         ...execution,
         status: "queued" as const,

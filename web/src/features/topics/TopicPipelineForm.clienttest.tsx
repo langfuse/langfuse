@@ -43,7 +43,9 @@ vi.mock("./TopicTraceSelector", () => ({
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
-      currentResults: { useQuery: () => ({ data: [] }) },
+      summaryCounts: {
+        useQuery: () => ({ data: { "intent-v1": 120, "issues-v1": 0 } }),
+      },
       rules: { useQuery: () => ({ data: [rule] }) },
       saveRule: {
         useMutation: () => ({
@@ -58,8 +60,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       topics: {
-        runs: { invalidate: vi.fn() },
-        executions: { invalidate: vi.fn() },
+        summaryCounts: { invalidate: vi.fn() },
       },
     }),
   },
@@ -96,8 +97,6 @@ describe("Topics pipeline selection handoff", () => {
     const props = {
       projectId: "project",
       facets,
-      runs: [],
-      executions: [],
       canWrite: true,
       onTriggered,
       facetEditor: null,
@@ -114,7 +113,7 @@ describe("Topics pipeline selection handoff", () => {
     const view = render(<TopicPipelineForm {...props} />);
     expect(
       screen
-        .getByRole("button", { name: "Run topics" })
+        .getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ })
         .hasAttribute("disabled"),
     ).toBe(true);
     selection.value = {
@@ -126,20 +125,19 @@ describe("Topics pipeline selection handoff", () => {
     fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
       target: { value: "512" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Force refresh" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByLabelText("Embedding dimensions")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
     expect(screen.getByLabelText("Embedding dimensions")).toHaveValue(512);
-    expect(
-      screen.getByRole("checkbox", { name: "Force refresh" }),
-    ).toBeChecked();
+    expect(screen.queryByLabelText("Minimum traces for clustering")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
+    );
     await waitFor(() => expect(onTriggered).toHaveBeenCalledWith("execution"));
     expect(trigger).toHaveBeenCalledWith(
       expect.objectContaining({
-        operation: "refresh",
+        operation: "process",
         projectId: "project",
         traceIds: ["trace-with/custom-id", "second-trace"],
         facetVersionIds: ["intent-v1", "issues-v1"],
@@ -147,7 +145,6 @@ describe("Topics pipeline selection handoff", () => {
           embeddingModel: "text-embedding-3-small",
           embeddingDimensions: 512,
         },
-        forceRefresh: true,
       }),
     );
     selection.value = {
@@ -164,19 +161,25 @@ describe("Topics pipeline selection handoff", () => {
     };
     view.rerender(<TopicPipelineForm {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    expect(screen.getByText(/Run on 10,000 traces/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Process 10,000 traces across/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
+    );
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(2));
     expect(trigger.mock.calls[1][0]).toMatchObject({
       selection: selection.value.selection,
     });
     expect(trigger.mock.calls[1][0]).not.toHaveProperty("traceIds");
+    expect(trigger.mock.calls[1][0]).not.toHaveProperty("minimumTraceCount");
+    expect(trigger.mock.calls[1][0]).not.toHaveProperty("exploratory");
     selection.value = null;
     view.rerender(<TopicPipelineForm {...props} />);
     expect(
       screen
-        .getByRole("button", { name: "Run topics" })
+        .getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ })
         .hasAttribute("disabled"),
     ).toBe(true);
 
@@ -211,7 +214,9 @@ describe("Topics pipeline selection handoff", () => {
       target: { value: "256" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
+    );
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(3));
     expect(trigger.mock.calls[2][0]).toMatchObject({
       ruleId: rule.id,
@@ -225,7 +230,9 @@ describe("Topics pipeline selection handoff", () => {
       selection: { ...selection.value.selection, limit: 25 },
     };
     view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Run topics" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
+    );
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(4));
     expect(trigger.mock.calls[3][0]).not.toHaveProperty("ruleId");
     expect(saveRule).not.toHaveBeenCalled();
@@ -248,5 +255,37 @@ describe("Topics pipeline selection handoff", () => {
     expect(selection.initialCriteria).toBeUndefined();
     expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Issues" })).toBeChecked();
+
+    // Updating topics consumes stored summaries without a selected trace batch.
+    fireEvent.keyDown(screen.getByLabelText("Pipeline operation"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(
+      await screen.findByRole("option", { name: "Update topics" }),
+      { key: "Enter" },
+    );
+    expect(screen.queryByLabelText("Saved configuration")).toBeNull();
+    expect(
+      screen.getByText("120 compatible summaries ready"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("0 compatible summaries ready"),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Minimum traces for clustering"), {
+      target: { value: "30" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    fireEvent.click(screen.getByRole("button", { name: "Update topics" }));
+    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(5));
+    expect(trigger.mock.calls[4][0]).toMatchObject({
+      operation: "update",
+      facetVersionIds: ["intent-v1", "issues-v1"],
+      embeddingConfig: { embeddingDimensions: 256 },
+      minimumTraceCount: 30,
+      exploratory: false,
+    });
+    expect(trigger.mock.calls[4][0]).not.toHaveProperty("traceIds");
+    expect(trigger.mock.calls[4][0]).not.toHaveProperty("selection");
+    expect(trigger.mock.calls[4][0]).not.toHaveProperty("ruleId");
   });
 });

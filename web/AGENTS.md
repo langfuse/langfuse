@@ -23,7 +23,9 @@
 - Feature modules: `src/features/*`
 - Local Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`; project-scoped triggers, facets,
-  execution results and transcripts. Runtime/setup: `../worker/src/features/topics/README.md`.
+  execution results and transcripts. `Process traces` accepts filters/IDs;
+  `Update topics` clusters stored compatible summaries without a trace selection.
+  Runtime/setup: `../worker/src/features/topics/README.md`.
 - Reusable UI components: `src/components/*`
 - Tests:
   - Server integration tests: `src/__tests__/server/*.servertest.ts`

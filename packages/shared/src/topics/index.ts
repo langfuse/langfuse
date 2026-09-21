@@ -65,50 +65,29 @@ const executionBase = {
   projectId: topicIdSchema,
   requestId: topicIdSchema,
   facetVersionIds: z.array(topicIdSchema).min(1),
-  ruleId: topicIdSchema.optional(),
-  traceSelection: topicTraceSelectionSnapshotSchema.optional(),
-  processingConfig: topicProcessingConfigSchema.default(() =>
-    topicProcessingConfigSchema.parse({}),
-  ),
-  exploratory: z.boolean().default(false),
-  minimumTraceCount: topicMinimumTraceCountSchema.optional(),
   embeddingConfig: topicEmbeddingConfigSchema.default(() =>
     topicEmbeddingConfigSchema.parse({}),
   ),
-  forceRefresh: z.boolean().default(false),
 };
 export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
   z
     .object({
       ...executionBase,
-      operation: z.literal("discover"),
+      operation: z.literal("process"),
       traceIds: z.array(topicTraceIdSchema).min(1),
+      ruleId: topicIdSchema.optional(),
+      traceSelection: topicTraceSelectionSnapshotSchema.optional(),
+      processingConfig: topicProcessingConfigSchema.default(() =>
+        topicProcessingConfigSchema.parse({}),
+      ),
     })
     .strict(),
   z
     .object({
       ...executionBase,
-      operation: z.literal("assign"),
-      traceIds: z.array(topicTraceIdSchema).min(1),
-      targetRunIds: z.record(topicIdSchema, topicIdSchema),
-    })
-    .strict()
-    .refine(
-      (value) => value.facetVersionIds.every((id) => value.targetRunIds[id]),
-      { message: "Select a target map for every facet." },
-    ),
-  z
-    .object({
-      ...executionBase,
-      operation: z.literal("recluster"),
-      sourceExecutionIds: z.array(topicIdSchema).min(1),
-    })
-    .strict(),
-  z
-    .object({
-      ...executionBase,
-      operation: z.literal("refresh"),
-      traceIds: z.array(topicTraceIdSchema).min(1),
+      operation: z.literal("update"),
+      exploratory: z.boolean().default(false),
+      minimumTraceCount: topicMinimumTraceCountSchema.optional(),
     })
     .strict(),
 ]);
@@ -124,6 +103,7 @@ export type TopicFacetOutcome =
   | "pending"
   | "published"
   | "assigned"
+  | "awaiting_topics"
   | "insufficient_data"
   | "no_applicable_summaries"
   | "no_topics"
@@ -237,11 +217,6 @@ export interface TopicFacetProgress {
   summaryIds: string[];
   runId: string | null;
   error: string | null;
-  refresh?: {
-    shouldRefresh: boolean;
-    reasons: string[];
-    metrics: Record<string, number>;
-  };
   counts: {
     requested: number;
     complete: number;
@@ -265,3 +240,17 @@ export interface TopicExecution {
   traceErrors: { traceId: string; error: string }[];
   error: string | null;
 }
+
+/** Progress and history omit input/cohort manifests and per-trace errors. */
+export type TopicExecutionSummary = Omit<
+  TopicExecution,
+  "input" | "facets" | "traceErrors"
+> & {
+  input:
+    | Omit<
+        Extract<TopicExecutionInput, { operation: "process" }>,
+        "traceIds" | "traceSelection"
+      >
+    | Extract<TopicExecutionInput, { operation: "update" }>;
+  facets: Omit<TopicFacetProgress, "summaryIds">[];
+};

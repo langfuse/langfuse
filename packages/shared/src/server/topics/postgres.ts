@@ -7,7 +7,7 @@ import {
   type TopicRule,
   type TopicDefinition,
 } from "../../topics";
-import { readTopicArtifact, writeTopicArtifact } from "./journal";
+import { readTopicArtifact } from "./journal";
 import { chunk, isEqual } from "lodash";
 import { InvalidRequestError } from "../../errors";
 
@@ -339,7 +339,7 @@ export async function createTopicRun(input: {
   projectId: string;
   facetVersionId: string;
   config?: Record<string, unknown>;
-  summaryIds?: string[];
+  manifestPath: string;
 }): Promise<TopicRun> {
   const { id, projectId } = input;
   const existing = await prisma.topicClusteringRun.findFirst({
@@ -347,20 +347,17 @@ export async function createTopicRun(input: {
     include: { topics: true },
   });
   if (!existing)
-    throw new Error("Create the Topics execution before configuring its run.");
+    throw new Error(
+      "Create the Topics update before configuring its clustering run.",
+    );
   if (existing.facetVersionId !== input.facetVersionId)
     throw new Error("Run facet version cannot change.");
   if (existing.publishedAt || existing.manifestPath) return runResult(existing);
-  const manifestPath = `manifest-${id}`;
-  if (input.summaryIds)
-    await writeTopicArtifact(projectId, existing.executionId, manifestPath, {
-      summaryIds: input.summaryIds,
-    });
   const row = await prisma.topicClusteringRun.update({
     where: { projectId_id: { projectId, id } },
     data: {
       config: (input.config ?? {}) as Prisma.InputJsonValue,
-      manifestPath: input.summaryIds ? manifestPath : "",
+      manifestPath: input.manifestPath,
     },
     include: { topics: true },
   });

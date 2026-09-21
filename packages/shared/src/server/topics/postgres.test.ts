@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   runUpdateMany: vi.fn(),
   upsertTopic: vi.fn(),
   writeArtifact: vi.fn(),
+  readArtifact: vi.fn(),
   facetFind: vi.fn(),
   facetFindUnique: vi.fn(),
   facetFindMany: vi.fn(),
@@ -57,7 +58,7 @@ vi.mock("../../db", () => ({
   },
 }));
 vi.mock("./journal", () => ({
-  readTopicArtifact: async () => null,
+  readTopicArtifact: mocks.readArtifact,
   writeTopicArtifact: mocks.writeArtifact,
 }));
 
@@ -182,24 +183,26 @@ describe("Topics run start checkpoint", () => {
       ...row,
       ...data,
     }));
-    await createTopicRun({
+    mocks.readArtifact.mockResolvedValue({ summaryIds: ["summary-a"] });
+    const run = await createTopicRun({
       id: row.id,
       projectId: row.projectId,
       facetVersionId: row.facetVersionId,
       config: { executionId: row.executionId, dimensions: 256 },
-      summaryIds: ["summary-a"],
+      manifestPath: "cohort-facet-v1",
     });
-    expect(mocks.writeArtifact).toHaveBeenCalledWith(
+    expect(run.summaryIds).toEqual(["summary-a"]);
+    expect(mocks.writeArtifact).not.toHaveBeenCalled();
+    expect(mocks.readArtifact).toHaveBeenCalledWith(
       "project-a",
       "execution-a",
-      "manifest-run-a",
-      { summaryIds: ["summary-a"] },
+      "cohort-facet-v1",
     );
     expect(mocks.runUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: {
           config: { executionId: "execution-a", dimensions: 256 },
-          manifestPath: "manifest-run-a",
+          manifestPath: "cohort-facet-v1",
         },
       }),
     );
@@ -208,6 +211,7 @@ describe("Topics run start checkpoint", () => {
         id: row.id,
         projectId: row.projectId,
         facetVersionId: "another-facet",
+        manifestPath: "cohort-facet-v1",
       }),
     ).rejects.toThrow("facet version");
   });

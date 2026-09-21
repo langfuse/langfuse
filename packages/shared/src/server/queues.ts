@@ -405,6 +405,7 @@ export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
   Topics = "topics",
+  TopicsUpdate = "topics-update",
   TopicsEmbedding = "topics-embedding",
   TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
@@ -542,6 +543,7 @@ export type TQueueJobTypes = {
     payload: { projectId: string; executionId: string };
     pendingEmbeddingBatchIds?: string[];
   };
+  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
   [QueueName.TopicsEmbedding]: {
     timestamp: Date;
     id: string;

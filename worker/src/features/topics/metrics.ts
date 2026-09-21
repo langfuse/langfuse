@@ -24,6 +24,7 @@ type TopicResult =
   | "insufficient_data"
   | "no_applicable_summaries"
   | "assigned"
+  | "awaiting_topics"
   | "outlier";
 type TopicErrorReason =
   | TopicsProviderUnavailable["reason"]
@@ -49,7 +50,7 @@ export class TopicMetrics {
   }
 
   embeddingResult(summaryId: string, result: "generated" | "cached"): void {
-    // Refresh revisits selected summaries while assembling the full cohort.
+    // Count an accepted vector once per attempt.
     if (result === "cached" && this.countedEmbeddings.has(summaryId)) return;
     this.countedEmbeddings.add(summaryId);
     this.result("embedding", result);

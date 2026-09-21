@@ -127,7 +127,6 @@ export async function currentTopicResults(projectId: string) {
         usableCount: latestSummaries.filter((row) => row.state === "complete")
           .length,
         awaitingCount: rows.filter((row) => row.awaitingUpdate).length,
-        retainedTraceIds: latestSummaries.map((row) => row.traceId),
         topics: [...topics.values()].sort((a, b) => b.count - a.count),
         rows,
         map:

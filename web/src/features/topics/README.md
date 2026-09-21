@@ -9,7 +9,7 @@ existing local-development and project-access checks still apply.
   selection, historical topic filters, summary lists, and transcript inspection.
   The main workspace shows results and topic cards. Configure topics and History
   open a centered configuration dialog and a history drawer from the toolbar;
-  Run topics submits the retained configuration. Overlay owners stay outside the
+  Process traces or Update topics submits the retained configuration. Overlay owners stay outside the
   responsive header menu, which closes before configuration or history opens.
   Without an execution URL parameter, `CurrentTopics.tsx` displays current per-trace
   assignments across runs and facets; explicit execution links remain historical.
@@ -18,19 +18,25 @@ existing local-development and project-access checks still apply.
   omit zero-valued exception counts. Facet versions contain only prompts;
   processing settings and embedding dimensions are frozen on executions.
 - `TopicPipelineForm.tsx` owns the configuration dialog, operation, facet versions
-  and submission. Its state stays mounted when the dialog closes; Run topics
+  and submission. Its state stays mounted when the dialog closes; the action
   remains outside the dialog and uses the reviewed selection. The render prop
   separates header actions from the mounted dialog. Preview trace clicks close
   configuration before opening the trace peek in the panel layer.
-  Every available facet starts selected. Update topics is the default operation,
-  accumulating traces into the existing cohort, with an explicit force-refresh
-  option. Embedding dimensions are configured per execution. Reclustering offers only completed
-  batches containing every selected facet version, excluding incompatible choices.
+  Every available facet starts selected. Process traces is the default operation:
+  it summarizes, embeds, and assigns only the selected batch to current topics.
+  Without a compatible map, summaries wait for an explicit Update topics run.
+  Update topics reads compatible stored summaries directly; each selected facet
+  shows its available summary count. It has clustering settings but no trace
+  picker, source-execution selector, or target-map selector. Embedding dimensions
+  are configured per execution; updates select matching stored embeddings and
+  never regenerate them. History and progress responses omit trace IDs, summary
+  IDs, and per-trace errors, using aggregate counts for progress.
+  Expanding Trace errors loads failed trace IDs and reasons on demand.
   Saved topic rules hold reusable filters, sampling and stable facet IDs, like
   evaluator rules. Selecting a rule loads its criteria and each facet's latest
   prompt version; editing criteria or facets becomes an ad hoc run until explicitly
   saved. Rules do not create separate maps or invalidate summaries and embeddings.
-  Rule saving adds no product analytics event for this local PoC.
+  These local PoC operations and rule saving add no product analytics event.
 - `TopicTraceSelector.tsx` reuses the eval filter builder and query editor, with
   a time range, all matching traces selected by default, and optional random/latest
   sampling with a user-chosen size. Rule criteria initialize a keyed selector;

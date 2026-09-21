@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
 import {
   topicEmbeddingConfigSchema,
   topicMinimumTraceCountSchema,
@@ -31,14 +31,9 @@ import {
   type TopicTraceSelection,
 } from "./TopicTraceSelector";
 
-type Run = RouterOutputs["topics"]["runs"][number];
-type Execution = RouterOutputs["topics"]["execution"];
-
 export function TopicPipelineForm({
   projectId,
   facets,
-  runs,
-  executions,
   canWrite,
   onTriggered,
   facetEditor,
@@ -46,15 +41,13 @@ export function TopicPipelineForm({
 }: {
   projectId: string;
   facets: TopicFacet[];
-  runs: Run[];
-  executions: Execution[];
   canWrite: boolean;
   onTriggered: (id: string) => void;
   facetEditor: ReactNode;
   render: (actions: ReactNode, configuration: ReactNode) => ReactNode;
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
-  const [operation, setOperation] = useState<TopicOperation>("refresh");
+  const [operation, setOperation] = useState<TopicOperation>("process");
   const rules = api.topics.rules.useQuery({ projectId });
   const [ruleId, setRuleId] = useState<string | null>(null);
   const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
@@ -75,8 +68,6 @@ export function TopicPipelineForm({
         facets.map((facet) => [facet.id, facet.versions[0]?.id ?? ""]),
       ),
   );
-  const [targetRunIds, setTargetRunIds] = useState<Record<string, string>>({});
-  const [sourceExecutionIds, setSourceExecutionIds] = useState<string[]>([]);
   const [exploratory, setExploratory] = useState(false);
   const [minimumTraceCount, setMinimumTraceCount] = useState<string | null>(
     null,
@@ -87,11 +78,9 @@ export function TopicPipelineForm({
     Number(minimumTraceCountValue),
   );
   const [dimensions, setDimensions] = useState("768");
-  const [forceRefresh, setForceRefresh] = useState(false);
   const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
     embeddingDimensions: Number(dimensions),
   });
-  const currentResults = api.topics.currentResults.useQuery({ projectId });
   const [error, setError] = useState<string | null>(null);
   const request = useRef<{ key: string; id: string } | null>(null);
   const trigger = api.topics.trigger.useMutation();
@@ -129,45 +118,28 @@ export function TopicPipelineForm({
     criteria.limit === selectedRule.limit &&
     activeFacetIds.length === selectedRule.facetIds.length &&
     activeFacetIds.every((id) => selectedRule.facetIds.includes(id));
-  const retainedCohort =
-    currentResults.data &&
-    facetVersionIds.every((id) =>
-      currentResults.data.some((facet) => facet.facetVersionId === id),
-    )
-      ? new Set(
-          currentResults.data
-            .filter((facet) =>
-              facetVersionIds.includes(facet.facetVersionId ?? ""),
-            )
-            .flatMap((facet) => facet.retainedTraceIds),
-        )
-      : null;
-  const compatibleRuns = runs.filter(
-    (run) =>
-      run.publishedAt &&
-      run.embeddingConfig?.embeddingDimensions === Number(dimensions) &&
-      run.embeddingConfig.embeddingModel ===
-        embeddingConfig.data?.embeddingModel,
+  const summaryCounts = api.topics.summaryCounts.useQuery(
+    {
+      projectId,
+      facetVersionIds,
+      embeddingConfig:
+        embeddingConfig.data ?? topicEmbeddingConfigSchema.parse({}),
+    },
+    {
+      enabled:
+        operation === "update" &&
+        embeddingConfig.success &&
+        facetVersionIds.length > 0,
+    },
   );
-  const selectedTargetRunIds = Object.fromEntries(
-    facetVersionIds.flatMap((id) =>
-      compatibleRuns.some(
-        (run) => run.facetVersionId === id && run.id === targetRunIds[id],
-      )
-        ? [[id, targetRunIds[id]!]]
-        : [],
-    ),
+  const hasStoredSummaries = facetVersionIds.some(
+    (id) => (summaryCounts.data?.[id] ?? 0) > 0,
   );
-  const reclusterSources = executions.filter(
-    (execution) =>
-      ["completed", "completed_with_errors"].includes(execution.status) &&
-      facetVersionIds.every((id) =>
-        execution.facets.some((facet) => facet.facetVersionId === id),
-      ),
-  );
-  const selectedSourceIds = sourceExecutionIds.filter((id) =>
-    reclusterSources.some((execution) => execution.id === id),
-  );
+  const compatibleSummaryLabel = (versionId: string) => {
+    if (summaryCounts.isFetching) return "Counting stored summaries…";
+    if (summaryCounts.error) return "Could not count stored summaries.";
+    return `${(summaryCounts.data?.[versionId] ?? 0).toLocaleString()} compatible summaries ready`;
+  };
   const toggleFacet = (id: string, checked: boolean) =>
     setSelectedFacetIds((current) =>
       checked ? [...current, id] : current.filter((item) => item !== id),
@@ -183,39 +155,34 @@ export function TopicPipelineForm({
       const base = {
         projectId,
         facetVersionIds,
-        exploratory,
-        ...(operation !== "assign" && {
-          minimumTraceCount: topicMinimumTraceCountSchema.parse(
-            Number(minimumTraceCountValue),
-          ),
-        }),
-        forceRefresh: operation === "refresh" && forceRefresh,
         embeddingConfig: topicEmbeddingConfigSchema.parse({
           embeddingDimensions: Number(dimensions),
         }),
-        ...(operation !== "recluster" && selectedRule && matchesRule(criteria)
-          ? { ruleId: selectedRule.id }
-          : {}),
       };
       const values = (() => {
-        if (operation === "recluster")
-          return { ...base, operation, sourceExecutionIds: selectedSourceIds };
+        if (operation === "update")
+          return {
+            ...base,
+            operation,
+            exploratory,
+            minimumTraceCount: topicMinimumTraceCountSchema.parse(
+              Number(minimumTraceCountValue),
+            ),
+          };
         if (!selection?.count)
-          throw new Error("Preview and select traces before running Topics.");
+          throw new Error("Preview and select traces before processing.");
         const traceInput =
           "traceIds" in selection
             ? { traceIds: selection.traceIds }
             : { selection: selection.selection };
-        if (operation === "assign")
-          return {
-            ...base,
-            operation,
-            ...traceInput,
-            targetRunIds: selectedTargetRunIds,
-          };
-        if (operation === "discover")
-          return { ...base, operation, ...traceInput };
-        return { ...base, operation, ...traceInput };
+        return {
+          ...base,
+          operation,
+          ...traceInput,
+          ...(selectedRule && matchesRule(criteria)
+            ? { ruleId: selectedRule.id }
+            : {}),
+        };
       })();
       const key = JSON.stringify(values);
       if (request.current?.key !== key)
@@ -239,8 +206,13 @@ export function TopicPipelineForm({
     selection: TopicTraceSelection | null,
     criteria: TopicTraceCriteria | null,
     traceControls: ReactNode,
-  ) =>
-    render(
+  ) => {
+    let actionLabel = "Update topics";
+    if (operation === "process")
+      actionLabel = selection?.count
+        ? `Process ${selection.count.toLocaleString()} traces`
+        : "Process traces";
+    return render(
       <>
         <Button
           variant="outline"
@@ -255,18 +227,18 @@ export function TopicPipelineForm({
           disabled={
             !canWrite ||
             !embeddingConfig.success ||
-            (operation !== "assign" && !minimumTraceCountResult.success) ||
+            (operation === "update" && !minimumTraceCountResult.success) ||
             trigger.isPending ||
             !facetVersionIds.length ||
-            (operation === "recluster"
-              ? !selectedSourceIds.length
-              : !selection?.count) ||
-            (operation === "assign" &&
-              facetVersionIds.some((id) => !selectedTargetRunIds[id]))
+            (operation === "update"
+              ? summaryCounts.isFetching ||
+                !!summaryCounts.error ||
+                !hasStoredSummaries
+              : !selection?.count)
           }
           onClick={() => submit(selection, criteria)}
         >
-          {trigger.isPending ? "Starting…" : "Run topics"}
+          {trigger.isPending ? "Starting…" : actionLabel}
         </Button>
         {error && (
           <p role="alert" className="text-destructive text-sm">
@@ -283,7 +255,9 @@ export function TopicPipelineForm({
           <DialogHeader>
             <DialogTitle>Configure topics</DialogTitle>
             <DialogDescription>
-              Choose traces, facets, and processing settings for your next run.
+              {operation === "process"
+                ? "Summarize and embed selected traces, then assign them to current topics."
+                : "Rebuild topics from stored summaries and embeddings."}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="gap-6">
@@ -333,41 +307,15 @@ export function TopicPipelineForm({
                   <p className="text-muted-foreground text-sm">
                     {version.prompt}
                   </p>
-                  {operation === "assign" && selected && (
-                    <Select
-                      value={selectedTargetRunIds[version.id] ?? ""}
-                      onValueChange={(value) =>
-                        setTargetRunIds((current) => ({
-                          ...current,
-                          [version.id]: value,
-                        }))
-                      }
-                    >
-                      <SelectTrigger
-                        className="w-full sm:w-64"
-                        aria-label={`Map for ${facet.name} v${version.version}`}
-                      >
-                        <SelectValue placeholder="Select compatible published map" />
-                      </SelectTrigger>
-                      <SelectContent className="ph-no-capture">
-                        {compatibleRuns
-                          .filter(
-                            (run) =>
-                              run.facetVersionId === version.id &&
-                              run.publishedAt,
-                          )
-                          .map((run) => (
-                            <SelectItem key={run.id} value={run.id}>
-                              Map {run.runSequence} · {run.topics.length} topics
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                  {operation === "update" && selected && (
+                    <p className="text-muted-foreground text-sm">
+                      {compatibleSummaryLabel(version.id)}
+                    </p>
                   )}
                 </div>
               ))}
             </fieldset>
-            {operation !== "recluster" && criteria && (
+            {operation === "process" && criteria && (
               <div className="flex flex-col gap-2">
                 <div className="flex flex-wrap items-end gap-2">
                   <label className="flex flex-col gap-1 text-sm">
@@ -418,45 +366,8 @@ export function TopicPipelineForm({
                 )}
               </div>
             )}
-            {operation === "recluster" && (
-              <fieldset className="flex flex-col gap-2">
-                <legend className="mb-2 text-sm font-bold">
-                  Completed batches to combine
-                </legend>
-                {reclusterSources.map((execution) => (
-                  <label
-                    key={execution.id}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <Checkbox
-                      checked={sourceExecutionIds.includes(execution.id)}
-                      onCheckedChange={(checked) =>
-                        setSourceExecutionIds((current) =>
-                          checked
-                            ? [...current, execution.id]
-                            : current.filter((id) => id !== execution.id),
-                        )
-                      }
-                    />
-                    {execution.input.operation} ·{" "}
-                    {new Date(execution.createdAt).toLocaleString()}
-                  </label>
-                ))}
-                <p className="text-muted-foreground text-xs">
-                  Only completed batches containing every selected facet version
-                  are shown. Reuses retained summaries and embeddings; naming
-                  can make a model call.
-                </p>
-                {reclusterSources.length === 0 && (
-                  <p className="text-sm">
-                    No compatible batches. Select the facet versions used by a
-                    previous batch, or discover topics with new traces first.
-                  </p>
-                )}
-              </fieldset>
-            )}
             <div className="flex flex-wrap items-end gap-5">
-              {operation !== "assign" && (
+              {operation === "update" && (
                 <label className="flex flex-col gap-1 text-sm">
                   Minimum traces for clustering
                   <Input
@@ -486,16 +397,7 @@ export function TopicPipelineForm({
                   onChange={(event) => setDimensions(event.target.value)}
                 />
               </label>
-              {operation === "refresh" && (
-                <label className="flex h-8 items-center gap-2 text-sm">
-                  <Checkbox
-                    checked={forceRefresh}
-                    onCheckedChange={(value) => setForceRefresh(value === true)}
-                  />
-                  Force refresh
-                </label>
-              )}
-              {operation !== "assign" && (
+              {operation === "update" && (
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
                     checked={exploratory}
@@ -505,27 +407,29 @@ export function TopicPipelineForm({
                 </label>
               )}
             </div>
-            {operation !== "recluster" && selection?.count ? (
+            {operation === "process" && selection?.count ? (
               <p className="text-muted-foreground text-sm">
-                Run on {selection.count.toLocaleString()} traces across{" "}
+                Process {selection.count.toLocaleString()} traces across{" "}
                 {facetVersionIds.length} facets. Existing summaries are reused
                 when their inputs match. Uncached inputs and outputs are sent to
                 OpenAI.
               </p>
             ) : null}
-            {operation === "refresh" && (
+            {operation === "process" && (
               <p className="text-muted-foreground text-xs">
-                Selected traces join the existing cohort. Topics refresh when
-                the cohort changes enough; force refresh rebuilds the map from
-                cached summaries.
-                {retainedCohort &&
-                  ` ${retainedCohort.size.toLocaleString()} previously processed traces across the selected facet versions.`}
+                New summaries are assigned to the latest compatible topics. If
+                no topics exist yet, summaries wait until you run Update topics.
               </p>
             )}
-            {operation !== "assign" && (
+            {operation === "update" && summaryCounts.error && (
+              <p role="alert" className="text-destructive text-sm">
+                {summaryCounts.error.message}
+              </p>
+            )}
+            {operation === "update" && (
               <p className="text-muted-foreground text-xs">
                 {minimumTraceCountResult.success
-                  ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} usable trace summaries per facet. Below this minimum, summaries are saved for a later run.`
+                  ? `Clustering starts with at least ${minimumTraceCountResult.data.toLocaleString()} compatible stored summaries per facet. Below this minimum, process more traces first.`
                   : "Enter a whole number of at least 3 traces."}{" "}
                 Small sample mode lowers the minimum topic size from 15 to 3
                 traces.
@@ -545,6 +449,7 @@ export function TopicPipelineForm({
         </DialogContent>
       </Dialog>,
     );
+  };
   const operationControls = (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -553,27 +458,20 @@ export function TopicPipelineForm({
           onValueChange={(value) => {
             setOperation(value as TopicOperation);
             setError(null);
-            if (value === "assign") utils.topics.runs.invalidate({ projectId });
-            if (value === "recluster")
-              utils.topics.executions.invalidate({ projectId });
+            if (value === "update")
+              utils.topics.summaryCounts.invalidate({ projectId });
           }}
         >
           <SelectTrigger className="w-64" aria-label="Pipeline operation">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="ph-no-capture">
-            <SelectItem value="refresh">Update topics</SelectItem>
-            <SelectItem value="discover">Discover a new topic map</SelectItem>
-            <SelectItem value="assign">
-              Assign traces to an existing map
-            </SelectItem>
-            <SelectItem value="recluster">
-              Recluster cached summaries
-            </SelectItem>
+            <SelectItem value="process">Process traces</SelectItem>
+            <SelectItem value="update">Update topics</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {operation !== "recluster" && (
+      {operation === "process" && (
         <label className="flex flex-col gap-1 text-sm">
           Saved configuration
           <Select
@@ -632,7 +530,7 @@ export function TopicPipelineForm({
       )}
     </>
   );
-  return operation === "recluster" ? (
+  return operation === "update" ? (
     renderConfiguration(null, null, null)
   ) : (
     <TopicTraceSelector

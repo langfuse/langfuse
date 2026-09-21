@@ -12,6 +12,8 @@ import {
 const mocks = vi.hoisted(() => ({
   createTopicExecution: vi.fn(),
   readTopicExecution: vi.fn(),
+  readTopicExecutionSummary: vi.fn(),
+  getTopicSummaryCounts: vi.fn(),
   readTopicExecutionForRequest: vi.fn(),
   listTopicExecutions: vi.fn(),
   writeTopicExecution: vi.fn(),
@@ -53,14 +55,12 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";
 const facetVersionId = "facet-v1";
-const input: TopicExecutionInput = {
+const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   projectId,
   requestId: "request-a",
-  operation: "discover",
+  operation: "process",
   facetVersionIds: [facetVersionId],
   traceIds: ["trace-a"],
-  exploratory: false,
-  forceRefresh: false,
   processingConfig: topicProcessingConfigSchema.parse({}),
   embeddingConfig: topicEmbeddingConfigSchema.parse({}),
 };
@@ -90,7 +90,14 @@ function execution(): TopicExecution {
     id: "execution-a",
     projectId,
     revision: "1",
-    input,
+    input: {
+      projectId,
+      requestId: "update-a",
+      operation: "update",
+      facetVersionIds: [facetVersionId],
+      embeddingConfig: topicEmbeddingConfigSchema.parse({}),
+      exploratory: false,
+    },
     status: "completed",
     phase: "completed",
     createdAt: "2026-09-16T00:00:00Z",
@@ -162,6 +169,7 @@ beforeEach(() => {
     projectId,
   });
   mocks.readTopicExecution.mockResolvedValue(execution());
+  mocks.readTopicExecutionSummary.mockResolvedValue(execution());
   mocks.readTopicExecutionForRequest.mockResolvedValue(null);
   mocks.createTopicExecution.mockResolvedValue(execution());
   mocks.getTopicRun.mockResolvedValue(run);
@@ -305,14 +313,12 @@ describe("Topics filtered trace preview", () => {
     await caller().trigger({
       projectId,
       requestId: "filtered-request",
-      operation: "discover",
+      operation: "process",
       facetVersionIds: [facetVersionId],
-      minimumTraceCount: 31,
       selection: { ...criteria, limit: null, excludedTraceIds: ["trace-0"] },
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.traceIds).toHaveLength(1000);
-    expect(resolved.minimumTraceCount).toBe(31);
     expect(resolved.traceIds[0]).toBe("trace-1");
     expect(resolved.traceIds.at(-1)).toBe("trace-1000");
     expect(resolved).not.toHaveProperty("selection");
@@ -332,7 +338,7 @@ describe("Topics filtered trace preview", () => {
       caller().trigger({
         projectId,
         requestId: "empty-request",
-        operation: "discover",
+        operation: "process",
         facetVersionIds: [facetVersionId],
         selection: criteria,
       }),
@@ -353,7 +359,7 @@ describe("Topics filtered trace preview", () => {
     const request = {
       projectId,
       requestId: "rule-request",
-      operation: "discover" as const,
+      operation: "process" as const,
       facetVersionIds: [facetVersionId],
       ruleId: rule.id,
       selection: {
@@ -419,7 +425,7 @@ describe("Topics filtered trace preview", () => {
     const request = {
       projectId,
       requestId: "filtered-retry",
-      operation: "discover" as const,
+      operation: "process" as const,
       facetVersionIds: [facetVersionId],
       selection: {
         filter: selection.filter,
@@ -544,11 +550,7 @@ describe("Topics published scatter map", () => {
 
   it("keeps assigned traces outside the discovery cohort explicitly unpositioned", async () => {
     const current = execution();
-    current.input = {
-      ...input,
-      operation: "assign",
-      targetRunIds: { [facetVersionId]: "run-a" },
-    };
+    current.input = input;
     current.facets[0].summaryIds = ["summary-a", "summary-c", "summary-d"];
     mocks.readTopicExecution.mockImplementation(async (_projectId, id) =>
       id === current.id ? current : { ...execution(), id },
@@ -649,33 +651,11 @@ describe("Topics published scatter map", () => {
 });
 
 describe("Topics local execution access and publication", () => {
-  it.each(["facet", "map", "source"])(
-    "rejects a foreign %s before creating or enqueuing work",
-    async (kind) => {
-      let request: TopicExecutionInput = input;
-      if (kind === "facet") mocks.getTopicFacetVersion.mockResolvedValue(null);
-      if (kind === "map") {
-        mocks.getTopicRun.mockResolvedValue(null);
-        request = {
-          ...input,
-          operation: "assign",
-          targetRunIds: { [facetVersionId]: "foreign-run" },
-        };
-      }
-      if (kind === "source") {
-        mocks.readTopicExecution.mockResolvedValue(null);
-        request = {
-          projectId,
-          requestId: "request-a",
-          operation: "recluster",
-          facetVersionIds: [facetVersionId],
-          sourceExecutionIds: ["foreign-execution"],
-          exploratory: false,
-          forceRefresh: false,
-          processingConfig: topicProcessingConfigSchema.parse({}),
-          embeddingConfig: topicEmbeddingConfigSchema.parse({}),
-        };
-      }
+  it.each(["process", "update"] as const)(
+    "rejects a foreign facet before creating or enqueuing %s work",
+    async (operation) => {
+      mocks.getTopicFacetVersion.mockResolvedValue(null);
+      const request = operation === "process" ? input : execution().input;
       await expect(caller().trigger(request)).rejects.toMatchObject({
         code: "BAD_REQUEST",
       });
@@ -684,50 +664,40 @@ describe("Topics local execution access and publication", () => {
     },
   );
 
-  it("rejects incompatible embedding dimensions before enqueueing assignment", async () => {
-    mocks.getTopicRun.mockResolvedValue({
-      ...run,
-      config: { embeddingModel: "text-embedding-3-small", dimensions: 512 },
-    });
-    await expect(
-      caller().trigger({
-        ...input,
-        operation: "assign",
-        targetRunIds: { [facetVersionId]: run.id },
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  it("updates topics without selecting traces or requiring a previous execution", async () => {
+    const request = { ...execution().input, minimumTraceCount: 31 };
+    await caller().trigger(request);
+    expect(mocks.createTopicExecution).toHaveBeenCalledWith(
+      request,
+      expect.any(String),
+      "user-a",
+    );
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.getTopicRun).not.toHaveBeenCalled();
+    expect(mocks.readTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("rejects another facet version's published map", async () => {
-    mocks.getTopicRun.mockResolvedValue({
-      ...run,
-      facetVersionId: "another-version",
+  it("scopes compatible summary counts to authorized project facets", async () => {
+    const request = {
+      projectId,
+      facetVersionIds: [facetVersionId],
+      embeddingConfig: input.embeddingConfig,
+    };
+    mocks.getTopicSummaryCounts.mockResolvedValue({ [facetVersionId]: 42 });
+    expect(await caller("VIEWER").summaryCounts(request)).toEqual({
+      [facetVersionId]: 42,
     });
-    await expect(
-      caller().trigger({
-        ...input,
-        operation: "assign",
-        targetRunIds: { [facetVersionId]: run.id },
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-  });
-
-  it("rejects reclustering sources that do not contain every selected facet version before enqueueing", async () => {
-    await expect(
-      caller().trigger({
-        projectId,
-        requestId: "request-a",
-        exploratory: false,
-        operation: "recluster",
-        facetVersionIds: [facetVersionId, "issues-v2"],
-        sourceExecutionIds: ["execution-a"],
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.getTopicSummaryCounts).toHaveBeenCalledWith(
+      projectId,
+      [facetVersionId],
+      input.embeddingConfig,
+    );
+    mocks.getTopicSummaryCounts.mockClear();
+    mocks.getTopicFacetVersion.mockResolvedValue(null);
+    await expect(caller().summaryCounts(request)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+    });
+    expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
   });
 
   it("returns a completed duplicate request without queueing it again", async () => {
@@ -837,7 +807,7 @@ describe("Topics local execution access and publication", () => {
   });
 
   it("does not retry terminal partial facets", async () => {
-    mocks.readTopicExecution.mockResolvedValue({
+    mocks.readTopicExecutionSummary.mockResolvedValue({
       ...execution(),
       status: "completed_with_errors",
     });
@@ -848,11 +818,44 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
+  it("loads failed trace details separately from compact execution polling", async () => {
+    const failed = execution();
+    failed.status = "completed_with_errors";
+    failed.facets[0]!.counts.failed = 1;
+    failed.traceErrors = [
+      { traceId: "trace-failed", error: "Trace no longer exists" },
+    ];
+    const { traceErrors, ...compact } = failed;
+    mocks.readTopicExecution.mockResolvedValue(failed);
+    mocks.readTopicExecutionSummary.mockResolvedValue(compact);
+    const request = { projectId, executionId: failed.id };
+
+    expect(await caller("VIEWER").execution(request)).not.toHaveProperty(
+      "traceErrors",
+    );
+    expect(mocks.readTopicExecution).not.toHaveBeenCalled();
+    expect(await caller("VIEWER").traceErrors(request)).toEqual(traceErrors);
+    expect(mocks.readTopicExecution).toHaveBeenCalledWith(projectId, failed.id);
+
+    mocks.readTopicExecution.mockResolvedValue(null);
+    await expect(caller("VIEWER").traceErrors(request)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    mocks.readTopicExecution.mockClear();
+    await expect(
+      caller("VIEWER").traceErrors({ ...request, projectId: "foreign" }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      caller("VIEWER", false).traceErrors(request),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(mocks.readTopicExecution).not.toHaveBeenCalled();
+  });
+
   it("recovers an interrupted journal only after its queue owner is gone", async () => {
     const interrupted = execution();
     interrupted.status = "running";
     interrupted.facets[0]!.outcome = "pending";
-    mocks.readTopicExecution.mockResolvedValue(interrupted);
+    mocks.readTopicExecutionSummary.mockResolvedValue(interrupted);
     mocks.getTopicExecutionQueueState.mockResolvedValue("failed");
     expect(
       await caller().execution({ projectId, executionId: interrupted.id }),
@@ -861,18 +864,20 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       interrupted.id,
+      interrupted.input.operation,
     );
     expect(mocks.writeTopicExecution).not.toHaveBeenCalled();
   });
 
   it("resumes finalization when all facets were saved before an interruption", async () => {
     const interrupted = { ...execution(), status: "running" as const };
-    mocks.readTopicExecution.mockResolvedValue(interrupted);
+    mocks.readTopicExecutionSummary.mockResolvedValue(interrupted);
     mocks.getTopicExecutionQueueState.mockResolvedValue("failed");
     await caller().retry({ projectId, executionId: interrupted.id });
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       interrupted.id,
+      interrupted.input.operation,
     );
     expect(mocks.writeTopicExecution).not.toHaveBeenCalled();
   });
@@ -882,7 +887,7 @@ describe("Topics local execution access and publication", () => {
     interrupted.status = "failed";
     interrupted.error = "Previous worker stopped";
     interrupted.facets[0]!.outcome = "pending";
-    mocks.readTopicExecution.mockResolvedValue(interrupted);
+    mocks.readTopicExecutionSummary.mockResolvedValue(interrupted);
     mocks.getTopicExecutionQueueState.mockResolvedValue("waiting");
     expect(
       await caller().execution({ projectId, executionId: interrupted.id }),
@@ -909,7 +914,7 @@ describe("Topics local execution access and publication", () => {
       const owned = execution();
       owned.status = status;
       owned.facets[0]!.outcome = "pending";
-      mocks.readTopicExecution.mockResolvedValue(owned);
+      mocks.readTopicExecutionSummary.mockResolvedValue(owned);
       mocks.getTopicExecutionQueueState.mockResolvedValue("active");
       await expect(
         caller().retry({ projectId, executionId: owned.id }),

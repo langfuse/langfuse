@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TopicDefinition } from "@langfuse/shared/topics";
-import { decideTopicRefresh, matchTopicContinuity } from "./continuity";
+import { matchTopicContinuity } from "./continuity";
 
 const topic = (id: string, centroid = [1, 0]): TopicDefinition => ({
   topicVersionId: id,
@@ -20,13 +20,6 @@ const members = (id: string | null, count: number, start = 0) =>
     traceId: `trace-${index + start}`,
     inputHash: `input-${index + start}`,
     topicVersionId: id,
-  }));
-
-const summaries = (count: number, start = 0, embedding = [1, 0]) =>
-  members(null, count, start).map(({ traceId, inputHash }) => ({
-    traceId,
-    inputHash,
-    embedding,
   }));
 
 const match = (
@@ -210,82 +203,5 @@ describe("Topics identity continuity", () => {
         ],
       }),
     ).toThrow("conflicting");
-  });
-});
-
-describe("Topics conditional refresh", () => {
-  const baseline = {
-    previousTopics: [topic("old")],
-    previousSummaries: summaries(100),
-    summaries: summaries(100),
-    exploratory: false,
-    compatibleEmbeddingSpace: true,
-  };
-
-  it("skips unchanged evidence and small additions, while force and first map run", () => {
-    expect(decideTopicRefresh(baseline).shouldRefresh).toBe(false);
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: summaries(109) })
-        .shouldRefresh,
-    ).toBe(false);
-    expect(
-      decideTopicRefresh({ ...baseline, forceRefresh: true }).reasons,
-    ).toContain("forced");
-    expect(
-      decideTopicRefresh({ ...baseline, previousTopics: null }).reasons,
-    ).toContain("no_map");
-    expect(
-      decideTopicRefresh({
-        ...baseline,
-        summaries: [...summaries(100), ...summaries(100)],
-      }).metrics.newSummaryCount,
-    ).toBe(0);
-  });
-
-  it("refreshes at new-volume threshold and counts changed inputs as new evidence", () => {
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: summaries(120) }).reasons,
-    ).toContain("new_volume");
-    const changed = summaries(100).map((row, i) => ({
-      ...row,
-      inputHash: i < 20 ? `changed-${i}` : row.inputHash,
-    }));
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: changed }).metrics
-        .newSummaryCount,
-    ).toBe(20);
-  });
-
-  it("requires enough outliers and per-topic drift support independently of total volume", () => {
-    const outliers = (count: number) => [
-      ...summaries(100),
-      ...summaries(count, 100, [0, 1]),
-    ];
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: outliers(1) }).shouldRefresh,
-    ).toBe(false);
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: outliers(10) }).reasons,
-    ).toContain("outliers");
-    const drifting = (count: number) => [
-      ...summaries(100),
-      ...summaries(count, 100, [0.8, 0.6]),
-    ];
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: drifting(9) }).shouldRefresh,
-    ).toBe(false);
-    expect(
-      decideTopicRefresh({ ...baseline, summaries: drifting(10) }).reasons,
-    ).toContain("centroid_drift");
-  });
-
-  it("refreshes incompatible embedding spaces without comparing their vectors", () => {
-    expect(
-      decideTopicRefresh({
-        ...baseline,
-        compatibleEmbeddingSpace: false,
-        summaries: summaries(100, 0, [1, 0, 0]),
-      }).reasons,
-    ).toContain("embedding_space_changed");
   });
 });

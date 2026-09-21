@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   TopicsQueue,
+  TopicsUpdateQueue,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "./queue";
@@ -20,6 +21,60 @@ vi.mock("./config", () => ({ isTopicsEnabled: () => true }));
 afterEach(() => vi.restoreAllMocks());
 
 describe("Topics execution queue state", () => {
+  it("routes processing and update requests to independent queues, including retries and state reads", async () => {
+    const processing = {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      add: vi.fn(),
+    };
+    const updating = {
+      getJob: vi.fn().mockResolvedValue(undefined),
+      add: vi.fn(),
+    };
+    vi.spyOn(TopicsQueue, "getInstance").mockReturnValue(
+      processing as unknown as NonNullable<
+        ReturnType<typeof TopicsQueue.getInstance>
+      >,
+    );
+    vi.spyOn(TopicsUpdateQueue, "getInstance").mockReturnValue(
+      updating as unknown as NonNullable<
+        ReturnType<typeof TopicsUpdateQueue.getInstance>
+      >,
+    );
+
+    await enqueueTopicExecution("project-a", "process-run", "process");
+    await enqueueTopicExecution("project-a", "update-run", "update");
+    expect(processing.add).toHaveBeenCalledExactlyOnceWith(
+      "topics",
+      expect.objectContaining({
+        payload: { projectId: "project-a", executionId: "process-run" },
+      }),
+      { jobId: "process-run" },
+    );
+    expect(updating.add).toHaveBeenCalledExactlyOnceWith(
+      "topics",
+      expect.objectContaining({
+        payload: { projectId: "project-a", executionId: "update-run" },
+      }),
+      { jobId: "update-run" },
+    );
+
+    const retry = vi.fn();
+    const getState = vi.fn().mockResolvedValue("failed");
+    updating.getJob.mockResolvedValue({
+      data: { payload: { projectId: "project-a", executionId: "update-run" } },
+      getState,
+      retry,
+    });
+    await enqueueTopicExecution("project-a", "update-run", "update");
+    expect(retry).toHaveBeenCalledWith("failed");
+    getState.mockResolvedValue("active");
+    await expect(
+      getTopicExecutionQueueState("project-a", "update-run", "update"),
+    ).resolves.toBe("active");
+    expect(processing.getJob).toHaveBeenCalledTimes(1);
+    expect(updating.getJob).toHaveBeenCalledTimes(3);
+  });
+
   it("retries a terminal job atomically without replacing another caller's live job", async () => {
     let state = "failed";
     const retry = vi.fn(async () => {
@@ -40,8 +95,8 @@ describe("Topics execution queue state", () => {
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
 
     await Promise.all([
-      enqueueTopicExecution("project-a", "run"),
-      enqueueTopicExecution("project-a", "run"),
+      enqueueTopicExecution("project-a", "run", "process"),
+      enqueueTopicExecution("project-a", "run", "process"),
     ]);
     expect(retry).toHaveBeenCalledWith("failed");
     expect(state).toBe("active");
@@ -62,9 +117,9 @@ describe("Topics execution queue state", () => {
       })),
       add,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
-    await expect(enqueueTopicExecution("project-a", "run")).rejects.toThrow(
-      "scope",
-    );
+    await expect(
+      enqueueTopicExecution("project-a", "run", "process"),
+    ).rejects.toThrow("scope");
     expect(retry).not.toHaveBeenCalled();
     expect(remove).not.toHaveBeenCalled();
     expect(add).not.toHaveBeenCalled();
@@ -80,27 +135,27 @@ describe("Topics execution queue state", () => {
       getJob,
     } as unknown as NonNullable<ReturnType<typeof TopicsQueue.getInstance>>);
 
-    await expect(getTopicExecutionQueueState("project-a", "run")).resolves.toBe(
-      "active",
-    );
+    await expect(
+      getTopicExecutionQueueState("project-a", "run", "process"),
+    ).resolves.toBe("active");
     getState.mockResolvedValue("failed");
-    await expect(getTopicExecutionQueueState("project-a", "run")).resolves.toBe(
-      "failed",
-    );
-    await expect(getTopicExecutionQueueState("project-b", "run")).resolves.toBe(
-      "missing",
-    );
+    await expect(
+      getTopicExecutionQueueState("project-a", "run", "process"),
+    ).resolves.toBe("failed");
+    await expect(
+      getTopicExecutionQueueState("project-b", "run", "process"),
+    ).resolves.toBe("missing");
     expect(getState).toHaveBeenCalledTimes(2);
     getJob.mockResolvedValue(undefined);
-    await expect(getTopicExecutionQueueState("project-a", "run")).resolves.toBe(
-      "missing",
-    );
+    await expect(
+      getTopicExecutionQueueState("project-a", "run", "process"),
+    ).resolves.toBe("missing");
   });
 
   it("does not mistake an unavailable queue for an interrupted execution", async () => {
     vi.spyOn(TopicsQueue, "getInstance").mockReturnValue(null);
     await expect(
-      getTopicExecutionQueueState("project-a", "run"),
+      getTopicExecutionQueueState("project-a", "run", "process"),
     ).rejects.toThrow("Redis");
   });
 });

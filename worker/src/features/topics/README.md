@@ -58,42 +58,46 @@ events; legacy-only traces are unsupported.
 
 ## Run the experiment
 
-1. Initialize facets, inspect/edit their instructions, and select trace IDs for
-   batch A. Topic names emerge from the descriptions; the facet is not a list of
-   topic classes. `Intent`, `Outcome`, and `Issues` are editable starting points.
-2. Discover on batch A. Set **Minimum traces for clustering** to control how many
-   applicable summaries each facet needs before discovery (at least 3). This is
-   saved with the execution and reused on retry. The standard default is 100
-   summaries per facet, with HDBSCAN minimum cluster size 15 and minimum samples 5. This minimum does not establish quality. Explicit exploratory mode uses
-   defaults of 10 / 3 / 2 so a tiny smoke test can exercise the full path. Changing
-   the trace minimum does not change the cluster-size or density settings.
-3. Inspect the resulting summaries, names, representative examples, and outliers.
-   The summary inspector regenerates the shared transcript from current trace data. It checks the stored input hash and explicitly marks changed or unavailable source data.
-   Non-applicable and insufficient-input results remain separate from outliers.
-4. Assign later batch B to the selected published map. This performs summary and
-   embedding inference for uncached traces and the existing classifier; it does
-   not discover or rename topics.
-5. Recluster selected prior executions to test a new map using their stored
-   summaries and embeddings. This performs numerical discovery and naming again,
-   without repeating extraction or embedding. Compare maps on a common cohort.
+1. Initialize facets and inspect/edit their instructions. `Intent`, `Outcome`,
+   and `Issues` are editable starting points; a facet is not a list of topic classes.
+2. Choose **Process traces** and select traces through filters or pasted IDs.
+   The request freezes the selection and selected facet versions. It generates
+   missing summaries and embeddings, then assigns only this batch to the current
+   compatible map. With no compatible map, completed summaries are **Awaiting
+   topics**, not outliers. Processing never clusters or renames topics.
+3. Choose **Update topics** to fit a map from the latest completed compatible
+   summaries in ClickHouse. Initial discovery and later updates use this same
+   operation. It does not load traces, summarize, or generate embeddings.
+4. Inspect the resulting summaries, names, representative examples, and outliers.
+   The inspector regenerates the shared transcript from current trace data and
+   marks changed or unavailable source data. Non-applicable and insufficient-input
+   results remain separate from outliers.
+5. Process subsequent trace batches as they arrive. Update topics manually when
+   ready to incorporate new evidence into the clustering and names.
+
+**Minimum traces for clustering** applies only to topic updates. It defaults to
+100 applicable summaries per facet, with HDBSCAN minimum cluster size 15 and
+minimum samples 5. Exploratory mode defaults to 10 / 3 / 2. The minimum can be
+set to at least 3; changing it does not change cluster-size or density settings.
+This minimum does not establish cluster quality.
 
 Use the repository seed CLI for synthetic local trace data (`pnpm run seed --
 list`). There is no automatic fixture insertion in this feature.
 
-## Current topics and manual refresh
+## Current topics and explicit updates
 
-The default **Run topics** action freezes the reviewed trace IDs and accumulates
-terminal summaries across executions of each selected facet version. There is no
-total trace-count cap; explicit lookups use bounded internal batches. Before the
-first map reaches its minimum cohort, usable summaries wait for later batches.
+There is no total trace-count cap; explicit lookups use bounded internal batches.
+Each processing request pins the current compatible published map per facet
+before summarization, including the absence of a map. Retries keep that choice.
+New requests can use a map published while an earlier request was running.
 
-A compatible existing map receives assignments immediately. Refit triggers are
-provisional PoC defaults: at least 20 new usable summaries and 20% growth; or at
-least 10 new outliers making up 25% of new evidence; or cosine drift of 0.05
-supported by 10 new members. Exploratory absolute minima are 3. Force refresh,
-missing maps and changed embedding configuration also request a refit. The same
-summary input is not counted as new repeatedly. Progress records the decision,
-metrics and cohort count. No periodic scheduler runs in this PoC.
+An update selects the latest summary per trace, then keeps only complete results
+matching the selected facet version and embedding configuration. It freezes
+those IDs before fitting. Non-applicable or incompatible newer summaries never
+revive older eligible results. A change to embedding dimensions must first be
+processed explicitly; topic updates do not silently re-embed historical data.
+The explicit update always attempts a fit subject to its minimum count. There
+is no conditional-refit heuristic or periodic scheduler in this PoC.
 
 Continuity uses at least 80% reciprocal overlap of unchanged trace inputs, 10
 anchors (3 exploratory), and 50% old-topic coverage. Compatible centroids must be
@@ -125,7 +129,12 @@ The embedding worker caches a completed vector alongside its summary before the
 combined ClickHouse write. It removes the Redis payload only after the insert is
 acknowledged. A database retry therefore reuses the vector while its payload is
 available. No incomplete summary rows are written to ClickHouse.
-The coordinator releases its worker slot while waiting. Its BullMQ job records
+Processing and updates have separate `topics` and `topics-update` queues, each
+with one coordinator slot per worker. A numerical fit or naming call therefore
+does not occupy the trace-processing slot. Both queues use the same execution
+processor; the stored operation determines the path. Embeddings retain their
+separate `topics-embedding` queue with two worker slots.
+The processing coordinator releases its worker slot while waiting. Its BullMQ job records
 pending embedding batch IDs; unchanged polls read only Redis queue states, with
 no Postgres, S3 or ClickHouse work. Completed batches are removed from the wait
 list. When pending jobs finish or need recovery, the coordinator resumes from
@@ -136,8 +145,8 @@ Unchanged effective input and summary recipe reuse accepted summary text. Embedd
 settings belong to the execution, not the facet version. Compatible vectors are
 reused; a changed configuration creates a new combined summary/vector revision
 with source-summary provenance and zero new summarization usage. Historical
-vectors remain available for their original maps. Re-embedding accumulated
-summaries never reloads traces or repeats summarization.
+vectors remain available for their original maps. Processing selected traces with
+changed dimensions reuses unchanged summary text and creates new embeddings.
 
 Every facet receives identical transcript text for the same source snapshot.
 Facet instructions affect only summarization. This PoC focuses on generations
@@ -158,7 +167,7 @@ across facets. This is a normalized representation, not a lossless export.
 If transcript plus instructions/schema exceeds the execution's input allowance,
 the worker fails before calling the provider; it does not
 silently change the evidence for that facet. The canonical transcript text
-determines input identity. Accepted checkpoints and reclustering of stored
+determines input identity. Accepted checkpoints and updates from stored
 summaries retain their inputs and provenance.
 
 Extraction prompt versions participate in cache identity. The tested nano prompt
@@ -205,13 +214,15 @@ The provider schema keeps evidence IDs as strings, avoiding the API's enum-size
 limit for large clusters; local validation still requires genuine member IDs. This checks structural grounding, not factual
 or semantic correctness; inspect the examples to judge usefulness.
 
-No informative clusters yields a terminal `no_topics` result and leaves the
-previous published map in place. HDBSCAN's single root cluster is disabled, so
+No informative clusters yields a terminal `no_topics` result and publishes an
+empty map with explicit outlier assignments for the selected cohort. HDBSCAN's single root cluster is disabled, so
 a single overall population is not forced into a topic; validating that case
 needs a future coherence policy. Maps are
 published only after their frozen initial assignment cohort is readable in
 ClickHouse. Topic definitions and initial manifests remain immutable while later
-assignments can extend a map's live membership. Refresh matches final memberships to the previous published map. Continuing
+assignments can extend a map's live membership. Updates match final memberships to the previous published map for that facet
+version. Changed embedding spaces use membership evidence without comparing
+centroids. Continuing
 topics retain their stable topic IDs and receive new topic version IDs. Material
 splits/merges receive new IDs with predecessor lineage in topic metadata.
 
@@ -230,8 +241,9 @@ requested from the model. A non-applicable result containing a summary is reject
 not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
-Postgres creates one `topic_clustering_runs` row per selected facet at trigger
-and stores aggregate execution progress. Selected trace IDs, summary references,
+Postgres stores one `batch_actions` row per manual Process traces request and
+one `topic_clustering_runs` row per selected facet for Update topics requests.
+These rows store aggregate execution progress; there are no per-trace rows. Selected trace IDs, summary references,
 and numerical fits use content-addressed objects under the event-upload bucket's
 `topics/` prefix. ID lists are chunked; their contents never enter Postgres.
 ClickHouse stores summary text, embeddings, assignment outcomes, and map coordinates.
@@ -267,14 +279,22 @@ resume may repeat that call.
 
 Resume advances pending or failed stages from their accepted checkpoints.
 Once extraction finishes, the accepted summary cohort and its failed-trace count
-are frozen before clustering or assignment. Downstream retries reuse that cohort
+are frozen before assignment. Topic updates freeze one compatible summary-ID
+cohort ordered by trace ID. The execution and clustering run reference that same
+S3 artifact, including for progress, replay and historical reads. Numerical
+labels and coordinates retain this order on retries. Downstream retries reuse that cohort
 without loading traces again, including when some traces failed.
 To process those traces later, create a new execution; do not reinterpret a
 published map's initial manifest. This PoC has one queue owner per execution and no automatic discovery schedule,
 arrival catch-up, or object-retention job. The planned six-hour scheduler should
-invoke the same refresh path as the manual button. Large per-project discovery,
+invoke the same update path as the manual button. Large per-project discovery,
 all-member naming, and distributed stream processing remain follow-up work;
 these changes are not a 100-million-traces/day throughput validation.
+
+Trace deletion removes stored facet summaries (including embeddings), assignments
+and map coordinates through the existing batched ClickHouse deletion path.
+It does not cancel in-flight Topics jobs, which can write results after deletion.
+S3 checkpoint cleanup and topic-name/centroid refresh are separate lifecycle work.
 
 ### Datadog metrics
 
@@ -295,11 +315,12 @@ execution replay emits no attempt or result metrics.
 Result counters measure work, not unique database rows: summary/embedding and
 assignment results count trace–facet processing, naming counts cluster labels,
 and clustering counts facet outcomes. Revisited stages can count again on a
-resume or refresh. Generated results count when accepted in memory; a later
+resume or repeated update. Generated results count when accepted in memory; a later
 persistence failure is reported separately. Model durations exclude cache hits.
 Metrics are best effort, not an exactly-once ledger or an execution heartbeat.
 Queue backlog, waiting time and BullMQ outcomes remain under
-`langfuse.queue.topics.*` and `langfuse.queue.topics-embedding.*`.
+`langfuse.queue.topics.*`, `langfuse.queue.topics-update.*`, and
+`langfuse.queue.topics-embedding.*`.
 
 ## Offline verification
 

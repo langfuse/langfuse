@@ -4,7 +4,11 @@ import {
 } from "../clickhouse/client";
 import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { queryClickhouse } from "../repositories/clickhouse";
-import type { TopicAssignment, TopicSummary } from "../../topics";
+import type {
+  TopicAssignment,
+  TopicEmbeddingConfig,
+  TopicSummary,
+} from "../../topics";
 import { prisma } from "../../db";
 import { chunk } from "lodash";
 
@@ -146,6 +150,60 @@ export async function getLatestFacetSummaries(
     tags: { route: "topics-latest-summaries", projectId },
   });
   return rows.map(summaryResult);
+}
+
+export async function getTopicClusteringSummaryIds(
+  projectId: string,
+  facetId: string,
+  facetVersionId: string,
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<string[]> {
+  const rows = await queryClickhouse<{ id: string }>({
+    query: `SELECT id FROM (
+      SELECT id, unit_id, processing_state, embedding_model, length(embedding) AS dimensions
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
+        AND facet_version_id = {facetVersionId:String}
+      ORDER BY revision DESC, result_version DESC, processed_at DESC, id DESC
+      LIMIT 1 BY project_id, facet_id, unit_type, unit_id
+    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+      AND dimensions = {embeddingDimensions:UInt32}
+    ORDER BY unit_id, id`,
+    params: { projectId, facetId, facetVersionId, ...embeddingConfig },
+    tags: { route: "topics-clustering-summaries", projectId },
+  });
+  return rows.map((row) => row.id);
+}
+
+/** Count current compatible summaries without loading summary text or vectors. */
+export async function getTopicSummaryCounts(
+  projectId: string,
+  facetVersionIds: string[],
+  embeddingConfig: TopicEmbeddingConfig,
+): Promise<Record<string, number>> {
+  if (!facetVersionIds.length) return {};
+  const rows = await queryClickhouse<{ facetVersionId: string; count: string }>(
+    {
+      query: `SELECT facet_version_id AS facetVersionId, count() AS count FROM (
+      SELECT facet_version_id, processing_state, embedding_model, length(embedding) AS dimensions
+      FROM topic_facet_summaries
+      WHERE project_id = {projectId:String}
+        AND facet_version_id IN ({facetVersionIds:Array(String)})
+      ORDER BY revision DESC, result_version DESC, processed_at DESC, id DESC
+      LIMIT 1 BY project_id, facet_version_id, unit_type, unit_id
+    ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
+      AND dimensions = {embeddingDimensions:UInt32}
+    GROUP BY facet_version_id`,
+      params: { projectId, facetVersionIds, ...embeddingConfig },
+      tags: { route: "topics-summary-counts", projectId },
+    },
+  );
+  return Object.fromEntries(
+    facetVersionIds.map((id) => [
+      id,
+      Number(rows.find((row) => row.facetVersionId === id)?.count ?? 0),
+    ]),
+  );
 }
 
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {

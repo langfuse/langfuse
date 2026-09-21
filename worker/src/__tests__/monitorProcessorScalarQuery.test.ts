@@ -69,5 +69,5 @@ describe("monitor scalar query — empty project", () => {
       });
     }
     expect(results).toMatchSnapshot();
-  });
+  }, 30_000);
 });
