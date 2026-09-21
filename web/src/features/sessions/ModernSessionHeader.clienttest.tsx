@@ -56,7 +56,6 @@ const defaultProps = {
   tokensOut: 0,
   totalTokens: 0,
   totalCost: 0.12,
-  environment: null,
   users: [],
   metadataJsonPaths: {
     paths: [],

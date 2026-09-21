@@ -20,7 +20,6 @@ type ModernSessionProps = {
     | "outputUsage"
     | "totalTokens"
     | "totalCost"
-    | "environment"
     | "users"
     | "scores"
     | "minTimestamp"
@@ -99,7 +98,6 @@ export function ModernSession({
             tokensOut={session.outputUsage}
             totalTokens={session.totalTokens}
             totalCost={session.totalCost ?? 0}
-            environment={session.environment ?? null}
             users={session.users ?? []}
             metadataJsonPaths={metadataJsonPaths}
             scores={session.scores}

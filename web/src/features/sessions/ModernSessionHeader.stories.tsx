@@ -14,7 +14,6 @@ const makeScore = (
 ): SessionScore =>
   ({
     projectId: "project-1",
-    environment: "default",
     source: "EVAL",
     authorUserId: null,
     comment: null,
@@ -68,7 +67,6 @@ const defaultArgs = {
   tokensOut: 6_310,
   totalTokens: 24_730,
   totalCost: 0.084291,
-  environment: "production",
   users: ["customer@example.com", "support@example.com"],
   metadataJsonPaths: {
     paths: [],
@@ -86,7 +84,6 @@ const minimalArgs = {
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
-  environment: null,
   users: [],
   scores: [],
 } satisfies ComponentProps<typeof ModernSessionHeader>;

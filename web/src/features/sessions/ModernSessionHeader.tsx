@@ -60,7 +60,6 @@ type ModernSessionHeaderProps = {
   tokensOut: number;
   totalTokens: number;
   totalCost: number;
-  environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
   scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
@@ -68,7 +67,6 @@ type ModernSessionHeaderProps = {
 
 type SessionHeaderDetailType =
   | "cost"
-  | "environment"
   | "latency"
   | "metadata"
   | "score"
@@ -111,6 +109,8 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
     className="ph-no-capture inline-flex max-w-[280px] min-w-0"
   >
     <Badge
+      color="ghost"
+      interactive
       data-session-header-pill="true"
       label="user"
       text={user}
@@ -336,7 +336,6 @@ export function ModernSessionHeader({
   tokensOut,
   totalTokens,
   totalCost,
-  environment,
   users,
   metadataJsonPaths,
   scores,
@@ -470,18 +469,6 @@ export function ModernSessionHeader({
       ),
     });
   });
-
-  if (environment) {
-    pills.push({
-      key: "environment",
-      searchText: `environment env ${environment}`,
-      visibilityLabel: "environment",
-      type: "environment",
-      content: (
-        <Badge data-session-header-pill="true" label="env" text={environment} />
-      ),
-    });
-  }
 
   const userDetails = users.map(
     (user, index): SessionHeaderDetail => ({
