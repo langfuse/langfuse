@@ -1,50 +1,35 @@
+/* eslint-disable no-nested-ternary */
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { Button } from "@/src/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/src/components/ui/form";
-import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
-import { Switch } from "@/src/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-} from "@/src/components/ui/tooltip";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
+import { PostHogStatusSection } from "@/src/features/posthog-integration/components/PostHogStatusSection";
 import {
-  AnalyticsIntegrationExportSource,
-  EXPORT_SOURCE_OPTIONS,
+  PostHogIntegrationForm,
+  type PostHogIntegrationFormValues,
+} from "@/src/features/posthog-integration/components/PostHogIntegrationForm";
+import {
+  LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+  type V4WriteMode,
+  type ExportSourceContext,
 } from "@langfuse/shared";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+// Shared export-source UI adapters; policy in export-source-policy.ts.
+import {
+  buildExportSourceContext,
+  getExportSourceFormValue,
+} from "@/src/features/analytics-integrations/exportSource";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { type z } from "zod";
-import { Info, ExternalLink } from "lucide-react";
+import { useMemo } from "react";
 
 export default function PosthogIntegrationSettings() {
   const router = useRouter();
@@ -61,12 +46,18 @@ export default function PosthogIntegrationSettings() {
     },
   );
 
+  const { project } = useQueryProject();
+
+  // A persisted fault outranks active/inactive: it is the state the admin has
+  // to act on, and it is cleared by the next successful sync.
   const status =
-    state.isInitialLoading || !hasAccess
+    state.isLoading || !hasAccess
       ? undefined
-      : state.data?.enabled
-        ? "active"
-        : "inactive";
+      : state.data?.config?.lastError
+        ? "error"
+        : state.data?.config?.enabled
+          ? "active"
+          : "inactive";
 
   return (
     <ContainerPage
@@ -77,11 +68,11 @@ export default function PosthogIntegrationSettings() {
         ],
         actionButtonsLeft: <>{status && <StatusBadge type={status} />}</>,
         actionButtonsRight: (
-          <Button asChild variant="secondary">
-            <Link href="https://langfuse.com/integrations/analytics/posthog">
-              Integration Docs ↗
-            </Link>
-          </Button>
+          <Button
+            href="https://langfuse.com/integrations/analytics/posthog"
+            text="Integration Docs"
+            variant="secondary"
+          />
         ),
       }}
     >
@@ -107,68 +98,62 @@ export default function PosthogIntegrationSettings() {
           <Header title="Configuration" />
           <Card className="p-3">
             <PostHogLogo className="text-foreground mb-4 w-36" />
-            <PostHogIntegrationSettings
-              state={state.data}
-              projectId={projectId}
-              isLoading={state.isLoading}
-            />
+            {!state.data || !project ? (
+              <IntegrationSettingsSkeleton />
+            ) : (
+              <ConnectedPostHogIntegrationForm
+                // Draft lifetime = entity identity, so background refetches
+                // cannot reset a draft in progress.
+                key={`${projectId}:${state.data.config ? "configured" : "new"}`}
+                state={state.data.config ?? undefined}
+                projectId={projectId}
+                writeMode={state.data.writeMode}
+                projectCreatedAt={project.createdAt}
+              />
+            )}
           </Card>
         </>
       )}
-      {state.data?.enabled && (
-        <>
-          <Header title="Status" className="mt-8" />
-          <p className="text-primary text-sm">
-            Data synced until:{" "}
-            {state.data?.lastSyncAt
-              ? new Date(state.data.lastSyncAt).toLocaleString()
-              : "Never (pending)"}
-          </p>
-        </>
+      {state.data?.config && (
+        <PostHogStatusSection config={state.data.config} />
       )}
     </ContainerPage>
   );
 }
 
-const PostHogIntegrationSettings = ({
+const ConnectedPostHogIntegrationForm = ({
   state,
   projectId,
-  isLoading,
+  writeMode,
+  projectCreatedAt,
 }: {
-  state?: RouterOutput["posthogIntegration"]["get"];
+  state?: NonNullable<RouterOutput["posthogIntegration"]["get"]["config"]>;
   projectId: string;
-  isLoading: boolean;
+  writeMode: V4WriteMode;
+  // Raw ISO string, not a Date: a Date built in the parent's JSX would be a new
+  // reference on every render and would defeat the memo below.
+  projectCreatedAt: string;
 }) => {
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
-  const posthogForm = useForm({
-    resolver: zodResolver(posthogIntegrationFormSchema),
-    defaultValues: {
-      posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
-      enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
-    },
-    disabled: isLoading,
-  });
-
-  useEffect(() => {
-    posthogForm.reset({
-      posthogHostname: state?.posthogHostName ?? "",
-      posthogProjectApiKey: state?.posthogApiKey ?? "",
-      enabled: state?.enabled ?? false,
-      exportSource:
-        state?.exportSource ??
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const integrationCreatedAt = state?.createdAt;
+  const exportSourceCtx: ExportSourceContext = useMemo(
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: new Date(projectCreatedAt),
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+        exporterCutoff: LEGACY_ANALYTICS_EXPORTER_CUTOFF,
+      }),
+    [writeMode, isLangfuseCloud, projectCreatedAt, integrationCreatedAt],
+  );
+  const defaultExportSource = getExportSourceFormValue(
+    state?.exportSource,
+    exportSourceCtx,
+  );
 
   const utils = api.useUtils();
   const mut = api.posthogIntegration.update.useMutation({
@@ -182,9 +167,7 @@ const PostHogIntegrationSettings = ({
     },
   });
 
-  async function onSubmit(
-    values: z.infer<typeof posthogIntegrationFormSchema>,
-  ) {
+  function onSubmit(values: PostHogIntegrationFormValues) {
     capture("integrations:posthog_form_submitted");
     mut.mutate({
       projectId,
@@ -193,144 +176,22 @@ const PostHogIntegrationSettings = ({
   }
 
   return (
-    <Form {...posthogForm}>
-      <form className="space-y-3" onSubmit={posthogForm.handleSubmit(onSubmit)}>
-        <FormField
-          control={posthogForm.control}
-          name="posthogHostname"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Hostname</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormDescription>
-                US region: https://us.posthog.com; EU region:
-                https://eu.posthog.com
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={posthogForm.control}
-          name="posthogProjectApiKey"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Posthog Project API Key</FormLabel>
-              <FormControl>
-                <PasswordInput {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        {isBetaEnabled && (
-          <FormField
-            control={posthogForm.control}
-            name="exportSource"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-[350px] space-y-2 p-3"
-                    >
-                      {EXPORT_SOURCE_OPTIONS.map((option) => (
-                        <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {option.description}
-                          </div>
-                        </div>
-                      ))}
-                      <div className="border-t pt-2">
-                        <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                        >
-                          For further information see
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  Choose which data sources to export to PostHog. Scores are
-                  always included.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={posthogForm.control}
-          name="enabled"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Enabled</FormLabel>
-              <FormControl>
-                <Switch
-                  id="posthog-integration-enabled"
-                  checked={field.value}
-                  onCheckedChange={() => {
-                    field.onChange(!field.value);
-                  }}
-                  className="mt-1 ml-4"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </form>
-      <div className="mt-8 flex gap-2">
-        <Button
-          loading={mut.isPending}
-          onClick={posthogForm.handleSubmit(onSubmit)}
-          disabled={isLoading}
-        >
-          Save
-        </Button>
-        <Button
-          variant="ghost"
-          loading={mutDelete.isPending}
-          disabled={isLoading || !!!state}
-          onClick={() => {
-            if (
-              confirm(
-                "Are you sure you want to reset the PostHog integration for this project?",
-              )
-            )
-              mutDelete.mutate({ projectId });
-          }}
-        >
-          Reset
-        </Button>
-      </div>
-    </Form>
+    <PostHogIntegrationForm
+      actionState={
+        mut.isPending ? "saving" : mutDelete.isPending ? "resetting" : "idle"
+      }
+      configurationState={state ? "configured" : "new"}
+      defaultValues={{
+        posthogHostname: state?.posthogHostName ?? "",
+        posthogProjectApiKey: "",
+        enabled: state?.enabled ?? false,
+        exportSource: defaultExportSource,
+      }}
+      exportSourceContext={exportSourceCtx}
+      projectApiKeyDisplay={state?.posthogApiKeyDisplay}
+      resetError={mutDelete.error?.message}
+      onSubmit={onSubmit}
+      onReset={() => mutDelete.mutateAsync({ projectId })}
+    />
   );
 };

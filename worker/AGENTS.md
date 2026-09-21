@@ -1,7 +1,4 @@
-# Codex Guidelines for `worker`
-
-This file covers package-local guidance for this package.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `worker`
 
 ## Purpose
 
@@ -10,22 +7,29 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material worker-local changes:
-  - new/renamed queue processors
-  - new worker bootstrapping points
-  - changed worker verification commands
-- If queue contracts or shared workflows change, update root `AGENTS.md` and
-  likely `../packages/shared/AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Queue-contract changes usually need `../packages/shared/AGENTS.md`
+  too.
 
 ## High-Signal Entry Points
 
-- Bootstrap: `src/index.ts`, `src/app.ts`
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
+  `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
+  `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
+  independently default-off and cloud-gated. Do not expose these PoC controls in
+  local or production env templates. Reader query controls are independent of
+  locality selection; logs must preserve separate input/output/metadata metrics.
+  `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
+  and Redis snapshots independently of dispatch/consumption when either role is
+  enabled. Global snapshot gauges must not be summed across worker reporters.
+- Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- Background migrations: `src/backgroundMigrations/*`
+- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
+  in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
+  records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
 ## Shared Package Imports
@@ -50,16 +54,6 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   (GitHub mirror:
   [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
 
-## Quick Commands
-
-- Dev: `pnpm --filter worker run dev`
-- Lint: `pnpm --filter worker run lint`
-- Lint fix: `pnpm --filter worker run lint:fix`
-- Typecheck: `pnpm --filter worker run typecheck`
-- Tests: `pnpm --filter worker run test <file-or-pattern>`
-- Coverage: `pnpm --filter worker run coverage [file-or-pattern]`
-- Build: `pnpm --filter worker run build`
-
 ## Queue Playbook (Add/Change Queue Processor)
 
 1. Update queue schemas/contracts in `../packages/shared/src/server/queues.ts`
@@ -82,14 +76,31 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
 
-## Operational Scripts
+## In-App Agent Runtime
 
-- Refill ingestion events: `pnpm --filter worker run refill-ingestion-events`
-- Refill billing event: `pnpm --filter worker run refill-billing-event`
-- Refill queue event: `pnpm --filter worker run refill-queue-event`
+- `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
+  instrumentation, prompt loading, continuation handling, tools, skills, and
+  sandbox providers.
+- Worker env owns queue concurrency, sandbox configuration, and the
+  development-only in-app-agent AWS profile. Enablement is
+  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+  `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
+  `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
+  worker out of the queue consumer (and nested DLQ retry) or integrity runner.
+  Shared lifecycle policy values are fixed constants, so web and worker cannot
+  diverge.
+- Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
+  handling, and the seeded system prompt remain explicit shared subpaths.
 
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
+- Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,
+  field additions, latency unit handling) should be reviewed against the
+  published blob storage docs for consistency — fetch the latest pages and
+  surface any discrepancies:
+  - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
+  - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
+- be very mindful of adding additional `JSON.parse` calls in the ingestion processing pipeline. Those can cause performance issues, because JSONs might be very large. Ideally, parse each JSON subset only once.

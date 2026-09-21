@@ -1,3 +1,6 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
+import { MAX_SELECTED_EXPERIMENTS } from "@/src/features/experiments/constants/comparison";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -6,59 +9,289 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
 import {
+  useQueryFilterState,
+  useSidebarFilterState,
+} from "@/src/features/filters";
+import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { experimentsFieldRegistry } from "@/src/features/experiments/constants/experimentsSearchRegistry";
+import { awaitsDatasetNames } from "@/src/features/experiments/fns/awaitsDatasetNames";
+import { withDatasetNamesResolved } from "@/src/features/experiments/fns/datasetNameFilter";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import {
+  getExperimentsFilterConfig,
   getExperimentsColumnName,
-  experimentsFilterConfig,
+  isExperimentsOmittableFilterColumn,
 } from "./filter-config";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
+import {
+  type FilterState,
+  TableViewPresetTableName,
+  BatchExportTableName,
+  ActionId,
+  BatchActionType,
+  buildExperimentPath,
+} from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { MoreVertical, Columns3 } from "lucide-react";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import Link from "next/link";
+import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { Button } from "@/src/components/ui/button";
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { GitCompareArrows, LightbulbIcon } from "lucide-react";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import Link from "next/link";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type TableAction } from "@/src/features/table/types";
 import { Badge } from "@/src/components/ui/badge";
-import { type RowSelectionState } from "@tanstack/react-table";
-import TableIdOrName from "@/src/components/table/table-id";
+import { type VisibilityState } from "@tanstack/react-table";
+import { useStore } from "zustand";
+import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import {
-  IOTableCell,
-  MemoizedIOTableCell,
-} from "@/src/components/ui/IOTableCell";
+  collectPresentScoreKeys,
+  collectScoreNameCoverage,
+  revealScoreColumns,
+  scoreFilters,
+  useScoreColumns,
+} from "@/src/features/scores";
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
+import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
+import {
+  createExperimentsTableStore,
+  type ExperimentsTableStore,
+} from "@/src/features/experiments/store/experimentsTableStore";
+import { useExperimentsTableSelectionSync } from "@/src/features/experiments/hooks/useExperimentsTableSelectionSync";
+import { createExperimentMetricColumn } from "./createExperimentMetricColumn";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  baselineChangedProps,
+  comparisonChangedProps,
+  scoreColumnScopeToggledProps,
+} from "@/src/features/experiments/lib/analytics";
+import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
 
-export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
+/**
+ * LFE-10460: the metadata column's default position moved from last to right
+ * after `description`. Both persistence paths (localStorage replay and saved
+ * table views) snapshot the pre-PR order with metadata trailing, so this pure
+ * transform repositions it to its new default slot ONLY when it is currently
+ * the last column (the stale pre-PR default). If a user has manually moved
+ * metadata anywhere else, their layout is left untouched.
+ *
+ * Reused as both the one-time `useColumnOrder` migration (localStorage path)
+ * and the `migrateColumnOrder` transform on saved-view payloads.
+ */
+const repositionTrailingMetadata = (order: string[]): string[] => {
+  const lastIndex = order.length - 1;
+  // Only act on the stale default: metadata sitting as the last column.
+  if (order[lastIndex] !== "metadata") return order;
+  // New default slot: immediately after the `description` column, matching the
+  // JS column definition (select, name, description, metadata...).
+  const descriptionIndex = order.indexOf("description");
+  const targetIndex = descriptionIndex === -1 ? 0 : descriptionIndex + 1;
+  if (targetIndex === lastIndex) return order; // already in place
+  const next = [...order];
+  next.splice(lastIndex, 1); // remove trailing metadata
+  next.splice(targetIndex, 0, "metadata"); // insert at new default slot
+  return next;
+};
+
+/**
+ * Owns every consumer of the selection state (action menu, compare navigation,
+ * run-evaluator dialog) so checkbox clicks re-render only this menu and the
+ * clicked checkbox — not the whole ExperimentsTable.
+ */
+function ExperimentsMultiSelectActionMenu({
+  projectId,
+  store,
+  datasetIdByExperimentId,
+}: {
+  projectId: string;
+  store: ExperimentsTableStore;
+  datasetIdByExperimentId: Record<string, string>;
+}) {
+  const router = useRouter();
+  const capture = usePostHogClientCapture();
+  const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
+  // Page-scoped and in table order, so the first id is the topmost selected
+  // row — the compare baseline.
+  const selectedExperimentIds = useStore(
+    store,
+    (state) => state.selectedPageRowIds,
+  );
+  const clearSelection = useStore(
+    store,
+    (state) => state.actions.clearSelection,
+  );
+
+  const hasEvalAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluationRule:CUD",
+  });
+
+  // Build query with experiment context filter for batch actions
+  const batchActionQuery = useMemo(
+    () => ({
+      filter:
+        selectedExperimentIds.length > 0
+          ? [
+              {
+                column: "experimentId" as const,
+                operator: "any of" as const,
+                value: selectedExperimentIds,
+                type: "stringOptions" as const,
+              },
+              {
+                column: "isExperimentItemRootSpan" as const,
+                operator: "=" as const,
+                value: true,
+                type: "boolean" as const,
+              },
+            ]
+          : [],
+      orderBy: { column: "startTime" as const, order: "DESC" as const },
+    }),
+    [selectedExperimentIds],
+  );
+
+  // Handler for comparing selected experiments
+  // First selected becomes baseline, rest become comparisons
+  const handleCompareSelected = () => {
+    if (selectedExperimentIds.length === 0) return;
+
+    const [baseline, ...comparisons] = selectedExperimentIds;
+    // The list's own way into a comparison — the same events the picker and the
+    // baseline control emit, told apart by their source.
+    capture(
+      "experiment:comparison_changed",
+      comparisonChangedProps({
+        tableName: "experiments",
+        comparisonCount: comparisons.length,
+        datasetIds: selectedExperimentIds.map(
+          (id) => datasetIdByExperimentId[id],
+        ),
+        source: "table-selection",
+      }),
+    );
+    capture(
+      "experiment:baseline_changed",
+      baselineChangedProps({
+        tableName: "experiments",
+        source: "table-selection",
+      }),
+    );
+    const params = new URLSearchParams();
+    params.set("baseline", baseline);
+    comparisons.forEach((id) => {
+      params.append("c", id);
+    });
+
+    router.push(
+      `/project/${projectId}/experiments/results?${params.toString()}`,
+    );
+  };
+
+  if (selectedExperimentIds.length === 0) return null;
+
+  // Build table actions - Compare is disabled (not hidden) when >MAX_SELECTED_EXPERIMENTS rows selected
+  const tooManySelected =
+    selectedExperimentIds.length > MAX_SELECTED_EXPERIMENTS;
+  const tableActions: TableAction[] = [
+    {
+      id: ActionId.ExperimentCompare,
+      type: BatchActionType.Create,
+      label: "Compare",
+      description: "Compare selected experiments",
+      icon: <GitCompareArrows className="h-4 w-4 sm:mr-2" />,
+      customDialog: true,
+      disabled: tooManySelected,
+      disabledReason: tooManySelected
+        ? `Select only up to ${MAX_SELECTED_EXPERIMENTS} experiments to compare`
+        : undefined,
+      accessCheck: {
+        scope: "project:read",
+      },
+    } as TableAction,
+    ...(hasEvalAccess
+      ? [
+          {
+            id: ActionId.ObservationBatchEvaluation,
+            type: BatchActionType.Create,
+            label: "Run Evaluator",
+            description: "Run evaluators on selected experiments",
+            icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+            customDialog: true,
+            accessCheck: {
+              scope: "evaluationRule:CUD",
+            },
+          } as TableAction,
+        ]
+      : []),
+  ];
+
+  return (
+    <>
+      <TableActionMenu
+        projectId={projectId}
+        actions={tableActions}
+        tableName={BatchExportTableName.Sessions}
+        selectedCount={selectedExperimentIds.length}
+        onClearSelection={clearSelection}
+        onCustomAction={(actionId) => {
+          if (actionId === ActionId.ExperimentCompare) {
+            handleCompareSelected();
+          } else if (actionId === ActionId.ObservationBatchEvaluation) {
+            setShowRunEvaluationDialog(true);
+          }
+        }}
+      />
+      {showRunEvaluationDialog && (
+        <RunEvaluationDialog
+          projectId={projectId}
+          selectedObservationIds={[]}
+          query={batchActionQuery}
+          selectAll={true}
+          totalCount={selectedExperimentIds.length}
+          onClose={() => {
+            setShowRunEvaluationDialog(false);
+            clearSelection();
+          }}
+          sourceTable="experiments"
+        />
+      )}
+    </>
+  );
+}
+
+export default function ExperimentsTable({
+  projectId,
+  defaultFilter,
+  fixedFilter = [],
+  sessionFilterContextId,
+  showControlsInPageHeader = false,
+}: ExperimentsTableProps) {
   const router = useRouter();
 
   const { setDetailPageList } = useDetailPageLists();
-  const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-
-  const { selectAll, setSelectAll } = useSelectAll(projectId, "experiments");
+  // Selection lives in a per-mount vanilla zustand store (not useState) so a
+  // checkbox click re-renders only its subscribers, not the whole table.
+  const [experimentsTableStore] = useState(() => createExperimentsTableStore());
 
   const [paginationState, setPaginationState] = usePaginationState(1, 50);
 
@@ -74,7 +307,10 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     order: "DESC",
   });
 
-  const { timeRange, setTimeRange } = useTableDateRange(projectId);
+  const { timeRange, setTimeRange } = useTableDateRange(projectId, {
+    defaultRelativeAggregation: "last30Days",
+    persistAsDefault: false,
+  });
 
   // Convert timeRange to absolute date range for compatibility
   const tableDateRange = useMemo(() => {
@@ -102,21 +338,57 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       ]
     : [];
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  const oldFilterState = inputFilterState.concat(dateRangeFilter, fixedFilter);
 
   // Fetch filter options for datasets and scores
-  const { filterOptions, isFilterOptionsPending } = useExperimentFilterOptions({
+  const {
+    filterOptions,
+    datasetIdByName,
+    datasetNameById,
+    datasetNamesQuery,
+    isFilterOptionsPending,
+  } = useExperimentFilterOptions({
     projectId,
     oldFilterState,
   });
 
-  const queryFilter = useSidebarFilterState(
-    experimentsFilterConfig,
-    filterOptions,
-    {
-      loading: isFilterOptionsPending,
-    },
+  // Built after the dataset map, which its filter-state migration needs to
+  // translate a legacy dataset id into the name the facet is keyed by.
+  const filterConfig = useMemo(
+    () =>
+      getExperimentsFilterConfig(
+        fixedFilter
+          .map((filter) => filter.column)
+          .filter(isExperimentsOmittableFilterColumn),
+        datasetNameById,
+      ),
+    [fixedFilter, datasetNameById],
   );
+
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
+
+  const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
+    loading: isFilterOptionsPending,
+    onExplicitFilterStateChange,
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId,
+    // v4-only surface — drives `isV4` on filters:* analytics.
+    isV4: true,
+  });
+
+  // Apply default filter on mount (only if no existing filter)
+  const hasAppliedDefaultFilter = useRef(false);
+  useEffect(() => {
+    if (
+      defaultFilter &&
+      defaultFilter.length > 0 &&
+      !hasAppliedDefaultFilter.current
+    ) {
+      hasAppliedDefaultFilter.current = true;
+      queryFilter.setFilterState(defaultFilter, { origin: "system" });
+    }
+  }, [defaultFilter, queryFilter]);
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -127,17 +399,79 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     [],
   );
 
-  const combinedFilterState = queryFilter.filterState.concat(dateRangeFilter);
+  // Grammar search bar: an ADDITIONAL editor over the same FilterState the
+  // facet sidebar edits. Scoped to the facets this instance renders — a
+  // dataset-scoped page omits the Dataset facet, and a token for a stripped
+  // column would vanish silently.
+  const searchRegistry = useMemo(
+    () => experimentsFieldRegistry(filterConfig),
+    [filterConfig],
+  );
 
-  const filterState = combinedFilterState;
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+  const combinedFilterState = queryFilter.filterState.concat(
+    dateRangeFilter,
+    fixedFilter,
+  );
+
+  // The one boundary where a dataset NAME becomes its id — see
+  // fns/datasetNameFilter.
+  const filterState = useMemo(
+    () => withDatasetNamesResolved(combinedFilterState, datasetIdByName),
+    [combinedFilterState, datasetIdByName],
+  );
 
   // Use the custom hook for experiments data fetching
-  const { experiments, totalCount, dataUpdatedAt } = useExperimentsTableData({
+  // A dataset-name filter cannot be queried until the name -> id map lands.
+  const waitingForDatasetNames = awaitsDatasetNames(
+    combinedFilterState,
+    datasetNamesQuery,
+  );
+
+  const {
+    experiments,
+    totalCount,
+    dataUpdatedAt,
+    metricsLoading,
+    isShowingMostRecent,
+    mostRecentCount,
+  } = useExperimentsTableData({
     projectId,
     filterState,
     orderByState,
     paginationState,
+    enabled: !waitingForDatasetNames,
   });
+
+  // A score column that is empty for every experiment in view is noise, so only
+  // create columns for the keys the metrics query actually returned. Undefined
+  // while metrics load, so columns don't disappear and come back on each fetch.
+  const presentScoreKeys = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      traceItem: collectPresentScoreKeys(rows.map((r) => r.traceItemScores)),
+      observationItem: collectPresentScoreKeys(
+        rows.map((r) => r.observationItemScores),
+      ),
+      experiment: collectPresentScoreKeys(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
+
+  // Which score the runs in view actually measured, from the same rows and at
+  // the same time as `presentScoreKeys`: the strip opens on the best-recorded
+  // numeric score instead of the alphabetically first one, with no extra query.
+  const scoreCoverage = useMemo(() => {
+    if (metricsLoading || experiments.status !== "success") return undefined;
+    const rows = experiments.rows ?? [];
+    return {
+      obs: collectScoreNameCoverage(rows.map((r) => r.observationItemScores)),
+      experiment: collectScoreNameCoverage(rows.map((r) => r.experimentScores)),
+    };
+  }, [experiments, metricsLoading]);
 
   useEffect(() => {
     if (experiments.status === "success") {
@@ -169,7 +503,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         : [],
     prefix: "Trace",
     isFilterDataPending: experiments.status === "loading",
-    defaultHidden: true,
+    presentKeys: presentScoreKeys?.traceItem,
   });
 
   // Observation-level item scores (scores on observations, observation_id IS NOT NULL)
@@ -180,6 +514,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     rawKey: true,
     displayFormat: "aggregate",
     scoreColumnKey: "observationItemScores",
+    headerPrefix: "Observation",
     projectId,
     filter:
       experiments.rows && experiments.rows.length > 0
@@ -188,6 +523,7 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
           })
         : [],
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.observationItem,
   });
 
   // Experiment-level scores (direct dataset_run_id match)
@@ -206,54 +542,53 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     rawKey: true,
     prefix: "Experiment",
     isFilterDataPending: experiments.status === "loading",
+    presentKeys: presentScoreKeys?.experiment,
   });
 
   const { selectActionColumn } = TableSelectionManager<ExperimentsTableRow>({
     projectId,
     tableName: "experiments",
-    setSelectedRows,
+    setSelectedRows: experimentsTableStore.getState().actions.setRowSelection,
+    setSelectAll: experimentsTableStore.getState().actions.setSelectAll,
+    selectionStore: experimentsTableStore,
   });
 
   const columns: LangfuseColumnDef<ExperimentsTableRow>[] = [
     selectActionColumn,
-    {
+    createIdTableColumn<ExperimentsTableRow>({
       accessorKey: "name",
-      id: "name",
       header: getExperimentsColumnName("name"),
       size: 200,
       isPinnedLeft: true,
-      cell: ({ row }) => {
-        const value: string = row.getValue("name");
-        return value ? <TableIdOrName value={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
       accessorKey: "description",
-      id: "description",
       header: getExperimentsColumnName("description"),
       size: 300,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: string | undefined = row.getValue("description");
-        return value ? (
-          <MemoizedIOTableCell
-            isLoading={false}
-            data={value}
-            singleLine={rowHeight === "s"}
-          />
-        ) : undefined;
-      },
-    },
-    {
+      // Off by default: 300px of mostly boilerplate ahead of the score columns.
+      defaultHidden: true,
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
+    createIOTableColumn<ExperimentsTableRow>({
+      // Placed here (right after the identifying name/description columns) rather
+      // than last so it is never the trailing column. As the last column its right
+      // resize handle sat flush against the table edge and could not be dragged
+      // wider in a maximized browser (LFE-10460).
+      accessorKey: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      defaultHidden: true,
+      singleLine: rowHeight === "s",
+    }),
+    createNumberTableColumn<ExperimentsTableRow>({
       accessorKey: "itemCount",
-      id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
       size: 100,
-      cell: ({ row }) => {
-        const value: number = row.getValue("itemCount");
-        return <span>{numberFormatter(value, 0)}</span>;
-      },
-    },
+      formatter: (value) => numberFormatter(value, 0, 0),
+    }),
     {
       accessorKey: "errorCount",
       id: "errorCount",
@@ -261,40 +596,82 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       size: 100,
       cell: ({ row }) => {
         const value: number = row.getValue("errorCount");
+        const formatted = numberFormatter(value, 0);
+
+        if (value <= 0) {
+          return (
+            <Badge
+              variant="secondary"
+              className="max-w-fit rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          );
+        }
+
         return (
-          <Badge
-            variant={value > 0 ? "destructive" : "secondary"}
-            className="max-w-fit rounded-sm px-1 font-normal"
+          <Link
+            href={buildExperimentPath({
+              projectId,
+              experimentId: row.id,
+              filters: [
+                {
+                  column: "level",
+                  type: "stringOptions",
+                  operator: "any of",
+                  value: ["ERROR"],
+                },
+              ],
+            })}
+            aria-label={`View ${formatted} failing items`}
           >
-            {numberFormatter(value, 0)}
-          </Badge>
+            <Badge
+              variant="destructive"
+              className="hover:bg-destructive/80 max-w-fit cursor-pointer rounded-sm px-1 font-normal"
+            >
+              {formatted}
+            </Badge>
+          </Link>
         );
       },
       enableHiding: true,
     },
-    {
+    createDateTableColumn<ExperimentsTableRow>({
       accessorKey: "startTime",
-      id: "startTime",
       header: getExperimentsColumnName("startTime"),
       size: 150,
       enableHiding: true,
       enableSorting: true,
-      cell: ({ row }) => {
-        const value: Date = row.getValue("startTime");
-        return <LocalIsoDate date={value} />;
-      },
-    },
+    }),
     {
       accessorKey: "datasetId",
       id: "datasetId",
-      header: getExperimentsColumnName("experimentDatasetId"),
+      header: getExperimentsColumnName("experimentDatasetName"),
       size: 150,
       cell: ({ row }) => {
-        const key: string | undefined = row.getValue("datasetId");
-        const value = filterOptions.experimentDatasetId?.find(
-          (d) => d.value === key,
-        )?.displayValue;
-        return value ? <TableIdOrName value={value} /> : undefined;
+        const datasetId: string | undefined = row.getValue("datasetId");
+        const datasetName = datasetId
+          ? datasetNameById.get(datasetId)
+          : undefined;
+
+        if (!datasetId || !datasetName) {
+          return undefined;
+        }
+
+        return (
+          <Link
+            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Badge
+              variant="secondary"
+              className="hover:bg-secondary/80 max-w-full cursor-pointer"
+            >
+              {datasetName}
+            </Badge>
+          </Link>
+        );
       },
     },
     {
@@ -306,13 +683,20 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       cell: ({ row }) => {
         const value: Array<[string, number | null]> = row.getValue("prompts");
         return (
-          <div className="flex flex-wrap gap-1">
+          <div
+            className={
+              rowHeight === "s"
+                ? "flex max-w-full flex-nowrap gap-1 overflow-x-auto py-0.5 whitespace-nowrap"
+                : "flex flex-wrap gap-1"
+            }
+          >
             {value.map(([name, version]) => (
               <Link
                 key={`${name}-${version}`}
                 href={`/project/${projectId}/prompts/${encodeURIComponent(name)}?version=${version}`}
                 target="_blank"
                 rel="noopener noreferrer"
+                className="shrink-0"
               >
                 <Badge
                   variant="secondary"
@@ -326,36 +710,32 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
         );
       },
     },
-    {
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "latency",
       accessorKey: "latencyAvg",
-      id: "latencyAvg",
       header: getExperimentsColumnName("latencyAvg"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("latencyAvg");
-        if (value === undefined) return undefined;
-        return <span>{numberFormatter(value / 1000, 4)}s</span>;
+      headerTooltip: {
+        description: "Average duration of the root span per experiment item.",
       },
-    },
-    {
+      formatter: (value) => `Ø ${numberFormatter(value / 1000, 4)}s`,
+      metricsLoading,
+    }),
+    createExperimentMetricColumn<ExperimentsTableRow>({
+      metric: "cost",
       accessorKey: "totalCost",
-      id: "totalCost",
       header: getExperimentsColumnName("totalCost"),
       size: 100,
       enableHiding: true,
-      cell: ({ row }) => {
-        const value: number | undefined = row.getValue("totalCost");
-        if (value === undefined) return undefined;
-        return <span>${numberFormatter(value, 6)}</span>;
-      },
-    },
+      formatter: (value) => `$${numberFormatter(value, 6)}`,
+      metricsLoading,
+    }),
     {
       accessorKey: "traceItemScores",
-      header: "Trace Item Scores",
+      header: "Trace Scores",
       id: "traceItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isTraceItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -365,10 +745,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     },
     {
       accessorKey: "observationItemScores",
-      header: "Observation Item Scores",
+      header: "Observation Scores",
       id: "observationItemScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isObservationItemScoreLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -378,10 +757,9 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     },
     {
       accessorKey: "experimentScores",
-      header: "Experiment-Level Scores",
+      header: "Experiment Scores",
       id: "experimentScores",
       enableHiding: true,
-      defaultHidden: true,
       cell: () => {
         return isExperimentScoreColumnLoading ? (
           <Skeleton className="h-3 w-1/2" />
@@ -389,54 +767,77 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       },
       columns: experimentScoreColumns,
     },
-    {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: getExperimentsColumnName("metadata"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
-    {
-      id: "actions",
-      accessorKey: "actions",
-      header: "Actions",
-      size: 70,
-      cell: () => {
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only [position:relative]">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem>
-                <Columns3 className="mr-2 h-4 w-4" />
-                <span>Compare</span>
-              </DropdownMenuItem>
-              {/* TODO: handle experiment delete  */}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        );
-      },
-    },
   ];
+
+  const scoreColumnIds = useMemo(
+    () =>
+      [
+        ...traceItemScoreColumns,
+        ...observationItemScoreColumns,
+        ...experimentScoreColumns,
+      ].map((column) => column.accessorKey),
+    [
+      traceItemScoreColumns,
+      observationItemScoreColumns,
+      experimentScoreColumns,
+    ],
+  );
+
+  // Each score level loads from its own query, so the union above is partial
+  // until all three have settled. The migration below is consumed once and for
+  // good, so running it early would reveal whichever level answered first and
+  // leave the other two hidden permanently.
+  const areScoreColumnsSettled =
+    !isTraceItemScoreLoading &&
+    !isObservationItemScoreLoading &&
+    !isExperimentScoreColumnLoading;
+
+  // Score columns are now visible by default. A returning user has `false`
+  // persisted for every one of them from the previous default, so this one-time
+  // migration reaches them too — see `revealScoreColumns` for how a user who
+  // picked their own score columns is left alone.
+  const columnVisibilityMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnVisibility-scoresVisible-v1-${projectId}`,
+        apply: (visibility: VisibilityState) =>
+          areScoreColumnsSettled
+            ? revealScoreColumns(visibility, scoreColumnIds)
+            : null,
+      },
+    ],
+    [projectId, scoreColumnIds, areScoreColumnsSettled],
+  );
 
   const [columnVisibility, setColumnVisibilityState] =
     useColumnVisibility<ExperimentsTableRow>(
       `experimentsColumnVisibility-${projectId}`,
       columns,
+      columnVisibilityMigrations,
     );
+
+  // One-time migration for LFE-10460 on the localStorage replay path:
+  // useColumnOrder replays a returning user's stored order verbatim and never
+  // repositions an existing column, so without this metadata would stay the
+  // trailing column and the resize bug would persist. Guarded by a version flag
+  // so it runs once (won't re-fight a user who later moves metadata themselves).
+  // The saved-view persistence path is covered separately via
+  // `validationContext.migrateColumnOrder` below — both reuse
+  // `repositionTrailingMetadata`.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnOrder-metadataReorder-v1-${projectId}`,
+        apply: repositionTrailingMetadata,
+      },
+    ],
+    [projectId],
+  );
 
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentsTableRow>(
     `experimentsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
@@ -444,16 +845,46 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: (filters) =>
+        queryFilterRef.current.setFilterState(filters, {
+          origin: "saved_view",
+        }),
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
-      filterColumnDefinition: experimentsFilterConfig.columnDefinitions,
+      filterColumnDefinition: filterConfig.columnDefinitions,
+      expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
+      // A pre-PR saved view persists its own metadata-last column order, which
+      // would otherwise re-introduce LFE-10460 after applying the view (the
+      // localStorage migration is one-shot and doesn't reach this path). Reuse
+      // the same "only reposition a stale default" transform here.
+      migrateColumnOrder: repositionTrailingMetadata,
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
+  viewControllersRef.current = viewControllers;
+
+  const handleOrderByChange: typeof setOrderByState = (next) => {
+    viewControllers.handleUserStateChange(orderByState, next);
+    setOrderByState(next);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (update) => {
+    const next = typeof update === "function" ? update(columnOrder) : update;
+    viewControllers.handleUserStateChange(columnOrder, next);
+    setColumnOrder(next);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
+    update,
+  ) => {
+    const next =
+      typeof update === "function" ? update(columnVisibility) : update;
+    viewControllers.handleUserStateChange(columnVisibility, next);
+    setColumnVisibilityState(next);
+  };
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
     return experiments.status === "success" && experiments.rows
@@ -461,115 +892,213 @@ export default function ExperimentsTable({ projectId }: ExperimentsTableProps) {
       : [];
   }, [experiments]);
 
+  // The strip's series. The strip orders its own x-axis chronologically, which
+  // is deliberately not this table's newest-first order.
+  const chartExperiments = useMemo(() => {
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      startTime: row.startTime,
+    }));
+  }, [rows]);
+
+  const capture = usePostHogClientCapture();
+
+  const datasetIdByExperimentId = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const row of rows) {
+      map[row.id] = row.datasetId;
+    }
+    return map;
+  }, [rows]);
+
+  // Which score family do people actually want visible, now that all of them are
+  // on by default? The column drawer's per-family Select All / Deselect All is
+  // the family-level intent; the individual checkboxes stay on
+  // `table:column_visibility_changed`, which already carries the column.
+  const handleColumnGroupToggle = useCallback(
+    ({ groupId, enabledCount }: ColumnGroupTogglePayload) => {
+      const props = scoreColumnScopeToggledProps({
+        tableName: "experiments",
+        groupId,
+        enabledCount,
+      });
+      if (props) {
+        capture("experiment:score_column_scope_toggled", props);
+      }
+    },
+    [capture],
+  );
+
+  // Mirror the visible page's rows into the store (in table order, so
+  // selectedPageRowIds keeps the first-selected-in-table-order semantics
+  // the compare baseline relies on).
+  const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
+
+  useExperimentsTableSelectionSync({
+    store: experimentsTableStore,
+    pageRowIds,
+    totalCount,
+  });
+
   return (
-    <DataTableControlsProvider>
-      <div className="flex h-full w-full flex-col">
-        {/* Toolbar spanning full width */}
-        <DataTableToolbar
-          columns={columns}
-          filterState={queryFilter.filterState}
-          viewConfig={{
-            tableName: TableViewPresetTableName.Experiments,
-            projectId,
-            controllers: viewControllers,
-          }}
-          columnsWithCustomSelect={["name", "datasetId"]}
-          columnVisibility={columnVisibility}
-          setColumnVisibility={setColumnVisibilityState}
-          columnOrder={columnOrder}
-          setColumnOrder={setColumnOrder}
-          orderByState={orderByState}
-          rowHeight={rowHeight}
-          setRowHeight={setRowHeight}
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-          multiSelect={{
-            selectAll,
-            setSelectAll,
-            selectedRowIds:
-              Object.keys(selectedRows).filter((experimentId) =>
-                experiments.rows?.map((e) => e.id).includes(experimentId),
-              ) ?? [],
-            setRowSelection: setSelectedRows,
-            totalCount,
-            pageSize: paginationState.limit,
-            pageIndex: paginationState.page - 1,
-          }}
-        />
-
-        {/* Content area with sidebar and table */}
-        <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
-
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              key={`experiments-table-${dataUpdatedAt}`}
-              tableName={"experiments"}
+    <>
+      <DataTableControlsProvider tableName={filterConfig.tableName}>
+        <div className="flex h-full w-full flex-col">
+          {showControlsInPageHeader && (
+            <TableHeaderControls
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+            />
+          )}
+          {/* The composer and the toolbar stick together as one band so the
+              toolbar cannot scroll under the composer and render half-clipped;
+              pb-1.5 matches the other bar surfaces' spacing above the table. */}
+          <div className="bg-background sticky top-0 z-30 pb-1.5">
+            <TableSearchBar
+              key={`${viewControllers.filterEditorResetKey}-${queryFilter.draftResetKey}`}
+              isV4={true}
+              filterState={queryFilter.searchBarFilterState}
+              setFilterState={setFiltersWrapper}
+              projectId={projectId}
+              tableName={filterConfig.tableName}
+              observed={observedOptions}
+              registry={searchRegistry}
+            />
+            {/* Toolbar spanning full width */}
+            <DataTableToolbar
+              rowClassName="my-1"
               columns={columns}
-              data={
-                experiments.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : experiments.status === "error"
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: "",
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
-              pagination={{
-                totalCount,
-                onChange: (updater) => {
-                  const newState =
-                    typeof updater === "function"
-                      ? updater({
-                          pageIndex: paginationState.page - 1,
-                          pageSize: paginationState.limit,
-                        })
-                      : updater;
-                  setPaginationState({
-                    page: newState.pageIndex + 1,
-                    limit: newState.pageSize,
-                  });
-                },
-                state: {
-                  pageIndex: paginationState.page - 1,
-                  pageSize: paginationState.limit,
-                },
+              filterState={queryFilter.filterState}
+              viewConfig={{
+                tableName: TableViewPresetTableName.Experiments,
+                projectId,
+                controllers: viewControllers,
               }}
-              rowSelection={selectedRows}
-              setRowSelection={setSelectedRows}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
+              tableName={filterConfig.tableName}
+              isV4={true}
+              onColumnGroupToggle={handleColumnGroupToggle}
+              columnsWithCustomSelect={["name", "datasetId"]}
               columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibilityState}
+              setColumnVisibility={handleColumnVisibilityChange}
+              columnOrder={columnOrder}
+              setColumnOrder={handleColumnOrderChange}
+              orderByState={orderByState}
               rowHeight={rowHeight}
-              onRowClick={(row, event) => {
-                // Handle Command/Ctrl+click to open experiment in new tab
-                if (event && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault();
-                  const experimentId = row.id;
-                  const experimentUrl = `/project/${projectId}/experiments/${encodeURIComponent(experimentId)}`;
-                  const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
-                  window.open(fullUrl, "_blank");
-                }
-                // For normal clicks, navigate to experiment detail page
-                else {
-                  void router.push(
-                    `/project/${projectId}/experiments/${encodeURIComponent(row.id)}`,
-                  );
-                }
-              }}
+              setRowHeight={setRowHeight}
+              timeRange={showControlsInPageHeader ? undefined : timeRange}
+              setTimeRange={showControlsInPageHeader ? undefined : setTimeRange}
+              actionButtons={[
+                <ExperimentsMultiSelectActionMenu
+                  key="experiments-multi-select-actions"
+                  projectId={projectId}
+                  store={experimentsTableStore}
+                  datasetIdByExperimentId={datasetIdByExperimentId}
+                />,
+              ]}
             />
           </div>
-        </ResizableFilterLayout>
-      </div>
-    </DataTableControlsProvider>
+
+          {isShowingMostRecent && (
+            <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
+              No experiments started in the selected time range. Showing the{" "}
+              {mostRecentCount === 1
+                ? "most recent run"
+                : `${mostRecentCount} most recent runs`}{" "}
+              instead.
+            </div>
+          )}
+
+          {/* Content area with sidebar and table */}
+          <ResizableFilterLayout>
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.filterEditorResetKey}
+              queryFilter={queryFilter}
+            />
+
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Table-width, like the events table's pulse strip: inside the
+                  layout so the facet sidebar keeps its full height and the
+                  strip resizes with the table. */}
+              {tableDateRange && (
+                <ExperimentMetricStrip
+                  projectId={projectId}
+                  experiments={chartExperiments}
+                  fromTimestamp={tableDateRange.from}
+                  toTimestamp={tableDateRange.to}
+                  isExternalLoading={experiments.status === "loading"}
+                  scoreCoverage={scoreCoverage}
+                />
+              )}
+              <DataTable
+                key={`experiments-table-${dataUpdatedAt}`}
+                tableName="experiments"
+                columns={columns}
+                data={
+                  experiments.status === "loading" || isViewLoading
+                    ? { isLoading: true, isError: false }
+                    : experiments.status === "error"
+                      ? {
+                          isLoading: false,
+                          isError: true,
+                          error: "",
+                        }
+                      : {
+                          isLoading: false,
+                          isError: false,
+                          data: rows,
+                        }
+                }
+                pagination={{
+                  totalCount,
+                  onChange: (updater) => {
+                    const newState =
+                      typeof updater === "function"
+                        ? updater({
+                            pageIndex: paginationState.page - 1,
+                            pageSize: paginationState.limit,
+                          })
+                        : updater;
+                    setPaginationState({
+                      page: newState.pageIndex + 1,
+                      limit: newState.pageSize,
+                    });
+                  },
+                  state: {
+                    pageIndex: paginationState.page - 1,
+                    pageSize: paginationState.limit,
+                  },
+                }}
+                selectionStore={experimentsTableStore}
+                setOrderBy={handleOrderByChange}
+                orderBy={orderByState}
+                columnOrder={columnOrder}
+                onColumnOrderChange={handleColumnOrderChange}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={handleColumnVisibilityChange}
+                rowHeight={rowHeight}
+                onRowClick={(row, event) => {
+                  // Handle Command/Ctrl+click to open experiment in new tab
+                  if (event && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault();
+                    const experimentId = row.id;
+                    const experimentUrl = `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(experimentId)}`;
+                    const fullUrl = `${process.env.NEXT_PUBLIC_BASE_PATH ?? ""}${experimentUrl}`;
+                    window.open(fullUrl, "_blank");
+                  }
+                  // For normal clicks, navigate to experiment detail page
+                  else {
+                    router.push(
+                      `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
+                    );
+                  }
+                }}
+              />
+            </div>
+          </ResizableFilterLayout>
+        </div>
+      </DataTableControlsProvider>
+    </>
   );
 }

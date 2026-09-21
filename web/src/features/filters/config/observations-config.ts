@@ -1,7 +1,13 @@
 import { observationsTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
 import { renderFilterIcon } from "@/src/components/ItemBadge";
+import { renderLevelIcon } from "@/src/components/level-colors";
+
+export type ObservationsOmittableFilterColumn = "model" | "promptName";
 
 /**
  * Maps frontend column IDs to backend-expected column IDs
@@ -41,9 +47,19 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Name",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
+    {
+      // Display name is "Status"; column id stays `level` to match the
+      // observation-level API field and saved filters.
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "categorical" as const,
@@ -59,11 +75,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: "Prompt Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Trace Tags",
     },
     {
       type: "stringKeyValue" as const,
@@ -171,6 +182,11 @@ export const observationFilterConfig: FilterConfig = {
       label: "Numeric Scores",
     },
     {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
+    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
@@ -184,3 +200,9 @@ export const observationFilterConfig: FilterConfig = {
     },
   ],
 };
+
+export function getObservationsFilterConfig(
+  omittedFilter: ObservationsOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(observationFilterConfig, omittedFilter);
+}

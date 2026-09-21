@@ -1,5 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { env } from "@/src/env.mjs";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -9,11 +10,16 @@ import {
   AnnotationQueueStatus,
   CreateQueueData,
   filterAndValidateDbScoreConfigList,
+  isBaseError,
   LangfuseNotFoundError,
   optionalPaginationZod,
   Prisma,
 } from "@langfuse/shared";
-import { getObservationById, logger } from "@langfuse/shared/src/server";
+import {
+  getObservationById,
+  getObservationByIdFromEventsTable,
+  logger,
+} from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
@@ -310,44 +316,48 @@ export const queueRouter = createTRPCRouter({
         );
         const plan = org?.plan ?? "oss";
 
-        if (plan === "cloud:hobby") {
-          if (
-            (await ctx.prisma.annotationQueue.count({
-              where: {
-                projectId: input.projectId,
-              },
-            })) >= 1
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "Maximum number of annotation queues reached on Hobby plan.",
+        // Counting and inserting must share one serializable snapshot.
+        // Otherwise parallel creates with distinct names all observe
+        // count = 0 and bypass the hobby limit, which the (projectId, name)
+        // unique index cannot prevent.
+        const queue = await ctx.prisma.$transaction(
+          async (tx) => {
+            if (plan === "cloud:hobby") {
+              const queueCount = await tx.annotationQueue.count({
+                where: { projectId: input.projectId },
+              });
+
+              if (queueCount >= 1) {
+                throw new TRPCError({
+                  code: "FORBIDDEN",
+                  message:
+                    "Maximum number of annotation queues reached on Hobby plan.",
+                });
+              }
+            }
+
+            const existingQueue = await tx.annotationQueue.findFirst({
+              where: { projectId: input.projectId, name: input.name },
             });
-          }
-        }
 
-        const existingQueue = await ctx.prisma.annotationQueue.findFirst({
-          where: {
-            projectId: input.projectId,
-            name: input.name,
+            if (existingQueue) {
+              throw new TRPCError({
+                code: "CONFLICT",
+                message: "A queue with this name already exists in the project",
+              });
+            }
+
+            return tx.annotationQueue.create({
+              data: {
+                name: input.name,
+                projectId: input.projectId,
+                description: input.description,
+                scoreConfigIds: input.scoreConfigIds,
+              },
+            });
           },
-        });
-
-        if (existingQueue) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: "A queue with this name already exists in the project",
-          });
-        }
-
-        const queue = await ctx.prisma.annotationQueue.create({
-          data: {
-            name: input.name,
-            projectId: input.projectId,
-            description: input.description,
-            scoreConfigIds: input.scoreConfigIds,
-          },
-        });
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
 
         await auditLog({
           session: ctx.session,
@@ -363,6 +373,27 @@ export const queueRouter = createTRPCRouter({
         if (error instanceof TRPCError) {
           throw error;
         }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2034"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Could not create annotation queue, please retry.",
+          });
+        }
+
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Creating annotation queue failed.",
@@ -395,6 +426,23 @@ export const queueRouter = createTRPCRouter({
           throw new LangfuseNotFoundError("Queue not found in project");
         }
 
+        const existingQueueWithName =
+          await ctx.prisma.annotationQueue.findFirst({
+            where: {
+              projectId: input.projectId,
+              name: input.name,
+              id: { not: input.queueId },
+            },
+            select: { id: true },
+          });
+
+        if (existingQueueWithName) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
         const updatedQueue = await ctx.prisma.annotationQueue.update({
           where: { id: input.queueId, projectId: input.projectId },
           data: {
@@ -415,10 +463,21 @@ export const queueRouter = createTRPCRouter({
 
         return updatedQueue;
       } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
+        if (error instanceof TRPCError || isBaseError(error)) {
           throw error;
         }
+
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === "P2002"
+        ) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "A queue with this name already exists in the project",
+          });
+        }
+
+        logger.error(error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Updating annotation queue failed.",
@@ -464,78 +523,75 @@ export const queueRouter = createTRPCRouter({
         queueId: z.string(),
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
+        isBetaEnabled: z.boolean().optional().default(false),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:CUD",
+      });
+
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+
+      const item = await ctx.prisma.annotationQueueItem.findFirst({
+        where: {
+          queueId: input.queueId,
           projectId: input.projectId,
-          scope: "annotationQueues:CUD",
-        });
-
-        const now = new Date();
-        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-
-        const item = await ctx.prisma.annotationQueueItem.findFirst({
-          where: {
-            queueId: input.queueId,
-            projectId: input.projectId,
-            status: AnnotationQueueStatus.PENDING,
-            OR: [
-              { lockedAt: null },
-              { lockedAt: { lt: fiveMinutesAgo } },
-              { lockedByUserId: ctx.session.user.id },
-            ],
-            NOT: {
-              id: { in: input.seenItemIds },
-            },
+          status: AnnotationQueueStatus.PENDING,
+          OR: [
+            { lockedAt: null },
+            { lockedAt: { lt: fiveMinutesAgo } },
+            { lockedByUserId: ctx.session.user.id },
+          ],
+          NOT: {
+            id: { in: input.seenItemIds },
           },
-          orderBy: {
-            createdAt: "asc",
-          },
-        });
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      });
 
-        // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
-        if (!item) return null;
+      // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items
+      if (!item) return null;
 
-        const updatedItem = await ctx.prisma.annotationQueueItem.update({
-          where: {
-            id: item.id,
-            projectId: input.projectId,
-          },
-          data: {
-            lockedAt: now,
-            lockedByUserId: ctx.session.user.id,
-          },
-        });
+      const updatedItem = await ctx.prisma.annotationQueueItem.update({
+        where: {
+          id: item.id,
+          projectId: input.projectId,
+        },
+        data: {
+          lockedAt: now,
+          lockedByUserId: ctx.session.user.id,
+        },
+      });
 
-        const inflatedUpdatedItem = {
-          ...updatedItem,
-          lockedByUser: { name: ctx.session.user.name },
+      const inflatedUpdatedItem = {
+        ...updatedItem,
+        lockedByUser: { name: ctx.session.user.name },
+      };
+
+      if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
+        const clickhouseObservation =
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+            ? await getObservationByIdFromEventsTable({
+                id: item.objectId,
+                projectId: input.projectId,
+              })
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated
+              await getObservationById({
+                id: item.objectId,
+                projectId: input.projectId,
+              });
+        return {
+          ...inflatedUpdatedItem,
+          parentTraceId: clickhouseObservation?.traceId,
         };
-
-        if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
-          const clickhouseObservation = await getObservationById({
-            id: item.objectId,
-            projectId: input.projectId,
-          });
-          return {
-            ...inflatedUpdatedItem,
-            parentTraceId: clickhouseObservation?.traceId,
-          };
-        }
-
-        return inflatedUpdatedItem;
-      } catch (error) {
-        logger.error(error);
-        if (error instanceof TRPCError) {
-          throw error;
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Fetching and locking next annotation queue item failed.",
-        });
       }
+
+      return inflatedUpdatedItem;
     }),
 });

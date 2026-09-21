@@ -1,4 +1,5 @@
 import { removeEmptyEnvVariables } from "@langfuse/shared";
+import { langfuseS3EventKeyMaxSegmentBytesSchema } from "@langfuse/shared/src/env";
 import { z } from "zod";
 
 const EnvSchema = z.object({
@@ -15,12 +16,33 @@ const EnvSchema = z.object({
     .default(3030),
 
   NEXTAUTH_URL: z.string().optional(),
+  // Base URL for the in-app agent's MCP calls. Defaults to NEXTAUTH_URL.
+  // Set this instead of redirecting NEXTAUTH_URL when the worker should reach
+  // web internally: NEXTAUTH_URL also builds user-facing links in emails and
+  // Slack messages, which must stay externally resolvable.
+  // Web validates the Host header of MCP requests, so any hostname used here
+  // other than NEXTAUTH_URL's own must be listed in LANGFUSE_MCP_ALLOWED_HOSTS
+  // on web, or the requests are rejected.
+  LANGFUSE_MCP_BASE_URL: z.url().optional(),
+  NEXT_PUBLIC_BASE_PATH: z.string().optional(),
 
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
     .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
     .optional(),
 
   STRIPE_SECRET_KEY: z.string().optional(),
+
+  // ClickHouse Billing cutoff, shared with web via the provider resolver in
+  // @langfuse/shared (getBillingProvider). The worker only consults it in the
+  // defensive usage-metering guard; unset = CHB routing off. Date-only
+  // (YYYY-MM-DD) so the cutline is a single unambiguous instant of UTC
+  // midnight, which is what new Date() yields for a date-only string. Parsed
+  // here so every consumer gets the same instant; keep in sync with
+  // web/src/env.mjs.
+  LANGFUSE_CLOUD_BILLING_CHB_CUTOFF_DATE: z.iso
+    .date()
+    .optional()
+    .transform((date) => (date ? new Date(date) : null)),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_AUTOMATIONS_TTL_SECONDS: z.coerce.number().default(60),
@@ -51,6 +73,12 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  // Validation rules live in `@langfuse/shared/src/env` so producer and
+  // consumer agree on what values are accepted. Must match the web container's
+  // resolved value at deploy time; otherwise web and worker can write/read
+  // different S3 keys for the same id.
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
 
   BATCH_EXPORT_PAGE_SIZE: z.coerce.number().positive().default(500),
   BATCH_EXPORT_ROW_LIMIT: z.coerce.number().positive().default(1_500_000),
@@ -71,6 +99,76 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_SAMPLING_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(1),
+  LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TRACE_BATCH_READ_ENABLED: z.enum(["true", "false"]).default("false"),
+  LANGFUSE_TRACE_BATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_TRACE_BATCH_EXPERIMENT_ID: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+    .optional(),
+  LANGFUSE_TRACE_BATCH_MAX_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(10_000)
+    .default(60),
+  LANGFUSE_TRACE_BATCH_STRATEGY: z
+    .enum(["project", "locality"])
+    .default("project"),
+  LANGFUSE_TRACE_BATCH_IDLE_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(600_000),
+  LANGFUSE_TRACE_BATCH_PENDING_TTL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7_200_000),
+  LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30_000),
+  LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
+    .string()
+    .optional(),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -95,7 +193,7 @@ const EnvSchema = z.object({
 
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 
-  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
@@ -115,9 +213,36 @@ const EnvSchema = z.object({
     .default(25),
   LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+  // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
+  // and avoid overwhelming the target instance (see issue #12786).
+  LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
+  // Timeout (ms) for each Mixpanel import request, so an unresponsive endpoint
+  // cannot hold the integration job indefinitely (see issue #15958).
+  LANGFUSE_MIXPANEL_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+  // Delay (ms) after each PostHog flush. Together with 1,000-event flushes,
+  // this bounds the export rate for fast-acknowledging target instances.
+  LANGFUSE_POSTHOG_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
   LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(4),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120 * 60),
+  LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
     .default(5),
@@ -139,8 +264,7 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
   // Set a date after which S3 was active. Projects created after this date do
   // perform a ClickHouse read as part of the ingestion pipeline.
-  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z
-    .string()
+  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z.iso
     .date()
     .optional(),
 
@@ -171,7 +295,39 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  LANGFUSE_MONITOR_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_MONITOR_SCHEDULERS: z.coerce.number().int().min(1).default(1),
+
   // Flags to toggle queue consumers on or off.
+  QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // Optional opt-outs for split-role workers. Unset follows
+  // LANGFUSE_IN_APP_AGENT_ENABLED; "false" skips that surface.
+  QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
+  // The ambient host profile takes precedence over the agent-specific default
+  // so local developer credentials win when both are configured.
+  AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER: z
+    .enum(["dangerous-docker", "lambda-microvm"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN: z
+    .string()
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN:
+    z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION: z
+    .string()
+    .optional(),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -194,6 +350,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
@@ -223,6 +382,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_V4_LEGACY_API_USAGE_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_MIXPANEL_INTEGRATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -230,6 +392,9 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
@@ -249,23 +414,54 @@ const EnvSchema = z.object({
     .default("true"),
   QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
 
-  LANGFUSE_EVENT_PROPAGATION_WORKER_GLOBAL_CONCURRENCY: z.coerce
-    .number()
-    .positive()
-    .default(10),
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
-    .default(200),
+    .default(100),
   LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
     .number()
     .positive()
     .default(5 * 60 * 1000), // 5 minutes
+
+  // Comma-separated list of project IDs to exclude from experiment backfill processing
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  // Comma-separated list of project IDs to exclude from event propagation dual-write
+  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(8),
+
+  // Optional propagation-only overrides; unset values use ClickHouse profile settings.
+  LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
+  LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .optional(),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -288,6 +484,7 @@ const EnvSchema = z.object({
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: z.string().optional(),
+  LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: z
@@ -295,6 +492,14 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_OBSERVATION_FIELD_OVERFLOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OBSERVATION_FIELD_SIZE_LIMIT_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2 * 1024 * 1024),
 
   // Metering data Postgres export - Langfuse Cloud
   LANGFUSE_POSTGRES_METERING_DATA_EXPORT_IS_ENABLED: z
@@ -368,10 +573,36 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(100), // Chunk size for counting projects in ClickHouse
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_QUERY_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2), // Max concurrent query pipelines per table cleaner
+  LANGFUSE_BATCH_DATA_RETENTION_CLEANER_CANDIDATE_QUERY_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(180_000), // 3 minutes for candidate and enrichment queries
   LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS: z.coerce
     .number()
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
+
+  // ClickHouse deleted-mask cleaner configuration
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // 1 hour between runs
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_SUBMIT_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
 
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
@@ -391,26 +622,105 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_LOCK_TTL_SECONDS: z.coerce
+    .number()
+    .positive()
+    .default(1_800),
+  LANGFUSE_TRACE_DELETE_BATCH_ACTION_RUNNER_MAX_BATCHES_PER_RUN: z.coerce
+    .number()
+    .positive()
+    .default(5),
 
-  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
+  // V4 migration flags. See LFE-9778.
+  // Defaults reflect the Langfuse v4 target state: net-new deployments write
+  // straight into the events tables. The v3 line ships these as `legacy` /
+  // `dual_write` / `false`; local dev and CI pin explicit values via
+  // .env.dev*.example, so these defaults only apply to bare deployments.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("events_only"),
+  LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
+    .enum(["dual_write", "direct"])
+    .default("direct"),
+  // Cloud-only rollout boundary for automatic direct OTel event writes.
+  // Organizations created on or after this date are past the point where the v4
+  // preview is force-enabled and cannot be switched off, so the events table is
+  // the only surface they read; their OTLP traffic therefore takes the direct
+  // write even without an `x-langfuse-ingestion-version: 4` header. Applies to
+  // non-Langfuse-SDK exports only — an older SDK keeps its established
+  // dual-write shape. An ISO date (YYYY-MM-DD) read as midnight UTC; a plain
+  // date is enough precision and easier to reason about than a timestamp.
+  // Unset disables the rule, which is the right default when self-hosting:
+  // those deployments move the whole deployment at once via
+  // LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct instead of rolling a
+  // tenant cohort forward.
+  LANGFUSE_MIGRATION_V4_OTEL_DIRECT_WRITE_ORG_CREATED_CUTOFF: z.iso
+    .date()
+    .optional(),
+  LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
+    .enum(["true", "false"])
+    .default("true"),
+
+  // Background-migration env gates. Names share the LANGFUSE_BACKGROUND_MIGRATION_
+  // prefix so the BackgroundMigrationManager can discover them by scanning env
+  // keys; each gates one or more rows in the background_migrations table via
+  // `args.envGate`. The historic backfill defaults on in v4 (it is a no-op for
+  // net-new deployments with no legacy data); the pid/tid sorting-table cleanup
+  // stays opt-in so its intermediate artifacts are only dropped once the
+  // operator confirms the backfill succeeded.
+  LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
+    .enum(["true", "false"])
+    .default("true"),
+  LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
     .enum(["true", "false"])
     .default("false"),
 
-  // Deprecated. Do not use!
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
     .number()
     .positive()
     .int()
     .default(10),
+
+  // Health-check threshold for the event-propagation ("dual write") job. When a
+  // client opts in via /api/health?failIfEventPropagationStuck=true, the check
+  // returns 503 if the heartbeat has not been refreshed within this many minutes,
+  // letting k8s liveness probes restart a container whose global-concurrency
+  // slot is wedged. The heartbeat is refreshed at the top of every invocation and
+  // per-chunk during the experiment backfill, so the threshold only needs to
+  // exceed the longest un-heartbeated step — a single CH INSERT (request_timeout
+  // 30 min). 35 min leaves headroom.
+  //
+  // Probes using this flag MUST set initialDelaySeconds >= 60s (one cron cycle):
+  // the heartbeat is only refreshed when the minute-boundary cron next runs, so a
+  // just-restarted (or just-re-enabled) container can carry a stale value until
+  // then. A shorter delay can crash-loop the very restart this check triggers.
+  LANGFUSE_EVENT_PROPAGATION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(35),
+
+  // Liveness threshold for the opt-in ?failIfQueueConsumptionStuck=true health
+  // check: fail once this container's BullMQ workers have neither picked up nor
+  // completed a single job for this long. Default-on repeatable jobs keep a
+  // healthy worker busy at least once per hour (blob storage integration
+  // scheduler every 20 min, PostHog/Mixpanel schedulers hourly), so an hour of
+  // total silence indicates a wedged worker.
+  // In multi-replica deployments each scheduler tick lands
+  // on only one replica — raise the threshold if replicas can legitimately sit
+  // idle (no ingestion or other traffic) for extended periods.
+  LANGFUSE_QUEUE_CONSUMPTION_STUCK_THRESHOLD_MINUTES: z.coerce
+    .number()
+    .positive()
+    .int()
+    .default(60),
 
   LANGFUSE_WEBHOOK_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
@@ -422,14 +732,102 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
+  LANGFUSE_IN_APP_AGENT_RUN_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  // Default 15 minutes. Do not go below the heartbeat-stale window (60s) or a
+  // live worker can lose the race. Faster also adds no resolution: every
+  // deadline this runner reports against is 5 minutes or longer.
+  LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(600_000),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
     .positive()
     .default(2),
+  LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
+  LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+type ParsedEnv = z.infer<typeof EnvSchema>;
+
+// V4 migration flag helpers.
+export const v4WritesToEventsTable = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
+
+export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
+
+export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
+
+const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+
+const validateV4Flags = (parsed: ParsedEnv): void => {
+  const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
+
+  // Hard errors: combinations that would silently lose data.
+  if (mode === "legacy" && otel === "direct") {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct " +
+        "requires LANGFUSE_MIGRATION_V4_WRITE_MODE in {dual, events_only}. " +
+        "Direct OTel writes target events_full, which is not read in legacy mode.",
+    );
+  }
+  if (mode === "events_only" && otel === "dual_write") {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=dual_write " +
+        "is incoherent with LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only " +
+        "(would dual-write to legacy tables the deployment otherwise skips).",
+    );
+  }
+  if (mode === "events_only" && !v4AllowPreviewOptIn(parsed)) {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only requires " +
+        "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true. Web reads are gated " +
+        "solely on the opt-in flag; without it they target the legacy " +
+        "traces/observations tables that events_only mode no longer writes to.",
+    );
+  }
+};
+
+const validateInAppAgentSandboxConfig = (parsed: ParsedEnv): void => {
+  if (parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_PROVIDER !== "lambda-microvm") {
+    return;
+  }
+
+  if (
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_IMAGE_IDENTIFIER ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EXECUTION_ROLE_ARN ||
+    !parsed.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_REGION
+  ) {
+    throw new Error(
+      "Invalid lambda-microvm sandbox config: image identifier, execution role ARN, and region are required.",
+    );
+  }
+};
+
+const parseEnv = (): ParsedEnv => {
+  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  validateV4Flags(parsed);
+  validateInAppAgentSandboxConfig(parsed);
+  return parsed;
+};
+
+export const env: ParsedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : parseEnv();

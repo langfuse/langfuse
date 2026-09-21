@@ -15,16 +15,22 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
-import { createTransport } from "nodemailer";
 import { render } from "@react-email/render";
 import { type SendVerificationRequestParams } from "next-auth/providers/email";
+import { createMailTransport } from "../transport";
 
 interface ResetPasswordTemplateProps {
   token: string;
+  isSetupMode: boolean;
 }
 
-const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
-  const previewText = "Your Langfuse reset code";
+const ResetPasswordTemplate = ({
+  token,
+  isSetupMode,
+}: ResetPasswordTemplateProps) => {
+  const previewText = isSetupMode
+    ? "Verify your Langfuse email"
+    : "Your Langfuse reset code";
   return (
     <Html>
       <Head />
@@ -42,9 +48,19 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-xl font-normal text-black">
-              Forgot your Langfuse password?
-              <br />
-              It happens to the best of us.
+              {isSetupMode ? (
+                <>
+                  Welcome to Langfuse!
+                  <br />
+                  Verify your email to get started.
+                </>
+              ) : (
+                <>
+                  Forgot your Langfuse password?
+                  <br />
+                  It happens to the best of us.
+                </>
+              )}
             </Heading>
             <Section className="mb-8 mt-8 text-center">
               <Text className="text-center text-sm font-semibold">
@@ -53,8 +69,8 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
               <Heading className="text-3xl mt-2">{token}</Heading>
             </Section>
             <Text className="text-center text-xs leading-6 text-[#666666]">
-              This code is valid for 3 minutes. If you did not request a reset,
-              you can ignore this email.
+              This code is valid for 3 minutes. If you did not request{" "}
+              {isSetupMode ? "this" : "a reset"}, you can ignore this email.
             </Text>
           </Container>
         </Body>
@@ -63,22 +79,60 @@ const ResetPasswordTemplate = ({ token }: ResetPasswordTemplateProps) => {
   );
 };
 
+const SETUP_PASSWORD_PATH = "/auth/setup-password";
+
+/*
+ * NextAuth only hands this function the verification URL, which carries the
+ * sign-in `callbackUrl` percent-encoded in its query string. That destination
+ * is therefore the only signal for which flow asked for the code, and it
+ * selects the email copy only — never an authorization decision.
+ */
+function isSetupPasswordFlow(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const callbackUrl = new URL(url).searchParams.get("callbackUrl");
+    if (!callbackUrl) return false;
+    // Relative callback URLs need a base to parse; the origin is irrelevant here.
+    const { pathname } = new URL(callbackUrl, "http://localhost");
+    return pathname.replace(/\/+$/, "").endsWith(SETUP_PASSWORD_PATH);
+  } catch {
+    return false;
+  }
+}
+
 export async function sendResetPasswordVerificationRequest(
   params: SendVerificationRequestParams,
 ) {
-  const { identifier, token, provider } =
+  const { identifier, token, provider, url } =
     params as SendVerificationRequestParams & { token: string };
-  const transport = createTransport(provider.server);
-  const htmlTemplate = await render(<ResetPasswordTemplate token={token} />);
+  const transport = createMailTransport(provider.server as string);
+
+  const isSetupMode = isSetupPasswordFlow(url);
+
+  const htmlTemplate = await render(
+    <ResetPasswordTemplate token={token} isSetupMode={isSetupMode} />,
+  );
+
+  const subject = isSetupMode
+    ? "Verify your Langfuse email"
+    : "Your Langfuse password reset code";
+
+  const textBody = isSetupMode
+    ? `Welcome to Langfuse! Use the following code to verify your email: ${token}\n\nThis code will expire in 3 minutes. If you did not request this, you can ignore this email.`
+    : `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`;
 
   const result = await transport.sendMail({
     to: identifier,
     from: provider.from,
-    subject: `Your Langfuse password reset code`,
-    text: `Use the following code to reset your Langfuse password: ${token}\n\nThis code will expire in 3 minutes. If you did not request a reset, you can ignore this email.`,
+    subject,
+    text: textBody,
     html: htmlTemplate,
   });
-  const failed = result.rejected.concat(result.pending).filter(Boolean);
+  // nodemailer's SES transport omits `rejected`/`pending` from SentMessageInfo,
+  // so guard against undefined before reading them.
+  const failed = [...(result.rejected ?? []), ...(result.pending ?? [])].filter(
+    Boolean,
+  );
   if (failed.length) {
     throw new Error(`Email(s) (${failed.join(", ")}) could not be sent`);
   }

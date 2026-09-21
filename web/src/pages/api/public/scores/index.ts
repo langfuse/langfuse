@@ -1,37 +1,53 @@
-import { v4 } from "uuid";
-
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   GetScoresQueryV1,
   GetScoresResponseV1,
-  filterAndValidateV1GetScoreList,
+  filterAndValidateLegacyV1GetScoreList,
   PostScoresBodyV1,
   PostScoresResponseV1,
+  ForbiddenError,
 } from "@langfuse/shared";
 import {
-  eventTypes,
+  createIngestionAttribution,
   logger,
-  processEventBatch,
 } from "@langfuse/shared/src/server";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { randomUUID } from "crypto";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Score",
+    action: "scores:create",
     bodySchema: PostScoresBodyV1,
     responseSchema: PostScoresResponseV1,
-    fn: async ({ body, auth, res }) => {
-      const event = {
-        id: v4(),
-        type: eventTypes.SCORE_CREATE,
-        timestamp: new Date().toISOString(),
-        body,
-      };
-      if (!event.body.id) {
-        event.body.id = v4();
+    allowedAccessLevels: ["project", "scores"],
+    fn: async ({ body, auth, req, res }) => {
+      if (auth.scope.isIngestionSuspended) {
+        throw new ForbiddenError(
+          "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
+        );
       }
-      const result = await processEventBatch([event], auth);
+
+      const conformedBody = {
+        ...body,
+        // We previously used `if(!body.id)` to decide if a new ID should be generated,
+        // this would accept falsy values such as empty string as valid IDs, and generate a new ID in that case.
+        // The `createScore` uses `??` instead, which would break this behavior, so we use `||` here to maintain the old behavior.
+        id: body.id || randomUUID(),
+      };
+
+      const scoresApiService = new ScoresApiService("v1");
+      const { id, result } = await scoresApiService.createScore({
+        body: conformedBody,
+        auth,
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -43,15 +59,43 @@ export default withMiddlewares({
         logger.error("Failed to create score", { result });
         throw new Error("Failed to create score");
       }
-      return { id: event.body.id };
+      return { id };
     },
   }),
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV1,
     responseSchema: GetScoresResponseV1,
+    deprecation: SCORES_DEPRECATION,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const scoresApiService = new ScoresApiService("v1");
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "timestamp",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toTimestamp
+              ? [
+                  {
+                    column: "timestamp",
+                    operator: "<" as const,
+                    value: new Date(query.toTimestamp),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const scoreParams = {
         projectId: auth.scope.projectId,
@@ -63,14 +107,14 @@ export default withMiddlewares({
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,
-        fromTimestamp: query.fromTimestamp ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
         source: query.source ?? undefined,
         value: query.value ?? undefined,
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
       };
       const [items, count] = await Promise.all([
         scoresApiService.generateScoresForPublicApi(scoreParams),
@@ -82,7 +126,7 @@ export default withMiddlewares({
       return {
         // As these are traces scores, we expect all scores to have a traceId set
         // For type consistency, we validate the scores against the v1 schema which requires a traceId
-        data: filterAndValidateV1GetScoreList(items),
+        data: filterAndValidateLegacyV1GetScoreList(items),
         meta: {
           page: query.page,
           limit: query.limit,

@@ -25,15 +25,19 @@ describe.sequential("handle redis events", () => {
 
     expect(traceUpsertQueue).toBeDefined();
 
-    const job = await traceUpsertQueue?.add(QueueJobs.TraceUpsert, {
-      id: randomUUID(),
-      timestamp: new Date(),
-      payload: {
-        projectId: "project-id",
-        traceId: "trace-id",
+    const job = await traceUpsertQueue?.add(
+      QueueJobs.TraceUpsert,
+      {
+        id: randomUUID(),
+        timestamp: new Date(),
+        payload: {
+          projectId: "project-id",
+          traceId: "trace-id",
+        },
+        name: QueueJobs.TraceUpsert as const,
       },
-      name: QueueJobs.TraceUpsert as const,
-    });
+      { delay: 0 },
+    );
 
     await vi.waitFor(
       async () => {
@@ -113,7 +117,7 @@ describe.sequential("handle redis events", () => {
 
     // Job should still be waiting as there is no listener
     const jobState = await traceUpsertQueue?.getJobState(job!.id!);
-    expect(jobState).toEqual("delayed");
+    expect(jobState).toEqual("waiting");
   }, 5000);
 
   // test("handle redis job failing", async () => {

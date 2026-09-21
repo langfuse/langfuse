@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { createContext, useContext, type ReactNode } from "react";
 import {
   MUSTACHE_REGEX,
@@ -72,7 +73,7 @@ export const parsePromptDependencyInnerContent = (
   };
 };
 
-export const getPromptReferenceUrl = (
+const getPromptReferenceUrl = (
   projectId: string,
   tag: ParsedPromptDependencyTag,
 ) => {
@@ -162,19 +163,28 @@ export const PromptReferenceButton = ({
     );
   }
 
+  const promptRefSuffix =
+    promptRef.type === "version"
+      ? ` (v${promptRef.version})`
+      : promptRef.label
+        ? ` (${promptRef.label})`
+        : "";
+
+  const promptRefTitle = `${promptRef.name}${promptRefSuffix}`;
+
   return (
     <Button
       variant="outline"
       size="sm"
-      className="bg-muted/50 hover:bg-muted inline-flex items-center gap-1.5 rounded-sm border-dashed px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors"
+      className="bg-muted/50 hover:bg-muted inline-flex items-center gap-1.5 rounded-sm border-dashed px-2 py-0.5 align-[-3px] text-xs font-bold transition-colors"
       dir="ltr"
       onClick={() =>
         window.open(getPromptReferenceUrl(projectId, promptRef), "_blank")
       }
-      title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
+      title={`Open prompt: ${promptRefTitle}`}
     >
       <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
-      <span className="truncate font-medium">
+      <span className="truncate font-bold" title={promptRefTitle}>
         {promptRef.name}
         {promptRef.type === "version" ? (
           <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
@@ -192,7 +202,7 @@ export const PromptReferenceButton = ({
   );
 };
 
-const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
+const PromptVar = ({ text, isValid }: { text: string; isValid: boolean }) => (
   <span
     dir="ltr"
     style={{ unicodeBidi: "isolate" }}
@@ -201,7 +211,7 @@ const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
       "whitespace-nowrap",
     )}
   >
-    {`{{${name}}}`}
+    {text}
   </span>
 );
 
@@ -253,7 +263,7 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
       const variable = match[2];
       parts.push(
         <React.Fragment key={`var-${index}-${variable}`}>
-          <PromptVar name={variable} isValid={isValidVariableName(variable)} />
+          <PromptVar text={fullMatch} isValid={isValidVariableName(variable)} />
         </React.Fragment>,
       );
     }

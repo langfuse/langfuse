@@ -7,30 +7,47 @@ import {
   GetMetricsV2Response,
 } from "@/src/features/public-api/types/metrics";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
-import {
-  executeQuery,
-  validateQuery,
-} from "@/src/features/query/server/queryExecutor";
-
+import { executeQuery } from "@langfuse/shared/query/server";
+import { validateQuery } from "@langfuse/shared/query";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 const DEFAULT_ROW_LIMIT = 100;
+
+export function isMetricsV2Available(): boolean {
+  return (
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" &&
+    env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy"
+  );
+}
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
-    rateLimitResource: "public-api-metrics", // Same rate limit as v1
+    action: "metrics:read",
+    rateLimitResource: "public-api-v2-metrics",
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
+      if (!isMetricsV2Available()) {
         throw new LangfuseNotFoundError(
-          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+          "The metrics v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 
       try {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: query.query.fromTimestamp,
+        });
+        const effectiveQuery = {
+          ...query.query,
+          fromTimestamp:
+            dataAccessWindow.effectiveFromTimestamp?.toISOString() ??
+            query.query.fromTimestamp,
+        };
+
         // Validate query (high cardinality checks) BEFORE applying defaults
         // This ensures users must explicitly opt-in with row_limit for high cardinality queries
-        const validation = validateQuery(query.query as any, "v2");
+        const validation = validateQuery(effectiveQuery as any, "v2");
 
         if (!validation.valid) {
           throw new InvalidRequestError(validation.reason);
@@ -38,10 +55,10 @@ export default withMiddlewares({
 
         // Apply default row_limit AFTER validation
         const queryParams = {
-          ...query.query,
+          ...effectiveQuery,
           config: {
-            ...query.query.config,
-            row_limit: query.query.config?.row_limit ?? DEFAULT_ROW_LIMIT,
+            ...effectiveQuery.config,
+            row_limit: effectiveQuery.config?.row_limit ?? DEFAULT_ROW_LIMIT,
           },
         };
 

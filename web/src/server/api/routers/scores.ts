@@ -15,7 +15,7 @@ import {
   orderBy,
   paginationZod,
   normalizeOrderByForTable,
-  singleFilter,
+  singleFilterList,
   timeFilter,
   UpdateAnnotationScoreData,
   validateDbScore,
@@ -45,9 +45,7 @@ import {
   getTracesGroupedByTags,
   getTracesGroupedByName,
   getTracesGroupedByUsers,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByUserId,
+  getEventsExactFilterOptionsForColumns,
   tracesTableUiColumnDefinitions,
   upsertScore,
   logger,
@@ -76,7 +74,7 @@ import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTyp
 
 const ScoreFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
 });
 
@@ -95,10 +93,13 @@ type AllScoresReturnType = Omit<ScoreDomain, "metadata"> & {
 
 type AllScoresFromEventsReturnType = Omit<ScoreDomain, "metadata"> & {
   jobConfigurationId: string | null;
+  evaluatorId: string | null;
   authorUserImage: string | null;
   authorUserName: string | null;
   hasMetadata: boolean;
 };
+
+const BOOLEAN_SCORE_VALUE_OPTIONS = [{ value: "true" }, { value: "false" }];
 
 export const scoresRouter = createTRPCRouter({
   /**
@@ -187,7 +188,7 @@ export const scoresRouter = createTRPCRouter({
       return toDomainWithStringifiedMetadata(score);
     }),
   countAll: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
@@ -252,17 +253,56 @@ export const scoresRouter = createTRPCRouter({
           },
         }),
       ]);
+      const jobExecutionByScoreId = new Map(
+        jobExecutions.map((execution) => [
+          execution.jobOutputScoreId,
+          execution,
+        ]),
+      );
+      // Legacy evals referenced job configurations which would be the equivalent of `rules`.
+      // In evals v2, the better reference for a score is however the evaluator that created the
+      // score and not the `rule` that triggered the evaluation.
+      const fallbackRuleIds = [
+        ...new Set(
+          jobExecutions.map((execution) => execution.jobConfigurationId),
+        ),
+      ];
+      const fallbackAssignments =
+        fallbackRuleIds.length > 0
+          ? await ctx.prisma.evaluationRuleEvaluatorAssignment.findMany({
+              where: {
+                projectId: input.projectId,
+                evaluationRuleId: { in: fallbackRuleIds },
+              },
+              select: {
+                evaluationRuleId: true,
+                evaluatorId: true,
+                evaluator: { select: { name: true } },
+              },
+            })
+          : [];
+      const fallbackEvaluatorIdByRuleAndScoreName = new Map(
+        fallbackAssignments.map((assignment) => [
+          `${assignment.evaluationRuleId}\0${assignment.evaluator.name}`,
+          assignment.evaluatorId,
+        ]),
+      );
 
       return {
         scores: clickhouseScoreData.map<AllScoresFromEventsReturnType>(
           (score) => {
-            const jobExecution = jobExecutions.find(
-              (je) => je.jobOutputScoreId === score.id,
-            );
+            const jobExecution = jobExecutionByScoreId.get(score.id);
             const user = users.find((u) => u.id === score.authorUserId);
             return {
               ...score,
               jobConfigurationId: jobExecution?.jobConfigurationId ?? null,
+              evaluatorId:
+                score.evaluatorId ??
+                (jobExecution
+                  ? (fallbackEvaluatorIdByRuleAndScoreName.get(
+                      `${jobExecution.jobConfigurationId}\0${score.name}`,
+                    ) ?? null)
+                  : null),
               authorUserImage: user?.image ?? null,
               authorUserName: user?.name ?? null,
             };
@@ -274,7 +314,7 @@ export const scoresRouter = createTRPCRouter({
    * v4: Count scores without traces JOIN.
    */
   countAllFromEvents: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
@@ -339,36 +379,81 @@ export const scoresRouter = createTRPCRouter({
         );
       }
 
-      const scoredTracesScope =
-        "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})";
+      // Bound the scored-traces semi-join by the same window the scores list
+      // view applies on scores.timestamp, so the offered options match what the
+      // windowed view can actually display. Preserve the caller's operator (not
+      // just the instant) so a score exactly on a strict boundary is offered iff
+      // the view would show it. Take the tightest bound on each side; on a tie
+      // the strict operator wins because it excludes the boundary instant.
+      const timestamps = timestampFilter ?? [];
+      const lowerBound = timestamps
+        .filter((tf) => tf.operator === ">=" || tf.operator === ">")
+        .reduce<{ operator: ">=" | ">"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as ">=" | ">",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff > 0) return candidate;
+            if (diff === 0 && candidate.operator === ">") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const upperBound = timestamps
+        .filter((tf) => tf.operator === "<=" || tf.operator === "<")
+        .reduce<{ operator: "<=" | "<"; value: Date } | undefined>(
+          (tightest, tf) => {
+            const candidate = {
+              operator: tf.operator as "<=" | "<",
+              value: tf.value,
+            };
+            if (!tightest) return candidate;
+            const diff = candidate.value.getTime() - tightest.value.getTime();
+            if (diff < 0) return candidate;
+            if (diff === 0 && candidate.operator === "<") return candidate;
+            return tightest;
+          },
+          undefined,
+        );
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: lowerBound,
+        toTime: upperBound,
+      };
 
-      const [names, tags, traceNames, userIds, stringValues] =
-        await Promise.all([
-          getScoreNames(input.projectId, timestampFilter ?? []),
-          getEventsGroupedByTraceTags(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
-          }),
-          getEventsGroupedByTraceName(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
-          }),
-          getEventsGroupedByUserId(input.projectId, eventsFilter, {
-            extraWhereRaw: scoredTracesScope,
-          }),
-          getScoreStringValues(input.projectId, timestampFilter ?? []),
-        ]);
+      const [names, eventFacets, stringValues] = await Promise.all([
+        getScoreNames(input.projectId, timestampFilter ?? []),
+        getEventsExactFilterOptionsForColumns({
+          projectId: input.projectId,
+          filter: eventsFilter,
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        }),
+        getScoreStringValues(input.projectId, timestampFilter ?? []),
+      ]);
 
       return {
         name: names.map((i) => ({ value: i.name, count: i.count })),
-        tags: tags.map((t) => ({ value: t.tag })),
-        traceName: traceNames.map((tn) => ({
-          value: tn.traceName,
-          count: Number(tn.count),
-        })),
-        userId: userIds.map((u) => ({
-          value: u.userId,
-          count: Number(u.count),
-        })),
+        tags: eventFacets
+          .filter((row) => row.column === "traceTags")
+          .map((row) => ({ value: row.value })),
+        traceName: eventFacets
+          .filter((row) => row.column === "traceName")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
+        userId: eventFacets
+          .filter((row) => row.column === "userId")
+          .map((row) => ({
+            value: row.value,
+            count: Number(row.count),
+          })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   filterOptions: protectedProjectProcedure
@@ -411,6 +496,7 @@ export const scoresRouter = createTRPCRouter({
         })),
         userId: userIds.map((u) => ({ value: u.user, count: u.count })),
         stringValue: stringValues,
+        booleanValue: BOOLEAN_SCORE_VALUE_OPTIONS,
       };
     }),
   deleteMany: protectedProjectProcedure
@@ -507,10 +593,10 @@ export const scoresRouter = createTRPCRouter({
           };
 
       if (inflatedParams.traceId) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "annotations-trpc",
         });
 
         if (!clickhouseTrace) {
@@ -523,6 +609,7 @@ export const scoresRouter = createTRPCRouter({
         }
       } else if (inflatedParams.sessionId) {
         // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const traceIdentifiers = await getTracesIdentifierForSession(
           input.projectId,
           inflatedParams.sessionId,
@@ -675,10 +762,10 @@ export const scoresRouter = createTRPCRouter({
             };
 
         if (inflatedParams.traceId) {
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
-            clickhouseFeatureTag: "annotations-trpc",
           });
 
           if (!clickhouseTrace) {
@@ -691,6 +778,7 @@ export const scoresRouter = createTRPCRouter({
           }
         } else if (inflatedParams.sessionId) {
           // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const traceIdentifiers = await getTracesIdentifierForSession(
             input.projectId,
             inflatedParams.sessionId,
@@ -932,10 +1020,10 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,
-        clickhouseFeatureTag: "annotations-trpc",
       });
 
       if (!clickhouseTrace) {
@@ -1057,7 +1145,7 @@ export const scoresRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
         fromTimestamp: z.date().optional(),
         toTimestamp: z.date().optional(),
       }),

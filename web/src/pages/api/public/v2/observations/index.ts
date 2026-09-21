@@ -10,22 +10,50 @@ import {
   GetObservationsV2Response,
   encodeCursor,
 } from "@/src/features/public-api/types/observations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
+    action: "traces:read",
+    allowInAppAgentKey: true,
     querySchema: GetObservationsV2Query,
     responseSchema: GetObservationsV2Response,
     fn: async ({ query, auth }) => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") {
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
-          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+          "The observations v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 
       // Extract field groups and metadata expansion keys
       const fieldGroups = query.fields ?? undefined;
       const expandMetadataKeys = query.expandMetadata ?? undefined;
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromStartTime ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "startTime",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toStartTime
+              ? [
+                  {
+                    column: "startTime",
+                    operator: "<" as const,
+                    value: new Date(query.toStartTime),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const filterProps = {
         projectId: auth.scope.projectId,
@@ -33,37 +61,42 @@ export default withMiddlewares({
         limit: query.limit,
         traceId: query.traceId ?? undefined,
         userId: query.userId ?? undefined,
+        sessionId: query.sessionId ?? undefined,
         level: query.level ?? undefined,
         name: query.name ?? undefined,
         type: query.type ?? undefined,
         environment: query.environment ?? undefined,
         parentObservationId: query.parentObservationId ?? undefined,
-        fromStartTime: query.fromStartTime ?? undefined,
+        isRootObservation: query.isRootObservation,
+        fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toStartTime: query.toStartTime ?? undefined,
         version: query.version ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
         cursor: query.cursor ?? undefined,
         fields: fieldGroups,
         expandMetadataKeys,
       };
 
       // Fetch observations from events table with field groups applied at query time
-      const items = await getObservationsV2FromEventsTableForPublicApi({
-        ...filterProps,
-        fields: filterProps.fields ?? [], // V2 requires fields array
-      });
+      const items =
+        await getObservationsV2FromEventsTableForPublicApi(filterProps);
 
       // Determine if there are more results (we fetched limit+1)
       const hasMore = items.length > query.limit;
       const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
 
-      // Convert empty parent_observation_id to null for consistency with v1
-      const transformedItems = dataToReturn.map((item) => {
-        if (item.parentObservationId === "") {
-          return { ...item, parentObservationId: null };
-        }
-        return item;
-      });
+      // Normalize for the wire format:
+      // - empty parent_observation_id -> null (v1 parity)
+      // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
+      const transformedItems = dataToReturn.map((item) => ({
+        ...item,
+        parentObservationId:
+          item.parentObservationId === "" ? null : item.parentObservationId,
+        modelId: item.modelId ?? null,
+        inputPrice: item.inputPrice?.toString() ?? null,
+        outputPrice: item.outputPrice?.toString() ?? null,
+        totalPrice: item.totalPrice?.toString() ?? null,
+      }));
 
       // Generate cursor if there are more results
       const lastItemIdx = dataToReturn.length - 1;

@@ -4,11 +4,11 @@ import {
   type FilterState,
   type ScoreDataTypeType,
 } from "@langfuse/shared";
-import { type ViewVersion } from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared/query";
 import { createTracesTimeFilter } from "@/src/features/dashboard/lib/dashboard-utils";
 import React from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { Chart } from "@/src/features/widgets";
 import { scoreHistogramToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 
 export function NumericScoreHistogram(props: {
@@ -17,9 +17,9 @@ export function NumericScoreHistogram(props: {
   source: ScoreSourceType;
   dataType: Extract<ScoreDataTypeType, "NUMERIC" | "BOOLEAN">;
   globalFilterState: FilterState;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
 }) {
-  const version = props.metricsVersion ?? "v1";
+  const version = props.metricsVersion;
   const histogram = api.dashboard.scoreHistogram.useQuery(
     {
       projectId: props.projectId,

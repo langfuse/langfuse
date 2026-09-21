@@ -1,0 +1,400 @@
+/**
+ * TraceLogView - Log view of trace observations with conditional virtualization.
+ *
+ * Features:
+ * - Conditional virtualization based on observation count threshold
+ * - Non-virtualized (< 350 obs): All rows in DOM, full features
+ * - Virtualized (>= 350 obs): Only visible rows rendered
+ * - Lazy I/O loading (data fetched only when row is expanded)
+ * - Two view modes: chronological (by time) and tree-order (DFS hierarchy)
+ * - Search filtering by name, type, or ID
+ * - Expandable rows with full I/O preview
+ * - Copy JSON functionality
+ *
+ * Uses JSONTableView for table rendering with domain-specific column definitions.
+ *
+ * **IMPORTANT: Context Dependencies**
+ * This component MUST be rendered within the following context providers:
+ * - `TraceDataProvider` - Provides tree, observations, and scores data
+ * - `ViewPreferencesProvider` - Provides logViewMode, logViewTreeStyle preferences
+ * - `JsonExpansionProvider` - Manages expansion state persistence
+ *
+ * Example usage:
+ * ```tsx
+ * <TraceDataProvider trace={trace} observations={observations}>
+ *   <ViewPreferencesProvider>
+ *     <JsonExpansionProvider>
+ *       <TraceLogView traceId={id} projectId={pid} currentView="pretty" />
+ *     </JsonExpansionProvider>
+ *   </ViewPreferencesProvider>
+ * </TraceDataProvider>
+ * ```
+ */
+
+import { useState, useMemo, useCallback } from "react";
+import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { JSONTableView } from "@/src/features/traces/components/JSONTableView";
+import { type FlatLogItem } from "./log-view-types";
+import { LogViewToolbar } from "./LogViewToolbar";
+import { LogViewExpandedContent } from "./LogViewExpandedContent";
+import { LogViewTreeIndent } from "./LogViewTreeIndent";
+import { LogViewJsonMode } from "./LogViewJsonMode";
+import { useLogViewAllObservationsIO } from "./useLogViewAllObservationsIO";
+import { useObservationIOLoadedCount } from "./useLogViewObservationIO";
+import { useLogViewPreferences } from "./useLogViewPreferences";
+import { useLogViewDownload } from "./useLogViewDownload";
+import { useLogViewColumns } from "./useLogViewColumns";
+import { flattenChronological } from "@/src/features/traces/components/TraceLogView/fns/flattenChronological";
+import { filterBySearch } from "@/src/features/traces/components/TraceLogView/fns/filterBySearch";
+import { flattenTreeOrder } from "@/src/features/traces/components/TraceLogView/fns/flattenTreeOrder";
+
+export interface TraceLogViewProps {
+  traceId: string;
+  projectId: string;
+  currentView?: JsonViewPreference;
+  /** Which detail panel hosts this log view — analytics segmentation only. */
+  target?: "trace" | "observation";
+}
+
+/**
+ * Log View controls reported as `action` on
+ * `trace_detail:log_view_interaction`. Kept as a union so a typo cannot
+ * silently create a new action value in PostHog. `view_mode_switch` is the one
+ * action emitted by the hosting detail views instead — the Formatted/JSON
+ * toggle lives in their tabs bar, not in this subtree.
+ */
+type LogViewAction =
+  | "search_focus"
+  | "indent_toggle"
+  | "milliseconds_toggle"
+  | "expand_all"
+  | "collapse_all"
+  | "row_expand"
+  | "row_collapse"
+  | "copy_json"
+  | "json_mode_collapse_toggle";
+
+// Import configuration constants
+const {
+  virtualizationThreshold: LOG_VIEW_VIRTUALIZATION_THRESHOLD,
+  downloadThreshold: LOG_VIEW_DOWNLOAD_THRESHOLD,
+  rowHeight: { collapsed: COLLAPSED_ROW_HEIGHT, expanded: EXPANDED_ROW_HEIGHT },
+  maxIndentDepth: INDENT_DEPTH_THRESHOLD,
+} = TRACE_VIEW_CONFIG.logView;
+
+// Re-export thresholds for use in parent components
+export const TraceLogView = ({
+  traceId,
+  projectId,
+  currentView = "pretty",
+  target = "trace",
+}: TraceLogViewProps) => {
+  const { roots, observations } = useTraceData();
+  const { logViewMode, logViewTreeStyle } = useViewPreferences();
+  const { formattedExpansion, setFormattedFieldExpansion } = useJsonExpansion();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
+
+  // Single funnel for every Log View control so `action`/`target`/dimensions
+  // can never drift between call sites. Never pass ids or search text.
+  const captureLogView = useCallback(
+    (action: LogViewAction, properties?: Record<string, unknown>) => {
+      capture("trace_detail:log_view_interaction", {
+        action,
+        target,
+        ...properties,
+        ...analyticsDimensions,
+      });
+    },
+    [capture, target, analyticsDimensions],
+  );
+
+  // Determine if we should virtualize based on observation count
+  const isVirtualized =
+    observations.length >= LOG_VIEW_VIRTUALIZATION_THRESHOLD;
+
+  // Determine if download/copy should use cached I/O only (vs loading all)
+  const isCopyOrDownloadCacheOnly =
+    observations.length >= LOG_VIEW_DOWNLOAD_THRESHOLD;
+
+  // Get expanded keys from context (persisted in sessionStorage)
+  // Uses dynamic key format: logViewRows:${traceId}
+  const expandedRowsKey = `logViewRows:${traceId}`;
+
+  const expandedKeys = useMemo(() => {
+    const expandedRowsState = (formattedExpansion[expandedRowsKey] ??
+      {}) as Record<string, boolean>;
+    return new Set(
+      Object.entries(expandedRowsState)
+        .filter(([, isExpanded]) => isExpanded)
+        .map(([id]) => id),
+    );
+  }, [formattedExpansion, expandedRowsKey]);
+
+  // Update expanded keys in context
+  const setExpandedKeys = useCallback(
+    (keysOrUpdater: Set<string> | ((prev: Set<string>) => Set<string>)) => {
+      const newKeys =
+        typeof keysOrUpdater === "function"
+          ? keysOrUpdater(expandedKeys)
+          : keysOrUpdater;
+
+      // Convert Set to Record<string, boolean>
+      const newState: Record<string, boolean> = {};
+      newKeys.forEach((id) => {
+        newState[id] = true;
+      });
+
+      setFormattedFieldExpansion(expandedRowsKey, newState);
+    },
+    [expandedKeys, setFormattedFieldExpansion, expandedRowsKey],
+  );
+
+  // Row chevron toggles only. `handleToggleExpandAll` keeps calling the raw
+  // setter so a bulk toggle is not also counted as a row toggle.
+  const handleExpandedKeysChange = useCallback(
+    (keys: Set<string>) => {
+      captureLogView(
+        keys.size > expandedKeys.size ? "row_expand" : "row_collapse",
+      );
+      setExpandedKeys(keys);
+    },
+    [captureLogView, expandedKeys, setExpandedKeys],
+  );
+
+  // Local state for search
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // State for JSON view collapse
+  const [jsonViewCollapsed, setJsonViewCollapsed] = useState(false);
+
+  // Preferences from localStorage
+  const {
+    indentEnabled: indentEnabledPref,
+    setIndentEnabled,
+    showMilliseconds,
+    setShowMilliseconds,
+  } = useLogViewPreferences();
+
+  // Disable indent when tree is too deep (max childrenDepth across all roots)
+  const maxChildrenDepth = useMemo(() => {
+    if (roots.length === 0) return 0;
+    return Math.max(...roots.map((r) => r.childrenDepth));
+  }, [roots]);
+  const indentDisabled = maxChildrenDepth > INDENT_DEPTH_THRESHOLD;
+  const indentEnabled = indentEnabledPref && !indentDisabled;
+
+  // Flatten tree based on mode
+  const allItems = useMemo(() => {
+    return logViewMode === "chronological"
+      ? flattenChronological(roots)
+      : flattenTreeOrder(roots);
+  }, [roots, logViewMode]);
+
+  // Apply search filter
+  const flatItems = useMemo(() => {
+    return filterBySearch(allItems, searchQuery);
+  }, [allItems, searchQuery]);
+
+  // Tree style: flat for chronological, use preference for tree-order
+  const treeStyle = logViewMode === "chronological" ? "flat" : logViewTreeStyle;
+
+  // Column definitions
+  const columns = useLogViewColumns({
+    indentEnabled,
+    showMilliseconds,
+    projectId,
+    traceId,
+  });
+
+  // Render tree indentation for indented mode
+  const renderRowPrefix = useCallback(
+    (item: FlatLogItem) => {
+      if (treeStyle !== "indented" || item.node.depth <= 0) return null;
+
+      return (
+        <LogViewTreeIndent
+          treeLines={item.treeLines}
+          isLastSibling={item.isLastSibling}
+        />
+      );
+    },
+    [treeStyle],
+  );
+
+  // Render expanded content with JSON expansion context integration
+  // Always persist expansion state regardless of virtualization mode
+  const renderExpanded = useCallback(
+    (item: FlatLogItem) => {
+      const observationExpansionKey = `log:${item.node.id}`;
+
+      return (
+        <LogViewExpandedContent
+          node={item.node}
+          traceId={traceId}
+          projectId={projectId}
+          currentView={currentView}
+          externalExpansionState={formattedExpansion[observationExpansionKey]}
+          onExternalExpansionChange={(exp) =>
+            setFormattedFieldExpansion(
+              observationExpansionKey,
+              exp as Record<string, boolean>,
+            )
+          }
+        />
+      );
+    },
+    [
+      traceId,
+      projectId,
+      currentView,
+      formattedExpansion,
+      setFormattedFieldExpansion,
+    ],
+  );
+
+  // Track if all rows are expanded (for non-virtualized mode)
+  const allRowsExpanded = useMemo(() => {
+    if (flatItems.length === 0) return false;
+    return flatItems.every((item) => expandedKeys.has(item.node.id));
+  }, [flatItems, expandedKeys]);
+
+  // Toggle expand/collapse all (non-virtualized mode only)
+  const handleToggleExpandAll = useCallback(() => {
+    captureLogView(allRowsExpanded ? "collapse_all" : "expand_all");
+    if (allRowsExpanded) {
+      // Collapse all
+      setExpandedKeys(new Set());
+    } else {
+      // Expand all
+      const allKeys = new Set(flatItems.map((item) => item.node.id));
+      setExpandedKeys(allKeys);
+    }
+  }, [allRowsExpanded, flatItems, setExpandedKeys, captureLogView]);
+
+  // On-demand loading hook for observation I/O data
+  // Does NOT auto-fetch - call loadAllData() or buildDataFromCache() when needed
+  const allObservationsIO = useLogViewAllObservationsIO({
+    items: flatItems,
+    traceId,
+    projectId,
+  });
+
+  // Track loaded observation count for cache-only mode UX
+  const { loaded: loadedObservationCount } = useObservationIOLoadedCount({
+    items: flatItems,
+    traceId,
+    projectId,
+  });
+
+  // Copy handler
+  const { handleCopyJson: copyJson, isActionLoading: isCopyOrDownloadLoading } =
+    useLogViewDownload({
+      isCacheOnly: isCopyOrDownloadCacheOnly,
+      allObservationsData: allObservationsIO.data,
+      isLoadingAllData: allObservationsIO.isLoading,
+      failedObservationIds: allObservationsIO.failedObservationIds,
+      loadAllData: allObservationsIO.loadAllData,
+      buildDataFromCache: allObservationsIO.buildDataFromCache,
+    });
+
+  const handleCopyJson = useCallback(() => {
+    captureLogView("copy_json", { cacheOnly: isCopyOrDownloadCacheOnly });
+    return copyJson();
+  }, [captureLogView, copyJson, isCopyOrDownloadCacheOnly]);
+
+  // Toggle JSON view collapse
+  const handleToggleJsonCollapse = useCallback(() => {
+    captureLogView("json_mode_collapse_toggle", {
+      collapsed: !jsonViewCollapsed,
+    });
+    setJsonViewCollapsed((prev) => !prev);
+  }, [captureLogView, jsonViewCollapsed]);
+
+  // Check if there are any observations at all
+  const hasNoObservations = allItems.length === 0;
+  const hasNoSearchResults = !hasNoObservations && flatItems.length === 0;
+
+  return (
+    <div className="flex h-full w-full flex-col overflow-hidden">
+      {/* Toolbar with search and actions */}
+      <LogViewToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onSearchFocus={() => captureLogView("search_focus")}
+        isVirtualized={isVirtualized}
+        observationCount={observations.length}
+        loadedObservationCount={loadedObservationCount}
+        onToggleExpandAll={handleToggleExpandAll}
+        allRowsExpanded={allRowsExpanded}
+        onCopyJson={handleCopyJson}
+        isCopyOrDownloadLoading={isCopyOrDownloadLoading}
+        isCopyOrDownloadCacheOnly={isCopyOrDownloadCacheOnly}
+        currentView={currentView}
+        indentEnabled={indentEnabled}
+        indentDisabled={indentDisabled}
+        onToggleIndent={() => {
+          captureLogView("indent_toggle", { enabled: !indentEnabledPref });
+          setIndentEnabled(!indentEnabledPref);
+        }}
+        showMilliseconds={showMilliseconds}
+        onToggleMilliseconds={() => {
+          captureLogView("milliseconds_toggle", { enabled: !showMilliseconds });
+          setShowMilliseconds(!showMilliseconds);
+        }}
+      />
+
+      {/* Empty states */}
+      {hasNoObservations && (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-muted-foreground text-sm">
+            No observations in this trace
+          </div>
+        </div>
+      )}
+
+      {hasNoSearchResults && (
+        <div className="flex flex-1 items-center justify-center">
+          <div className="text-muted-foreground text-sm">
+            No observations match &quot;{searchQuery}&quot;
+          </div>
+        </div>
+      )}
+
+      {/* JSON view mode - only available for non-virtualized traces */}
+      {flatItems.length > 0 && currentView === "json" && !isVirtualized && (
+        <LogViewJsonMode
+          items={flatItems}
+          traceId={traceId}
+          projectId={projectId}
+          isCollapsed={jsonViewCollapsed}
+          onToggleCollapse={handleToggleJsonCollapse}
+        />
+      )}
+
+      {/* Table view mode - render as expandable table */}
+      {flatItems.length > 0 && currentView !== "json" && (
+        <JSONTableView
+          items={flatItems}
+          columns={columns}
+          getItemKey={(item) => item.node.id}
+          expandable
+          renderExpanded={renderExpanded}
+          expandedKeys={expandedKeys}
+          onExpandedKeysChange={handleExpandedKeysChange}
+          virtualized={isVirtualized}
+          overscan={100}
+          collapsedRowHeight={COLLAPSED_ROW_HEIGHT}
+          expandedRowHeight={EXPANDED_ROW_HEIGHT}
+          renderRowPrefix={renderRowPrefix}
+        />
+      )}
+    </div>
+  );
+};

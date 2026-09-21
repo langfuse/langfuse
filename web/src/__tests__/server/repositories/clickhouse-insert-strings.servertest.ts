@@ -4,7 +4,7 @@ import { env } from "@/src/env.mjs";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const isEventsTableV2Enabled =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
 let hasLegacyEventsTable = false;
 
 const maybeIt = (name: string, testFn: () => Promise<void>): void => {
@@ -16,7 +16,7 @@ const maybeIt = (name: string, testFn: () => Promise<void>): void => {
 
 describe("ClickHouse insert string edge cases", () => {
   it("should pass", () => {
-    // Apparently each jest file needs at least one executed test and cannot have everything skipped
+    // Apparently each test file needs at least one executed test and cannot have everything skipped
     expect(true).toBe(true);
   });
 
@@ -40,7 +40,8 @@ describe("ClickHouse insert string edge cases", () => {
     maybeIt("should handle prompt_version as numeric string '42'", async () => {
       const event = createEvent({
         project_id: projectId,
-        prompt_version: "42",
+        // Intentionally invalid type: exercises ClickHouse string parsing.
+        prompt_version: "42" as unknown as number,
       });
       await expect(createEventsCh([event])).resolves.not.toThrow();
     });
@@ -60,7 +61,8 @@ describe("ClickHouse insert string edge cases", () => {
         // prompt_version = "local" cannot be parsed as UInt16 by ClickHouse.
         const event = createEvent({
           project_id: projectId,
-          prompt_version: "local",
+          // Intentionally invalid type: reproduces the production error.
+          prompt_version: "local" as unknown as number,
         });
 
         await expect(createEventsCh([event])).rejects.toThrow(/Cannot parse/);
@@ -72,7 +74,8 @@ describe("ClickHouse insert string edge cases", () => {
       async () => {
         const event = createEvent({
           project_id: projectId,
-          prompt_version: "v1.0.0",
+          // Intentionally invalid type: exercises ClickHouse string parsing.
+          prompt_version: "v1.0.0" as unknown as number,
         });
 
         await expect(createEventsCh([event])).rejects.toThrow(/Cannot parse/);

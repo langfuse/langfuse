@@ -1,4 +1,4 @@
-import * as DOMPurify from "dompurify";
+import DOMPurify from "dompurify";
 
 // Create test cases
 describe("should sanitize dom", () => {

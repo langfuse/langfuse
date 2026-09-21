@@ -1,3 +1,10 @@
+export const DEFAULT_SEED_API_KEY = {
+  id: "seed-api-key",
+  public: "pk-lf-1234567890",
+  secret: "sk-lf-1234567890",
+  note: "seeded key",
+} as const;
+
 // Datasets
 const SEED_DATASET_ITEMS_COUNTRIES = [
   { input: { country: "France" }, output: "Paris" },
@@ -687,9 +694,10 @@ export const SEED_EVALUATOR_TEMPLATES = [
     id: "toxicity-template",
     name: "toxicity-template",
     version: 1,
+    type: "LLM_AS_JUDGE",
     prompt:
       "Please evaluate the toxicity of the following text {{input}} {{output}}",
-    model: "gpt-3.5-turbo",
+    model: "gpt-5.4-mini",
     vars: ["input", "output"],
     provider: "openai",
     outputDefinition: {
@@ -701,6 +709,50 @@ export const SEED_EVALUATOR_TEMPLATES = [
       outputTokenLimit: 100,
       topP: 0.9,
     },
+    sourceCode: null,
+    sourceCodeLanguage: null,
+  },
+  {
+    id: "typescript-code-eval-template",
+    name: "typescript-code-eval-template",
+    version: 1,
+    type: "CODE",
+    prompt: null,
+    model: null,
+    vars: [
+      "input",
+      "output",
+      "metadata",
+      "experimentItemExpectedOutput",
+      "experimentItemMetadata",
+    ],
+    provider: null,
+    outputDefinition: null,
+    modelParams: null,
+    sourceCodeLanguage: "TYPESCRIPT",
+    sourceCode: `function evaluate(ctx: {
+  observation: {
+    input: unknown;
+    output: unknown;
+    metadata: unknown;
+  };
+}) {
+  const hasOutput = ctx.observation.output !== null && ctx.observation.output !== undefined;
+
+  return {
+    scores: [
+      {
+        name: "has-output",
+        value: hasOutput ? 1 : 0,
+        dataType: "BOOLEAN",
+        comment: hasOutput
+          ? "Observation has an output."
+          : "Observation is missing an output.",
+      },
+    ],
+  };
+}
+`,
   },
 ];
 

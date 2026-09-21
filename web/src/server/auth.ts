@@ -1,19 +1,26 @@
+/* eslint-disable no-nested-ternary */
 import { type GetServerSidePropsContext } from "next";
 import {
   getServerSession,
-  type User,
   type NextAuthOptions,
   type Session,
 } from "next-auth";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@langfuse/shared/src/db";
+import { isInAppAgentInstanceEnabled } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   hashPassword,
   verifyPassword,
 } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
-import { parseFlags } from "@/src/features/feature-flags/utils";
+import {
+  parseFlags,
+  parseFlagsWithOrganizationDefaults,
+} from "@/src/features/feature-flags/utils";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -38,14 +45,22 @@ import WorkOSProvider from "next-auth/providers/workos";
 import WordPressProvider from "next-auth/providers/wordpress";
 import { type Provider } from "next-auth/providers/index";
 import { getCookieName, getCookieOptions } from "./utils/cookies";
+import { nextAuthLogger } from "./utils/nextAuthLogger";
+import {
+  getRequestCookies,
+  isValidCallbackUrl,
+} from "./utils/nextAuthCallbackUrl";
 import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
 } from "@/src/ee/features/multi-tenant-sso/utils";
-import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
+import {
+  ENTERPRISE_SSO_REQUIRED_MESSAGE,
+  MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
+} from "@/src/features/auth/constants";
 import { z } from "zod";
-import { CloudConfigSchema } from "@langfuse/shared";
+import { CloudConfigSchema, projectRoleAccessRights } from "@langfuse/shared";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -55,35 +70,19 @@ import {
   instrumentAsync,
   logger,
   resolveProjectRole,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
 import {
   getOrganizationPlanServerSide,
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
-import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
-
-function canCreateOrganizations(userEmail: string | null): boolean {
-  const instancePlan = getSelfHostedInstancePlanServerSide();
-
-  // if no allowlist is set or no entitlement for self-host-allowed-organization-creators, allow all users to create organizations
-  if (
-    !env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS ||
-    !hasEntitlementBasedOnPlan({
-      plan: instancePlan,
-      entitlement: "self-host-allowed-organization-creators",
-    })
-  )
-    return true;
-
-  if (!userEmail) return false;
-
-  const allowedOrgCreators =
-    env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS.toLowerCase().split(",");
-  return allowedOrgCreators.includes(userEmail.toLowerCase());
-}
+import {
+  canToggleV4,
+  isV4UpgradeUiAvailable,
+} from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -142,13 +141,18 @@ const staticProviders: Provider[] = [
       );
       if (!isValidPassword) throw new Error("Invalid credentials");
 
-      const userObj: User = {
+      const userObj = {
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
-        featureFlags: parseFlags(dbUser.featureFlags),
+        featureFlags: parseFlags(dbUser.featureFlags, {
+          email: dbUser.email,
+          // The full session callback resolves deployment and rollout
+          // availability before applying employee defaults.
+          v4BetaEnabled: false,
+        }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
         organizations: [],
       };
@@ -162,6 +166,8 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
+      // SMTP vs SES dispatch happens inside sendVerificationRequest via
+      // createMailTransport; NextAuth itself only forwards this string.
       server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
@@ -185,6 +191,7 @@ if (
       clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
       issuer: env.AUTH_CUSTOM_ISSUER,
       idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
+      fetchUserInfo: env.AUTH_CUSTOM_FETCH_USERINFO === "true",
       allowDangerousEmailAccountLinking:
         env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
       authorization: {
@@ -192,6 +199,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
     }),
@@ -206,6 +219,12 @@ if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
         env.AUTH_GOOGLE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_GOOGLE_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GOOGLE_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_GOOGLE_CHECKS ? { checks: env.AUTH_GOOGLE_CHECKS } : {}),
     }),
@@ -225,6 +244,12 @@ if (
         env.AUTH_OKTA_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_OKTA_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_OKTA_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_OKTA_CHECKS ? { checks: env.AUTH_OKTA_CHECKS } : {}),
     }),
@@ -243,6 +268,12 @@ if (
       env.AUTH_AUTHENTIK_ALLOW_ACCOUNT_LINKING === "true",
     client: {
       token_endpoint_auth_method: env.AUTH_AUTHENTIK_CLIENT_AUTH_METHOD,
+      ...(env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG
+        ? {
+            id_token_signed_response_alg:
+              env.AUTH_AUTHENTIK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+          }
+        : {}),
     },
     ...(env.AUTH_AUTHENTIK_CHECKS ? { checks: env.AUTH_AUTHENTIK_CHECKS } : {}),
   });
@@ -290,6 +321,12 @@ if (
         env.AUTH_ONELOGIN_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_ONELOGIN_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_ONELOGIN_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_ONELOGIN_CHECKS ? { checks: env.AUTH_ONELOGIN_CHECKS } : {}),
     }),
@@ -309,6 +346,12 @@ if (
         env.AUTH_AUTH0_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AUTH0_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AUTH0_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AUTH0_CHECKS ? { checks: env.AUTH_AUTH0_CHECKS } : {}),
     }),
@@ -341,6 +384,12 @@ if (
       client: {
         token_endpoint_auth_method:
           env.AUTH_CLICKHOUSE_CLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CLICKHOUSE_CLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_CLICKHOUSE_CLOUD_CHECKS
         ? { checks: env.AUTH_CLICKHOUSE_CLOUD_CHECKS }
@@ -353,6 +402,10 @@ if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
     GitHubProvider({
       clientId: env.AUTH_GITHUB_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -372,6 +425,7 @@ if (
       clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
       clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
       enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
       allowDangerousEmailAccountLinking:
         env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
       client: {
@@ -395,6 +449,12 @@ if (env.AUTH_GITLAB_CLIENT_ID && env.AUTH_GITLAB_CLIENT_SECRET)
       issuer: env.AUTH_GITLAB_ISSUER,
       client: {
         token_endpoint_auth_method: env.AUTH_GITLAB_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_GITLAB_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       authorization: {
         url: `${env.AUTH_GITLAB_URL}/oauth/authorize`,
@@ -420,6 +480,12 @@ if (
         env.AUTH_AZURE_AD_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_AZURE_AD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_AZURE_AD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_AZURE_AD_CHECKS ? { checks: env.AUTH_AZURE_AD_CHECKS } : {}),
     }),
@@ -439,6 +505,12 @@ if (
         env.AUTH_COGNITO_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_COGNITO_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_COGNITO_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_COGNITO_CHECKS
         ? { checks: env.AUTH_COGNITO_CHECKS }
@@ -464,6 +536,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_KEYCLOAK_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_KEYCLOAK_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_KEYCLOAK_CHECKS ? { checks: env.AUTH_KEYCLOAK_CHECKS } : {}),
     }),
@@ -486,6 +564,12 @@ if (
       },
       client: {
         token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_JUMPCLOUD_CHECKS
         ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
@@ -515,6 +599,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
         env.AUTH_WORDPRESS_ALLOW_ACCOUNT_LINKING === "true",
       client: {
         token_endpoint_auth_method: env.AUTH_WORDPRESS_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_WORDPRESS_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
       },
       ...(env.AUTH_WORDPRESS_CHECKS
         ? { checks: env.AUTH_WORDPRESS_CHECKS }
@@ -525,7 +615,12 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
-const extendedPrismaAdapter: Adapter = {
+// Factory instead of a static adapter so that per-request signup attribution
+// (ad-platform click ids from first-party cookies) can reach the signup event
+// captured for new SSO users.
+const createExtendedPrismaAdapter = (signupAttribution?: {
+  adClickIds?: AdClickIds;
+}): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
@@ -545,7 +640,10 @@ const extendedPrismaAdapter: Adapter = {
 
     const user = await prismaAdapter.createUser(profile);
 
-    await createProjectMembershipsOnSignup(user);
+    await createProjectMembershipsOnSignup(user, {
+      userWasJustCreated: true,
+      adClickIds: signupAttribution?.adClickIds,
+    });
 
     return user;
   },
@@ -584,85 +682,39 @@ const extendedPrismaAdapter: Adapter = {
     // This is idempotent - won't duplicate or overwrite existing memberships
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
     if (user) {
-      await createProjectMembershipsOnSignup(user);
+      await createProjectMembershipsOnSignup(user, {
+        adClickIds: signupAttribution?.adClickIds,
+      });
     }
   },
 
-  // Make email-OTP login that is used for password reset safer
-  async useVerificationToken(params) {
-    if (!prismaAdapter.useVerificationToken)
-      throw new Error("useVerificationToken not implemented");
-
-    try {
-      // First, attempt to use the token with the default behavior
-      const result = await prismaAdapter.useVerificationToken(params);
-
-      if (result) {
-        // Token was valid and successfully used
-        logger.info("OTP verification successful", {
-          identifier: params.identifier,
-          timestamp: new Date().toISOString(),
-        });
-        return result;
-      }
-
-      // If no result, the token was either invalid or expired
-      // Log security event for monitoring
-      logger.info("Failed OTP verification attempt", {
-        identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****", // Log partial token for debugging
-        timestamp: new Date().toISOString(),
-        reason: "invalid_or_expired",
-      });
-
-      // Delete any existing token for this identifier to prevent enumeration
-      await prisma.verificationToken.deleteMany({
-        where: {
-          identifier: params.identifier,
-        },
-      });
-
-      return null;
-    } catch (error) {
-      // Log security event for any error during token verification
-      logger.error("OTP verification error", {
-        identifier: params.identifier,
-        token: params.token?.substring(0, 2) + "****",
-        timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // On any error (invalid token, etc.), delete all tokens for this identifier
-      // to prevent enumeration attacks
-      try {
-        await prisma.verificationToken.deleteMany({
-          where: {
-            identifier: params.identifier,
-          },
-        });
-      } catch (deleteError) {
-        // Log deletion error but don't throw to avoid masking original error
-        logger.error(
-          "Failed to delete verification tokens on error",
-          deleteError,
-        );
-      }
-
-      // Re-throw the original error
-      throw error;
-    }
+  // Email one-time codes are consumed only by `credentials.resetPassword`
+  // (consumeEmailOtpAndUpdatePassword), which validates the code and writes
+  // the new password in one transaction. NextAuth calls this adapter method
+  // from GET /api/auth/callback/email before it consults `callbacks.signIn`,
+  // so returning null here is what keeps that route from logging a user in
+  // without a password. It also leaves the stored code untouched, so a
+  // prefetching mail scanner or a guessed request cannot burn a valid code.
+  async useVerificationToken() {
+    return null;
   },
-};
+});
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
+ * @param signupAttribution - per-request marketing attribution (ad-platform
+ * click ids) attached to the signup analytics event if the request results
+ * in a new user. Only passed by the NextAuth API route.
+ *
  * @see https://next-auth.js.org/configuration/options
  */
-export async function getAuthOptions(): Promise<NextAuthOptions> {
+export async function getAuthOptions(signupAttribution?: {
+  adClickIds?: AdClickIds;
+}): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
   try {
     dynamicSsoProviders = await loadSsoProviders();
@@ -673,16 +725,56 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
   const providers = [...staticProviders, ...dynamicSsoProviders];
 
   const data: NextAuthOptions = {
+    logger: nextAuthLogger,
     session: {
       strategy: "jwt",
-      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // convert minutes to seconds, default is set in env.mjs
+      maxAge: env.AUTH_SESSION_MAX_AGE * 60, // minutes → seconds
     },
     callbacks: {
+      // Harden the callback-URL redirect against malformed input. NextAuth's
+      // default `redirect` callback calls `new URL(url)` on the caller-supplied
+      // `callbackUrl`; for a non-relative, unparsable value (e.g. the
+      // `.....///…/windows/win.ini` path-traversal payloads endpoint scanners
+      // send) that throws an uncaught `TypeError: ERR_INVALID_URL`, which
+      // escapes NextAuth's own error handling and surfaces as an HTTP 500 on
+      // POST /api/auth/callback/* and /api/auth/signin/*. Guarding the parse
+      // keeps the default same-origin semantics while turning malformed input
+      // into a safe redirect to baseUrl instead of a 500.
+      redirect({ url, baseUrl }) {
+        if (!isValidCallbackUrl(url)) return baseUrl;
+
+        try {
+          // Relative callback URLs are always safe to resolve against baseUrl.
+          if (url.startsWith("/")) return `${baseUrl}${url}`;
+          // Absolute URLs are only honored when same-origin.
+          if (new URL(url).origin === baseUrl) return url;
+        } catch {
+          // Malformed callbackUrl (e.g. scanner payload) — fall through.
+        }
+        return baseUrl;
+      },
+      async jwt({ token, user }) {
+        if (user) {
+          const loginAt = await getSessionLoginAt(token.email!);
+          token.loginAt = loginAt.getTime();
+        }
+        return token;
+      },
       async session({ session, token }): Promise<Session> {
         return instrumentAsync({ name: "next-auth-session" }, async (span) => {
           const dbUser = await prisma.user.findUnique({
             where: {
               email: token.email!.toLowerCase(),
+              OR: [
+                { sessionsExpiredAt: null },
+                {
+                  // Strict: a token issued in the same millisecond as revocation
+                  // is treated as revoked.
+                  sessionsExpiredAt: {
+                    lt: new Date(token.loginAt ?? 0),
+                  },
+                },
+              ],
             },
             select: {
               id: true,
@@ -690,10 +782,16 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               email: true,
               image: true,
               emailVerified: true,
+              password: true,
+              createdAt: true,
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
               organizationMemberships: {
+                // Newest first so demo project is last for the `project/~/` sentinel
+                orderBy: {
+                  createdAt: "desc",
+                },
                 include: {
                   organization: {
                     include: {
@@ -702,6 +800,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           deletedAt: {
                             equals: null,
                           },
+                        },
+                        orderBy: {
+                          createdAt: "desc",
                         },
                       },
                     },
@@ -716,17 +817,56 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             },
           });
 
-          span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          // V4 preview availability is governed by the write mode:
+          // - events_only: the legacy traces/observations tables are no longer
+          //   written, so the events-aware UI is the only correct read path —
+          //   force the preview on for everyone and hide the toggle.
+          // - legacy: the events tables are not written, so the preview cannot
+          //   read — keep it off and hide the toggle.
+          // - dual: both table sets are written, so the preview is optional. On
+          //   Cloud we keep the date-based rollout (new orgs are auto-enabled
+          //   and locked on at signup/org-creation, older orgs may toggle).
+          //   Self-hosted dual deployments are opt-in, but only once they have
+          //   also set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true —
+          //   otherwise feature paths still gated on that flag would silently
+          //   fall back to legacy tables while the core UI reads events.
+          const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+          const isLangfuseCloud = Boolean(
+            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+          );
+          // In dual mode the preview is available on Cloud (governed by the
+          // rollout below) or on self-hosted deployments that opted into the
+          // preview read path via ALLOW_PREVIEW_OPT_IN.
+          const dualPreviewAvailable =
+            isLangfuseCloud ||
+            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+          const v4BetaEnabled =
+            v4WriteMode === "events_only" ||
+            (v4WriteMode === "dual" &&
+              dualPreviewAvailable &&
+              dbUser?.v4BetaEnabled === true);
+          // The migration/upgrade UI is a separate question from the preview
+          // read path above: it guides users through work that is still
+          // pending, so it does not require the user to have opted into v4
+          // reads first — the migration panel is where that opt-in is offered.
+          const v4UpgradeUiAvailable = isV4UpgradeUiAvailable({
+            isLangfuseCloud,
+            v4WriteMode,
+            dualPreviewAvailable,
+          });
 
           return {
             ...session,
             environment: {
               enableExperimentalFeatures:
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+              inAppAgentEnabled: isInAppAgentInstanceEnabled(),
+              aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
+              v4WriteMode,
             },
             user:
               dbUser !== null
@@ -740,7 +880,31 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: dbUser.v4BetaEnabled,
+                    v4BetaEnabled,
+                    v4UpgradeUiAvailable,
+                    canToggleV4:
+                      v4WriteMode === "dual" && dualPreviewAvailable
+                        ? isLangfuseCloud
+                          ? canToggleV4(
+                              {
+                                userCreatedAt: dbUser.createdAt,
+                                organizations:
+                                  dbUser.organizationMemberships.map(
+                                    (orgMembership) => ({
+                                      id: orgMembership.organization.id,
+                                      createdAt:
+                                        orgMembership.organization.createdAt,
+                                    }),
+                                  ),
+                                excludedOrganizationIds:
+                                  env.NEXT_PUBLIC_DEMO_ORG_ID
+                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                    : [],
+                              },
+                              { isLangfuseCloudAdmin: dbUser.admin },
+                            )
+                          : true
+                        : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
@@ -760,6 +924,19 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             >) ?? {},
                           aiFeaturesEnabled:
                             orgMembership.organization.aiFeaturesEnabled,
+                          aiTelemetryEnabled:
+                            orgMembership.organization.aiTelemetryEnabled,
+                          featureFlags: parseFlagsWithOrganizationDefaults(
+                            dbUser.featureFlags,
+                            orgMembership.organization.featureFlagOrgDefaults,
+                            {
+                              email: dbUser.email,
+                              v4BetaEnabled,
+                              aiGatewayEnabled: isGatewayEnabledForOrganization(
+                                orgMembership.organization.id,
+                              ),
+                            },
+                          ),
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {
@@ -781,6 +958,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                                     string,
                                     unknown
                                   >) ?? {},
+                                createdAt: project.createdAt.toISOString(),
                               };
                             })
                             // Only include projects where the user has the required role
@@ -799,28 +977,29 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       },
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
-                    featureFlags: parseFlags(dbUser.featureFlags),
+                    featureFlags: parseFlags(dbUser.featureFlags, {
+                      email: dbUser.email,
+                      v4BetaEnabled,
+                    }),
+                    hasPassword: Boolean(dbUser.password),
                   }
                 : null,
           };
         });
       },
-      async signIn({ user, account, profile }) {
-        return instrumentAsync({ name: "next-auth-sign-in" }, async (span) => {
+      async signIn({ user, account, profile, email: emailFlow }) {
+        return instrumentAsync({ name: "next-auth-sign-in" }, async () => {
           // Block sign in without valid user.email
           const email = user.email?.toLowerCase();
           if (!email) {
             logger.error("No email found in user object");
             throw new Error("No email found in user object");
           }
-          if (z.string().email().safeParse(email).success === false) {
+          if (z.email().safeParse(email).success === false) {
             logger.error("Invalid email found in user object");
             throw new Error("Invalid email found in user object");
           }
 
-          span.setAttributes({
-            "auth.email": email,
-          });
           // EE: Check custom SSO enforcement, enforce the specific SSO provider on email domain
           // This also blocks setting a password for an email that is enforced to use SSO via password reset flow
           const userDomain = email.split("@")[1].toLowerCase();
@@ -853,14 +1032,56 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               isMultiTenantSsoProvider &&
               ssoDomain.toLowerCase() !== userDomain.toLowerCase()
             ) {
-              throw new Error(
-                `This domain is not associated with this SSO provider.`,
+              // warn: the ONLY server-side signal for this rejection — the
+              // client render of the resulting /auth/error page is classified
+              // as expected and not captured (expectedAuthErrors.ts), and
+              // next-auth does not log signIn-callback throws itself.
+              logger.warn(
+                "Multi-tenant SSO provider used with a non-matching email domain",
+                { email, attemptedProvider: account.provider },
               );
+              throw new Error(MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE);
             }
           }
 
-          // Only allow sign in via email link if user is already in db as this is used for password reset
+          // The email provider only sends password-reset codes; it must never
+          // complete a login. NextAuth sets `email.verificationRequest` on the
+          // send request (POST /api/auth/signin/email) and omits it on the
+          // consume request (GET /api/auth/callback/email).
           if (account?.provider === "email") {
+            if (!emailFlow?.verificationRequest) {
+              logger.warn(
+                "Blocked email-OTP sign in via the NextAuth email callback",
+                { email },
+              );
+              return false;
+            }
+
+            // Codes only reset passwords, so there is nothing to send when
+            // password login is disabled.
+            if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
+              logger.info(
+                "Blocked email-OTP request because AUTH_DISABLE_USERNAME_PASSWORD is set",
+                { email },
+              );
+              return false;
+            }
+
+            // Only send a code if the user already exists, as this is used for password reset
+            const blockedDomains = getSSOBlockedDomains();
+            if (userDomain && blockedDomains.includes(userDomain)) {
+              logger.info(
+                "Blocked email-OTP sign in for domain enforced via AUTH_DOMAINS_WITH_SSO_ENFORCEMENT",
+                { email },
+              );
+              const params = new URLSearchParams({
+                reason: "sso_enforced_domain",
+              });
+              if (email) params.set("email", email);
+              params.set("attemptedProvider", "email");
+              return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/enterprise-sso-required?${params.toString()}`;
+            }
+
             const user = await prisma.user.findUnique({
               where: {
                 email: email,
@@ -868,14 +1089,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             });
             if (user) {
               return true;
-            } else {
-              // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
-              await new Promise((resolve) =>
-                setTimeout(resolve, Math.random() * 2000 + 200),
-              );
-              // Prevents sign in with email link if user does not exist
-              return false;
             }
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 2000 + 200),
+            );
+            // Prevents sign in with email link if user does not exist
+            return false;
           }
 
           // Optional configuration: validate authorised email domains for google provider
@@ -903,7 +1123,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
         });
       },
     },
-    adapter: extendedPrismaAdapter,
+    adapter: createExtendedPrismaAdapter(signupAttribution),
     providers,
     pages: {
       signIn: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/sign-in`,
@@ -989,5 +1209,66 @@ export const getServerAuthSession = async (ctx: {
   ctx.res.setHeader("Pragma", "no-cache");
   ctx.res.setHeader("Expires", "0");
 
+  sanitizeServerSessionCallbackUrl(
+    ctx.req,
+    ctx.req.url?.split("?")[0]?.slice(0, 200),
+  );
+
   return getServerSession(ctx.req, ctx.res, authOptions);
+};
+
+/**
+ * App Router equivalent of getServerAuthSession. Passing the request and
+ * response explicitly lets us sanitize the parsed cookies before next-auth's
+ * config assertion runs.
+ */
+export const getServerAuthSessionForRequest = async (request: Request) => {
+  const authOptions = await getAuthOptions();
+  const cookies = getRequestCookies(request);
+  const req = {
+    headers: Object.fromEntries(request.headers.entries()),
+    cookies,
+  } as GetServerSidePropsContext["req"];
+
+  sanitizeServerSessionCallbackUrl(
+    req,
+    new URL(request.url).pathname.slice(0, 200),
+  );
+
+  const res = {
+    getHeader: () => undefined,
+    setCookie: () => undefined,
+    setHeader: () => undefined,
+  } as unknown as GetServerSidePropsContext["res"];
+
+  const session = await getServerSession(req, res, authOptions);
+
+  // Match getServerSession's App Router behavior. The explicit request/response
+  // form above selects its Pages Router branch, which otherwise keeps expires.
+  if (!session) return session;
+
+  const { expires: _expires, ...sessionWithoutExpires } = session;
+
+  return sessionWithoutExpires as Session;
+};
+
+const sanitizeServerSessionCallbackUrl = (
+  req: { cookies?: Partial<Record<string, string>> },
+  path: string | undefined,
+) => {
+  const callbackUrlCookieName = getCookieName("next-auth.callback-url");
+  const callbackUrlCookie = req.cookies?.[callbackUrlCookieName];
+
+  if (!callbackUrlCookie || isValidCallbackUrl(callbackUrlCookie)) return;
+
+  const { [callbackUrlCookieName]: _invalidCallbackUrl, ...sanitizedCookies } =
+    req.cookies ?? {};
+  req.cookies = sanitizedCookies;
+
+  logger.warn(
+    "[NEXT_AUTH] Ignored invalid callback URL for server-side session",
+    {
+      path,
+    },
+  );
 };

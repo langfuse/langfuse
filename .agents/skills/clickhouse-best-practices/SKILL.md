@@ -25,9 +25,76 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 
 **Why rules take priority:** ClickHouse has specific behaviors (columnar storage, sparse indexes, merge tree mechanics) where general database intuition can be misleading. The rules encode validated, ClickHouse-specific guidance.
 
-### For Formal Reviews
+## Langfuse-Specific Rules
 
-When performing a formal review of schemas, queries, or data ingestion:
+- Use `packages/shared/src/server/queries/clickhouse-sql/event-query-builder.ts`
+  for queries against the `events` table. Do not hand-roll `events` SQL unless
+  you first confirm the query builder cannot express the query.
+- Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
+  required and the keyword hurts performance.
+- ClickHouse query attribution is stored in `system.query_log.log_comment` as
+  JSON from `packages/shared/src/server/clickhouse/queryTags.ts`. Parse it with
+  `JSONExtractString(log_comment, 'surface')`,
+  `JSONExtractString(log_comment, 'route')`, and
+  `JSONExtractString(log_comment, 'projectId')`. Known `surface` values are
+  `trpc`, `publicapi`, `worker`, `mcp`, and `unknown`; ClickhouseWriter inserts
+  use `projectId = "MULTI_PROJECT"`.
+- Query attribution is propagated through OpenTelemetry baggage. Entry points
+  call `contextWithLangfuseProps(...)` from
+  `packages/shared/src/server/headerPropagation.ts`, setting ClickHouse
+  `surface`, optional `route`, and optional `projectId`. The ClickHouse
+  repository layer then reads baggage via `normalizeClickHouseQueryTags(...)`
+  and writes it to `log_comment`. Prefer setting attribution at entry points
+  rather than passing tags through every repository call.
+- `packages/shared/clickhouse/migrations/canonical/**` is the single canonical
+  template tree rendered for clustered and unclustered installs. Put
+  `{CLICKHOUSE_CLUSTER_CLAUSE}` at every cluster-aware DDL position. Use
+  `{CLICKHOUSE_REPLICATION_PREFIX}` only for engines that deliberately differ
+  by mode; some tables intentionally stay non-replicated in both modes.
+- Every metadata `ALTER` (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) in a new
+  canonical migration must include
+  `{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2}`, and every
+  mutation-creating `ALTER` (`MATERIALIZE …`, `UPDATE`, `DELETE`) must include
+  `{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS mutations_sync = 2}`.
+  This applies to a file holding a single `ALTER` too — the race is across
+  migration files, not within one. `alter_sync` defaults to `1`, so the
+  statement returns as soon as the initiating replica has bumped the table's
+  metadata version in Keeper; golang-migrate then opens the next file
+  immediately, and its first `ALTER` on that table can land on a replica still
+  on the previous version. ClickHouse refuses to queue it and aborts the whole
+  run with `code 517` because the replica metadata version is behind the common
+  metadata version. Note that `mutations_sync` does not substitute for `alter_sync`: it
+  governs when mutations finish, not metadata propagation. The renderer omits
+  these fragments for unclustered `MergeTree` migrations. Use
+  `{CLICKHOUSE_UNCLUSTERED_ONLY:...}` only for a deliberate mode-specific
+  difference. Do not retrofit synchronization settings into already-shipped
+  migrations merely to normalize them; the historical compatibility test
+  intentionally protects their existing output.
+- Never use `CREATE OR REPLACE VIEW` (nor `CREATE OR REPLACE TABLE` /
+  `EXCHANGE TABLES`) in ClickHouse migrations. The atomic replace requires
+  `renameat2` filesystem support, which NFS-backed self-hosted deployments
+  (e.g. ClickHouse data on AWS EFS) lack — the migration fails and the
+  deployment aborts on startup (GitHub issue #14906). Redefine a plain view as
+  two statements in the same migration file. First use
+  `DROP VIEW IF EXISTS <name> {CLICKHOUSE_CLUSTER_CLAUSE};`, then
+  `CREATE VIEW <name> {CLICKHOUSE_CLUSTER_CLAUSE} AS …`.
+  The migration runner passes `x-multi-statement=true` and golang-migrate
+  splits files on `;` without parsing SQL, so keep semicolons out of comments
+  and string literals. Keep every statement idempotent
+  (`IF EXISTS`/`IF NOT EXISTS`) so a dirty, half-applied migration can be
+  re-run after `migrate force`. Readers hitting the view inside the
+  drop→create window fail transiently — acceptable for the `analytics_*`
+  export views, so keep plain views off product hot paths.
+- Never drop-and-recreate a materialized view whose source table receives live
+  inserts: every row inserted between `DROP` and `CREATE` is silently and
+  permanently missing from the target table. Change an MV's SELECT with
+  `ALTER TABLE <mv> {CLICKHOUSE_CLUSTER_CLAUSE} MODIFY QUERY <select>`, which swaps
+  the transformation without interrupting ingestion. When the change adds
+  columns, `ALTER` the target table(s) first (`ADD COLUMN IF NOT EXISTS …`),
+  then `MODIFY QUERY`; those target-table `ALTER`s must carry the
+  clustered-only `alter_sync` template fragment so no host applies the new MV
+  query before its target replica has the new columns. `MODIFY QUERY` is only
+  viable for TO-table MVs (all Langfuse MVs use `TO`).
 
 ---
 
@@ -48,11 +115,15 @@ When performing a formal review of schemas, queries, or data ingestion:
 9. `rules/schema-partition-lifecycle.md` - Partitioning purpose
 
 **Check for:**
+
 - [ ] PRIMARY KEY / ORDER BY column order (low-to-high cardinality)
 - [ ] Data types match actual data ranges
 - [ ] LowCardinality applied to appropriate string columns
 - [ ] Partition key cardinality bounded (100-1,000 values)
 - [ ] ReplacingMergeTree has version column if used
+- [ ] Every metadata ALTER in a new canonical migration includes `{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2}` — including files with a single ALTER, since the next migration file is what breaks — and every `MATERIALIZE …` / `UPDATE` / `DELETE` includes the corresponding `mutations_sync` fragment; `mutations_sync` is not a substitute for `alter_sync`; do not normalize already-shipped migration output; both rendered modes pass `prepareMigrations.test.ts`
+- [ ] No `CREATE OR REPLACE VIEW/TABLE` or `EXCHANGE TABLES` in migrations (breaks NFS/EFS self-hosting); plain views are redefined via `DROP VIEW IF EXISTS` + `CREATE VIEW` in the same file
+- [ ] Materialized views are never dropped and recreated while their source table takes inserts; SELECT changes go through `ALTER TABLE <mv> MODIFY QUERY` after the target-table `ALTER`s
 
 ### For Query Reviews (SELECT, JOIN, aggregations)
 
@@ -65,6 +136,7 @@ When performing a formal review of schemas, queries, or data ingestion:
 5. `rules/schema-pk-filter-on-orderby.md` - Filter alignment with ORDER BY
 
 **Check for:**
+
 - [ ] Filters use ORDER BY prefix columns
 - [ ] JOINs filter tables before joining (not after)
 - [ ] Correct JOIN algorithm for table sizes
@@ -81,6 +153,7 @@ When performing a formal review of schemas, queries, or data ingestion:
 5. `rules/insert-optimize-avoid-final.md` - OPTIMIZE TABLE risks
 
 **Check for:**
+
 - [ ] Batch size 10K-100K rows per INSERT
 - [ ] No ALTER TABLE UPDATE for frequent changes
 - [ ] ReplacingMergeTree or CollapsingMergeTree for update patterns
@@ -117,19 +190,19 @@ Structure your response as follows:
 
 ## Rule Categories by Priority
 
-| Priority | Category | Impact | Prefix | Rule Count |
-|----------|----------|--------|--------|------------|
-| 1 | Primary Key Selection | CRITICAL | `schema-pk-` | 4 |
-| 2 | Data Type Selection | CRITICAL | `schema-types-` | 5 |
-| 3 | JOIN Optimization | CRITICAL | `query-join-` | 5 |
-| 4 | Insert Batching | CRITICAL | `insert-batch-` | 1 |
-| 5 | Mutation Avoidance | CRITICAL | `insert-mutation-` | 2 |
-| 6 | Partitioning Strategy | HIGH | `schema-partition-` | 4 |
-| 7 | Skipping Indices | HIGH | `query-index-` | 1 |
-| 8 | Materialized Views | HIGH | `query-mv-` | 2 |
-| 9 | Async Inserts | HIGH | `insert-async-` | 2 |
-| 10 | OPTIMIZE Avoidance | HIGH | `insert-optimize-` | 1 |
-| 11 | JSON Usage | MEDIUM | `schema-json-` | 1 |
+| Priority | Category              | Impact   | Prefix              | Rule Count |
+| -------- | --------------------- | -------- | ------------------- | ---------- |
+| 1        | Primary Key Selection | CRITICAL | `schema-pk-`        | 4          |
+| 2        | Data Type Selection   | CRITICAL | `schema-types-`     | 5          |
+| 3        | JOIN Optimization     | CRITICAL | `query-join-`       | 5          |
+| 4        | Insert Batching       | CRITICAL | `insert-batch-`     | 1          |
+| 5        | Mutation Avoidance    | CRITICAL | `insert-mutation-`  | 2          |
+| 6        | Partitioning Strategy | HIGH     | `schema-partition-` | 4          |
+| 7        | Skipping Indices      | HIGH     | `query-index-`      | 1          |
+| 8        | Materialized Views    | HIGH     | `query-mv-`         | 2          |
+| 9        | Async Inserts         | HIGH     | `insert-async-`     | 2          |
+| 10       | OPTIMIZE Avoidance    | HIGH     | `insert-optimize-`  | 1          |
+| 11       | JSON Usage            | MEDIUM   | `schema-json-`      | 1          |
 
 ---
 
@@ -224,11 +297,3 @@ Each rule file in `rules/` contains:
 - **Incorrect example**: Anti-pattern with explanation
 - **Correct example**: Best practice with explanation
 - **Additional context**: Trade-offs, when to apply, references
-
----
-
-## Full Compiled Document
-
-For the complete guide with all rules expanded inline: `AGENTS.md`
-
-Use `AGENTS.md` when you need to check multiple rules quickly without reading individual files.

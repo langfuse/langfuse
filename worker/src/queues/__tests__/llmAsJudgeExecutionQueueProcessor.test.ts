@@ -1,9 +1,40 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import {
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest";
 import { Job } from "bullmq";
-import { JobExecutionStatus } from "@prisma/client";
-import { llmAsJudgeExecutionQueueProcessorBuilder } from "../evalQueue";
-import { QueueName, type TQueueJobTypes } from "@langfuse/shared/src/server";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+
+const QueueName = {
+  LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
+  EvaluationExecutionSecondaryQueue: "evaluation-execution-secondary-queue",
+} as const;
+
+const QueueJobs = {
+  LLMAsJudgeExecution: "llm-as-a-judge-execution-job",
+  EvaluationExecution: "evaluation-execution-job",
+} as const;
+
+const JobExecutionStatus = {
+  DELAYED: "DELAYED",
+  ERROR: "ERROR",
+} as const;
+
+vi.mock("@langfuse/shared", () => ({
+  removeEmptyEnvVariables: <T>(value: T) => value,
+  EvalTemplateType: {
+    LLM_AS_JUDGE: "LLM_AS_JUDGE",
+  },
+  JobExecutionStatus: {
+    DELAYED: "DELAYED",
+    ERROR: "ERROR",
+  },
+}));
 
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -21,9 +52,25 @@ vi.mock("../../features/evaluation/observationEval", () => ({
 
 // Mock logger and span
 vi.mock("@langfuse/shared/src/server", async () => {
-  const actual = await vi.importActual("@langfuse/shared/src/server");
+  const getQueueInstance = vi.fn().mockReturnValue({
+    add: vi.fn(),
+  });
+  const { CodeEvalExecutionError } =
+    await import("../../../../packages/shared/src/server/evals/codeEvalExecution");
+  const { CodeEvalDispatcherErrorCodes } =
+    await import("../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes");
+
   return {
-    ...actual,
+    CodeEvalDispatcherErrorCodes,
+    CodeEvalExecutionError,
+    QueueName: {
+      LLMAsJudgeExecution: "llm-as-a-judge-execution-queue",
+      EvaluationExecutionSecondaryQueue: "evaluation-execution-secondary-queue",
+    },
+    QueueJobs: {
+      LLMAsJudgeExecution: "llm-as-a-judge-execution-job",
+      EvaluationExecution: "evaluation-execution-job",
+    },
     logger: {
       debug: vi.fn(),
       info: vi.fn(),
@@ -34,12 +81,18 @@ vi.mock("@langfuse/shared/src/server", async () => {
     getCurrentSpan: vi.fn().mockReturnValue({
       setAttribute: vi.fn(),
     }),
-    LLMAsJudgeExecutionQueue: {
-      getInstance: vi.fn().mockReturnValue({
-        add: vi.fn(),
-      }),
+    EvalExecutionQueue: {
+      getInstance: vi.fn(),
     },
-    isLLMCompletionError: vi.fn(),
+    SecondaryEvalExecutionQueue: {
+      getInstance: vi.fn(),
+    },
+    LLMAsJudgeExecutionQueue: {
+      getInstance: getQueueInstance,
+    },
+    classifyEvaluatorLlmError: vi.fn(),
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
   };
 });
 
@@ -62,23 +115,49 @@ import { prisma } from "@langfuse/shared/src/db";
 import { processObservationEval } from "../../features/evaluation/observationEval";
 import {
   LLMAsJudgeExecutionQueue,
-  isLLMCompletionError,
+  classifyEvaluatorLlmError,
+  recordDistribution,
+  recordIncrement,
   traceException,
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+
+function mockLlmError(error: Error, isRetryable: boolean): void {
+  vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
+    kind: "provider",
+    message: error.message,
+    isRetryable,
+    error,
+    blockReason: null,
+  });
+}
 
 describe("llmAsJudgeExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "job-exec-456";
   const observationS3Path = "evals/test/observation.json";
   const queueName = `${QueueName.LLMAsJudgeExecution}-1`;
-  const llmAsJudgeExecutionQueueProcessor =
-    llmAsJudgeExecutionQueueProcessorBuilder(queueName);
+  let llmAsJudgeExecutionQueueProcessor: (
+    job: Job<{
+      payload: {
+        projectId: string;
+        jobExecutionId: string;
+        observationS3Path: string;
+      };
+      retryBaggage?: { attempt: number };
+    }>,
+  ) => Promise<unknown>;
 
   const createMockJob = (
-    overrides: Partial<TQueueJobTypes[QueueName.LLMAsJudgeExecution]> = {},
-  ): Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]> => {
+    overrides: {
+      data?: Record<string, unknown>;
+      attemptsMade?: number;
+      attemptsStarted?: number;
+      opts?: { attempts?: number };
+      timestamp?: number;
+    } = {},
+  ): Job<any> => {
     return {
       data: {
         id: "queue-job-123",
@@ -90,21 +169,31 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           observationS3Path,
         },
         retryBaggage: { attempt: 0 },
-        ...overrides,
+        ...overrides.data,
       },
-    } as unknown as Job<TQueueJobTypes[QueueName.LLMAsJudgeExecution]>;
+      timestamp: overrides.timestamp ?? Date.now(),
+      attemptsMade: overrides.attemptsMade ?? 0,
+      attemptsStarted: overrides.attemptsStarted ?? 1,
+      opts: overrides.opts ?? { attempts: 10 },
+    } as Job<any>;
   };
+
+  beforeAll(async () => {
+    const { llmAsJudgeExecutionQueueProcessorBuilder } =
+      await import("../evalQueue");
+    llmAsJudgeExecutionQueueProcessor =
+      llmAsJudgeExecutionQueueProcessorBuilder(queueName);
+  });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    (isLLMCompletionError as Mock).mockReturnValue(false);
-    (isUnrecoverableError as Mock).mockReturnValue(false);
+    vi.mocked(classifyEvaluatorLlmError).mockReturnValue(null);
+    vi.mocked(isUnrecoverableError).mockReturnValue(false);
+    (processObservationEval as Mock).mockResolvedValue("completed");
   });
 
   describe("successful processing", () => {
     it("should process observation eval successfully and return true", async () => {
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       const result = await llmAsJudgeExecutionQueueProcessor(job);
 
@@ -115,6 +204,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           jobExecutionId,
           observationS3Path,
         },
+        executionType: "LLM_AS_JUDGE",
       });
     });
 
@@ -122,8 +212,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
 
@@ -136,16 +224,68 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         projectId,
       );
     });
+
+    it("records schedule-to-first-attempt latency only for the logical first attempt", async () => {
+      const now = vi.spyOn(Date, "now").mockReturnValue(10_000);
+
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({ timestamp: 8_500 }),
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.time_to_first_attempt_ms",
+        1_500,
+        {
+          evaluator_type: "llm_as_judge",
+          unit: "milliseconds",
+        },
+      );
+
+      vi.mocked(recordDistribution).mockClear();
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({
+          attemptsMade: 0,
+          attemptsStarted: 2,
+          timestamp: 8_000,
+        }),
+      );
+      await llmAsJudgeExecutionQueueProcessor(
+        createMockJob({
+          data: { retryBaggage: { attempt: 1 } },
+          timestamp: 8_000,
+        }),
+      );
+      expect(recordDistribution).not.toHaveBeenCalled();
+
+      now.mockRestore();
+    });
+
+    it("records completed and cancelled terminal outcomes", async () => {
+      await llmAsJudgeExecutionQueueProcessor(createMockJob());
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "success" },
+      );
+
+      vi.mocked(recordIncrement).mockClear();
+      (processObservationEval as Mock).mockResolvedValue("cancelled");
+      await llmAsJudgeExecutionQueueProcessor(createMockJob());
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "cancelled" },
+      );
+    });
   });
 
   describe("LLM rate limit errors (retryable)", () => {
     it("should schedule retry and set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      (isLLMCompletionError as Mock).mockReturnValue(true);
-      // Mark as retryable
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
+      mockLlmError(rateLimitError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -172,14 +312,20 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
           executionTraceId: "test-trace-id",
         }),
       });
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("should not rethrow error after scheduling retry", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
-      (rateLimitError as unknown as { isRetryable: boolean }).isRetryable =
-        true;
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);
-      (isLLMCompletionError as Mock).mockReturnValue(true);
+      mockLlmError(rateLimitError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "scheduled",
+      });
 
       const job = createMockJob();
 
@@ -188,14 +334,69 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         llmAsJudgeExecutionQueueProcessor(job),
       ).resolves.not.toThrow();
     });
+
+    it("should set ERROR when retryable LLM errors are not re-enqueued", async () => {
+      const rateLimitError = new Error("Rate limit exceeded");
+      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      mockLlmError(rateLimitError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "skipped",
+        reason: "too_old",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          endTime: expect.any(Date),
+          error: "Rate limit exceeded",
+          executionTraceId: "test-trace-id",
+        }),
+      });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "upstream_error" },
+      );
+    });
+
+    it("should set ERROR when the retry queue is unavailable", async () => {
+      const rateLimitError = new Error("Rate limit exceeded");
+      (processObservationEval as Mock).mockRejectedValue(rateLimitError);
+      mockLlmError(rateLimitError, true);
+      (retryLLMRateLimitError as Mock).mockResolvedValue({
+        outcome: "queue_unavailable",
+      });
+
+      const job = createMockJob();
+      await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: expect.objectContaining({
+          status: JobExecutionStatus.ERROR,
+          endTime: expect.any(Date),
+          error: "Rate limit exceeded",
+          executionTraceId: "test-trace-id",
+        }),
+      });
+    });
   });
 
   describe("LLM completion errors (non-retryable)", () => {
     it("should set ERROR status for non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
       (processObservationEval as Mock).mockRejectedValue(llmError);
-      (isLLMCompletionError as Mock).mockReturnValue(true);
+      mockLlmError(llmError, false);
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -216,9 +417,8 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
 
     it("should not rethrow non-retryable LLM errors", async () => {
       const llmError = new Error("Invalid API key");
-      (llmError as unknown as { isRetryable: boolean }).isRetryable = false;
       (processObservationEval as Mock).mockRejectedValue(llmError);
-      (isLLMCompletionError as Mock).mockReturnValue(true);
+      mockLlmError(llmError, false);
 
       const job = createMockJob();
 
@@ -235,7 +435,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Job configuration not found",
       );
       (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
-      (isUnrecoverableError as Mock).mockReturnValue(true);
+      vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -257,7 +457,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should not rethrow UnrecoverableError", async () => {
       const unrecoverableError = new UnrecoverableError("Config not found");
       (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
-      (isUnrecoverableError as Mock).mockReturnValue(true);
+      vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
 
@@ -270,7 +470,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should not call traceException for UnrecoverableError", async () => {
       const unrecoverableError = new UnrecoverableError("Config not found");
       (processObservationEval as Mock).mockRejectedValue(unrecoverableError);
-      (isUnrecoverableError as Mock).mockReturnValue(true);
+      vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const job = createMockJob();
       await llmAsJudgeExecutionQueueProcessor(job);
@@ -280,7 +480,7 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("unexpected errors (retryable by BullMQ)", () => {
-    it("should set ERROR status with generic message for unexpected errors", async () => {
+    it("should rethrow unexpected errors without persisting ERROR while BullMQ retries remain", async () => {
       const unexpectedError = new Error("Database connection failed");
       (processObservationEval as Mock).mockRejectedValue(unexpectedError);
 
@@ -291,17 +491,12 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Database connection failed",
       );
 
-      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
-        where: {
-          id: jobExecutionId,
-          projectId,
-        },
-        data: expect.objectContaining({
-          status: JobExecutionStatus.ERROR,
-          error: "An internal error occurred",
-          executionTraceId: "test-trace-id",
-        }),
-      });
+      expect(prisma.jobExecution.update).not.toHaveBeenCalled();
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("should call traceException for unexpected errors", async () => {
@@ -329,13 +524,42 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
         "Network timeout",
       );
     });
+
+    it("should persist ERROR on the final BullMQ attempt", async () => {
+      const unexpectedError = new Error("Database connection failed");
+      (processObservationEval as Mock).mockRejectedValue(unexpectedError);
+
+      await expect(
+        llmAsJudgeExecutionQueueProcessor(
+          createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
+        ),
+      ).rejects.toThrow(unexpectedError);
+
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: {
+          id: jobExecutionId,
+          projectId,
+        },
+        data: {
+          status: JobExecutionStatus.ERROR,
+          endTime: expect.any(Date),
+          error: "An internal error occurred",
+          executionTraceId: "test-trace-id",
+        },
+      });
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        1,
+        { evaluator_type: "llm_as_judge", outcome: "platform_error" },
+      );
+    });
   });
 
   describe("execution trace ID", () => {
     it("should generate deterministic trace ID from job execution ID", async () => {
       const error = new UnrecoverableError("Test error");
       (processObservationEval as Mock).mockRejectedValue(error);
-      (isUnrecoverableError as Mock).mockReturnValue(true);
+      vi.mocked(isUnrecoverableError).mockReturnValue(true);
 
       const { createW3CTraceId } = await import("../../features/utils");
 
@@ -351,12 +575,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob({
-        retryBaggage: { attempt: 3 },
+        data: { retryBaggage: { attempt: 3 } },
       });
-      await llmAsJudgeExecutionQueueProcessor(job);
+      await llmAsJudgeExecutionQueueProcessor(job as Job<any>);
 
       expect(mockSpan.setAttribute).toHaveBeenCalledWith(
         "messaging.bullmq.job.input.retryBaggage.attempt",
@@ -368,12 +590,10 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
       const mockSpan = { setAttribute: vi.fn() };
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(mockSpan);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
       delete (job.data as { retryBaggage?: unknown }).retryBaggage;
 
-      await llmAsJudgeExecutionQueueProcessor(job);
+      await llmAsJudgeExecutionQueueProcessor(job as Job<any>);
 
       expect(mockSpan.setAttribute).toHaveBeenCalledWith(
         "messaging.bullmq.job.input.retryBaggage.attempt",
@@ -386,8 +606,6 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
     it("should handle null span gracefully", async () => {
       const { getCurrentSpan } = await import("@langfuse/shared/src/server");
       (getCurrentSpan as Mock).mockReturnValue(null);
-      (processObservationEval as Mock).mockResolvedValue(undefined);
-
       const job = createMockJob();
 
       // Should not throw

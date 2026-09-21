@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 /**
  * @fileoverview PivotTable Chart Component
  *
@@ -22,14 +23,6 @@
 import React, { useMemo, useCallback, useState, useEffect } from "react";
 import { cn } from "@/src/utils/tailwind";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-} from "@/src/components/ui/table";
-import {
   transformToPivotTable,
   extractDimensionValues,
   extractMetricValues,
@@ -41,8 +34,9 @@ import {
   DEFAULT_ROW_LIMIT,
 } from "@/src/features/widgets/utils/pivot-table-utils";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { numberFormatter } from "@/src/utils/numbers";
+import { valueFormatter } from "@/src/features/widgets/chart-library/utils";
 import { formatMetricName } from "@/src/features/widgets/utils";
+
 import { type OrderByState } from "@langfuse/shared";
 
 /**
@@ -55,12 +49,6 @@ export interface PivotTableProps {
 
   /** Pivot table specific configuration */
   config?: PivotTableConfig;
-
-  /** Chart configuration from shadcn/ui (for consistency with other charts) */
-  chartConfig?: ChartProps["config"];
-
-  /** Accessibility layer flag */
-  accessibilityLayer?: boolean;
 
   /** Current sort state */
   sortState?: OrderByState;
@@ -81,11 +69,18 @@ const StaticHeader: React.FC<{
   className?: string;
 }> = ({ label, className }) => {
   return (
-    <TableHead className={cn("p-1", className)}>
+    <th
+      className={cn(
+        "bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+        className,
+      )}
+    >
       <div className="flex items-center select-none">
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
       </div>
-    </TableHead>
+    </th>
   );
 };
 
@@ -113,8 +108,12 @@ const SortableHeader: React.FC<{
   );
 
   return (
-    <TableHead
-      className={cn("group/header cursor-pointer p-1 select-none", className)}
+    <th
+      className={cn(
+        "bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
+        "group/header cursor-pointer select-none",
+        className,
+      )}
       onClick={handleClick}
     >
       <div
@@ -123,7 +122,9 @@ const SortableHeader: React.FC<{
           rightAlign ? "justify-end" : "justify-start",
         )}
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate" title={label}>
+          {label}
+        </span>
         {isSorted && (
           <span
             className="ml-1"
@@ -140,7 +141,7 @@ const SortableHeader: React.FC<{
         {/* Visual indicator that appears on hover - matches traces table behavior */}
         <div className="bg-secondary pointer-events-none absolute top-0 right-0 h-full w-1.5 touch-none opacity-0 select-none group-hover/header:opacity-100" />
       </div>
-    </TableHead>
+    </th>
   );
 };
 
@@ -151,24 +152,25 @@ const SortableHeader: React.FC<{
 const PivotTableRowComponent: React.FC<{
   row: PivotTableRow;
   metrics: string[];
-}> = ({ row, metrics }) => {
+  units?: (string | undefined)[];
+}> = ({ row, metrics, units }) => {
   return (
-    <TableRow
+    <tr
       className={cn(
-        "hover:bg-muted/30 border-b transition-colors",
+        "data-[state=selected]:bg-muted hover:bg-muted/30 border-b transition-colors",
         row.isSubtotal && "bg-muted/30",
         row.isTotal && "bg-muted/50",
       )}
     >
       {/* Dimension column with indentation and styling */}
-      <TableCell
+      <td
         className={cn(
-          "p-2 align-middle font-normal",
+          "h-full border-b p-2 align-middle font-normal [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
           // Apply indentation based on level using explicit Tailwind classes
           row.level === 1 && "pl-6", // 1.5rem indentation for level 1
           row.level === 2 && "pl-10", // 2.5rem indentation for level 2
           // Bold styling for subtotal and total rows
-          (row.isSubtotal || row.isTotal) && "font-semibold",
+          (row.isSubtotal || row.isTotal) && "font-bold",
         )}
         style={{
           // Fallback for levels beyond 2 using inline styles
@@ -177,38 +179,23 @@ const PivotTableRowComponent: React.FC<{
         }}
       >
         {row.label}
-      </TableCell>
+      </td>
 
       {/* Metric columns */}
-      {metrics.map((metric) => (
-        <TableCell
+      {metrics.map((metric, i) => (
+        <td
           key={metric}
           className={cn(
-            "p-2 text-right align-middle tabular-nums",
-            (row.isSubtotal || row.isTotal) && "font-semibold",
+            "h-full border-b p-2 text-right align-middle tabular-nums [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
+            (row.isSubtotal || row.isTotal) && "font-bold",
           )}
         >
-          {formatMetricValue(row.values[metric])}
-        </TableCell>
+          {valueFormatter(row.values[metric], units?.[i])}
+        </td>
       ))}
-    </TableRow>
+    </tr>
   );
 };
-
-/**
- * Formats metric values for display in the table
- * Handles numbers and strings with appropriate formatting
- *
- * @param value - The metric value to format
- * @returns Formatted string for display
- */
-function formatMetricValue(value: number | string): string {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return numberFormatter(value, 2).replace(/\.00$/, "");
-}
 
 /**
  * Formats metric names for column headers
@@ -238,6 +225,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
   onSortChange,
   isLoading = false,
 }) => {
+  const units = config?.units;
   // Transform chart data into pivot table structure
   const pivotTableRows = useMemo(() => {
     if (!data || data.length === 0) {
@@ -387,9 +375,9 @@ export const PivotTable: React.FC<PivotTableProps> = ({
 
   return (
     <div className="h-full overflow-auto px-5 pb-2">
-      <Table>
-        <TableHeader className="sticky top-0 z-10">
-          <TableRow>
+      <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <thead className="sticky top-0 z-10 [&_tr]:border-b">
+          <tr className="hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors">
             {/* Dimension column header */}
             <StaticHeader
               label={
@@ -397,7 +385,7 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                   ? config.dimensions.map(formatColumnHeader).join(" / ") // Show all dimensions
                   : "Dimension"
               }
-              className="p-2 text-left font-medium first:pl-2"
+              className="p-2 text-left font-bold first:pl-2"
             />
 
             {/* Metric column headers */}
@@ -408,21 +396,24 @@ export const PivotTable: React.FC<PivotTableProps> = ({
                 label={formatColumnHeader(metric)}
                 sortState={sortState}
                 onSort={handleSort}
-                className="p-2 font-medium"
+                className="p-2 font-bold"
                 rightAlign={true}
               />
             ))}
-          </TableRow>
-        </TableHeader>
+          </tr>
+        </thead>
 
-        <TableBody>
+        <tbody className="text-xs [&_tr:last-child]:border-0">
           {sortedRows.map((row) => (
-            <PivotTableRowComponent key={row.id} row={row} metrics={metrics} />
+            <PivotTableRowComponent
+              key={row.id}
+              row={row}
+              metrics={metrics}
+              units={units}
+            />
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 };
-
-export default PivotTable;

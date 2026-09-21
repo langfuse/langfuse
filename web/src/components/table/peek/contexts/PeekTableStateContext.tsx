@@ -4,19 +4,21 @@ import {
   useState,
   useMemo,
   type ReactNode,
+  type Dispatch,
+  type SetStateAction,
 } from "react";
 import type { FilterState, OrderByState } from "@langfuse/shared";
 
-interface PeekTableState {
+export interface PeekTableState {
   filters: FilterState;
-  sorting: OrderByState;
+  sorting: OrderByState | undefined;
   pagination: { pageIndex: number; pageSize: number };
   search: { query: string | null; type: string[] };
 }
 
-interface PeekTableStateContextValue {
+export interface PeekTableStateContextValue {
   tableState: PeekTableState;
-  setTableState: (state: PeekTableState) => void;
+  setTableState: Dispatch<SetStateAction<PeekTableState>>;
 }
 
 const PeekTableStateContext = createContext<
@@ -26,7 +28,7 @@ const PeekTableStateContext = createContext<
 export function PeekTableStateProvider({ children }: { children: ReactNode }) {
   const [tableState, setTableState] = useState<PeekTableState>({
     filters: [],
-    sorting: null,
+    sorting: undefined,
     pagination: { pageIndex: 0, pageSize: 50 },
     search: { query: null, type: ["id"] },
   });

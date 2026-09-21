@@ -1,4 +1,8 @@
-import { type FilterState, type TableViewPresetState } from "@langfuse/shared";
+import {
+  type FilterState,
+  type TableViewPresetState,
+  formatSessionPositionInTraceFilterValue,
+} from "@langfuse/shared";
 
 function formatFilterLabel(filter: FilterState[number]) {
   return "key" in filter && filter.key
@@ -10,7 +14,7 @@ function formatFilterValue(filter: FilterState[number]) {
   if (filter.type === "null") return "";
 
   if (filter.type === "positionInTrace") {
-    return filter.value ? `${filter.key} ${filter.value}` : filter.key;
+    return formatSessionPositionInTraceFilterValue(filter);
   }
 
   if (filter.type === "datetime") {

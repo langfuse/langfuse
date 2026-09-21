@@ -1,4 +1,7 @@
+// @vitest-environment node
+
 import {
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
 } from "@langfuse/shared";
@@ -26,6 +29,17 @@ describe("getTemplateResultType", () => {
         }),
       ),
     ).toBe("Categorical");
+  });
+
+  it("returns Boolean for boolean output definitions", () => {
+    expect(
+      getTemplateResultType(
+        createBooleanEvalOutputDefinition({
+          reasoningDescription: "Why",
+          scoreDescription: "Return true or false",
+        }),
+      ),
+    ).toBe("Boolean");
   });
 
   it("returns Numeric for legacy output definitions", () => {

@@ -1,5 +1,6 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useState } from "react";
-import { Unlink, AlertTriangle, Loader2 } from "lucide-react";
+import { Unlink, AlertTriangle } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -10,9 +11,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { api } from "@/src/utils/api";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * Props for the SlackDisconnectButton component
@@ -25,7 +26,7 @@ interface SlackDisconnectButtonProps {
   /** Button variant */
   variant?:
     | "default"
-    | "outline-solid"
+    | "outline"
     | "secondary"
     | "destructive"
     | "ghost"
@@ -116,8 +117,8 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
     try {
       await disconnectMutation.mutateAsync({ projectId });
     } catch (error) {
-      // Error handling is done in the mutation callbacks
-      console.error("Disconnect error:", error);
+      // The mutation's local onError owns the UX; this owns classification + capture.
+      reportTrpcErrorWithoutToast(error, "slack");
     }
   };
 
@@ -133,11 +134,9 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
   const buttonContent = (
     <>
       {isDisconnecting ? (
-        <Loader2
-          className={
-            showText ? "mr-2 h-4 w-4 animate-spin" : "h-4 w-4 animate-spin"
-          }
-        />
+        <div className={showText ? "mr-2" : ""}>
+          <Spinner size="sm" />
+        </div>
       ) : (
         <Unlink className={showText ? "mr-2 h-4 w-4" : "h-4 w-4"} />
       )}
@@ -170,7 +169,7 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
                 this project?
               </p>
               <div className="bg-muted space-y-2 rounded-md p-3">
-                <p className="text-sm font-medium">This will:</p>
+                <p className="text-sm font-bold">This will:</p>
                 <ul className="ml-4 space-y-1 text-sm">
                   <li>• Remove the bot from your Slack workspace</li>
                   <li>• Disable all existing Slack automations</li>
@@ -199,7 +198,9 @@ export const SlackDisconnectButton: React.FC<SlackDisconnectButtonProps> = ({
             >
               {isDisconnecting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                   Disconnecting...
                 </>
               ) : (

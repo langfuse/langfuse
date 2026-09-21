@@ -1,8 +1,108 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
+export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
+  const prefix = alias ? `${alias}.` : "";
+  return `(${prefix}parent_span_id = '' OR ${prefix}is_app_root = true)`;
+};
+export const eventsTableIsRootObservationSql =
+  eventsTableIsRootObservationSqlForAlias("e");
+export const eventsTableTraceNameSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
+export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+// Row-projection variant. The fallback above is Nullable(String), but
+// events_core.trace_name is a non-null String. Projecting the nullable
+// expression under the column's own name while a filter reads the physical
+// column puts two `trace_name` headers of different types into one pipeline,
+// and ClickHouse 25.x rejects that with AMBIGUOUS_COLUMN_NAME (code 352) as
+// soon as the query also sorts (LFE-14924). Matching the stored String type
+// keeps the alias — an export/stream wire name — stable. "no trace name" is
+// therefore '' on the wire; JS consumers map it back to null.
+export const eventsTableTraceNameSelectSqlForAlias = (alias: string) =>
+  `ifNull(${eventsTableTraceNameSqlForAlias(alias)}, '')`;
+export const eventsTableTraceNameSelectSql =
+  eventsTableTraceNameSelectSqlForAlias("e");
+/**
+ * Maps the wire form of `eventsTableTraceNameSelectSql` ('' == no trace name)
+ * back to the null every JS-facing surface uses - tRPC/UI, the public API, the
+ * eval stream, analytics integrations, and batch export.
+ *
+ * Blob storage export deliberately does NOT use this: its published contract
+ * types `trace_name` as a plain string
+ * (https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields),
+ * and its raw JSONL / Parquet paths never pass through JS, so normalizing only
+ * the enriched path would make the three export formats disagree.
+ */
+export const normalizeEventsTraceName = (
+  traceName: string | null | undefined,
+): string | null => traceName || null;
+export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+export const eventsTableTraceNameAggregationSql =
+  eventsTableTraceNameAggregationSqlForAlias("e");
+
+export const isRootObservation = ({
+  parentObservationId,
+  isAppRoot,
+}: {
+  parentObservationId: string | null | undefined;
+  isAppRoot: boolean | null | undefined;
+}): boolean => !parentObservationId || isAppRoot === true;
+// True when the observation carries input / output. NULL/'' both count as
+// absent (NULL != '' is NULL, i.e. not true), so only real payloads match.
+export const eventsTableHasInputSql = "e.input != ''";
+export const eventsTableHasOutputSql = "e.output != ''";
+
+const isCachedInputMetric = (key: string): boolean => {
+  const normalizedKey = key.toLowerCase();
+  return (
+    normalizedKey.includes("cached") || normalizedKey.includes("cache_read")
+  );
+};
+
+const findCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => {
+  const values = Object.entries(details ?? {})
+    .filter(([key]) => isCachedInputMetric(key))
+    .map(([, value]) => Number(value));
+
+  return values.length > 0
+    ? values.reduce((sum, value) => sum + value, 0)
+    : undefined;
+};
+
+export const getCachedInputMetric = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+export const getCachedInputCost = (
+  details?: Record<string, number> | null,
+): number | undefined => findCachedInputMetric(details);
+
+const cachedInputMetricSql = (detailsColumn: string): string => {
+  const keyPredicate = (key: string) =>
+    `(positionCaseInsensitive(${key}, 'cached') > 0 OR positionCaseInsensitive(${key}, 'cache_read') > 0)`;
+  const filteredDetails = `mapFilter(x -> ${keyPredicate("x.1")}, ${detailsColumn})`;
+  const sum = `arraySum(mapValues(${filteredDetails}))`;
+
+  return `if(mapExists((k, v) -> ${keyPredicate("k")}, ${detailsColumn}), ${sum}, NULL)`;
+};
+
+export const eventsTableCachedInputTokensSql =
+  cachedInputMetricSql("e.usage_details");
+export const eventsTableCachedInputCostSql =
+  cachedInputMetricSql("e.cost_details");
+
+type MutableDeep<T> = T extends readonly (infer U)[]
+  ? MutableDeep<U>[]
+  : T extends object
+    ? { -readonly [K in keyof T]: MutableDeep<T[K]> }
+    : T;
+
 // Column definitions for the ClickHouse events table
 // Used for filtering, sorting, and mapping UI columns to ClickHouse columns
-export const eventsTableCols: ColumnDefinition[] = [
+const eventsTableColsDefinition = [
   {
     name: "ID",
     id: "id",
@@ -53,10 +153,45 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "API Key",
+    id: "ingestionApiKey",
+    type: "stringOptions",
+    internal: "e.ingestion_api_key",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Name",
+    id: "ingestionSdkName",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_name",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "SDK Version",
+    id: "ingestionSdkVersion",
+    type: "stringOptions",
+    internal: "e.ingestion_sdk_version",
+    options: [], // to be added at runtime
+  },
+  {
+    name: "Ingestion Source",
+    id: "ingestionSource",
+    type: "stringOptions",
+    internal: "e.source",
+    options: [], // to be added at runtime
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
     internal: "e.version",
+    nullable: true,
+  },
+  {
+    name: "Release",
+    id: "release",
+    type: "string",
+    internal: "e.release",
     nullable: true,
   },
   {
@@ -77,16 +212,17 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Trace Name",
     id: "traceName",
     type: "stringOptions",
-    internal: "e.trace_name",
+    internal: eventsTableTraceNameSql,
     options: [], // to be added at runtime
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: "e.level",
     options: [],
+    aliases: ["Level"],
   },
   {
     name: "Status Message",
@@ -143,6 +279,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Cached Input Tokens",
+    id: "cachedInputTokens",
+    type: "number",
+    internal: eventsTableCachedInputTokensSql,
+    nullable: true,
+  },
+  {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
@@ -164,6 +307,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "number",
     internal:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details)))",
+    nullable: true,
+  },
+  {
+    name: "Cached Input Cost ($)",
+    id: "cachedInputCost",
+    type: "number",
+    internal: eventsTableCachedInputCostSql,
     nullable: true,
   },
   {
@@ -218,6 +368,20 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "e.metadata",
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: "e.evaluator_id",
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: "e.evaluation_rule_id",
+    options: [],
+  },
+  {
     name: "Trace Tags",
     id: "traceTags",
     type: "arrayOptions",
@@ -239,6 +403,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Trace Scores (numeric)",
     id: "trace_scores_avg",
     type: "numberObject",
@@ -250,6 +421,13 @@ export const eventsTableCols: ColumnDefinition[] = [
     type: "categoryOptions",
     internal: "trace_score_categories",
     options: [], // to be added at runtime
+    nullable: true,
+  },
+  {
+    name: "Trace Scores (boolean)",
+    id: "trace_score_booleans",
+    type: "booleanObject",
+    internal: "trace_score_booleans",
     nullable: true,
   },
   {
@@ -268,7 +446,25 @@ export const eventsTableCols: ColumnDefinition[] = [
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",
-    internal: "e.parent_span_id != ''",
+    internal: eventsTableHasParentObservationSql,
+  },
+  {
+    name: "Is Root Observation",
+    id: "isRootObservation",
+    type: "boolean",
+    internal: eventsTableIsRootObservationSql,
+  },
+  {
+    name: "Has Input",
+    id: "hasInput",
+    type: "boolean",
+    internal: eventsTableHasInputSql,
+  },
+  {
+    name: "Has Output",
+    id: "hasOutput",
+    type: "boolean",
+    internal: eventsTableHasOutputSql,
   },
   {
     name: "Experiment Dataset ID",
@@ -324,4 +520,72 @@ export const eventsTableCols: ColumnDefinition[] = [
     internal: "length(e.tool_calls)",
     nullable: true,
   },
-];
+  {
+    name: "Is Experiment Item Root Span",
+    id: "isExperimentItemRootSpan",
+    type: "boolean",
+    internal: "e.experiment_item_root_span_id = e.span_id",
+  },
+] as const satisfies readonly ColumnDefinition[];
+
+// TODO: Remove MutableDeep once consumers accept readonly column definitions.
+export const eventsTableCols =
+  eventsTableColsDefinition as unknown as MutableDeep<
+    typeof eventsTableColsDefinition
+  > &
+    ColumnDefinition[];
+
+type EventsTableColumnId = (typeof eventsTableColsDefinition)[number]["id"];
+
+export type NumericEventsTableColumnId = Extract<
+  (typeof eventsTableColsDefinition)[number],
+  { type: "number" }
+>["id"];
+
+export const isNumericEventsTableColumnId = (
+  column: EventsTableColumnId,
+): column is NumericEventsTableColumnId =>
+  eventsTableColsDefinition.some(
+    (col) => col.id === column && col.type === "number",
+  );
+
+// Subset of columns that are allowed to be used as filters in the MCP observations API
+const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
+  "id",
+  "traceId",
+  "startTime",
+  "endTime",
+  "name",
+  "type",
+  "environment",
+  "version",
+  "userId",
+  "sessionId",
+  "traceName",
+  "level",
+  "statusMessage",
+  "promptName",
+  "promptVersion",
+  "modelId",
+  "providedModelName",
+  "totalCost",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "inputCost",
+  "outputCost",
+  "latency",
+  "timeToFirstToken",
+  "input",
+  "output",
+  "metadata",
+  "traceTags",
+  "isRootObservation",
+  "hasParentObservation",
+] as const satisfies readonly EventsTableColumnId[];
+
+export type ObservationMcpAllowedEventsTableFilterColumn =
+  (typeof OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS)[number];
+
+export const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMNS: ReadonlySet<EventsTableColumnId> =
+  new Set(OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS);

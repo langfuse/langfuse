@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import { InvalidRequestError } from "@langfuse/shared";
 
 /**
@@ -21,10 +20,10 @@ describe("QueryBuilder SQL Injection Tests", () => {
 
   // Create a mock ClickHouse client for testing
   const mockClickhouseClient = {
-    query: jest.fn().mockImplementation(({ query, query_params }) => {
+    query: vi.fn().mockImplementation(({ query, query_params }) => {
       // Return the query and params for inspection in tests
       return Promise.resolve({
-        json: jest.fn().mockReturnValue({
+        json: vi.fn().mockReturnValue({
           data: [],
           query,
           params: query_params,
@@ -40,7 +39,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe("SQL Injection via View Parameter", () => {
@@ -48,8 +47,9 @@ describe("QueryBuilder SQL Injection Tests", () => {
       // Comment: The view property is restricted to specific enum values,
       // but a determined attacker might try to bypass zod validation or
       // supply a maliciously crafted view name
+      // Intentionally invalid payload: bypasses the QueryType view enum.
       const maliciousQuery = {
-        view: "traces; DROP TABLE users" as any,
+        view: "traces; DROP TABLE users",
         dimensions: [],
         metrics: [{ measure: "count", aggregation: "count" }],
         filters: [],
@@ -57,7 +57,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
         fromTimestamp: defaultFromTime,
         toTimestamp: defaultToTime,
         orderBy: null,
-      };
+      } as unknown as QueryType;
 
       // Should throw an error rather than allow the injection
       await expect(
@@ -579,7 +579,7 @@ describe("QueryBuilder SQL Injection Tests", () => {
     it("should safely handle malicious query parameters through executeQuery", async () => {
       // Comment: This tests the integration with the dashboard router's executeQuery function
       // to ensure SQL injection protection works end-to-end
-      jest.spyOn(console, "error").mockImplementation(() => {});
+      vi.spyOn(console, "error").mockImplementation(() => {});
 
       const maliciousQuery: QueryType = {
         view: "traces",

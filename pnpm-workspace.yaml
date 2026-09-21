@@ -2,5 +2,152 @@ packages:
   # include packages in subfolders (e.g. apps/ and packages/)
   - "web"
   - "worker"
+  - "ai-gateway"
   - "packages/**"
   - "ee"
+catalog:
+  "@aws-sdk/client-cloudwatch": 3.1074.0
+  "@aws-sdk/client-eventbridge": 3.1074.0
+  "@aws-sdk/client-lambda": 3.1074.0
+  "@aws-sdk/client-lambda-microvms": 3.1074.0
+  "@aws-sdk/client-s3": 3.1074.0
+  "@aws-sdk/client-sesv2": 3.1074.0
+  "@aws-sdk/credential-providers": 3.1074.0
+  "@aws-sdk/lib-storage": 3.1074.0
+  "@aws-sdk/s3-request-presigner": 3.1074.0
+  eslint: ^10.8.0
+  # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
+  # provides the JS compiler API for tooling that still needs it but
+  # ships no `tsc` bin, so package scripts fall through to the workspace-root
+  # ts7 alias and build/typecheck with the native TypeScript 7 compiler.
+  typescript: npm:@typescript/typescript6@^6.0.2
+# 5 day delay for new dep upgrades to reduce supply chain attack risk
+minimumReleaseAge: 7200
+# Reject recent releases whose publishing trust is weaker than earlier versions.
+# Older releases have already passed the five-day quarantine above.
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 7200
+# Keep pnpm itself out of the workspace lockfile's dependency graph.
+pmOnFail: ignore
+# the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
+# this list is version-specific
+# minimumReleaseAgeExclude:
+packageExtensions:
+  # TypeScript 7 has no JavaScript compiler API yet. Keep Storybook's toolchain
+  # on the TypeScript 6 compatibility package while Next builds with 7.
+  "@storybook/nextjs-vite@10.3.6":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  # dependency-cruiser reads the JS compiler API to follow TypeScript imports.
+  # Resolved against web's `typescript` (7.x) it finds no API, silently stops
+  # parsing .ts/.tsx, and reports an empty import graph instead of an error.
+  "dependency-cruiser@18.1.0":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  "eslint-plugin-storybook@10.3.6":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+  "vite-tsconfig-paths@6.1.1":
+    dependencies:
+      typescript: npm:@typescript/typescript6@^6.0.2
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@sentry/cli": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@datadog/native-appsec": false
+  "@datadog/native-iast-taint-tracking": false
+  "@datadog/native-metrics": false
+  core-js: false
+  dd-trace: false
+  msgpackr-extract: false
+  msw: false
+  prisma: false
+  protobufjs: false
+  "@datadog/pprof": false
+  "@scarf/scarf": false
+  cpu-features: true
+  ssh2: true
+  vue-demi: true
+overrides:
+  # The root Mastra adapter does not load CopilotKit. Only its unused
+  # `@ag-ui/mastra/copilotkit` subpath requires this peer.
+  "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  browserslist: 4.28.7
+  postcss: 8.5.25
+  esbuild: "0.28.1"
+  # @ai-sdk/provider-utils depends on undici ^6.28.0 and resolves to the
+  # vulnerable 6.28.0; 6.28.1 is the last release of the 6.x line.
+  "undici@6": 6.28.1
+  "undici@7": 7.29.1
+  zod: 4.3.6
+  nanoid: 3.3.18
+  katex: ^0.16.21
+  tar-fs: ^2.1.2
+  rollup@^4.0.0: ^4.22.4
+  "@types/node-fetch": ^2.6.13
+  "@types/react-dom": 19.2.3
+  fast-xml-builder: 1.1.7
+  glob: ^10.5.0
+  qs: 6.16.0
+  path-to-regexp@0.1.12: 0.1.13
+  # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
+  path-to-regexp@8.3.0: 8.4.0
+  ip-address@10.1.0: 10.2.0
+  # SSRF + throttling fixes land in 4.0.29/4.0.33. @mastra/core pins its
+  # provider-utils-v6 alias to exactly 4.0.27, which the range key can't
+  # catch — aliased deps need alias-name overrides (same reason -v5 exists).
+  "@ai-sdk/provider-utils@<=4.0.32": 4.0.33
+  "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.33"
+  "@ai-sdk/provider-utils-v6": "npm:@ai-sdk/provider-utils@4.0.33"
+  # Scalar's agent package pins an SSRF-vulnerable AI SDK through two paths.
+  "@scalar/agent-chat@0.12.28>ai": 6.0.230
+  "@ai-sdk/vue@3.0.33>ai": 6.0.230
+  # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
+  fflate@0.8.1: 0.8.3
+  # CVE-2026-86472: fast-uri mishandles case sensitivity when comparing URI
+  # scheme and host. ajv declares ^3.0.1, which 3.1.7 already satisfies, so
+  # only an override moves it to the patched release.
+  fast-uri: 3.1.8
+  # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
+  # evaluation needs exports (validatorSymbol) that only exist in its own
+  # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
+  "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
+  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
+  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
+  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
+  "@storybook/addon-vitest>@vitest/browser": 4.1.11
+  # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
+  # nodemailer imports (we pass a custom sendVerificationRequest); without this
+  # pnpm auto-installs a second, unused nodemailer@7 instance for web.
+  # Remove once next-auth allows nodemailer ^10.
+  "next-auth>nodemailer": "^10.0.5"
+patchedDependencies:
+  # focusFirst crashes on null item refs (items unmounting while entry focus
+  # runs), e.g. opening a row-actions dropdown while a table re-renders.
+  # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
+  '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  # Select typeahead schedules nextItem.ref.current.focus() in a setTimeout.
+  # If the item unmounts before the timeout (dynamic option lists, closing the
+  # menu, a sibling field remounting items), the ref is null and throws.
+  # Fixed upstream in 2.3.7; remove this patch when we bump.
+  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
+  next-auth@4.24.15: patches/next-auth@4.24.15.patch
+  # The document-level drag handlers crash when a panel group unmounts
+  # mid-drag: setPointerCapture on the detached separator throws
+  # InvalidStateError on every pointermove, and the pointerup teardown throws
+  # "Could not find data for Group with id ...". Guard both (skip detached
+  # elements / unmounted groups). Still unfixed upstream as of 4.12.2.
+  react-resizable-panels@4.8.0: patches/react-resizable-panels@4.8.0.patch
+publicHoistPattern:
+  - "*prisma*"
+  - "@aws-sdk/client-s3"
+minimumReleaseAgeExclude:
+  # Case-sensitivity handling fix (CVE-2026-86472) on top of the host confusion
+  # + output-escaping fixes (CVE-2026-84394, CVE-2026-84292).
+  - fast-uri@3.1.8
+  # User impersonation via trusted-proxy confusion (CVE-2026-90711); 2.0.8 is
+  # the only patched release, pulled in transitively through express.
+  - proxy-addr@2.0.8

@@ -1,4 +1,105 @@
+import {
+  type EvalTemplateSourceCodeLanguage,
+  type EvalTemplateType,
+  type EvalTemplate,
+} from "@prisma/client";
 import z from "zod";
+
+/**
+ * Client-safe mirrors of the Prisma enums. The barrel only reaches the Prisma
+ * values through `export * from "@prisma/client"`, which bundlers that resolve
+ * this package from source (Vite/Storybook) cannot turn into named ESM exports,
+ * so browser code must use these instead of importing the Prisma values. The
+ * `satisfies` keeps them exhaustive: a new schema member fails the build here.
+ */
+export const EvalTemplateTypeEnum = {
+  LLM_AS_JUDGE: "LLM_AS_JUDGE",
+  CODE: "CODE",
+} as const satisfies Record<EvalTemplateType, EvalTemplateType>;
+
+export const EvalTemplateSourceCodeLanguageEnum = {
+  PYTHON: "PYTHON",
+  TYPESCRIPT: "TYPESCRIPT",
+} as const satisfies Record<
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateSourceCodeLanguage
+>;
+
+export const EvaluatorPromptMessageRoleSchema = z.enum([
+  "system",
+  "user",
+  "assistant",
+]);
+
+export const EvaluatorPromptMessageSchema = z
+  .object({
+    role: EvaluatorPromptMessageRoleSchema,
+    content: z.string().refine((content) => content.trim().length > 0, {
+      message: "Prompt messages cannot be empty",
+    }),
+  })
+  .strict();
+export type EvaluatorPromptMessage = z.infer<
+  typeof EvaluatorPromptMessageSchema
+>;
+
+export const EvaluatorPromptMessagesSchema = z
+  .array(EvaluatorPromptMessageSchema)
+  .min(1)
+  .refine(
+    (messages) =>
+      !messages.some(
+        (message, index) => index > 0 && message.role === "system",
+      ),
+    {
+      message: "System messages are only allowed as the first prompt message",
+    },
+  );
+export type EvaluatorPromptMessages = z.infer<
+  typeof EvaluatorPromptMessagesSchema
+>;
+
+/** Compatibility alias for messages persisted with the legacy prompt. */
+export type PersistedEvaluatorPromptMessages = EvaluatorPromptMessages;
+
+const LEGACY_EMPTY_PROMPT_PLACEHOLDER = "No prompt provided";
+
+export function getEvaluatorPromptMessages(params: {
+  prompt: string | null;
+  promptMessages?: unknown;
+}): PersistedEvaluatorPromptMessages {
+  const parsed = EvaluatorPromptMessagesSchema.safeParse(params.promptMessages);
+  if (parsed.success) return parsed.data;
+
+  // Historical evaluator rows may contain blank prompts that do not satisfy
+  // the current message schema. Keep those rows readable with valid content.
+  const legacyPrompt = params.prompt?.trim()
+    ? params.prompt
+    : LEGACY_EMPTY_PROMPT_PLACEHOLDER;
+  return [{ role: "user", content: legacyPrompt }];
+}
+
+export type EvalTemplateLlmAsAJudge = EvalTemplate & {
+  type: typeof EvalTemplateType.LLM_AS_JUDGE;
+  /** Present when an evaluator-v2 version is adapted to the legacy runtime. */
+  promptMessages?: unknown;
+  prompt: string;
+  outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
+  sourceCode: null;
+  sourceCodeLanguage: null;
+};
+
+export type EvalTemplateCodeBased = EvalTemplate & {
+  type: typeof EvalTemplateType.CODE;
+  prompt: null;
+  outputDefinition: null;
+  sourceCode: string;
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
+};
+
+export type EvalTemplateWithType =
+  | EvalTemplateLlmAsAJudge
+  | EvalTemplateCodeBased;
 
 export const EvalTargetObject = {
   TRACE: "trace",
@@ -11,6 +112,35 @@ export type EvalTargetObject =
   (typeof EvalTargetObject)[keyof typeof EvalTargetObject];
 
 export const EvalTargetObjectSchema = z.enum(Object.values(EvalTargetObject));
+
+// Batch action source tables that support evaluation
+export const BatchEvalSourceTable = {
+  EVENTS: "events",
+  EXPERIMENT_ITEMS: "experiment-items",
+  EXPERIMENTS: "experiments",
+} as const;
+
+export type BatchEvalSourceTable =
+  (typeof BatchEvalSourceTable)[keyof typeof BatchEvalSourceTable];
+
+export const BatchEvalSourceTableSchema = z.enum([
+  BatchEvalSourceTable.EVENTS,
+  BatchEvalSourceTable.EXPERIMENT_ITEMS,
+  BatchEvalSourceTable.EXPERIMENTS,
+]);
+
+/**
+ * Maps a batch evaluation source table to its corresponding eval target object.
+ * - "events" → EvalTargetObject.EVENT (observation-scoped evaluators)
+ * - "experiment-items" / "experiments" → EvalTargetObject.EXPERIMENT (experiment-scoped evaluators)
+ */
+export function getEvalTargetObjectFromSourceTable(
+  sourceTable: BatchEvalSourceTable,
+): EvalTargetObject {
+  return sourceTable === BatchEvalSourceTable.EVENTS
+    ? EvalTargetObject.EVENT
+    : EvalTargetObject.EXPERIMENT;
+}
 
 export const langfuseObjects = [
   "trace",
@@ -186,4 +316,17 @@ export const observationVariableMappingList = z.array(
 );
 export type ObservationVariableMapping = z.infer<
   typeof observationVariableMapping
+>;
+
+/**
+ * Per-evaluator mapping override for a one-shot batch evaluation. `null`
+ * inherits the evaluator version's mapping. Absent from the payload means
+ * every selected evaluator inherits.
+ */
+export const BatchEvalEvaluatorMappingSchema = z.object({
+  evaluatorId: z.string().min(1),
+  variableMapping: observationVariableMappingList.nullable(),
+});
+export type BatchEvalEvaluatorMapping = z.infer<
+  typeof BatchEvalEvaluatorMappingSchema
 >;

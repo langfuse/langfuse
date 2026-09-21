@@ -1,27 +1,41 @@
 import { z } from "zod";
 import {
-  singleFilter,
+  EvalTargetObjectSchema,
+  singleFilterList,
   type langfuseObjects,
   TimeScopeSchema,
+  wipVariableMapping,
 } from "@langfuse/shared";
-import { wipVariableMapping } from "@langfuse/shared";
 import { OUTPUT_MAPPING } from "@/src/features/evals/utils/evaluator-constants";
+import { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 
-// Legacy eval targets (TRACE, DATASET) use full variable mapping UI with object selector
-// Modern eval targets (EVENT, EXPERIMENT) use simplified UI with just column selection
-export const isLegacyEvalTarget = (target: string): boolean =>
-  target === "trace" || target === "dataset";
+export { getJsonPathCompatibilityWarning } from "@/src/features/evals/utils/json-path-compatibility";
 
-export const evalConfigFormSchema = z.object({
-  scoreName: z.string(),
-  target: z.string(),
-  filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
-  mapping: z.array(wipVariableMapping),
-  sampling: z.coerce.number().gt(0).lte(1),
-  delay: z.coerce.number().min(0).optional().default(10),
-  timeScope: TimeScopeSchema,
-  runOnLive: z.boolean().optional().default(true),
-});
+export const evalConfigFormSchema = z
+  .object({
+    scoreName: z.string(),
+    target: EvalTargetObjectSchema,
+    filter: singleFilterList.nullable(),
+    mapping: z.array(wipVariableMapping),
+    sampling: z.coerce.number().gt(0).lte(1),
+    delay: z.coerce.number().min(0).optional().default(10),
+    timeScope: TimeScopeSchema,
+    runOnLive: z.boolean().optional().default(true),
+  })
+  .superRefine(({ mapping }, ctx) => {
+    mapping.forEach((mappingRow, index) => {
+      const compatibilityError =
+        getActiveJsonPathCompatibilityWarning(mappingRow);
+
+      if (compatibilityError) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["mapping", index, "jsonSelector"],
+          message: compatibilityError,
+        });
+      }
+    });
+  });
 
 export type EvalFormType = z.infer<typeof evalConfigFormSchema>;
 
@@ -47,8 +61,32 @@ export const fieldHasJsonSelectorOption = (
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output" ||
   selectedColumnId === "experiment_item_expected_output" ||
+  selectedColumnId === "experiment_item_metadata" ||
   selectedColumnId === "expectedOutput" ||
-  selectedColumnId === "experimentItemExpectedOutput";
+  selectedColumnId === "experimentItemExpectedOutput" ||
+  selectedColumnId === "experimentItemMetadata" ||
+  selectedColumnId === "toolCalls";
+
+/**
+ * Only warns while the row's JsonPath input is rendered: a target switch nulls
+ * selectedColumnId but keeps jsonSelector
+ * (`useEvaluatorTarget.transformMapping`), orphaning the value behind a hidden
+ * input. Reporting it then would disable submit with no visible cause.
+ */
+export function getActiveJsonPathCompatibilityWarning(mappingRow: {
+  selectedColumnId?: string | null;
+  jsonSelector?: string | null;
+}): string | null {
+  if (!fieldHasJsonSelectorOption(mappingRow.selectedColumnId)) return null;
+
+  return getJsonPathCompatibilityWarning(mappingRow.jsonSelector);
+}
+
+// Bookmarking is retired from the UI. Keep these ids/names in the shared
+// column list so existing bookmarked filter rows still resolve a definition,
+// but pass them to InlineFilterBuilder as hiddenUnlessSelected so only those
+// grandfathered rows can keep the column — new rows cannot pick it.
+export const RETIRED_TRACE_FILTER_COLUMNS = ["bookmarked", "⭐️"] as const;
 
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {

@@ -7,6 +7,7 @@ import { CloudFreeTierUsageThresholdQueue } from "./cloudFreeTierUsageThresholdQ
 import { DatasetRunItemUpsertQueue } from "./datasetRunItemUpsert";
 import { ExperimentCreateQueue } from "./experimentCreateQueue";
 import { TraceDeleteQueue } from "./traceDelete";
+import { TraceBatchQueue } from "./traceBatch";
 import { ProjectDeleteQueue } from "./projectDelete";
 import { PostHogIntegrationQueue } from "./postHogIntegrationQueue";
 import { PostHogIntegrationProcessingQueue } from "./postHogIntegrationProcessingQueue";
@@ -27,6 +28,9 @@ import { EntityChangeQueue } from "./entityChangeQueue";
 import { DatasetDeleteQueue } from "./datasetDelete";
 import { EventPropagationQueue } from "./eventPropagationQueue";
 import { NotificationQueue } from "./notificationQueue";
+import { MonitorQueue } from "./monitorQueue";
+import { InAppAgentRunQueue } from "./inAppAgentRunQueue";
+import { V4LegacyApiUsageQueue } from "./v4LegacyApiUsageQueue";
 
 // Sharded queues require a sharding key.
 // Use the queue class directly, for example IngestionQueue.getInstance({ shardingKey }).
@@ -38,11 +42,15 @@ export function getQueue(
     | QueueName.EvaluationExecution
     | QueueName.EvaluationExecutionSecondaryQueue
     | QueueName.LLMAsJudgeExecution
+    | QueueName.CodeEvalExecution
     | QueueName.TraceUpsert
     | QueueName.OtelIngestionQueue
+    | QueueName.OtelIngestionSecondaryQueue
   >,
 ): Queue | null {
   switch (queueName) {
+    case QueueName.TraceBatch:
+      return TraceBatchQueue.getInstance();
     case QueueName.BatchExport:
       return BatchExportQueue.getInstance();
     case QueueName.CloudUsageMeteringQueue:
@@ -97,6 +105,12 @@ export function getQueue(
       return EventPropagationQueue.getInstance();
     case QueueName.NotificationQueue:
       return NotificationQueue.getInstance();
+    case QueueName.MonitorQueue:
+      return MonitorQueue.getInstance();
+    case QueueName.InAppAgentRunQueue:
+      return InAppAgentRunQueue.getInstance();
+    case QueueName.V4LegacyApiUsageQueue:
+      return V4LegacyApiUsageQueue.getInstance();
     default: {
       const _exhaustiveCheckDefault: never = queueName;
       throw new Error(`Queue ${queueName} not found`);

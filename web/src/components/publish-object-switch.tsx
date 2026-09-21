@@ -5,11 +5,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { env } from "@/src/env.mjs";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
@@ -20,9 +27,14 @@ export const PublishTraceSwitch = (props: {
   projectId: string;
   timestamp?: Date;
   isPublic: boolean;
+  shareUrl?: string;
   size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
+  /** Hover tooltip for the icon button (suppressed while the popover is open). */
+  tooltip?: string;
 }) => {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -42,7 +54,7 @@ export const PublishTraceSwitch = (props: {
   };
   const mut = api.traces.publish.useMutation({
     onMutate: async (input) => {
-      if (isBetaEnabled) {
+      if (isV4) {
         await utils.events.byTraceId.cancel(eventsTraceQueryInput);
 
         const previousEvents = utils.events.byTraceId.getData(
@@ -78,7 +90,7 @@ export const PublishTraceSwitch = (props: {
       return { previousTrace };
     },
     onError: (err, _input, context) => {
-      if (isBetaEnabled) {
+      if (isV4) {
         utils.events.byTraceId.setData(
           eventsTraceQueryInput,
           context?.previousEvents,
@@ -92,7 +104,7 @@ export const PublishTraceSwitch = (props: {
       trpcErrorToast(err);
     },
     onSuccess: async () => {
-      if (!isBetaEnabled) {
+      if (!isV4) {
         await utils.traces.all.invalidate();
       }
     },
@@ -100,10 +112,12 @@ export const PublishTraceSwitch = (props: {
 
   return (
     <Base
-      id={props.traceId}
       itemName="trace"
       isPublic={props.isPublic}
+      shareUrl={props.shareUrl}
       size={props.size}
+      label={props.label}
+      tooltip={props.tooltip}
       onChange={(val) => {
         capture("trace_detail:publish_button_click");
         return mut.mutateAsync({
@@ -123,6 +137,8 @@ export const PublishSessionSwitch = (props: {
   projectId: string;
   isPublic: boolean;
   size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
 }) => {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
@@ -141,10 +157,10 @@ export const PublishSessionSwitch = (props: {
 
   return (
     <Base
-      id={props.sessionId}
       itemName="session"
       isPublic={props.isPublic}
       size={props.size}
+      label={props.label}
       onChange={(val) => {
         capture("session_detail:publish_button_click");
         return mut.mutateAsync({
@@ -159,59 +175,104 @@ export const PublishSessionSwitch = (props: {
   );
 };
 
+const getShareUrlWithBasePath = (shareUrl: string) => {
+  const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const shouldPrependBasePath =
+    Boolean(basePath) &&
+    shareUrl.startsWith("/") &&
+    !shareUrl.startsWith("//") &&
+    shareUrl !== basePath &&
+    !shareUrl.startsWith(`${basePath}/`);
+
+  return shouldPrependBasePath ? `${basePath}${shareUrl}` : shareUrl;
+};
+
 const Base = (props: {
-  id: string;
   itemName: string;
   onChange: (value: boolean) => Promise<unknown>;
   isLoading: boolean;
   isPublic: boolean;
+  shareUrl?: string;
   disabled?: boolean;
   size?: "icon" | "icon-xs";
+  label?: string;
+  tooltip?: string;
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
   const copyUrl = () => {
     setIsCopied(true);
-    void copyTextToClipboard(window.location.href);
+    copyTextToClipboard(
+      props.shareUrl
+        ? new URL(
+            getShareUrlWithBasePath(props.shareUrl),
+            window.location.origin,
+          ).toString()
+        : window.location.href,
+    );
     setTimeout(() => setIsCopied(false), 2500);
   };
 
   const handleOnClick = () => {
     if (props.isLoading) return;
     setIsOpen(false);
-    void props.onChange(!props.isPublic);
+    props.onChange(!props.isPublic);
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="text-sm font-semibold">
+    <div className={cn("flex items-center gap-1", props.label && "w-full")}>
+      <div className={cn("text-sm font-bold", props.label && "w-full")}>
         <Popover
           open={isOpen}
           onOpenChange={(open) => {
             if (!props.isLoading) setIsOpen(open);
           }}
         >
-          <PopoverTrigger asChild>
-            <Button
-              id="publish-trace"
-              variant="ghost"
-              size={props.size}
-              loading={props.isLoading}
-              disabled={props.disabled}
-            >
-              {props.isPublic ? (
-                <Globe
-                  className="h-4 w-4"
-                  fill="#b3d9ff"
-                  stroke="#4d94ff"
-                  strokeWidth={2}
-                />
-              ) : (
-                <Share2 className="h-4 w-4" />
-              )}
-            </Button>
-          </PopoverTrigger>
+          {(() => {
+            const trigger = (
+              <PopoverTrigger asChild>
+                <Button
+                  id="publish-trace"
+                  variant="ghost"
+                  size={props.label ? "sm" : props.size}
+                  // Menu row: same box and icon size as the peek menu's
+                  // Delete and Expand rows, so the three line up.
+                  className={
+                    props.label
+                      ? "h-auto w-full justify-start gap-2 rounded-sm py-1.5 pr-2 pl-1.5 font-normal"
+                      : undefined
+                  }
+                  loading={props.isLoading}
+                  disabled={props.disabled}
+                >
+                  {props.isPublic ? (
+                    <Globe
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                      fill="#b3d9ff"
+                      stroke="#4d94ff"
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <Share2
+                      className={props.label ? "h-4 w-4" : "h-3.5 w-3.5"}
+                    />
+                  )}
+                  {props.label ? (
+                    <span className="text-sm">{props.label}</span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+            );
+            if (!props.tooltip) return trigger;
+            // Suppress the hover tooltip while the share popover is open.
+            return (
+              <Tooltip open={isOpen ? false : undefined}>
+                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                <TooltipContent>{props.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })()}
           <PopoverContent className="flex flex-col gap-3">
             {props.isPublic ? (
               <>

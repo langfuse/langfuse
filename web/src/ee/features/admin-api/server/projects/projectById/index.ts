@@ -8,11 +8,12 @@ import {
   type ApiAccessScope,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { ApiAuthService } from "@/src/features/public-api/server";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -32,14 +33,25 @@ export async function handleUpdateProject(
       });
     }
 
+    let parsedMetadata = metadata;
     if (metadata !== undefined && typeof metadata !== "object") {
       try {
-        JSON.parse(metadata);
+        parsedMetadata = JSON.parse(metadata);
       } catch (error) {
         return res.status(400).json({
           message: `Invalid metadata. Should be a valid JSON object: ${error}`,
         });
       }
+    }
+    if (
+      parsedMetadata !== undefined &&
+      (typeof parsedMetadata !== "object" ||
+        parsedMetadata === null ||
+        Array.isArray(parsedMetadata))
+    ) {
+      return res.status(400).json({
+        message: "Invalid metadata. Should be a valid JSON object.",
+      });
     }
 
     // Validate retention days if provided
@@ -77,7 +89,7 @@ export async function handleUpdateProject(
       data: {
         name,
         ...(retention !== undefined ? { retentionDays: retention } : {}),
-        ...(metadata !== undefined ? { metadata } : {}),
+        ...(metadata !== undefined ? { metadata: parsedMetadata } : {}),
       },
       select: {
         id: true,
@@ -108,6 +120,20 @@ export async function handleDeleteProject(
   scope: ApiAccessScope,
 ) {
   try {
+    const gatewayConfig = await prisma.gatewayConfig.findFirst({
+      where: {
+        organizationId: scope.orgId,
+        defaultIngestionProjectId: projectId,
+      },
+      select: { organizationId: true },
+    });
+    if (gatewayConfig) {
+      return res.status(409).json({
+        message:
+          "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+      });
+    }
+
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
     await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
       projectId,
@@ -141,6 +167,19 @@ export async function handleDeleteProject(
       resourceId: projectId,
       before: project,
       action: "delete",
+    });
+
+    // Refresh org-scoped keys' baked projectIds now that a project is gone.
+    await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
+      scope.orgId,
+    );
+
+    // Soft-delete is the billing-relevant moment: the customer stops being
+    // billable now, not when the async hard-delete worker finishes.
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_DELETED",
+      orgId: scope.orgId,
+      projectId,
     });
 
     // Queue project deletion job

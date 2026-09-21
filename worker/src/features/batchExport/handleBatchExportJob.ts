@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
   BatchExportFileFormat,
@@ -17,6 +18,7 @@ import {
   getCurrentSpan,
   applyCommentFilters,
   type CommentObjectType,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { getDatabaseReadStreamPaginated } from "../database-read-stream/getDatabaseReadStream";
@@ -28,8 +30,11 @@ import { getEventsStream } from "../database-read-stream/event-stream";
 const tableToCommentType: Record<string, CommentObjectType | undefined> = {
   traces: "TRACE",
   observations: "OBSERVATION",
+  events: "OBSERVATION",
   sessions: "SESSION",
 };
+
+const BATCH_EXPORT_CLICKHOUSE_SERVICE: PreferredClickhouseService = "ReadOnly";
 
 export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
@@ -42,7 +47,9 @@ export const handleBatchExportJob = async (
 
   const { projectId, batchExportId } = batchExportJob;
 
-  logger.info(`Starting batch export for ${projectId} and ${batchExportId}`);
+  logger.info(
+    `[BATCH EXPORT] Starting batch export for ${projectId} and ${batchExportId}`,
+  );
 
   const span = getCurrentSpan();
   if (span) {
@@ -70,7 +77,7 @@ export const handleBatchExportJob = async (
   // Check if the batch export has been cancelled
   if (jobDetails.status === BatchExportStatus.CANCELLED) {
     logger.info(
-      `Batch export ${batchExportId} has been cancelled. Skipping processing.`,
+      `[BATCH EXPORT] Batch export ${batchExportId} has been cancelled. Skipping processing.`,
     );
     return; // Exit early without processing
   }
@@ -97,7 +104,7 @@ export const handleBatchExportJob = async (
     });
 
     logger.info(
-      `Batch export ${batchExportId} is older than 30 days. Marked as failed with retry message.`,
+      `[BATCH EXPORT] Batch export ${batchExportId} is older than 30 days. Marked as failed with retry message.`,
     );
 
     return; // Exit early without processing
@@ -105,7 +112,7 @@ export const handleBatchExportJob = async (
 
   if (jobDetails.status !== BatchExportStatus.QUEUED) {
     logger.warn(
-      `Job ${batchExportId} has invalid status: ${jobDetails.status}. Retrying anyway.`,
+      `[BATCH EXPORT] Job ${batchExportId} has invalid status: ${jobDetails.status}. Retrying anyway.`,
     );
   }
 
@@ -150,7 +157,7 @@ export const handleBatchExportJob = async (
     if (hasNoMatches) {
       // No matching items - complete export with empty results
       logger.info(
-        `Batch export ${batchExportId}: comment filter matched no items, completing with empty export`,
+        `[BATCH EXPORT] Batch export ${batchExportId}: comment filter matched no items, completing with empty export`,
       );
 
       // Create an empty stream by using a filter that matches nothing
@@ -177,6 +184,7 @@ export const handleBatchExportJob = async (
           ...parsedQuery.data,
           filter: processedFilter,
           fileFormat: jobDetails.format as BatchExportFileFormat,
+          preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
         })
       : parsedQuery.data.tableName === BatchExportTableName.Traces
         ? await getTraceStream({
@@ -197,6 +205,7 @@ export const handleBatchExportJob = async (
               cutoffCreatedAt: jobDetails.createdAt,
               ...parsedQuery.data,
               filter: processedFilter,
+              preferredClickhouseService: BATCH_EXPORT_CLICKHOUSE_SERVICE,
             });
 
   // Transform data to desired format
@@ -208,7 +217,7 @@ export const handleBatchExportJob = async (
       rowCount++;
       if (rowCount % 5000 === 0) {
         logger.info(
-          `Batch export ${batchExportId}: processed ${rowCount} rows`,
+          `[BATCH EXPORT] Batch export ${batchExportId}: processed ${rowCount} rows`,
         );
       }
       callback(null, chunk);
@@ -221,10 +230,13 @@ export const handleBatchExportJob = async (
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
-        logger.error("Getting data from DB and transform failed: ", err);
+        logger.error(
+          "[BATCH EXPORT] Getting data from DB and transform failed: ",
+          err,
+        );
       } else {
         logger.info(
-          `Batch export ${batchExportId}: completed processing ${rowCount} total rows`,
+          `[BATCH EXPORT] Batch export ${batchExportId}: completed processing ${rowCount} total rows`,
         );
       }
     },
@@ -265,12 +277,17 @@ export const handleBatchExportJob = async (
     partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
   });
 
+  // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
+  // don't — and the web tier's downloadUrl fallback returns this stored URL
+  // for same-tab navigation, so without a Content-Disposition header the
+  // browser would render the export instead of downloading it.
   const signedUrl = await storageService.getSignedUrl(
     fileName,
     expiresInSeconds,
+    true,
   );
 
-  logger.info(`Batch export file ${fileName} uploaded`);
+  logger.info(`[BATCH EXPORT] Batch export file ${fileName} uploaded`);
 
   // Update job status
   await prisma.batchExport.update({
@@ -294,16 +311,24 @@ export const handleBatchExportJob = async (
   });
 
   if (user?.email) {
+    // Link to the exports page rather than the signed URL: the page mints a
+    // fresh download URL on click, while a URL signed with temporary
+    // credentials (e.g. IAM role sessions) can die well before expiresAt.
+    const exportsPageUrl = env.NEXTAUTH_URL
+      ? `${env.NEXTAUTH_URL}/project/${projectId}/settings/exports`
+      : undefined;
+
     await sendBatchExportSuccessEmail({
       env,
       receiverEmail: user.email,
-      downloadLink: signedUrl,
+      downloadLink: exportsPageUrl ?? signedUrl,
       userName: user?.name || "",
       batchExportName: jobDetails.name,
+      downloadWindowHours: env.BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS,
     });
 
     logger.info(
-      `Batch export with id ${batchExportId} for project ${projectId} successful. Email sent to user ${user.id}`,
+      `[BATCH EXPORT] Batch export with id ${batchExportId} for project ${projectId} successful. Email sent to user ${user.id}`,
     );
   }
 };

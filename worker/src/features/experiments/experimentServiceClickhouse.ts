@@ -1,16 +1,27 @@
-import { DatasetItemDomain, Prisma } from "@langfuse/shared";
+/* eslint-disable no-nested-ternary */
+import {
+  asRecord,
+  convertEventRecordToObservationForEval,
+  DatasetItemDomain,
+  Prisma,
+} from "@langfuse/shared";
 import {
   ChatMessage,
+  compileLangfuseMediaMessages,
+  convertDateToClickhouseDateTime,
+  createLLMOutput,
+  createLLMToolSet,
+  createUnknownSdkIngestionAttribution,
   createDatasetItemFilterState,
   DatasetRunItemUpsertQueue,
   eventTypes,
   ExperimentCreateEventSchema,
-  fetchLLMCompletion,
-  GenerationDetails,
+  generateLLMText,
   getDatasetItems,
   IngestionEventType,
   LangfuseInternalTraceEnvironment,
   logger,
+  mapLegacyLLMCompletionParams,
   processEventBatch,
   queryClickhouse,
   QueueJobs,
@@ -32,6 +43,7 @@ import {
 import { randomUUID } from "crypto";
 import { createW3CTraceId } from "../utils";
 import { scheduleExperimentObservationEvals } from "./scheduleExperimentEvals";
+import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 
 async function getExistingRunItemDatasetItemIds(
   projectId: string,
@@ -53,12 +65,7 @@ async function getExistingRunItemDatasetItemIds(
       runId,
       datasetId,
     },
-    tags: {
-      feature: "dataset-run-item",
-      type: "read",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return new Set(rows.map((row) => row.id));
@@ -91,19 +98,18 @@ async function processItem(
     },
   };
 
-  const ingestionResult = await processEventBatch(
-    [event],
-    {
-      validKey: true,
-      scope: {
-        projectId: config.projectId,
-        accessLevel: "project" as const,
-      },
+  const auth = {
+    validKey: true as const,
+    scope: {
+      projectId: config.projectId,
+      accessLevel: "project" as const,
     },
-    {
-      isLangfuseInternal: true,
-    },
-  );
+  };
+
+  const ingestionResult = await processEventBatch([event], auth, {
+    isLangfuseInternal: true,
+    attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+  });
 
   if (ingestionResult.errors.length > 0) {
     const error = ingestionResult.errors[0];
@@ -125,20 +131,6 @@ async function processItem(
   );
 
   if (!llmResult.success) return { success: false };
-
-  /********************
-   * SCHEDULE EXPERIMENT OBSERVATION EVALS *
-   ********************/
-
-  if (llmResult.generationDetails) {
-    await scheduleExperimentObservationEvals({
-      projectId,
-      traceId: newTraceId,
-      datasetItem,
-      config,
-      generationDetails: llmResult.generationDetails,
-    });
-  }
 
   /********************
    * ASYNC RUN ITEM EVAL *
@@ -169,7 +161,7 @@ async function processLLMCall(
   traceId: string,
   datasetItem: DatasetItemDomain & { input: Prisma.JsonObject },
   config: PromptExperimentConfig,
-): Promise<{ success: boolean; generationDetails?: GenerationDetails }> {
+): Promise<{ success: boolean }> {
   let messages: ChatMessage[] = [];
   // Extract and replace variables in prompt
   try {
@@ -186,9 +178,6 @@ async function processLLMCall(
     );
     return { success: false };
   }
-
-  let generationDetails: GenerationDetails | null = null;
-
   const traceSinkParams: TraceSinkParams = {
     environment: LangfuseInternalTraceEnvironment.PromptExperiments,
     traceName: `dataset-run-item-${runItemId.slice(0, 5)}`,
@@ -202,15 +191,28 @@ async function processLLMCall(
       experiment_run_name: config.experimentRunName,
     },
     prompt: config.prompt,
-    onGenerationComplete: (details) => {
-      generationDetails = details;
-    },
+    eventsWriter: createInternalEventsWriter({
+      experimentContext: {
+        id: config.runId,
+        name: config.datasetRun.name,
+        metadata: asRecord(config.datasetRun.metadata),
+        description: config.datasetRun.description,
+        datasetId: datasetItem.datasetId,
+        itemId: datasetItem.id,
+        itemVersion: convertDateToClickhouseDateTime(datasetItem.validFrom),
+        itemExpectedOutput: datasetItem.expectedOutput,
+        itemMetadata: asRecord(datasetItem.metadata),
+      },
+      onRootEventRecordReady: async (rootEventRecord) => {
+        await scheduleExperimentObservationEvals({
+          observation: convertEventRecordToObservationForEval(rootEventRecord),
+        });
+      },
+    }),
   };
 
-  await fetchLLMCompletion({
-    streaming: false,
-    llmConnection: config.validatedApiKey,
-    maxRetries: 1,
+  const llmParams = mapLegacyLLMCompletionParams({
+    connection: config.validatedApiKey,
     messages,
     modelParams: {
       provider: config.provider,
@@ -218,14 +220,29 @@ async function processLLMCall(
       adapter: config.validatedApiKey.adapter,
       ...config.model_params,
     },
-    structuredOutputSchema: config.structuredOutputSchema,
-    traceSinkParams,
-  }).catch(); // catch errors and do not retry
+  });
+  const { providerMessages, traceMessages } =
+    await compileLangfuseMediaMessages({
+      projectId: config.projectId,
+      messages,
+      adapter: config.validatedApiKey.adapter,
+    });
 
-  return {
-    success: true,
-    generationDetails: generationDetails ?? undefined,
-  };
+  await generateLLMText({
+    ...llmParams,
+    messages: providerMessages,
+    traceInput: traceMessages,
+    maxRetries: 1,
+    // Setup rejects the unsupported tools + structured-output combination.
+    ...(config.structuredOutputSchema
+      ? { output: createLLMOutput(config.structuredOutputSchema) }
+      : config.tools.length > 0
+        ? { tools: createLLMToolSet(config.tools) }
+        : {}),
+    trace: traceSinkParams,
+  }).catch(() => undefined); // catch errors and do not retry
+
+  return { success: true };
 }
 
 async function getItemsToProcess(
@@ -463,16 +480,17 @@ async function createAllDatasetRunItemsWithConfigError(
       `Creating ${events.length / 3} dataset run items with config error`,
     );
 
-    await processEventBatch(
-      events,
-      {
-        validKey: true,
-        scope: {
-          projectId,
-          accessLevel: "project" as const,
-        },
+    const auth = {
+      validKey: true as const,
+      scope: {
+        projectId,
+        accessLevel: "project" as const,
       },
-      { isLangfuseInternal: true },
-    );
+    };
+
+    await processEventBatch(events, auth, {
+      isLangfuseInternal: true,
+      attribution: createUnknownSdkIngestionAttribution({ authCheck: auth }),
+    });
   }
 }

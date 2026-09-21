@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
@@ -17,7 +15,7 @@ import {
 const MembershipResponseSchema = z.object({
   userId: z.string(),
   role: z.enum(Role),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().nullable(),
 });
 
@@ -329,7 +327,7 @@ describe("Memberships APIs", () => {
         expect(membershipBefore).not.toBeNull();
 
         // Delete the membership
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; userId: string }>(
           "DELETE",
           `/api/public/projects/${testProjectId}/memberships`,
           {
@@ -512,7 +510,7 @@ describe("Memberships APIs", () => {
         expect(membershipBefore).not.toBeNull();
 
         // Delete the membership
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; userId: string }>(
           "DELETE",
           `/api/public/organizations/memberships`,
           {

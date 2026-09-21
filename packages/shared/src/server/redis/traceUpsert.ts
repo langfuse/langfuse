@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
@@ -63,16 +59,11 @@ export class TraceUpsertQueue {
       return TraceUpsertQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.TraceUpsert}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.TraceUpsert]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: 100,
             removeOnFail: 100_000,

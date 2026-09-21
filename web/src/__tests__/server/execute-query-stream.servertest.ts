@@ -1,6 +1,5 @@
-/** @jest-environment node */
 import { v4 } from "uuid";
-import { createMocks } from "node-mocks-http";
+import { createMocks, type Body } from "node-mocks-http";
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   createOrgProjectAndApiKey,
@@ -12,15 +11,15 @@ import handler from "../../pages/api/dashboard/execute-query-stream";
 
 // --- Auth mock (only thing we need to mock — no real session in tests) ---
 
-const mockGetServerAuthSession = jest.fn();
-jest.mock("../../server/auth", () => ({
+const mockGetServerAuthSession = vi.fn();
+vi.mock("../../server/auth", () => ({
   getServerAuthSession: (...args: unknown[]) =>
     mockGetServerAuthSession(...args),
 }));
 
 // Admin webhook — not relevant to streaming logic, just suppress side-effects
-const mockSendAdminAccessWebhook = jest.fn();
-jest.mock("../../server/adminAccessWebhook", () => ({
+const mockSendAdminAccessWebhook = vi.fn();
+vi.mock("../../server/adminAccessWebhook", () => ({
   sendAdminAccessWebhook: (...args: unknown[]) =>
     mockSendAdminAccessWebhook(...args),
 }));
@@ -30,10 +29,10 @@ jest.mock("../../server/adminAccessWebhook", () => ({
 function createPostMocks(body: unknown) {
   const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
     method: "POST",
-    body,
+    body: body as Body,
   });
   // node-mocks-http doesn't implement flushHeaders
-  res.flushHeaders = jest.fn();
+  res.flushHeaders = vi.fn();
   return { req, res };
 }
 
@@ -115,6 +114,8 @@ describe("execute-query-stream handler", () => {
   function makeBody(queryOverrides?: Record<string, unknown>) {
     return {
       projectId,
+      // The suite's fixture data lives in the v3 traces table.
+      version: "v1" as const,
       query: {
         view: "traces" as const,
         dimensions: [],
@@ -128,6 +129,14 @@ describe("execute-query-stream handler", () => {
       },
     };
   }
+
+  it("should return 400 when version is missing (no implicit default)", async () => {
+    mockGetServerAuthSession.mockResolvedValue(makeSession());
+    const { version: _version, ...bodyWithoutVersion } = makeBody();
+    const { req, res } = createPostMocks(bodyWithoutVersion);
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(400);
+  });
 
   it("should return 400 when v4 beta is disabled", async () => {
     mockGetServerAuthSession.mockResolvedValue(

@@ -2,75 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   compilePersistedEvalOutputDefinition,
   buildEvalOutputResultSchema,
-  ChatMessageRole,
-  ChatMessageType,
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
+  EvalTargetObject,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
 } from "@langfuse/shared";
-import { type ExtractedVariable } from "./observationEval/extractObservationVariables";
 import {
-  buildEvalExecutionMetadata,
-  buildEvalMessages,
-  compileEvalPrompt,
-  getEnvironmentFromVariables,
-} from "./evalRuntime";
-import { buildEvalScoreWritePayloads, buildScoreEvent } from "./evalScoreEvent";
+  buildEvalExecutionData,
+  type EvaluatorLlmErrorClassification,
+} from "@langfuse/shared/src/server";
+import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
+import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
+import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
+import {
+  buildEvalExecutionSpanAttributes,
+  buildEvaluatorLlmErrorSpanAttributes,
+} from "./evalSpanAttributes";
 
 describe("evaluation helpers", () => {
-  describe("compileEvalPrompt", () => {
-    it("should compile template with variables", () => {
-      const params = {
-        templatePrompt: "Evaluate {{input}} and compare to {{output}}",
-        variables: [
-          { var: "input", value: "user question" },
-          { var: "output", value: "model response" },
-        ] as ExtractedVariable[],
-      };
-
-      const result = compileEvalPrompt(params);
-      expect(result).toBe(
-        "Evaluate user question and compare to model response",
-      );
-    });
-
-    it("should handle empty variables array", () => {
-      const params = {
-        templatePrompt: "Plain text without variables",
-        variables: [] as ExtractedVariable[],
-      };
-
-      const result = compileEvalPrompt(params);
-      expect(result).toBe("Plain text without variables");
-    });
-
-    it("should handle variables with special characters", () => {
-      const params = {
-        templatePrompt: "Input: {{input}}",
-        variables: [
-          { var: "input", value: "text with \"quotes\" and 'apostrophes'" },
-        ] as ExtractedVariable[],
-      };
-
-      const result = compileEvalPrompt(params);
-      expect(result).toBe("Input: text with \"quotes\" and 'apostrophes'");
-    });
-
-    it("should handle JSON values in variables", () => {
-      const params = {
-        templatePrompt: "Data: {{data}}",
-        variables: [
-          { var: "data", value: '{"key": "value", "count": 42}' },
-        ] as ExtractedVariable[],
-      };
-
-      const result = compileEvalPrompt(params);
-      expect(result).toBe('Data: {"key": "value", "count": 42}');
-    });
-  });
-
   describe("buildEvalOutputResultSchema", () => {
     it("should build numeric response schema with descriptions", () => {
       const schema = buildEvalOutputResultSchema(
@@ -103,6 +55,34 @@ describe("evaluation helpers", () => {
       }
     });
 
+    it("should reject numeric responses outside the configured range", () => {
+      const schema = buildEvalOutputResultSchema({
+        version: 2,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        score: {
+          description: "Score between -1 and 1",
+          minValue: -1,
+          maxValue: 1,
+        },
+        reasoning: { description: "The reasoning" },
+      });
+
+      expect(
+        schema.safeParse({ score: -1, reasoning: "At the minimum" }).success,
+      ).toBe(true);
+      expect(
+        schema.safeParse({ score: 1, reasoning: "At the maximum" }).success,
+      ).toBe(true);
+      expect(
+        schema.safeParse({ score: 1.1, reasoning: "Above the maximum" })
+          .success,
+      ).toBe(false);
+      expect(
+        schema.safeParse({ score: -1.1, reasoning: "Below the minimum" })
+          .success,
+      ).toBe(false);
+    });
+
     it("should reject invalid response - missing score", () => {
       const schema = buildEvalOutputResultSchema(
         createNumericEvalOutputDefinition({
@@ -130,6 +110,40 @@ describe("evaluation helpers", () => {
       });
 
       expect(result.success).toBe(false);
+    });
+
+    it("should validate boolean responses", () => {
+      const schema = buildEvalOutputResultSchema(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: true,
+          reasoning: "The answer satisfies the criteria.",
+        }).success,
+      ).toBe(true);
+    });
+
+    it("should reject string values for boolean responses", () => {
+      const schema = buildEvalOutputResultSchema(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
+        }),
+      );
+
+      expect(
+        schema.safeParse({
+          score: "true",
+          reasoning: "String booleans should be rejected.",
+        }).success,
+      ).toBe(false);
     });
 
     it("should validate categorical responses against allowed values", () => {
@@ -253,9 +267,10 @@ describe("evaluation helpers", () => {
     });
   });
 
-  describe("buildEvalExecutionMetadata", () => {
+  describe("buildEvalExecutionData", () => {
     it("should include all provided fields", () => {
       const params = {
+        type: "JOB" as const,
         jobExecutionId: "exec-123",
         jobConfigurationId: "config-456",
         targetTraceId: "trace-789",
@@ -263,19 +278,26 @@ describe("evaluation helpers", () => {
         targetDatasetItemId: "dataset-def",
       };
 
-      const result = buildEvalExecutionMetadata(params);
+      const result = buildEvalExecutionData(params);
 
       expect(result).toEqual({
-        job_execution_id: "exec-123",
-        job_configuration_id: "config-456",
-        target_trace_id: "trace-789",
-        target_observation_id: "obs-abc",
-        target_dataset_item_id: "dataset-def",
+        executionMetadata: {
+          job_execution_id: "exec-123",
+          job_configuration_id: "config-456",
+          target_trace_id: "trace-789",
+          target_observation_id: "obs-abc",
+          target_dataset_item_id: "dataset-def",
+        },
+        evaluationContext: {
+          evaluationRuleId: "config-456",
+          evaluatorExecutionIsTest: false,
+        },
       });
     });
 
     it("should exclude null/undefined fields", () => {
       const params = {
+        type: "JOB" as const,
         jobExecutionId: "exec-123",
         jobConfigurationId: "config-456",
         targetTraceId: null,
@@ -283,135 +305,405 @@ describe("evaluation helpers", () => {
         targetDatasetItemId: null,
       };
 
-      const result = buildEvalExecutionMetadata(params);
+      const result = buildEvalExecutionData(params);
 
       expect(result).toEqual({
-        job_execution_id: "exec-123",
-        job_configuration_id: "config-456",
+        executionMetadata: {
+          job_execution_id: "exec-123",
+          job_configuration_id: "config-456",
+        },
+        evaluationContext: {
+          evaluationRuleId: "config-456",
+          evaluatorExecutionIsTest: false,
+        },
       });
-      expect(Object.keys(result)).not.toContain("target_trace_id");
-      expect(Object.keys(result)).not.toContain("target_observation_id");
-      expect(Object.keys(result)).not.toContain("target_dataset_item_id");
+      expect(Object.keys(result.executionMetadata)).not.toContain(
+        "target_trace_id",
+      );
+      expect(Object.keys(result.executionMetadata)).not.toContain(
+        "target_observation_id",
+      );
+      expect(Object.keys(result.executionMetadata)).not.toContain(
+        "target_dataset_item_id",
+      );
     });
   });
 
-  describe("buildEvalMessages", () => {
-    it("should build user message array", () => {
-      const prompt = "Evaluate this response";
+  describe("buildEvalExecutionSpanAttributes", () => {
+    it("should include target object, filter dimensions, and trace variable source fields", () => {
+      const attributes = buildEvalExecutionSpanAttributes({
+        config: {
+          id: "config-123",
+          targetObject: EvalTargetObject.TRACE,
+          filter: [
+            {
+              type: "string",
+              column: "name",
+              operator: "=",
+              value: "checkout",
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "tenant",
+              operator: "=",
+              value: "langfuse",
+            },
+            {
+              type: "numberObject",
+              column: "scores_avg",
+              key: "quality",
+              operator: ">",
+              value: 0.8,
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "tenant",
+              operator: "contains",
+              value: "lang",
+            },
+          ],
+          variableMapping: [
+            {
+              templateVariable: "traceInput",
+              langfuseObject: "trace",
+              selectedColumnId: "input",
+              jsonSelector: "messages.0.content",
+            },
+            {
+              templateVariable: "answer",
+              langfuseObject: "generation",
+              objectName: "answer-generator",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+          ],
+        },
+      });
 
-      const result = buildEvalMessages(prompt);
-
-      expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({
-        type: ChatMessageType.User,
-        role: ChatMessageRole.User,
-        content: "Evaluate this response",
+      expect(attributes).toMatchObject({
+        "eval.job_configuration.id": "config-123",
+        "eval.job_configuration.target_object": EvalTargetObject.TRACE,
+        "eval.job_configuration.filter.dimensions": [
+          "name",
+          "metadata",
+          "scores_avg",
+        ],
+        "eval.job_configuration.filter.dimension_count": 3,
+        "eval.variable.source_fields": ["trace.input", "generation.output"],
+        "eval.variable.source_field_count": 2,
       });
     });
 
-    it("should handle multiline prompts", () => {
-      const prompt = "First line\nSecond line\nThird line";
+    it("should use observation variable mappings for event and experiment targets", () => {
+      const attributes = buildEvalExecutionSpanAttributes({
+        config: {
+          id: "config-456",
+          targetObject: EvalTargetObject.EVENT,
+          filter: [
+            {
+              type: "positionInTrace",
+              column: "position",
+              operator: "=",
+              key: "root",
+            },
+          ],
+          variableMapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: "question",
+            },
+            {
+              templateVariable: "output",
+              selectedColumnId: "output",
+              jsonSelector: null,
+            },
+          ],
+        },
+      });
 
-      const result = buildEvalMessages(prompt);
-
-      expect(result[0].content).toBe("First line\nSecond line\nThird line");
+      expect(attributes).toMatchObject({
+        "eval.job_configuration.id": "config-456",
+        "eval.job_configuration.target_object": EvalTargetObject.EVENT,
+        "eval.job_configuration.filter.dimensions": ["position"],
+        "eval.job_configuration.filter.dimension_count": 1,
+        "eval.variable.source_fields": ["input", "output"],
+        "eval.variable.source_field_count": 2,
+      });
     });
   });
 
-  describe("buildScoreEvent", () => {
-    it("should build complete score event", () => {
-      const params = {
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: null,
-        scoreName: "accuracy",
-        scoreValue: 0.85,
-        reasoning: "High accuracy observed",
-        environment: "production",
-        executionTraceId: "exec-trace-abc",
-        metadata: { job_execution_id: "exec-123" },
-        dataType: ScoreDataTypeEnum.NUMERIC,
-      };
+  describe("buildEvaluatorLlmErrorSpanAttributes", () => {
+    it("exposes native AI SDK retry metadata without leaking the error message", () => {
+      const classification = {
+        kind: "provider",
+        message: "sensitive provider response",
+        statusCode: 429,
+        isRetryable: true,
+        error: new Error("sensitive provider response"),
+        retryError: {
+          reason: "maxRetriesExceeded",
+          errors: [new Error("attempt 1"), new Error("attempt 2")],
+        },
+        blockReason: null,
+      } as EvaluatorLlmErrorClassification;
 
-      const result = buildScoreEvent(params);
+      const attributes = buildEvaluatorLlmErrorSpanAttributes(classification);
 
-      expect(result.id).toBe("event-123");
-      expect(result.type).toBe("score-create");
-      expect(result.body.id).toBe("score-456");
-      expect(result.body.traceId).toBe("trace-789");
-      expect(result.body.observationId).toBeNull();
-      expect(result.body.name).toBe("accuracy");
-      expect(result.body.value).toBe(0.85);
-      expect(result.body.comment).toBe("High accuracy observed");
-      expect(result.body.source).toBe("EVAL");
-      expect(result.body.environment).toBe("production");
-      expect(result.body.executionTraceId).toBe("exec-trace-abc");
-      expect(result.body.metadata).toEqual({ job_execution_id: "exec-123" });
-      expect(result.body.dataType).toBe("NUMERIC");
+      expect(attributes).toEqual({
+        "eval.llm.error.kind": "provider",
+        "eval.llm.error.retryable": true,
+        "eval.llm.error.status_code": 429,
+        "eval.llm.retry.reason": "maxRetriesExceeded",
+        "eval.llm.retry.attempt_count": 2,
+        "eval.llm.blocked": false,
+      });
+      expect(JSON.stringify(attributes)).not.toContain(
+        "sensitive provider response",
+      );
+      expect(attributes).not.toHaveProperty("http.response.status_code");
     });
 
-    it("should include observation ID when provided", () => {
-      const params = {
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: "obs-abc",
-        scoreName: "relevance",
-        scoreValue: 0.9,
-        reasoning: "Highly relevant",
-        environment: "default",
-        executionTraceId: "exec-trace-def",
-        metadata: {},
-        dataType: ScoreDataTypeEnum.NUMERIC,
-      };
+    it("exposes the terminal evaluator block decision", () => {
+      const classification = {
+        kind: "validation",
+        message: "endpoint unavailable",
+        statusCode: 400,
+        isRetryable: false,
+        error: new Error("endpoint unavailable"),
+        blockReason: "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+      } as EvaluatorLlmErrorClassification;
 
-      const result = buildScoreEvent(params);
-
-      expect(result.body.observationId).toBe("obs-abc");
+      expect(buildEvaluatorLlmErrorSpanAttributes(classification)).toEqual({
+        "eval.llm.error.kind": "validation",
+        "eval.llm.error.retryable": false,
+        "eval.llm.error.status_code": 400,
+        "eval.llm.blocked": true,
+        "eval.llm.block.reason": "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+        "eval.llm.block.source": "llm_completion_error",
+      });
     });
 
-    it("should build categorical score events", () => {
-      const result = buildScoreEvent({
-        eventId: "event-123",
-        scoreId: "score-456",
-        traceId: "trace-789",
-        observationId: null,
-        scoreName: "factuality",
-        scoreValue: "correct",
-        reasoning: "The answer is fully supported.",
-        environment: "production",
-        executionTraceId: "exec-trace-abc",
-        metadata: { job_execution_id: "exec-123" },
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+    it("uses a low-cardinality fallback for unknown errors", () => {
+      expect(buildEvaluatorLlmErrorSpanAttributes(null)).toEqual({
+        "eval.llm.error.kind": "unknown",
+        "eval.llm.blocked": false,
+      });
+    });
+  });
+
+  describe("parseDispatchResult", () => {
+    it("should preserve optional per-score metadata from code eval runners", () => {
+      const result = parseDispatchResult({
+        scores: [
+          {
+            name: "quality",
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            metadata: { rubric: "strict" },
+          },
+        ],
       });
 
-      expect(result.body.value).toBe("correct");
-      expect(result.body.dataType).toBe("CATEGORICAL");
+      expect(result.scores[0]).toMatchObject({
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        value: 0.9,
+        metadata: { rubric: "strict" },
+      });
+    });
+
+    it("should reject non-object score metadata from code eval runners", () => {
+      expect(() =>
+        parseDispatchResult({
+          scores: [
+            {
+              name: "quality",
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              value: 0.9,
+              metadata: "not-a-dict",
+            },
+          ],
+        }),
+      ).toThrow("Invalid code eval result");
     });
   });
 
   describe("buildEvalScoreWritePayloads", () => {
-    it("should build a single numeric score payload", () => {
-      const result = buildEvalScoreWritePayloads({
-        outputResult: {
-          dataType: ScoreDataTypeEnum.NUMERIC,
-          score: 0.85,
-          reasoning: "High accuracy observed",
-        },
-        primaryScoreId: "score-123",
+    const evaluationContext = {
+      evaluationRuleId: "rule-1",
+      evaluatorExecutionIsTest: false,
+    };
+
+    it("should build stable code eval score IDs when different score names reorder", () => {
+      const originalPayloads = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+        ],
+        jobExecutionId: "job-1",
         traceId: "trace-456",
-        observationId: null,
-        scoreName: "accuracy",
+        observationId: "obs-789",
         environment: "production",
         executionTraceId: "exec-trace-789",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
+      });
+      const reorderedPayloads = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
+      });
+
+      expect(originalPayloads[0].scoreId).toBe(reorderedPayloads[1].scoreId);
+      expect(originalPayloads[1].scoreId).toBe(reorderedPayloads[0].scoreId);
+    });
+
+    it("should build distinct deterministic code eval score IDs for duplicate score names", () => {
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
+      });
+      const scoreIds = result.map((payload) => payload.scoreId);
+
+      expect(new Set(scoreIds).size).toBe(3);
+      expect(scoreIds).toEqual([
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "fluency",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 1,
+        }),
+      ]);
+    });
+
+    it("should build deterministic score IDs as part of payload creation", () => {
+      const expectedScoreIds = [
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 0,
+        }),
+        createDeterministicEvalScoreId({
+          jobExecutionId: "job-1",
+          scoreName: "accuracy",
+          occurrenceIndex: 1,
+        }),
+      ];
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
+      });
+
+      expect(result.map((payload) => payload.scoreId)).toEqual(
+        expectedScoreIds,
+      );
+      expect(result.map((payload) => payload.event.body.id)).toEqual(
+        expectedScoreIds,
+      );
+    });
+
+    it("should build a single numeric score payload", () => {
+      const scoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 0,
+      });
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.85,
+            name: "accuracy",
+            comment: "High accuracy observed",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: null,
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
       });
 
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
         eventId: expect.any(String),
-        scoreId: "score-123",
+        scoreId,
         event: expect.objectContaining({
           body: expect.objectContaining({
             value: 0.85,
@@ -421,25 +713,81 @@ describe("evaluation helpers", () => {
       });
     });
 
-    it("should build one categorical payload per match while preserving shared metadata", () => {
+    it("should build a single boolean score payload", () => {
+      const scoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "correctness",
+        occurrenceIndex: 0,
+      });
       const result = buildEvalScoreWritePayloads({
-        outputResult: {
-          dataType: ScoreDataTypeEnum.CATEGORICAL,
-          matches: ["correct", "partial"],
-          reasoning: "Both categories apply",
-        },
-        primaryScoreId: "score-123",
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.BOOLEAN,
+            value: 1,
+            name: "correctness",
+            comment: "The answer satisfies the criteria",
+          },
+        ],
+        jobExecutionId: "job-1",
         traceId: "trace-456",
-        observationId: "obs-789",
-        scoreName: "accuracy",
+        observationId: null,
         environment: "production",
         executionTraceId: "exec-trace-789",
-        metadata: { job_execution_id: "job-1" },
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
+      });
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({
+        eventId: expect.any(String),
+        scoreId,
+        event: expect.objectContaining({
+          body: expect.objectContaining({
+            value: 1,
+            dataType: ScoreDataTypeEnum.BOOLEAN,
+          }),
+        }),
+      });
+    });
+
+    it("should build one categorical payload per match while preserving shared metadata", () => {
+      const firstScoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 0,
+      });
+      const secondScoreId = createDeterministicEvalScoreId({
+        jobExecutionId: "job-1",
+        scoreName: "accuracy",
+        occurrenceIndex: 1,
+      });
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "correct",
+            name: "accuracy",
+            comment: "Both categories apply",
+          },
+          {
+            dataType: ScoreDataTypeEnum.CATEGORICAL,
+            value: "partial",
+            name: "accuracy",
+            comment: "Both categories apply",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: { job_execution_id: "job-1" },
+        evaluationContext,
       });
 
       expect(result).toHaveLength(2);
-      expect(result[0].scoreId).toBe("score-123");
-      expect(result[1].scoreId).not.toBe("score-123");
+      expect(result[0].scoreId).toBe(firstScoreId);
+      expect(result[1].scoreId).toBe(secondScoreId);
       expect(result[0].event.body.value).toBe("correct");
       expect(result[1].event.body.value).toBe("partial");
       expect(result[0].event.body.comment).toBe("Both categories apply");
@@ -451,47 +799,60 @@ describe("evaluation helpers", () => {
         job_execution_id: "job-1",
       });
     });
-  });
 
-  describe("getEnvironmentFromVariables", () => {
-    it("should return environment from variable that has it", () => {
-      const variables: ExtractedVariable[] = [
-        { var: "input", value: "test" },
-        { var: "output", value: "result", environment: "production" },
-        { var: "context", value: "extra" },
-      ];
+    it("should merge returned score metadata with execution metadata", () => {
+      const result = buildEvalScoreWritePayloads({
+        scores: [
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.9,
+            name: "accuracy",
+            metadata: {
+              rubric: "strict",
+              tags: ["math", "strict"],
+              job_execution_id: "user-supplied-job",
+            },
+          },
+          {
+            dataType: ScoreDataTypeEnum.NUMERIC,
+            value: 0.7,
+            name: "fluency",
+          },
+        ],
+        jobExecutionId: "job-1",
+        traceId: "trace-456",
+        observationId: "obs-789",
+        environment: "production",
+        executionTraceId: "exec-trace-789",
+        executionMetadata: {
+          job_execution_id: "job-1",
+          dispatcher_name: "test-dispatcher",
+        },
+        evaluationContext: {
+          evaluatorId: "evaluator-1",
+          evaluationRuleId: "legacy-rule-1",
+          evaluatorExecutionIsTest: false,
+        },
+      });
 
-      const result = getEnvironmentFromVariables(variables);
-
-      expect(result).toBe("production");
-    });
-
-    it("should return first environment when multiple exist", () => {
-      const variables: ExtractedVariable[] = [
-        { var: "input", value: "test", environment: "staging" },
-        { var: "output", value: "result", environment: "production" },
-      ];
-
-      const result = getEnvironmentFromVariables(variables);
-
-      expect(result).toBe("staging");
-    });
-
-    it("should return undefined when no environment exists", () => {
-      const variables: ExtractedVariable[] = [
-        { var: "input", value: "test" },
-        { var: "output", value: "result" },
-      ];
-
-      const result = getEnvironmentFromVariables(variables);
-
-      expect(result).toBeUndefined();
-    });
-
-    it("should return undefined for empty array", () => {
-      const result = getEnvironmentFromVariables([]);
-
-      expect(result).toBeUndefined();
+      expect(result[0].event.body.metadata).toEqual({
+        rubric: "strict",
+        tags: ["math", "strict"],
+        job_execution_id: "job-1",
+        dispatcher_name: "test-dispatcher",
+      });
+      expect(result[0].event.body).toMatchObject({
+        evaluatorId: "evaluator-1",
+        evaluationRuleId: "legacy-rule-1",
+      });
+      expect(result[1].event.body.metadata).toEqual({
+        job_execution_id: "job-1",
+        dispatcher_name: "test-dispatcher",
+      });
+      expect(result[1].event.body).toMatchObject({
+        evaluatorId: "evaluator-1",
+        evaluationRuleId: "legacy-rule-1",
+      });
     });
   });
 
@@ -558,6 +919,48 @@ describe("evaluation helpers", () => {
 
       const result = validateEvalOutputResult({
         response: { score: 0.5 },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("should normalize boolean responses", () => {
+      const outputDefinition = createBooleanEvalOutputDefinition({
+        scoreDescription:
+          "Return true if the answer is correct, otherwise false",
+        reasoningDescription: "Why",
+      });
+
+      const result = validateEvalOutputResult({
+        response: { score: false, reasoning: "The answer is incorrect." },
+        compiledOutputDefinition:
+          compilePersistedEvalOutputDefinition(outputDefinition),
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({
+          dataType: ScoreDataTypeEnum.BOOLEAN,
+          score: false,
+          reasoning: "The answer is incorrect.",
+        });
+      }
+    });
+
+    it("should reject invalid boolean responses", () => {
+      const outputDefinition = createBooleanEvalOutputDefinition({
+        scoreDescription:
+          "Return true if the answer is correct, otherwise false",
+        reasoningDescription: "Why",
+      });
+
+      const result = validateEvalOutputResult({
+        response: {
+          score: "false",
+          reasoning: "String booleans are invalid.",
+        },
         compiledOutputDefinition:
           compilePersistedEvalOutputDefinition(outputDefinition),
       });
@@ -703,6 +1106,33 @@ describe("evaluation helpers", () => {
       );
 
       expect(result.success).toBe(true);
+    });
+
+    it("should accept versioned boolean schemas", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse(
+        createBooleanEvalOutputDefinition({
+          scoreDescription:
+            "Return true if the answer is correct, otherwise false",
+          reasoningDescription: "Explain the verdict",
+        }),
+      );
+
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject numeric schemas with an inverted range", () => {
+      const result = PersistedEvalOutputDefinitionSchema.safeParse({
+        version: 2,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        reasoning: { description: "Explain the score" },
+        score: {
+          description: "Score within the configured range",
+          minValue: 1,
+          maxValue: 0,
+        },
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("should accept versioned categorical multi-match schemas", () => {

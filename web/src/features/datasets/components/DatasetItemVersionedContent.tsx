@@ -40,7 +40,7 @@ export const DatasetItemVersionedContent = ({
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center">
         <div className="text-muted-foreground">
-          <p className="text-lg font-medium">
+          <p className="text-lg font-bold">
             Item does not exist at this version
           </p>
           <p className="mt-2 text-sm">
@@ -63,7 +63,7 @@ export const DatasetItemVersionedContent = ({
       return (
         <div className="flex flex-col items-center justify-center p-12 text-center">
           <div className="text-muted-foreground">
-            <p className="text-lg font-medium">Cannot show diff</p>
+            <p className="text-lg font-bold">Cannot show diff</p>
             <p className="mt-2 text-sm">
               The latest version of this item does not exist (has been deleted).
             </p>
@@ -83,13 +83,16 @@ export const DatasetItemVersionedContent = ({
   // Show normal view of selected version
   return (
     <DatasetItemFields
-      inputValue={stringifyDatasetItemData(itemAtVersion.input)}
-      expectedOutputValue={stringifyDatasetItemData(
-        itemAtVersion.expectedOutput,
-      )}
-      metadataValue={stringifyDatasetItemData(itemAtVersion.metadata)}
+      values={{
+        input: stringifyDatasetItemData(itemAtVersion.input),
+        expectedOutput: stringifyDatasetItemData(itemAtVersion.expectedOutput),
+        metadata: stringifyDatasetItemData(itemAtVersion.metadata),
+      }}
       dataset={dataset}
       editable={false}
+      projectId={itemAtVersion.projectId}
+      datasetItemId={itemAtVersion.id}
+      datasetItemValidFrom={itemAtVersion.validFrom}
     />
   );
 };

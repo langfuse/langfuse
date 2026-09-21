@@ -84,12 +84,11 @@ export function ScoreDistributionBooleanChart({
             pv: item.count,
             uv: dist2Map.get(item.binIndex) ?? 0,
           };
-        } else {
-          return {
-            name: label,
-            pv: item.count,
-          };
         }
+        return {
+          name: label,
+          pv: item.count,
+        };
       });
   }, [
     distribution1,

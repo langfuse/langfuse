@@ -7,13 +7,17 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { logger } from "@langfuse/shared/src/server";
+import { SCORES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
+    action: "scores:read",
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
+    deprecation: SCORES_DEPRECATION,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       // Validate that trace filters are not used when trace field is excluded
       const requestedFields = query.fields ?? ["score", "trace"];
@@ -25,15 +29,37 @@ export default withMiddlewares({
       const includesTrace = requestedFields.includes("trace");
       const hasTraceFilters = Boolean(query.userId || query.traceTags);
 
-      logger.info(
-        `fields: ${query.fields}, includesTrace: ${includesTrace}, hasTraceFilters: ${hasTraceFilters}`,
-      );
-
       if (!includesTrace && hasTraceFilters) {
         throw new InvalidRequestError(
           "Cannot filter by trace properties (userId, traceTags) when 'trace' field is not included. Please add 'trace' to the fields parameter or remove trace filters.",
         );
       }
+
+      const dataAccessWindow = clampToDataAccessDays({
+        plan: auth.scope.plan,
+        fromTimestamp: query.fromTimestamp ?? undefined,
+      });
+      const advancedFilters = dataAccessWindow.accessFloor
+        ? [
+            ...(query.filter ?? []),
+            {
+              column: "timestamp",
+              operator: ">=" as const,
+              value: dataAccessWindow.effectiveFromTimestamp!,
+              type: "datetime" as const,
+            },
+            ...(query.toTimestamp
+              ? [
+                  {
+                    column: "timestamp",
+                    operator: "<" as const,
+                    value: new Date(query.toTimestamp),
+                    type: "datetime" as const,
+                  },
+                ]
+              : []),
+          ]
+        : query.filter;
 
       const scoreParams = {
         projectId: auth.scope.projectId,
@@ -49,7 +75,7 @@ export default withMiddlewares({
         queueId: query.queueId ?? undefined,
         traceTags: query.traceTags ?? undefined,
         dataType: query.dataType ?? undefined,
-        fromTimestamp: query.fromTimestamp ?? undefined,
+        fromTimestamp: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
         toTimestamp: query.toTimestamp ?? undefined,
         environment: query.environment ?? undefined,
         source: query.source ?? undefined,
@@ -57,7 +83,7 @@ export default withMiddlewares({
         operator: query.operator ?? undefined,
         scoreIds: query.scoreIds ?? undefined,
         fields: query.fields ?? undefined,
-        advancedFilters: query.filter,
+        advancedFilters,
       };
       const scoresApiService = new ScoresApiService("v2");
       const [items, count] = await Promise.all([

@@ -4,20 +4,27 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  throwIfNoOrganizationAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { ApiAuthService } from "@/src/features/public-api/server";
 import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
   getEnvironmentsForProject,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
-import { StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -62,6 +69,16 @@ export const projectsRouter = createTRPCRouter({
         resourceId: project.id,
         action: "create",
         after: project,
+      });
+
+      // Refresh org-scoped keys' baked projectIds now that a project exists.
+      await invalidateCachedOrgApiKeys(input.orgId);
+
+      // Best-effort CHB metering signal; no-op unless the org is CHB-billed
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.orgId,
+        projectId: project.id,
       });
 
       return {
@@ -136,6 +153,13 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:update",
       });
+      if (input.retention !== null && input.retention > 0) {
+        throwIfNoEntitlement({
+          entitlement: "data-retention",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+      }
 
       const project = await ctx.prisma.project.update({
         where: {
@@ -156,6 +180,23 @@ export const projectsRouter = createTRPCRouter({
       return true;
     }),
 
+  deletionProtection: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:delete",
+      });
+      return {
+        isGatewayIngestionProject: await isGatewayIngestionProject({
+          prisma: ctx.prisma,
+          organizationId: ctx.session.orgId,
+          projectId: input.projectId,
+        }),
+      };
+    }),
+
   delete: protectedProjectProcedure
     .input(
       z.object({
@@ -167,6 +208,11 @@ export const projectsRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "project:delete",
+      });
+      await throwIfGatewayIngestionProject({
+        prisma: ctx.prisma,
+        organizationId: ctx.session.orgId,
+        projectId: input.projectId,
       });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
@@ -199,6 +245,17 @@ export const projectsRouter = createTRPCRouter({
         resourceId: input.projectId,
         before: project,
         action: "delete",
+      });
+
+      // Refresh org-scoped keys' baked projectIds now that a project is gone.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+
+      // Soft-delete is the billing-relevant moment: the customer stops being
+      // billable now, not when the async hard-delete worker finishes.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
       });
 
       const projectDeleteQueue = ProjectDeleteQueue.getInstance();
@@ -289,6 +346,27 @@ export const projectsRouter = createTRPCRouter({
         ctx.prisma,
         redis,
       ).invalidateCachedProjectApiKeys(input.projectId);
+
+      // Both orgs' org-scoped keys bake a projectId set that just changed.
+      await invalidateCachedOrgApiKeys(ctx.session.orgId);
+      await invalidateCachedOrgApiKeys(input.targetOrgId);
+
+      // A transfer is a delete for the source org and a create for the
+      // destination one. CHB's registry is keyed by (organizationId,
+      // projectId), so emitting only one side leaves the source org billed for
+      // usage it no longer owns, or the destination org unmetered. Each emit
+      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+      // sends nothing.
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_DELETED",
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+      });
+      emitChbProjectEvent({
+        type: "LANGFUSE_PROJECT_CREATED",
+        orgId: input.targetOrgId,
+        projectId: input.projectId,
+      });
     }),
 
   environmentFilterOptions: protectedProjectProcedure
@@ -296,4 +374,50 @@ export const projectsRouter = createTRPCRouter({
       z.object({ projectId: z.string(), fromTimestamp: z.date().optional() }),
     )
     .query(async ({ input }) => getEnvironmentsForProject(input)),
+
+  // Admin-only fallback for useProject: returns the project and its org in the
+  // same shape as session.user.organizations[number], since admins are not
+  // members of customer projects and have no session entry.
+  byId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(ctx);
+      const project = organization?.projects.find(
+        (p) => p.id === ctx.session.projectId,
+      );
+      if (!organization || !project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+      return { project, organization };
+    }),
 });
+
+async function isGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  const config = await params.prisma.gatewayConfig.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      defaultIngestionProjectId: params.projectId,
+    },
+    select: { organizationId: true },
+  });
+  return config !== null;
+}
+
+async function throwIfGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  if (await isGatewayIngestionProject(params)) {
+    throw new LangfuseConflictError(
+      "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+    );
+  }
+}

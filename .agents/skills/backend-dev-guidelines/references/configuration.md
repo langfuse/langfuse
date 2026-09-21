@@ -286,7 +286,7 @@ const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
 **When Set:**
 
 | Environment              | Value                  | Purpose                                        |
-|--------------------------|------------------------|------------------------------------------------|
+| ------------------------ | ---------------------- | ---------------------------------------------- |
 | **Developer Laptop**     | `"DEV"` or `"STAGING"` | Local development against cloud infrastructure |
 | **Langfuse Cloud US**    | `"US"`                 | Production US region                           |
 | **Langfuse Cloud EU**    | `"EU"`                 | Production EU region                           |
@@ -559,5 +559,5 @@ langfuse/
 
 **Related Files:**
 
-- [../AGENTS.md](../AGENTS.md) - Main guide
+- [../SKILL.md](../SKILL.md) - Main guide
 - [architecture-overview.md](architecture-overview.md) - Architecture patterns

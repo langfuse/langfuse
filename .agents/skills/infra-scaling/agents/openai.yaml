@@ -1,0 +1,4 @@
+interface:
+  display_name: "Langfuse Infra Scaling"
+  short_description: "Balance Langfuse infra cost and performance"
+  default_prompt: "Use $infra-scaling to review Langfuse web, web-iso, or web-ingestion autoscaling as a cost/performance tradeoff with Datadog evidence, and prepare a GitHub PR plus human-reviewed Linear follow-up when scaling changes are recommended."

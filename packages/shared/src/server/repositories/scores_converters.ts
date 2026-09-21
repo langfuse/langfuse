@@ -23,7 +23,7 @@ export const convertClickhouseScoreToDomain = <
   DataType extends ScoreDataTypeType = ScoreDataTypeType,
 >(
   record: ScoreRecordReadType,
-  includeMetadataPayload: boolean = true,
+  includeMetadataPayload = true,
 ): ScoreByDataType<DataType> => {
   const baseScore = {
     id: record.id,

@@ -21,14 +21,6 @@ export const OBSERVATION_VARIABLES = [
   },
 ];
 
-export const COLUMN_IDENTIFIERS_THAT_REQUIRE_PROPAGATION = new Set([
-  "release",
-  "traceName",
-  "userId",
-  "sessionId",
-  "tags",
-]);
-
 export const OUTPUT_MAPPING = [
   "generation",
   "output",
@@ -37,8 +29,10 @@ export const OUTPUT_MAPPING = [
   "completion",
 ];
 
-export const INTERNAL_ENVIRONMENTS = [
+const INTERNAL_ENVIRONMENTS = [
   LangfuseInternalTraceEnvironment.LLMJudge,
+  LangfuseInternalTraceEnvironment.CodeEval,
+  LangfuseInternalTraceEnvironment.NaturalLanguageFilter,
   "langfuse-prompt-experiment",
   "langfuse-evaluation",
   "sdk-experiment",
@@ -75,9 +69,20 @@ export const DEFAULT_OBSERVATION_FILTER = [
 // Default filter when remapping an evaluator from trace-level to observation-level
 export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING = [
   {
+    column: "isRootObservation",
+    operator: "=" as const,
+    value: true,
+    type: "boolean" as const,
+  },
+];
+
+// v3 SDKs do not set the app-root marker. Their top-level observations are
+// identified by having no parent observation.
+export const DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING_V3 = [
+  {
     column: "parentObservationId",
     operator: "is null" as const,
-    value: "",
+    value: "" as const,
     type: "null" as const,
   },
 ];

@@ -7,11 +7,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { Info, ExternalLink } from "lucide-react";
+import { Info } from "lucide-react";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { api } from "@/src/utils/api";
+import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type FilterState } from "@langfuse/shared";
 
 interface DataTableAIFiltersProps {
@@ -25,11 +25,6 @@ export function DataTableAIFilters({
   const [aiError, setAiError] = useState<string | null>(null);
   const projectId = useProjectIdFromURL();
   const { organization } = useQueryProject();
-
-  const hasAdminAccess = useHasOrganizationAccess({
-    organizationId: organization?.id ?? undefined,
-    scope: "organization:update",
-  });
 
   const createFilterMutation =
     api.naturalLanguageFilters.createCompletion.useMutation();
@@ -53,11 +48,14 @@ export function DataTableAIFilters({
           onFiltersGenerated(result.filters as FilterState);
           setAiPrompt("");
         } else {
-          console.error(result);
+          console.error(
+            "dataTable.aiFilters: invalid response format",
+            JSON.stringify(result),
+          );
           setAiError("Invalid response format from API");
         }
       } catch (error) {
-        console.error("Error calling tRPC API:", error);
+        reportNonTrpcError(error, "ai-filters");
         setAiError(
           error instanceof Error ? error.message : "Failed to generate filters",
         );
@@ -68,30 +66,10 @@ export function DataTableAIFilters({
   // When AI features are not enabled
   if (!organization?.aiFeaturesEnabled) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">
-          AI-powered filters use natural language to generate deterministic
-          filters.
-          {!hasAdminAccess &&
-            " Ask your organization administrator to enable AI features in organization settings."}
-        </p>
-        {hasAdminAccess && organization?.id && (
-          <Button
-            onClick={() => {
-              window.open(
-                `/organization/${organization.id}/settings`,
-                "_blank",
-              );
-            }}
-            variant="outline"
-            size="sm"
-            className="w-fit"
-          >
-            Enable in Organization Settings
-            <ExternalLink className="ml-2 h-4 w-4" />
-          </Button>
-        )}
-      </div>
+      <AIFeaturesDisabledNotice organizationId={organization?.id}>
+        AI-powered filters use natural language to generate deterministic
+        filters.
+      </AIFeaturesDisabledNotice>
     );
   }
 
@@ -99,7 +77,7 @@ export function DataTableAIFilters({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Filter with AI</span>
+        <span className="text-sm font-bold">Filter with AI</span>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

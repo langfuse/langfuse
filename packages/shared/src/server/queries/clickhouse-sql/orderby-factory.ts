@@ -1,6 +1,9 @@
 import z from "zod";
 import { OrderByState } from "../../../interfaces/orderBy";
-import { UiColumnMappings } from "../../../tableDefinitions";
+import {
+  findUiColumnMapping,
+  UiColumnMappings,
+} from "../../../tableDefinitions";
 import { InvalidRequestError } from "../../../errors";
 import { logger } from "../../logger";
 import type { OrderByDirection, OrderByEntry } from "./event-query-builder";
@@ -30,9 +33,7 @@ export function orderByToClickhouseSql(
     Boolean(o),
   )) {
     // Get column definition to map column to internal name, e.g. "t.id"
-    const col = tableColumns.find(
-      (c) => c.uiTableName === ob.column || c.uiTableId === ob.column,
-    );
+    const col = findUiColumnMapping(tableColumns, ob.column);
 
     if (!col) {
       logger.warn(`Invalid order by column: ${ob.column}`);
@@ -83,9 +84,7 @@ export function orderByToEntries(
   for (const ob of orderBy.filter((o): o is OrderByStateNotNull =>
     Boolean(o),
   )) {
-    const col = tableColumns.find(
-      (c) => c.uiTableName === ob.column || c.uiTableId === ob.column,
-    );
+    const col = findUiColumnMapping(tableColumns, ob.column);
 
     if (!col) {
       logger.warn(`Invalid order by column: ${ob.column}`);

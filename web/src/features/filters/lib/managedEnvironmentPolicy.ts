@@ -1,6 +1,4 @@
 import type { FilterState } from "@langfuse/shared";
-import { computeSelectedValues } from "./filter-query-encoding";
-import { areStringSetsEqual } from "./stringSetUtils";
 
 type EnvironmentFilter = Extract<
   FilterState[number],
@@ -26,41 +24,86 @@ export function buildManagedEnvironmentPolicyConfig(
   };
 }
 
-function isEquivalentToImplicitEnvironmentDefault(params: {
-  envFilter: EnvironmentFilter;
-  hiddenEnvironments: string[];
-  availableEnvironmentValues: string[];
-}): boolean {
-  const { envFilter, hiddenEnvironments, availableEnvironmentValues } = params;
-
-  if (hiddenEnvironments.length === 0) return false;
-
-  const exactDefaultMatch =
-    envFilter.operator === "none of" &&
-    areStringSetsEqual(envFilter.value, hiddenEnvironments);
-
-  if (exactDefaultMatch) return true;
-
-  if (availableEnvironmentValues.length === 0) return false;
-
-  const selectedFromFilter = computeSelectedValues(
-    availableEnvironmentValues,
-    envFilter,
-  );
+export function partitionNoneOfEnvironmentValues(params: {
+  values: readonly string[];
+  hiddenEnvironments: readonly string[];
+}): {
+  extras: string[];
+  hiddenInValues: string[];
+  excludesAllHidden: boolean;
+} {
+  const { values, hiddenEnvironments } = params;
   const hiddenSet = new Set(hiddenEnvironments);
-  const selectedFromDefault = availableEnvironmentValues.filter(
-    (value) => !hiddenSet.has(value),
-  );
+  const extras = values.filter((value) => !hiddenSet.has(value));
+  const hiddenInValues = values.filter((value) => hiddenSet.has(value));
+  const valueSet = new Set(values);
 
-  return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
+  return {
+    extras,
+    hiddenInValues,
+    excludesAllHidden:
+      hiddenEnvironments.length > 0 &&
+      hiddenEnvironments.every((environment) => valueSet.has(environment)),
+  };
 }
 
-export function stripImplicitEnvironmentFilterFromExplicitState(params: {
+// Only the SYSTEM-shaped implicit default — the `none of [hidden]` filter the
+// sidebar auto-derives, and that the facet re-creates when the user clears back
+// to the default selection — counts as "no real filter" and is stripped before
+// persistence. A user-authored POSITIVE selection (`any of [...]`, e.g. typed in
+// the search bar or stored in a saved view) is NEVER stripped, even when it
+// happens to select exactly the current default set: if the user committed to a
+// value we keep it explicit and visible. Returning to the default is the user's
+// action (remove the filter / uncheck back to default), not something we infer.
+//
+// A `none of [hidden ∪ extras]` exclusion is the same default plus extra
+// unchecked values (unchecking production from the implicit default). Persist
+// the full exclusion set so the two intents that both look like
+// `none of [production]` cannot collapse:
+//   1. default + uncheck production → `none of [hidden ∪ production]`
+//   2. enable every hidden env and leave production unchecked → sidebar stores
+//      `any of [checked]`, never extras-only none-of
+// The search bar still shows only extras (`-environment:production`) via
+// `toSearchBarEnvironmentFilters`. A bar commit of that extras-only chip is
+// expanded back to the full exclusion set on write.
+function canonicalizeNoneOfEnvironmentFilter(params: {
+  envFilter: EnvironmentFilter;
+  hiddenEnvironments: string[];
+}): EnvironmentFilter | null {
+  const { envFilter, hiddenEnvironments } = params;
+
+  if (envFilter.operator !== "none of") {
+    return envFilter;
+  }
+
+  if (hiddenEnvironments.length === 0) {
+    return envFilter.value.length === 0 ? null : envFilter;
+  }
+
+  const { extras, hiddenInValues, excludesAllHidden } =
+    partitionNoneOfEnvironmentValues({
+      values: envFilter.value,
+      hiddenEnvironments,
+    });
+
+  if (excludesAllHidden && extras.length === 0) {
+    return null;
+  }
+
+  // Bar commit of the displayed extras-only chip (`-environment:production`)
+  // means intent (1): keep hidden environments excluded.
+  if (hiddenInValues.length === 0 && extras.length > 0) {
+    return { ...envFilter, value: [...hiddenEnvironments, ...extras] };
+  }
+
+  return envFilter;
+}
+
+export function canonicalizeExplicitEnvironmentFilters(params: {
   explicitFilters: FilterState;
-  availableEnvironmentValues: string[];
   config: ManagedEnvironmentPolicyConfig;
 }): FilterState {
-  const { explicitFilters, availableEnvironmentValues, config } = params;
+  const { explicitFilters, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
   if (hiddenEnvironments.length === 0) return explicitFilters;
@@ -78,18 +121,60 @@ export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   }
 
   const envFilter = managedColumnFilters[0] as EnvironmentFilter;
-  const otherFilters = explicitFilters.filter((filter) => filter !== envFilter);
+  const canonical = canonicalizeNoneOfEnvironmentFilter({
+    envFilter,
+    hiddenEnvironments,
+  });
+
+  if (canonical === envFilter) {
+    return explicitFilters;
+  }
+
+  return explicitFilters.flatMap((filter) => {
+    if (filter !== envFilter) return [filter];
+    return canonical === null ? [] : [canonical];
+  });
+}
+
+export function toSearchBarEnvironmentFilters(params: {
+  explicitFilters: FilterState;
+  config: ManagedEnvironmentPolicyConfig;
+}): FilterState {
+  const { explicitFilters, config } = params;
+  const { managedEnvironmentColumn, hiddenEnvironments } = config;
+
+  if (hiddenEnvironments.length === 0) return explicitFilters;
+
+  const managedColumnFilters = explicitFilters.filter(
+    (filter) => filter.column === managedEnvironmentColumn,
+  );
 
   if (
-    isEquivalentToImplicitEnvironmentDefault({
-      envFilter,
-      hiddenEnvironments,
-      availableEnvironmentValues,
-    })
+    managedColumnFilters.length !== 1 ||
+    managedColumnFilters[0]?.type !== "stringOptions"
   ) {
-    return otherFilters;
+    return explicitFilters;
   }
-  return explicitFilters;
+
+  const envFilter = managedColumnFilters[0] as EnvironmentFilter;
+  if (envFilter.operator !== "none of") {
+    return explicitFilters;
+  }
+
+  const { extras, excludesAllHidden } = partitionNoneOfEnvironmentValues({
+    values: envFilter.value,
+    hiddenEnvironments,
+  });
+
+  if (!excludesAllHidden) {
+    return explicitFilters;
+  }
+
+  return explicitFilters.flatMap((filter) => {
+    if (filter !== envFilter) return [filter];
+    if (extras.length === 0) return [];
+    return [{ ...envFilter, value: extras }];
+  });
 }
 
 export function buildImplicitEnvironmentFilter(params: {
@@ -142,6 +227,5 @@ export function buildEffectiveEnvironmentFilter(params: {
     return managedColumnFilters;
   }
 
-  const envFilter = managedColumnFilters[0] as EnvironmentFilter;
-  return [envFilter];
+  return [managedColumnFilters[0] as EnvironmentFilter];
 }

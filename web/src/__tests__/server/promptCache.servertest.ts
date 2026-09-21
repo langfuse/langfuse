@@ -1,3 +1,4 @@
+import type { Mock, Mocked } from "vitest";
 import { type PrismaClient, type Prompt } from "@prisma/client";
 import { PromptService, type redis } from "@langfuse/shared/src/server"; // Adjust the import path as needed
 
@@ -5,9 +6,12 @@ type Redis = NonNullable<typeof redis>;
 
 describe("PromptService", () => {
   let promptService: PromptService;
-  let mockPrisma: jest.Mocked<PrismaClient>;
-  let mockRedis: jest.Mocked<Redis>;
-  let mockMetricIncrementer: jest.Mock;
+  let mockPrisma: Mocked<PrismaClient>;
+  // Typed handle on the same vi.fn instance wired into mockPrisma, because
+  // Prisma's overloaded findFirst signature survives vitest's Mocked mapping.
+  let promptFindFirstMock: Mock;
+  let mockRedis: Mocked<Redis>;
+  let mockMetricIncrementer: Mock;
 
   const mockPrompt: Omit<Prompt, "updatedAt" | "createdAt"> & {
     resolutionGraph: null;
@@ -28,22 +32,23 @@ describe("PromptService", () => {
   };
 
   beforeEach(() => {
+    promptFindFirstMock = vi.fn();
     mockPrisma = {
       prompt: {
-        findFirst: jest.fn(),
+        findFirst: promptFindFirstMock,
       },
       promptDependency: {
-        findMany: jest.fn().mockResolvedValue([]),
+        findMany: vi.fn().mockResolvedValue([]),
       },
-    } as unknown as jest.Mocked<PrismaClient>;
+    } as unknown as Mocked<PrismaClient>;
 
     mockRedis = {
-      get: jest.fn().mockResolvedValue("epoch-1"),
-      set: jest.fn(),
-      del: jest.fn(),
-    } as unknown as jest.Mocked<Redis>;
+      get: vi.fn().mockResolvedValue("epoch-1"),
+      set: vi.fn(),
+      del: vi.fn(),
+    } as unknown as Mocked<Redis>;
 
-    mockMetricIncrementer = jest.fn();
+    mockMetricIncrementer = vi.fn();
 
     promptService = new PromptService(
       mockPrisma,
@@ -72,7 +77,7 @@ describe("PromptService", () => {
     it("should fetch from database if not in cache", async () => {
       mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache read
       mockRedis.get.mockResolvedValueOnce(null); // cache miss
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
       mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch for cache write
 
       const result = await promptService.getPrompt({
@@ -90,15 +95,62 @@ describe("PromptService", () => {
       );
 
       expect(mockRedis.set).toHaveBeenCalledWith(
-        "prompt:project1:epoch-1:testPrompt:1",
+        "prompt:project1:epoch-1:testPrompt:version:1",
         JSON.stringify(mockPrompt),
         "EX",
         expect.any(Number),
       );
     });
 
+    it("does not share cached prompts between a version and numeric label", async () => {
+      const cache = new Map<string, string>([
+        ["prompt_cache_epoch:project1", "epoch-1"],
+      ]);
+      mockRedis.get.mockImplementation(
+        async (key) => cache.get(key.toString()) ?? null,
+      );
+      mockRedis.set.mockImplementation(async (key, value) => {
+        cache.set(key.toString(), value.toString());
+        return "OK";
+      });
+
+      const versionPrompt = {
+        ...mockPrompt,
+        id: "version-3",
+        version: 3,
+        prompt: "Version 3 content",
+      };
+      const labelPrompt = {
+        ...mockPrompt,
+        id: "label-3",
+        version: 7,
+        labels: ["3"],
+        prompt: "Numeric label content",
+      };
+      promptFindFirstMock
+        .mockResolvedValueOnce(versionPrompt)
+        .mockResolvedValueOnce(labelPrompt);
+
+      const resultByVersion = await promptService.getPrompt({
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: 3,
+        label: undefined,
+      });
+      const resultByLabel = await promptService.getPrompt({
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: undefined,
+        label: "3",
+      });
+
+      expect(resultByVersion).toEqual(versionPrompt);
+      expect(resultByLabel).toEqual(labelPrompt);
+      expect(mockPrisma.prompt.findFirst).toHaveBeenCalledTimes(2);
+    });
+
     it("should bypass cache entirely when resolve is false", async () => {
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -142,7 +194,7 @@ describe("PromptService", () => {
     });
 
     it("should not use cache when disabled", async () => {
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -167,7 +219,7 @@ describe("PromptService", () => {
     });
 
     it("should not use cache with null Redis instance", async () => {
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -185,7 +237,7 @@ describe("PromptService", () => {
   describe("getPrompt with Redis errors", () => {
     it("should fallback to database if Redis.get throws an error", async () => {
       mockRedis.get.mockRejectedValue(new Error("Redis error"));
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
 
       const result = await promptService.getPrompt({
         projectId: "project1",
@@ -205,7 +257,7 @@ describe("PromptService", () => {
     it("should not cache if Redis.set throws an error after database fetch", async () => {
       mockRedis.get.mockResolvedValueOnce("epoch-1"); // getOrCreateEpoch
       mockRedis.get.mockResolvedValueOnce(null); // cache miss
-      mockPrisma.prompt.findFirst.mockResolvedValue(mockPrompt);
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
       mockRedis.set.mockRejectedValue(new Error("Redis error"));
 
       const result = await promptService.getPrompt({

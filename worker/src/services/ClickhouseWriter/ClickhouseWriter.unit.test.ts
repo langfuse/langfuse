@@ -6,12 +6,14 @@ import { env } from "../../env";
 import { logger } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
 
-// Mock recordHistogram, recordCount, recordGauge
+// Mock recordHistogram, recordDistribution, recordCount, recordGauge
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original = (await importOriginal()) as {};
   return {
     ...original,
     recordHistogram: vi.fn(),
+    recordDistribution: vi.fn(),
+    recordIncrement: vi.fn(),
     recordCount: vi.fn(),
     recordGauge: vi.fn(),
     logger: {
@@ -114,6 +116,34 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledTimes(1);
   });
 
+  it("should mark writer insert log comments as multi-project", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+    writer.addToQueue(TableName.Traces, {
+      id: "2",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+    const logComment = JSON.parse(
+      mockInsert.mock.calls[0][0].clickhouse_settings.log_comment,
+    );
+    expect(logComment).toMatchObject({
+      surface: "worker",
+      route: "clickhouse-writer",
+      projectId: "MULTI_PROJECT",
+    });
+  });
+
   it("should handle errors and retry", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
@@ -154,6 +184,32 @@ describe("ClickhouseWriter", () => {
       ),
     ).toBe(true);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      1,
+      { entity_type: TableName.Traces },
+    );
+  });
+
+  it("should retry client request timeouts within the same flush", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("Timeout error."))
+      .mockResolvedValueOnce();
+
+    writer.addToQueue(TableName.Traces, { id: "1", name: "test" });
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+    // let the backOff retry delay elapse
+    await vi.advanceTimersByTimeAsync(200);
+
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).not.toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("should shutdown gracefully", async () => {
@@ -264,7 +320,8 @@ describe("ClickhouseWriter", () => {
   });
 
   it("should report wait time and processing time metrics correctly", async () => {
-    const metricsDistributionSpy = vi.spyOn(serverExports, "recordHistogram");
+    const histogramSpy = vi.spyOn(serverExports, "recordHistogram");
+    const distributionSpy = vi.spyOn(serverExports, "recordDistribution");
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
       .mockResolvedValue();
@@ -273,16 +330,36 @@ describe("ClickhouseWriter", () => {
 
     await vi.advanceTimersByTimeAsync(writer.writeInterval);
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.wait_time",
       expect.any(Number),
       { unit: "milliseconds" },
     );
 
-    expect(metricsDistributionSpy).toHaveBeenCalledWith(
+    expect(histogramSpy).toHaveBeenCalledWith(
       "langfuse.queue.clickhouse_writer.processing_time",
       expect.any(Number),
       { unit: "milliseconds" },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "wait",
+        unit: "milliseconds",
+      },
+    );
+
+    expect(distributionSpy).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.time_distribution",
+      expect.any(Number),
+      {
+        entity_type: TableName.Traces,
+        type: "processing",
+        unit: "milliseconds",
+      },
     );
   });
 
@@ -346,6 +423,125 @@ describe("ClickhouseWriter", () => {
 
     expect(mockInsert).toHaveBeenCalledTimes(2);
     expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+  });
+
+  describe("Decimal64(12) clamping", () => {
+    describe("clampDecimal64Value", () => {
+      it.each([
+        { input: 0, expected: [0, false], name: "zero" },
+        { input: 0.001, expected: [0.001, false], name: "small positive" },
+        { input: -42.5, expected: [-42.5, false], name: "small negative" },
+        {
+          input: 999_999,
+          expected: [999_999, false],
+          name: "just under limit",
+        },
+        {
+          input: 999_999.999_999,
+          expected: [999_999.999_999, false],
+          name: "max representable",
+        },
+        {
+          input: 1_000_000,
+          expected: [999_999.999_999, true],
+          name: "exact limit",
+        },
+        {
+          input: 8_859_794,
+          expected: [999_999.999_999, true],
+          name: "positive overflow",
+        },
+        {
+          input: -1_000_000,
+          expected: [-999_999.999_999, true],
+          name: "exact negative limit",
+        },
+        {
+          input: -8_859_794,
+          expected: [-999_999.999_999, true],
+          name: "negative overflow",
+        },
+        { input: NaN, expected: [0, true], name: "NaN" },
+        { input: Infinity, expected: [0, true], name: "positive Infinity" },
+        { input: -Infinity, expected: [0, true], name: "negative Infinity" },
+      ])("$name ($input)", ({ input, expected }) => {
+        expect(ClickhouseWriter["clampDecimal64Value"](input)).toEqual(
+          expected,
+        );
+      });
+    });
+
+    describe("clampDecimal64Map", () => {
+      it("returns undefined for undefined input", () => {
+        const result = writer["clampDecimal64Map"](undefined, {
+          recordId: "r1",
+          projectId: "p1",
+          fieldName: "cost_details",
+        });
+        expect(result).toBeUndefined();
+      });
+
+      it("returns original map when no values need clamping", () => {
+        const map = { input: 0.001, output: 42.5 };
+        const result = writer["clampDecimal64Map"](map, {
+          recordId: "r1",
+          projectId: "p1",
+          fieldName: "cost_details",
+        });
+        expect(result).toBe(map); // same reference, no allocation
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("clamps multiple overflowing entries correctly", () => {
+        const result = writer["clampDecimal64Map"](
+          { input: 2_000_000, output: -5_000_000, total: NaN },
+          { recordId: "r1", projectId: "p1", fieldName: "cost_details" },
+        );
+        expect(result).toEqual({
+          input: 999_999.999_999,
+          output: -999_999.999_999,
+          total: 0,
+        });
+      });
+
+      it("clamps only overflowing entries and logs once", () => {
+        const result = writer["clampDecimal64Map"](
+          { input: 0.001, output: 8_859_794 },
+          { recordId: "r1", projectId: "p1", fieldName: "cost_details" },
+        );
+        expect(result).toEqual({ input: 0.001, output: 999_999.999_999 });
+        expect(logger.warn).toHaveBeenCalledWith(
+          "Clamped Decimal64(12) overflow in cost map",
+          expect.objectContaining({
+            projectId: "p1",
+            recordId: "r1",
+            fieldName: "cost_details",
+          }),
+        );
+      });
+    });
+
+    describe("flush integration", () => {
+      it("clamps observation cost fields before inserting", async () => {
+        const mockInsert = vi
+          .spyOn(clickhouseClientMock, "insert")
+          .mockResolvedValue();
+
+        writer.addToQueue(TableName.Observations, {
+          id: "obs-1",
+          project_id: "proj-1",
+          cost_details: { total: 8_859_794 },
+          provided_cost_details: { total: 1_234_567 },
+          total_cost: 9_999_999,
+        } as any);
+        await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+        const inserted = mockInsert.mock.calls[0][0].values[0];
+        expect(inserted.cost_details.total).toBe(999_999.999_999);
+        expect(inserted.provided_cost_details.total).toBe(999_999.999_999);
+        expect(inserted.total_cost).toBe(999_999.999_999);
+      });
+    });
   });
 
   describe("truncation logic", () => {

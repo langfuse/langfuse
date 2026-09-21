@@ -1,10 +1,6 @@
 import { type DashboardDateRangeAggregationOption } from "@/src/utils/date-range-utils";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import {
-  type CategoryCounts,
-  type ChartBin,
-  type HistogramBin,
-} from "@/src/features/scores/types";
+import type { CategoryCounts, ChartBin } from "@/src/features/scores";
 import { type RouterOutputs } from "@/src/utils/api";
 
 export const RESOURCE_METRICS = [
@@ -12,7 +8,7 @@ export const RESOURCE_METRICS = [
     key: "latency",
     value: "Latency",
     objectKey: "avgLatency",
-    label: "Latency (s)",
+    label: "Latency",
     maxFractionDigits: 2,
   },
   {
@@ -81,19 +77,6 @@ export function createHistogramData(
     chartLabels: ["count"],
     chartData,
   };
-}
-
-export function padChartData(chartData: HistogramBin[]) {
-  const emptyBin = { binLabel: "", empty: 0 };
-  if (chartData.length < 3) {
-    return [emptyBin, emptyBin, ...chartData, emptyBin, emptyBin];
-  }
-
-  if (chartData.length < 5) {
-    return [emptyBin, ...chartData, emptyBin];
-  }
-
-  return chartData;
 }
 
 // categorical score analytics helpers
@@ -269,23 +252,22 @@ export function transformCategoricalScoresToChartData(
       chartData: [{ ...categoryCounts, binLabel: "Aggregation" }] as ChartBin[],
       chartLabels: uniqueAndSort(labels),
     };
-  } else {
-    const scoreDataByTimestamp = groupCategoricalScoreDataByTimestamp(
-      data,
-      scoreTimestampAccessor,
-    );
-
-    const chartData: ChartBin[] = [];
-    const chartLabels: string[] = [];
-
-    Object.entries(scoreDataByTimestamp).forEach(([timestamp, data]) => {
-      const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
-      chartLabels.push(...labels);
-      chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
-    });
-
-    return { chartData, chartLabels };
   }
+  const scoreDataByTimestamp = groupCategoricalScoreDataByTimestamp(
+    data,
+    scoreTimestampAccessor,
+  );
+
+  const chartData: ChartBin[] = [];
+  const chartLabels: string[] = [];
+
+  Object.entries(scoreDataByTimestamp).forEach(([timestamp, data]) => {
+    const { categoryCounts, labels } = aggregateCategoricalScoreData(data);
+    chartLabels.push(...labels);
+    chartData.push({ ...categoryCounts, binLabel: timestamp } as ChartBin);
+  });
+
+  return { chartData, chartLabels };
 }
 
 export function isEmptyChart({ data }: { data: ChartBin[] }) {

@@ -1,8 +1,9 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
+import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { handleGetApiKeys } from "@/src/ee/features/admin-api/server/organizations/apiKeys";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeOrgError } from "@/src/features/public-api/server/writeError";
 
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
@@ -23,27 +24,15 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      error: authCheck.error,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action: "organization:CRUD_apiKeys",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeOrgError(res, authCheck.error);
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      error:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-    });
-  }
 
   if (
     !hasEntitlementBasedOnPlan({
@@ -54,6 +43,14 @@ export default async function handler(
     return res.status(403).json({
       error: "This feature is not available on your current plan.",
     });
+  }
+
+  const rateLimitCheck = await RateLimitService.getInstance().rateLimitRequest(
+    authCheck.scope,
+    "public-api",
+  );
+  if (rateLimitCheck?.isRateLimited()) {
+    return rateLimitCheck.sendRestResponseIfLimited(res);
   }
 
   // Route to the handler

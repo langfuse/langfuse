@@ -1,14 +1,18 @@
-import { Button } from "@/src/components/ui/button";
+/* eslint-disable @repo/no-style-props */
 import React, { type Dispatch, type SetStateAction, useState } from "react";
-import { Input } from "@/src/components/ui/input";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
+import {
+  DataTableColumnVisibilityFilter,
+  type ColumnGroupTogglePayload,
+} from "@/src/components/table/data-table-column-visibility-filter";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
   type FilterState,
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -21,13 +25,6 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import {
-  Search,
-  ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
@@ -37,20 +34,26 @@ import {
 import { DataTableSelectAllBanner } from "@/src/components/table/data-table-multi-select-actions/data-table-select-all-banner";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
+  TableViewPresetsDrawer,
+  type SystemFilterPreset,
+} from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
-import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
+import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
-  DataTableRefreshButton,
-  type RefreshInterval,
-} from "@/src/components/table/data-table-refresh-button";
+  getSearchButtonLabel,
+  getSearchMode,
+  hasFullTextSearchType,
+  searchModeToType,
+} from "@/src/components/table/utils/searchUtils";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -60,6 +63,14 @@ export interface MultiSelect {
   pageSize: number;
   pageIndex: number;
   totalCount: number | null;
+  // Tables that only compute totalCount lazily (e.g. v4 events, where counting
+  // is expensive and runs once select-all is active) pass this keyset-pagination
+  // signal instead, so the select-all banner can show while the count is unknown.
+  hasNextPage?: boolean;
+  // When the displayed row count does not equal the number of affected entities
+  // (e.g. datasets where a folder row expands to many datasets on delete), the
+  // select-all banner drops the precise number and says "matching" instead.
+  approximateCount?: boolean;
 }
 
 interface SearchConfig {
@@ -74,11 +85,17 @@ interface SearchConfig {
     fullText: string;
   };
   hidePerformanceWarning?: boolean;
+  availableSearchTypes?: {
+    content: boolean;
+    input: boolean;
+    output: boolean;
+  };
 }
 
 interface TableViewControllers {
   applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
+  appliedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
 
@@ -86,6 +103,7 @@ interface TableViewConfig {
   tableName: TableViewPresetTableName;
   projectId: string;
   controllers: TableViewControllers;
+  systemFilterPresets?: SystemFilterPreset[];
 }
 
 interface RefreshConfig {
@@ -99,6 +117,10 @@ interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
+  /** Authoritative search query to persist into saved views. Use when the
+   * toolbar's own search field is hidden (e.g. search-bar mode) so the live
+   * query — not the toolbar's stale local mirror — is captured. */
+  currentSearchQuery?: string;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
@@ -122,15 +144,93 @@ interface DataTableToolbarProps<TData, TValue> {
   };
   orderByState?: OrderByState;
   viewConfig?: TableViewConfig;
+  /** Analytics table identity, for `filters:applied`/`filters:cleared`,
+   * `table:search_submit`, `table:row_height_switch_select` and
+   * `table:column_visibility_changed`.
+   * Tables with a `viewConfig` supply it via `viewConfig.tableName`; every table
+   * WITHOUT one must pass this — the `ToolbarTableIdentity` union below makes
+   * that a type error rather than an "unknown" bucket in PostHog. */
+  tableName?: string;
+  /** Whether this table reads the v4 (fast-mode) data path, at the moment of the
+   * action. The headline segmentation dimension: filtering, columns and search
+   * behave very differently across v3 and v4. Forward it from the owning table —
+   * the fallback is the v4 events view, not a safe default. */
+  isV4?: boolean;
   filterWithAI?: boolean;
   className?: string;
+  rowClassName?: string;
   viewModeToggle?: React.ReactNode;
+  /** Rendered at the start of the toolbar's control row (left-aligned), before
+   *  the filter toggle — e.g. the v4 events category-preset chips, so they
+   *  share the row with the right-aligned Columns/Export controls. */
+  leadingControls?: React.ReactNode;
+  /** Surface-specific controls immediately before Columns and row height. */
+  toolbarSettings?: React.ReactNode;
+  additionalColumnSettings?: {
+    content: React.ReactNode;
+    isDefault: boolean;
+    onRestoreDefaults: () => void;
+  };
+  /** Notified when a whole column group is shown or hidden at once, for surfaces
+   *  that report their own event for it (the experiments score families). */
+  onColumnGroupToggle?: (payload: ColumnGroupTogglePayload) => void;
+}
+
+/**
+ * Every toolbar must be able to name its own table, because four analytics
+ * events fire from inside it. One of the two sources has to be present:
+ * a `viewConfig` (whose `tableName` is the saved-view table) or an explicit
+ * `tableName`. Enforced in the type so no surface can silently report
+ * `tableName: "unknown"` — the failure mode the first version of these events
+ * shipped and had to fix.
+ */
+type ToolbarTableIdentity =
+  | { tableName: string }
+  | { viewConfig: TableViewConfig };
+
+// Helper function to get the description for DocPopup
+function getSearchDescription(
+  searchType: TracingSearchType[] | undefined,
+  metadataFields: string[] | undefined,
+  hidePerformanceWarning: boolean | undefined,
+  tableAllowsFullTextSearch: boolean | undefined,
+): React.ReactNode {
+  const fields = metadataFields?.join(", ") ?? "";
+  const performanceWarning = !hidePerformanceWarning
+    ? " For improved performance, please filter the table down."
+    : "";
+
+  if (tableAllowsFullTextSearch && searchType?.includes("content")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Input/Output and {fields}.{performanceWarning}
+      </p>
+    );
+  }
+  if (tableAllowsFullTextSearch && searchType?.includes("input")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Input and {fields}.{performanceWarning}
+      </p>
+    );
+  }
+  if (tableAllowsFullTextSearch && searchType?.includes("output")) {
+    return (
+      <p className="text-primary text-xs font-normal">
+        Searches in Output and {fields}.{performanceWarning}
+      </p>
+    );
+  }
+  return (
+    <p className="text-primary text-xs font-normal">Searches in {fields}.</p>
+  );
 }
 
 export function DataTableToolbar<TData, TValue>({
   columns,
   filterColumnDefinition,
   searchConfig,
+  currentSearchQuery,
   actionButtons,
   filterState,
   setFilterState,
@@ -147,43 +247,81 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  rowClassName,
   orderByState,
   viewConfig,
+  tableName,
+  isV4,
   filterWithAI = false,
   viewModeToggle,
-}: DataTableToolbarProps<TData, TValue>) {
+  leadingControls,
+  toolbarSettings,
+  additionalColumnSettings,
+  onColumnGroupToggle,
+}: DataTableToolbarProps<TData, TValue> & ToolbarTableIdentity) {
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
 
   const capture = usePostHogClientCapture();
-  const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
-    useDataTableControls();
+  // One definition of the two analytics dimensions for everything the toolbar
+  // emits: an explicit `tableName` wins over the view's, and `isV4`
+  // falls back to the one surface that is v4 without saying so — the v4 events
+  // table, which filters through the grammar bar rather than this toolbar.
+  // The "unknown" fallback is unreachable — `ToolbarTableIdentity` requires one
+  // of the two sources.
+  const analyticsTableName = tableName ?? viewConfig?.tableName ?? "unknown";
+  const analyticsIsV4 =
+    isV4 ??
+    viewConfig?.tableName === TableViewPresetTableName.ObservationsEvents;
+  const showSearchTypeSelector = Boolean(
+    searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
+  );
+  const allVisibleRowsSelected = Boolean(
+    multiSelect &&
+    multiSelect.pageIndex === 0 &&
+    multiSelect.selectedRowIds.length > 0 &&
+    (multiSelect.totalCount !== null
+      ? multiSelect.totalCount > multiSelect.pageSize &&
+        multiSelect.selectedRowIds.length ===
+          Math.min(multiSelect.pageSize, multiSelect.totalCount)
+      : multiSelect.hasNextPage === true &&
+        multiSelect.selectedRowIds.length === multiSelect.pageSize),
+  );
+
+  const submitSearch = (query: string) => {
+    if (
+      searchConfig?.setSearchType &&
+      !searchConfig.tableAllowsFullTextSearch &&
+      hasFullTextSearchType(searchConfig.searchType)
+    ) {
+      searchConfig.setSearchType(["id"]);
+    }
+    searchConfig?.updateQuery(query);
+  };
+
+  const searchButtonLabel = searchConfig?.tableAllowsFullTextSearch
+    ? getSearchButtonLabel(
+        searchConfig.searchType,
+        searchConfig.customDropdownLabels?.metadata,
+      )
+    : undefined;
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
-      <div className="@container my-2 flex flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "@container my-2 flex flex-wrap items-center gap-2",
+          rowClassName,
+        )}
+      >
+        {leadingControls}
+        {/* Desktop uses the sidebar's own header toggle + collapsed rail; this
+            toolbar toggle only remains for the mobile stacked layout. */}
         {hasNewSidebar && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
-            className="flex h-8 items-center gap-2 text-sm"
-          >
-            {controlsPanelOpen ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-            <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
-            {filterState && filterState.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {filterState.length}
-              </Badge>
-            )}
-          </Button>
+          <FilterToggleButton filterState={filterState} className="md:hidden" />
         )}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer
@@ -193,132 +331,128 @@ export function DataTableToolbar<TData, TValue>({
               filters: filterState ?? [],
               columnOrder,
               columnVisibility,
-              searchQuery: searchString,
+              searchQuery: currentSearchQuery ?? searchString,
             }}
+            systemFilterPresets={viewConfig.systemFilterPresets}
           />
         )}
         {searchConfig && (
           <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
-            <div
-              className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                searchConfig.setSearchType
-                  ? "rounded-l-md rounded-r-none border-r-0"
-                  : "rounded-l-md rounded-r-md",
-              )}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1"
-                onClick={() => {
-                  capture("table:search_submit");
-                  searchConfig.updateQuery(searchString);
-                }}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Input
-                autoFocus
-                placeholder={
-                  searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+            <SearchInput
+              autoFocus
+              placeholder={
+                searchConfig.tableAllowsFullTextSearch
+                  ? "Search..."
+                  : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
+              }
+              value={searchString}
+              onChange={(newValue) => {
+                setSearchString(newValue);
+                // If user cleared the search, update URL immediately
+                if (newValue === "") {
+                  submitSearch("");
                 }
-                value={searchString}
-                onChange={(event) => {
-                  const newValue = event.currentTarget.value;
-                  setSearchString(newValue);
-                  // If user cleared the search, update URL immediately
-                  if (newValue === "") {
-                    searchConfig.updateQuery("");
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    capture("table:search_submit");
-                    searchConfig.updateQuery(searchString);
-                  }
-                }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-              />
-            </div>
-            {searchConfig.setSearchType && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
-                  >
-                    <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? (searchConfig.customDropdownLabels?.fullText ??
-                          "Full Text")
-                        : (searchConfig.customDropdownLabels?.metadata ??
-                          "IDs / Names")}
-                      <DocPopup
-                        description={
-                          searchConfig.tableAllowsFullTextSearch &&
-                          (searchConfig.searchType ?? []).includes(
-                            "content",
-                          ) ? (
-                            <p className="text-primary text-xs font-normal">
-                              Searches in Input/Output and{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                              {!searchConfig.hidePerformanceWarning &&
-                                " For improved performance, please filter the table down."}
-                            </p>
-                          ) : (
-                            <p className="text-primary text-xs font-normal">
-                              Searches in{" "}
-                              {searchConfig.metadataSearchFields?.join(", ")}.
-                            </p>
-                          )
-                        }
-                      />
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup
-                    value={
-                      searchConfig.tableAllowsFullTextSearch &&
-                      (searchConfig.searchType ?? []).includes("content")
-                        ? "metadata_fulltext"
-                        : "metadata"
+              }}
+              onSubmit={(value) => {
+                capture("table:search_submit", {
+                  tableName: analyticsTableName,
+                  isV4: analyticsIsV4,
+                });
+                submitSearch(value);
+              }}
+              dropdown={
+                showSearchTypeSelector
+                  ? {
+                      label: searchButtonLabel,
+                      labelAccessory: (
+                        <DocPopup
+                          description={getSearchDescription(
+                            searchConfig.searchType,
+                            searchConfig.metadataSearchFields,
+                            searchConfig.hidePerformanceWarning,
+                            searchConfig.tableAllowsFullTextSearch,
+                          )}
+                        />
+                      ),
+                      content: (
+                        <DropdownMenuRadioGroup
+                          value={getSearchMode(
+                            searchConfig.searchType,
+                            searchConfig.tableAllowsFullTextSearch,
+                          )}
+                          onValueChange={(value) => {
+                            if (
+                              !searchConfig.tableAllowsFullTextSearch &&
+                              value.startsWith("metadata_fulltext")
+                            )
+                              return;
+                            searchConfig.setSearchType?.(
+                              searchModeToType(value),
+                            );
+                          }}
+                        >
+                          <DropdownMenuRadioItem value="metadata">
+                            {searchConfig.customDropdownLabels?.metadata ??
+                              "IDs / Names"}
+                          </DropdownMenuRadioItem>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger
+                              disabled={!searchConfig.tableAllowsFullTextSearch}
+                            >
+                              <span className="flex items-center gap-2">
+                                {getSearchMode(
+                                  searchConfig.searchType,
+                                  searchConfig.tableAllowsFullTextSearch,
+                                ).startsWith("metadata_fulltext") && (
+                                  <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
+                                )}
+                                {searchConfig.customDropdownLabels?.fullText ??
+                                  "Full Text"}
+                              </span>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuSubContent>
+                              <DropdownMenuRadioGroup
+                                value={getSearchMode(
+                                  searchConfig.searchType,
+                                  searchConfig.tableAllowsFullTextSearch,
+                                )}
+                                onValueChange={(value) => {
+                                  searchConfig.setSearchType?.(
+                                    searchModeToType(value),
+                                  );
+                                }}
+                              >
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes
+                                    .content) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext">
+                                    Input/Output
+                                  </DropdownMenuRadioItem>
+                                )}
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes.input) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext_input">
+                                    Input
+                                  </DropdownMenuRadioItem>
+                                )}
+                                {(searchConfig.availableSearchTypes ===
+                                  undefined ||
+                                  searchConfig.availableSearchTypes.output) && (
+                                  <DropdownMenuRadioItem value="metadata_fulltext_output">
+                                    Output
+                                  </DropdownMenuRadioItem>
+                                )}
+                              </DropdownMenuRadioGroup>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuSub>
+                        </DropdownMenuRadioGroup>
+                      ),
                     }
-                    onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value === "metadata_fulltext"
-                      )
-                        return;
-
-                      const newSearchType =
-                        value === "metadata_fulltext"
-                          ? ["id" as const, "content" as const]
-                          : ["id" as const];
-                      searchConfig.setSearchType?.(newSearchType);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="metadata">
-                      {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem
-                      value="metadata_fulltext"
-                      disabled={!searchConfig.tableAllowsFullTextSearch}
-                    >
-                      {searchConfig.customDropdownLabels?.fullText ??
-                        "Full Text"}
-                    </DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
+                  : undefined
+              }
+            />
           </div>
         )}
         {viewModeToggle}
@@ -355,10 +489,16 @@ export function DataTableToolbar<TData, TValue>({
             onChange={setFilterState}
             columnsWithCustomSelect={columnsWithCustomSelect}
             filterWithAI={filterWithAI}
+            // Analytics (LFE-10781): the table's own identity, so popover
+            // filters:applied/cleared events aren't mislabeled "unknown". Shares
+            // the toolbar's single definition of both dimensions.
+            tableName={analyticsTableName}
+            isV4={analyticsIsV4}
           />
         )}
 
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
+          {toolbarSettings}
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}
@@ -366,22 +506,26 @@ export function DataTableToolbar<TData, TValue>({
               setColumnVisibility={setColumnVisibility}
               columnOrder={columnOrder}
               setColumnOrder={setColumnOrder}
+              tableName={analyticsTableName}
+              isV4={analyticsIsV4}
+              onColumnGroupToggle={onColumnGroupToggle}
+              additionalColumnSettings={additionalColumnSettings}
             />
           )}
           {!!rowHeight && !!setRowHeight && (
             <DataTableRowHeightSwitch
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
+              tableName={analyticsTableName}
+              isV4={analyticsIsV4}
             />
           )}
           {actionButtons}
         </div>
       </div>
-      {multiSelect &&
-        multiSelect.pageIndex === 0 &&
-        multiSelect.selectedRowIds.length === multiSelect.pageSize && (
-          <DataTableSelectAllBanner {...multiSelect} />
-        )}
+      {multiSelect && allVisibleRowsSelected && (
+        <DataTableSelectAllBanner {...multiSelect} />
+      )}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * YOU PROBABLY DON'T NEED TO EDIT THIS FILE, UNLESS:
  * 1. You want to modify request context (see Part 1).
@@ -65,7 +66,6 @@ export const createTRPCContext = async (opts: CreateNextContextOptions) => {
 
   addUserToSpan({
     userId: session?.user?.id,
-    email: session?.user?.email ?? undefined,
   });
 
   return createInnerTRPCContext({ session, headers });
@@ -85,15 +85,18 @@ import { ZodError } from "zod";
 import { setUpSuperjson } from "@/src/utils/superjson";
 import {
   getTraceById,
+  getTraceByIdFromEventsTable,
   logger,
   addUserToSpan,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  getActiveTraceId,
 } from "@langfuse/shared/src/server";
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError, parseIO } from "@langfuse/shared";
+import { isBaseError, parseIO } from "@langfuse/shared";
+import { recordBackendActivity } from "@/src/features/posthog-analytics/server/backendActivity";
 
 setUpSuperjson();
 
@@ -106,8 +109,21 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
       ...shape,
       data: {
         ...shape.data,
+        // OTEL trace id of the failing request, for frontend/support correlation
+        // with Datadog. Absent when OTEL is not running or the trace was not
+        // sampled (an unsampled id never reaches the tracing backend).
+        traceId: getActiveTraceId(),
         zodError:
-          error.cause instanceof ZodError ? error.cause.flatten() : null,
+          error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
+        errorName:
+          error.cause instanceof ClickHouseResourceError
+            ? "ClickHouseResourceError"
+            : null,
+        // do not expose stack traces for CH errors as they may contain sensitive info
+        stack:
+          error.cause instanceof ClickHouseResourceError
+            ? null
+            : shape.data.stack,
       },
     };
   },
@@ -128,7 +144,7 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 export const createTRPCRouter = t.router;
 
 const resolveError = (error: TRPCError) => {
-  if (error.cause instanceof BaseError) {
+  if (isBaseError(error.cause)) {
     return {
       code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
       httpStatus: error.cause.httpCode,
@@ -137,12 +153,20 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
-const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
+const logErrorByStatus = ({
+  errorCode,
+  httpStatus,
+  error,
+}: {
+  errorCode: TRPCError["code"];
+  httpStatus: number;
+  error: TRPCError;
+}) => {
   if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
-  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+  } else if (httpStatus >= 400 && httpStatus < 500) {
     logger.warn(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -161,10 +185,16 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
-      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
+      logger.warn("ClickHouse resource limit exceeded", {
+        errorType: res.error.cause.errorType,
+        message: res.error.cause.message,
+        tags: res.error.cause.tags,
+      });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        // Keep the original error, it will be removed by `errorFormatter`
+        cause: res.error.cause,
       });
     } else {
       // Throw a new TRPC error with:
@@ -176,7 +206,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
-      logErrorByCode(code, res.error);
+      logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces
@@ -199,6 +229,10 @@ const withOtelInstrumentation = t.middleware(async (opts) => {
     headers: opts.ctx.headers,
     userId: opts.ctx.session?.user?.id,
     projectId: (actualInput as Record<string, string>)?.projectId,
+    clickhouse: {
+      surface: "trpc",
+      route: opts.path,
+    },
   });
 
   // Execute the next middleware/procedure with our context
@@ -219,6 +253,12 @@ const withOtelTracingProcedure = t.procedure
  */
 
 export const publicProcedure = withOtelTracingProcedure.use(withErrorHandling);
+
+/**
+ * Public procedure for secret-bearing inputs such as passwords and OTPs.
+ * Unlike `publicProcedure`, its input and result are not collected in traces.
+ */
+export const publicProcedureWithoutTracing = t.procedure.use(withErrorHandling);
 
 /** Reusable middleware that enforces users are logged in before running the procedure. */
 const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
@@ -252,6 +292,14 @@ export const protectedProcedureWithoutTracing = t.procedure
 const inputProjectSchema = z.object({
   projectId: z.string(),
 });
+
+const trackPosthogActivity = (
+  activity: Parameters<typeof recordBackendActivity>[0],
+) => {
+  recordBackendActivity(activity).catch((error) => {
+    logger.warn("Failed to track PostHog activity", { error });
+  });
+};
 
 /**
  * Protected (authenticated) procedure with project role
@@ -303,6 +351,11 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
         projectId,
         orgId: dbProject.orgId,
       });
+      trackPosthogActivity({
+        userId: ctx.session.user.id,
+        organizationId: dbProject.orgId,
+        projectId,
+      });
       return next({
         ctx: {
           // infers the `session` as non-nullable
@@ -333,6 +386,12 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
     });
   }
 
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: sessionProject.organization.id,
+    projectId,
+  });
+
   return next({
     ctx: {
       // infers the `session` as non-nullable
@@ -351,6 +410,14 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
+
+/** requireV4Writes rejects calls from deployments without v4 event tables */
+export const requireV4Writes = t.middleware(({ next }) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return next();
+});
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
@@ -395,6 +462,11 @@ const enforceIsAuthedAndOrgMember = t.middleware(async (opts) => {
     });
   }
 
+  trackPosthogActivity({
+    userId: ctx.session.user.id,
+    organizationId: orgId,
+  });
+
   return next({
     ctx: {
       session: {
@@ -412,14 +484,19 @@ export const protectedOrganizationProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceIsAuthedAndOrgMember);
 
+export const protectedOrganizationProcedureWithoutTracing = t.procedure
+  .use(withErrorHandling)
+  .use(enforceIsAuthedAndOrgMember);
+
 /*
  * Protect trace-level getter routes.
  * - Users need to be member of the project to access the trace.
  * - Alternatively, the trace needs to be public.
+ * - Without a traceId, falls back to the project-membership check (trace: null).
  */
 
 const inputTraceSchema = z.object({
-  traceId: z.string(),
+  traceId: z.string().optional(),
   projectId: z.string(),
   timestamp: z.date().nullish(),
   fromTimestamp: z.date().nullish(),
@@ -427,107 +504,161 @@ const inputTraceSchema = z.object({
   verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
 });
 
-const enforceTraceAccess = t.middleware(async (opts) => {
-  const { ctx, next } = opts;
-  const actualInput = await opts.getRawInput();
-  const result = inputTraceSchema.safeParse(actualInput);
+const enforceTraceAccess = (readSource: "v3" | "v4") =>
+  t.middleware(async (opts) => {
+    const { ctx, next } = opts;
+    const actualInput = await opts.getRawInput();
+    const result = inputTraceSchema.safeParse(actualInput);
 
-  if (!result.success) {
-    logger.error("Invalid input when parsing request body", result.error);
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid input, ${result.error.message}`,
-    });
-  }
+    if (!result.success) {
+      logger.error("Invalid input when parsing request body", result.error);
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: `Invalid input, ${result.error.message}`,
+      });
+    }
 
-  const traceId = result.data.traceId;
-  const projectId = result.data.projectId;
-  const timestamp = result.data.timestamp;
-  const fromTimestamp = result.data.fromTimestamp;
-  const verbosity = result.data.verbosity;
+    const traceId = result.data.traceId;
+    const projectId = result.data.projectId;
+    const timestamp = result.data.timestamp;
+    const fromTimestamp = result.data.fromTimestamp;
+    const verbosity = result.data.verbosity;
+    const isEventsOnly = env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
 
-  const clickhouseTrace = await getTraceById({
-    traceId,
-    projectId,
-    timestamp: timestamp ?? undefined,
-    fromTimestamp: fromTimestamp ?? undefined,
-    renderingProps: {
-      truncated: verbosity === "truncated",
-      shouldJsonParse: false, // we do not want to parse the input/output for tRPC
-    },
-    clickhouseFeatureTag: "tracing-trpc",
-  });
+    const useEventsTraceSource =
+      readSource === "v4" && env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
 
-  if (!clickhouseTrace) {
-    logger.error(`Trace with id ${traceId} not found for project ${projectId}`);
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Trace not found",
-    });
-  }
+    let clickhouseTrace = traceId
+      ? useEventsTraceSource
+        ? await getTraceByIdFromEventsTable({
+            traceId,
+            projectId,
+            excludeInputOutput: true,
+            excludeMetadata: true,
+            renderingProps: {
+              truncated: true,
+              shouldJsonParse: false,
+            },
+          })
+        : // eslint-disable-next-line @typescript-eslint/no-deprecated
+          await getTraceById({
+            traceId,
+            projectId,
+            timestamp: isEventsOnly ? undefined : (timestamp ?? undefined),
+            fromTimestamp:
+              fromTimestamp ??
+              (isEventsOnly ? timestamp : undefined) ??
+              undefined,
+            renderingProps: {
+              truncated: verbosity === "truncated",
+              shouldJsonParse: false, // we do not want to parse the input/output for tRPC
+            },
+          })
+      : null;
 
-  const trace = {
-    ...clickhouseTrace,
-    input: parseIO(clickhouseTrace.input, verbosity),
-    output: parseIO(clickhouseTrace.output, verbosity),
-  };
-
-  const sessionProject = ctx.session?.user?.organizations
-    .flatMap((org) => org.projects)
-    .find(({ id }) => id === projectId);
-
-  const traceSession = !!trace.sessionId
-    ? await ctx.prisma.traceSession.findFirst({
-        where: {
-          id: trace.sessionId,
-          projectId,
+    // In dual write mode the lookup above reads the legacy traces table, but
+    // internally produced traces (e.g. code-eval execution traces) were written
+    // to the events tables only — fall back so trace-level auth does not 404 on
+    // a trace the events-backed views can render (LFE-10884). The timestamp can
+    // identify a clicked observation, so use it as a bounded lookup anchor rather
+    // than as the synthesized trace timestamp (LFE-10947).
+    if (
+      traceId &&
+      !clickhouseTrace &&
+      readSource === "v3" &&
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual"
+    ) {
+      clickhouseTrace = await getTraceByIdFromEventsTable({
+        traceId,
+        projectId,
+        fromTimestamp: fromTimestamp ?? timestamp ?? undefined,
+        renderingProps: {
+          truncated: verbosity === "truncated",
+          shouldJsonParse: false,
         },
-        select: {
-          public: true,
+      });
+    }
+
+    if (traceId && !clickhouseTrace) {
+      logger.error(
+        `Trace with id ${traceId} not found for project ${projectId}`,
+      );
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Trace not found",
+      });
+    }
+
+    const trace = clickhouseTrace
+      ? {
+          ...clickhouseTrace,
+          input: parseIO(clickhouseTrace.input, verbosity),
+          output: parseIO(clickhouseTrace.output, verbosity),
+        }
+      : null;
+
+    const sessionProject = ctx.session?.user?.organizations
+      .flatMap((org) => org.projects)
+      .find(({ id }) => id === projectId);
+
+    const traceSession = !!trace?.sessionId
+      ? await ctx.prisma.traceSession.findFirst({
+          where: {
+            id: trace.sessionId,
+            projectId,
+          },
+          select: {
+            public: true,
+          },
+        })
+      : null;
+
+    const isSessionPublic = traceSession?.public === true;
+
+    if (
+      !trace?.public &&
+      !sessionProject &&
+      !isSessionPublic &&
+      ctx.session?.user?.admin !== true
+    ) {
+      logger.error(
+        `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
+      );
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message:
+          "User is not a member of this project and this trace is not public",
+      });
+    }
+
+    if (ctx.session?.user?.admin === true) {
+      await sendAdminAccessWebhook({
+        email: ctx.session.user.email,
+        projectId,
+      });
+    }
+
+    return next({
+      ctx: {
+        session: {
+          ...ctx.session,
+          projectRole:
+            ctx.session?.user?.admin === true
+              ? Role.OWNER
+              : sessionProject?.role,
         },
-      })
-    : null;
-
-  const isSessionPublic = traceSession?.public === true;
-
-  if (
-    !trace.public &&
-    !sessionProject &&
-    !isSessionPublic &&
-    ctx.session?.user?.admin !== true
-  ) {
-    logger.error(
-      `User ${ctx.session?.user?.id} is not a member of project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message:
-        "User is not a member of this project and this trace is not public",
-    });
-  }
-
-  if (ctx.session?.user?.admin === true) {
-    await sendAdminAccessWebhook({
-      email: ctx.session.user.email,
-      projectId,
-    });
-  }
-
-  return next({
-    ctx: {
-      session: {
-        ...ctx.session,
-        projectRole:
-          ctx.session?.user?.admin === true ? Role.OWNER : sessionProject?.role,
+        trace, // pass the trace to the next middleware so we do not need to fetch it again
       },
-      trace, // pass the trace to the next middleware so we do not need to fetch it again
-    },
+    });
   });
-});
 
 export const protectedGetTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
-  .use(enforceTraceAccess);
+  .use(enforceTraceAccess("v3"));
+
+export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
+  .use(withErrorHandling)
+  .use(enforceTraceAccess("v4"));
 
 /*
  * Protect session-level getter routes.
@@ -536,7 +667,7 @@ export const protectedGetTraceProcedure = withOtelTracingProcedure
  */
 
 const inputSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: z.string().min(1),
   projectId: z.string(),
 });
 
@@ -552,7 +683,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   const { sessionId, projectId } = result.data;
 
-  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
+  // trace_sessions should be a sparse metadata side-table: a row only exists once a
+  // session has been bookmarked or published.
+  // If it's not marked as public, we fallback to the usual user-based project access check.
   const session = await ctx.prisma.traceSession.findFirst({
     where: {
       id: sessionId,
@@ -563,22 +696,14 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     },
   });
 
-  if (!session) {
-    logger.error(
-      `Session with id ${sessionId} not found for project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Session not found",
-    });
-  }
+  const isPublicSession = session?.public ?? false;
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
   if (
-    !session.public &&
+    !isPublicSession &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
   ) {
@@ -661,13 +786,10 @@ export const adminProcedure = withOtelTracingProcedure
 
 // Export context types for easier reuse
 // Base context from createTRPCContext
-export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 // After `enforceUserIsAuthed`: session & user are non-null
 export type AuthedSession = NonNullable<TRPCContext["session"]> & {
   user: NonNullable<NonNullable<TRPCContext["session"]>["user"]>;
-};
-export type AuthedContext = Omit<TRPCContext, "session"> & {
-  session: AuthedSession;
 };
 // After `enforceUserIsAuthedAndProjectMember`: extra fields guaranteed
 export type ProjectAuthedContext = Omit<TRPCContext, "session"> & {

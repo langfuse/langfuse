@@ -4,6 +4,8 @@ import {
   stringifyToolResultContent,
   parseMetadata,
   isRichToolResult,
+  normalizeToolDefinitionsForChatMl,
+  attachToolDefinitionsToMessages,
 } from "../helpers";
 import { z } from "zod";
 
@@ -261,42 +263,13 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
-}
-
-function flattenToolDefinition(tool: unknown): Record<string, unknown> {
-  // handle stringified tools (e.g. from metadata.tools with bedrock)
-  if (typeof tool === "string") {
-    try {
-      tool = JSON.parse(tool);
-    } catch {
-      return {};
-    }
-  }
-
-  if (typeof tool !== "object" || !tool) return {};
-
-  const t = tool as Record<string, unknown>;
-
-  const toolDef: Record<string, unknown> = {
-    name: t.name,
-    description: t.description ?? "",
-  };
-
-  // AI SDK uses inputSchema instead of parameters
-  if (t.inputSchema != null) {
-    toolDef.parameters = t.inputSchema;
-  } else if (t.parameters != null) {
-    toolDef.parameters = t.parameters;
-  }
-
-  return toolDef;
 }
 
 /**
@@ -348,12 +321,10 @@ function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
   if (!data) return data;
 
   // Extract tools from context metadata (observation.metadata.tools)
-  let toolsFromContext: unknown[] | undefined;
+  let toolsFromContext: Array<Record<string, unknown>> | undefined;
   if (ctx?.metadata && typeof ctx.metadata === "object") {
     const meta = ctx.metadata as Record<string, unknown>;
-    if (Array.isArray(meta.tools)) {
-      toolsFromContext = meta.tools.map(flattenToolDefinition);
-    }
+    toolsFromContext = normalizeToolDefinitionsForChatMl(meta.tools);
   }
 
   // Handle wrapped format with messages and tools
@@ -363,10 +334,10 @@ function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
     const messagesArray = obj.messages as unknown[];
 
     if (Array.isArray(messagesArray)) {
-      let tools: unknown[] | undefined;
+      let tools: Array<Record<string, unknown>> | undefined;
 
       if (Array.isArray(obj.tools)) {
-        tools = (obj.tools as unknown[]).map(flattenToolDefinition);
+        tools = normalizeToolDefinitionsForChatMl(obj.tools);
       }
 
       const normalized = messagesArray.map(normalizeMessage);
@@ -375,10 +346,7 @@ function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
 
       // Attach tools to messages if present
       if (tools && tools.length > 0) {
-        return split.map((msg) => ({
-          ...(msg as Record<string, unknown>),
-          tools,
-        }));
+        return attachToolDefinitionsToMessages(split, tools);
       }
 
       return split;
@@ -425,10 +393,7 @@ function preprocessData(data: unknown, ctx?: NormalizerContext): unknown {
 
     // Attach tools from context metadata if present
     if (toolsFromContext && toolsFromContext.length > 0) {
-      return split.map((msg) => ({
-        ...(msg as Record<string, unknown>),
-        tools: toolsFromContext,
-      }));
+      return attachToolDefinitionsToMessages(split, toolsFromContext);
     }
 
     return split;
@@ -453,10 +418,16 @@ export const aisdkAdapter: ProviderAdapter = {
 
     // STRONG INDICATORS: AI SDK v5 telemetry markers
     if (meta && typeof meta === "object") {
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (scope.name === "ai") return true;
       }
+
+      if (meta["scope.name"] === "ai") return true;
 
       if ("attributes" in meta && typeof meta.attributes === "object") {
         const attrs = meta.attributes as Record<string, unknown> | null;
@@ -467,6 +438,22 @@ export const aisdkAdapter: ProviderAdapter = {
         ) {
           return true;
         }
+      }
+
+      const flatOperationName = meta["attributes.operation.name"];
+      if (
+        typeof flatOperationName === "string" &&
+        flatOperationName.startsWith("ai.")
+      ) {
+        return true;
+      }
+
+      const flatAiOperationId = meta["attributes.ai.operationId"];
+      if (
+        typeof flatAiOperationId === "string" &&
+        flatAiOperationId.startsWith("ai.")
+      ) {
+        return true;
       }
     }
 

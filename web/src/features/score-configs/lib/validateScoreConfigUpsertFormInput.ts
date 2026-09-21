@@ -2,6 +2,7 @@ import {
   NumericConfigFields,
   CategoricalConfigFields,
   BooleanConfigFields,
+  TextConfigFields,
   validateNumericRangeFields,
 } from "@langfuse/shared";
 import { z } from "zod";
@@ -19,6 +20,7 @@ const ScoreConfigValidationSchema = ScoreConfigBaseSchema.and(
       NumericConfigFields,
       CategoricalConfigFields,
       BooleanConfigFields,
+      TextConfigFields,
     ])
     .superRefine(validateNumericRangeFields),
 );

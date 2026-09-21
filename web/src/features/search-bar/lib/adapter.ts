@@ -1,0 +1,958 @@
+// Editor AST → flat Langfuse filter contract.
+//
+//   astToFilterState(ast) -> { filters, searchQuery, searchType, errors }
+//
+// Today's events table contract is a flat array of single filters joined
+// with AND (`eventsTableFilterState`), plus a global full-text
+// searchQuery/searchType pair. The grammar can parse more (cross-field OR,
+// nested groups); everything the flat contract cannot represent produces an
+// explicit error here — never silent dropping. validate.ts runs the same
+// checks with source spans as the commit gate, so anything committed is
+// guaranteed to lower.
+//
+// Rules:
+// - Top-level AND chain: bare text nodes become searchQuery terms (the default
+//   scope searches ids+names+input+output); everything else lowers into one or
+//   more single filters. Declared search scopes select the one backend phrase;
+//   absent a scope token, the registry supplies the host's default.
+// - A top-level OR of same-field `key:v` equalities collapses to one any-of
+//   filter (`level:ERROR OR level:WARNING` === `level:(ERROR OR WARNING)`).
+//   Any other OR/nested group is not representable.
+// - NOT lowers at this boundary (none-of / does-not-contain / inverted
+//   comparisons / inverted booleans); gaps error via fields.negationIssue.
+
+import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+
+import type { ASTNode, FilterNode } from "./ast";
+import {
+  EVENTS_FIELD_REGISTRY,
+  isDanglingDotPrefix,
+  negationIssue,
+  operatorIssue,
+  SCORE_COLUMNS,
+  type FieldDef,
+  type FieldRegistry,
+} from "./fields";
+import { quoteIfNeeded } from "./quoting";
+
+/**
+ * Emitted when a top-level OR between conditions can't collapse to a same-field
+ * any-of (the PARKED cross-field-OR feature, LFE-10421). Exported so the
+ * analytics error classifier can match this exact cause without brittle string
+ * fragments (LFE-10781 `filters:search_error` → reason `unsupported_or`).
+ */
+export const OR_NOT_SUPPORTED_MESSAGE =
+  "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values";
+
+type SingleEventsFilter = FilterState[number];
+
+export type AstToFilterStateResult = {
+  filters: FilterState;
+  searchQuery: string | null;
+  /**
+   * Selected backend search lanes, or null for the registry's default.
+   * Real column filters remain separate from this global search phrase.
+   */
+  searchType: TracingSearchType[] | null;
+  errors: string[];
+};
+
+/**
+ * Observed score names by type, so `scores.<name>:<value>` lowers to the right
+ * column. A categorical score can have numeric-looking labels (1–5 ratings,
+ * 0–10 NPS), so we cannot infer the column from value syntax alone — when the
+ * name is known categorical it must hit `score_categories`, not `scores_avg`.
+ * Absent/unknown names fall back to the value-syntax heuristic.
+ */
+export type ScoreTypeContext = {
+  numericScoreNames?: ReadonlySet<string>;
+  categoricalScoreNames?: ReadonlySet<string>;
+  booleanScoreNames?: ReadonlySet<string>;
+  traceNumericScoreNames?: ReadonlySet<string>;
+  traceCategoricalScoreNames?: ReadonlySet<string>;
+  traceBooleanScoreNames?: ReadonlySet<string>;
+};
+
+export function resolveScoreType(
+  ctx: ScoreTypeContext | undefined,
+  level: "observation" | "trace",
+  name: string,
+): "numeric" | "categorical" | "boolean" | "both" | "unknown" {
+  if (ctx === undefined) return "unknown";
+  const numeric =
+    level === "trace" ? ctx.traceNumericScoreNames : ctx.numericScoreNames;
+  const categorical =
+    level === "trace"
+      ? ctx.traceCategoricalScoreNames
+      : ctx.categoricalScoreNames;
+  const boolean =
+    level === "trace" ? ctx.traceBooleanScoreNames : ctx.booleanScoreNames;
+  const isNum = numeric?.has(name) ?? false;
+  const isCat = categorical?.has(name) ?? false;
+  const isBool = boolean?.has(name) ?? false;
+  const typeCount = Number(isNum) + Number(isCat) + Number(isBool);
+  if (typeCount > 1) return "both";
+  if (isNum) return "numeric";
+  if (isCat) return "categorical";
+  if (isBool) return "boolean";
+  return "unknown";
+}
+
+function isObservedBooleanScore(
+  ctx: ScoreTypeContext | undefined,
+  level: "observation" | "trace",
+  name: string,
+): boolean {
+  const boolean =
+    level === "trace" ? ctx?.traceBooleanScoreNames : ctx?.booleanScoreNames;
+  return boolean?.has(name) ?? false;
+}
+
+/**
+ * A top-level OR whose children are all same-field single-value `=` filters
+ * collapses to one any-of filter node. Null otherwise.
+ */
+function collapseSameFieldOr(node: ASTNode): FilterNode | null {
+  if (node.kind !== "or") return null;
+  const filters = node.children.filter(
+    (c): c is FilterNode => c.kind === "filter",
+  );
+  if (filters.length !== node.children.length || filters.length < 2)
+    return null;
+  const first = filters[0]!;
+  if (first.op !== "=" || first.values.length !== 1) return null;
+  for (const f of filters) {
+    if (f.key !== first.key || f.op !== "=" || f.values.length !== 1)
+      return null;
+  }
+  return {
+    kind: "filter",
+    key: first.key,
+    op: "=",
+    values: filters.flatMap((f) => f.values),
+    valueOp: "or",
+  };
+}
+
+type LowerContext = {
+  filters: SingleEventsFilter[];
+  searchTerms: string[];
+  errors: string[];
+  scoreTypes?: ScoreTypeContext;
+  registry: FieldRegistry;
+  scopedSearch?: { query: string; searchType: readonly TracingSearchType[] };
+  compatibilitySearchType?: TracingSearchType[];
+};
+
+export function astToFilterState(
+  ast: ASTNode | null,
+  scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): AstToFilterStateResult {
+  const ctx: LowerContext = {
+    filters: [],
+    searchTerms: [],
+    errors: [],
+    scoreTypes,
+    registry,
+  };
+
+  if (ast !== null) {
+    lowerTopLevel(ast, false, ctx);
+  }
+
+  const defaultTextFilter = lowerDefaultTextField(ctx);
+  if (
+    ctx.scopedSearch &&
+    (ctx.searchTerms.length > 0 || ctx.compatibilitySearchType)
+  ) {
+    ctx.errors.push(
+      "Only one search phrase is supported — use either bare text or one scoped search",
+    );
+  }
+  if (
+    ctx.compatibilitySearchType &&
+    ctx.searchTerms.length === 0 &&
+    !ctx.scopedSearch
+  ) {
+    ctx.errors.push("Add search text after in:");
+  }
+  ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
+
+  return {
+    filters: ctx.filters,
+    searchQuery:
+      ctx.scopedSearch?.query ??
+      (defaultTextFilter || ctx.searchTerms.length === 0
+        ? null
+        : ctx.searchTerms.join(" ")),
+    searchType: ctx.scopedSearch
+      ? [...ctx.scopedSearch.searchType]
+      : (ctx.compatibilitySearchType ?? null),
+    errors: ctx.errors,
+  };
+}
+
+/**
+ * On a view with no full-text lane, the collected free-text words are ONE
+ * phrase on the view's default text field — the same coalescing the events
+ * table applies before writing `searchQuery`, and the same thing the bar's own
+ * `id:"test 123"` suggestion promises. Lowering per word instead would AND
+ * `id contains test` with `id contains 123`, which matches neither.
+ * Returns whether it consumed the terms.
+ */
+function lowerDefaultTextField(ctx: LowerContext): boolean {
+  const field = ctx.registry.defaultTextField;
+  if (ctx.registry.allowFreeText || field === null) return false;
+  if (ctx.searchTerms.length === 0) return false;
+  lowerFilterNode(
+    {
+      kind: "filter",
+      key: field,
+      op: "=",
+      values: [ctx.searchTerms.join(" ")],
+    },
+    false,
+    ctx,
+  );
+  return true;
+}
+
+// AND chains (top-level or parenthesized — semantically identical in the
+// flat contract) accept free text (-> searchQuery; the default scope searches
+// ids, names, input, and output) and lower everything else into single filters.
+function lowerTopLevel(
+  node: ASTNode,
+  negated: boolean,
+  ctx: LowerContext,
+): void {
+  switch (node.kind) {
+    case "text":
+      if (negated) {
+        ctx.errors.push(
+          `Free text "${node.value}" cannot be negated — search text is global`,
+        );
+        return;
+      }
+      // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
+      // committing it would silently search for the prefix itself. Gated ahead
+      // of the free-text branches below so every view reports the same accurate
+      // reason — a view whose bare words are rewritten (or rejected outright)
+      // still supports `metadata.<key>`, so "free text is not supported" would
+      // be the wrong message. Quoted text is an explicit literal and is allowed.
+      if (!node.quoted && isDanglingDotPrefix(node.value, ctx.registry)) {
+        ctx.errors.push(
+          `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
+        );
+        return;
+      }
+      if (
+        !ctx.registry.allowFreeText &&
+        ctx.registry.defaultTextField === null
+      ) {
+        ctx.errors.push("Free-text search is not supported by this view");
+        return;
+      }
+      // Collected, not lowered: on a `defaultTextField` view a multi-word run is
+      // ONE phrase, so it becomes a single filter (see lowerDefaultTextField),
+      // never one AND-ed filter per word.
+      ctx.searchTerms.push(node.value);
+      return;
+    case "not":
+      lowerTopLevel(node.child, !negated, ctx);
+      return;
+    case "and": {
+      if (negated) {
+        // NOT(a AND b) would need OR — not representable in the flat contract.
+        ctx.errors.push(
+          "Negated groups are not supported — negate individual filters instead (e.g. -env:dev)",
+        );
+        return;
+      }
+      // Nested parenthesized AND groups flatten into the top-level chain.
+      for (const c of node.children) lowerTopLevel(c, false, ctx);
+      return;
+    }
+    case "or": {
+      const collapsed = collapseSameFieldOr(node);
+      if (collapsed !== null) {
+        // Route the collapsed node the SAME way as a directly-typed filter so
+        // the two paths can't drift.
+        lowerFilterNode(collapsed, negated, ctx);
+        return;
+      }
+      ctx.errors.push(OR_NOT_SUPPORTED_MESSAGE);
+      return;
+    }
+    case "filter":
+      lowerFilterNode(node, negated, ctx);
+      return;
+  }
+}
+
+// Route a single FilterNode into a flat filter. Both the direct `filter` case
+// and the OR-collapse path go through here so the two can't drift.
+function lowerFilterNode(
+  node: FilterNode,
+  negated: boolean,
+  ctx: LowerContext,
+): void {
+  const ref = ctx.registry.resolveField(node.key);
+  if (
+    ref?.type === "searchScope" ||
+    (ref?.type === "pseudo" && ref.id === "in")
+  ) {
+    if (node.values.length === 0) return;
+    const issue =
+      operatorIssue(ref, node.op, node.valueOp ?? "or") ??
+      (negated ? negationIssue(ref, node.op, node.valueOp ?? "or") : null);
+    if (issue) {
+      ctx.errors.push(issue);
+      return;
+    }
+    if (ref.type === "searchScope") {
+      if (node.values.length !== 1) {
+        ctx.errors.push(
+          `${ref.id}: accepts one search phrase, not grouped values`,
+        );
+        return;
+      }
+      if (node.values[0]!.trim().length === 0) {
+        ctx.errors.push(`Enter a search phrase after ${ref.id}:`);
+        return;
+      }
+      if (ctx.scopedSearch) {
+        ctx.errors.push("Only one scoped search phrase is supported");
+        return;
+      }
+      ctx.scopedSearch = {
+        query: node.values[0]!,
+        searchType: ref.scope.searchType,
+      };
+    } else {
+      if (ctx.compatibilitySearchType) {
+        ctx.errors.push("Only one in: scope selection is supported");
+        return;
+      }
+      const supported = new Set<string>([
+        ...ctx.registry.defaultSearchType,
+        ...Object.values(ctx.registry.searchScopes).flatMap(
+          (scope) => scope.searchType,
+        ),
+        ...["input", "output"].filter(
+          (field) => ctx.registry.resolveField(field)?.type === "field",
+        ),
+      ]);
+      const types = node.values.map((value) => value.toLowerCase());
+      if (types.some((type) => !supported.has(type))) {
+        ctx.errors.push(
+          `Unsupported search scope — choose ${[...supported].join(", ")}`,
+        );
+        return;
+      }
+      ctx.compatibilitySearchType = [...new Set(types)] as TracingSearchType[];
+    }
+    return;
+  }
+  lowerFilter(
+    node,
+    negated,
+    ctx.filters,
+    ctx.errors,
+    ctx.scoreTypes,
+    ctx.registry,
+  );
+}
+
+function lowerFilter(
+  node: FilterNode,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+  scoreTypes?: ScoreTypeContext,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
+): void {
+  if (node.values.length === 0) {
+    // The parser already flags every empty-value FilterNode at this span — and
+    // with the exact wording for each shape (bare key, operator prefix
+    // `key:=`, glob, grouped `key:()`), which a single adapter string can't
+    // match. Return silently so the parser's message is the sole diagnostic
+    // (validate.ts blocks the commit either way); pushing one here doubled it.
+    return;
+  }
+
+  const ref = registry.resolveField(node.key);
+  if (ref === null) {
+    errors.push(`Unknown field "${node.key}"`);
+    return;
+  }
+
+  const opIssue = operatorIssue(ref, node.op, node.valueOp ?? "or");
+  if (opIssue !== null) {
+    errors.push(opIssue);
+    return;
+  }
+  if (negated) {
+    const negIssue = negationIssue(ref, node.op, node.valueOp ?? "or");
+    if (negIssue !== null) {
+      errors.push(negIssue);
+      return;
+    }
+  }
+
+  switch (ref.type) {
+    case "pseudo":
+      // Global search scopes are handled by lowerFilterNode.
+      lowerHas(node, negated, out, errors, registry);
+      return;
+    case "metadata":
+      lowerMetadata(node, ref.key, negated, out, errors);
+      return;
+    case "scores":
+      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
+      return;
+    case "field":
+      switch (ref.field.kind) {
+        case "number":
+          lowerNumber(node, ref.field, negated, out, errors);
+          return;
+        case "datetime":
+          lowerDatetime(node, ref.field, negated, out, errors);
+          return;
+        case "boolean":
+          lowerBoolean(node, ref.field, negated, out, errors);
+          return;
+        case "text":
+          lowerText(node, ref.field, negated, out, errors);
+          return;
+      }
+  }
+}
+
+/** AST string op -> Langfuse string filter operator (positive polarity). */
+function stringOperatorOf(
+  op: FilterNode["op"],
+): "contains" | "=" | "starts with" | "ends with" | null {
+  switch (op) {
+    case "~":
+      return "contains";
+    case "exact":
+      return "=";
+    case "^":
+      return "starts with";
+    case "$":
+      return "ends with";
+    default:
+      return null;
+  }
+}
+
+function lowerText(
+  node: FilterNode,
+  field: FieldDef,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+): void {
+  if (node.op === "~") {
+    // Multiple contains on one field would be any-of (OR) — not flat.
+    // Negated multi-value IS flat: AND of does-not-contain.
+    if (!negated && node.values.length > 1) {
+      errors.push(
+        `"${field.id}" supports a single *value* — multiple contains terms cannot be combined with OR in the filter contract`,
+      );
+      return;
+    }
+    for (const v of node.values) {
+      out.push({
+        type: "string",
+        column: field.id,
+        operator: negated ? "does not contain" : "contains",
+        value: v,
+      });
+    }
+    return;
+  }
+
+  if (node.op === "^" || node.op === "$") {
+    // negationIssue blocks negated forms before this point.
+    if (node.values.length > 1) {
+      const form = node.op === "^" ? "value*" : "*value";
+      errors.push(`"${field.id}" supports a single ${form}`);
+      return;
+    }
+    out.push({
+      type: "string",
+      column: field.id,
+      operator: stringOperatorOf(node.op)!,
+      value: node.values[0]!,
+    });
+    return;
+  }
+
+  if (node.op === "exact" && field.syncMode === "textSearch") {
+    // Grouped exact values are an exact-match SET — any-of (positive) /
+    // none-of (negated) via stringOptions (string columns accept it). A single
+    // NEGATED exact (`-name:=abc`) is exact-inequality: its only faithful flat
+    // form is stringOptions none-of, since there is no `string !=`. A single
+    // POSITIVE exact uses the owning column's shape: categorical facets need
+    // stringOptions even for one value so the selected checkbox stays visible.
+    if (node.values.length > 1 || field.exactMatchUsesOptions) {
+      out.push({
+        type: "stringOptions",
+        column: field.id,
+        operator: negated ? "none of" : "any of",
+        value: node.values,
+      });
+      return;
+    }
+    if (negated) {
+      out.push({
+        type: "stringOptions",
+        column: field.id,
+        operator: "none of",
+        value: node.values,
+      });
+      return;
+    }
+    out.push({
+      type: "string",
+      column: field.id,
+      operator: "=",
+      value: node.values[0]!,
+    });
+    return;
+  }
+
+  // '=' default and 'exact' on option-backed fields: any-of / none-of.
+  if (field.syncMode === "arrayOption") {
+    if (node.valueOp === "and") {
+      // negationIssue blocks negated all-of groups before this point.
+      out.push({
+        type: "arrayOptions",
+        column: field.id,
+        operator: "all of",
+        value: node.values,
+      });
+      return;
+    }
+    out.push({
+      type: "arrayOptions",
+      column: field.id,
+      operator: negated ? "none of" : "any of",
+      value: node.values,
+    });
+    return;
+  }
+  if (field.syncMode === "exactOption") {
+    const values = field.filterValueByDisplayValue
+      ? node.values.map((value) => field.filterValueByDisplayValue!.get(value))
+      : node.values;
+    if (values.some((value) => value === undefined)) {
+      errors.push(`"${field.id}" contains an unknown option`);
+      return;
+    }
+    out.push({
+      type: "stringOptions",
+      column: field.filterColumn ?? field.id,
+      operator: negated ? "none of" : "any of",
+      value: values as string[],
+    });
+    return;
+  }
+  // textSearch fields: bare equality means "contains" (search semantics);
+  // `key:=value` above is the explicit exact match. Grouped values lower to
+  // stringOptions any-of/none-of (exact semantics — string columns accept
+  // stringOptions filters in the contract).
+  if (node.values.length > 1) {
+    out.push({
+      type: "stringOptions",
+      column: field.id,
+      operator: negated ? "none of" : "any of",
+      value: node.values,
+    });
+    return;
+  }
+  out.push({
+    type: "string",
+    column: field.id,
+    operator: negated ? "does not contain" : "contains",
+    value: node.values[0]!,
+  });
+}
+
+// Exported so the reverse adapter's negation-fold normalizer (foldDerivedNegation)
+// inverts comparisons the SAME way this lowering does — keep them in one place.
+export const INVERTED_COMPARISON = {
+  ">": "<=",
+  "<": ">=",
+  ">=": "<",
+  "<=": ">",
+} as const;
+
+type ComparisonOp = keyof typeof INVERTED_COMPARISON;
+
+function isComparison(op: FilterNode["op"]): op is ComparisonOp {
+  return op === ">" || op === "<" || op === ">=" || op === "<=";
+}
+
+function parseNumbers(
+  node: FilterNode,
+  label: string,
+  errors: string[],
+): number[] | null {
+  // Number("") and Number(" ") are both 0 (finite), so guard empty/whitespace
+  // explicitly — otherwise `latency:""` would silently filter for latency = 0.
+  const bad = node.values.find(
+    (v) => v.trim().length === 0 || !Number.isFinite(Number(v)),
+  );
+  if (bad !== undefined) {
+    errors.push(`"${label}" expects a number, got "${bad}"`);
+    return null;
+  }
+  return node.values.map((v) => Number(v));
+}
+
+function lowerNumber(
+  node: FilterNode,
+  field: FieldDef,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+): void {
+  const numbers = parseNumbers(node, field.id, errors);
+  if (numbers === null) return;
+
+  if (node.op === "=" || node.op === "exact") {
+    // negationIssue blocks negated equality (needs < OR >) before this point.
+    if (numbers.length > 1) {
+      errors.push(
+        `"${field.id}" expects a single value — any-of number lists are not supported`,
+      );
+      return;
+    }
+    out.push({
+      type: "number",
+      column: field.id,
+      operator: "=",
+      value: numbers[0]!,
+    });
+    return;
+  }
+
+  if (!isComparison(node.op)) {
+    errors.push(`"${field.id}" does not support ${node.op}`);
+    return;
+  }
+  out.push({
+    type: "number",
+    column: field.id,
+    operator: negated ? INVERTED_COMPARISON[node.op] : node.op,
+    value: numbers[0]!,
+  });
+}
+
+function lowerDatetime(
+  node: FilterNode,
+  field: FieldDef,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+): void {
+  if (!isComparison(node.op)) {
+    errors.push(
+      `"${field.id}" is a datetime field — use a comparison (e.g. ${field.id}:>2026-06-01)`,
+    );
+    return;
+  }
+  const raw = node.values[0]!;
+  const ms = Date.parse(raw);
+  if (Number.isNaN(ms)) {
+    errors.push(`"${field.id}" expects an ISO date, got "${raw}"`);
+    return;
+  }
+  out.push({
+    type: "datetime",
+    column: field.id,
+    operator: negated ? INVERTED_COMPARISON[node.op] : node.op,
+    value: new Date(ms),
+  });
+}
+
+function lowerBoolean(
+  node: FilterNode,
+  field: FieldDef,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+): void {
+  if ((node.op !== "=" && node.op !== "exact") || node.values.length !== 1) {
+    errors.push(`"${field.id}" expects exactly one of true/false`);
+    return;
+  }
+  const raw = node.values[0]!.toLowerCase();
+  if (raw !== "true" && raw !== "false") {
+    errors.push(`"${field.id}" expects true or false, got "${node.values[0]}"`);
+    return;
+  }
+  const value = raw === "true";
+  out.push({
+    type: "boolean",
+    column: field.id,
+    operator: "=",
+    value: negated ? !value : value,
+  });
+}
+
+/**
+ * Metadata dot-paths lower to stringObject filters (the only metadata filter
+ * shape in the contract): single value, string ops, FTS matches.
+ */
+function lowerMetadata(
+  node: FilterNode,
+  key: string,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+): void {
+  if (node.values.length > 1) {
+    errors.push(
+      `metadata.${quoteIfNeeded(key)} supports a single value — any-of metadata groups are not supported`,
+    );
+    return;
+  }
+  const value = node.values[0]!;
+
+  if (node.op === "~") {
+    out.push({
+      type: "stringObject",
+      column: "metadata",
+      key,
+      operator: negated ? "does not contain" : "contains",
+      value,
+    });
+    return;
+  }
+  if (node.op === "^" || node.op === "$") {
+    // negationIssue blocks negated forms before this point.
+    out.push({
+      type: "stringObject",
+      column: "metadata",
+      key,
+      operator: stringOperatorOf(node.op)!,
+      value,
+    });
+    return;
+  }
+  // '=' default and 'exact': exact match. Negated equality is blocked by
+  // negationIssue for 'exact'; for '=' there is no "does not equal" either —
+  // surface the same suggestion.
+  if (negated) {
+    errors.push(
+      `negated equality on metadata is not representable — use -metadata.${quoteIfNeeded(key)}:*value* (does not contain)`,
+    );
+    return;
+  }
+  out.push({
+    type: "stringObject",
+    column: "metadata",
+    key,
+    operator: "=",
+    value,
+  });
+}
+
+/**
+ * Score dot-paths: comparisons and numeric values target the numeric score
+ * column (numberObject keyed by score name); non-numeric values target the
+ * categorical column (categoryOptions any-of/none-of).
+ */
+function lowerScores(
+  node: FilterNode,
+  key: string,
+  level: "observation" | "trace",
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+  scoreTypes?: ScoreTypeContext,
+): void {
+  const columns = SCORE_COLUMNS[level];
+  // Quoted so the example syntax in error messages parses for grammar-char
+  // names (`scores."Rouge Score":<n`). `path` is used only in messages here;
+  // the lowered columns come from SCORE_COLUMNS.
+  const path =
+    level === "trace"
+      ? `traceScores.${quoteIfNeeded(key)}`
+      : `scores.${quoteIfNeeded(key)}`;
+
+  const lowerNumeric = (): void => {
+    const numbers = parseNumbers(node, path, errors);
+    if (numbers === null) return;
+    if (node.op === "=" || node.op === "exact") {
+      if (negated) {
+        errors.push(
+          `negated numeric score equality is not representable — use comparisons (${path}:<n or ${path}:>n)`,
+        );
+        return;
+      }
+      if (numbers.length > 1) {
+        errors.push(
+          `${path} expects a single numeric value — any-of number lists are not supported`,
+        );
+        return;
+      }
+      out.push({
+        type: "numberObject",
+        column: columns.numeric,
+        key,
+        operator: "=",
+        value: numbers[0]!,
+      });
+      return;
+    }
+    out.push({
+      type: "numberObject",
+      column: columns.numeric,
+      key,
+      operator: negated
+        ? INVERTED_COMPARISON[node.op as ComparisonOp]
+        : (node.op as ComparisonOp),
+      value: numbers[0]!,
+    });
+  };
+
+  const pushCategory = (): void => {
+    out.push({
+      type: "categoryOptions",
+      column: columns.categorical,
+      key,
+      operator: negated ? "none of" : "any of",
+      value: node.values,
+    });
+  };
+
+  const lowerBooleanScore = (): void => {
+    if (isComparison(node.op)) {
+      errors.push(
+        `${path} is boolean — comparison operators only apply to numeric scores`,
+      );
+      return;
+    }
+    if (node.values.length > 1) {
+      errors.push(
+        `${path} expects a single boolean value — grouped boolean values are not supported`,
+      );
+      return;
+    }
+    const raw = node.values[0]?.toLowerCase();
+    if (raw !== "true" && raw !== "false") {
+      errors.push(`${path} is boolean — use true or false`);
+      return;
+    }
+    out.push({
+      type: "booleanObject",
+      column: columns.boolean,
+      key,
+      operator: negated ? "<>" : "=",
+      value: raw === "true",
+    });
+  };
+
+  // Route by observed score TYPE when we know it — a categorical score with
+  // numeric labels (e.g. a 1–5 rating) must hit the categorical column, not
+  // scores_avg, or it silently targets a column with no data.
+  const scoreType = resolveScoreType(scoreTypes, level, key);
+  const allBooleanLiterals = node.values.every((v) => {
+    const raw = v.toLowerCase();
+    return raw === "true" || raw === "false";
+  });
+  if (
+    isObservedBooleanScore(scoreTypes, level, key) &&
+    allBooleanLiterals &&
+    !isComparison(node.op)
+  ) {
+    lowerBooleanScore();
+    return;
+  }
+  if (scoreType === "boolean") {
+    // Legacy-read compat: boolean scores also aggregate numerically (0/1)
+    // into scores_avg, and pre-boolean-filter URLs/saved views still carry
+    // numberObject filters on them. Numeric-shaped input keeps lowering
+    // numerically so that state stays renderable/editable; everything else
+    // gets the boolean diagnostic (never the categorical fallback — a boolean
+    // name has no data in score_categories).
+    const allNumericValues = node.values.every((v) =>
+      Number.isFinite(Number(v)),
+    );
+    if (isComparison(node.op) || node.op === "exact" || allNumericValues) {
+      lowerNumeric();
+      return;
+    }
+    lowerBooleanScore();
+    return;
+  }
+
+  if (scoreType === "categorical") {
+    // Comparisons (> < >= <=) are meaningless on a category. But exact (`:=x`)
+    // and the bare `=` form are both just an exact category match, so they
+    // lower to categoryOptions exactly like `scores.<name>:x`.
+    if (isComparison(node.op)) {
+      errors.push(
+        `${path} is categorical — comparison operators only apply to numeric scores`,
+      );
+      return;
+    }
+    pushCategory();
+    return;
+  }
+
+  // Numeric / unknown: comparisons and exact target the numeric column.
+  if (isComparison(node.op) || node.op === "exact") {
+    lowerNumeric();
+    return;
+  }
+
+  // '=' default: numeric when known-numeric, else value-syntax fallback
+  // (all-numeric → numeric) for unknown/both. Known context-miss caveat: a
+  // booleanObject filter whose score name is not in the observed sets (time
+  // range, name-limit cap, saved view) renders as `scores.X:true` and
+  // re-lowers here to categoryOptions — the same context dependence the
+  // categorical kind has always had; eager score-name loading keeps this rare.
+  const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
+  if (scoreType === "numeric" || allNumeric) {
+    lowerNumeric();
+    return;
+  }
+  pushCategory();
+}
+
+/** `has:field` -> is-not-null; `-has:field` -> is-null. */
+function lowerHas(
+  node: FilterNode,
+  negated: boolean,
+  out: SingleEventsFilter[],
+  errors: string[],
+  registry: FieldRegistry,
+): void {
+  if (node.values.length > 1 && !negated) {
+    // has:(a OR b) would be an OR of null checks — not flat. The negated
+    // form De-Morgans to an AND of is-null, which IS flat.
+    errors.push(
+      "has: accepts a single field — combine multiple has: filters with AND instead",
+    );
+    return;
+  }
+  for (const v of node.values) {
+    const target = registry.resolveField(v);
+    if (target === null || target.type !== "field") {
+      errors.push(`has: expects a field name, got "${v}"`);
+      continue;
+    }
+    out.push({
+      type: "null",
+      column: target.field.filterColumn ?? target.field.id,
+      operator: negated ? "is null" : "is not null",
+      value: "",
+    });
+  }
+}

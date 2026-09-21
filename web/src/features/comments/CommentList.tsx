@@ -1,9 +1,8 @@
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/src/components/ui/avatar";
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props, @repo/no-null-render */
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Form,
   FormControl,
@@ -24,13 +23,14 @@ import {
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Input } from "@/src/components/ui/input";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import { ArrowUpToLine, LoaderCircle, Search, Trash, X } from "lucide-react";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { ArrowUpToLine, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
   useCallback,
@@ -81,6 +81,7 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   cardView = false,
   className,
   onDraftChange,
@@ -88,10 +89,12 @@ export function CommentList({
   isDrawerOpen = false,
   pendingSelection,
   onSelectionUsed,
+  onCommentChange,
 }: {
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   cardView?: boolean;
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
@@ -99,6 +102,7 @@ export function CommentList({
   isDrawerOpen?: boolean;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
+  onCommentChange?: () => void | Promise<void>;
 }) {
   const session = useSession();
   const router = useRouter();
@@ -293,10 +297,16 @@ export function CommentList({
   }, [isDrawerOpen]);
 
   const utils = api.useUtils();
+  const invalidateCommentQueries = async () => {
+    (async () => {
+      await onCommentChange?.();
+    })().catch(() => undefined);
+
+    await utils.comments.invalidate();
+  };
 
   const createCommentMutation = api.comments.create.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
       form.reset();
 
       // Clear pending selection after successful comment creation
@@ -306,6 +316,8 @@ export function CommentList({
       if (textareaRef.current) {
         textareaRef.current.style.height = "auto";
       }
+
+      await invalidateCommentQueries();
 
       // Scroll to bottom of comments list (newest comment in chronological order)
       if (commentsContainerRef.current) {
@@ -356,7 +368,7 @@ export function CommentList({
 
   const deleteCommentMutation = api.comments.delete.useMutation({
     onSuccess: async () => {
-      await Promise.all([utils.comments.invalidate()]);
+      await invalidateCommentQueries();
     },
   });
 
@@ -413,6 +425,7 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      objectStartTime: objectStartTime ?? undefined,
       dataField: pendingSelection?.dataField,
       path: pendingSelection?.path,
       rangeStart: pendingSelection?.rangeStart,
@@ -476,7 +489,9 @@ export function CommentList({
           className,
         )}
       >
-        <LoaderCircle className="text-muted-foreground mr-1.5 h-4 w-4 animate-spin" />
+        <span className="mr-1.5 inline-flex">
+          <Spinner size="sm" variant="muted" />
+        </span>
         <span className="text-muted-foreground text-sm opacity-60">
           Loading comments...
         </span>
@@ -487,20 +502,20 @@ export function CommentList({
     <div
       className={cn(
         cardView && "rounded-md border",
-        "flex h-full min-h-0 flex-col",
+        "flex h-full min-h-0 flex-col overflow-hidden",
         className,
       )}
     >
       {cardView && (
-        <div className="shrink-0 border-b px-2 py-1 text-sm font-medium">
+        <div className="shrink-0 border-b px-2 py-1 text-sm font-bold">
           Comments ({comments.data?.length ?? 0})
         </div>
       )}
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!cardView && (
           <div className="shrink-0 border-b">
             <div className="flex items-center justify-between gap-2 px-2 py-1.5">
-              <div className="text-sm font-medium">Comments</div>
+              <div className="text-sm font-bold">Comments</div>
               <div className="relative max-w-xs flex-1">
                 <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
                 <Input
@@ -523,16 +538,9 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
-                    {typeof navigator !== "undefined" &&
-                    navigator.platform.toLowerCase().includes("mac") ? (
-                      <>
-                        <span className="text-xs">⌘</span>F
-                      </>
-                    ) : (
-                      <>Ctrl+F</>
-                    )}
-                  </kbd>
+                  <span className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 md:inline-flex">
+                    <KeyboardShortcut keys={["Mod", "F"]} />
+                  </span>
                 )}
               </div>
             </div>
@@ -561,22 +569,17 @@ export function CommentList({
                     : "border-border/40 hover:bg-muted/20",
                 )}
               >
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={comment.authorUserImage ?? undefined} />
-                  <AvatarFallback className="text-xs">
-                    {comment.authorUserName
-                      ? comment.authorUserName
-                          .split(" ")
-                          .map((word) => word[0])
-                          .slice(0, 2)
-                          .concat("")
-                      : (comment.authorUserId ?? "U")}
-                  </AvatarFallback>
-                </Avatar>
+                <Avatar
+                  size="sm"
+                  src={comment.authorUserImage ?? undefined}
+                  displayName={
+                    comment.authorUserName ?? comment.authorUserId ?? "User"
+                  }
+                />
                 <div className="min-w-0">
                   {/* Name + timestamp inline */}
                   <div className="mb-1.5 flex items-center gap-2 pt-1.5 text-xs leading-none">
-                    <span className="text-foreground font-medium">
+                    <span className="text-foreground font-bold">
                       {comment.authorUserName ?? comment.authorUserId ?? "User"}
                     </span>
                     <span className="text-muted-foreground/50">·</span>
@@ -588,7 +591,7 @@ export function CommentList({
                   {/* Comment content with CSS overrides for markdown */}
                   <MarkdownView
                     markdown={comment.content}
-                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-semibold [&_h2]:text-[0.85rem] [&_h2]:font-semibold [&_h3]:text-[0.8rem] [&_h3]:font-semibold [&_h4]:text-xs [&_h4]:font-medium [&_h5]:text-xs [&_h5]:font-medium [&_h6]:text-xs [&_h6]:font-medium [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
+                    className="border-none p-0 py-1 text-xs [&_h1]:text-[0.9rem] [&_h1]:font-bold [&_h2]:text-[0.85rem] [&_h2]:font-bold [&_h3]:text-[0.8rem] [&_h3]:font-bold [&_h4]:text-xs [&_h4]:font-bold [&_h5]:text-xs [&_h5]:font-bold [&_h6]:text-xs [&_h6]:font-bold [&_li]:text-xs [&_ol]:text-xs [&_p]:text-xs [&_ul]:text-xs"
                   />
 
                   {/* Inline comment position indicator */}
@@ -601,7 +604,7 @@ export function CommentList({
                         <TooltipTrigger asChild>
                           <div className="mt-1 flex w-fit items-center gap-1.5 text-xs">
                             <Badge
-                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-medium"
+                              className="text-foreground pointer-events-none px-1.5 py-0 text-[10px] font-bold"
                               style={{
                                 backgroundColor:
                                   IO_FIELD_COLORS[
@@ -694,13 +697,13 @@ export function CommentList({
         </div>
 
         {hasWriteAccess && (
-          <>
-            <div className="text-muted-foreground relative mt-2 mr-4 ml-2.5 flex flex-row items-center justify-between text-xs">
+          <div className="bg-background shrink-0 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+            <div className="text-muted-foreground relative flex flex-row items-center justify-between text-xs">
               <span className="sr-only">New comment</span>
               <span></span>
               <span>Markdown and @-mentions support</span>
             </div>
-            <div className="border-border/60 relative mt-0.5 mr-3 mb-2 ml-2 min-h-[70px] shrink-0 rounded-lg border pt-1">
+            <div className="border-border/60 relative mt-0.5 min-h-[70px] rounded-lg border pt-1">
               {/* Visually hidden header for accessibility */}
 
               <Form {...form}>
@@ -790,9 +793,9 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
-                            <span className="text-xs">⌘</span>Enter
-                          </kbd>
+                          <span className="hidden md:inline-flex">
+                            <KeyboardShortcut keys={["Mod", "Enter"]} />
+                          </span>
                         </div>
                       </HoverCardContent>
                     </HoverCard>
@@ -800,7 +803,7 @@ export function CommentList({
                 </form>
               </Form>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

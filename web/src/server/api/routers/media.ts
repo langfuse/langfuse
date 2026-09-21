@@ -103,7 +103,7 @@ export const mediaRouter = createTRPCRouter({
               m.content_length
             FROM
               trace_media tm
-              LEFT JOIN media m 
+              INNER JOIN media m
                 ON tm.media_id = m.id 
                 AND tm.project_id = m.project_id
             WHERE
@@ -130,7 +130,7 @@ export const mediaRouter = createTRPCRouter({
               m.content_length
             FROM
               observation_media om
-              LEFT JOIN media m 
+              INNER JOIN media m
                 ON om.media_id = m.id 
                 AND om.project_id = m.project_id
             WHERE

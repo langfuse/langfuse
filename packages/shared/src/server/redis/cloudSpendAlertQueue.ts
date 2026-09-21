@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class CloudSpendAlertQueue {
@@ -20,15 +16,12 @@ export class CloudSpendAlertQueue {
       return CloudSpendAlertQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    CloudSpendAlertQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.CloudSpendAlertQueue,
+    );
+    CloudSpendAlertQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.CloudSpendAlertQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.CloudSpendAlertQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

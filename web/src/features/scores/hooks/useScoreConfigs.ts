@@ -7,27 +7,31 @@ import { type ScoreConfigDomain } from "@langfuse/shared";
  * Prepares score configs for the AnnotationForm based on selection mode.
  *
  * Two modes:
- * - **Fixed**: Uses pre-selected configs (no fetching required)
+ * - **Fixed**: Uses preselected configs (no fetching required)
  * - **Selectable**: Fetches all available configs and tracks user selections
  *
  * @param projectId - Project to fetch configs for (only used in selectable mode)
  * @param configSelection - Either fixed configs or selectable mode
  * @returns isLoading - True while fetching configs (always false in fixed mode)
  * @returns availableConfigs - All score configs to display
- * @returns selectedConfigIds - IDs of configs that are pre-selected
+ * @returns selectedConfigIds - IDs of configs that are preselected
  */
 export function useAnnotationScoreConfigs({
   projectId,
   configSelection,
+  emptySelectedConfigIdsStorageKey,
 }: {
   projectId: string;
   configSelection: ScoreConfigSelection;
+  emptySelectedConfigIdsStorageKey?: string;
 }): {
   isLoading: boolean;
   availableConfigs: ScoreConfigDomain[];
   selectedConfigIds: string[];
 } {
-  const { emptySelectedConfigIds } = useEmptyScoreConfigs();
+  const { emptySelectedConfigIds } = useEmptyScoreConfigs(
+    emptySelectedConfigIdsStorageKey,
+  );
 
   const configs = api.scoreConfigs.all.useQuery(
     {
@@ -44,11 +48,10 @@ export function useAnnotationScoreConfigs({
       selectedConfigIds: configSelection.configs.map((c) => c.id),
       availableConfigs: configSelection.configs,
     };
-  } else {
-    return {
-      isLoading: configs.isLoading,
-      selectedConfigIds: emptySelectedConfigIds,
-      availableConfigs: configs.data?.configs ?? [],
-    };
   }
+  return {
+    isLoading: configs.isLoading,
+    selectedConfigIds: emptySelectedConfigIds,
+    availableConfigs: configs.data?.configs ?? [],
+  };
 }

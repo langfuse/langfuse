@@ -1,7 +1,6 @@
-/** @jest-environment node */
-
 import { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/router";
 import {
+  createBooleanEvalOutputDefinition,
   createCategoricalEvalOutputDefinition,
   createNumericEvalOutputDefinition,
   ScoreDataTypeEnum,
@@ -11,6 +10,7 @@ describe("CreateEvalTemplateInputSchema", () => {
   const baseInput = {
     name: "Accuracy evaluator",
     projectId: "project-1",
+    intent: "new" as const,
     prompt: "Judge {{output}} against {{expected_output}}",
     provider: null,
     model: null,
@@ -51,6 +51,19 @@ describe("CreateEvalTemplateInputSchema", () => {
       outputDefinition: createNumericEvalOutputDefinition({
         scoreDescription: "Return a score between 0 and 1",
         reasoningDescription: "Explain the assigned score",
+      }),
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts versioned boolean output definitions", () => {
+    const result = CreateEvalTemplateInputSchema.safeParse({
+      ...baseInput,
+      outputDefinition: createBooleanEvalOutputDefinition({
+        scoreDescription:
+          "Return true if the answer satisfies the criteria, otherwise false",
+        reasoningDescription: "Explain the verdict",
       }),
     });
 

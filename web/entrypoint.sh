@@ -1,12 +1,85 @@
 #!/bin/sh
 
+# Check whether a database URL's credentials contain characters that typically
+# need percent-encoding for Prisma (@ : / % # ?).  Best-effort heuristic —
+# strips the scheme, extracts the authority (user:pass@host) before the first
+# slash, and checks for common offenders.  Strips %XX sequences first so
+# partially-encoded values are caught.
+check_unencoded_credentials() {
+    _url="$1"
+    _no_scheme="${_url#*://}"
+    # Extract authority (before first /) so @/# in path or query params
+    # don't confuse credential parsing.
+    _authority="${_no_scheme%%/*}"
+    case "$_authority" in
+        *@*)
+            _host_part="${_authority##*@}"
+            _creds="${_authority%@"$_host_part"}"
+            _user="${_creds%%:*}"
+            _pass="${_creds#*:}"
+            _found=""
+            for _val in "$_user" "$_pass"; do
+                # Strip valid percent-encoded sequences before checking so
+                # partially-encoded values like p%40ss@word are still caught.
+                _stripped=$(printf '%s' "$_val" | sed 's/%[0-9A-Fa-f][0-9A-Fa-f]//g')
+                case "$_stripped" in
+                    *@*|*:*|*/*|*%*|*'#'*|*'?'*) _found="true" ;;
+                esac
+            done
+            if [ "$_found" = "true" ]; then
+                echo "HINT: Your DATABASE_URL / DIRECT_URL credentials appear to contain special characters (@, :, /, %, #, ?) that are not URL-encoded."
+                echo "  Prisma requires these to be percent-encoded, otherwise you will see P1013 errors."
+                echo "  Example: p@ssword → p%40ssword"
+                echo "  Reference: https://www.prisma.io/docs/orm/reference/connection-urls#special-characters"
+            fi
+            ;;
+    esac
+}
+
+# Check whether CLICKHOUSE_PASSWORD contains characters that would break the
+# query-string interpolation used in the migration script (& = # ? % + @ space).
+# Strips %XX sequences first so partially-encoded values are caught.
+check_clickhouse_password() {
+    _pass="$1"
+    if [ -z "$_pass" ]; then
+        return
+    fi
+    # Strip valid percent-encoded sequences before checking so
+    # partially-encoded values are still caught.
+    _stripped=$(printf '%s' "$_pass" | sed 's/%[0-9A-Fa-f][0-9A-Fa-f]//g')
+    case "$_stripped" in
+        *'&'*|*'='*|*'#'*|*'?'*|*'%'*|*'+'*|*'@'*|*' '*)
+            echo "HINT: Your CLICKHOUSE_PASSWORD contains special characters (&, =, #, ?, %, +, @, space) that may break the migration URL."
+            echo "  These characters need to be percent-encoded when passed as query parameters."
+            echo "  Example: p@ss&word → p%40ss%26word"
+            ;;
+    esac
+}
+
 # Run cleanup script before running migrations
 # Check if DATABASE_URL is not set
 if [ -z "$DATABASE_URL" ]; then
     # Check if all required variables are provided
     if [ -n "$DATABASE_HOST" ] && [ -n "$DATABASE_USERNAME" ] && [ -n "$DATABASE_PASSWORD" ]  && [ -n "$DATABASE_NAME" ]; then
+        # Append DATABASE_PORT only when it is explicitly set, so existing
+        # deployments that embed the port in DATABASE_HOST keep working.
+        db_host_with_port="${DATABASE_HOST}"
+        if [ -n "$DATABASE_PORT" ]; then
+            case "$DATABASE_PORT" in
+                *[!0-9]*)
+                    # e.g. Kubernetes service links can inject DATABASE_PORT=tcp://ip:port
+                    echo "Warning: ignoring non-numeric DATABASE_PORT '${DATABASE_PORT}'"
+                    ;;
+                *)
+                    case "${DATABASE_HOST##*\]}" in
+                        *:*) echo "Info: DATABASE_HOST already contains a port; ignoring DATABASE_PORT." ;;
+                        *)   db_host_with_port="${DATABASE_HOST}:${DATABASE_PORT}" ;;
+                    esac
+                    ;;
+            esac
+        fi
         # Construct DATABASE_URL from the provided variables
-        DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${DATABASE_HOST}/${DATABASE_NAME}"
+        DATABASE_URL="postgresql://${DATABASE_USERNAME}:${DATABASE_PASSWORD}@${db_host_with_port}/${DATABASE_NAME}"
         export DATABASE_URL
     else
         echo "Error: Required database environment variables are not set. Provide a postgres url for DATABASE_URL."
@@ -41,7 +114,10 @@ status=$?
 
 # If migration fails (returns non-zero exit status), exit script with that status
 if [ $status -ne 0 ]; then
-    echo "Applying database migrations failed. This is mostly caused by the database being unavailable."
+    echo "Applying database migrations failed. Common causes:"
+    echo "  1. The database is unavailable or unreachable."
+    echo "  2. DATABASE_URL / DIRECT_URL credentials contain special characters that are not URL-encoded."
+    check_unencoded_credentials "$DIRECT_URL"
     echo "Exiting..."
     exit $status
 fi
@@ -57,7 +133,10 @@ fi
 
 # If migration fails (returns non-zero exit status), exit script with that status
 if [ $status -ne 0 ]; then
-    echo "Applying clickhouse migrations failed. This is mostly caused by the database being unavailable."
+    echo "Applying clickhouse migrations failed. Common causes:"
+    echo "  1. The database is unavailable or unreachable."
+    echo "  2. CLICKHOUSE_PASSWORD contains special characters that are not URL-encoded."
+    check_clickhouse_password "$CLICKHOUSE_PASSWORD"
     echo "Exiting..."
     exit $status
 fi

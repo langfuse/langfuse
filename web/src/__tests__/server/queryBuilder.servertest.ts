@@ -1,13 +1,10 @@
-import { QueryBuilder } from "@/src/features/query/server/queryBuilder";
+import { QueryBuilder, executeQuery } from "@langfuse/shared/query/server";
 import {
-  type QueryType,
   getValidAggregationsForMeasureType,
   metricAggregations,
-} from "@/src/features/query/types";
-import {
-  executeQuery,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
+  type QueryType,
+} from "@langfuse/shared/query";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -212,6 +209,22 @@ describe("queryBuilder", () => {
         } as QueryType,
       ],
       [
+        "scores-boolean query",
+        {
+          view: "scores-boolean",
+          dimensions: [{ field: "booleanValue" }],
+          metrics: [
+            { measure: "count", aggregation: "count" },
+            { measure: "value", aggregation: "avg" },
+          ],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: "2025-01-01T00:00:00.000Z",
+          toTimestamp: "2025-03-01T00:00:00.000Z",
+          orderBy: null,
+        } as QueryType,
+      ],
+      [
         "scores-numeric query with filters and time dimension",
         {
           view: "scores-numeric",
@@ -313,7 +326,7 @@ describe("queryBuilder", () => {
         observationId?: string;
         value?: number;
         stringValue?: string;
-        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN";
+        dataType: "NUMERIC" | "CATEGORICAL" | "BOOLEAN" | "TEXT" | "CORRECTION";
         source?: string;
         environment?: string;
       }>,
@@ -327,8 +340,15 @@ describe("queryBuilder", () => {
             trace_id: data.traceId,
             observation_id: data.observationId,
             name: data.name,
-            value: data.dataType === "NUMERIC" ? data.value || 0 : null,
-            string_value: ["CATEGORICAL", "BOOLEAN"].includes(data.dataType)
+            // Non-numeric scores store NULL in the Nullable(Float64) value
+            // column; the insert schema types value as number, hence the cast.
+            value:
+              data.dataType === "NUMERIC"
+                ? data.value || 0
+                : (null as unknown as number),
+            string_value: ["CATEGORICAL", "BOOLEAN", "TEXT"].includes(
+              data.dataType,
+            )
               ? data.stringValue || ""
               : null,
             environment: data.environment || "default",
@@ -1871,6 +1891,25 @@ describe("queryBuilder", () => {
             dataType: "CATEGORICAL" as const,
             source: "human",
           },
+
+          // Adding a TEXT (free-text) score that should also be excluded by the segments filter
+          {
+            name: "feedback",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            stringValue: "looks good to me",
+            dataType: "TEXT" as const,
+            source: "human",
+          },
+
+          // Adding a CORRECTION score that should also be excluded by the segments filter
+          {
+            name: "correction",
+            traceId: traces[0].id,
+            observationId: observations[0].id,
+            dataType: "CORRECTION" as const,
+            source: "human",
+          },
         ];
 
         await setupScores(projectId, scores);
@@ -1902,18 +1941,33 @@ describe("queryBuilder", () => {
           projectId,
         );
 
-        // Verify SQL includes segment filter for NUMERIC types
-        // Verify SQL includes segment filter for non-NUMERIC types
-        expect(compiledQuery).toContain("position(scores_numeric.data_type, {");
-        expect(compiledQuery).toContain(": String}) = 0");
-        expect(Object.values(parameters)).toContain("CATEGORICAL");
+        // Verify SQL restricts scores-numeric to the NUMERIC/BOOLEAN allow-list
+        expect(compiledQuery).toContain(
+          "scores_numeric.data_type IN ({stringOptionsFilter",
+        );
+        expect(compiledQuery).toContain(": Array(String)})");
+        expect(Object.values(parameters)).toContainEqual([
+          "NUMERIC",
+          "BOOLEAN",
+        ]);
 
         // Execute query
         const result: { data: Array<any> } = { data: [] };
         result.data = await executeQuery(projectId, query);
 
         // Assert
+        // CATEGORICAL ("evaluation"), TEXT ("feedback"), and CORRECTION ("correction")
+        // scores must be excluded by the segments allow-list
         expect(result.data).toHaveLength(3); // accuracy, relevance, coherence
+        expect(
+          result.data.find((row: any) => row.name === "feedback"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "evaluation"),
+        ).toBeUndefined();
+        expect(
+          result.data.find((row: any) => row.name === "correction"),
+        ).toBeUndefined();
 
         // Check each score type
         const accuracyRow = result.data.find(
@@ -2414,6 +2468,97 @@ describe("queryBuilder", () => {
       });
     });
 
+    describe("scores-boolean view", () => {
+      it("isolates boolean scores and supports boolean breakdowns, filters, and true-rate aggregation", async () => {
+        const projectId = randomUUID();
+        const timestamp = Date.now();
+
+        await createScoresCh([
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 1,
+            string_value: "true",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 0,
+            string_value: "false",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "BOOLEAN",
+            name: "boolean-widget-test",
+            value: 1,
+            string_value: "true",
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "NUMERIC",
+            name: "boolean-widget-test",
+            value: 1,
+            timestamp,
+          }),
+          createTraceScore({
+            project_id: projectId,
+            data_type: "CATEGORICAL",
+            name: "boolean-widget-test",
+            string_value: "true",
+            timestamp,
+          }),
+        ]);
+
+        const baseQuery = {
+          view: "scores-boolean",
+          metrics: [
+            { measure: "count", aggregation: "count" },
+            { measure: "value", aggregation: "avg" },
+          ],
+          timeDimension: null,
+          fromTimestamp: new Date(timestamp - 86_400_000).toISOString(),
+          toTimestamp: new Date(timestamp + 86_400_000).toISOString(),
+          orderBy: null,
+        } satisfies Omit<QueryType, "dimensions" | "filters">;
+
+        const grouped = await executeQuery(projectId, {
+          ...baseQuery,
+          dimensions: [{ field: "booleanValue" }],
+          filters: [],
+        });
+
+        expect(grouped).toHaveLength(2);
+        const trueGroup = grouped.find((row) => row.booleanValue === true);
+        const falseGroup = grouped.find((row) => row.booleanValue === false);
+        expect(Number(trueGroup?.count_count)).toBe(2);
+        expect(Number(trueGroup?.avg_value)).toBe(1);
+        expect(Number(falseGroup?.count_count)).toBe(1);
+        expect(Number(falseGroup?.avg_value)).toBe(0);
+
+        const filtered = await executeQuery(projectId, {
+          ...baseQuery,
+          dimensions: [],
+          filters: [
+            {
+              column: "booleanValue",
+              operator: "=",
+              value: true,
+              type: "boolean",
+            },
+          ],
+        });
+
+        expect(filtered).toHaveLength(1);
+        expect(Number(filtered[0]?.count_count)).toBe(2);
+        expect(Number(filtered[0]?.avg_value)).toBe(1);
+      });
+    });
+
     describe("scores-categorical view", () => {
       it("should group categorical scores by value correctly", async () => {
         // Setup
@@ -2662,6 +2807,139 @@ describe("queryBuilder", () => {
     });
 
     describe("observations view", () => {
+      it("counts per-tool invocations including same-tool repeats (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const trace = createTrace({
+          project_id: projectId,
+          name: "tool-invocations-trace",
+          environment: "default",
+          timestamp: new Date().getTime(),
+        });
+        await createTracesCh([trace]);
+
+        const now = new Date().getTime();
+        const base = {
+          project_id: projectId,
+          trace_id: trace.id,
+          type: "generation",
+          environment: "default",
+          start_time: now,
+          end_time: now + 100,
+        };
+        // One observation with three PARALLEL calls to the same tool, one
+        // with a single call, one calling a different tool: ground truth is
+        // fetch = 4 invocations across 2 observations, search = 1.
+        await createObservationsCh([
+          createObservation({
+            ...base,
+            name: "obs-parallel-fetch",
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-single-fetch",
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+          createObservation({
+            ...base,
+            name: "obs-search",
+            tool_calls: ['{"id":"c5"}'],
+            tool_call_names: ["search"],
+          }),
+        ]);
+
+        const query: QueryType = {
+          view: "observations",
+          dimensions: [],
+          metrics: [{ measure: "toolCallInvocations", aggregation: "sum" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(now - 86400000).toISOString(),
+          toTimestamp: new Date(now + 86400000).toISOString(),
+          orderBy: [{ field: "calledToolNames", direction: "asc" }],
+        };
+
+        const result = await executeQuery(projectId, query, "v1", false);
+        expect(result).toHaveLength(2);
+        const fetchRow = result.find((r) => r.calledToolNames === "fetch");
+        const searchRow = result.find((r) => r.calledToolNames === "search");
+        expect(Number(fetchRow!.sum_toolCallInvocations)).toBe(4);
+        expect(Number(searchRow!.sum_toolCallInvocations)).toBe(1);
+
+        // Contrast: counting observation rows dedupes same-tool repeats within
+        // one observation, so the same data yields observations-per-tool.
+        const countResult = await executeQuery(
+          projectId,
+          {
+            ...query,
+            dimensions: [{ field: "calledToolNames" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+          },
+          "v1",
+          false,
+        );
+        const fetchCountRow = countResult.find(
+          (r) => r.calledToolNames === "fetch",
+        );
+        expect(Number(fetchCountRow!.count_count)).toBe(2);
+
+        // The v1 path normally uses the two-level query, but the declaration
+        // also supports the single-level optimization without changing results.
+        const resultOptimized = await executeQuery(
+          projectId,
+          query,
+          "v1",
+          true,
+        );
+        expect(resultOptimized).toEqual(result);
+      });
+
+      it("counts per-tool invocations on the v2 events view (toolCallInvocations)", async () => {
+        const projectId = randomUUID();
+        const now = Date.now() * 1000;
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c1"}', '{"id":"c2"}', '{"id":"c3"}'],
+            tool_call_names: ["fetch", "fetch", "fetch"],
+          }),
+          createEvent({
+            project_id: projectId,
+            start_time: now,
+            end_time: now + 100_000,
+            tool_calls: ['{"id":"c4"}'],
+            tool_call_names: ["fetch"],
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [
+              { measure: "toolCallInvocations", aggregation: "sum" },
+              { measure: "count", aggregation: "count" },
+            ],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        expect(result).toHaveLength(1);
+        expect(result[0].calledToolNames).toBe("fetch");
+        expect(Number(result[0].sum_toolCallInvocations)).toBe(4);
+        expect(Number(result[0].count_count)).toBe(2);
+      });
+
       it("should calculate p95 timeToFirstToken for each trace name using observations view", async () => {
         // Setup
         const projectId = randomUUID();
@@ -3103,8 +3381,13 @@ describe("queryBuilder", () => {
         result.data = await executeQuery(projectId, query);
 
         expect(result.data).toHaveLength(2);
-        expect(result.data[0].name).toBe("observation-basic");
-        expect(Number(result.data[0].count_count)).toBe(1);
+        expect(result.data.map((row) => row.name).toSorted()).toEqual([
+          "observation-basic",
+          "observation-premium",
+        ]);
+        expect(result.data.every((row) => Number(row.count_count) === 1)).toBe(
+          true,
+        );
       });
 
       it("should generate histogram with custom bin count for cost distribution", async () => {
@@ -3113,7 +3396,7 @@ describe("queryBuilder", () => {
 
         // Create traces with observations that have different costs
         const traces = [];
-        const observations = [];
+        const observations: ReturnType<typeof createObservation>[] = [];
 
         // Create trace for cost distribution test
         const trace = createTrace({
@@ -3740,7 +4023,7 @@ describe("queryBuilder", () => {
 
   describe("pairExpand map expansion (v2)", () => {
     const isEventsTableV2Enabled =
-      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
     let hasLegacyEventsTable = false;
 
     const maybeItWithEventsTable = (
@@ -3754,7 +4037,7 @@ describe("queryBuilder", () => {
     };
 
     beforeAll(async () => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
       try {
         const result = await clickhouseClient().query({
@@ -3796,6 +4079,9 @@ describe("queryBuilder", () => {
       expect(sql.indexOf("ARRAY JOIN")).toBeLessThan(sql.indexOf("WHERE"));
       // No inline arrayJoin() function call — must use clause form
       expect(sql).not.toMatch(/arrayJoin\(mapKeys/);
+      // ARRAY JOIN already aliases the key; re-emitting `costType AS costType`
+      // makes ClickHouse throw "Duplicate alias in ARRAY JOIN".
+      expect(sql).not.toMatch(/costType\s+as\s+costType/i);
     });
 
     maybeItWithEventsTable(
@@ -3808,13 +4094,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10, output: 20, total: 30 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 5, output: 15, total: 20 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -3858,13 +4144,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             usage_details: { input: 100, output: 200, total: 300 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             usage_details: { input: 50, output: 75, total: 125 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -3966,13 +4252,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "SPAN",
             cost_details: { input: 999 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4019,13 +4305,13 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 10, output: 20, total: 30 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 5, output: 15, total: 20 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4071,7 +4357,7 @@ describe("queryBuilder", () => {
             project_id: projectId,
             type: "GENERATION",
             cost_details: { input: 7, output: 3 },
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4191,11 +4477,149 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "missing_top_n",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
     expect((result as { valid: false; reason: string }).reason).toContain(
       "require both 'config.row_limit' and 'orderBy' with direction 'desc'",
+    );
+  });
+
+  it("should return valid when high cardinality entityDimension has same-field bound", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentName" },
+      filters: [
+        {
+          column: "experimentName",
+          operator: "any of",
+          value: ["experiment-a"],
+          type: "stringOptions",
+        },
+      ],
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result).toEqual({ valid: true });
+  });
+
+  it("should return invalid when high cardinality entityDimension is unbounded", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentName" },
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "entity_dimension_unbounded",
+        dimensions: ["experimentName"],
+      },
+    });
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension 'experimentName'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "finite positive filter",
+    );
+  });
+
+  it("should return invalid when high cardinality entityDimension has only wrong-field bound", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentName" },
+      filters: [
+        {
+          column: "experimentId",
+          operator: "any of",
+          value: ["experiment-id-a"],
+          type: "stringOptions",
+        },
+      ],
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension 'experimentName'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "finite positive filter",
+    );
+  });
+
+  it("should return invalid when high cardinality entityDimension only has top-N protection", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "experimentName" },
+      chartConfig: { type: "table", row_limit: 10 },
+      orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension 'experimentName'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "finite positive filter",
+    );
+  });
+
+  it("should return invalid when entityDimension is used with v1", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      entityDimension: { field: "name" },
+    };
+
+    const result = validateQuery(query, "v1");
+
+    expect(result.valid).toBe(false);
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "entityDimension is only supported for v2 queries",
+    );
+  });
+
+  it("should return invalid when high cardinality regular dimension is used with entityDimension", () => {
+    const query: QueryType = {
+      ...baseQuery,
+      dimensions: [{ field: "traceId" }],
+      entityDimension: { field: "experimentName" },
+      filters: [
+        {
+          column: "experimentName",
+          operator: "any of",
+          value: ["experiment-a"],
+          type: "stringOptions",
+        },
+      ],
+    };
+
+    const result = validateQuery(query, "v2");
+
+    expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "additional_entity_dimension",
+        dimensions: ["traceId"],
+      },
+    });
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "High cardinality dimension(s) 'traceId'",
+    );
+    expect((result as { valid: false; reason: string }).reason).toContain(
+      "entityDimension",
     );
   });
 
@@ -4229,6 +4653,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "invalid_order_by",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "High cardinality dimension(s) 'traceId'",
     );
@@ -4325,6 +4755,12 @@ describe("validateQuery", () => {
     const result = validateQuery(query, "v2");
 
     expect(result.valid).toBe(false);
+    expect(result).toMatchObject({
+      highCardinality: {
+        code: "time_dimension",
+        dimensions: ["traceId"],
+      },
+    });
     expect((result as { valid: false; reason: string }).reason).toContain(
       "traceId",
     );
@@ -4364,12 +4800,149 @@ describe("getValidAggregationsForMeasureType", () => {
     expect(valid).toHaveLength(expectedLength);
   });
 
-  it("restricted set contains only count and uniq", () => {
+  it("restricted set contains only count and uniq for string measures", () => {
     expect(getValidAggregationsForMeasureType("string")).toEqual(restricted);
   });
 });
 
 describe("query builder measure-aggregation validation", () => {
+  it("should build base-table entity dimension queries without time-series SQL", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [
+        {
+          column: "experimentName",
+          operator: "any of",
+          value: ["experiment-a"],
+          type: "stringOptions",
+        },
+        {
+          column: "experimentId",
+          operator: "any of",
+          value: ["experiment-id-a"],
+          type: "stringOptions",
+        },
+      ],
+      timeDimension: null,
+      entityDimension: { field: "experimentName" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: [{ field: "sum_totalCost", direction: "asc" }],
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+
+    expect(result.query).toContain("as entity_dimension");
+    expect(result.query).toContain("GROUP BY entity_dimension");
+    expect(result.query).not.toContain("time_dimension");
+    expect(result.query).not.toContain("WITH FILL");
+  });
+
+  it("should include declared relation for relation-backed entity dimensions", async () => {
+    const query: QueryType = {
+      view: "scores-numeric",
+      dimensions: [],
+      metrics: [{ measure: "value", aggregation: "avg" }],
+      filters: [],
+      timeDimension: null,
+      entityDimension: { field: "experimentName" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: [{ field: "avg_value", direction: "desc" }],
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+
+    expect(result.query).toContain(
+      "INNER JOIN events_core AS events_observations",
+    );
+    expect(result.query).toContain("events_observations.experiment_name");
+    expect(result.query).toContain("as entity_dimension");
+    expect(result.query).toContain("GROUP BY entity_dimension");
+  });
+
+  it("should build run-level score entity queries without joining events", async () => {
+    const query: QueryType = {
+      view: "scores-numeric",
+      dimensions: [],
+      metrics: [{ measure: "value", aggregation: "avg" }],
+      filters: [
+        {
+          column: "datasetRunId",
+          operator: "is not null",
+          value: "",
+          type: "null",
+        },
+        {
+          column: "name",
+          operator: "=",
+          value: "run_accuracy",
+          type: "string",
+        },
+        {
+          column: "datasetRunId",
+          operator: "any of",
+          value: ["experiment-1", "experiment-2"],
+          type: "stringOptions",
+        },
+      ],
+      timeDimension: null,
+      entityDimension: { field: "datasetRunId" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: [{ field: "avg_value", direction: "desc" }],
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    const result = await queryBuilder.build(query, randomUUID());
+
+    expect(result.query).toContain("scores.dataset_run_id");
+    expect(result.query).toContain("entity_dimension");
+    expect(result.query).not.toContain("JOIN events_core");
+  });
+
+  it("should reject queries with both timeDimension and entityDimension", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [],
+      timeDimension: { granularity: "day" },
+      entityDimension: { field: "experimentName" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v2");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      "timeDimension and entityDimension are mutually exclusive",
+    );
+  });
+
+  it("should reject v1 entityDimension queries at query-builder runtime", async () => {
+    const query: QueryType = {
+      view: "observations",
+      dimensions: [],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      filters: [],
+      timeDimension: null,
+      entityDimension: { field: "name" },
+      fromTimestamp: "2025-01-01T00:00:00.000Z",
+      toTimestamp: "2025-03-01T00:00:00.000Z",
+      orderBy: null,
+    };
+
+    const queryBuilder = new QueryBuilder(undefined, "v1");
+    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
+      "entityDimension is only supported for v2 queries",
+    );
+  });
+
   it("should reject invalid aggregation for string measure", async () => {
     const query: QueryType = {
       view: "observations",
@@ -4403,24 +4976,6 @@ describe("query builder measure-aggregation validation", () => {
     const queryBuilder = new QueryBuilder(undefined, "v2");
     const result = await queryBuilder.build(query, randomUUID());
     expect(result.query).toBeDefined();
-  });
-
-  it("should reject sum aggregation for uniqueUserIds on traces view", async () => {
-    const query: QueryType = {
-      view: "traces",
-      dimensions: [],
-      metrics: [{ measure: "uniqueUserIds", aggregation: "sum" }],
-      filters: [],
-      timeDimension: null,
-      fromTimestamp: "2025-01-01T00:00:00.000Z",
-      toTimestamp: "2025-03-01T00:00:00.000Z",
-      orderBy: null,
-    };
-
-    const queryBuilder = new QueryBuilder(undefined, "v2");
-    await expect(queryBuilder.build(query, randomUUID())).rejects.toThrow(
-      /not valid for measure/,
-    );
   });
 
   it("should accept uniq aggregation for uniqueUserIds on traces view", async () => {
@@ -4459,11 +5014,11 @@ describe("query builder measure-aggregation validation", () => {
 
   describe("events_traces traceName filter", () => {
     const isEventsTableV2Enabled =
-      env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
     let hasLegacyEventsTable = false;
 
     beforeAll(async () => {
-      if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+      if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
       try {
         const result = await clickhouseClient().query({
@@ -4494,7 +5049,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "",
             name: "my-trace",
             parent_span_id: "", // root event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
@@ -4502,7 +5057,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "",
             name: "child-observation",
             parent_span_id: "some-parent", // child event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 2: trace_name is "other-trace"
           createEvent({
@@ -4511,7 +5066,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "other-trace",
             name: "root-event",
             parent_span_id: "", // root event
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4561,7 +5116,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "target-trace",
             name: "root-observation",
             parent_span_id: "",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           createEvent({
             project_id: projectId,
@@ -4569,7 +5124,7 @@ describe("query builder measure-aggregation validation", () => {
             trace_name: "other-trace",
             name: "root-observation",
             parent_span_id: "",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4622,7 +5177,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "production",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 2: name="target-trace", environment="staging"
           createEvent({
@@ -4632,7 +5187,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "staging",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
           // Trace 3: name="other-trace", environment="production"
           createEvent({
@@ -4642,7 +5197,7 @@ describe("query builder measure-aggregation validation", () => {
             name: "root-op",
             parent_span_id: "",
             environment: "production",
-            start_time: Date.now() * 1000,
+            start_time: Date.now(),
           }),
         ];
         await createEventsCh(events);
@@ -4683,8 +5238,118 @@ describe("query builder measure-aggregation validation", () => {
     );
   });
 
+  describe("metadata filters on events views (v2)", () => {
+    // events_core stores metadata_values truncated to 200 chars
+    // (events_core_mv); metadata filters must read events_full or matches
+    // beyond the truncation point are silently dropped.
+    const isEventsTableV2Enabled =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    const metadataFilterQuery = (
+      view: "traces" | "observations",
+    ): QueryType => ({
+      view,
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      filters: [
+        {
+          column: "metadata",
+          operator: "contains",
+          key: "experiments",
+          value: "HAGTI=B",
+          type: "stringObject",
+        },
+      ],
+      timeDimension: null,
+      fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+      toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+      orderBy: null,
+    });
+
+    it("reads events_full when a metadata filter is present (traces view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("traces"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_traces");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("reads events_full when a metadata filter is present (observations view)", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const { query: sql } = await builder.build(
+        metadataFilterQuery("observations"),
+        randomUUID(),
+      );
+
+      expect(sql).toContain("FROM events_full events_observations");
+      expect(sql).not.toContain("events_core");
+    });
+
+    it("keeps reading events_core without truncation-sensitive filters", async () => {
+      const builder = new QueryBuilder(undefined, "v2");
+      const query = metadataFilterQuery("traces");
+      query.filters = [
+        {
+          column: "environment",
+          operator: "=",
+          value: "production",
+          type: "string",
+        },
+      ];
+      const { query: sql } = await builder.build(query, randomUUID());
+
+      expect(sql).toContain("FROM events_core events_traces");
+      expect(sql).not.toContain("events_full");
+    });
+
+    isEventsTableV2Enabled(
+      "metadata 'contains' matches a value beyond the 200-char truncation point",
+      async () => {
+        const projectId = randomUUID();
+        const traceId = randomUUID();
+        const needle = `HAGTI=B-${randomUUID()}`;
+        const longValue = JSON.stringify([
+          ...Array.from({ length: 20 }, (_, i) => `experiment-${i}`),
+          needle,
+        ]);
+        expect(longValue.length).toBeGreaterThan(200);
+
+        await createEventsCh([
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            trace_name: "trace-with-long-metadata",
+            name: "root-op",
+            parent_span_id: "",
+            metadata_names: ["experiments"],
+            metadata_values: [longValue],
+            start_time: Date.now(),
+          }),
+        ]);
+
+        const query = metadataFilterQuery("traces");
+        query.filters = [
+          {
+            column: "metadata",
+            operator: "contains",
+            key: "experiments",
+            value: needle,
+            type: "stringObject",
+          },
+        ];
+        const result = await executeQuery(projectId, query, "v2");
+
+        expect(result).toHaveLength(1);
+        expect(result[0].name).toBe("trace-with-long-metadata");
+      },
+    );
+  });
+
   describe("useFinal flag on events_core joins", () => {
-    it("should omit FINAL for events_core joins in v2 scores-numeric view", async () => {
+    it("should join the parentless trace event without FINAL in v2 scores-numeric view", async () => {
       const projectId = randomUUID();
       const builder = new QueryBuilder(undefined, "v2");
       const { query: compiledQuery } = await builder.build(
@@ -4708,6 +5373,7 @@ describe("query builder measure-aggregation validation", () => {
       expect(compiledQuery).not.toContain(
         "JOIN events_core AS events_traces FINAL",
       );
+      expect(compiledQuery).toContain("AND events_traces.parent_span_id = ''");
       // scores base CTE should still use FINAL
       expect(compiledQuery).toContain("scores scores_numeric FINAL");
     });
@@ -4763,6 +5429,8 @@ describe("query builder measure-aggregation validation", () => {
   });
 
   describe("rootEventCondition threshold gating", () => {
+    const rootEventSubqueryPrefix =
+      "IN (SELECT events_traces.trace_id FROM events_core events_traces";
     const tracesV2Query: QueryType = {
       view: "traces",
       dimensions: [{ field: "name" }],
@@ -4775,52 +5443,43 @@ describe("query builder measure-aggregation validation", () => {
     };
 
     it("should include rootEventCondition subquery when window is within threshold", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 168 hours (7 days) threshold, 72-hour window → should include subquery
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 168;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 168 hours (7 days) threshold, 72-hour window → should include subquery
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(168);
+      const { query: sql } = await builder.build(
+        {
+          ...tracesV2Query,
+          timeDimension: { granularity: "day" },
+        },
+        randomUUID(),
+      );
+      expect(sql).toContain(
+        "anyIf(toNullable(toDate(events_core.start_time)), (events_traces.parent_span_id = '' OR events_traces.is_app_root = true))",
+      );
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
 
     it("should skip rootEventCondition subquery when window exceeds threshold", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 24-hour threshold, 72-hour window → should skip subquery
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 24;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(tracesV2Query, randomUUID());
-        expect(sql).not.toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 24-hour threshold, 72-hour window → should skip subquery
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(24);
+      const { query: sql } = await builder.build(tracesV2Query, randomUUID());
+      expect(sql).not.toContain(rootEventSubqueryPrefix);
     });
 
     it("should always include rootEventCondition subquery when threshold is 0", async () => {
-      const originalValue = env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS;
-      try {
-        // 0 = always apply, even for a very wide window
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS = 0;
-        const builder = new QueryBuilder(undefined, "v2");
-        const { query: sql } = await builder.build(
-          {
-            ...tracesV2Query,
-            fromTimestamp: "2024-01-01T00:00:00.000Z",
-            toTimestamp: "2025-01-01T00:00:00.000Z", // 1-year window
-          },
-          randomUUID(),
-        );
-        expect(sql).toContain("IN (SELECT trace_id");
-      } finally {
-        (env as any).LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS =
-          originalValue;
-      }
+      // 0 = always apply, even for a very wide window
+      const builder = new QueryBuilder(undefined, "v2");
+      builder.setRootEventConditionMaxWindowHours(0);
+      const { query: sql } = await builder.build(
+        {
+          ...tracesV2Query,
+          fromTimestamp: "2024-01-01T00:00:00.000Z",
+          toTimestamp: "2025-01-01T00:00:00.000Z", // 1-year window
+        },
+        randomUUID(),
+      );
+      expect(sql).toContain(rootEventSubqueryPrefix);
     });
   });
 });

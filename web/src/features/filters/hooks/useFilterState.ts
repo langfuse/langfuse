@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   type FilterState,
   type TableName,
@@ -10,6 +11,10 @@ import {
   datasetItemFilterColumns,
   datasetRunItemsTableCols,
   usersTableCols,
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+  normalizeLegacySessionPositionInTraceKey,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -22,11 +27,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { experimentsTableCols } from "@/src/features/experiments/components/table/filter-config";
-import {
-  escapePipeInValue,
-  splitOnUnescapedPipe,
-  unescapePipeInValue,
-} from "../lib/filter-query-encoding";
+import { experimentItemsTableCols } from "@/src/features/experiments/config/experiment-items-filter-config";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 const DEBUG_QUERY_STATE = false;
@@ -48,6 +49,7 @@ const getCommaArrayParam = (table: TableName) => ({
           const stringified = `${columnId};${f.type};${
             f.type === "numberObject" ||
             f.type === "stringObject" ||
+            f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
               ? f.key
@@ -82,6 +84,10 @@ const getCommaArrayParam = (table: TableName) => ({
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
+        const normalizedKey =
+          type === "positionInTrace"
+            ? normalizeLegacySessionPositionInTraceKey(key)
+            : key;
         const parsedValue =
           decodedValue === undefined || type === undefined
             ? undefined
@@ -99,14 +105,14 @@ const getCommaArrayParam = (table: TableName) => ({
                     ? splitOnUnescapedPipe(decodedValue).map(
                         unescapePipeInValue,
                       )
-                    : type === "boolean"
+                    : type === "boolean" || type === "booleanObject"
                       ? decodedValue === "true"
                       : decodedValue;
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),
-          key: key !== "" ? key : undefined,
+          key: normalizedKey !== "" ? normalizedKey : undefined,
           operator,
           value: parsedValue,
           type,
@@ -184,6 +190,7 @@ const tableCols = {
   dataset_runs: datasetRunsTableCols,
   dataset_run_items_by_run: datasetRunItemsTableCols,
   experiments: experimentsTableCols,
+  "experiment-items": experimentItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

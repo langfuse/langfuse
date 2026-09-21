@@ -1,57 +1,486 @@
-import { clickhouseSearchCondition } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
+import { InvalidRequestError, type TracingSearchType } from "@langfuse/shared";
+import {
+  clickhouseSearchCondition,
+  createEvent,
+  createEventsCh,
+  eventSearchCondition,
+  getObservationsWithModelDataFromEventsTable,
+  queryClickhouse,
+} from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
+
+const maybeEventsTable =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
+
+const alphabeticSearchToken = (index: number, prefix = "needle") =>
+  `${prefix}${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
+
+const searchFixture = `
+  SELECT *
+  FROM values(
+    'id String, name String, input String, output String',
+    ('id-match', 'alpha name', 'unrelated input', 'unrelated output'),
+    ('input-match-lowercase', 'plain name', 'contains alpha token', 'unrelated output'),
+    ('output-match-lowercase', 'plain name', 'unrelated input', 'contains alpha token'),
+    ('input-match-uppercase', 'plain name', 'contains ALPHA token', 'unrelated output'),
+    ('output-match-uppercase', 'plain name', 'unrelated input', 'contains ALPHA token'),
+    ('input-match-substring', 'plain name', 'contains alphabet token', 'unrelated output'),
+    ('output-match-substring', 'plain name', 'unrelated input', 'contains alphabet token'),
+    ('input-match-cyrillic', 'plain name', 'contains привет token', 'unrelated output'),
+    ('output-match-cyrillic', 'plain name', 'unrelated input', 'contains привет token'),
+    ('input-match-cjk', 'plain name', 'contains 東京 token', 'unrelated output'),
+    ('output-match-cjk', 'plain name', 'unrelated input', 'contains 東京 token'),
+    ('input-match-escaped-cjk', 'plain name', 'contains \\\\u6771\\\\u4eac token', 'unrelated output'),
+    ('output-match-escaped-cjk', 'plain name', 'unrelated input', 'contains \\\\u6771\\\\u4eac token'),
+    ('miss', 'plain name', 'unrelated input', 'unrelated output')
+  ) AS e
+`;
+
+const matchingIds = async (opts: {
+  query: string;
+  searchType: TracingSearchType[];
+  useEventsTablePath?: boolean;
+}) => {
+  const search = clickhouseSearchCondition({
+    query: opts.query,
+    searchType: opts.searchType,
+    tablePrefix: "e",
+    searchColumns: ["id", "name"],
+    useEventsTablePath: opts.useEventsTablePath,
+  });
+
+  const rows = await queryClickhouse<{ id: string }>({
+    query: `
+      SELECT e.id AS id
+      FROM (${searchFixture}) AS e
+      WHERE 1 = 1
+      ${search.query}
+      ORDER BY e.id ASC
+    `,
+    params: search.params,
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => row.id);
+};
 
 describe("clickhouseSearchCondition", () => {
-  it("should auto-prefix custom columns with tablePrefix", () => {
-    const result = clickhouseSearchCondition("test", undefined, "e", [
-      "span_id",
-      "name",
-      "user_id",
-      "session_id",
-      "trace_id",
-    ]);
-
-    expect(result.query).toContain("e.span_id ILIKE");
-    expect(result.query).toContain("e.name ILIKE");
-    expect(result.query).toContain("e.user_id ILIKE");
-    expect(result.query).toContain("e.session_id ILIKE");
-    expect(result.query).toContain("e.trace_id ILIKE");
-    expect(result.params).toEqual({ searchString: "%test%" });
+  it("rejects a search query without any search types", () => {
+    expect(() =>
+      clickhouseSearchCondition({
+        query: "alpha",
+        searchType: [],
+      }),
+    ).toThrow(InvalidRequestError);
   });
 
-  it("should not double-prefix columns that already have a qualifier", () => {
-    const result = clickhouseSearchCondition("test", undefined, "e", [
-      "t.user_id",
-      "name",
-    ]);
-
-    expect(result.query).toContain("t.user_id ILIKE");
-    expect(result.query).toContain("e.name ILIKE");
+  it("allows an empty search type list when there is no search query", () => {
+    expect(
+      clickhouseSearchCondition({
+        query: undefined,
+        searchType: [],
+      }),
+    ).toMatchObject({ query: "", params: {} });
   });
 
-  it("should use default columns with prefix when no custom columns provided", () => {
-    const result = clickhouseSearchCondition("test", undefined, "o");
+  it.each([
+    { query: undefined, searchType: ["content"], expected: false },
+    { query: "alpha", searchType: undefined, expected: false },
+    { query: "alpha", searchType: ["id"], expected: false },
+    { query: "alpha", searchType: ["content"], expected: true },
+    { query: "alpha", searchType: ["input"], expected: true },
+    { query: "alpha", searchType: ["output"], expected: true },
+    { query: "alpha", searchType: ["id", "content"], expected: true },
+  ])(
+    "detects whether $searchType search needs the full events table",
+    ({ query, searchType, expected }) => {
+      expect(
+        clickhouseSearchCondition({
+          query,
+          searchType: searchType as TracingSearchType[] | undefined,
+        }).requiresEventsFull,
+      ).toBe(expected);
+    },
+  );
 
-    expect(result.query).toContain("o.id ILIKE");
-    expect(result.query).toContain("o.name ILIKE");
-    expect(result.query).toContain("t.user_id ILIKE");
+  maybeEventsTable("EventsReadOnly-backed search conditions", () => {
+    it.each([
+      {
+        query: "alpha",
+        searchType: ["content"],
+        expectedIds: [
+          "input-match-lowercase",
+          "input-match-substring",
+          "input-match-uppercase",
+          "output-match-lowercase",
+          "output-match-substring",
+          "output-match-uppercase",
+        ],
+      },
+      {
+        query: "alpha",
+        searchType: ["input"],
+        expectedIds: [
+          "input-match-lowercase",
+          "input-match-substring",
+          "input-match-uppercase",
+        ],
+      },
+      {
+        query: "alpha",
+        searchType: ["output"],
+        expectedIds: [
+          "output-match-lowercase",
+          "output-match-substring",
+          "output-match-uppercase",
+        ],
+      },
+      {
+        query: "привет",
+        searchType: ["content"],
+        expectedIds: ["input-match-cyrillic", "output-match-cyrillic"],
+      },
+      {
+        query: "東京",
+        searchType: ["content"],
+        expectedIds: [
+          "input-match-cjk",
+          "input-match-escaped-cjk",
+          "output-match-cjk",
+          "output-match-escaped-cjk",
+        ],
+      },
+    ])(
+      "matches expected substring rows for $query $searchType search",
+      async ({ query, searchType, expectedIds }) => {
+        await expect(
+          matchingIds({
+            query,
+            searchType: searchType as TracingSearchType[],
+          }),
+        ).resolves.toEqual(expectedIds);
+      },
+    );
+
+    const explainText = (rows: Record<string, string>[]) =>
+      rows.map((row) => Object.values(row).join(" ")).join("\n");
+
+    it("uses idx_ngram_name to prune an absent name substring on events_full", async () => {
+      const uniqueProjectId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          name: "chat-completion",
+          type: "GENERATION",
+          input: "unrelated input",
+          output: "unrelated output",
+        }),
+      ]);
+
+      const plan = await queryClickhouse<Record<string, string>>({
+        query: `
+          EXPLAIN indexes = 1
+          SELECT e.span_id
+          FROM events_full AS e
+          WHERE e.project_id = {projectId: String}
+            AND lower(e.name) LIKE lower({searchString: String})
+        `,
+        params: {
+          projectId: uniqueProjectId,
+          searchString: "%zzzxqnotpresentxyz%",
+        },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      const text = explainText(plan);
+      expect(text).toContain("idx_ngram_name");
+      expect(text).toMatch(/Parts:\s*0\//);
+    });
+
+    it("keeps the input text index live on a combined id+content search", async () => {
+      const uniqueProjectId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          name: "chat-completion",
+          trace_name: "user-query",
+          type: "GENERATION",
+          input: "unrelated input",
+          output: "unrelated output",
+        }),
+      ]);
+
+      const search = eventSearchCondition({
+        query: "zzzxqnotpresentxyz",
+        searchType: ["id", "content"],
+      });
+
+      const plan = await queryClickhouse<Record<string, string>>({
+        query: `
+          EXPLAIN indexes = 1
+          SELECT e.span_id
+          FROM events_full AS e
+          WHERE e.project_id = {projectId: String}
+          ${search.query}
+        `,
+        params: {
+          projectId: uniqueProjectId,
+          ...search.params,
+        },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      const text = explainText(plan);
+      expect(text).toContain("idx_ngram_name");
+      expect(text).toContain("idx_ngram_trace_name");
+      expect(text).toMatch(/idx_fts_input_low|idx_fts_output_low/);
+      expect(text).toMatch(/Granules:\s*0\//);
+    });
+
+    it("matches name case-insensitively via lower() LIKE on the events path", async () => {
+      await expect(
+        matchingIds({
+          query: "ALPHA",
+          searchType: ["id"],
+          useEventsTablePath: true,
+        }),
+      ).resolves.toEqual(["id-match"]);
+    });
+
+    it("does not add FTS to id search on events tables", async () => {
+      const baseIds = await matchingIds({
+        query: "alpha",
+        searchType: ["id"],
+      });
+      const ftsIds = await matchingIds({
+        query: "alpha",
+        searchType: ["id"],
+        useEventsTablePath: true,
+      });
+
+      expect(baseIds).toEqual(["id-match"]);
+      expect(ftsIds).toEqual(baseIds);
+    });
+
+    it("handles FTS-prefiltered searches with more than 64 tokens", async () => {
+      const longQuery = Array.from({ length: 65 }, (_, index) =>
+        alphabeticSearchToken(index),
+      ).join(" ");
+      const search = clickhouseSearchCondition({
+        query: longQuery,
+        searchType: ["content"],
+        tablePrefix: "e",
+        searchColumns: ["id", "name"],
+        useEventsTablePath: true,
+      });
+
+      await expect(
+        queryClickhouse<{ count: number }>({
+          query: `
+            SELECT count() AS count
+            FROM events_full AS e
+            WHERE e.project_id = {projectId: String}
+            ${search.query}
+          `,
+          params: {
+            projectId: randomUUID(),
+            ...search.params,
+          },
+          preferredClickhouseService: "EventsReadOnly",
+        }),
+      ).resolves.toEqual([{ count: 0 }]);
+    });
+
+    it("matches JSON-escaped Unicode content on events tables with the FTS prefilter", async () => {
+      const search = clickhouseSearchCondition({
+        query: "東京",
+        searchType: ["content"],
+        tablePrefix: "e",
+        searchColumns: ["id", "name"],
+        useEventsTablePath: true,
+      });
+
+      expect(search.params).toMatchObject({
+        searchString: "%東京%",
+        searchStringEscaped: "%\\u6771\\u4eac%",
+      });
+      expect(search.query).toContain("{searchStringEscaped: String}");
+      expect(search.query).toContain("arraySlice");
+      expect(search.query).toContain(
+        "hasAllTokens(lower(e.input), arraySlice(",
+      );
+      expect(search.query).toContain(
+        "hasAllTokens(lower(e.output), arraySlice(",
+      );
+      expect(search.query).toContain(
+        "tokens(lower({searchStringEscaped: String}))",
+      );
+
+      await expect(
+        matchingIds({
+          query: "東京",
+          searchType: ["content"],
+          useEventsTablePath: true,
+        }),
+      ).resolves.toEqual([
+        "input-match-cjk",
+        "input-match-escaped-cjk",
+        "output-match-cjk",
+        "output-match-escaped-cjk",
+      ]);
+    });
+
+    it("round-trips raw and JSON-escaped Unicode through events_full search", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const rawSpanId = randomUUID();
+      const escapedSpanId = randomUUID();
+      const rawInput = `{"message":"東京"}`;
+      const escapedInput = `{"message":"\\u6771\\u4eac"}`;
+
+      await createEventsCh([
+        createEvent({
+          id: rawSpanId,
+          span_id: rawSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "raw-unicode-search-roundtrip",
+          input: rawInput,
+          output: "ascii output",
+        }),
+        createEvent({
+          id: escapedSpanId,
+          span_id: escapedSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "escaped-unicode-search-roundtrip",
+          input: escapedInput,
+          output: "ascii output",
+        }),
+      ]);
+
+      const stored = await queryClickhouse<{ span_id: string; input: string }>({
+        query: `
+          SELECT span_id, input
+          FROM events_full
+          WHERE project_id = {projectId: String}
+            AND span_id IN ({rawSpanId: String}, {escapedSpanId: String})
+          ORDER BY span_id ASC
+        `,
+        params: {
+          projectId: uniqueProjectId,
+          rawSpanId,
+          escapedSpanId,
+        },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+
+      expect(stored).toHaveLength(2);
+      expect(rawInput).not.toBe(escapedInput);
+
+      const storedInputBySpanId = new Map(
+        stored.map((row) => [row.span_id, row.input]),
+      );
+      expect(storedInputBySpanId.get(rawSpanId)).toBe(rawInput);
+      expect(storedInputBySpanId.get(escapedSpanId)).toBe(escapedInput);
+
+      const observations = await getObservationsWithModelDataFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "東京",
+        searchType: ["content"],
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(observations.map((observation) => observation.id).sort()).toEqual(
+        [rawSpanId, escapedSpanId].sort(),
+      );
+    });
   });
 
-  it("should return empty query and params when no search query provided", () => {
-    const result = clickhouseSearchCondition(undefined, undefined, "e", [
-      "name",
-    ]);
+  it("generates FTS predicates for events input/output searches", () => {
+    const search = clickhouseSearchCondition({
+      query: "alpha",
+      searchType: ["content"],
+      tablePrefix: "e",
+      useEventsTablePath: true,
+    });
 
-    expect(result.query).toBe("");
-    expect(result.params).toEqual({});
+    expect(search.query).toContain("hasAllTokens");
+    expect(search.query).toContain("e.input");
+    expect(search.query).toContain("e.output");
   });
 
-  it("should include content search when searchType includes content", () => {
-    const result = clickhouseSearchCondition("test", ["id", "content"], "e", [
-      "name",
-    ]);
+  it("does not generate FTS predicates for id searches", () => {
+    const ftsSearch = clickhouseSearchCondition({
+      query: "alpha",
+      searchType: ["id"],
+      tablePrefix: "e",
+      searchColumns: ["id", "name"],
+      useEventsTablePath: true,
+    });
 
-    expect(result.query).toContain("e.name ILIKE");
-    expect(result.query).toContain("e.input ILIKE");
-    expect(result.query).toContain("e.output ILIKE");
+    expect(ftsSearch.query).not.toContain("hasAllTokens");
+  });
+
+  it("rewrites events-table id-lane search: ngram columns to lower() LIKE, id columns to equality", () => {
+    const search = clickhouseSearchCondition({
+      query: "alpha",
+      searchType: ["id"],
+      tablePrefix: "e",
+      searchColumns: [
+        "span_id",
+        "name",
+        "trace_name",
+        "user_id",
+        "session_id",
+        "trace_id",
+      ],
+      useEventsTablePath: true,
+    });
+
+    // Human-readable columns prune via the lower() ngram indexes.
+    expect(search.query).toContain(
+      "lower(e.name) LIKE lower({searchString: String})",
+    );
+    expect(search.query).toContain(
+      "lower(e.trace_name) LIKE lower({searchString: String})",
+    );
+    expect(search.query).toContain(
+      "lower(e.user_id) LIKE lower({searchString: String})",
+    );
+    expect(search.query).toContain(
+      "lower(e.session_id) LIKE lower({searchString: String})",
+    );
+
+    // UUID-shaped id columns match by equality against their bloom_filter/PK.
+    expect(search.query).toContain("e.span_id = {searchStringExact: String}");
+    expect(search.query).toContain("e.trace_id = {searchStringExact: String}");
+    expect(search.query).not.toContain("lower(e.span_id)");
+    expect(search.query).not.toContain("lower(e.trace_id)");
+    expect(search.query).not.toContain("e.name ILIKE");
+    expect(search.query).not.toContain("e.span_id ILIKE");
+
+    // Equality param is unwrapped (no leading-wildcard %).
+    const params = search.params as Record<string, string>;
+    expect(params.searchStringExact).toBe("alpha");
+    expect(params.searchString).toBe("%alpha%");
+  });
+
+  it("keeps ILIKE name search off the events table path", () => {
+    const search = clickhouseSearchCondition({
+      query: "alpha",
+      searchType: ["id"],
+      tablePrefix: "t",
+    });
+
+    expect(search.query).toContain("t.name ILIKE {searchString: String}");
+    expect(search.query).not.toContain("lower(t.name)");
   });
 });

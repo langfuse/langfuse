@@ -5,38 +5,63 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
+import {
+  TableViewPresetTableName,
+  type FilterState,
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+  encodeFiltersGeneric,
+} from "@langfuse/shared";
 import { useState } from "react";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
+import {
+  EVENTS_FIELD_REGISTRY,
+  filterStateToQueryText,
+} from "@/src/features/search-bar";
+import {
+  buildManagedEnvironmentPolicyConfig,
+  toSearchBarEnvironmentFilters,
+} from "./lib/managedEnvironmentPolicy";
 
-const mockUseRouter = jest.fn();
-const mockCapture = jest.fn();
-const mockGetDefaultUseQuery = jest.fn();
-const mockGetByIdUseQuery = jest.fn();
+const mockUseRouter = vi.fn();
+const mockCapture = vi.fn();
+const mockGetDefaultUseQuery = vi.fn();
+const mockGetByIdUseQuery = vi.fn();
 
 const queryParamStore = new Map<string, unknown>();
 
-jest.mock("next/router", () => ({
+type MockViewQueryResult = {
+  data?: unknown;
+  error?: unknown;
+  isSuccess?: boolean;
+  isError?: boolean;
+};
+
+const hasDefaultValue = (value: unknown): value is { __default: unknown } =>
+  typeof value === "object" && value !== null && "__default" in value;
+
+const isMockViewQueryResult = (value: unknown): value is MockViewQueryResult =>
+  typeof value === "object" && value !== null;
+
+vi.mock("next/router", () => ({
   useRouter: () => mockUseRouter(),
 }));
 
-jest.mock("posthog-js/react", () => ({
+vi.mock("posthog-js/react", () => ({
   usePostHog: () => ({
     capture: mockCapture,
   }),
 }));
 
-jest.mock(
+vi.mock(
   "../../components/table/table-view-presets/components/data-table-view-presets-drawer",
   () => ({
     isSystemPresetId: () => false,
   }),
 );
 
-jest.mock("../../utils/api", () => ({
+vi.mock("../../utils/api", () => ({
   api: {
     TableViewPresets: {
       getDefault: {
@@ -44,20 +69,18 @@ jest.mock("../../utils/api", () => ({
       },
       getById: {
         useQuery: (...args: unknown[]) => {
-          const result = mockGetByIdUseQuery(...args) as
-            | {
-                data?: unknown;
-                error?: unknown;
-                isSuccess?: boolean;
-                isError?: boolean;
-              }
-            | undefined;
+          const result = mockGetByIdUseQuery(...args);
+          const normalizedResult = isMockViewQueryResult(result)
+            ? result
+            : undefined;
 
           return {
-            data: result?.data,
-            error: result?.error ?? null,
-            isSuccess: result?.isSuccess ?? result?.data !== undefined,
-            isError: result?.isError ?? !!result?.error,
+            data: normalizedResult?.data,
+            error: normalizedResult?.error ?? null,
+            isSuccess:
+              normalizedResult?.isSuccess ??
+              normalizedResult?.data !== undefined,
+            isError: normalizedResult?.isError ?? !!normalizedResult?.error,
           };
         },
       },
@@ -65,9 +88,9 @@ jest.mock("../../utils/api", () => ({
   },
 }));
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   const StringParam = { __type: "string" } as const;
   const withDefault = (param: unknown, defaultValue: unknown) => ({
@@ -76,12 +99,7 @@ jest.mock("use-query-params", () => {
   });
 
   const readDefault = (config: unknown) =>
-    typeof config === "object" &&
-    config !== null &&
-    "__default" in config &&
-    (config as { __default?: unknown }).__default !== undefined
-      ? (config as { __default: unknown }).__default
-      : null;
+    hasDefaultValue(config) ? config.__default : null;
 
   return {
     ...actual,
@@ -167,20 +185,28 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
-function SavedViewHarness() {
+function SavedViewHarness({
+  setColumnOrder = () => {},
+  setColumnVisibility = () => {},
+}: {
+  setColumnOrder?: (columnOrder: string[]) => void;
+  setColumnVisibility?: (columnVisibility: Record<string, boolean>) => void;
+} = {}) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
+    sessionFilterContextId: null,
     implicitDefaultConfig: {
       hiddenEnvironments: [...HIDDEN_ENVIRONMENTS],
     },
   });
 
-  const { isLoading } = useTableViewManager({
+  const { isLoading, appliedViewId } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: queryFilter.setFilterState,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
+      setColumnOrder,
+      setColumnVisibility,
     },
     validationContext: {
       columns: [],
@@ -194,8 +220,12 @@ function SavedViewHarness() {
   return (
     <div>
       <div data-testid="loading-state">{isLoading ? "loading" : "ready"}</div>
+      <div data-testid="applied-view-id">{appliedViewId ?? "null"}</div>
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
+      </pre>
+      <pre data-testid="search-bar-state">
+        {JSON.stringify(queryFilter.searchBarFilterState)}
       </pre>
       <pre data-testid="effective-state">
         {JSON.stringify(queryFilter.filterState)}
@@ -204,10 +234,14 @@ function SavedViewHarness() {
   );
 }
 
-function ViewSelectionHarness() {
+function ViewSelectionHarness({
+  tableName = TableViewPresetTableName.Traces,
+}: {
+  tableName?: TableViewPresetTableName;
+}) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
   const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName: TableViewPresetTableName.Traces,
+    tableName,
     projectId: "project-1",
     stateUpdaters: {
       setFilters: setAppliedFilters,
@@ -244,7 +278,7 @@ describe("Saved view restore with implicit environment defaults", () => {
   let savedViewFilters: FilterState;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     sessionStorage.clear();
     queryParamStore.clear();
     savedViewFilters = OLD_SAVED_VIEW_FILTERS;
@@ -331,6 +365,180 @@ describe("Saved view restore with implicit environment defaults", () => {
     expect(screen.getByTestId("explicit-state").textContent).toContain(
       "checkout",
     );
+  });
+
+  it("applies explicit URL filters over the saved view when both viewId and filter are present (LFE-10486)", async () => {
+    // A shared "saved view + in-view filter edits" link carries both the
+    // viewId (provenance) and an explicit, edited filter. The edited filter
+    // must win; the saved view's stored filter must not overwrite it.
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: encodedFilters },
+    });
+
+    // The view also carries a column layout. It must NOT be applied here:
+    // column order/visibility are the visitor's own per-table localStorage, and
+    // opening a shared link is not a deliberate action — applying the view's
+    // columns would silently overwrite the visitor's saved layout.
+    const setColumnOrder = vi.fn();
+    const setColumnVisibility = vi.fn();
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View with columns",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: ["name", "latency"],
+        columnVisibility: { input: false },
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(
+      <SavedViewHarness
+        setColumnOrder={setColumnOrder}
+        setColumnVisibility={setColumnVisibility}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    // The URL's filter ("search") wins over the saved view's stored filter
+    // ("checkout" from OLD_SAVED_VIEW_FILTERS).
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    // The viewId stays in the URL as a provenance reference so the drawer can
+    // still show the view the link came from.
+    expect(queryParamStore.get("viewId")).toBe("view-1");
+    // The view is not applied over explicit URL state, so the visitor's own
+    // column layout is left untouched (no localStorage mutation on link open).
+    expect(setColumnOrder).not.toHaveBeenCalled();
+    expect(setColumnVisibility).not.toHaveBeenCalled();
+    // On a fresh shared-link visit the view is NOT recognised as applied, so
+    // "Update view" would preserve the view's stored columns (not the
+    // visitor's). Contrast with the reload-of-applied-view test below.
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
+  });
+
+  it("recognises a reload of an applied view as applied so Update keeps live columns (LFE-10486)", async () => {
+    // Reload after a view was applied: the URL carries the viewId AND the
+    // view's hydrated filters, and the session still remembers X as active.
+    // The explicit-URL-state short-circuit means the view is not re-applied,
+    // but it must still be recognised as the applied view — otherwise a
+    // column reorder + "Update view" would silently discard the reorder and
+    // save the stored snapshot instead.
+    const hydratedFilters = encodeFiltersGeneric(OLD_SAVED_VIEW_FILTERS);
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", hydratedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: hydratedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("view-1");
+  });
+
+  it("does not apply a default saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not restore a stored saved view over explicit URL filters", async () => {
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.delete("viewId");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encodedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    expect(queryParamStore.has("viewId")).toBe(false);
   });
 
   it("does not re-apply a saved view after explicit default selection during bootstrap", async () => {
@@ -421,5 +629,311 @@ describe("Saved view restore with implicit environment defaults", () => {
       expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
       expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
     });
+  });
+
+  it("clears a permalink when the fetched saved view belongs to a different table", async () => {
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Traces saved view",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(
+      <ViewSelectionHarness
+        tableName={TableViewPresetTableName.Observations}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
+    expect(queryParamStore.has("viewId")).toBe(false);
+  });
+
+  it("does not restore a stored saved view from another table namespace", async () => {
+    queryParamStore.delete("viewId");
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: {},
+    });
+
+    sessionStorage.setItem(
+      "observations-project-1-viewId",
+      JSON.stringify("view-1"),
+    );
+
+    render(
+      <ViewSelectionHarness
+        tableName={TableViewPresetTableName.ObservationsEvents}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    });
+
+    expect(screen.getByTestId("applied-filter-count").textContent).toBe("0");
+    expect(mockGetByIdUseQuery).toHaveBeenCalled();
+    expect(mockGetByIdUseQuery).toHaveBeenCalledWith(
+      { projectId: "project-1", viewId: null },
+      expect.objectContaining({ enabled: false }),
+    );
+  });
+
+  it("surfaces only non-default environment exclusions from a saved view in the search bar", async () => {
+    savedViewFilters = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...HIDDEN_ENVIRONMENTS, "production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["checkout"],
+      },
+    ];
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View excluding production",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: savedViewFilters,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    const explicit = JSON.parse(
+      screen.getByTestId("explicit-state").textContent ?? "[]",
+    ) as FilterState;
+    const searchBar = JSON.parse(
+      screen.getByTestId("search-bar-state").textContent ?? "[]",
+    ) as FilterState;
+    const effective = JSON.parse(
+      screen.getByTestId("effective-state").textContent ?? "[]",
+    ) as FilterState;
+
+    expect(explicit).toEqual(
+      expect.arrayContaining([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: [...HIDDEN_ENVIRONMENTS, "production"],
+        },
+        {
+          column: "name",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["checkout"],
+        },
+      ]),
+    );
+    expect(
+      explicit.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+
+    const envEffective = effective.find(
+      (filter) => filter.column === "environment",
+    );
+    expect(envEffective).toEqual(
+      expect.objectContaining({
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+      }),
+    );
+    expect(
+      envEffective && "value" in envEffective ? envEffective.value : [],
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+
+    expect(
+      searchBar.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(["production"]);
+    expect(
+      filterStateToQueryText(
+        toSearchBarEnvironmentFilters({
+          explicitFilters: explicit,
+          config: buildManagedEnvironmentPolicyConfig({
+            hiddenEnvironments: HIDDEN_ENVIRONMENTS,
+          }),
+        }),
+        {},
+        EVENTS_FIELD_REGISTRY,
+      ).text,
+    ).toContain("-environment:production");
+  });
+
+  it("expands a legacy extras-only saved view to the full exclusion set", async () => {
+    savedViewFilters = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ];
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View excluding production",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: savedViewFilters,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    const explicit = JSON.parse(
+      screen.getByTestId("explicit-state").textContent ?? "[]",
+    ) as FilterState;
+    const searchBar = JSON.parse(
+      screen.getByTestId("search-bar-state").textContent ?? "[]",
+    ) as FilterState;
+    const effective = JSON.parse(
+      screen.getByTestId("effective-state").textContent ?? "[]",
+    ) as FilterState;
+
+    expect(
+      explicit.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+    expect(
+      effective.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(expect.arrayContaining([...HIDDEN_ENVIRONMENTS, "production"]));
+    expect(
+      searchBar.find((filter) => filter.column === "environment")?.value,
+    ).toEqual(["production"]);
+  });
+});
+
+describe("Explicit filter in URL without viewId", () => {
+  const URL_ONLY_FILTERS: FilterState = [
+    {
+      column: "name",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["search"],
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    queryParamStore.clear();
+
+    const encoded = encodeFiltersGeneric(URL_ONLY_FILTERS);
+    queryParamStore.set("filter", encoded);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { filter: encoded },
+    });
+
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: null,
+      isLoading: false,
+    });
+
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Session saved view",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: null,
+        columnVisibility: null,
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+  });
+
+  it("does not overwrite URL filters when session storage has a last-used viewId", async () => {
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+  });
+
+  it("does not overwrite URL filters when the project has a default viewId", async () => {
+    sessionStorage.clear();
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
   });
 });

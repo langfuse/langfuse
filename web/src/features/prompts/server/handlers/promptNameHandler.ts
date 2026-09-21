@@ -1,16 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 import { deletePrompt } from "@/src/features/prompts/server/actions/deletePrompt";
-import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  withMiddlewares,
+  RateLimitService,
+} from "@/src/features/public-api/server";
 import { authorizePromptRequestOrThrow } from "../utils/authorizePromptRequest";
 import {
   GetPromptByNameSchema,
   LangfuseNotFoundError,
   PRODUCTION_LABEL,
 } from "@langfuse/shared";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 const getPromptNameHandler = async (
@@ -32,7 +34,7 @@ const getPromptNameHandler = async (
     req.query,
   );
 
-  const prompt = await getPromptByName({
+  const prompt = await getPromptForApi({
     promptName: promptName,
     projectId: authCheck.scope.projectId,
     version,

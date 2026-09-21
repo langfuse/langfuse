@@ -1,6 +1,6 @@
 import { ScoreDataTypeEnum } from "@langfuse/shared";
 
-export const numericOutputDefinitionDefaults = {
+const numericOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.NUMERIC,
   reasoningDescription: "Explain the assigned score in one concise sentence.",
   scoreDescription:
@@ -9,7 +9,17 @@ export const numericOutputDefinitionDefaults = {
   shouldAllowMultipleMatches: false,
 };
 
-export const categoricalSingleOutputDefinitionDefaults = {
+const booleanOutputDefinitionDefaults = {
+  scoreDataType: ScoreDataTypeEnum.BOOLEAN,
+  reasoningDescription:
+    "Explain briefly why the answer does or does not satisfy the criteria.",
+  scoreDescription:
+    "Return true if the answer satisfies the criteria, otherwise return false.",
+  categories: [] as Array<{ value: string }>,
+  shouldAllowMultipleMatches: false,
+};
+
+const categoricalSingleOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
   reasoningDescription: "Explain why the selected category is the best match.",
   scoreDescription: "Choose exactly one category from the provided list.",
@@ -17,7 +27,7 @@ export const categoricalSingleOutputDefinitionDefaults = {
   shouldAllowMultipleMatches: false,
 };
 
-export const categoricalMultiOutputDefinitionDefaults = {
+const categoricalMultiOutputDefinitionDefaults = {
   scoreDataType: ScoreDataTypeEnum.CATEGORICAL,
   reasoningDescription: "Explain why each selected category applies.",
   scoreDescription:
@@ -29,6 +39,7 @@ export const categoricalMultiOutputDefinitionDefaults = {
 export const getDefaultOutputDefinitionFormValues = (params?: {
   scoreDataType?:
     | typeof ScoreDataTypeEnum.NUMERIC
+    | typeof ScoreDataTypeEnum.BOOLEAN
     | typeof ScoreDataTypeEnum.CATEGORICAL;
   shouldAllowMultipleMatches?: boolean;
 }) => {
@@ -38,12 +49,17 @@ export const getDefaultOutputDefinitionFormValues = (params?: {
       : categoricalSingleOutputDefinitionDefaults;
   }
 
+  if (params?.scoreDataType === ScoreDataTypeEnum.BOOLEAN) {
+    return booleanOutputDefinitionDefaults;
+  }
+
   return numericOutputDefinitionDefaults;
 };
 
 const defaultReasoningDescriptions = new Set(
   [
     numericOutputDefinitionDefaults.reasoningDescription,
+    booleanOutputDefinitionDefaults.reasoningDescription,
     categoricalSingleOutputDefinitionDefaults.reasoningDescription,
     categoricalMultiOutputDefinitionDefaults.reasoningDescription,
     "One sentence reasoning for the score",
@@ -53,6 +69,7 @@ const defaultReasoningDescriptions = new Set(
 const defaultScoreDescriptions = new Set(
   [
     numericOutputDefinitionDefaults.scoreDescription,
+    booleanOutputDefinitionDefaults.scoreDescription,
     categoricalSingleOutputDefinitionDefaults.scoreDescription,
     categoricalMultiOutputDefinitionDefaults.scoreDescription,
     "Score between 0 and 1. Score 0 if false or negative and 1 if true or positive.",

@@ -1,16 +1,56 @@
+/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
+import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
+import {
+  buildRedisErrorContext,
+  formatRedisErrorMessage,
+  getLastNodeError,
+} from "./redisErrorContext";
+
+const logRedisError = (
+  prefix: string,
+  error: unknown,
+  nodeAddress?: string,
+) => {
+  const context = buildRedisErrorContext(error, nodeAddress);
+  logger.error(formatRedisErrorMessage(prefix, context), context);
+};
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
   maxRetriesPerRequest: null,
   enableAutoPipelining: env.REDIS_ENABLE_AUTO_PIPELINING === "true",
-  // keyPrefix removed - BullMQ uses its own prefix option
+  keepAlive: 10000, // 10s — prevents middleboxes from killing idle connections
+  // Forces reconnect if no data received, prevents hung moveToCompleted() from
+  // blocking concurrency slots forever. ioredis arms the watchdog for any
+  // defined value (0 would time out instantly), so disabling requires omitting
+  // the option entirely.
+  ...(env.REDIS_SOCKET_TIMEOUT_MS > 0
+    ? { socketTimeout: env.REDIS_SOCKET_TIMEOUT_MS }
+    : {}),
 };
 
 const REDIS_SCAN_COUNT = 1000;
+
+// Both reconnect strategies below randomize their delay within [base/2, base]
+// so that clients which failed at the same moment do not all reconnect at the
+// same moment. Each caller clamps its own base delay, so that clamp is also
+// the upper bound of the delay returned here.
+const jitteredBackoffMs = (baseDelayMs: number): number =>
+  Math.floor(baseDelayMs / 2 + Math.random() * (baseDelayMs / 2));
+
+// Delay before an ioredis Cluster client reconnects after a failed topology
+// refresh or after losing its last node. The ioredis default retries every
+// 100–300ms without jitter, and one process holds a separate Cluster client
+// per queue and per BullMQ worker, so a single failed refresh sends all of
+// them back to the configuration endpoint together. Doubles from 200ms to a
+// 5s cap and retries forever: a cluster that fails over is reachable again
+// within seconds, so the cap stays low.
+export const redisClusterRetryStrategy = (times: number): number =>
+  jitteredBackoffMs(Math.min(200 * 2 ** Math.max(times - 1, 0), 5000));
 
 export const redisQueueRetryOptions: Partial<RedisOptions> = {
   retryStrategy: (times: number) => {
@@ -18,8 +58,11 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
       // A few retries are expected and no cause for action.
       logger.warn(`Connection to redis lost. Retry attempt: ${times}`);
     }
-    // Retries forever. Waits at least 1s and at most 20s between retries.
-    return Math.max(Math.min(Math.exp(times), 20000), 1000);
+    // Retries forever, between 1s and 20s apart. The base delay holds at 2s
+    // for the first several attempts, so a connection dropped by a Redis
+    // restart is re-established promptly, then ramps to a 20s cap once the
+    // outage outlives those attempts.
+    return jitteredBackoffMs(Math.max(Math.min(Math.exp(times), 20000), 2000));
   },
   reconnectOnError: (err) => {
     // MOVED/ASK are normal cluster redirections handled by ioredis — not real errors.
@@ -33,6 +76,11 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
     return err.message.includes("READONLY") ? 2 : false;
   },
 };
+
+type BullMQOptionsWithRedis = Pick<
+  QueueBaseOptions,
+  "connection" | "prefix" | "skipVersionCheck"
+>;
 
 /**
  * Parse Redis node definitions from environment variable
@@ -128,13 +176,26 @@ const createRedisClusterInstance = (
       ...tlsOptions,
     },
     // Retry configuration for cluster
+    clusterRetryStrategy: redisClusterRetryStrategy,
     retryDelayOnFailover: 100,
   };
 
   const cluster = new Cluster(nodes, clusterOptions);
 
+  // The `node error` event is the only place ioredis reports which node failed.
+  let lastNodeFailure: { error: unknown; address: string } | undefined;
+  cluster.on("node error", (error: unknown, address: string) => {
+    lastNodeFailure = { error, address };
+  });
+
   cluster.on("error", (error) => {
-    logger.error("Redis cluster error", error);
+    const lastNodeError = getLastNodeError(error);
+    const nodeAddress =
+      lastNodeError !== undefined && lastNodeFailure?.error === lastNodeError
+        ? lastNodeFailure.address
+        : undefined;
+
+    logRedisError("Redis cluster error", error, nodeAddress);
   });
 
   return cluster;
@@ -159,6 +220,14 @@ const createRedisSentinelInstance = (
 
   const sentinels = parseSentinelNodes(env.REDIS_SENTINEL_NODES);
   const tlsOptions = buildTlsOptions();
+  const sentinelTlsRequested = env.REDIS_SENTINEL_TLS_ENABLED === "true";
+  const redisTlsEnabled = env.REDIS_TLS_ENABLED === "true";
+
+  if (sentinelTlsRequested && !redisTlsEnabled) {
+    logger.warn(
+      "REDIS_SENTINEL_TLS_ENABLED is true but REDIS_TLS_ENABLED is false; sentinel TLS will not be applied",
+    );
+  }
 
   const instance = new Redis({
     sentinels,
@@ -167,16 +236,59 @@ const createRedisSentinelInstance = (
     password: env.REDIS_AUTH || undefined,
     sentinelUsername: env.REDIS_SENTINEL_USERNAME || undefined,
     sentinelPassword: env.REDIS_SENTINEL_PASSWORD || undefined,
+    ...(sentinelTlsRequested && redisTlsEnabled && tlsOptions.tls
+      ? {
+          enableTLSForSentinelMode: true,
+          sentinelTLS: tlsOptions.tls,
+        }
+      : {}),
     ...defaultRedisOptions,
     ...additionalOptions,
     ...tlsOptions,
   });
 
   instance.on("error", (error) => {
-    logger.error("Redis sentinel error", error);
+    logRedisError("Redis sentinel error", error);
   });
 
   return instance;
+};
+
+/**
+ * Every connection handed out by createNewRedisInstance, so that a shutdown can
+ * release all of them. Each queue owns a dedicated client, and those clients
+ * retry forever; left connected they keep the event loop alive and the process
+ * never exits.
+ */
+const activeRedisInstances = new Set<Redis | Cluster>();
+
+const trackRedisInstance = <T extends Redis | Cluster | null>(
+  instance: T,
+): T => {
+  if (instance) {
+    activeRedisInstances.add(instance);
+    instance.once("end", () => activeRedisInstances.delete(instance));
+  }
+  return instance;
+};
+
+/**
+ * Disconnect every client created by createNewRedisInstance, including the
+ * shared `redis` client, which is created through the same path. Returns how
+ * many were closed, for shutdown logging.
+ */
+export const disconnectAllRedisInstances = (): number => {
+  let closed = 0;
+  for (const instance of activeRedisInstances) {
+    try {
+      instance.disconnect();
+      closed++;
+    } catch (error) {
+      logRedisError("Failed to disconnect Redis instance on shutdown", error);
+    }
+  }
+  activeRedisInstances.clear();
+  return closed;
 };
 
 export const createNewRedisInstance = (
@@ -193,11 +305,11 @@ export const createNewRedisInstance = (
   }
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
-    return createRedisClusterInstance(additionalOptions);
+    return trackRedisInstance(createRedisClusterInstance(additionalOptions));
   }
 
   if (env.REDIS_SENTINEL_ENABLED === "true") {
-    return createRedisSentinelInstance(additionalOptions);
+    return trackRedisInstance(createRedisSentinelInstance(additionalOptions));
   }
 
   const tlsOptions = buildTlsOptions();
@@ -213,7 +325,7 @@ export const createNewRedisInstance = (
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
           username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          password: env.REDIS_AUTH || undefined,
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
@@ -221,10 +333,10 @@ export const createNewRedisInstance = (
       : null;
 
   instance?.on("error", (error) => {
-    logger.error("Redis error", error);
+    logRedisError("Redis error", error);
   });
 
-  return instance;
+  return trackRedisInstance(instance);
 };
 
 /**
@@ -248,6 +360,48 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
   return redisKeyPrefix ?? undefined;
 };
 
+const getBullMQOptionsForRedisConnection = (
+  queueName: string,
+  connection: BullMQOptionsWithRedis["connection"],
+): BullMQOptionsWithRedis => ({
+  connection,
+  prefix: getQueuePrefix(queueName),
+  ...(env.LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK === "true"
+    ? { skipVersionCheck: true }
+    : {}),
+});
+
+/**
+ * Creates a new Redis connection and returns the BullMQ queue options that use it.
+ * Returns null only when the Redis connection cannot be created.
+ */
+export const createBullMQQueueOptionsWithRedis = (
+  queueName: string,
+): BullMQOptionsWithRedis | null => {
+  const connection = createNewRedisInstance({
+    enableOfflineQueue: false,
+    ...redisQueueRetryOptions,
+  });
+
+  return connection
+    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    : null;
+};
+
+/**
+ * Creates a new Redis connection and returns the BullMQ worker options that use it.
+ * Returns null only when the Redis connection cannot be created.
+ */
+export const createBullMQWorkerOptionsWithRedis = (
+  queueName: string,
+): BullMQOptionsWithRedis | null => {
+  const connection = createNewRedisInstance(redisQueueRetryOptions);
+
+  return connection
+    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    : null;
+};
+
 /**
  * Execute multiple Redis DEL operations safely in cluster mode
  */
@@ -266,25 +420,60 @@ export const safeMultiDel = async (
   }
 };
 
+/**
+ * Execute multiple Redis GET operations safely in cluster mode.
+ * MGET requires all keys to hash to the same slot; fall back to per-key GET.
+ */
+export const safeMultiGet = async (
+  redis: Redis | Cluster | null,
+  keys: string[],
+): Promise<(string | null)[]> => {
+  if (!redis || keys.length === 0) return [];
+
+  if (env.REDIS_CLUSTER_ENABLED === "true") {
+    return Promise.all(keys.map(async (key: string) => redis.get(key)));
+  }
+
+  return redis.mget(keys);
+};
+
 const scanKeysForNode = async (
   client: Redis,
   pattern: string,
   collector: Set<string>,
+  keyPrefix: string,
 ) => {
   let cursor = "0";
+  // ioredis keyPrefix is not applied to SCAN patterns, but it is applied to
+  // DEL/GET/SET keys. Scan physical keys and return logical keys to callers.
+  const scanPattern = keyPrefix ? `${keyPrefix}${pattern}` : pattern;
 
   do {
     const [nextCursor, keys]: [string, string[]] = await client.scan(
       cursor,
       "MATCH",
-      pattern,
+      scanPattern,
       "COUNT",
       REDIS_SCAN_COUNT,
     );
 
-    keys.forEach((key) => collector.add(key));
+    keys.forEach((key) =>
+      collector.add(
+        keyPrefix && key.startsWith(keyPrefix)
+          ? key.slice(keyPrefix.length)
+          : key,
+      ),
+    );
     cursor = nextCursor;
   } while (cursor !== "0");
+};
+
+const getRedisKeyPrefix = (redis: Redis | Cluster): string => {
+  const keyPrefix =
+    redis.options?.keyPrefix ??
+    (redis instanceof Cluster ? redis.options.redisOptions?.keyPrefix : "");
+
+  return keyPrefix?.toString() ?? "";
 };
 
 export const scanKeys = async (
@@ -294,15 +483,18 @@ export const scanKeys = async (
   if (!redis) return [];
 
   const collectedKeys = new Set<string>();
+  const keyPrefix = getRedisKeyPrefix(redis);
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     await Promise.all(
       (redis as Cluster)
         .nodes("master")
-        .map((node) => scanKeysForNode(node, pattern, collectedKeys)),
+        .map((node) =>
+          scanKeysForNode(node, pattern, collectedKeys, keyPrefix),
+        ),
     );
   } else {
-    await scanKeysForNode(redis as Redis, pattern, collectedKeys);
+    await scanKeysForNode(redis as Redis, pattern, collectedKeys, keyPrefix);
   }
 
   return Array.from(collectedKeys);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -13,23 +13,26 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { PasswordInput } from "@/src/components/ui/password-input";
-import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { useSession } from "next-auth/react";
-import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
+import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { signIn, useSession } from "next-auth/react";
+import { ArrowLeft } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
 import { TRPCClientError } from "@trpc/client";
-import { isEmailVerifiedWithinCutoff } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { passwordSchema } from "@/src/features/auth";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 
 const resetPasswordSchema = z
   .object({
-    email: z.string().email(),
+    token: z.string().regex(/^\d{6}$/, {
+      message: "Verification code must be 6 digits.",
+    }),
     password: passwordSchema,
     confirmPassword: passwordSchema,
   })
@@ -40,58 +43,101 @@ const resetPasswordSchema = z
 
 export function ResetPasswordPage({
   passwordResetAvailable,
+  initialEmail = "",
+  intent = "reset",
 }: {
   passwordResetAvailable: boolean;
+  initialEmail?: string;
+  intent?: "reset" | "setup";
 }) {
   const session = useSession();
   const router = useRouter();
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
-    useState(false);
+  const [email, setEmail] = useState(initialEmail);
+  const [codeRequested, setCodeRequested] = useState(
+    intent === "setup" && Boolean(initialEmail),
+  );
 
   const capture = usePostHogClientCapture();
 
+  const isSetMode =
+    intent === "setup" || session.data?.user?.hasPassword === false;
+
   const mutResetPassword = api.credentials.resetPassword.useMutation();
-  const emailVerified = isEmailVerifiedWithinCutoff(
-    session.data?.user?.emailVerified,
-  );
+  const effectiveEmail = session.data?.user?.email ?? email;
 
   const form = useForm({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: {
-      email: session.data?.user?.email ?? "",
+      token: "",
       password: "",
       confirmPassword: "",
     },
   });
 
+  useEffect(() => {
+    if (intent !== "setup" || initialEmail) return;
+
+    const storedEmail = sessionStorage.getItem(
+      PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+    );
+    if (storedEmail) {
+      setEmail(storedEmail);
+      setCodeRequested(true);
+    }
+  }, [initialEmail, intent]);
+
   async function onSubmit(values: z.infer<typeof resetPasswordSchema>) {
     setFormError(null);
-    setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
-    capture("auth:update_password_form_submit");
-    await mutResetPassword
-      .mutateAsync({ password: values.password })
-      .then(() => {
-        setIsSuccess(true);
-        setTimeout(() => {
-          router.push("/");
-          setIsSuccess(false);
-        }, 2000);
-      })
-      .catch((error) => {
-        console.log(error.message);
-        if (error instanceof TRPCClientError) {
-          if (error.data?.code === "UNAUTHORIZED") {
-            setShowResetPasswordEmailButton(true);
-          }
-          setFormError(error.message);
-        } else {
-          console.error(error);
-          setFormError("An unknown error occurred");
-        }
+    if (!z.email().safeParse(effectiveEmail).success) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+    capture(
+      isSetMode
+        ? "auth:set_password_form_submit"
+        : "auth:update_password_form_submit",
+    );
+    try {
+      await mutResetPassword.mutateAsync({
+        email: effectiveEmail,
+        token: values.token,
+        password: values.password,
       });
+
+      if (isSetMode) {
+        sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
+      }
+
+      let target =
+        isSetMode && isLangfuseCloud && region !== "DEV" ? "/onboarding" : "/";
+      // A password update revokes every existing JWT, including this
+      // browser's, so the current session always has to be re-established.
+      const signInResult = await signIn("credentials", {
+        email: effectiveEmail,
+        password: values.password,
+        redirect: false,
+      });
+      if (!signInResult?.ok) {
+        target = "/auth/sign-in";
+      }
+
+      setIsSuccess(true);
+      setTimeout(() => {
+        router.push(target);
+        setIsSuccess(false);
+      }, 2000);
+    } catch (error) {
+      if (error instanceof TRPCClientError) {
+        setFormError(error.message);
+      } else {
+        console.error(error);
+        setFormError("An unknown error occurred");
+      }
+    }
   }
 
   if (!passwordResetAvailable)
@@ -106,20 +152,29 @@ export function ResetPasswordPage({
       />
     );
 
+  const title = isSetMode ? "Set your password" : "Reset your password";
+  const pageTitle = isSetMode ? "Set password" : "Reset password";
+  const submitLabel = isSetMode ? "Set password" : "Update Password";
+  const successMessage = isSetMode
+    ? "Password set successfully. Redirecting ..."
+    : "Password successfully updated. Redirecting ...";
+
   return (
     <>
       <Head>
-        <title>Reset Password | Langfuse</title>
+        <title>{pageTitle} | Langfuse</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/">
-            <LangfuseIcon className="mx-auto" />
+            <div className="mx-auto w-fit">
+              <LangfuseIcon />
+            </div>
           </Link>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Reset your password
+            {title}
           </h2>
-          {session.status !== "authenticated" && (
+          {!isSetMode && session.status !== "authenticated" && (
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
@@ -138,40 +193,52 @@ export function ResetPasswordPage({
                 className="space-y-6"
                 onSubmit={form.handleSubmit(onSubmit)}
               >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            placeholder="jsdoe@example.com"
-                            disabled={session.status === "authenticated"}
-                            allowPasswordManager
-                            autoComplete="email"
-                            {...field}
-                          />
-                          {emailVerified.verified && (
-                            <span title="Email verified">
-                              <ShieldCheck className="text-muted-green absolute top-1/2 right-3 h-5 w-5 -translate-y-1/2 transform" />
-                            </span>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {emailVerified.verified && (
+                <FormItem>
+                  <FormLabel>Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="jsdoe@example.com"
+                      disabled={session.status === "authenticated"}
+                      allowPasswordManager
+                      autoComplete="email"
+                      value={effectiveEmail}
+                      onChange={(event) => setEmail(event.target.value)}
+                    />
+                  </FormControl>
+                </FormItem>
+                {codeRequested ? (
                   <>
+                    <p className="text-muted-foreground text-sm">
+                      Enter the 6-digit code from your email together with your
+                      new password. The code is valid for 3 minutes.
+                    </p>
+                    <FormField
+                      control={form.control}
+                      name="token"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Verification code</FormLabel>
+                          <FormControl>
+                            <Input
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              placeholder="6-digit code"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                     <FormField
                       control={form.control}
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>New Password</FormLabel>
+                          <FormLabel>
+                            {isSetMode ? "Password" : "New Password"}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput
                               autoComplete="new-password"
@@ -187,7 +254,11 @@ export function ResetPasswordPage({
                       name="confirmPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormLabel>
+                            {isSetMode
+                              ? "Confirm Password"
+                              : "Confirm New Password"}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput
                               autoComplete="new-password"
@@ -198,49 +269,47 @@ export function ResetPasswordPage({
                         </FormItem>
                       )}
                     />
-                  </>
-                )}
-                <div className="pt-4">
-                  {emailVerified.verified ? (
-                    <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={mutResetPassword.isPending}
-                      loading={mutResetPassword.isPending}
-                      variant={
-                        showResetPasswordEmailButton ? "secondary" : "default"
-                      }
-                    >
-                      Update Password
-                    </Button>
-                  ) : (
+                    <div className="pt-4">
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={mutResetPassword.isPending}
+                        loading={mutResetPassword.isPending}
+                      >
+                        {submitLabel}
+                      </Button>
+                    </div>
                     <RequestResetPasswordEmailButton
-                      email={form.watch("email")}
-                      className="w-full"
+                      email={effectiveEmail}
+                      callbackUrl={
+                        isSetMode ? "/auth/setup-password" : undefined
+                      }
+                      onEmailSent={() => setCodeRequested(true)}
+                      label="Send another code"
                     />
-                  )}
-                </div>
+                  </>
+                ) : (
+                  <RequestResetPasswordEmailButton
+                    email={effectiveEmail}
+                    callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
+                    onEmailSent={() => setCodeRequested(true)}
+                  />
+                )}
               </form>
             </Form>
             {formError ? (
-              <div className="text-destructive text-center text-sm font-medium">
+              <div className="text-destructive text-center text-sm font-bold">
                 {formError}
               </div>
             ) : null}
             {isSuccess && (
-              <div className="text-center text-sm font-medium">
-                Password successfully updated. Redirecting ...
+              <div className="text-center text-sm font-bold">
+                {successMessage}
               </div>
-            )}
-            {showResetPasswordEmailButton && (
-              <RequestResetPasswordEmailButton
-                email={form.getValues("email")}
-                className="w-full"
-              />
             )}
           </div>
         </div>
-        {session.status !== "authenticated" && (
+        {!isSetMode && session.status !== "authenticated" && (
           <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
             You will only receive an email if an account with this email exists
             and you have signed up with email and password. If you used an

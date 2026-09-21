@@ -1,16 +1,16 @@
 import { useMemo } from "react";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
+  type EventsTraceObservation,
 } from "@/src/features/events/lib/eventsToTraceAdapter";
 import {
   filterAndValidateDbScoreList,
-  AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
   ScoreDataTypeEnum,
   type ScoreDomain,
 } from "@langfuse/shared";
-import type { FullEventsObservations } from "@langfuse/shared/src/server";
 import {
   type WithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
@@ -34,7 +34,12 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
-  cutoffObservationsAfterMaxCount: boolean;
+  /**
+   * The observation cap this trace was loaded under, set ONLY when the trace hit
+   * it (so the list is missing its chronological tail). The number comes from the
+   * server response — never a client-side copy of the constant.
+   */
+  truncatedAtObservations: number | undefined;
 }
 
 /**
@@ -72,13 +77,25 @@ export function useEventsTraceData(
 
   // Step 2: Find root observation and calculate time range for batchIO
   const observations = eventsQuery.data?.observations as
-    | FullEventsObservations
+    | EventsTraceObservation[]
     | undefined;
 
   const rootObservation = useMemo(() => {
     if (!observations?.length) return null;
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
+
+  // Prefer the root observation when present, otherwise fall back to the earliest one.
+  const primaryObservation = useMemo(() => {
+    if (!observations?.length) return null;
+    if (rootObservation) return rootObservation;
+    // Fallback to earliest observation
+    return (
+      [...observations].sort(
+        (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+      )[0] ?? null
+    );
+  }, [observations, rootObservation]);
 
   const timeRange = useMemo(() => {
     if (!observations?.length) return null;
@@ -89,20 +106,22 @@ export function useEventsTraceData(
     };
   }, [observations]);
 
-  // Step 3: Fetch I/O for root observation (for trace-level I/O display)
+  // Step 3: Fetch I/O for the primary trace observation.
   const rootIOQuery = api.events.batchIO.useQuery(
     {
       projectId,
-      observations: rootObservation
-        ? [{ id: rootObservation.id, traceId }]
+      traceId,
+      observations: primaryObservation
+        ? [{ id: primaryObservation.id, traceId }]
         : [],
       minStartTime: timeRange?.min ?? new Date(),
       maxStartTime: timeRange?.max ?? new Date(),
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled:
-        enabled && !!rootObservation && !!timeRange && !!eventsQuery.data,
+        enabled && !!primaryObservation && !!timeRange && !!eventsQuery.data,
       staleTime: 60 * 1000,
     },
   );
@@ -123,7 +142,7 @@ export function useEventsTraceData(
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
       scores: scoresQuery.data ?? [],
-      dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
+      dataTypes: [...ScoreDataTypeArray],
       onParseError: (e) => {
         console.error("[useEventsTraceData] Score validation error:", e);
       },
@@ -159,13 +178,12 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
-  const cutoffObservationsAfterMaxCount =
-    eventsQuery.data?.cutoffObservationsAfterMaxCount ?? false;
-
   return {
     data: transformed ?? undefined,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
-    cutoffObservationsAfterMaxCount,
+    truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
+      ? eventsQuery.data.maxObservationsPerTrace
+      : undefined,
   };
 }

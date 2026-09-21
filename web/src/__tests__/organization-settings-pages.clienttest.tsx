@@ -1,0 +1,226 @@
+import { renderHook } from "@testing-library/react";
+
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
+import { useOrganizationSettingsPages } from "@/src/pages/organization/[organizationId]/settings";
+
+vi.mock("@/src/components/PagedSettingsContainer", () => ({
+  PagedSettingsContainer: () => null,
+}));
+
+vi.mock("@/src/components/layouts/header", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/src/features/rbac/components/MembershipInvitesPage", () => ({
+  MembershipInvitesPage: () => null,
+}));
+
+vi.mock("@/src/features/rbac/components/MembersTable", () => ({
+  MembersTable: () => null,
+}));
+
+vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
+  JSONView: () => null,
+}));
+
+vi.mock("@/src/features/organizations/components/RenameOrganization", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/src/components/SettingsDangerZone", () => ({
+  SettingsDangerZone: () => null,
+}));
+
+vi.mock(
+  "@/src/features/organizations/components/DeleteOrganizationDialogController",
+  () => ({
+    DeleteOrganizationDialogController: () => null,
+  }),
+);
+
+vi.mock("@/src/ee/features/billing/components/BillingSettings", () => ({
+  BillingSettings: () => null,
+}));
+
+vi.mock("@/src/features/entitlements/hooks", () => ({
+  useHasEntitlement: vi.fn(),
+  usePlan: vi.fn(),
+}));
+
+vi.mock("@/src/ee/features/sso-settings/components/SSOSettings", () => ({
+  SSOSettings: () => null,
+}));
+
+vi.mock("@langfuse/shared", () => ({
+  isCloudPlan: vi.fn(() => false),
+}));
+
+vi.mock("@/src/features/projects/hooks", () => ({
+  useQueryProjectOrOrganization: vi.fn(),
+}));
+
+vi.mock("@/src/features/public-api/components/ApiKeyList", () => ({
+  ApiKeyList: () => null,
+}));
+
+vi.mock("@/src/features/organizations/components/AIFeatureSwitch", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+  useIsCloudBillingAvailable: vi.fn(),
+}));
+
+vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
+  OrgAuditLogsSettingsPage: () => null,
+}));
+
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
+  useHasOrganizationAccess: vi.fn(),
+}));
+
+vi.mock("@/src/components/layouts/container-page", () => ({
+  default: () => null,
+}));
+
+vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+  useV4UpgradeUiFlag: vi.fn(),
+}));
+
+vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
+  default: vi.fn(),
+}));
+
+vi.mock("@/src/features/ai-gateway", () => ({
+  GatewayApiKeysPage: () => null,
+  GatewayConfigurationPage: () => null,
+  GatewayModelsPage: () => null,
+  GatewayProvidersPage: () => null,
+}));
+
+const organization = {
+  id: "org-1",
+  name: "Org 1",
+  metadata: {},
+  projects: [],
+};
+
+describe("useOrganizationSettingsPages", () => {
+  beforeEach(() => {
+    vi.mocked(useQueryProjectOrOrganization).mockReturnValue({
+      organization,
+      project: null,
+    } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
+    vi.mocked(useHasEntitlement).mockImplementation(
+      (entitlement) => entitlement === "admin-api",
+    );
+    vi.mocked(useHasOrganizationAccess).mockReturnValue(false);
+    vi.mocked(usePlan).mockReturnValue("oss");
+    vi.mocked(useIsCloudBillingAvailable).mockReturnValue(false);
+    vi.mocked(useV4UpgradeUiFlag).mockReturnValue(false);
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
+  });
+
+  it("hides organization API key settings without organization api key access", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(useHasOrganizationAccess).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      scope: "organization:CRUD_apiKeys",
+    });
+    expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
+      false,
+    );
+  });
+
+  it("shows organization API key settings with entitlement and access", () => {
+    vi.mocked(useHasOrganizationAccess).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
+      true,
+    );
+  });
+
+  it("hides organization API key settings without admin-api entitlement", () => {
+    vi.mocked(useHasEntitlement).mockImplementation(() => false);
+    vi.mocked(useHasOrganizationAccess).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(result.current.find((page) => page.slug === "api-keys")?.show).toBe(
+      false,
+    );
+  });
+
+  it("gates the v4 migration link on deployment availability", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(
+      result.current.find((page) => page.slug === "v4-migration")?.show,
+    ).toBe(false);
+
+    vi.mocked(useV4UpgradeUiFlag).mockReturnValue(true);
+
+    const { result: enabled } = renderHook(() =>
+      useOrganizationSettingsPages(),
+    );
+
+    expect(
+      enabled.current.find((page) => page.slug === "v4-migration")?.show,
+    ).toBe(true);
+  });
+
+  it("hides all AI Gateway settings without gateway management access", () => {
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+
+    expect(useHasOrganizationAccess).toHaveBeenCalledWith({
+      organizationId: "org-1",
+      scope: "gateway:manage",
+    });
+    expect(
+      result.current
+        .filter((page) => page.slug.startsWith("ai-gateway"))
+        .every((page) => page.show === false),
+    ).toBe(true);
+  });
+
+  it("hides all AI Gateway settings when the internal flag is disabled", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:manage",
+    );
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("ai-gateway"),
+    );
+
+    expect(gatewayPages.every((page) => page.show === false)).toBe(true);
+  });
+
+  it("shows all AI Gateway settings when the internal flag and gateway management access are enabled", () => {
+    vi.mocked(useHasOrganizationAccess).mockImplementation(
+      ({ scope }) => scope === "gateway:manage",
+    );
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
+
+    const { result } = renderHook(() => useOrganizationSettingsPages());
+    const gatewayPages = result.current.filter((page) =>
+      page.slug.startsWith("ai-gateway"),
+    );
+
+    expect(gatewayPages.map((page) => page.slug)).toEqual([
+      "ai-gateway",
+      "ai-gateway-providers",
+      "ai-gateway-models",
+      "ai-gateway-api-keys",
+    ]);
+    expect(gatewayPages.every((page) => page.show === true)).toBe(true);
+  });
+});

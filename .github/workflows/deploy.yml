@@ -15,6 +15,7 @@ on:
           - web-iso
           - worker
           - worker-cpu
+          - ai-gateway
         required: true
       environment:
         description: "Environment to deploy to"
@@ -27,6 +28,8 @@ on:
           - prod-jp
         required: true
 
+permissions: {}
+
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
   group: deploy-${{ github.event_name }}-${{ github.ref }}
@@ -35,28 +38,35 @@ concurrency:
 name: Deploy to ECS
 jobs:
   affected-services:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       services: ${{ steps.affected-services.outputs.result }}
     steps:
       - name: Get affected services
         id: affected-services
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
+            const isStaging = context.eventName === "workflow_dispatch"
+              ? context.payload.inputs.environment === "staging"
+              : context.ref === "refs/heads/main";
+            if (isStaging) services.push("ai-gateway");
+
             if (context.eventName === "workflow_dispatch") {
-              if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              const service = context.payload.inputs.service;
+              if (service === "ai-gateway" && !isStaging) {
+                throw new Error("AI Gateway deployments are only enabled in staging.");
               }
-              return `["${context.payload.inputs.service}"]`
+              return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              return JSON.stringify(services);
             }
             return "[]"
           result-encoding: string
       - name: Print services to build
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           services: ${{ steps.affected-services.outputs.result }}
         with:
@@ -65,13 +75,13 @@ jobs:
             console.log('Services', `${process.env.services}` ?? 'n/a');
 
   affected-environments:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       environments: ${{ steps.affected-environments.outputs.result }}
     steps:
       - name: Get affected environments
         id: affected-environments
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             if (context.eventName === "workflow_dispatch") {
@@ -88,7 +98,7 @@ jobs:
             return "[]"
           result-encoding: string
       - name: Print environments to build
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           environments: ${{ steps.affected-environments.outputs.result }}
         with:
@@ -99,7 +109,14 @@ jobs:
   ecs-deploy:
     uses: ./.github/workflows/_deploy_ecs_service.yml
     needs: [affected-services, affected-environments]
-    secrets: inherit
+    permissions:
+      contents: read
+    # Environment secrets must be passed explicitly to reusable workflows.
+    # See: https://github.com/actions/runner/issues/3206
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
@@ -107,3 +124,21 @@ jobs:
     with:
       service: ${{ matrix.service }}
       environment: ${{ matrix.environment }}
+
+  notify-slack-on-failure:
+    needs: [affected-services, affected-environments, ecs-deploy]
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ Deploy Failed"
+          message: "❌ Deploy failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

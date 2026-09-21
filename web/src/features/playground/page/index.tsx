@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Play, Loader2 } from "lucide-react";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
+import { Play } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
@@ -14,6 +15,7 @@ import {
   MessageSearchToolbar,
 } from "@/src/components/ChatMessages/MessageSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 /**
  * PlaygroundPage Component
@@ -37,12 +39,6 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
  * - Clean single-header design
  */
 export default function PlaygroundPage() {
-  const [isMac, setIsMac] = useState(false);
-
-  useEffect(() => {
-    setIsMac(window.navigator.userAgent.includes("Mac"));
-  }, []);
-
   const projectId = useProjectIdFromURL();
   const { windowIds, isLoaded, addWindowWithCopy, removeWindowId } =
     usePersistedWindowIds();
@@ -114,7 +110,7 @@ export default function PlaygroundPage() {
         }}
       >
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
+          <Spinner size="xl" />
         </div>
       </Page>
     );
@@ -161,7 +157,7 @@ export default function PlaygroundPage() {
                   <>
                     <span className="hidden sm:inline">•</span>
                     <div className="flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Spinner size="xxs" />
                       <span className="hidden whitespace-nowrap sm:inline">
                         {executionStatus}
                       </span>
@@ -183,20 +179,13 @@ export default function PlaygroundPage() {
                 }
               >
                 {globalIsExecutingAll ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <Spinner size="xxs" />
                 ) : (
                   <Play className="h-3 w-3" />
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
-                    {isMac ? (
-                      <span className="text-xs">⌘</span>
-                    ) : (
-                      <span>Ctrl</span>
-                    )}
-                    <span>Enter</span>
-                  </kbd>
+                  <KeyboardShortcut keys={["Mod", "Enter"]} />
                 </span>
               </Button>
 

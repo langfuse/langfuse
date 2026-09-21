@@ -1,10 +1,8 @@
-/** @jest-environment node */
-
 import {
   makeZodVerifiedAPICall,
   makeAPICall,
 } from "@/src/__tests__/test-utils";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
@@ -17,15 +15,15 @@ const OrganizationProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 });
 
 // Schema for organization response
 const OrganizationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
   metadata: z.object({}),
   projects: z.array(OrganizationProjectSchema),
 });
@@ -43,7 +41,7 @@ const DeleteResponseSchema = z.object({
 // Schema for API key response
 const ApiKeyResponseSchema = z.object({
   id: z.string(),
-  createdAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
   publicKey: z.string(),
   secretKey: z.string(),
   displaySecretKey: z.string(),
@@ -55,9 +53,9 @@ const ApiKeyListSchema = z.object({
   apiKeys: z.array(
     z.object({
       id: z.string(),
-      createdAt: z.string().datetime(),
-      expiresAt: z.string().datetime().nullable(),
-      lastUsedAt: z.string().datetime().nullable(),
+      createdAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime().nullable(),
+      lastUsedAt: z.iso.datetime().nullable(),
       note: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string(),
@@ -139,9 +137,13 @@ describe("Admin Organizations API", () => {
     it("should return 401 when no authorization header is provided", async () => {
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall("POST", "/api/admin/organizations", {
-        name: uniqueOrgName,
-      });
+      const result = await makeAPICall<{ error: string }>(
+        "POST",
+        "/api/admin/organizations",
+        {
+          name: uniqueOrgName,
+        },
+      );
       expect(result.status).toBe(401);
       expect(result.body.error).toContain("Unauthorized");
     });
@@ -149,7 +151,7 @@ describe("Admin Organizations API", () => {
     it("should return 401 when invalid admin API key is provided", async () => {
       const uniqueOrgName = `Test Org ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "POST",
         "/api/admin/organizations",
         {
@@ -162,7 +164,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 400 when organization name is too short", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "POST",
         "/api/admin/organizations",
         {
@@ -175,7 +177,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 400 when organization name is too long", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "POST",
         "/api/admin/organizations",
         {
@@ -240,7 +242,10 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall("GET", "/api/admin/organizations");
+      const result = await makeAPICall<{ error: string }>(
+        "GET",
+        "/api/admin/organizations",
+      );
       expect(result.status).toBe(401);
       expect(result.body.error).toContain("Unauthorized");
     });
@@ -334,7 +339,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when getting a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "GET",
         `/api/admin/organizations/${nonExistentId}`,
         undefined,
@@ -403,7 +408,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when updating a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "PUT",
         `/api/admin/organizations/${nonExistentId}`,
         {
@@ -417,7 +422,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 400 when updating with invalid name", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "PUT",
         `/api/admin/organizations/${testOrgId}`,
         {
@@ -431,7 +436,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "PUT",
         `/api/admin/organizations/${testOrgId}`,
         {
@@ -502,7 +507,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when deleting a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${nonExistentId}`,
         undefined,
@@ -522,7 +527,7 @@ describe("Admin Organizations API", () => {
         },
       });
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${testOrgId}`,
         undefined,
@@ -541,7 +546,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${testOrgId}`,
       );
@@ -607,7 +612,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when getting API keys for a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "GET",
         `/api/admin/organizations/${nonExistentId}/apiKeys`,
         undefined,
@@ -673,7 +678,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when creating an API key for a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "POST",
         `/api/admin/organizations/${nonExistentId}/apiKeys`,
         {
@@ -687,7 +692,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "POST",
         `/api/admin/organizations/${testOrgId}/apiKeys`,
         {
@@ -764,7 +769,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when deleting a non-existent API key", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${testOrgId}/apiKeys/${nonExistentId}`,
         undefined,
@@ -777,7 +782,7 @@ describe("Admin Organizations API", () => {
 
     it("should return 404 when deleting an API key for a non-existent organization", async () => {
       const nonExistentId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${nonExistentId}/apiKeys/${testApiKeyId}`,
         undefined,
@@ -789,7 +794,7 @@ describe("Admin Organizations API", () => {
     });
 
     it("should return 401 when no authorization header is provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ error: string }>(
         "DELETE",
         `/api/admin/organizations/${testOrgId}/apiKeys/${testApiKeyId}`,
       );
@@ -800,7 +805,7 @@ describe("Admin Organizations API", () => {
   });
 
   it("should return 405 for non-supported methods", async () => {
-    const result = await makeAPICall(
+    const result = await makeAPICall<{ error: string }>(
       "PATCH",
       "/api/admin/organizations",
       undefined,
@@ -934,7 +939,7 @@ describe("Public Organizations API", () => {
           },
         });
 
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ error: string }>(
           "GET",
           `/api/public/organizations/projects`,
           undefined,
@@ -957,7 +962,7 @@ describe("Public Organizations API", () => {
       });
 
       it("should return 401 when using invalid API key", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ error: string }>(
           "GET",
           `/api/public/organizations/projects`,
           undefined,
@@ -967,7 +972,7 @@ describe("Public Organizations API", () => {
       });
 
       it("should return 405 for non-GET methods", async () => {
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ error: string }>(
           "POST",
           `/api/public/organizations/projects`,
           { some: "data" },
@@ -1067,7 +1072,9 @@ describe("Public Organizations API", () => {
           data: {
             name: `Null Metadata Project ${randomUUID().substring(0, 8)}`,
             orgId: testOrgId,
-            metadata: null,
+            // intentionally passes a plain null (not Prisma.DbNull) to mirror
+            // pre-existing runtime behavior; cast keeps the fixture unchanged
+            metadata: null as unknown as Prisma.NullableJsonNullValueInput,
           },
         });
 
@@ -1250,7 +1257,7 @@ describe("Public Organizations API", () => {
         scope: "PROJECT",
       });
 
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ error: string }>(
         "GET",
         `/api/public/organizations/apiKeys`,
         undefined,
@@ -1272,7 +1279,7 @@ describe("Public Organizations API", () => {
     });
 
     it("should reject request with invalid API key", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ error: string }>(
         "GET",
         `/api/public/organizations/apiKeys`,
         undefined,
@@ -1283,7 +1290,7 @@ describe("Public Organizations API", () => {
     });
 
     it("should only allow GET method", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ error: string }>(
         "POST",
         `/api/public/organizations/apiKeys`,
         {},

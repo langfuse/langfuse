@@ -80,6 +80,9 @@ export interface PivotTableConfig {
   /** Array of metric field names to display as columns */
   metrics: string[];
 
+  /** Per-metric units, ordered to match `metrics`. Effects label formatting */
+  units?: (string | undefined)[];
+
   /** Maximum number of data rows to display (before totals) */
   rowLimit?: number;
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -20,10 +21,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { ChevronDown, CheckIcon, PlusIcon, EyeIcon } from "lucide-react";
+import {
+  ChevronDown,
+  CheckIcon,
+  PlusIcon,
+  EyeIcon,
+  TriangleAlert,
+} from "lucide-react";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
-import { type LlmSchema } from "@langfuse/shared";
-import { Switch } from "@/src/components/ui/switch";
+import {
+  hasPromptToolStructuredOutputConflict,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+  type LlmSchema,
+} from "@langfuse/shared";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
 import { CardDescription } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
@@ -45,6 +56,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
     setSelectedPromptName,
     selectedPromptVersion,
     setSelectedPromptVersion,
+    selectedPromptToolConfig,
   } = promptModelState;
   const {
     modelParams,
@@ -62,6 +74,23 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
   const [open, setOpen] = useState(false);
   const [selectedSchema, setSelectedSchema] = useState<LlmSchema | null>(null);
   const [schemaPopoverOpen, setSchemaPopoverOpen] = useState(false);
+  const [schemaDialogOpen, setSchemaDialogOpen] = useState(false);
+  const [schemaDialogRequest, setSchemaDialogRequest] = useState<{
+    id: number;
+    existingLlmSchema: LlmSchema | null;
+  }>();
+
+  const openSchemaDialog = (existingLlmSchema: LlmSchema | null) => {
+    setSchemaDialogRequest((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      existingLlmSchema,
+    }));
+    setSchemaDialogOpen(true);
+  };
+  const hasToolStructuredOutputConflict = hasPromptToolStructuredOutputConflict(
+    selectedPromptToolConfig,
+    structuredOutputEnabled,
+  );
 
   const savedSchemas = api.llmSchemas.getAll.useQuery(
     { projectId },
@@ -239,6 +268,13 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                 </PopoverContent>
               </Popover>
             </div>
+            {selectedPromptToolConfig.status === "invalid" && (
+              <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
+                <TriangleAlert className="h-4 w-4 shrink-0" />
+                Invalid tool config detected on this prompt version. Its tools
+                will be ignored when running the experiment.
+              </p>
+            )}
             <FormMessage />
           </FormItem>
         )}
@@ -249,8 +285,8 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
         name="modelConfig"
         render={() => (
           <FormItem>
-            <FormLabel>Model</FormLabel>
             <ModelParameters
+              customHeader={<FormLabel>Model</FormLabel>}
               {...{
                 modelParams,
                 availableModels,
@@ -264,7 +300,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"
-                className={cn("text-destructive text-sm font-medium")}
+                className="text-destructive text-sm font-bold"
               >
                 {[
                   form.formState.errors.modelConfig?.model?.message,
@@ -353,54 +389,60 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     </Popover>
 
                     {selectedSchema && (
-                      <CreateOrEditLLMSchemaDialog
-                        projectId={projectId}
-                        existingLlmSchema={selectedSchema}
-                        onSave={(updatedSchema) => {
-                          setSelectedSchema(updatedSchema);
-                          setSelectedSchemaName(updatedSchema.name);
-                          field.onChange(
-                            updatedSchema.schema as Record<string, unknown>,
-                          );
-                        }}
-                        onDelete={() => {
-                          setSelectedSchema(null);
-                          setSelectedSchemaName(null);
-                          field.onChange(undefined);
-                        }}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`View schema ${selectedSchema.name}`}
+                        onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <Button variant="ghost" size="icon">
-                          <EyeIcon className="h-4 w-4" />
-                        </Button>
-                      </CreateOrEditLLMSchemaDialog>
+                        <EyeIcon className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 ) : (
-                  <CreateOrEditLLMSchemaDialog
-                    projectId={projectId}
-                    onSave={(newSchema) => {
-                      setSelectedSchema(newSchema);
-                      setSelectedSchemaName(newSchema.name);
-                      field.onChange(
-                        newSchema.schema as Record<string, unknown>,
-                      );
-                      // Toggle is already ON if we're seeing this button
-                      // No need to set it again
-                    }}
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => openSchemaDialog(null)}
                   >
-                    <Button variant="outline" className="w-full">
-                      <PlusIcon className="mr-2 h-4 w-4" />
-                      Add schema
-                    </Button>
-                  </CreateOrEditLLMSchemaDialog>
+                    <PlusIcon className="mr-2 h-4 w-4" />
+                    Add schema
+                  </Button>
+                )}
+                {schemaDialogRequest && (
+                  <CreateOrEditLLMSchemaDialog
+                    key={schemaDialogRequest.id}
+                    projectId={projectId}
+                    open={schemaDialogOpen}
+                    onOpenChange={setSchemaDialogOpen}
+                    existingLlmSchema={
+                      schemaDialogRequest.existingLlmSchema ?? undefined
+                    }
+                    onSave={(schema) => {
+                      setSelectedSchema(schema);
+                      setSelectedSchemaName(schema.name);
+                      field.onChange(schema.schema as Record<string, unknown>);
+                    }}
+                    onDelete={() => {
+                      setSelectedSchema(null);
+                      setSelectedSchemaName(null);
+                      field.onChange(undefined);
+                    }}
+                  />
                 )}
               </>
             )}
 
-            <CardDescription>
-              {structuredOutputEnabled
-                ? "Configure the schema for structured LLM outputs"
-                : "Enable to enforce a specific output format"}
+            <CardDescription
+              className={cn(
+                hasToolStructuredOutputConflict && "text-destructive",
+              )}
+            >
+              {hasToolStructuredOutputConflict
+                ? PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE
+                : structuredOutputEnabled
+                  ? "Configure the schema for structured LLM outputs"
+                  : "Enable to enforce a specific output format"}
             </CardDescription>
             <FormMessage />
           </FormItem>

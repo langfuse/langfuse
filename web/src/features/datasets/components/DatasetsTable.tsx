@@ -1,37 +1,55 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-null-render */
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DataTable } from "@/src/components/table/data-table";
-import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
+import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
+import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { MoreVertical } from "lucide-react";
-import { useEffect, useMemo } from "react";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useEffect, useMemo, useState } from "react";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
-import { TableViewPresetTableName, type Prisma } from "@langfuse/shared";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import {
+  TableViewPresetTableName,
+  type Prisma,
+  ActionId,
+  BatchActionType,
+  BatchExportTableName,
+} from "@langfuse/shared";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import { LocalIsoDate } from "@/src/components/LocalIsoDate";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
 import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBreadcrumbLink";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import {
+  createDatasetsTableStore,
+  toFolderRowId,
+  type DatasetsTableStore,
+} from "@/src/features/datasets/store/datasetsTableStore";
+import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
+import { useStore } from "zustand";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { type TableAction } from "@/src/features/table/types";
+import { showSuccessToast } from "@/src/features/notifications";
+import { Pen, Trash } from "lucide-react";
 
 type DatasetTableRow = {
+  id: string;
   key: {
     id: string;
     name: string; // Display name (segment only)
@@ -48,6 +66,17 @@ type DatasetTableRow = {
   expectedOutputSchema?: Prisma.JsonValue | null;
 };
 
+type DatasetTableViewControllers = Pick<
+  ReturnType<typeof useTableViewManager>,
+  | "applyViewState"
+  | "selectedViewId"
+  | "appliedViewId"
+  | "handleSetViewId"
+  | "handleUserStateChange"
+  | "viewUpdateTarget"
+  | "filterEditorResetKey"
+>;
+
 function createRow(
   data: Partial<DatasetTableRow> & {
     key: {
@@ -59,6 +88,7 @@ function createRow(
   },
 ): DatasetTableRow {
   return {
+    id: data.isFolder ? toFolderRowId(data.folderPath) : data.key.id,
     description: null,
     createdAt: null,
     lastRunAt: null,
@@ -71,9 +101,173 @@ function createRow(
   };
 }
 
+function DatasetsMultiSelectActionMenu({
+  currentFolderPath,
+  projectId,
+  searchQuery,
+  store,
+}: {
+  currentFolderPath: string | undefined;
+  projectId: string;
+  searchQuery: string | null;
+  store: DatasetsTableStore;
+}) {
+  const selectAll = useStore(store, (state) => state.selectAll);
+  const selectedCount = useStore(
+    store,
+    (state) => state.selectedPageRowIds.length,
+  );
+  const clearSelection = useStore(
+    store,
+    (state) => state.actions.clearSelection,
+  );
+  const deleteSelected = useStore(
+    store,
+    (state) => state.actions.deleteSelected,
+  );
+  const capture = usePostHogClientCapture();
+  const utils = api.useUtils();
+  const deleteManyMutation = api.datasets.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Datasets deleted",
+        description:
+          "Selected datasets will be deleted. Associated run items and media links are cleaned up asynchronously.",
+      });
+    },
+    onSettled: () => {
+      utils.datasets.invalidate();
+    },
+  });
+
+  if (selectedCount === 0 && !selectAll) return null;
+
+  const tableActions: TableAction[] = [
+    {
+      id: ActionId.DatasetDelete,
+      type: BatchActionType.Delete,
+      label: "Delete",
+      description:
+        "This action cannot be undone. Selected folders delete all datasets contained in them.",
+      accessCheck: {
+        scope: "datasets:CUD",
+      },
+      execute: ({ projectId }) =>
+        deleteSelected({
+          projectId,
+          deleteMany: deleteManyMutation.mutateAsync,
+          capture,
+          scope: { folderPath: currentFolderPath, searchQuery },
+        }),
+    },
+  ];
+
+  return (
+    <TableActionMenu
+      projectId={projectId}
+      actions={tableActions}
+      tableName={BatchExportTableName.Datasets}
+      selectedCount={selectedCount}
+      approximateCount={selectAll}
+      onClearSelection={clearSelection}
+    />
+  );
+}
+
+function DatasetsTableToolbar({
+  columnOrder,
+  columnVisibility,
+  columns,
+  currentFolderPath,
+  paginationState,
+  projectId,
+  rowHeight,
+  searchQuery,
+  setColumnOrder,
+  setColumnVisibility,
+  setRowHeight,
+  setSearchQuery,
+  store,
+  totalCount,
+  viewControllers,
+}: {
+  columnOrder: ReturnType<typeof useColumnOrder<DatasetTableRow>>[0];
+  columnVisibility: ReturnType<typeof useColumnVisibility<DatasetTableRow>>[0];
+  columns: LangfuseColumnDef<DatasetTableRow>[];
+  currentFolderPath: string | undefined;
+  paginationState: { pageIndex: number; pageSize: number };
+  projectId: string;
+  rowHeight: ReturnType<typeof useRowHeightLocalStorage>[0];
+  searchQuery: string | null;
+  setColumnOrder: ReturnType<typeof useColumnOrder<DatasetTableRow>>[1];
+  setColumnVisibility: ReturnType<
+    typeof useColumnVisibility<DatasetTableRow>
+  >[1];
+  setRowHeight: ReturnType<typeof useRowHeightLocalStorage>[1];
+  setSearchQuery: (query: string | null) => void;
+  store: DatasetsTableStore;
+  totalCount: number | null;
+  viewControllers: DatasetTableViewControllers;
+}) {
+  const selectAll = useStore(store, (state) => state.selectAll);
+  const selectedPageRowIds = useStore(
+    store,
+    (state) => state.selectedPageRowIds,
+  );
+  const selectionActions = useStore(store, (state) => state.actions);
+
+  return (
+    <DataTableToolbar
+      columns={columns}
+      columnVisibility={columnVisibility}
+      setColumnVisibility={setColumnVisibility}
+      columnOrder={columnOrder}
+      setColumnOrder={setColumnOrder}
+      rowHeight={rowHeight}
+      setRowHeight={setRowHeight}
+      searchConfig={{
+        metadataSearchFields: ["Name"],
+        updateQuery: setSearchQuery,
+        currentQuery: searchQuery ?? undefined,
+        tableAllowsFullTextSearch: false,
+        setSearchType: undefined,
+        searchType: undefined,
+      }}
+      currentSearchQuery={searchQuery ?? ""}
+      isV4={false}
+      viewConfig={{
+        tableName: TableViewPresetTableName.Datasets,
+        projectId,
+        controllers: viewControllers,
+      }}
+      actionButtons={[
+        <DatasetsMultiSelectActionMenu
+          key="datasets-multi-select-delete"
+          currentFolderPath={currentFolderPath}
+          projectId={projectId}
+          searchQuery={searchQuery}
+          store={store}
+        />,
+      ]}
+      multiSelect={{
+        selectAll,
+        setSelectAll: selectionActions.setSelectAll,
+        selectedRowIds: selectedPageRowIds,
+        setRowSelection: selectionActions.setRowSelection,
+        totalCount,
+        // A folder row deletes every dataset under it, so the displayed row
+        // count understates the true deletion scope — keep the banner vague.
+        approximateCount: true,
+        ...paginationState,
+      }}
+    />
+  );
+}
+
 export function DatasetsTable(props: { projectId: string }) {
   const { setDetailPageList } = useDetailPageLists();
   const [rowHeight, setRowHeight] = useRowHeightLocalStorage("datasets", "s");
+  const [datasetsTableStore] = useState(() => createDatasetsTableStore());
 
   const {
     paginationState,
@@ -122,82 +316,74 @@ export function DatasetsTable(props: { projectId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasets.isSuccess, datasets.data]);
 
+  const { selectActionColumn } = TableSelectionManager<DatasetTableRow>({
+    projectId: props.projectId,
+    tableName: "datasets",
+    setSelectedRows: datasetsTableStore.getState().actions.setRowSelection,
+    setSelectAll: datasetsTableStore.getState().actions.setSelectAll,
+    selectionStore: datasetsTableStore,
+  });
+
   const columns: LangfuseColumnDef<DatasetTableRow>[] = [
-    {
+    selectActionColumn,
+    createFolderKeyTableColumn<DatasetTableRow, DatasetTableRow["key"]>({
       accessorKey: "key",
       header: "Name",
-      id: "key",
       size: 150,
       isFixedPosition: true,
-      cell: ({ row }) => {
-        const key: DatasetTableRow["key"] = row.getValue("key");
+      getCell: (key, { row }) => {
+        if (!key) return undefined;
         const rowData = row.original;
 
         if (rowData.isFolder) {
-          return (
-            <FolderBreadcrumbLink
-              name={key.name}
-              onClick={() => navigateToFolder(rowData.folderPath)}
-            />
-          );
+          return {
+            type: "folder",
+            name: key.name,
+            onClick: () => navigateToFolder(rowData.folderPath),
+          };
         }
 
-        return (
-          <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
-            value={key.name}
-          />
-        );
+        return {
+          type: "link",
+          props: {
+            path: `/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`,
+            value: key.name,
+          },
+        };
       },
-    },
-    {
+    }),
+    createTextTableColumn<DatasetTableRow>({
       accessorKey: "description",
       header: "Description",
-      id: "description",
       enableHiding: true,
       size: 200,
-      cell: ({ row }) => {
-        const description: DatasetTableRow["description"] =
-          row.getValue("description");
-        return description;
-      },
-    },
-    {
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countItems",
       header: "Items",
-      id: "countItems",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createNumberTableColumn<DatasetTableRow>({
       accessorKey: "countRuns",
-      header: "Runs",
-      id: "countRuns",
+      header: "Experiments",
       enableHiding: true,
       size: 60,
-    },
-    {
+      formatter: (value) => String(value),
+    }),
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "createdAt",
       header: "Created",
-      id: "createdAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["createdAt"] = row.getValue("createdAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
-    {
+    }),
+    createDateTableColumn<DatasetTableRow>({
       accessorKey: "lastRunAt",
       header: "Last Run",
-      id: "lastRunAt",
       enableHiding: true,
       size: 150,
-      cell: ({ row }) => {
-        const value: DatasetTableRow["lastRunAt"] = row.getValue("lastRunAt");
-        return value ? <LocalIsoDate date={value} /> : undefined;
-      },
-    },
+    }),
     {
       accessorKey: "inputSchema",
       header: "Input Schema",
@@ -235,19 +421,14 @@ export function DatasetsTable(props: { projectId: string }) {
         );
       },
     },
-    {
+    createIOTableColumn<DatasetTableRow>({
       accessorKey: "metadata",
       header: "Metadata",
-      id: "metadata",
       enableHiding: true,
       size: 300,
-      cell: ({ row }) => {
-        const metadata: DatasetTableRow["metadata"] = row.getValue("metadata");
-        return !!metadata ? (
-          <IOTableCell data={metadata} singleLine={rowHeight === "s"} />
-        ) : null;
-      },
-    },
+      getCell: (value) => value || undefined,
+      singleLine: rowHeight === "s",
+    }),
     {
       id: "actions",
       accessorKey: "actions",
@@ -261,42 +442,56 @@ export function DatasetsTable(props: { projectId: string }) {
         }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="flex flex-col *:w-full *:justify-start"
+          <div className="flex items-center gap-1">
+            <UpdateDatasetDialogController
+              projectId={props.projectId}
+              datasetId={key.id}
+              datasetName={row.original.folderPath}
+              datasetDescription={row.getValue("description") ?? undefined}
+              datasetMetadata={row.getValue("metadata") ?? undefined}
+              datasetInputSchema={row.original.inputSchema ?? undefined}
+              datasetExpectedOutputSchema={
+                row.original.expectedOutputSchema ?? undefined
+              }
+              source="table-single-row"
             >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="update"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
-                  datasetDescription={row.getValue("description") ?? undefined}
-                  datasetMetadata={row.getValue("metadata") ?? undefined}
-                  datasetInputSchema={row.original.inputSchema ?? undefined}
-                  datasetExpectedOutputSchema={
-                    row.original.expectedOutputSchema ?? undefined
-                  }
+              {({ disabled, openDialog }) => (
+                <IconOnlyButton
+                  icon={<Pen className="h-4 w-4" />}
+                  label="Edit"
+                  aria-label="edit"
+                  disabledReason={disabled?.reason}
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDialog();
+                  }}
                 />
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="delete"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
+              )}
+            </UpdateDatasetDialogController>
+            <DeleteDatasetDialogController
+              projectId={props.projectId}
+              datasetId={key.id}
+              datasetName={row.original.folderPath}
+              source="table-single-row"
+            >
+              {({ disabled, openDialog }) => (
+                <IconOnlyButton
+                  icon={<Trash className="h-4 w-4" />}
+                  label="Delete"
+                  aria-label="delete"
+                  disabledReason={disabled?.reason}
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    openDialog();
+                  }}
                 />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+              )}
+            </DeleteDatasetDialogController>
+          </div>
         );
       },
     },
@@ -374,6 +569,36 @@ export function DatasetsTable(props: { projectId: string }) {
     };
   }, [datasetsDatasetTableRow, currentFolderPath]);
 
+  const pageRowIds = useMemo(
+    () => processedRowData.rows.map((row) => row.id),
+    [processedRowData.rows],
+  );
+
+  const selectAll = useStore(datasetsTableStore, (state) => state.selectAll);
+
+  useDatasetsTableSelectionSync({
+    store: datasetsTableStore,
+    pageRowIds,
+    totalCount: datasets.data?.totalDatasets ?? null,
+    currentFolderPath,
+    searchQuery,
+  });
+
+  const handleSearchQueryChange = (query: string | null) => {
+    viewControllers.handleUserStateChange(searchQuery ?? "", query ?? "");
+    setSearchQuery(query);
+  };
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (next) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibility(value);
+  };
+
   return (
     <>
       {currentFolderPath && (
@@ -382,31 +607,29 @@ export function DatasetsTable(props: { projectId: string }) {
           navigateToFolder={navigateToFolder}
         />
       )}
-      <DataTableToolbar
+      <DatasetsTableToolbar
+        key={`${props.projectId}:${viewControllers.filterEditorResetKey}`}
         columns={columns}
         columnVisibility={columnVisibility}
-        setColumnVisibility={setColumnVisibility}
+        setColumnVisibility={handleColumnVisibilityChange}
         columnOrder={columnOrder}
-        setColumnOrder={setColumnOrder}
+        setColumnOrder={handleColumnOrderChange}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
-        searchConfig={{
-          metadataSearchFields: ["Name"],
-          updateQuery: setSearchQuery,
-          currentQuery: searchQuery ?? undefined,
-          tableAllowsFullTextSearch: false,
-          setSearchType: undefined,
-          searchType: undefined,
-        }}
-        viewConfig={{
-          tableName: TableViewPresetTableName.Datasets,
-          projectId: props.projectId,
-          controllers: viewControllers,
-        }}
+        currentFolderPath={currentFolderPath}
+        paginationState={paginationState}
+        projectId={props.projectId}
+        searchQuery={searchQuery}
+        setSearchQuery={handleSearchQueryChange}
+        store={datasetsTableStore}
+        totalCount={datasets.data?.totalDatasets ?? null}
+        viewControllers={viewControllers}
       />
       <DataTable
-        tableName={"datasets"}
+        tableName="datasets"
         columns={columns}
+        selectionStore={datasetsTableStore}
+        highlightAllRows={selectAll}
         data={
           datasets.isLoading || isViewLoading
             ? { isLoading: true, isError: false }
@@ -428,9 +651,9 @@ export function DatasetsTable(props: { projectId: string }) {
           state: paginationState,
         }}
         columnVisibility={columnVisibility}
-        onColumnVisibilityChange={setColumnVisibility}
+        onColumnVisibilityChange={handleColumnVisibilityChange}
         columnOrder={columnOrder}
-        onColumnOrderChange={setColumnOrder}
+        onColumnOrderChange={handleColumnOrderChange}
         rowHeight={rowHeight}
       />
     </>

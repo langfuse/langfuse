@@ -1,5 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -27,6 +28,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           orgId: input.orgId,
           scope: "ORGANIZATION",
+          isInAppAgentKey: false,
         },
         select: {
           id: true,
@@ -36,6 +38,19 @@ export const organizationApiKeysRouter = createTRPCRouter({
           note: true,
           publicKey: true,
           displaySecretKey: true,
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          createdByApiKey: {
+            select: {
+              id: true,
+              publicKey: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -55,12 +70,21 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
+      // Issuing organization-scoped keys is a paid feature. Reads and deletes
+      // stay ungated so a downgraded organization can still revoke keys that
+      // were issued while it was entitled.
+      throwIfNoEntitlement({
+        entitlement: "admin-api",
+        sessionUser: ctx.session.user,
+        orgId: input.orgId,
+      });
 
       const apiKeyMeta = await createAndAddApiKeysToDb({
         prisma: ctx.prisma,
         entityId: input.orgId,
         note: input.note,
         scope: "ORGANIZATION",
+        createdByUserId: ctx.session.user.id,
       });
 
       await auditLog({
@@ -87,6 +111,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
+      await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+      });
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",
@@ -98,6 +130,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           id: input.keyId,
           orgId: input.orgId,
+          isInAppAgentKey: false,
         },
         data: {
           note: input.note,
@@ -120,6 +153,16 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
+      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.id,
+          orgId: input.orgId,
+          scope: "ORGANIZATION",
+        },
+      });
+
+      if (apiKey.isInAppAgentKey) return false;
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",

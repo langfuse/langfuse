@@ -1,5 +1,5 @@
 import { Card } from "@/src/components/ui/card";
-import { type ScoreTarget } from "@/src/features/scores/types";
+import { AnnotationForm, type ScoreTarget } from "@/src/features/scores";
 import {
   type AnnotationQueueItem,
   type ScoreDomain,
@@ -8,7 +8,6 @@ import {
 } from "@langfuse/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 interface AnnotationDrawerSectionProps {
@@ -34,7 +33,7 @@ export const AnnotationDrawerSection: React.FC<
   );
 
   return (
-    <Card className="col-span-2 flex h-full flex-col overflow-y-auto p-3">
+    <Card className="col-span-2 flex h-full flex-col overflow-y-auto border-none p-3">
       <AnnotationForm
         key={"annotation-drawer-content" + item.objectId}
         scoreTarget={scoreTarget}

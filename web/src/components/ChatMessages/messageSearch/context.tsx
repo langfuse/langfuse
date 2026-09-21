@@ -142,6 +142,7 @@ export function useMessageSearch() {
     openSearch: controller.openSearch,
     closeSearch: controller.closeSearch,
     setQueryInput: controller.setQueryInput,
+    blurQueryInput: controller.blurQueryInput,
     nextMatch: controller.nextMatch,
     previousMatch: controller.previousMatch,
   };
@@ -159,9 +160,15 @@ export function useSyncMessageSearchMessages(
     }
 
     actions.registerPageMessages(pageId, messages);
+  }, [actions, messages, pageId]);
+
+  useEffect(() => {
+    if (!actions) {
+      return;
+    }
 
     return () => {
       actions.unregisterPageMessages(pageId);
     };
-  }, [actions, messages, pageId]);
+  }, [actions, pageId]);
 }

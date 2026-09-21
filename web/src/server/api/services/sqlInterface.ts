@@ -1,13 +1,13 @@
-import { singleFilter } from "@langfuse/shared";
+import { singleFilterList } from "@langfuse/shared";
 import { z } from "zod";
 
 export type DatabaseRow = {
   [key: string]: string | number | Date | Record<string, unknown> | null;
 };
 
-export const temporalUnit = z.enum(["month", "week", "day", "hour", "minute"]);
+const temporalUnit = z.enum(["month", "week", "day", "hour", "minute"]);
 
-export const aggregations = z
+const aggregations = z
   .enum([
     "SUM",
     "AVG",
@@ -22,7 +22,7 @@ export const aggregations = z
   ])
   .optional();
 
-export const groupByInterface = z.array(
+const groupByInterface = z.array(
   z.discriminatedUnion("type", [
     z.object({
       type: z.literal("datetime"),
@@ -42,7 +42,7 @@ const orderByInterface = z.array(
   }),
 );
 
-export const filterInterface = z.array(singleFilter);
+export const filterInterface = singleFilterList;
 
 export const sqlInterface = z.object({
   from: z.enum([

@@ -1,11 +1,11 @@
 import {
+  clickhouseClient,
   createObservation,
   createTraceScore,
   createTrace,
   createSessionScore,
   getScoresByIds,
-} from "@langfuse/shared/src/server";
-import {
+  getScoreById,
   createObservationsCh,
   createScoresCh,
   createTracesCh,
@@ -24,6 +24,46 @@ import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
+
+type IngestionAttributionRow = {
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+};
+
+const getScoreIngestionAttribution = async (
+  projectId: string,
+  scoreId: string,
+) => {
+  const result = await clickhouseClient().query({
+    query: `
+      SELECT
+        ingestion_api_key,
+        ingestion_sdk_name,
+        ingestion_sdk_version
+      FROM scores
+      WHERE project_id = {projectId: String}
+        AND id = {scoreId: String}
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `,
+    query_params: {
+      projectId,
+      scoreId,
+    },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<IngestionAttributionRow>();
+  return rows[0];
+};
+
+// GetScoreResponseV1 is a union whose TEXT variant carries no `value`; the
+// scores asserted below are NUMERIC, so narrow to the value-carrying variants.
+type APIScoreV1WithValue = Extract<
+  z.infer<typeof GetScoreResponseV1>,
+  { value: number }
+>;
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -73,6 +113,51 @@ describe("/api/public/scores API Endpoint", () => {
         observationId: score.observation_id,
         dataType: "NUMERIC",
       });
+    });
+
+    it("should GET a text score", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const scoreId = v4();
+      const traceId = v4();
+      const score = createTraceScore({
+        id: scoreId,
+        project_id: projectId,
+        trace_id: traceId,
+        name: "Text Score",
+        timestamp: Date.now(),
+        value: 0,
+        string_value: "Great explanation",
+        source: "API",
+        comment: "comment",
+        data_type: "TEXT" as const,
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        event_ts: Date.now(),
+        is_deleted: 0,
+      });
+
+      await createScoresCh([score]);
+
+      const getScore = await makeZodVerifiedAPICall(
+        GetScoreResponseV1,
+        "GET",
+        `/api/public/scores/${scoreId}`,
+        undefined,
+        auth,
+      );
+
+      expect(getScore.status).toBe(200);
+      expect(getScore.body).toMatchObject({
+        id: scoreId,
+        name: "Text Score",
+        stringValue: "Great explanation",
+        comment: "comment",
+        source: "API",
+        traceId,
+        dataType: "TEXT",
+      });
+      expect(getScore.body).not.toHaveProperty("value");
     });
 
     it("should GET score with minimal score data and minimal trace data", async () => {
@@ -183,7 +268,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -223,6 +308,8 @@ describe("/api/public/scores API Endpoint", () => {
         ...score,
         value: 200.5,
         metadata: { "test-key": "test-value-updated" },
+        updated_at: score.updated_at + 1,
+        event_ts: score.event_ts + 1,
       };
       await createScoresCh([updatedScore]);
 
@@ -237,7 +324,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(200.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(200.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -299,7 +386,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100);
       expect(fetchedScore.body?.configId).toBe(configId);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
@@ -314,6 +401,45 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("GET /api/public/scores", () => {
+    it("clamps Hobby score access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = v4();
+      const recentId = v4();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: fixture.projectId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          id: oldId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+        }),
+        createTraceScore({
+          id: recentId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoresResponseV1,
+        "GET",
+        "/api/public/scores",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((score) => score.id)).toContain(recentId);
+      expect(response.body.data.map((score) => score.id)).not.toContain(oldId);
+    });
+
     it("#6396: should correctly list 100s of scores", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -390,7 +516,9 @@ describe("/api/public/scores API Endpoint", () => {
             dataType: "NUMERIC",
           });
           expect(score.name).toMatch(/^score-\d+$/);
-          expect(score.value).toBe(parseInt(score.name.split("-")[1]));
+          expect((score as APIScoreV1WithValue).value).toBe(
+            parseInt(score.name.split("-")[1]),
+          );
         }
 
         // Check if we need to fetch more pages
@@ -422,10 +550,12 @@ describe("/api/public/scores API Endpoint", () => {
       const scoreId_5 = v4();
       const scoreId_6 = v4();
       const scoreId_7 = v4();
+      const textScoreId_1 = v4();
+      const textScoreId_2 = v4();
       let authentication: string;
       let newProjectId: string;
 
-      beforeEach(async () => {
+      beforeAll(async () => {
         const { projectId, auth } = await createOrgProjectAndApiKey();
         authentication = auth;
         newProjectId = projectId;
@@ -452,24 +582,24 @@ describe("/api/public/scores API Endpoint", () => {
           environment: "production",
         });
 
-        await createTracesCh([trace, trace_2, trace_3]);
-
         const generation = createObservation({
           id: generationId,
           project_id: newProjectId,
           type: "GENERATION",
         });
 
-        await createObservationsCh([generation]);
-
-        const config = await prisma.scoreConfig.create({
-          data: {
-            name: scoreName,
-            dataType: "NUMERIC",
-            maxValue: 100,
-            projectId: newProjectId,
-          },
-        });
+        const [config] = await Promise.all([
+          prisma.scoreConfig.create({
+            data: {
+              name: scoreName,
+              dataType: "NUMERIC",
+              maxValue: 100,
+              projectId: newProjectId,
+            },
+          }),
+          createTracesCh([trace, trace_2, trace_3]),
+          createObservationsCh([generation]),
+        ]);
 
         configId = config.id;
 
@@ -530,6 +660,26 @@ describe("/api/public/scores API Endpoint", () => {
           environment: "production",
         });
 
+        const textScore1 = createTraceScore({
+          id: textScoreId_1,
+          project_id: newProjectId,
+          trace_id: traceId_2,
+          name: "text-score-name",
+          data_type: "TEXT",
+          string_value: "text-value-1",
+          value: 0,
+        });
+
+        const textScore2 = createTraceScore({
+          id: textScoreId_2,
+          project_id: newProjectId,
+          trace_id: traceId_3,
+          name: "text-score-name",
+          data_type: "TEXT",
+          string_value: "text-value-2",
+          value: 0,
+        });
+
         const sessionScore1 = createSessionScore({
           id: scoreId_6,
           project_id: newProjectId,
@@ -554,6 +704,8 @@ describe("/api/public/scores API Endpoint", () => {
           score3,
           score4,
           score5,
+          textScore1,
+          textScore2,
           sessionScore1,
           sessionScore2,
         ]);
@@ -571,7 +723,7 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 5, // 7 scores in total, but only 5 are trace scores
+          totalItems: 7, // 9 scores in total, but only 7 are trace scores
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
@@ -628,6 +780,31 @@ describe("/api/public/scores API Endpoint", () => {
             observationId: generationId,
             dataType: "NUMERIC",
           });
+        }
+      });
+
+      it("get all scores for text data type", async () => {
+        const getAllScore = await makeZodVerifiedAPICall(
+          GetScoresResponseV1,
+          "GET",
+          `/api/public/scores?dataType=TEXT`,
+          undefined,
+          authentication,
+        );
+
+        expect(getAllScore.status).toBe(200);
+        expect(getAllScore.body.meta).toMatchObject({
+          page: 1,
+          limit: 50,
+          totalItems: 2,
+          totalPages: 1,
+        });
+        for (const val of getAllScore.body.data) {
+          expect(val).toMatchObject({
+            dataType: "TEXT",
+            name: "text-score-name",
+          });
+          expect(val.stringValue).toContain("text-value");
         }
       });
 
@@ -696,7 +873,7 @@ describe("/api/public/scores API Endpoint", () => {
         expect(getAllScore.body.meta).toMatchObject({
           page: 1,
           limit: 50,
-          totalItems: 1,
+          totalItems: 2,
           totalPages: 1,
         });
         for (const val of getAllScore.body.data) {
@@ -713,29 +890,50 @@ describe("/api/public/scores API Endpoint", () => {
       describe("should Filter scores by queueId", () => {
         describe("queueId filtering", () => {
           let queueId: string;
+          let queueTraceId: string;
+          let queueGenerationId: string;
+          let queueAuth: string;
 
           beforeEach(async () => {
+            const { projectId, auth } = await createOrgProjectAndApiKey();
+            queueAuth = auth;
             queueId = v4();
+            queueTraceId = v4();
+            queueGenerationId = v4();
+
+            await Promise.all([
+              createTracesCh([
+                createTrace({ id: queueTraceId, project_id: projectId }),
+              ]),
+              createObservationsCh([
+                createObservation({
+                  id: queueGenerationId,
+                  project_id: projectId,
+                  type: "GENERATION",
+                }),
+              ]),
+            ]);
+
             const score = createTraceScore({
               id: v4(),
-              project_id: newProjectId,
-              trace_id: traceId,
+              project_id: projectId,
+              trace_id: queueTraceId,
               name: "score-name",
               value: 100.5,
               source: "ANNOTATION",
               comment: "comment",
-              observation_id: generationId,
+              observation_id: queueGenerationId,
               queue_id: queueId,
             });
             const score2 = createTraceScore({
               id: v4(),
-              project_id: newProjectId,
-              trace_id: traceId,
+              project_id: projectId,
+              trace_id: queueTraceId,
               name: "score-name",
               value: 75.0,
               source: "ANNOTATION",
               comment: "comment",
-              observation_id: generationId,
+              observation_id: queueGenerationId,
               queue_id: queueId,
             });
 
@@ -748,7 +946,7 @@ describe("/api/public/scores API Endpoint", () => {
               "GET",
               `/api/public/scores?queueId=${queueId}`,
               undefined,
-              authentication,
+              queueAuth,
             );
             expect(getAllScore.status).toBe(200);
             expect(getAllScore.body.meta).toMatchObject({
@@ -759,8 +957,8 @@ describe("/api/public/scores API Endpoint", () => {
             });
             for (const val of getAllScore.body.data) {
               expect(val).toMatchObject({
-                traceId: traceId,
-                observationId: generationId,
+                traceId: queueTraceId,
+                observationId: queueGenerationId,
                 queueId: queueId,
                 source: "ANNOTATION",
               });
@@ -1006,6 +1204,66 @@ describe("/api/public/scores API Endpoint", () => {
             );
           }
         });
+
+        // Regression tests for #8630: the value operator must not override
+        // the fixed >= / < operators of the fromTimestamp/toTimestamp filters.
+        describe("operator combined with timestamp window", () => {
+          const fromTimestamp = new Date(
+            Date.now() - 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const toTimestamp = new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const timestampWindow = `fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}`;
+
+          it("test operator > with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=>&value=100&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_3,
+                name: scoreName,
+                value: 100.8,
+              },
+            ]);
+          });
+
+          it("test operator < with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=<&value=50&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_1,
+                name: scoreName,
+                value: 10.5,
+              },
+            ]);
+          });
+        });
       });
 
       it("should filter scores by score IDs", async () => {
@@ -1209,5 +1467,310 @@ describe("/api/public/scores API Endpoint", () => {
         expect(response.status).toBe(404);
       });
     });
+  });
+
+  describe("Bearer auth (public key only)", () => {
+    it("should create a score via POST /api/public/scores with Bearer public key", async () => {
+      const { projectId, publicKey } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const trace = createTrace({ id: traceId, project_id: projectId });
+      await createTracesCh([trace]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "feedback",
+          value: 1,
+        },
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty("id", scoreId);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+        expect(score!.traceId).toBe(traceId);
+        expect(score!.name).toBe("feedback");
+        expect(score!.value).toBe(1);
+      });
+    });
+
+    it("should reject GET /api/public/scores with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "GET",
+        "/api/public/scores",
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it("should reject GET /api/public/scores/:scoreId with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "GET",
+        `/api/public/scores/${v4()}`,
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it("should reject DELETE /api/public/scores/:scoreId with Bearer public key", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "DELETE",
+        `/api/public/scores/${v4()}`,
+        undefined,
+        `Bearer ${publicKey}`,
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it("should reject POST /api/public/scores with invalid Bearer token", async () => {
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          traceId: v4(),
+          name: "feedback",
+          value: 1,
+        },
+        `Bearer pk-invalid-key-that-does-not-exist`,
+      );
+
+      expect(response.status).toBe(401);
+    });
+
+    it("should reject Bearer public key on non-scores endpoints", async () => {
+      const { publicKey } = await createOrgProjectAndApiKey();
+
+      const [tracesRes, observationsRes, sessionsRes] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/traces",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/observations",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/sessions",
+          undefined,
+          `Bearer ${publicKey}`,
+        ),
+      ]);
+
+      expect(tracesRes.status).toBe(403);
+      expect(observationsRes.status).toBe(403);
+      expect(sessionsRes.status).toBe(403);
+    });
+  });
+
+  describe("POST /api/public/scores source field", () => {
+    it("persists SDK attribution for POST /api/public/scores", async () => {
+      const { projectId, auth, publicKey } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId, name: "feedback", value: 1 },
+        auth,
+        {
+          "x-langfuse-sdk-name": "python",
+          "x-langfuse-sdk-version": "3.4.0",
+        },
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+
+        expect(await getScoreIngestionAttribution(projectId, scoreId)).toEqual({
+          ingestion_api_key: publicKey,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+        });
+      }, 15_000);
+    }, 20_000);
+
+    it("defaults source to API when omitted", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId, name: "feedback", value: 1 },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.source).toBe("API");
+      });
+    }, 15000);
+
+    it("rejects source=EVAL (reserved for internal evaluator outputs)", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: v4(),
+          traceId,
+          name: "llm-judge",
+          value: 0.8,
+          source: "EVAL",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("accepts source=ANNOTATION with a matching configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const configId = v4();
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          name: "helpfulness",
+          dataType: "NUMERIC",
+          maxValue: 1,
+          projectId,
+        },
+      });
+
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "helpfulness",
+          value: 0.9,
+          dataType: "NUMERIC",
+          configId,
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.source).toBe("ANNOTATION");
+        expect(score!.configId).toBe(configId);
+        expect(score!.authorUserId).toBeNull();
+      });
+    }, 15000);
+
+    it("rejects source=ANNOTATION without a configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: v4(),
+          traceId,
+          name: "helpfulness",
+          value: 0.9,
+          dataType: "NUMERIC",
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("accepts source=ANNOTATION for CORRECTION scores without a configId", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId,
+          name: "output",
+          value: "The corrected output",
+          dataType: "CORRECTION",
+          source: "ANNOTATION",
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(
+        async () => {
+          const score = await getScoreById({ projectId, scoreId });
+          expect(score).toBeDefined();
+          expect(score!.source).toBe("ANNOTATION");
+          expect(score!.dataType).toBe("CORRECTION");
+        },
+        10000,
+        500,
+      );
+    }, 15000);
   });
 });

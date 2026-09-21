@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Integration tests for filter query encoding/decoding through full URL lifecycle.
  * These tests verify the complete flow: FilterState → URL → FilterState
@@ -9,28 +11,41 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
-} from "@langfuse/shared";
-import {
+  sessionsViewCols,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
-} from "./lib/filter-query-encoding";
+  computeSelectedValues,
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+} from "@langfuse/shared";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
-import { sessionFilterConfig } from "./config/sessions-config";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import {
+  sessionEventsFilterConfig,
+  sessionFilterConfig,
+} from "./config/sessions-config";
+import { observationEventsFilterConfig } from "@/src/features/events";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
 } from "./hooks/useSidebarFilterState";
 import {
+  SESSION_DETAIL_SYSTEM_PRESETS,
+  getSessionDetailPresetToApply,
+} from "@/src/features/sessions";
+import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
-  stripImplicitEnvironmentFilterFromExplicitState,
+  canonicalizeExplicitEnvironmentFilters,
+  toSearchBarEnvironmentFilters,
 } from "./lib/managedEnvironmentPolicy";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
+import {
+  astToFilterState,
+  filterStateToQueryText,
+  validateQuery,
+} from "@/src/features/search-bar";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -303,9 +318,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // This is what useTableViewManager does: validates then applies
     const validated = validateFilters(oldSavedView, tracesTableCols);
 
-    // Should pass through unchanged - no env/timestamp to validate
-    expect(validated).toEqual(oldSavedView);
+    // "name" is normalized to "traceName" via alias
     expect(validated).toHaveLength(2);
+    expect(validated[0]?.column).toBe("traceName");
+    expect(validated[1]?.column).toBe("latency");
   });
 
   it("should save new view with environment filter and restore it correctly", () => {
@@ -331,10 +347,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // 2. RESTORE: Later, load from database and validate
     const validated = validateFilters(savedToDB, tracesTableCols);
 
-    // Should restore with environment filter intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with environment filter intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("environment"); // ✅ Environment preserved
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should save new view with timestamp filter and restore it correctly", () => {
@@ -363,10 +379,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
     // SAVE → RESTORE cycle
     const validated = validateFilters(newFilterState, tracesTableCols);
 
-    // Should restore with timestamp filters intact
-    expect(validated).toEqual(newFilterState);
+    // Should restore with timestamp filters intact, "name" normalized to "traceName"
     expect(validated).toHaveLength(3);
     expect(validated[0]?.column).toBe("timestamp"); // ✅ Timestamp preserved
+    expect(validated[2]?.column).toBe("traceName"); // Normalized via alias
   });
 
   it("should demonstrate BUG: restore fails with filtered column definitions", () => {
@@ -397,7 +413,7 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     // BUG: environment filter incorrectly removed during restore!
     expect(validated).toHaveLength(1); // ❌ Lost environment filter
-    expect(validated[0]?.column).toBe("name");
+    expect(validated[0]?.column).toBe("traceName");
     // This would show error toast: "Outdated view - Some filters were ignored"
   });
 
@@ -426,9 +442,12 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(mixedView, tracesTableCols);
 
-    // Should remove deletedColumn, keep environment and name
+    // Should remove deletedColumn, keep environment and name (name normalized to traceName via alias)
     expect(validated).toHaveLength(2);
-    expect(validated.map((f) => f.column)).toEqual(["environment", "name"]);
+    expect(validated.map((f) => f.column)).toEqual([
+      "environment",
+      "traceName",
+    ]);
   });
 
   it("should normalize old display names to column IDs", () => {
@@ -450,10 +469,10 @@ describe("Saved View Validation (Backward & Forward Compatibility)", () => {
 
     const validated = validateFilters(oldViewWithDisplayNames, tracesTableCols);
 
-    // Should normalize "User ID" to "userId", keep "name" as-is
+    // Should normalize "User ID" to "userId", normalize "name" to "traceName" via alias
     expect(validated).toHaveLength(2);
     expect(validated[0]?.column).toBe("userId"); // Normalized!
-    expect(validated[1]?.column).toBe("name"); // Already correct
+    expect(validated[1]?.column).toBe("traceName"); // Normalized via alias!
   });
 
   it("should handle old saved view metadata filter with column name metadata key", () => {
@@ -556,6 +575,96 @@ describe("Config Validation of old saved views", () => {
 
     expect(invalidFacets).toEqual([]);
   });
+
+  it("exposes metadata only on the v4 sessions filter config", () => {
+    expect(
+      sessionEventsFilterConfig.columnDefinitions.find(
+        (column) => column.id === "metadata",
+      ),
+    ).toMatchObject({ type: "stringObject" });
+    expect(
+      sessionEventsFilterConfig.facets.find(
+        (facet) => facet.column === "metadata",
+      ),
+    ).toMatchObject({ type: "stringKeyValue", label: "Metadata" });
+
+    expect(
+      sessionFilterConfig.columnDefinitions.some(
+        (column) => column.id === "metadata",
+      ),
+    ).toBe(false);
+    expect(
+      sessionFilterConfig.facets.some((facet) => facet.column === "metadata"),
+    ).toBe(false);
+  });
+});
+
+describe("Retired bookmarked filters (traces + sessions)", () => {
+  const bookmarkedFilter: FilterState = [
+    { column: "bookmarked", type: "boolean", operator: "=", value: true },
+  ];
+  const surfaces = [
+    ["traces", traceFilterConfig],
+    ["sessions", sessionFilterConfig],
+    ["sessions (v4)", sessionEventsFilterConfig],
+  ] as const;
+
+  it.each(surfaces)(
+    "drops a deep-linked bookmarked filter on the %s table",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          encodeFiltersGeneric(bookmarkedFilter),
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(surfaces)(
+    "drops a saved-view bookmarked filter on the %s table but keeps the rest",
+    (_label, config) => {
+      const savedView: FilterState = [
+        ...bookmarkedFilter,
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+
+      expect(
+        validateFilters(
+          savedView,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ]);
+    },
+  );
+
+  it("drops the legacy star display name a pre-ID saved view stored", () => {
+    expect(
+      validateFilters(
+        [{ column: "⭐️", type: "boolean", operator: "=", value: true }],
+        sessionFilterConfig.columnDefinitions,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps bookmarked in the shared definitions the public API filters on", () => {
+    expect(tracesTableCols.some((col) => col.id === "bookmarked")).toBe(true);
+    expect(sessionsViewCols.some((col) => col.id === "bookmarked")).toBe(true);
+  });
 });
 
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
@@ -596,8 +705,7 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     });
   });
 
-  it("should handle backend column remapping from URL", () => {
-    // Observations/traces table: "tags" (frontend) → "traceTags" (ClickHouse backend)
+  it("should normalize legacy tags filter from URL to the canonical traceTags column", () => {
     const urlFilter = "tags;arrayOptions;;any of;tag1";
 
     const normalized = decodeAndNormalizeFilters(
@@ -605,12 +713,52 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
       traceFilterConfig.columnDefinitions,
     );
 
-    const result = transformFiltersForBackend(normalized, {
-      tags: "traceTags",
-    });
+    const result = transformFiltersForBackend(normalized, {});
 
     expect(result).toHaveLength(1);
     expect(result[0]?.column).toBe("traceTags");
+  });
+
+  it("should preserve empty arrayOptions none-of filters through complete URL flow", () => {
+    const filters: FilterState = [
+      {
+        column: "tags",
+        type: "arrayOptions",
+        operator: "none of",
+        value: [],
+      },
+    ];
+
+    expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
+  it("should preserve v4 release filters through the URL and search-bar flow", () => {
+    const filters: FilterState = [
+      {
+        column: "release",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["181"],
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual(filters);
+
+    const { text, skipped } = filterStateToQueryText(normalized);
+    expect(skipped).toEqual([]);
+    expect(text).toBe("release:181");
+
+    const parsed = validateQuery(text);
+    expect(parsed.valid, text).toBe(true);
+    expect(astToFilterState(parsed.ast)).toMatchObject({
+      filters,
+      errors: [],
+    });
   });
 
   it("should discard stale positionInTrace URL filters on the general events table", () => {
@@ -622,6 +770,98 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     );
 
     expect(normalized).toEqual([]);
+  });
+
+  it.each([
+    ["column ID", "hasParentObservation", "=", false, true],
+    ["display name", "Has Parent Observation", "=", false, true],
+    ["column ID", "hasParentObservation", "<>", true, true],
+    ["display name", "Has Parent Observation", "<>", true, true],
+  ] as const)(
+    "should redirect legacy %s root-observation URL filters to isRootObservation",
+    (_label, column, operator, legacyValue, expectedValue) => {
+      const legacyFilters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      const normalized = decodeAndNormalizeFilters(
+        encodeFiltersGeneric(legacyFilters),
+        observationEventsFilterConfig.columnDefinitions,
+        observationEventsFilterConfig.migrateFilterState,
+      );
+
+      expect(normalized).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
+
+  it("should migrate isRootObservation inequality URL filters for the sidebar", () => {
+    const filters: FilterState = [
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "<>",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+  });
+
+  it("should prefer isRootObservation URL filters over legacy duplicates", () => {
+    const filters: FilterState = [
+      {
+        column: "hasParentObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+      observationEventsFilterConfig.migrateFilterState,
+    );
+
+    expect(normalized).toEqual([
+      {
+        column: "isRootObservation",
+        type: "boolean",
+        operator: "=",
+        value: false,
+      },
+    ]);
   });
 });
 
@@ -641,7 +881,43 @@ describe("Saved view validation", () => {
     ).toEqual([]);
   });
 
-  it("should preserve positionInTrace filters when the session view defines the column", () => {
+  it.each([
+    ["column ID", "hasParentObservation", false, true, "="],
+    ["display name", "Has Parent Observation", false, true, "="],
+    ["column ID", "hasParentObservation", true, false, "="],
+    ["display name", "Has Parent Observation", true, false, "="],
+    ["column ID", "hasParentObservation", true, true, "<>"],
+    ["display name", "Has Parent Observation", true, true, "<>"],
+  ] as const)(
+    "should redirect legacy %s root-observation saved-view filters to isRootObservation",
+    (_label, column, legacyValue, expectedValue, operator) => {
+      const filters: FilterState = [
+        {
+          column,
+          type: "boolean",
+          operator,
+          value: legacyValue,
+        },
+      ];
+
+      expect(
+        validateFilters(
+          filters,
+          observationEventsFilterConfig.columnDefinitions,
+          observationEventsFilterConfig.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: expectedValue,
+        },
+      ]);
+    },
+  );
+
+  it("should preserve the session detail positionInTrace presets when the session view defines the column", () => {
     const sessionEventColumns: ColumnDefinition[] = [
       ...observationEventsFilterConfig.columnDefinitions,
       {
@@ -651,16 +927,92 @@ describe("Saved view validation", () => {
         internal: "positionInTrace",
       },
     ];
-    const filters: FilterState = [
+    // LFE-10520: the default view is "All observations with I/O", expressed as
+    // a real, renderable boolean filter (not a hidden flag). Selecting a
+    // LLM-call preset still applies its positionInTrace filters.
+    const defaultPreset = getSessionDetailPresetToApply({
+      selectedViewId: null,
+      hasFilters: false,
+      isTimelineEnabled: false,
+    });
+    expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
+    expect(defaultPreset?.name).toBe("All observations with I/O");
+    expect(defaultPreset?.filters).toEqual([
+      {
+        column: "hasInput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+      {
+        column: "hasOutput",
+        type: "boolean",
+        operator: "=",
+        value: true,
+      },
+    ]);
+    // The view filter must validate against the session columns so it renders
+    // in the "Filter observations" UI like any other filter.
+    expect(
+      validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(defaultPreset?.filters ?? []);
+
+    const firstLlmCallPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First LLM Call per Trace",
+    );
+    const appliedFirstLlmCall = getSessionDetailPresetToApply({
+      selectedViewId: firstLlmCallPreset?.id ?? null,
+      hasFilters: false,
+      isTimelineEnabled: true,
+    });
+    const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "Last LLM Call per Trace",
+    );
+
+    expect(appliedFirstLlmCall).toEqual(firstLlmCallPreset);
+    expect(
+      getSessionDetailPresetToApply({
+        selectedViewId: null,
+        hasFilters: false,
+        isTimelineEnabled: true,
+      }),
+    ).toBeNull();
+    expect(firstLlmCallPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
+      {
+        column: "positionInTrace",
+        type: "positionInTrace",
+        operator: "=",
+        key: "first",
+      },
+    ]);
+    expect(
+      validateFilters(firstLlmCallPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(firstLlmCallPreset?.filters ?? []);
+    expect(lastPreset?.filters).toEqual([
+      {
+        column: "type",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["GENERATION"],
+      },
       {
         column: "positionInTrace",
         type: "positionInTrace",
         operator: "=",
         key: "last",
       },
-    ];
-
-    expect(validateFilters(filters, sessionEventColumns)).toEqual(filters);
+    ]);
+    expect(SESSION_DETAIL_SYSTEM_PRESETS).not.toContainEqual(
+      expect.objectContaining({
+        name: "Root Observation",
+      }),
+    );
   });
 });
 
@@ -668,37 +1020,103 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
   const availableValues = ["tag-1", "tag-2", "tag-3", "tag-4", "tag-5"];
 
   describe("arrayOptions (e.g., tags)", () => {
-    it('should use "any of" with selected values when no existing filter', () => {
+    it('converts a deselect-from-implicit-all into "none of [deselected]" (LFE-10717)', () => {
+      // No existing filter = the facet renders every option checked. Unchecking
+      // tag-3 means "exclude tag-3". For a multi-valued column that is only
+      // expressible as `none of [tag-3]` — `any of [remaining]` still matches
+      // rows carrying tag-3 alongside another tag, and materializes
+      // O(option-count) state into the URL (HTTP 431 at ~1000 user IDs).
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: undefined,
-        values: ["tag-1", "tag-2"],
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
         availableValues,
       });
 
       expect(result).toEqual({
-        finalOperator: "any of",
-        finalValues: ["tag-1", "tag-2"],
+        finalOperator: "none of",
+        finalValues: ["tag-3"],
       });
     });
 
-    it('should switch from "none of" to "any of" for arrayOptions', () => {
+    it('accumulates exclusions while a "none of" filter is active', () => {
+      // The facet shows the kept set (all-but-excluded checked); unchecking
+      // another value grows the exclusion list.
       const result = resolveCheckboxOperator({
         colType: "arrayOptions",
         existingFilter: {
           column: "tags",
           type: "arrayOptions",
           operator: "none of",
-          value: ["tag-3", "tag-4", "tag-5"],
+          value: ["tag-3"],
         },
-        values: ["tag-1", "tag-2"],
+        values: ["tag-1", "tag-2", "tag-5"],
         availableValues,
       });
 
-      // Must NOT keep "none of" — it gives wrong results for multi-valued arrays
       expect(result).toEqual({
-        finalOperator: "any of",
-        finalValues: ["tag-1", "tag-2"],
+        finalOperator: "none of",
+        finalValues: ["tag-3", "tag-4"],
+      });
+    });
+
+    it("drops an exclusion when its value is re-checked", () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3", "tag-4"],
+        },
+        values: ["tag-1", "tag-2", "tag-3", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["tag-4"],
+      });
+    });
+
+    it("preserves exclusions that fell out of the current option list", () => {
+      // An excluded value can drop out of the top-N-capped / time-scoped
+      // option list; interacting with other checkboxes must not silently
+      // resurrect it.
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["stale-tag"],
+        },
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["stale-tag", "tag-3"],
+      });
+    });
+
+    it('returns an empty "none of" when every exclusion is re-checked (caller clears the filter)', () => {
+      const result = resolveCheckboxOperator({
+        colType: "arrayOptions",
+        existingFilter: {
+          column: "tags",
+          type: "arrayOptions",
+          operator: "none of",
+          value: ["tag-3"],
+        },
+        values: availableValues,
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: [],
       });
     });
 
@@ -776,6 +1194,28 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
       });
     });
 
+    it("preserves exclusions that fell out of the current option list (parity with arrayOptions)", () => {
+      // stringOptions option lists are top-N-capped / filter-scoped too; an
+      // invisible exclusion cannot have been re-checked and must survive
+      // other checkbox interactions.
+      const result = resolveCheckboxOperator({
+        colType: "stringOptions",
+        existingFilter: {
+          column: "name",
+          type: "stringOptions",
+          operator: "none of",
+          value: ["stale-name"],
+        },
+        values: ["tag-1", "tag-2", "tag-4", "tag-5"],
+        availableValues,
+      });
+
+      expect(result).toEqual({
+        finalOperator: "none of",
+        finalValues: ["stale-name", "tag-3"],
+      });
+    });
+
     it('should use "any of" when existing filter is "any of" for stringOptions', () => {
       const result = resolveCheckboxOperator({
         colType: "stringOptions",
@@ -797,6 +1237,41 @@ describe("resolveCheckboxOperator (arrayOptions vs stringOptions)", () => {
   });
 });
 
+describe("computeSelectedValues", () => {
+  it('inverts arrayOptions "none of" into the kept set, like stringOptions (LFE-10717)', () => {
+    // Unified checked=kept display model: a `none of [tag-2]` exclusion
+    // renders as everything-but-tag-2 checked, so the deselect gesture
+    // round-trips (uncheck tag-2 → none of [tag-2] → tag-2 shown unchecked).
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "none of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-1", "tag-3"]);
+  });
+
+  it('keeps arrayOptions "any of" selections as-is', () => {
+    const result = computeSelectedValues(["tag-1", "tag-2", "tag-3"], {
+      type: "arrayOptions",
+      operator: "any of",
+      value: ["tag-2"],
+    });
+
+    expect(result).toEqual(["tag-2"]);
+  });
+
+  it('should continue to invert "none of" for stringOptions filters', () => {
+    const result = computeSelectedValues(["prod", "staging", "dev"], {
+      type: "stringOptions",
+      operator: "none of",
+      value: ["dev"],
+    });
+
+    expect(result).toEqual(["prod", "staging"]);
+  });
+});
+
 describe("Implicit Environment Defaults (sidebar only)", () => {
   const hiddenEnvironments = [...DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS];
   const availableValues = [
@@ -808,10 +1283,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     managedEnvironmentColumn: "environment",
     hiddenEnvironments,
   });
-  const strip = (explicitFilters: FilterState) =>
-    stripImplicitEnvironmentFilterFromExplicitState({
+  const canonicalize = (explicitFilters: FilterState) =>
+    canonicalizeExplicitEnvironmentFilters({
       explicitFilters,
-      availableEnvironmentValues: [...availableValues],
       config: managedEnvironmentConfig,
     });
 
@@ -852,7 +1326,12 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ).toEqual([]);
   });
 
-  it("strips default-equivalent env filters before URL/session persistence", () => {
+  it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
+    // The implicit default the sidebar auto-derives — and that the facet
+    // re-creates when the user clears back to the default selection — is the
+    // `none of [hidden]` shape. That default is stripped before persistence,
+    // so returning to default leaves a clean URL. Extra exclusions on top of
+    // that default stay as `none of [hidden ∪ extras]`.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -868,7 +1347,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithExactDefault)).toEqual([
+    expect(canonicalize(explicitWithExactDefault)).toEqual([
       {
         column: "name",
         type: "stringOptions",
@@ -877,16 +1356,21 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ]);
 
-    expect(
-      strip([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production", "staging"],
-        },
-      ]),
-    ).toEqual([]);
+    // A user-authored POSITIVE selection (typed in the search bar or stored in a
+    // saved view) is kept explicit even when it happens to equal the current
+    // default set — we never silently remove what the user committed to. The
+    // user returns to the default by removing the filter, not by us guessing.
+    const userAuthoredDefaultSet: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "staging"],
+      },
+    ];
+    expect(canonicalize(userAuthoredDefaultSet)).toEqual(
+      userAuthoredDefaultSet,
+    );
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {
@@ -905,7 +1389,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithHiddenEnabled)).toEqual(explicitWithHiddenEnabled);
+    expect(canonicalize(explicitWithHiddenEnabled)).toEqual(
+      explicitWithHiddenEnabled,
+    );
 
     const explicitAll: FilterState = [
       {
@@ -916,12 +1402,12 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitAll)).toEqual(explicitAll);
+    expect(canonicalize(explicitAll)).toEqual(explicitAll);
   });
 
   it("keeps hidden-only explicit selection as explicit override", () => {
     expect(
-      strip([
+      canonicalize([
         {
           column: "environment",
           type: "stringOptions",
@@ -958,6 +1444,166 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         type: "stringOptions",
         operator: "any of",
         value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("keeps the full none-of exclusion set in explicit state", () => {
+    // Unchecking a default-included environment (production) from the implicit
+    // `none of [hidden]` default produces `none of [hidden ∪ production]`.
+    // Persist the full set so this cannot collapse with "enabled every hidden
+    // env and left production unchecked".
+    const fullExclusion: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(canonicalize(fullExclusion)).toEqual(fullExclusion);
+  });
+
+  it("expands extras-only none-of to the full exclusion set on persist", () => {
+    // A search-bar commit of the displayed chip (`-environment:production`)
+    // lowers to extras-only none-of. Treat that as default-plus-extra-exclusion.
+    const stripped = canonicalize([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ]);
+
+    expect(stripped).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+    ]);
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: stripped,
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual(stripped);
+  });
+
+  it("shows only extras in the search-bar projection of a full none-of", () => {
+    expect(
+      toSearchBarEnvironmentFilters({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: [...hiddenEnvironments, "production"],
+          },
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["trace-a"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+  });
+
+  it("does not fold extras-only none-of in effective state", () => {
+    // Effective state uses the persisted form as-is. Extras-only is expanded
+    // on persist/read of explicit state first; callers must strip before
+    // building effective state so hidden envs stay excluded.
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["production"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ]);
+  });
+
+  it("does not strip a none-of that enables a hidden environment", () => {
+    // Checking one hidden env leaves `none of [hidden − that env]`. That is
+    // not the implicit default and must stay explicit so the enabled env
+    // is not silently re-hidden.
+    const remainingHidden = hiddenEnvironments.filter(
+      (environment) => environment !== "langfuse-evaluation",
+    );
+
+    expect(
+      canonicalize([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: remainingHidden,
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
+      },
+    ]);
+
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: remainingHidden,
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
       },
     ]);
   });

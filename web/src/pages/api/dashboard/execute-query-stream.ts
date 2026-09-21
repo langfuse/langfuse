@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
 import {
@@ -6,20 +7,22 @@ import {
   isException,
   ClickHouseResourceError,
   queryClickhouseWithProgress,
+  logger,
 } from "@langfuse/shared/src/server";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
-import { query as customQuery, viewVersions } from "@/src/features/query/types";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
+} from "@langfuse/shared/query/server";
+import {
+  query as customQuery,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
-
+  viewVersions,
+} from "@langfuse/shared/query";
 export type SSEEvent =
   | { type: "progress"; progress: object }
   | { type: "row"; row: Record<string, unknown> }
@@ -39,10 +42,12 @@ function formatSSEEvent(event: SSEEvent): string {
   }
 }
 
+// `version` is required on purpose — see dashboard.executeQuery: an implicit
+// v1 default let unresolved-session clients silently pick the read path.
 const inputSchema = z.object({
   projectId: z.string(),
   query: customQuery,
-  version: viewVersions.optional().default("v1"),
+  version: viewVersions,
 });
 
 export default async function handler(
@@ -125,8 +130,18 @@ export default async function handler(
   });
   res.flushHeaders();
 
+  // A closed client should also stop the ClickHouse query, not just this
+  // response: the `break` below tears down the CH stream (its socket closes
+  // within one progress event), and cancel_http_readonly_queries_on_client_close
+  // makes ClickHouse kill the query on that close instead of running the
+  // abandoned aggregation to completion. max_execution_time still bounds the
+  // stragglers either way.
   let aborted = false;
-  req.on("close", () => {
+  // `res`, not `req`: the request stream can end once the POST body is
+  // consumed, while the response lives for the whole stream — its close
+  // fires on a client disconnect mid-stream (and only after res.end() on
+  // the happy path, where the loop has already finished).
+  res.on("close", () => {
     aborted = true;
   });
 
@@ -141,7 +156,13 @@ export default async function handler(
 
     for await (const event of queryClickhouseWithProgress<
       Record<string, unknown>
-    >(chOpts)) {
+    >({
+      ...chOpts,
+      clickhouseSettings: {
+        ...chOpts.clickhouseSettings,
+        cancel_http_readonly_queries_on_client_close: 1,
+      },
+    })) {
       if (aborted) break;
 
       if (isProgressRow(event)) {

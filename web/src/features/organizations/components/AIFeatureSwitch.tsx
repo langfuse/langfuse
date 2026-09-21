@@ -1,7 +1,8 @@
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { api } from "@/src/utils/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogBody,
@@ -11,8 +12,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import Header from "@/src/components/layouts/header";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   useLangfuseCloudRegion,
   useQueryOrganization,
@@ -20,21 +20,22 @@ import {
 import { Card } from "@/src/components/ui/card";
 import { LockIcon, ExternalLink } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-
-const aiFeaturesSchema = z.object({
-  aiFeaturesEnabled: z.boolean(),
-});
 
 export default function AIFeatureSwitch() {
-  const { update: updateSession } = useSession();
+  const { data: session, update: updateSession } = useSession();
+  const utils = api.useUtils();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const aiFeaturesTracingConfigured =
+    session?.environment.aiFeaturesTracingConfigured === true;
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
+  const aiFeaturesEnabled = organization?.aiFeaturesEnabled;
+  const aiTelemetryEnabled = organization?.aiTelemetryEnabled;
   const [isAIFeatureSwitchEnabled, setIsAIFeatureSwitchEnabled] = useState(
-    organization?.aiFeaturesEnabled ?? false,
+    aiFeaturesEnabled ?? false,
+  );
+  const [isAITelemetrySwitchEnabled, setIsAITelemetrySwitchEnabled] = useState(
+    aiTelemetryEnabled ?? true,
   );
   const [confirmOpen, setConfirmOpen] = useState(false);
   const hasAccess = useHasOrganizationAccess({
@@ -42,16 +43,11 @@ export default function AIFeatureSwitch() {
     scope: "organization:update",
   });
 
-  const confirmForm = useForm<z.infer<typeof aiFeaturesSchema>>({
-    resolver: zodResolver(aiFeaturesSchema),
-    defaultValues: {
-      aiFeaturesEnabled: isAIFeatureSwitchEnabled,
-    },
-  });
-
   const updateAIFeatures = api.organizations.update.useMutation({
-    onSuccess: () => {
-      void updateSession();
+    onSuccess: async () => {
+      await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
       setConfirmOpen(false);
     },
     onError: () => {
@@ -59,11 +55,51 @@ export default function AIFeatureSwitch() {
     },
   });
 
+  const updateAITelemetry = api.organizations.update.useMutation({
+    onSuccess: async () => {
+      await updateSession();
+      // Admins resolve org context from this query, not the session
+      utils.organizations.byId.invalidate();
+    },
+    onError: () => {
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled ?? true);
+    },
+  });
+
+  useEffect(() => {
+    if (aiFeaturesEnabled === undefined || aiTelemetryEnabled === undefined) {
+      return;
+    }
+
+    if (!confirmOpen && !updateAIFeatures.isPending) {
+      setIsAIFeatureSwitchEnabled(aiFeaturesEnabled);
+    }
+
+    if (!updateAITelemetry.isPending) {
+      setIsAITelemetrySwitchEnabled(aiTelemetryEnabled);
+    }
+  }, [
+    aiFeaturesEnabled,
+    aiTelemetryEnabled,
+    confirmOpen,
+    updateAIFeatures.isPending,
+    updateAITelemetry.isPending,
+  ]);
+
   function handleSwitchChange(newValue: boolean) {
     if (!hasAccess) return;
     setIsAIFeatureSwitchEnabled(newValue);
-    confirmForm.setValue("aiFeaturesEnabled", newValue);
     setConfirmOpen(true);
+  }
+
+  function handleTelemetrySwitchChange(newValue: boolean) {
+    if (!organization || !hasAccess) return;
+    setIsAITelemetrySwitchEnabled(newValue);
+    capture("organization_settings:ai_telemetry_toggle");
+    updateAITelemetry.mutate({
+      orgId: organization.id,
+      aiTelemetryEnabled: newValue,
+    });
   }
 
   function handleCancel() {
@@ -80,33 +116,39 @@ export default function AIFeatureSwitch() {
     });
   }
 
-  if (!isLangfuseCloud) return null;
-
   return (
     <div>
       <Header title="AI Features" />
       <Card className="mb-4 p-3">
         <div className="flex flex-row items-center justify-between">
           <div className="flex flex-col gap-1">
-            <h4 className="font-semibold">
+            <h4 className="font-bold">
               Enable AI powered features for your organization
             </h4>
-            <p className="text-sm">
-              This setting applies to all users and projects. Any data{" "}
-              <i>can</i> be sent to AWS Bedrock within the Langfuse data region.
-              Traces are sent to Langfuse Cloud in your data region. Your data
-              will not be used for training models. Applicable HIPAA, SOC2,
-              GDPR, and ISO 27001 compliance remains intact.{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                More details in the docs here.
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </p>
+            {isLangfuseCloud ? (
+              <p className="text-sm">
+                This setting applies to all users and projects. Any data{" "}
+                <i>can</i> be sent to AWS Bedrock within the Langfuse data
+                region. Your data will not be used for training models.
+                Applicable HIPAA, SOC2, GDPR, and ISO 27001 compliance remains
+                intact.{" "}
+                <a
+                  href="https://langfuse.com/security/ai-features"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary inline-flex items-center gap-1 hover:underline"
+                >
+                  More details in the docs here.
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </p>
+            ) : (
+              <p className="text-sm">
+                This setting applies to all users and projects. When enabled,
+                the assistant can send relevant project data to the model
+                provider configured by your instance administrator.
+              </p>
+            )}
           </div>
           <div className="relative">
             <Switch
@@ -121,6 +163,33 @@ export default function AIFeatureSwitch() {
             )}
           </div>
         </div>
+        {isLangfuseCloud &&
+          isAIFeatureSwitchEnabled &&
+          aiFeaturesTracingConfigured && (
+            <div className="mt-4 flex flex-row items-center justify-between border-t pt-4">
+              <div className="flex flex-col gap-1">
+                <h4 className="font-bold">
+                  AI Data Use for Product/Service Improvement
+                </h4>
+                <p className="text-sm">
+                  Share data about your use of AI with Langfuse for product and
+                  service improvement.
+                </p>
+              </div>
+              <div className="relative">
+                <Switch
+                  checked={isAITelemetrySwitchEnabled}
+                  onCheckedChange={handleTelemetrySwitchChange}
+                  disabled={!hasAccess || updateAITelemetry.isPending}
+                />
+                {!hasAccess && (
+                  <span title="No access">
+                    <LockIcon className="text-muted absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 transform" />
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
       </Card>
 
       <Dialog
@@ -141,20 +210,27 @@ export default function AIFeatureSwitch() {
               <strong>
                 {isAIFeatureSwitchEnabled ? "enable " : "disable"}
               </strong>{" "}
-              AI features for your organization. When enabled, any data{"  "}
-              <i>can</i> be sent to AWS Bedrock in your data region for
-              processing.
-              <br />
-              <br />{" "}
-              <a
-                href="https://langfuse.com/security/ai-features"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 hover:underline"
-              >
-                Learn more in the docs.
-                <ExternalLink className="h-3 w-3" />
-              </a>
+              AI features for your organization. When enabled, relevant data can
+              be sent{" "}
+              {isLangfuseCloud
+                ? "to AWS Bedrock in your data region"
+                : "to the model provider configured by your instance administrator"}{" "}
+              for processing.
+              {isLangfuseCloud && (
+                <>
+                  <br />
+                  <br />{" "}
+                  <a
+                    href="https://langfuse.com/security/ai-features"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary inline-flex items-center gap-1 hover:underline"
+                  >
+                    Learn more in the docs.
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </>
+              )}
             </span>
             <p className="text-muted-foreground mt-3 text-sm">
               Are you sure you want to proceed?

@@ -1,170 +1,68 @@
 import { randomUUID } from "crypto";
+import { ScoreSourceEnum, type EvalExecutionContext } from "@langfuse/shared";
 import {
-  type EvalOutputResult,
-  ScoreDataTypeEnum,
-  ScoreSourceEnum,
-} from "@langfuse/shared";
-import { eventTypes, ScoreEventType } from "@langfuse/shared/src/server";
-
-type BuildScoreEventBase = {
-  eventId: string;
-  scoreId: string;
-  traceId: string | null;
-  observationId: string | null;
-  scoreName: string;
-  reasoning: string;
-  environment: string;
-  executionTraceId: string;
-  metadata: Record<string, string>;
-};
-
-export type BuildScoreEventParams = BuildScoreEventBase &
-  (
-    | {
-        dataType: typeof ScoreDataTypeEnum.NUMERIC;
-        scoreValue: number;
-      }
-    | {
-        dataType: typeof ScoreDataTypeEnum.CATEGORICAL;
-        scoreValue: string;
-      }
-  );
-
-type BuildScoreWritePayloadParams =
-  | Omit<
-      Extract<
-        BuildScoreEventParams,
-        { dataType: typeof ScoreDataTypeEnum.NUMERIC }
-      >,
-      "eventId"
-    >
-  | Omit<
-      Extract<
-        BuildScoreEventParams,
-        { dataType: typeof ScoreDataTypeEnum.CATEGORICAL }
-      >,
-      "eventId"
-    >;
-
-function createScoreEventEnvelope(params: {
-  eventId: string;
-  body: ScoreEventType["body"];
-}): ScoreEventType {
-  return {
-    id: params.eventId,
-    timestamp: new Date().toISOString(),
-    type: eventTypes.SCORE_CREATE,
-    body: params.body,
-  };
-}
+  buildDeterministicEvalScoreIds,
+  eventTypes,
+  ScoreEventType,
+  type CodeEvalScoreWithName,
+} from "@langfuse/shared/src/server";
 
 export type EvalScoreWritePayload = {
   eventId: string;
   scoreId: string;
-  event: ScoreEventType;
+  event: ScoreEventType & {
+    body: ScoreEventType["body"] & {
+      evaluatorId?: string;
+      evaluationRuleId?: string;
+    };
+  };
 };
 
-export function buildScoreEvent(params: BuildScoreEventParams): ScoreEventType {
-  const bodyBase = {
-    id: params.scoreId,
-    traceId: params.traceId,
-    observationId: params.observationId,
-    name: params.scoreName,
-    comment: params.reasoning,
-    source: ScoreSourceEnum.EVAL,
-    environment: params.environment,
-    executionTraceId: params.executionTraceId,
-    metadata: params.metadata,
-  };
-
-  if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
-    return createScoreEventEnvelope({
-      eventId: params.eventId,
-      body: {
-        ...bodyBase,
-        value: params.scoreValue,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-      },
-    });
-  }
-
-  return createScoreEventEnvelope({
-    eventId: params.eventId,
-    body: {
-      ...bodyBase,
-      value: params.scoreValue,
-      dataType: ScoreDataTypeEnum.NUMERIC,
-    },
-  });
-}
-
-function buildScoreWritePayload(
-  params: BuildScoreWritePayloadParams,
-): EvalScoreWritePayload {
-  const eventId = randomUUID();
-
-  if (params.dataType === ScoreDataTypeEnum.CATEGORICAL) {
-    return {
-      eventId,
-      scoreId: params.scoreId,
-      event: buildScoreEvent({
-        ...params,
-        eventId,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
-        scoreValue: params.scoreValue,
-      }),
-    };
-  }
-
-  return {
-    eventId,
-    scoreId: params.scoreId,
-    event: buildScoreEvent({
-      ...params,
-      eventId,
-      dataType: ScoreDataTypeEnum.NUMERIC,
-      scoreValue: params.scoreValue,
-    }),
-  };
-}
-
 export function buildEvalScoreWritePayloads(params: {
-  outputResult: EvalOutputResult;
-  primaryScoreId: string;
+  scores: CodeEvalScoreWithName[];
+  jobExecutionId: string;
   traceId: string | null;
   observationId: string | null;
-  scoreName: string;
   environment: string;
   executionTraceId: string;
-  metadata: Record<string, string>;
+  executionMetadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
 }): EvalScoreWritePayload[] {
-  const commonParams = {
-    traceId: params.traceId,
-    observationId: params.observationId,
-    scoreName: params.scoreName,
-    reasoning: params.outputResult.reasoning,
-    environment: params.environment,
-    executionTraceId: params.executionTraceId,
-    metadata: params.metadata,
-  };
+  const scoreIds = buildDeterministicEvalScoreIds({
+    scores: params.scores,
+    jobExecutionId: params.jobExecutionId,
+  });
 
-  if (params.outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
-    return [
-      buildScoreWritePayload({
-        ...commonParams,
-        scoreId: params.primaryScoreId,
-        scoreValue: params.outputResult.score,
-        dataType: ScoreDataTypeEnum.NUMERIC,
-      }),
-    ];
-  }
-
-  return params.outputResult.matches.map((scoreValue, index) =>
-    buildScoreWritePayload({
-      ...commonParams,
-      scoreId: index === 0 ? params.primaryScoreId : randomUUID(),
-      scoreValue,
-      dataType: ScoreDataTypeEnum.CATEGORICAL,
-    }),
-  );
+  return params.scores.map((score, index) => {
+    const eventId = randomUUID();
+    const scoreId = scoreIds[index]!;
+    return {
+      eventId,
+      scoreId,
+      event: {
+        id: eventId,
+        timestamp: new Date().toISOString(),
+        type: eventTypes.SCORE_CREATE,
+        body: {
+          id: scoreId,
+          traceId: params.traceId,
+          observationId: params.observationId,
+          name: score.name,
+          comment: score.comment,
+          metadata: {
+            ...(score.metadata ?? {}),
+            ...params.executionMetadata,
+          },
+          evaluatorId: params.evaluationContext.evaluatorId,
+          evaluationRuleId: params.evaluationContext.evaluationRuleId,
+          configId: score.configId,
+          source: ScoreSourceEnum.EVAL,
+          environment: params.environment,
+          executionTraceId: params.executionTraceId,
+          value: score.value,
+          dataType: score.dataType,
+        } as EvalScoreWritePayload["event"]["body"],
+      },
+    };
+  });
 }

@@ -4,7 +4,9 @@ import {
   type ScoreSimplified,
   type ScoreSourceType,
   type ScoreDomain,
-  type AggregatableScoreDataType,
+  type ScoreDataTypeType,
+  type ListableScore,
+  type ListableScoreDataType,
 } from "@langfuse/shared";
 
 /**
@@ -22,7 +24,7 @@ export const composeAggregateScoreKey = ({
 }: {
   name: string;
   source: ScoreSourceType;
-  dataType: AggregatableScoreDataType;
+  dataType: ScoreDataTypeType;
   keyPrefix?: string;
 }): string => {
   const formattedName = normalizeScoreName(name);
@@ -34,14 +36,36 @@ export const decomposeAggregateScoreKey = (
 ): {
   name: string;
   source: ScoreSourceType;
-  dataType: AggregatableScoreDataType;
+  dataType: ScoreDataTypeType;
 } => {
   const [name, source, dataType] = key.split("-");
   return {
     name,
     source: source as ScoreSourceType,
-    dataType: dataType as AggregatableScoreDataType,
+    dataType: dataType as ScoreDataTypeType,
   };
+};
+
+/**
+ * How many values each score name carries across the aggregates handed in —
+ * the counting sibling of `collectPresentScoreKeys`, which only answers
+ * whether a score is present at all. Keyed by normalized score name and summed
+ * across sources and data types, so a surface can prefer the best-recorded
+ * score over whichever name sorts first. Client-side, from data already
+ * fetched.
+ */
+export const collectScoreNameCoverage = (
+  aggregates: (ScoreAggregate | null | undefined)[],
+): Map<string, number> => {
+  const coverage = new Map<string, number>();
+  for (const aggregate of aggregates) {
+    if (!aggregate) continue;
+    for (const [key, value] of Object.entries(aggregate)) {
+      const { name } = decomposeAggregateScoreKey(key);
+      coverage.set(name, (coverage.get(name) ?? 0) + value.values.length);
+    }
+  }
+  return coverage;
 };
 
 export const getScoreLabelFromKey = (key: string): string => {
@@ -51,7 +75,7 @@ export const getScoreLabelFromKey = (key: string): string => {
 
 export type ScoreToAggregate =
   | (Omit<ScoreDomain, "dataType"> & {
-      dataType: AggregatableScoreDataType;
+      dataType: ListableScore["dataType"];
       hasMetadata?: boolean;
     })
   | (ScoreSimplified & {
@@ -59,14 +83,24 @@ export type ScoreToAggregate =
     });
 
 /**
+ * Display value of a boolean score. They are stored as 0/1 with "True"/"False"
+ * string values, but users read and write them as booleans.
+ */
+export const toBooleanScoreValue = (score: {
+  value?: number | null;
+  stringValue?: string | null;
+}): string =>
+  score.value === 1 || score.stringValue === "True" ? "true" : "false";
+
+/**
  * Maps score data types to aggregate types for processing.
  * Boolean scores are treated as categorical since they share the same
  * aggregation logic (value counting vs numeric averaging).
  */
-export const resolveAggregateType = (
-  dataType: AggregatableScoreDataType,
+const resolveAggregateType = (
+  dataType: ListableScoreDataType,
 ): "NUMERIC" | "CATEGORICAL" => {
-  return dataType === "BOOLEAN" ? "CATEGORICAL" : dataType;
+  return dataType === "NUMERIC" ? "NUMERIC" : "CATEGORICAL";
 };
 
 export const aggregateScores = <T extends ScoreToAggregate>(
@@ -104,12 +138,22 @@ export const aggregateScores = <T extends ScoreToAggregate>(
         values,
         average,
         comment: values.length === 1 ? scores[0].comment : undefined,
+        executionTraceId:
+          values.length === 1 ? scores[0].executionTraceId : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,
       };
     } else {
-      const values = scores.map((score) => score.stringValue ?? "n/a");
+      const isBoolean = scores[0].dataType === "BOOLEAN";
+      // Sorted by value: the score rows arrive in event-timestamp order, so an
+      // unsorted cell lists "true, false" in one row and "false, true" in the
+      // next, which makes a score column impossible to scan.
+      const values = scores
+        .map((score) =>
+          isBoolean ? toBooleanScoreValue(score) : (score.stringValue ?? "n/a"),
+        )
+        .sort((a, b) => a.localeCompare(b));
       if (!Boolean(values.length)) return acc;
       const valueCounts = values.reduce(
         (acc, value) => {
@@ -126,6 +170,8 @@ export const aggregateScores = <T extends ScoreToAggregate>(
           count,
         })),
         comment: values.length === 1 ? scores[0].comment : undefined,
+        executionTraceId:
+          values.length === 1 ? scores[0].executionTraceId : undefined,
         id: values.length === 1 ? scores[0].id : undefined,
         hasMetadata: values.length === 1 ? scores[0].hasMetadata : undefined,
         timestamp: values.length === 1 ? scores[0].timestamp : undefined,

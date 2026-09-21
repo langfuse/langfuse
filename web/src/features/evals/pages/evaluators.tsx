@@ -1,36 +1,35 @@
 import Page from "@/src/components/layouts/page";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Plus } from "lucide-react";
 import EvaluatorTable from "@/src/features/evals/components/evaluator-table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getEvalsTabs,
   EVALS_TABS,
 } from "@/src/features/navigation/utils/evals-tabs";
 import { ActionButton } from "@/src/components/ActionButton";
 import { api } from "@/src/utils/api";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 import { EvaluatorsOnboarding } from "@/src/components/onboarding/EvaluatorsOnboarding";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 
 export default function EvaluatorsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
-  const capture = usePostHogClientCapture();
 
   const evaluatorLimit = useEntitlementLimit(
     "model-based-evaluations-count-evaluators",
   );
   const hasWriteAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:CUD",
+    scope: "evaluationRule:CUD",
   });
 
   const hasReadAccess = useHasProjectAccess({
     projectId,
-    scope: "evalJob:read",
+    scope: "evaluationRule:read",
   });
 
   // Fetch counts of evaluator configs and templates
@@ -60,7 +59,7 @@ export default function EvaluatorsPage() {
     return (
       <Page
         headerProps={{
-          title: "LLM-as-a-Judge Evaluators",
+          title: "Evaluators",
           help: {
             description:
               "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
@@ -69,47 +68,57 @@ export default function EvaluatorsPage() {
         }}
         scrollable
       >
-        <EvaluatorsOnboarding projectId={projectId} />
+        <EvaluatorsOnboarding
+          projectId={projectId}
+          createEvaluatorAction={{
+            label: "Create Evaluator",
+            href: `/project/${projectId}/evals/legacy/new`,
+          }}
+        />
       </Page>
     );
   }
 
   return (
-    <>
-      <Page
-        headerProps={{
-          title: "LLM-as-a-Judge Evaluators",
-          help: {
-            description:
-              "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
-            href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
-          },
-          tabsProps: {
-            tabs: getEvalsTabs(projectId),
-            activeTab: EVALS_TABS.CONFIGS,
-          },
-          actionButtonsRight: (
-            <>
-              <ManageDefaultEvalModel projectId={projectId} />
-              <ActionButton
-                hasAccess={hasWriteAccess}
-                icon={<Plus className="h-4 w-4" />}
-                variant="default"
-                onClick={() => {
-                  capture("eval_config:new_form_open");
-                  router.push(`/project/${projectId}/evals/new`);
-                }}
-                limitValue={countsQuery.data?.configActiveCount ?? 0}
-                limit={evaluatorLimit}
-              >
-                Set up evaluator
-              </ActionButton>
-            </>
-          ),
-        }}
-      >
-        <EvaluatorTable projectId={projectId} />
-      </Page>
-    </>
+    <Page
+      headerProps={{
+        title: "Evaluators",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
+        help: {
+          description:
+            "Configure a langfuse managed or custom evaluator to evaluate incoming traces.",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
+        },
+        tabsProps: {
+          tabs: getEvalsTabs(projectId),
+          activeTab: EVALS_TABS.CONFIGS,
+        },
+        actionButtonsRight: (
+          <>
+            <ManageDefaultEvalModel projectId={projectId} />
+            <ActionButton
+              hasAccess={hasWriteAccess}
+              href={`/project/${projectId}/evals/legacy/new`}
+              icon={<Plus className="h-4 w-4" />}
+              trackingEventName="eval_config:new_form_open"
+              variant="default"
+              usageLimit={
+                typeof evaluatorLimit === "number"
+                  ? {
+                      current: countsQuery.data?.configActiveCount ?? 0,
+                      max: evaluatorLimit,
+                    }
+                  : undefined
+              }
+            >
+              Set up evaluator
+            </ActionButton>
+          </>
+        ),
+        actionButtonsRightClassName: "justify-end",
+      }}
+    >
+      <EvaluatorTable projectId={projectId} />
+    </Page>
   );
 }

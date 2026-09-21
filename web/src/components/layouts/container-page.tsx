@@ -1,28 +1,61 @@
 import PageHeader, {
   type PageHeaderProps,
 } from "@/src/components/layouts/page-header";
+import { MobileTopBar } from "@/src/components/layouts/mobile-top-bar";
+import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
 
 type SettingsContainerProps = {
   children: React.ReactNode;
   headerProps: Omit<PageHeaderProps, "container">;
+  fullHeight?: boolean;
+  extendRight?: boolean;
 };
 
 const containerLayoutClassName =
   "lg:mx-auto lg:w-full lg:max-w-screen-lg lg:px-8 xl:max-w-screen-xl 2xl:max-w-[1400px]";
 
-const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
+const rightExtendedContainerLayoutClassName =
+  "lg:ml-[max(0px,calc((100%_-_1024px)/2))] lg:px-8 xl:ml-[max(0px,calc((100%_-_1280px)/2))] 2xl:ml-[max(0px,calc((100%_-_1400px)/2))]";
+
+const ContainerPage = ({
+  children,
+  headerProps,
+  fullHeight = false,
+  extendRight = false,
+}: SettingsContainerProps) => {
+  // Same minimal-chrome mobile shell as Page (slim top bar + page-title block),
+  // so settings/container pages match the rest of the app on mobile. Desktop is
+  // unchanged: the existing container PageHeader renders on `md` and up.
+  const isMobile = useIsMobile();
+
   return (
     <div
-      className={cn("min-h-screen-with-banner relative flex flex-1 flex-col")}
+      className={cn(
+        "relative flex flex-1 flex-col",
+        fullHeight
+          ? "h-screen-with-banner overflow-hidden"
+          : "min-h-screen-with-banner",
+      )}
     >
       <header className="sticky top-0 z-50 w-full">
-        <PageHeader {...headerProps} container />
+        {isMobile ? (
+          <MobileTopBar
+            showSidebarTrigger={headerProps.showSidebarTrigger}
+            leadingControl={headerProps.leadingControl}
+          />
+        ) : (
+          <PageHeader {...headerProps} container />
+        )}
       </header>
+      {isMobile && <MobilePageTitle headerProps={headerProps} />}
       <main
         className={cn(
-          "min-h-screen-with-banner relative flex flex-1 flex-col p-3",
-          containerLayoutClassName,
+          "relative flex min-h-0 flex-1 flex-col p-3",
+          extendRight
+            ? rightExtendedContainerLayoutClassName
+            : containerLayoutClassName,
         )}
       >
         {children}

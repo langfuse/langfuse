@@ -1,25 +1,51 @@
 import {
   createEvent,
   createEventsCh,
+  getTraceBatchEventStream,
+  getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
+  getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
+  getLatestSdkVersionInfoFromEvents,
+  getTracesIdentifierForSessionFromEvents,
+  getEventsFilterOptionsForColumns,
+  getEventsExactFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
+  getLatestEvaluatorRunCost,
+  getRecentEvaluatorExecutionTraces,
+  getRecentRuleExecutionTraces,
+  getTotalCostByEvaluatorIds,
+  getTotalCostByRule,
+  createScoresCh,
+  createTraceScore,
+  type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
+import {
+  getEventListCursor,
+  getEventFilterNumericRange,
+  getEventFilterOptions,
+  getEventFilterValuePage,
+} from "@/src/features/events/server/eventsService";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import {
+  type EventsTableFilterState,
+  type FilterCondition,
+  type TimeFilter,
+} from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -32,13 +58,605 @@ function idFilter(id: string): FilterCondition {
   };
 }
 
+const findFilterOption = (
+  rows: Awaited<ReturnType<typeof getEventsFilterOptionsForColumns>>,
+  column: EventFilterOptionColumn,
+  value: string,
+) => rows.find((row) => row.column === column && row.value === value);
+
 describe("Clickhouse Events Repository Test", () => {
+  it("streams complete trace batches with full payloads and exact per-trace time bounds", async () => {
+    const batchProjectId = randomUUID();
+    const otherProjectId = randomUUID();
+    const firstTraceId = randomUUID();
+    const secondTraceId = randomUUID();
+    const otherTraceId = randomUUID();
+    const start = Date.now();
+    const buffer = 2 * 60_000;
+    const input = JSON.stringify({ message: "input".repeat(100) });
+    const output = JSON.stringify({ message: "output".repeat(100) });
+    const metadataValue = JSON.stringify({ detail: "metadata".repeat(100) });
+    const first = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start - buffer),
+      input,
+      output,
+      metadata_names: ["context"],
+      metadata_values: [metadataValue],
+      tool_definitions: { search: '{"description":"Search"}' },
+      tool_calls: ['{"name":"search"}'],
+      tool_call_names: ["search"],
+    });
+    const second = createEvent({
+      project_id: batchProjectId,
+      trace_id: secondTraceId,
+      start_time: new Date(start + 600_000 + buffer),
+    });
+    const longTraceUpperEndpoint = createEvent({
+      project_id: batchProjectId,
+      trace_id: secondTraceId,
+      start_time: new Date(start + 1_800_000 + buffer),
+    });
+    const companionOnlyRow = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start + buffer + 1),
+    });
+    const repeatedIntervalRow = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start + 1_200_000),
+    });
+    const otherProjectWindowRow = createEvent({
+      project_id: otherProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start),
+    });
+    await createEventsCh([
+      first,
+      second,
+      longTraceUpperEndpoint,
+      companionOnlyRow,
+      repeatedIntervalRow,
+      // This row only matches the same trace ID's window in another project.
+      otherProjectWindowRow,
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: otherTraceId,
+        start_time: new Date(start),
+      }),
+      // The same trace ID in two projects has independent time windows.
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: firstTraceId,
+        start_time: new Date(start + 600_000),
+      }),
+      // These crossed pairs match both independent IN lists, but are unrequested.
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: otherTraceId,
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: otherProjectId,
+        trace_id: secondTraceId,
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: randomUUID(),
+        trace_id: firstTraceId,
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: randomUUID(),
+        start_time: new Date(start),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: firstTraceId,
+        start_time: new Date(start - buffer - 1),
+      }),
+      createEvent({
+        project_id: batchProjectId,
+        trace_id: secondTraceId,
+        start_time: new Date(start + 1_800_000 + buffer + 1),
+      }),
+    ]);
+
+    // Exceed the single-trace reader's historical 20,000-observation cap.
+    const extraRowCount = 20_001;
+    const template = createEvent({
+      project_id: batchProjectId,
+      trace_id: firstTraceId,
+      start_time: new Date(start),
+      input: "",
+      output: "",
+      metadata_names: [],
+      metadata_values: [],
+    });
+    for (let offset = 0; offset < extraRowCount; offset += 2_000) {
+      await createEventsCh(
+        Array.from({ length: Math.min(2_000, extraRowCount - offset) }, () => {
+          const spanId = randomUUID();
+          return { ...template, span_id: spanId, id: spanId };
+        }),
+      );
+    }
+
+    let rowCount = 0;
+    let fullPayloadSeen = false;
+    let companionOnlyRowSeen = false;
+    let otherProjectWindowRowSeen = false;
+    let repeatedIntervalRowCount = 0;
+    const foundTraces = new Set<string>();
+    for await (const event of getTraceBatchEventStream({
+      traces: [
+        {
+          projectId: batchProjectId,
+          traceId: firstTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        {
+          projectId: batchProjectId,
+          traceId: secondTraceId,
+          minStart: start + 600_000,
+          maxStart: start + 1_800_000,
+        },
+        {
+          projectId: otherProjectId,
+          traceId: otherTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        {
+          projectId: otherProjectId,
+          traceId: firstTraceId,
+          minStart: start + 600_000,
+          maxStart: start + 600_000,
+        },
+        // Repeated identical intervals must not duplicate output rows.
+        {
+          projectId: batchProjectId,
+          traceId: firstTraceId,
+          minStart: start,
+          maxStart: start,
+        },
+        // A repeated pair may contribute a separate required interval.
+        {
+          projectId: batchProjectId,
+          traceId: firstTraceId,
+          minStart: start + 1_200_000,
+          maxStart: start + 1_200_000,
+        },
+        // Missing IDs stress HTTP parameters without unrelated fixture rows.
+        ...Array.from({ length: 994 }, () => ({
+          projectId: batchProjectId,
+          traceId: randomUUID(),
+          minStart: start,
+          maxStart: start,
+        })),
+      ],
+    })) {
+      rowCount++;
+      foundTraces.add(JSON.stringify([event.project_id, event.trace_id]));
+      if (event.span_id === companionOnlyRow.span_id) {
+        companionOnlyRowSeen = true;
+      }
+      if (event.span_id === otherProjectWindowRow.span_id) {
+        otherProjectWindowRowSeen = true;
+      }
+      if (event.span_id === repeatedIntervalRow.span_id) {
+        repeatedIntervalRowCount++;
+      }
+      if (event.span_id === first.span_id) {
+        fullPayloadSeen = true;
+        expect(event).toMatchObject({
+          input,
+          output,
+          metadata: { context: metadataValue },
+          tool_definitions: first.tool_definitions,
+          tool_calls: first.tool_calls,
+          tool_call_names: first.tool_call_names,
+        });
+      }
+    }
+    expect(fullPayloadSeen).toBe(true);
+    expect(companionOnlyRowSeen).toBe(false);
+    expect(otherProjectWindowRowSeen).toBe(false);
+    expect(repeatedIntervalRowCount).toBe(1);
+    expect(foundTraces).toEqual(
+      new Set([
+        JSON.stringify([batchProjectId, firstTraceId]),
+        JSON.stringify([batchProjectId, secondTraceId]),
+        JSON.stringify([otherProjectId, otherTraceId]),
+        JSON.stringify([otherProjectId, firstTraceId]),
+      ]),
+    );
+    expect(rowCount).toBe(extraRowCount + 6);
+  }, 60_000);
+
+  it("returns matching rows across parameter chunks in a 10,000-trace batch", async () => {
+    const start = Date.now();
+    const traces = Array.from({ length: 10_000 }, (_, index) => ({
+      projectId: randomUUID(),
+      traceId: randomUUID(),
+      minStart: start + index,
+      maxStart: start + index,
+    }));
+    // Exercise both sides of time-group, pair, and ID chunk boundaries, plus
+    // the final chunk. Distinct projects also exercise project parameter chunks.
+    const expectedRows = [0, 49, 50, 999, 1_000, 1_999, 2_000, 9_999].map(
+      (index) =>
+        createEvent({
+          project_id: traces[index].projectId,
+          trace_id: traces[index].traceId,
+          start_time: new Date(traces[index].minStart),
+        }),
+    );
+    await createEventsCh(expectedRows);
+
+    const foundSpanIds: string[] = [];
+    for await (const event of getTraceBatchEventStream({ traces })) {
+      foundSpanIds.push(event.span_id);
+    }
+
+    expect(foundSpanIds.sort()).toEqual(
+      expectedRows.map(({ span_id }) => span_id).sort(),
+    );
+  }, 120_000);
+
   it("should kill redis connection", () => {
     // we need at least one test case to avoid hanging
     // redis connection when everything else is skipped.
   });
 
+  maybe("evaluator execution metrics", () => {
+    it("returns evaluator costs from the last seven days excluding test runs", async () => {
+      const evaluatorId = randomUUID();
+      const testTraceId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          evaluator_id: evaluatorId,
+          cost_details: { total: 1.5 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          evaluator_id: evaluatorId,
+          cost_details: { total: 20 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
+        }),
+      ]);
+
+      await expect(
+        getTotalCostByEvaluatorIds(projectId, [evaluatorId]),
+      ).resolves.toEqual([{ evaluatorId, totalCost: 1.5 }]);
+    });
+
+    it("returns the latest evaluator trace cost", async () => {
+      const evaluatorId = randomUUID();
+      const staleEvaluatorId = randomUUID();
+      const traceId = randomUUID();
+      const earlierTestTraceId = randomUUID();
+      const staleTraceId = randomUUID();
+      const now = Date.now() * 1000;
+      const oneHourAgo = now - 60 * 60 * 1_000 * 1_000;
+      const eightDaysAgo = now - 8 * 24 * 60 * 60 * 1_000 * 1_000;
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          start_time: now,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0.1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          start_time: now,
+          type: "GENERATION",
+          cost_details: { total: 0.9 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: earlierTestTraceId,
+          start_time: oneHourAgo,
+          type: "GENERATION",
+          cost_details: { total: 1 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "SPAN",
+          evaluator_id: staleEvaluatorId,
+          cost_details: { total: 2 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: staleTraceId,
+          start_time: eightDaysAgo,
+          type: "GENERATION",
+          cost_details: { total: 3 },
+        }),
+      ]);
+
+      await expect(
+        getLatestEvaluatorRunCost(projectId, evaluatorId),
+      ).resolves.toBe(1);
+      await expect(
+        getLatestEvaluatorRunCost(projectId, staleEvaluatorId),
+      ).resolves.toBeNull();
+    });
+
+    it("returns recent evaluator traces without test runs", async () => {
+      const traceId = randomUUID();
+      const testTraceId = randomUUID();
+      const failedTestSpanId = randomUUID();
+      const untaggedTestTraceId = randomUUID();
+      const evaluatorId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          level: "ERROR",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          evaluator_execution_is_test: true,
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          id: failedTestSpanId,
+          span_id: failedTestSpanId,
+          project_id: projectId,
+          trace_id: testTraceId,
+          type: "SPAN",
+          level: "ERROR",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0 },
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: untaggedTestTraceId,
+          trace_name: "Test evaluator: Legacy code evaluator",
+          type: "SPAN",
+          evaluator_id: evaluatorId,
+          cost_details: { total: 0 },
+        }),
+      ]);
+
+      await expect(
+        getRecentEvaluatorExecutionTraces(projectId, [evaluatorId]),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: traceId,
+          evaluatorId,
+          level: "ERROR",
+        }),
+      ]);
+    });
+  });
+
+  maybe("rule execution metrics", () => {
+    it("returns seven-day costs, falling back to job_configuration_id", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const eightDaysAgo = (Date.now() - 8 * 24 * 60 * 60 * 1000) * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["evaluation_rule_id", "job_configuration_id"],
+          metadata_values: [ruleId, randomUUID()],
+          cost_details: { total: 4 },
+        }),
+        createEvent({
+          project_id: projectId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+          cost_details: { total: 30 },
+        }),
+        createEvent({
+          project_id: projectId,
+          start_time: eightDaysAgo,
+          metadata_names: ["evaluation_rule_id"],
+          metadata_values: [ruleId],
+          cost_details: { total: 50 },
+        }),
+      ]);
+
+      // `evaluation_rule_id` wins when both keys are present; executions written before
+      // the rename resolve through `job_configuration_id`.
+      await expect(
+        getTotalCostByRule(projectId, [ruleId, legacyRuleId]),
+      ).resolves.toEqual(
+        expect.arrayContaining([
+          { ruleId, totalCost: 4 },
+          { ruleId: legacyRuleId, totalCost: 30 },
+        ]),
+      );
+    });
+
+    it("returns the last five traces, falling back to job_configuration_id", async () => {
+      const ruleId = randomUUID();
+      const legacyRuleId = randomUUID();
+      const traceIds = Array.from({ length: 6 }, () => randomUUID());
+      const legacyTraceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        ...traceIds.map((traceId, index) =>
+          createEvent({
+            project_id: projectId,
+            trace_id: traceId,
+            start_time: now - index * 1_000_000,
+            metadata_names: ["evaluation_rule_id", "job_configuration_id"],
+            metadata_values: [ruleId, randomUUID()],
+          }),
+        ),
+        createEvent({
+          project_id: projectId,
+          trace_id: legacyTraceId,
+          metadata_names: ["job_configuration_id"],
+          metadata_values: [legacyRuleId],
+        }),
+      ]);
+
+      const traces = await getRecentRuleExecutionTraces(projectId, [
+        ruleId,
+        legacyRuleId,
+      ]);
+
+      expect(traces.filter((trace) => trace.ruleId === ruleId)).toHaveLength(5);
+      expect(traces.map(({ id }) => id)).not.toContain(traceIds[5]);
+      expect(traces).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: legacyTraceId, ruleId: legacyRuleId }),
+        ]),
+      );
+    });
+  });
+
   maybe("getObservationsWithModelDataFromEventsTable", () => {
+    // LFE-14924: the events table projects the resolved trace name (a nullable
+    // fallback expression) under the same name as the non-null events_core
+    // column it reads. With a trace-name filter AND an ORDER BY — the events
+    // table's default shape — ClickHouse 25.x compares the two `trace_name`
+    // block headers and fails with AMBIGUOUS_COLUMN_NAME (code 352). The sort
+    // is load-bearing: without it the same query succeeds.
+    it("filters observations by their resolved trace name while sorting", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const traceName = `trace-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: traceName,
+          type: "GENERATION",
+          name: "trace-name-filter-event",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            type: "stringOptions",
+            operator: "any of",
+            value: [traceName],
+          },
+        ],
+        orderBy: { column: "startTime", order: "DESC" },
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(result.map((observation) => observation.id)).toContain(
+        observationId,
+      );
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName });
+    });
+
+    it("returns null when an observation has no resolved trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          project_id: projectId,
+          trace_id: traceId,
+          trace_name: "",
+          type: "SPAN",
+          name: "child-without-trace-name",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      expect(
+        result.find((observation) => observation.id === observationId),
+      ).toMatchObject({ traceName: null });
+    });
+
+    it("should return trace tags for events table observations", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "tagged-event",
+          tags: ["chat", "prod"],
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+    });
+
     it("should return observations with model data", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -203,6 +821,153 @@ describe("Clickhouse Events Repository Test", () => {
       expect(result2.length).toBeLessThanOrEqual(2);
     });
 
+    it("keeps cursor pages disjoint when a newer observation arrives", async () => {
+      const name = `cursor-pagination-${randomUUID()}`;
+      const events = Array.from({ length: 4 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const original = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 10,
+        cursorPagination: true,
+      });
+      const firstPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+      });
+      const boundary = firstPage.at(-1)!;
+
+      const newerId = randomUUID();
+      await createEventsCh([
+        createEvent({
+          id: newerId,
+          span_id: newerId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() + 60_000,
+        }),
+      ]);
+
+      const secondPage = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter,
+        limit: 2,
+        cursorPagination: true,
+        cursor: {
+          lastStartTimeTo: boundary.startTime,
+          lastTraceId: boundary.traceId ?? "",
+          lastId: boundary.id,
+        },
+      });
+
+      expect(firstPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(secondPage.map(({ id }) => id)).not.toContain(newerId);
+      expect(
+        new Set([...firstPage, ...secondPage].map(({ id }) => id)).size,
+      ).toBe(4);
+      expect([...firstPage, ...secondPage].map(({ id }) => id)).toEqual(
+        original.map(({ id }) => id),
+      );
+    });
+
+    it("returns a next cursor and a second service page", async () => {
+      const name = `cursor-service-${randomUUID()}`;
+      const events = Array.from({ length: 30 }, (_, index) => {
+        const id = randomUUID();
+        return createEvent({
+          id,
+          span_id: id,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name,
+          start_time: Date.now() - index * 1_000,
+        });
+      });
+      const filter: FilterCondition[] = [
+        { column: "name", type: "string", operator: "=", value: name },
+      ];
+
+      await createEventsCh(events);
+
+      const firstPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+      });
+      expect(firstPage.observations).toHaveLength(25);
+      expect(firstPage.nextCursor).toBeDefined();
+
+      const secondPage = await getEventListCursor({
+        projectId,
+        filter,
+        searchType: [],
+        limit: 25,
+        cursor: firstPage.nextCursor,
+      });
+
+      expect(secondPage.observations).toHaveLength(5);
+      expect(secondPage.nextCursor).toBeUndefined();
+      expect(
+        new Set(
+          [...firstPage.observations, ...secondPage.observations].map(
+            ({ id }) => id,
+          ),
+        ).size,
+      ).toBe(30);
+    });
+
+    it("should return release field in the result set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-field-test",
+          release: "1.2.3",
+          version: "V2",
+        }),
+      ]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(observationId)],
+        limit: 1000,
+        offset: 0,
+      });
+
+      const observation = result.find((o) => o.id === observationId);
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("1.2.3");
+      expect(observation?.version).toBe("V2");
+    });
+
     it("should handle events without end_time (null latency)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -272,7 +1037,11 @@ describe("Clickhouse Events Repository Test", () => {
         name: "io-metadata-test",
         input: "Test input content",
         output: "Test output content",
-        metadata: { key: "value" },
+        // events_full has no `metadata` map column; ClickHouse skips unknown
+        // JSONEachRow fields on insert, so this extra key is inert.
+        ...({ metadata: { key: "value" } } as Partial<
+          Parameters<typeof createEvent>[0]
+        >),
       });
 
       await createEventsCh([event]);
@@ -299,6 +1068,97 @@ describe("Clickhouse Events Repository Test", () => {
       expect(resultWithoutIO.length).toBeGreaterThanOrEqual(1);
       expect(resultWithIO[0]?.input).toBeDefined();
       expect(resultWithoutIO[0]?.output).toBeDefined();
+    });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+    });
+  });
+
+  maybe("getObservationByIdFromEventsTable startTimeLowerBound", () => {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    it("prunes on start_time while absorbing trace-to-observation skew", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const observationStart = Date.now() - 5 * DAY_MS;
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          start_time: observationStart,
+        }),
+      ]);
+
+      const atStart = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart),
+      });
+      expect(atStart?.id).toBe(observationId);
+
+      // Anchor one day after start (e.g. a trace whose timestamp trails the
+      // observation): still returned because the 2-day skew lookback covers it.
+      const withinSkew = await getObservationByIdFromEventsTable({
+        id: observationId,
+        projectId,
+        traceId,
+        startTimeLowerBound: new Date(observationStart + DAY_MS),
+      });
+      expect(withinSkew?.id).toBe(observationId);
+
+      // Anchor three days after start: the lower bound (anchor - 2 days) now
+      // excludes the observation, proving the bound actually prunes.
+      await expect(
+        getObservationByIdFromEventsTable({
+          id: observationId,
+          projectId,
+          traceId,
+          startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
+        }),
+      ).rejects.toThrow();
     });
   });
 
@@ -348,6 +1208,95 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationsCountsFromEventsTable", () => {
+    it("should return zero counts for non-existent project", async () => {
+      const nonExistentProjectId = randomUUID();
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: nonExistentProjectId,
+        filter: [],
+      });
+
+      expect(counts).toEqual({ totalCount: 0, uniqueTraceCount: 0 });
+    });
+
+    it("should return total event count and unique trace count in one query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceIds = [randomUUID(), randomUUID(), randomUUID()];
+      // 6 events across 3 distinct traces (2 events per trace)
+      const events = traceIds.flatMap((traceId, traceIndex) =>
+        Array.from({ length: 2 }, (_, i) =>
+          createEvent({
+            id: randomUUID(),
+            span_id: randomUUID(),
+            project_id: uniqueProjectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: `counts-test-${traceIndex}-${i}`,
+          }),
+        ),
+      );
+
+      await createEventsCh(events);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+      });
+
+      expect(counts.totalCount).toBe(6);
+      expect(counts.uniqueTraceCount).toBe(3);
+    });
+
+    it("should apply filters to both counts", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "counts-filter-match",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "counts-filter-other",
+        }),
+      ]);
+
+      const counts = await getObservationsCountsFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "=",
+            value: "counts-filter-match",
+          },
+        ],
+      });
+
+      expect(counts.totalCount).toBe(2);
+      expect(counts.uniqueTraceCount).toBe(1);
+    });
+  });
+
   maybe("Search Query Tests", () => {
     it("should not throw when searchQuery is combined with score filter", async () => {
       const uniqueProjectId = randomUUID();
@@ -384,6 +1333,169 @@ describe("Clickhouse Events Repository Test", () => {
       expect(count).toBeGreaterThanOrEqual(0);
     });
 
+    it("filters observations by observation-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: matchingSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: otherSpanId,
+          name: "is_hallucination",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "score_booleans",
+        operator: "=",
+        key: "is_hallucination",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
+    it("filters observations by trace-level boolean scores", async () => {
+      const uniqueProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const otherTraceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const otherSpanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-match",
+          start_time: now * 1000,
+        }),
+        createEvent({
+          id: otherSpanId,
+          span_id: otherSpanId,
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          type: "SPAN",
+          name: "trace-boolean-score-other",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: otherTraceId,
+          observation_id: null,
+          name: "passes_guardrail",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const booleanFilter: FilterCondition = {
+        type: "booleanObject",
+        column: "trace_score_booleans",
+        operator: "=",
+        key: "passes_guardrail",
+        value: true,
+      };
+
+      await waitForExpect(async () => {
+        const observations = await getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+          limit: 100,
+          offset: 0,
+        });
+        const count = await getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [booleanFilter],
+        });
+
+        expect(count).toBe(1);
+        expect(observations.map((o) => o.id)).toEqual([matchingSpanId]);
+      });
+    });
+
     it("should not throw when searchQuery is provided without filters", async () => {
       const uniqueProjectId = randomUUID();
       const traceId = randomUUID();
@@ -408,6 +1520,1201 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(count).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  maybe("getEventFilterOptions", () => {
+    it("applies a default 30 day startTime bound when none is provided", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const recentLevel = "WARNING";
+      const oldLevel = "ERROR";
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-filter-option-event",
+          level: recentLevel,
+          start_time: (now - 7 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-filter-option-event",
+          level: oldLevel,
+          start_time: (now - 45 * 24 * 60 * 60 * 1000) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+        });
+        expect(options.level!.map((level) => level.value)).toContain(
+          recentLevel,
+        );
+      });
+
+      const defaultOptions = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+      const defaultLevels = defaultOptions.level!.map((level) => level.value);
+
+      expect(defaultLevels).toContain(recentLevel);
+      expect(defaultLevels).not.toContain(oldLevel);
+
+      const upperOnlyOptions = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+        startTimeFilter: [
+          {
+            column: "startTime",
+            type: "datetime",
+            operator: "<=",
+            value: new Date(now),
+          },
+        ],
+      });
+      const upperOnlyLevels = upperOnlyOptions.level!.map(
+        (level) => level.value,
+      );
+
+      expect(upperOnlyLevels).toContain(recentLevel);
+      expect(upperOnlyLevels).not.toContain(oldLevel);
+
+      await waitForExpect(async () => {
+        const explicitOptions = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter: [
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: new Date(now - 60 * 24 * 60 * 60 * 1000),
+            },
+          ],
+        });
+        const explicitLevels = explicitOptions.level!.map(
+          (level) => level.value,
+        );
+
+        expect(explicitLevels).toContain(recentLevel);
+        expect(explicitLevels).toContain(oldLevel);
+      });
+    });
+
+    it("only loads requested filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "unrequested-filter-option-name",
+          level: "WARNING",
+          tags: ["unrequested-filter-option-tag"],
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-score",
+          data_type: "NUMERIC",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-category",
+          data_type: "CATEGORICAL",
+          string_value: "unrequested-category-value",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["level"],
+        });
+
+        expect(options.level?.map((level) => level.value)).toContain("WARNING");
+        // Unrequested columns are absent (not empty arrays), so the client can
+        // distinguish "loaded, no values" from "not requested yet" for lazy loading.
+        expect(options.name).toBeUndefined();
+        expect(options.traceTags).toBeUndefined();
+        expect(options.scores_avg).toBeUndefined();
+        expect(options.score_categories).toBeUndefined();
+        expect(options.score_booleans).toBeUndefined();
+        expect(options.trace_scores_avg).toBeUndefined();
+        expect(options.trace_score_categories).toBeUndefined();
+        expect(options.trace_score_booleans).toBeUndefined();
+        expect(options.metadataKeys).toBeUndefined();
+      });
+    });
+
+    it("loads requested metadata key filter option column", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "metadata-filter-option-event",
+          metadata_names: ["region", "tier"],
+          metadata_values: ["us-east", "gold"],
+          start_time: now * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["metadataKeys"],
+        });
+
+        expect(options.metadataKeys?.map((key) => key.value)).toEqual(
+          expect.arrayContaining(["region", "tier"]),
+        );
+        expect(options.level).toBeUndefined();
+        expect(options.name).toBeUndefined();
+      });
+    });
+
+    it("refines bulk facets and omits counts for non-participating filters", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: ["filtered-option-alpha"],
+      };
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-alpha",
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "filtered-option-beta",
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const getOptions = (filter: FilterCondition[]) =>
+          getEventFilterOptions({
+            projectId: uniqueProjectId,
+            startTimeFilter: [
+              {
+                column: "startTime",
+                type: "datetime",
+                operator: ">=",
+                value: new Date(now - 60_000),
+              },
+            ],
+            filter,
+            columns: ["name", "level"],
+          });
+
+        const countedOptions = await getOptions([nameFilter]);
+        const countlessOptions = await getOptions([
+          nameFilter,
+          {
+            type: "string",
+            column: "input",
+            operator: "contains",
+            value: "expensive",
+          },
+        ]);
+
+        expect(countedOptions).toEqual({
+          name: [{ value: "filtered-option-alpha", count: 2 }],
+          level: [
+            { value: "ERROR", count: 1 },
+            { value: "WARNING", count: 1 },
+          ],
+        });
+        expect(countlessOptions.level).toEqual([
+          { value: "ERROR" },
+          { value: "WARNING" },
+        ]);
+      });
+    });
+
+    it("returns the approximate total observation count only when requested, filter-aware and flagged when partial", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now();
+      const alphaName = "approx-count-alpha";
+      const betaName = "approx-count-beta";
+      const nameFilter: FilterCondition = {
+        type: "stringOptions",
+        column: "name",
+        operator: "any of",
+        value: [alphaName],
+      };
+      const startTimeFilter: TimeFilter[] = [
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(now - 60_000),
+        },
+      ];
+
+      // Two distinct observations named alpha, one named beta => 3 distinct span_ids.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "WARNING",
+          start_time: now * 1000,
+          event_ts: now * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: alphaName,
+          level: "ERROR",
+          start_time: (now + 1) * 1000,
+          event_ts: (now + 1) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: betaName,
+          level: "DEFAULT",
+          start_time: (now + 2) * 1000,
+          event_ts: (now + 2) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        // Eager/bulk request: count present and equal to the distinct observations.
+        const eager = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          includeApproxCount: true,
+        });
+        expect(eager.approxTotalCount).toBe(3);
+        expect(eager.approxTotalCountIsPartial).toBe(false);
+
+        // Lazy per-column request never asks for the count, so the keys stay absent.
+        const lazy = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["level"],
+        });
+        expect(lazy).not.toHaveProperty("approxTotalCount");
+        expect(lazy).not.toHaveProperty("approxTotalCountIsPartial");
+
+        // Filter-aware: an applied native (name) filter narrows the count to alpha.
+        const filtered = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [nameFilter],
+          includeApproxCount: true,
+        });
+        expect(filtered.approxTotalCount).toBe(2);
+        expect(filtered.approxTotalCountIsPartial).toBe(false);
+
+        // A non-participating (input) filter is dropped from the facet scan, so the
+        // count over-counts vs the visible rows (still 2, ignoring input) and is
+        // flagged partial.
+        const partial = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          startTimeFilter,
+          columns: ["name", "level"],
+          filter: [
+            nameFilter,
+            {
+              type: "string",
+              column: "input",
+              operator: "contains",
+              value: "expensive",
+            },
+          ],
+          includeApproxCount: true,
+        });
+        expect(partial.approxTotalCount).toBe(2);
+        expect(partial.approxTotalCountIsPartial).toBe(true);
+      });
+    });
+
+    it("loads requested boolean score filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "requested-boolean-filter-option",
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "requested-observation-boolean",
+          data_type: "BOOLEAN",
+          value: 1,
+          string_value: "True",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "requested-trace-boolean",
+          data_type: "BOOLEAN",
+          value: 0,
+          string_value: "False",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["score_booleans", "trace_score_booleans"],
+        });
+
+        expect(options.score_booleans).toContain(
+          "requested-observation-boolean",
+        );
+        expect(options.trace_score_booleans).toContain(
+          "requested-trace-boolean",
+        );
+        expect(options.trace_score_booleans).not.toContain(
+          "requested-observation-boolean",
+        );
+      });
+    });
+
+    it("applies the default startTime bound to paged and numeric filter values", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+      const dayMs = 24 * 60 * 60 * 1000;
+      const recentLevel = "WARNING";
+      const oldLevel = "ERROR";
+      const recentStart = now - 7 * dayMs;
+      const oldStart = now - 45 * dayMs;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "recent-filter-value-event",
+          level: recentLevel,
+          start_time: recentStart * 1000,
+          end_time: (recentStart + 1000) * 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "old-filter-value-event",
+          level: oldLevel,
+          start_time: oldStart * 1000,
+          end_time: (oldStart + 10_000) * 1000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const page = await getEventFilterValuePage({
+          projectId: uniqueProjectId,
+          column: "level",
+          limit: 10,
+          offset: 0,
+        });
+
+        expect(page.values.map((level) => level.value)).toContain(recentLevel);
+      });
+
+      const page = await getEventFilterValuePage({
+        projectId: uniqueProjectId,
+        column: "level",
+        limit: 10,
+        offset: 0,
+      });
+      const levels = page.values.map((level) => level.value);
+
+      expect(levels).toContain(recentLevel);
+      expect(levels).not.toContain(oldLevel);
+
+      await waitForExpect(async () => {
+        const range = await getEventFilterNumericRange({
+          projectId: uniqueProjectId,
+          column: "latency",
+        });
+
+        expect(range).not.toBeNull();
+        expect(Number(range?.count)).toBe(1);
+        expect(Number(range?.min)).toBeCloseTo(1, 3);
+        expect(Number(range?.max)).toBeCloseTo(1, 3);
+      });
+    });
+  });
+
+  maybe("events filter option repository helpers", () => {
+    it("executes the bulk filter option query for scalar, array, and boolean facets", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+      const childSpanId = randomUUID();
+      const otherRootSpanId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: rootSpanId,
+          span_id: rootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "WARNING",
+          tags: ["zeta", "alpha", "alpha"],
+          tool_definitions: { search: "{}", calculator: "{}" },
+          tool_call_names: ["search"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: childSpanId,
+          span_id: childSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          parent_span_id: rootSpanId,
+          type: "SPAN",
+          name: "runtime-filter-beta",
+          level: "WARNING",
+          tags: ["beta"],
+          tool_definitions: { search: "{}" },
+          tool_call_names: ["lookup", "search"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: otherRootSpanId,
+          span_id: otherRootSpanId,
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          parent_span_id: "",
+          is_app_root: true,
+          type: "GENERATION",
+          name: "runtime-filter-alpha",
+          level: "ERROR",
+          tags: ["alpha"],
+          tool_definitions: { lookup: "{}" },
+          tool_call_names: ["lookup"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: [
+            "name",
+            "level",
+            "traceTags",
+            "isRootObservation",
+            "hasParentObservation",
+            "toolNames",
+            "calledToolNames",
+          ],
+          topN: 20,
+        });
+
+        expect(Number(findFilterOption(rows, "level", "WARNING")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "level", "ERROR")?.count)).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-alpha")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "name", "runtime-filter-beta")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "traceTags", "alpha")?.count),
+        ).toBe(2);
+        expect(Number(findFilterOption(rows, "traceTags", "beta")?.count)).toBe(
+          1,
+        );
+        expect(Number(findFilterOption(rows, "traceTags", "zeta")?.count)).toBe(
+          1,
+        );
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta", "zeta"]);
+        expect(
+          rows
+            .filter((row) => row.column === "isRootObservation")
+            .map((row) => row.value),
+        ).toEqual(["false", "true"]);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "false")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "true")?.count),
+        ).toBe(2);
+        expect(
+          Number(
+            findFilterOption(rows, "hasParentObservation", "false")?.count,
+          ),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "hasParentObservation", "true")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "search")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "toolNames", "calculator")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "lookup")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "search")?.count),
+        ).toBe(2);
+      });
+    });
+
+    it("returns exact scores-view event facets scoped to scored traces", async () => {
+      const uniqueProjectId = randomUUID();
+      const scoredTraceA = randomUUID();
+      const scoredTraceB = randomUUID();
+      const unscoredTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          type: "SPAN",
+          trace_name: "exact-trace-a",
+          user_id: "user-a",
+          tags: ["alpha", "beta"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          type: "SPAN",
+          trace_name: "exact-trace-b",
+          user_id: "user-b",
+          tags: ["beta"],
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: unscoredTrace,
+          type: "SPAN",
+          trace_name: "exact-trace-c",
+          user_id: "user-c",
+          tags: ["gamma"],
+          start_time: nowMicro + 3_000,
+          event_ts: nowMicro + 3_000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceA,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: scoredTraceB,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: {
+          operator: ">=" as const,
+          value: new Date(now - 60_000),
+        },
+        toTime: {
+          operator: "<=" as const,
+          value: new Date(now + 60_000),
+        },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceTags", "traceName", "userId"],
+          scope,
+        });
+
+        // Exact per-value counts, scoped to the two scored traces only.
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-a")?.count),
+        ).toBe(2);
+        expect(
+          Number(findFilterOption(rows, "traceName", "exact-trace-b")?.count),
+        ).toBe(1);
+        expect(Number(findFilterOption(rows, "userId", "user-a")?.count)).toBe(
+          2,
+        );
+        expect(Number(findFilterOption(rows, "userId", "user-b")?.count)).toBe(
+          1,
+        );
+
+        // The unscored trace is outside the scope and must not appear.
+        expect(
+          findFilterOption(rows, "traceName", "exact-trace-c"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-c")).toBeUndefined();
+
+        // Tags: exact distinct set, alphabetical, no gamma.
+        expect(
+          rows
+            .filter((row) => row.column === "traceTags")
+            .map((row) => row.value),
+        ).toEqual(["alpha", "beta"]);
+      });
+    });
+
+    it("scopes scored-trace facets by the score timestamp window, not event time", async () => {
+      const uniqueProjectId = randomUUID();
+      const inWindowTrace = randomUUID();
+      const outOfWindowTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      // Both events sit at "now", so the events themselves are inside any
+      // sensible window; the scope must key off the score timestamp instead.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: inWindowTrace,
+          type: "SPAN",
+          trace_name: "in-window",
+          user_id: "user-in",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: outOfWindowTrace,
+          type: "SPAN",
+          trace_name: "out-window",
+          user_id: "user-out",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: inWindowTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        // Scored, but the score predates the window's fromTime.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: outOfWindowTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now - 120_000,
+          event_ts: now - 120_000,
+          created_at: now - 120_000,
+          updated_at: now - 120_000,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: { operator: ">=" as const, value: new Date(now - 60_000) },
+        toTime: { operator: "<=" as const, value: new Date(now + 60_000) },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceName", "userId"],
+          scope,
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "in-window")?.count),
+        ).toBe(1);
+        // The event is inside the time window, but its score is older than
+        // fromTime, so the scored-trace scope drops it.
+        expect(
+          findFilterOption(rows, "traceName", "out-window"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-out")).toBeUndefined();
+      });
+    });
+
+    it("does not leak scored-trace facets across projects sharing a trace_id", async () => {
+      const projectA = randomUUID();
+      const projectB = randomUUID();
+      const sharedTrace = randomUUID();
+      const scopedTrace = randomUUID();
+      const now = Date.now();
+      const nowMicro = now * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectA,
+          trace_id: sharedTrace,
+          type: "SPAN",
+          trace_name: "cross-project",
+          user_id: "user-cross",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: projectA,
+          trace_id: scopedTrace,
+          type: "SPAN",
+          trace_name: "same-project",
+          user_id: "user-same",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+      ]);
+      await createScoresCh([
+        // Score for the shared trace lives in project B only.
+        createTraceScore({
+          project_id: projectB,
+          trace_id: sharedTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: projectA,
+          trace_id: scopedTrace,
+          observation_id: null,
+          name: "quality",
+          data_type: "NUMERIC",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      const scope = {
+        type: "scoredTraces" as const,
+        fromTime: { operator: ">=" as const, value: new Date(now - 60_000) },
+        toTime: { operator: "<=" as const, value: new Date(now + 60_000) },
+      };
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: projectA,
+          filter: [],
+          columns: ["traceName", "userId"],
+          scope,
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "same-project")?.count),
+        ).toBe(1);
+        // The only score for `sharedTrace` is in project B, so project A's
+        // scope subquery (project_id = A) must not match it.
+        expect(
+          findFilterOption(rows, "traceName", "cross-project"),
+        ).toBeUndefined();
+        expect(findFilterOption(rows, "userId", "user-cross")).toBeUndefined();
+      });
+    });
+
+    it("derives traceName from the trace_name/observation-name fallback and never offers empty", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        // Explicit trace name wins.
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "explicit-name",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        // Root observation with no trace name falls back to the observation name.
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "",
+          name: "root-obs-name",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        // Non-root observation with no trace name resolves to NULL, so it
+        // contributes no trace name option (and its name is not used).
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          trace_name: "",
+          name: "child-obs-name",
+          parent_span_id: "parent-span",
+          is_app_root: false,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceName"],
+        });
+
+        expect(
+          Number(findFilterOption(rows, "traceName", "explicit-name")?.count),
+        ).toBe(1);
+        expect(
+          Number(findFilterOption(rows, "traceName", "root-obs-name")?.count),
+        ).toBe(1);
+        expect(
+          findFilterOption(rows, "traceName", "child-obs-name"),
+        ).toBeUndefined();
+        // The empty-string trace name is mapped to NULL by the facet
+        // expression, so it is never offered as an option.
+        expect(findFilterOption(rows, "traceName", "")).toBeUndefined();
+      });
+    });
+
+    it("counts array facets per event: distinct for traceTags, raw for calledToolNames", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["alpha", "alpha"],
+          tool_call_names: ["lookup", "lookup"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["alpha"],
+          tool_call_names: ["lookup"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["traceTags", "calledToolNames"],
+        });
+
+        // arrayDistinct collapses the duplicate tag within each event before
+        // counting: 1 per event, 2 total.
+        expect(
+          Number(findFilterOption(rows, "traceTags", "alpha")?.count),
+        ).toBe(2);
+        // calledToolNames is not distinct, so repeated calls within one event
+        // all count: 2 + 1 = 3.
+        expect(
+          Number(findFilterOption(rows, "calledToolNames", "lookup")?.count),
+        ).toBe(3);
+      });
+    });
+
+    it("suppresses empty boolean buckets in exact facets", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      // Every event is a root observation, so the opposite bucket is empty.
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          parent_span_id: "",
+          is_app_root: true,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const rows = await getEventsExactFilterOptionsForColumns({
+          projectId: uniqueProjectId,
+          filter: [],
+          columns: ["isRootObservation", "hasParentObservation"],
+        });
+
+        expect(
+          Number(findFilterOption(rows, "isRootObservation", "true")?.count),
+        ).toBe(2);
+        expect(
+          findFilterOption(rows, "isRootObservation", "false"),
+        ).toBeUndefined();
+        expect(
+          Number(
+            findFilterOption(rows, "hasParentObservation", "false")?.count,
+          ),
+        ).toBe(2);
+        expect(
+          findFilterOption(rows, "hasParentObservation", "true"),
+        ).toBeUndefined();
+      });
+    });
+
+    it("executes the exact single-column array filter option query with paging", async () => {
+      const uniqueProjectId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["gamma", "alpha", "alpha"],
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          tags: ["beta", "alpha"],
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const firstPage = await getEventsFilterOptionValuesPage({
+          projectId: uniqueProjectId,
+          filter: [],
+          column: "traceTags",
+          limit: 2,
+          offset: 0,
+        });
+
+        expect(firstPage.map((row) => row.value)).toEqual(["alpha", "beta"]);
+        expect(Number(firstPage[0]?.count)).toBe(2);
+        expect(Number(firstPage[1]?.count)).toBe(1);
+      });
+
+      const secondPage = await getEventsFilterOptionValuesPage({
+        projectId: uniqueProjectId,
+        filter: [],
+        column: "traceTags",
+        limit: 2,
+        offset: 2,
+      });
+
+      expect(secondPage.map((row) => row.value)).toEqual(["gamma"]);
+      expect(Number(secondPage[0]?.count)).toBe(1);
     });
   });
 
@@ -714,7 +3021,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const traceIds = filteredObservations.map((o) => o.traceId).sort();
@@ -828,7 +3137,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(2);
         const names = filteredObservations.map((o) => o.name).sort();
@@ -1016,7 +3327,9 @@ describe("Clickhouse Events Repository Test", () => {
         });
 
         const filteredObservations = result.filter((o) =>
-          [traceId1, traceId2, traceId3].includes(o.traceId ?? ""),
+          ([traceId1, traceId2, traceId3] as string[]).includes(
+            o.traceId ?? "",
+          ),
         );
         expect(filteredObservations.length).toBe(1);
         expect(filteredObservations[0].name).toBe("new-user-1");
@@ -1215,10 +3528,298 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(resultBaz.length).toBe(0);
       });
+
+      it("equality on absent key with empty value does NOT match", async () => {
+        // Today arr[indexOf(names, missing)] resolves to '' (Array(String)
+        // default), so `metadata.foo = ''` would match rows that never had
+        // the key. The has(metadata_names, ?) conjunct fixes this.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-eq-empty",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "=",
+              key: "foo",
+              value: "",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+
+      it("'does not contain' on absent key with non-empty needle does NOT match", async () => {
+        // Headline correctness fix: previously rows with the key absent
+        // matched `does not contain V` (because position('', V) = 0 is true
+        // for non-empty V). The has(metadata_names, ?) conjunct restricts
+        // the result to rows where the key actually exists.
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "no-foo-key-dnc",
+            metadata_names: ["bar"],
+            metadata_values: ["baz"],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            {
+              type: "stringObject",
+              column: "metadata",
+              operator: "does not contain",
+              key: "foo",
+              value: "anything",
+            },
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(0);
+      });
+    });
+
+    describe("Truncation-sensitive filters (must read events_full)", () => {
+      // events_core stores input/output/metadata_values truncated to 200 chars
+      // (events_core_mv). Filters on these fields must run against events_full,
+      // otherwise matches beyond the truncation point are silently dropped.
+
+      it("metadata 'contains' matches a value beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const needle = `needle-${randomUUID()}`;
+        const longValue = "x".repeat(220) + needle;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-metadata-value",
+            metadata_names: ["payload"],
+            metadata_values: [longValue],
+            start_time: now * 1000,
+          }),
+        ]);
+
+        const filter: FilterCondition[] = [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "contains",
+            key: "payload",
+            value: needle,
+          },
+          {
+            type: "datetime",
+            column: "startTime",
+            operator: ">=",
+            value: filterTime,
+          },
+          {
+            type: "string",
+            column: "traceId",
+            operator: "=",
+            value: traceId,
+          },
+        ];
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter,
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-metadata-value");
+
+        const count = await getObservationsCountFromEventsTable({
+          projectId,
+          filter,
+        });
+        expect(count).toBe(1);
+      });
+
+      it("input 'matches' finds a token beyond the 200-char truncation point", async () => {
+        const traceId = randomUUID();
+        const observationId = randomUUID();
+        const now = Date.now();
+        const filterTime = new Date(now - 5000);
+        const token = `needletoken${randomUUID().replaceAll("-", "")}`;
+        const longInput = "x".repeat(220) + " " + token;
+
+        await createEventsCh([
+          createEvent({
+            id: observationId,
+            span_id: observationId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            name: "long-input-value",
+            input: longInput,
+            start_time: now * 1000,
+          }),
+        ]);
+
+        // "matches" belongs to the events-table filter grammar
+        // (EventsTableFilterState); the events service passes it through the
+        // FilterState-typed repository signature untyped, so mirror that here.
+        const matchesFilter = {
+          type: "string",
+          column: "input",
+          operator: "matches",
+          value: token,
+        } satisfies EventsTableFilterState[number] as unknown as FilterCondition;
+
+        const result = await getObservationsWithModelDataFromEventsTable({
+          projectId,
+          filter: [
+            matchesFilter,
+            {
+              type: "datetime",
+              column: "startTime",
+              operator: ">=",
+              value: filterTime,
+            },
+            {
+              type: "string",
+              column: "traceId",
+              operator: "=",
+              value: traceId,
+            },
+          ],
+          limit: 1000,
+          offset: 0,
+        });
+
+        expect(result.length).toBe(1);
+        expect(result[0].name).toBe("long-input-value");
+      });
     });
   });
 
   maybe("getObservationByIdFromEventsTable", () => {
+    it("should return trace-level fields for event observations", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "test-trace-fields-byid",
+          trace_name: "trace-with-tags",
+          tags: ["chat", "prod"],
+          user_id: "user-123",
+          session_id: "session-123",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBe("trace-with-tags");
+      expect(observation?.traceTags).toEqual(["chat", "prod"]);
+      expect(observation?.userId).toBe("user-123");
+      expect(observation?.sessionId).toBe("session-123");
+    });
+
+    it("should return release field when fetching observation by id", async () => {
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "release-byid-test",
+          release: "2.0.0",
+          version: "V3",
+        }),
+      ]);
+
+      const observation = await getObservationByIdFromEventsTable({
+        id: spanId,
+        projectId,
+      });
+
+      expect(observation).toBeDefined();
+      expect(observation?.release).toBe("2.0.0");
+      expect(observation?.version).toBe("V3");
+    });
+
     it("should return observation by id with input and output", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -1448,6 +4049,42 @@ describe("Clickhouse Events Repository Test", () => {
           startTime: wrongDate,
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("getObservationsForTraceFromEventsTable", () => {
+    it("should return usage pricing tier fields even when tool payloads are omitted", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: generationId,
+          span_id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-trace-pricing-tier-export",
+          usage_pricing_tier_id: "tier-enterprise",
+          usage_pricing_tier_name: "Enterprise",
+        }),
+      ]);
+
+      const { observations, totalCount } =
+        await getObservationsForTraceFromEventsTable({
+          traceId,
+          projectId,
+          selectIOAndMetadata: false,
+          selectToolData: false,
+        });
+
+      expect(totalCount).toBe(1);
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        id: generationId,
+        usagePricingTierId: "tier-enterprise",
+        usagePricingTierName: "Enterprise",
+      });
     });
   });
 
@@ -1791,6 +4428,144 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getTracesIdentifierForSessionFromEvents", () => {
+    it("should return distinct traces for a session ordered by earliest trace timestamp", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const otherSessionId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const traceId3 = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-initial",
+          session_id: sessionId,
+          user_id: "user-1-old",
+          environment: "staging",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-latest",
+          session_id: sessionId,
+          user_id: "user-1-new",
+          environment: "production",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          trace_name: "trace-two",
+          session_id: sessionId,
+          user_id: "user-2",
+          environment: "default",
+          start_time: nowMicro + 5_000,
+          event_ts: nowMicro + 5_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId3,
+          trace_name: "trace-three-other-session",
+          session_id: otherSessionId,
+          user_id: "user-3",
+          start_time: nowMicro + 10_000,
+          event_ts: nowMicro + 10_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+
+        expect(traces).toHaveLength(2);
+        expect(traces.map((trace) => trace.id)).toEqual([traceId1, traceId2]);
+        expect(traces[0]).toMatchObject({
+          id: traceId1,
+          name: "trace-one-latest",
+          userId: "user-1-new",
+          environment: "production",
+        });
+        expect(traces[0]?.timestamp.getTime()).toBe(nowMicro / 1000);
+        expect(traces[1]).toMatchObject({
+          id: traceId2,
+          name: "trace-two",
+          userId: "user-2",
+          environment: "default",
+        });
+        expect(traces[1]?.timestamp.getTime()).toBe((nowMicro + 5_000) / 1000);
+      });
+    });
+
+    it("should resolve session membership from the latest non-empty session_id in the trace aggregation", async () => {
+      const uniqueProjectId = randomUUID();
+      const originalSessionId = randomUUID();
+      const latestSessionId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-before-session-change",
+          session_id: originalSessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-after-session-change",
+          session_id: latestSessionId,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            originalSessionId,
+          ),
+        ).resolves.toEqual([]);
+
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            latestSessionId,
+          ),
+        ).resolves.toEqual([
+          expect.objectContaining({
+            id: traceId,
+            name: "trace-after-session-change",
+          }),
+        ]);
+      });
+    });
+  });
+
   maybe("Update methods", () => {
     it("should allow to set/unset bookmarked", async () => {
       const traceId = randomUUID();
@@ -2007,6 +4782,14 @@ describe("Clickhouse Events Repository Test", () => {
 
       const nowMicro = Date.now() * 1000;
       const timestamp = new Date(nowMicro / 1000);
+      const observation3Input = JSON.stringify({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      const observation3Output = JSON.stringify({
+        prototype: "output",
+        safeKey: "output-value",
+      });
 
       // Create events with different I/O content and metadata
       const events = [
@@ -2043,8 +4826,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "GENERATION",
           name: "test-observation-3",
-          input: "This is input for observation 3",
-          output: "This is output for observation 3",
+          input: observation3Input,
+          output: observation3Output,
           metadata_names: ["key3"],
           metadata_values: ["value3"],
           start_time: nowMicro + 2000,
@@ -2089,17 +4872,191 @@ describe("Clickhouse Events Repository Test", () => {
       // Check observation 3
       const io3 = result.find((r) => r.id === observation3Id);
       expect(io3).toBeDefined();
-      expect(io3?.input).toBe("This is input for observation 3");
-      expect(io3?.output).toBe("This is output for observation 3");
+      expect(io3?.input).toBe(observation3Input);
+      expect(io3?.output).toBe(observation3Output);
+      expect(JSON.parse(io3?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(JSON.parse(io3?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
     });
 
+    it("matches trace and observation ids within the authorized session", async () => {
+      const observationId = randomUUID();
+      const outsideObservationId = randomUUID();
+      const firstTraceId = randomUUID();
+      const secondTraceId = randomUUID();
+      const outsideTraceId = randomUUID();
+      const sessionId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: firstTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "first trace",
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: secondTraceId,
+          session_id: sessionId,
+          type: "GENERATION",
+          input: "second trace",
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: outsideObservationId,
+          project_id: projectId,
+          trace_id: outsideTraceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside session",
+          start_time: nowMicro + 2000,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId,
+        observations: [
+          { id: observationId, traceId: firstTraceId },
+          { id: observationId, traceId: secondTraceId },
+          { id: outsideObservationId, traceId: outsideTraceId },
+        ],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: observationId,
+            traceId: firstTraceId,
+            input: "first trace",
+          }),
+          expect.objectContaining({
+            id: observationId,
+            traceId: secondTraceId,
+            input: "second trace",
+          }),
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+
+    it("authorizes observations using the trace's latest session", async () => {
+      const uniqueProjectId = randomUUID();
+      const previousSessionId = randomUUID();
+      const currentSessionId = randomUUID();
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: previousSessionId,
+          type: "GENERATION",
+          input: "observation input",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          session_id: currentSessionId,
+          type: "SPAN",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      const params = {
+        projectId: uniqueProjectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: previousSessionId,
+        }),
+      ).resolves.toEqual([]);
+      await expect(
+        getObservationsBatchIOFromEventsTable({
+          ...params,
+          sessionId: currentSessionId,
+        }),
+      ).resolves.toEqual([
+        expect.objectContaining({
+          id: observationId,
+          traceId,
+          input: "observation input",
+        }),
+      ]);
+    });
+
+    it("keeps the session filter when the session id is empty", async () => {
+      const observationId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          session_id: randomUUID(),
+          type: "GENERATION",
+          input: "outside empty session",
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const result = await getObservationsBatchIOFromEventsTable({
+        projectId,
+        sessionId: "",
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      });
+
+      expect(result).toEqual([]);
+    });
+
     it("should handle empty observation array", async () => {
+      // minStartTime/maxStartTime are intentionally omitted: the function
+      // early-returns on an empty observations array before touching them.
       const result = await getObservationsBatchIOFromEventsTable({
         projectId,
         observations: [],
-      });
+      } as unknown as Parameters<
+        typeof getObservationsBatchIOFromEventsTable
+      >[0]);
 
       expect(result).toBeDefined();
       expect(result).toEqual([]);
@@ -2179,6 +5136,653 @@ describe("Clickhouse Events Repository Test", () => {
       // Should not return anything since projectId doesn't match
       expect(result).toBeDefined();
       expect(result.length).toBe(0);
+    });
+
+    it("should fetch tool call fields only when includeToolCallFields is set", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const storedToolCall = JSON.stringify({
+        id: "call_1",
+        arguments: JSON.stringify({ city: "Berlin" }),
+        type: "function",
+        index: 0,
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-tool-calls",
+          input: "tool call input",
+          output: "tool call output",
+          tool_calls: [storedToolCall],
+          tool_call_names: ["get_weather"],
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      const withoutToolCalls =
+        await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(withoutToolCalls.length).toBe(1);
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCalls");
+      expect(withoutToolCalls[0]).not.toHaveProperty("toolCallNames");
+
+      const withToolCalls = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        includeToolCallFields: true,
+      });
+      expect(withToolCalls.length).toBe(1);
+      expect(withToolCalls[0]?.toolCalls).toEqual([storedToolCall]);
+      expect(withToolCalls[0]?.toolCallNames).toEqual(["get_weather"]);
+    });
+
+    it("should serve ioCharLimit chars of I/O and metadata on an untruncated read", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+      const timestamp = new Date(nowMicro / 1000);
+      const charLimit = 1_000;
+      const longInput = "i".repeat(3 * charLimit);
+      const longOutput = "o".repeat(3 * charLimit);
+      const longMetadataValue = "m".repeat(3 * charLimit);
+      const longExpectedOutput = "e".repeat(3 * charLimit);
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-io-char-limit",
+          input: longInput,
+          output: longOutput,
+          metadata_names: ["long"],
+          metadata_values: [longMetadataValue],
+          experiment_item_expected_output: longExpectedOutput,
+          start_time: nowMicro,
+        }),
+      ]);
+
+      const baseParams = {
+        projectId,
+        observations: [{ id: observationId, traceId }],
+        minStartTime: timestamp,
+        maxStartTime: timestamp,
+      };
+
+      // The default read serves events_core, whose I/O is stored pre-truncated
+      // well below what a taller table row can display (LFE-14586).
+      const truncated = await getObservationsBatchIOFromEventsTable(baseParams);
+      expect(truncated[0]?.input?.length).toBeLessThan(charLimit);
+
+      // The limit has to bound every large field the read returns, not just I/O.
+      const capped = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+        ioCharLimit: charLimit,
+        includeExperimentFields: true,
+      });
+      expect(capped[0]?.input).toBe("i".repeat(charLimit));
+      expect(capped[0]?.output).toBe("o".repeat(charLimit));
+      expect(capped[0]?.metadata?.long).toBe("m".repeat(charLimit));
+      expect(capped[0]?.experimentItemExpectedOutput).toBe(
+        "e".repeat(charLimit),
+      );
+
+      // Without a limit an untruncated read still returns everything.
+      const full = await getObservationsBatchIOFromEventsTable({
+        ...baseParams,
+        truncated: false,
+      });
+      expect(full[0]?.input).toBe(longInput);
+      expect(full[0]?.metadata?.long).toBe(longMetadataValue);
+    });
+  });
+
+  maybe("getLatestSdkVersionInfoFromEvents", () => {
+    it("should return isOtel: false for classic ingestion data (no OTel source)", async () => {
+      const uniqueProjectId = randomUUID();
+
+      // v2 SDK via classic batch ingestion: not OTel-compatible
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: Date.now() * 1000,
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(false);
+    });
+
+    it("should return isOtel: true with attribution from the newest OTel event", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Insert v2 data (classic ingestion, must be skipped)
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000, // older
+          source: "ingestion-api-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "2.60.1",
+          telemetry_sdk_language: "",
+        }),
+      ]);
+
+      // Insert v3 data - Langfuse SDK via OTLP, attribution from headers
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newer
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("3.14.6");
+      expect(result.language).toBe("python");
+    });
+
+    it("should match dual-write OTel events and return the newest attribution", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Older direct-write event
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.14.6",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      // Newest event arrived via the dual-write propagation path
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now, // newest
+          source: "otel-dual-write",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.2.0",
+          telemetry_sdk_language: "python",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBe("python");
+      expect(result.version).toBe("4.2.0");
+    });
+
+    it("should return isOtel: true without name/version for raw OTel clients (e.g. Vercel AI SDK)", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      // Vercel AI SDK: sent via OTel but without Langfuse SDK headers,
+      // so ingestion attribution carries the 'unknown' sentinel
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "unknown",
+          ingestion_sdk_version: "unknown",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result.isOtel).toBe(true);
+      expect(result.name).toBeUndefined();
+      expect(result.version).toBeUndefined();
+      expect(result.language).toBe("nodejs");
+    });
+
+    it("should ignore newer internal OTel writer events", async () => {
+      const uniqueProjectId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now - 10000000,
+          source: "otel",
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "4.7.0",
+          telemetry_sdk_language: "python",
+        }),
+        createEvent({
+          project_id: uniqueProjectId,
+          start_time: now,
+          source: "otel",
+          ingestion_sdk_name: "langfuse-internal-otel-writer",
+          ingestion_sdk_version: "1.0.0",
+          telemetry_sdk_language: "nodejs",
+        }),
+      ]);
+
+      const result = await getLatestSdkVersionInfoFromEvents({
+        projectId: uniqueProjectId,
+      });
+
+      expect(result).toEqual({
+        isOtel: true,
+        name: "python",
+        version: "4.7.0",
+        language: "python",
+      });
+    });
+  });
+
+  // LFE-10596: in v4 the traces/observations list is served from the events
+  // table, which splits scores into an observation-scoped column (`scores_avg`
+  // / `score_categories`, joined on span_id) and a trace-scoped column
+  // (`trace_scores_avg` / `trace_score_categories`, joined on trace_id). A
+  // trace-level score (observation_id NULL) only ever lands in the trace
+  // column, so the customer's saved `scores_avg;CSAT=1` filter returned empty.
+  //
+  // The fix makes the `scores_avg` / `score_categories` columns LEVEL-AGNOSTIC:
+  // they match if the score is found at observation OR trace level (a
+  // server-side union), restoring v3 "has it anywhere" semantics.
+  // `trace_scores_avg` / `trace_score_categories` stay an explicit trace-only
+  // escape hatch, and both levels' names are offered under the single
+  // `scores_avg` / `score_categories` groups.
+  maybe("LFE-10596 level-agnostic score filtering", () => {
+    it("scores_avg matches a trace-level score (union), and trace_scores_avg still does", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+      const traceScoresAvgFilter: FilterCondition = {
+        type: "numberObject",
+        column: "trace_scores_avg",
+        operator: "=",
+        key: "CSAT",
+        value: 1,
+      };
+
+      const [noFilterCount, scoresAvgCount, traceScoresAvgCount] =
+        await Promise.all([
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [scoresAvgFilter],
+          }),
+          getObservationsCountFromEventsTable({
+            projectId: uniqueProjectId,
+            filter: [traceScoresAvgFilter],
+          }),
+        ]);
+
+      expect(noFilterCount).toBe(1);
+      // Level-agnostic union: a trace-level score now matches via scores_avg,
+      // not only via trace_scores_avg. Before the fix scoresAvgCount was 0.
+      expect(scoresAvgCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(1);
+    });
+
+    it("scores_avg still matches an observation-level score", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Observation-level score keyed to the span (scores_avg joins on span_id).
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const scoresAvgCount = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          {
+            type: "numberObject",
+            column: "scores_avg",
+            operator: "=",
+            key: "CSAT",
+            value: 1,
+          },
+        ],
+      });
+
+      expect(scoresAvgCount).toBe(1);
+    });
+
+    it("trace_scores_avg stays trace-only (does not match an observation-level score)", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Observation-level score keyed to the span.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "CSAT",
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const [scoresAvgCount, traceScoresAvgCount] = await Promise.all([
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "numberObject",
+              column: "scores_avg",
+              operator: "=",
+              key: "CSAT",
+              value: 1,
+            },
+          ],
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "numberObject",
+              column: "trace_scores_avg",
+              operator: "=",
+              key: "CSAT",
+              value: 1,
+            },
+          ],
+        }),
+      ]);
+
+      // scores_avg is level-agnostic (matches the obs score); trace_scores_avg
+      // is the explicit trace-only escape hatch and must not match it.
+      expect(scoresAvgCount).toBe(1);
+      expect(traceScoresAvgCount).toBe(0);
+    });
+
+    it("categorical score_categories unions any-of and excludes none-of correctly (De Morgan)", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceWithScore = randomUUID();
+      const spanWithScore = randomUUID();
+      const traceWithoutScore = randomUUID();
+      const spanWithoutScore = randomUUID();
+      const scoreName = `sentiment-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanWithScore,
+          span_id: spanWithScore,
+          project_id: uniqueProjectId,
+          trace_id: traceWithScore,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+        createEvent({
+          id: spanWithoutScore,
+          span_id: spanWithoutScore,
+          project_id: uniqueProjectId,
+          trace_id: traceWithoutScore,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) on the first trace only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceWithScore,
+          observation_id: null,
+          name: scoreName,
+          value: 0,
+          string_value: "positive",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const [anyOfCount, noneOfCount] = await Promise.all([
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "categoryOptions",
+              column: "score_categories",
+              operator: "any of",
+              key: scoreName,
+              value: ["positive"],
+            },
+          ],
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [
+            {
+              type: "categoryOptions",
+              column: "score_categories",
+              operator: "none of",
+              key: scoreName,
+              value: ["positive"],
+            },
+          ],
+        }),
+      ]);
+
+      // any of: union OR -> only the trace that has the trace-level value.
+      expect(anyOfCount).toBe(1);
+      // none of: union AND (De Morgan) -> the trace WITH the value is excluded,
+      // the trace without it is kept.
+      expect(noneOfCount).toBe(1);
+    });
+
+    it("offers all numeric score names under scores_avg, trace-only names under trace_scores_avg", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceScoreName = `csat-${randomUUID()}`;
+      const observationScoreName = `latency-rating-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level score (observation_id NULL).
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+        // Observation-level score.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationScoreName,
+          value: 1,
+          data_type: "NUMERIC",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      // Single "Scores" group offers BOTH levels' names (level-agnostic union).
+      expect(options.scores_avg).toContain(observationScoreName);
+      expect(options.scores_avg).toContain(traceScoreName);
+
+      // trace_scores_avg remains the trace-only escape hatch (search bar
+      // traceScores.): trace-level names only.
+      expect(options.trace_scores_avg).toContain(traceScoreName);
+      expect(options.trace_scores_avg).not.toContain(observationScoreName);
+    });
+
+    it("offers a trace-level categorical score under trace_score_categories, not score_categories", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const spanId = randomUUID();
+      const observationId = randomUUID();
+      const traceCategoryName = `hallucination-check-${randomUUID()}`;
+      const observationCategoryName = `answer-relevancy-${randomUUID()}`;
+
+      await createEventsCh([
+        createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "Help Assistant",
+        }),
+      ]);
+
+      await createScoresCh([
+        // Trace-level categorical (observation_id NULL) -> trace_score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: traceCategoryName,
+          value: 0,
+          string_value: "faithful",
+          data_type: "CATEGORICAL",
+        }),
+        // Observation-level categorical -> score_categories only.
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          observation_id: observationId,
+          name: observationCategoryName,
+          value: 0,
+          string_value: "relevant",
+          data_type: "CATEGORICAL",
+        }),
+      ]);
+
+      const options = await getEventFilterOptions({
+        projectId: uniqueProjectId,
+      });
+
+      const scoreCategoryLabels = options.score_categories!.map((c) => c.label);
+      const traceScoreCategoryLabels = options.trace_score_categories!.map(
+        (c) => c.label,
+      );
+
+      // Single "Scores" group offers BOTH levels' categorical names.
+      expect(scoreCategoryLabels).toContain(observationCategoryName);
+      expect(scoreCategoryLabels).toContain(traceCategoryName);
+
+      // trace_score_categories remains the trace-only escape hatch.
+      expect(traceScoreCategoryLabels).toContain(traceCategoryName);
+      expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
   });
 });

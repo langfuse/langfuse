@@ -1,12 +1,22 @@
 import { tracesTableCols } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import {
+  omitFilterFacets,
+  type FilterConfig,
+} from "@/src/features/filters/lib/filter-config";
+import { renderLevelIcon } from "@/src/components/level-colors";
+
+export type TraceOmittableFilterColumn = "userId" | "sessionId";
 
 export const traceFilterConfig: FilterConfig = {
   tableName: "traces",
 
-  columnDefinitions: tracesTableCols,
+  // Bookmarking is gone from the UI, so the sidebar no longer knows the
+  // column: a `bookmarked` filter left in a saved view or an old deep link is
+  // dropped rather than silently narrowing the rows nobody can widen again.
+  // The shared definition stays for the public API.
+  columnDefinitions: tracesTableCols.filter((col) => col.id !== "bookmarked"),
 
-  defaultExpanded: ["environment", "name"],
+  defaultExpanded: ["environment", "traceName"],
 
   facets: [
     {
@@ -16,7 +26,7 @@ export const traceFilterConfig: FilterConfig = {
     },
     {
       type: "categorical" as const,
-      column: "name",
+      column: "traceName",
       label: "Trace Name",
     },
     {
@@ -35,6 +45,13 @@ export const traceFilterConfig: FilterConfig = {
       label: "Session ID",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "traceTags",
+      label: "Tags",
+    },
+    {
       type: "stringKeyValue" as const,
       column: "metadata",
       label: "Metadata",
@@ -50,13 +67,6 @@ export const traceFilterConfig: FilterConfig = {
       label: "Release",
     },
     {
-      type: "boolean" as const,
-      column: "bookmarked",
-      label: "Bookmarked",
-      trueLabel: "Bookmarked",
-      falseLabel: "Not bookmarked",
-    },
-    {
       type: "numeric" as const,
       column: "commentCount",
       label: "Comment Count",
@@ -69,14 +79,12 @@ export const traceFilterConfig: FilterConfig = {
       label: "Comment Content",
     },
     {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Tags",
-    },
-    {
+      // Product direction is to call observation levels "Status" everywhere.
+      // Display relabel only; the column id / grammar field stays `level`.
       type: "categorical" as const,
       column: "level",
-      label: "Level",
+      label: "Status",
+      renderIcon: renderLevelIcon,
     },
     {
       type: "numeric" as const,
@@ -141,5 +149,16 @@ export const traceFilterConfig: FilterConfig = {
       column: "scores_avg",
       label: "Numeric Scores",
     },
+    {
+      type: "booleanKeyValue" as const,
+      column: "score_booleans",
+      label: "Boolean Scores",
+    },
   ],
 };
+
+export function getTraceFilterConfig(
+  omittedFilter: TraceOmittableFilterColumn[] = [],
+): FilterConfig {
+  return omitFilterFacets(traceFilterConfig, omittedFilter);
+}

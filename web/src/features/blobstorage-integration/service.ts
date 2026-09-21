@@ -3,11 +3,16 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationType,
   InvalidRequestError,
-  type BlobStorageIntegrationFileType,
   type AnalyticsIntegrationExportSource,
+  BlobStorageIntegrationFileType,
+  type ObservationFieldGroupFull,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  normalizeBlobStorageRegion,
 } from "@langfuse/shared";
+import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server/exportSource";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
+import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
 
 type UpsertBlobStorageIntegrationInput = {
   type: BlobStorageIntegrationType;
@@ -20,10 +25,13 @@ type UpsertBlobStorageIntegrationInput = {
   exportFrequency: string;
   enabled: boolean;
   forcePathStyle: boolean;
-  fileType: BlobStorageIntegrationFileType;
+  // Optional: undefined preserves the persisted value on UPDATE (Prisma omits
+  // the column) and falls back to PARQUET on CREATE.
+  fileType?: BlobStorageIntegrationFileType;
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
+  exportFieldGroups?: ObservationFieldGroupFull[];
   compressed?: boolean;
 };
 
@@ -40,7 +48,7 @@ function resolveExportStartDate(params: {
       return null;
     default: {
       const _exhaustive: never = params.exportMode;
-      void _exhaustive;
+      _exhaustive;
       return null;
     }
   }
@@ -50,6 +58,11 @@ export async function upsertBlobStorageIntegration(params: {
   prisma: PrismaClient;
   projectId: string;
   data: UpsertBlobStorageIntegrationInput;
+  // The source a CREATE lands, already validated and resolved by the caller via
+  // resolveExportSource. Always concrete, so the CREATE branch never falls
+  // through to the Prisma column default (TRACES_OBSERVATIONS). An UPDATE keeps
+  // using data.exportSource, where undefined preserves the persisted value.
+  createExportSource: AnalyticsIntegrationExportSource;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -57,7 +70,26 @@ export async function upsertBlobStorageIntegration(params: {
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
 
-  if (!canUseHostCredentials && !data.accessKeyId) {
+  const accessKeyId = data.accessKeyId?.trim() || null;
+  const secretAccessKey = data.secretAccessKey?.trim() || null;
+  let region: string;
+  try {
+    region = normalizeBlobStorageRegion(data.region);
+  } catch {
+    throw new InvalidRequestError(BLOB_STORAGE_REGION_INVALID_MESSAGE);
+  }
+
+  if (data.endpoint) {
+    try {
+      await validateBlobStorageEndpoint(data.endpoint);
+    } catch (error) {
+      throw new InvalidRequestError(
+        `Invalid blob storage endpoint: ${error instanceof Error ? error.message : "Endpoint validation failed"}`,
+      );
+    }
+  }
+
+  if (!canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -72,8 +104,8 @@ export async function upsertBlobStorageIntegration(params: {
     type: data.type,
     bucketName: data.bucketName,
     endpoint: data.endpoint,
-    region: data.region,
-    accessKeyId: data.accessKeyId,
+    region,
+    accessKeyId,
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,
     enabled: data.enabled,
@@ -82,20 +114,28 @@ export async function upsertBlobStorageIntegration(params: {
     exportMode: data.exportMode,
     exportStartDate: resolvedExportStartDate,
     exportSource: data.exportSource,
+    exportFieldGroups: data.exportFieldGroups,
     compressed: data.compressed ?? true,
   };
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      // createdAt/exportSource feed the post-upsert backstop below.
+      select: {
+        exportMode: true,
+        lastError: true,
+        runStartedAt: true,
+        createdAt: true,
+        exportSource: true,
+      },
     });
 
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =
-        canUseHostCredentials && (!data.accessKeyId || !data.secretAccessKey);
-      if (!isUsingHostCredentials && !data.secretAccessKey) {
+        canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+      if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
         );
@@ -103,14 +143,27 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const encryptedSecret = data.secretAccessKey
-      ? encrypt(data.secretAccessKey)
-      : null;
+    const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
-    return tx.blobStorageIntegration.upsert({
+    // The CREATE payload always carries a concrete source, resolved by the
+    // caller through resolveExportSource. Applying it unconditionally (rather
+    // than behind a `!existing` guard) closes a TOCTOU: under READ COMMITTED,
+    // tx.findUnique and tx.upsert take independent snapshots, so a concurrent
+    // DELETE between the two could otherwise leave this undefined and let
+    // Postgres apply the @default(TRACES_OBSERVATIONS) column default on INSERT.
+    // ON CONFLICT decides CREATE vs UPDATE atomically regardless of what
+    // findUnique saw, and UPDATE uses writeData.exportSource (undefined → Prisma
+    // omits the column → preserves the existing value), so caller intent is
+    // honored on both paths.
+    const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
+        exportSource: params.createExportSource,
+        // Parquet is the default export format; apply it when the caller omits
+        // fileType on CREATE. This app-level fallback (not the Prisma column
+        // default) is the source of truth for the default across every write path.
+        fileType: data.fileType ?? BlobStorageIntegrationFileType.PARQUET,
         projectId,
         secretAccessKey: encryptedSecret,
       },
@@ -119,11 +172,32 @@ export async function upsertBlobStorageIntegration(params: {
         // Only overwrite secretAccessKey when a new value is provided,
         // so partial updates don't wipe the existing encrypted secret.
         ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        // Schedule an immediate retry when saving an errored integration
+        // so the scheduler picks it up via the nextSyncAt clause.
+        ...(existing?.lastError && data.enabled && !modeChanged
+          ? { nextSyncAt: new Date() }
+          : {}),
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
+        ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
+        // Saving enabled resets the failure-notification cooldown: the
+        // customer just acted, so a fresh failure should email promptly.
+        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        runStartedAt: null,
       },
     });
+
+    // Race-free backstop over the row that actually landed, shared with the
+    // PostHog and Mixpanel routers. The pre-flight `existing` snapshot (and the
+    // router's pre-flight gate) are racy under READ COMMITTED: a concurrent
+    // DELETE can flip this upsert to a CREATE after those reads. Throwing here
+    // rolls the transaction back. See export-source-policy.ts.
+    assertPersistedExportSourceAllowed({
+      existingIntegration: existing,
+      result,
+    });
+
+    return result;
   });
 }

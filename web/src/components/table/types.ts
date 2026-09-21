@@ -1,30 +1,46 @@
 import { type RowData, type ColumnDef } from "@tanstack/react-table";
-import { type LucideIcon } from "lucide-react";
 
-export type TableRowOptions = {
-  columnId: string;
-  options: { label: string; value: number; icon?: LucideIcon }[];
-};
+export type DataTableCellPadding = "compact" | "comfortable" | "none";
+export type DataTableCellBackground = "gray" | "green";
 
-// extends tanstack ColumnDef to include additional properties
-type ExtendedColumnDef<TData extends RowData, TValue = unknown> = ColumnDef<
-  TData,
-  TValue
-> & {
-  defaultHidden?: boolean;
-  headerTooltip?: {
-    description: React.ReactNode;
-    href?: string;
-  };
-  isFixedPosition?: boolean; // if true, column cannot be reordered
-  isPinnedLeft?: boolean; // if true, column will be pinned to left side
-};
+declare module "@tanstack/react-table" {
+  // extends tanstack ColumnDef to include additional properties
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnDefBase<TData extends RowData, TValue = unknown> {
+    defaultHidden?: boolean;
+    headerTooltip?: {
+      description: React.ReactNode;
+      href?: string;
+    };
+    /**
+     * Render the header as a block instead of one truncated line, for a header
+     * that carries more than the column's name (e.g. a score column's
+     * aggregate over the rows in view).
+     */
+    headerBlock?: boolean;
+    /**
+     * Plain-text name of the column, for surfaces that want a label rather than
+     * the rendered header — the column picker. Only needed when `header` is not
+     * a string.
+     */
+    headerLabel?: string;
+    isFixedPosition?: boolean; // if true, column cannot be reordered
+    isPinnedLeft?: boolean; // if true, column will be pinned to left side
+    isFlexWidth?: boolean; // if true, column absorbs leftover space (one per table)
+    loadingCell?: React.ReactNode | (() => React.ReactNode);
+    cellPadding?: DataTableCellPadding;
+    cellBackground?: DataTableCellBackground;
+    cellClassName?: string;
+    headerClassName?: string;
+    hideBelowMd?: boolean;
+  }
+}
 
 // limits types of defined tanstack ColumnDef properties to specific subset of tanstack type union
 export type LangfuseColumnDef<
   TData extends RowData,
   TValue = unknown,
-> = ExtendedColumnDef<TData, TValue> & {
+> = ColumnDef<TData, TValue> & {
   // Enforce langfuse columns to be of type 'AccessorKeyColumnDefBase' with 'accessorKey' property of type string
   accessorKey: string;
   // Enforce langfuse group columns to have children of type 'LangfuseColumnDef'

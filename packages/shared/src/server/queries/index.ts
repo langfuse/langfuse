@@ -1,6 +1,7 @@
 export {
   type FullObservations,
   type FullObservationsWithScores,
+  type FullEventsObservation,
   type FullEventsObservations,
   type ObservationPriceFields,
 } from "./createGenerationsQuery";
@@ -17,6 +18,9 @@ export {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
+  encodeBooleanScoreEntry,
+  filtersRequireEventsFull,
+  metadataFilterIsEventsCoreSafe,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
 export {
@@ -24,7 +28,27 @@ export {
   orderByToEntries,
 } from "./clickhouse-sql/orderby-factory";
 export { createFilterFromFilterState } from "./clickhouse-sql/factory";
-export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export {
+  clickhouseSearchCondition,
+  type ClickhouseSearchConditionOptions,
+} from "./clickhouse-sql/search";
+export {
+  FTS_EVENTS_TABLES,
+  FTS_MATCH_OPERATOR,
+  FTS_METADATA_FIELD,
+  FTS_TEXT_FIELDS,
+  FTS_TEXT_OPERATORS,
+  bareFtsField,
+  hasFtsSearchToken,
+  isFtsAcceleratedIoOperator,
+  isFtsEventsTable,
+  isFtsMatchOperator,
+  isFtsMetadataField,
+  isFtsMetadataTarget,
+  isFtsTextField,
+  isFtsTextTarget,
+} from "./clickhouse-sql/fts";
+export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
@@ -39,13 +63,27 @@ export {
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
+  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,
+  type QueryWithParams,
   type ExperimentsAggregationFieldSetName,
   type SessionEventsMetricsRow,
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
+export {
+  buildEventsFilterOptionColumnQuery,
+  buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
+  buildEventsMetadataValuesQuery,
+  EVENTS_FILTER_OPTION_TOP_N,
+  EVENTS_APPROX_TOTAL_COUNT_MARKER,
+  normalizeEventFilterOptionColumn,
+  type EventFilterOptionRow,
+  type EventFilterOptionColumn,
+  type EventFilterOptionScope,
+} from "./clickhouse-sql/event-filter-options";
 export {
   eventsScoresAggregation,
   eventsSessionsAggregation,
@@ -53,4 +91,21 @@ export {
   eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
+  promptEventsForMetrics,
+  scoreBooleansAggregation,
 } from "./clickhouse-sql/query-fragments";
+export {
+  buildEventsBlobExportStreamQuery,
+  buildEventsStreamQuery,
+  type EventsStreamQuery,
+  type EventsStreamQueryInput,
+} from "./clickhouse-sql/events-stream-query";
+export {
+  buildEventsObservationRowSelection,
+  eventSearchCondition,
+  groupEventsObservationFilters,
+  toLevelAgnosticScoreFilter,
+  type EventsObservationFilterGroups,
+  type EventsObservationRowSelectionInput,
+} from "./clickhouse-sql/events-observation-row-selection";
+export { extractTimeFilter } from "./clickhouse-sql/filter-utils";

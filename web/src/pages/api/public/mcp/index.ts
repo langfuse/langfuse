@@ -17,7 +17,7 @@
  *
  * Note: This endpoint does NOT use withMiddlewares() like other public APIs because
  * the transport layer needs direct response control for both JSON and SSE responses.
- * Error handling and CORS are implemented directly in the transport layer.
+ * Error handling, header validation, and CORS are implemented in this route layer.
  *
  * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
  * Resources: Added in LF-1928
@@ -27,15 +27,21 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { handleMcpRequest } from "@/src/features/mcp/server/transport";
+import {
+  applyMcpCorsHeaders,
+  validateMcpRequestSecurity,
+} from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -46,13 +52,14 @@ import "@/src/features/mcp/server/bootstrap";
  * Handles MCP protocol requests using Streamable HTTP (SSE) transport.
  *
  * Request flow:
- * 1. Authenticate request using BasicAuth (Public Key:Secret Key)
- * 2. Check rate limits
- * 3. Extract ServerContext from authenticated API key
- * 4. Create fresh MCP server instance with context in closures
- * 5. Connect to SSE transport
- * 6. Handle MCP protocol communication
- * 7. Discard server instance after request
+ * 1. Validate Host/Origin headers and handle CORS
+ * 2. Authenticate request using BasicAuth (Public Key:Secret Key)
+ * 3. Check rate limits
+ * 4. Extract ServerContext from authenticated API key
+ * 5. Create fresh MCP server instance with context in closures
+ * 6. Connect to SSE transport
+ * 7. Handle MCP protocol communication
+ * 8. Discard server instance after request
  *
  * @param req - Next.js API request
  * @param res - Next.js API response
@@ -62,43 +69,46 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   try {
-    // CORS headers for MCP clients (must be set before authentication)
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.setHeader(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, Accept, Mcp-Session-Id, Last-Event-ID",
-    );
-    res.setHeader("Access-Control-Expose-Headers", "Mcp-Session-Id");
+    const allowedOrigin = validateMcpRequestSecurity(req);
+    applyMcpCorsHeaders(res, allowedOrigin);
 
-    // Handle preflight OPTIONS request (before authentication)
+    // Handle preflight OPTIONS request after request validation
     if (req.method === "OPTIONS") {
       res.status(200).end();
       return;
     }
 
-    // Authenticate request using BasicAuth (Public Key:Secret Key)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
+    // Each tool authorizes its own action.
+    const authResult = await shadowAuth({
+      req,
+      action: __dangerouslySkipAuthz,
+      allowedAccessLevels: ["project"],
+      allowInAppAgentKey: true,
+    });
 
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    if (!authResult.success) {
+      throw authResult.error;
     }
 
+    const { scope, ctx } = authResult;
+
     // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
+    if (scope.accessLevel !== "project" || !scope.projectId) {
       throw new ForbiddenError(
         "Access denied: MCP requires project-scoped API keys with BasicAuth",
       );
     }
 
+    addUserToSpan({
+      apiKeyId: scope.apiKeyId,
+      publicKey: scope.publicKey,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
+      plan: scope.plan,
+    });
+
     // Check if ingestion is suspended due to usage limits
-    if (authCheck.scope.isIngestionSuspended) {
+    if (scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
@@ -107,7 +117,7 @@ export default async function handler(
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        scope,
         "public-api",
       );
 
@@ -115,17 +125,24 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope
+    // Build ServerContext from authenticated scope. In-app-agent keys need a
+    // run override for mutating tools; read-only tools remain available
+    // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
       userId: undefined, // API keys don't have associated users
-      apiKeyId: authCheck.scope.apiKeyId,
+      apiKeyId: scope.apiKeyId,
       accessLevel: "project",
-      publicKey: authCheck.scope.publicKey,
+      publicKey: scope.publicKey,
+      plan: scope.plan,
+      rateLimitOverrides: scope.rateLimitOverrides,
+      userAgent: req.headers["user-agent"],
+      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+      auth: ctx,
     };
 
-    logger.info("MCP request authenticated", {
+    logger.debug("MCP request authenticated", {
       method: req.method,
       projectId: context.projectId,
       orgId: context.orgId,
@@ -142,9 +159,22 @@ export default async function handler(
     // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
     await handleMcpRequest(server, req, res);
   } catch (error) {
-    logger.error("MCP API route error", {
+    // Client-caused errors (bad Host/Origin header -> "Invalid Host header",
+    // invalid input, auth failures) are expected, high-volume noise fired per
+    // request by misconfigured or probing clients. Keep the detailed line at
+    // debug for those (4xx) and reserve error level for genuine server faults.
+    const isExpectedClientError =
+      (error instanceof BaseError && error.httpCode < 500) ||
+      isUserInputError(error) ||
+      error instanceof ZodError;
+    const errorMeta = {
       message: error instanceof Error ? error.message : "Unknown error",
-    });
+    };
+    if (isExpectedClientError) {
+      logger.debug("MCP API route error", errorMeta);
+    } else {
+      logger.error("MCP API route error", errorMeta);
+    }
 
     // Format error for user (never throw from handler)
     if (!res.headersSent) {
@@ -168,6 +198,32 @@ export default async function handler(
   }
 }
 
+export function getInAppAgentContext(
+  req: NextApiRequest,
+  isInAppAgentKey: boolean | undefined,
+): ServerContext["inAppAgent"] {
+  if (isInAppAgentKey !== true) {
+    return undefined;
+  }
+
+  const headerValue = req.headers[IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER];
+
+  if (typeof headerValue !== "string") {
+    return { permissions: "read" };
+  }
+
+  const parsedOverride = InAppAgentMcpRunOverrideSchema.safeParse(
+    safeJsonParse(headerValue),
+  );
+
+  return parsedOverride.success
+    ? {
+        permissions: "tool-allowlist",
+        allowedToolNames: parsedOverride.data.toolNames,
+      }
+    : { permissions: "read" };
+}
+
 /**
  * Enable body parsing for JSON-RPC messages
  * Streamable HTTP transport receives JSON-RPC via POST body
@@ -175,7 +231,7 @@ export default async function handler(
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: "1mb",
+      sizeLimit: "4.5mb",
     },
   },
 };

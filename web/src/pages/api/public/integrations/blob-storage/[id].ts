@@ -1,17 +1,11 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import {
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  UnauthorizedError,
-  ForbiddenError,
-} from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { BlobStorageIntegrationStatusResponseType } from "@/src/features/public-api/types/blob-storage-integrations";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrationStatus,
@@ -22,36 +16,8 @@ async function handleDeleteBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
   const { id } = req.query;
 
   if (!id || typeof id !== "string") {
@@ -68,13 +34,22 @@ async function handleDeleteBlobStorageIntegration(
     },
   });
 
-  if (!integration || integration.project.orgId !== authCheck.scope.orgId) {
+  if (!integration || integration.project.orgId !== scope.orgId) {
     throw new LangfuseNotFoundError("Blob storage integration not found");
   }
 
   // Delete the integration
   await prisma.blobStorageIntegration.delete({
     where: { projectId: id },
+  });
+
+  await auditLog({
+    action: "delete",
+    resourceType: "blobStorageIntegration",
+    resourceId: integration.projectId,
+    projectId: integration.projectId,
+    orgId: scope.orgId,
+    apiKeyId: scope.apiKeyId,
   });
 
   return res.status(200).json({
@@ -86,33 +61,7 @@ async function handleGetBlobStorageIntegrationStatus(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   const { id } = req.query;
   if (!id || typeof id !== "string") {
@@ -128,7 +77,7 @@ async function handleGetBlobStorageIntegrationStatus(
     },
   });
 
-  if (!integration || integration.project.orgId !== authCheck.scope.orgId) {
+  if (!integration || integration.project.orgId !== scope.orgId) {
     throw new LangfuseNotFoundError("Blob storage integration not found");
   }
 

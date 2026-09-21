@@ -1,4 +1,5 @@
 import { DatasetRunItemDomain } from "../../domain/dataset-run-items";
+import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { datasetRunItemsTableUiColumnDefinitions } from "../tableMappings";
 import { datasetRunsTableUiColumnDefinitions } from "../../tableDefinitions/mapDatasetRunsTable";
@@ -22,7 +23,10 @@ import { env } from "../../env";
 import { commandClickhouse } from "./clickhouse";
 import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { convertDateToClickhouseDateTime } from "../clickhouse/client";
+import {
+  convertDateToClickhouseDateTime,
+  type PreferredClickhouseService,
+} from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
 
 type DatasetItemIdsByTraceIdQuery = {
@@ -99,6 +103,7 @@ export type DatasetRunsMetrics = {
   avgLatency: number;
   aggScoresAvg: Array<[string, number]>;
   aggScoreCategories: string[];
+  aggScoreBooleans: string[];
 };
 
 type DatasetRunsRows = {
@@ -122,6 +127,7 @@ type DatasetRunsMetricsRecordType = {
   total_cost: number;
   agg_scores_avg: Array<[string, number]>;
   agg_score_categories: string[];
+  agg_score_booleans: string[];
 };
 
 type DatasetRunsRowsRecordType = {
@@ -174,6 +180,7 @@ const convertDatasetRunsMetricsRecord = (
     avgLatency: record.avg_latency_seconds ?? 0,
     aggScoresAvg: record.agg_scores_avg ?? [],
     aggScoreCategories: record.agg_score_categories ?? [],
+    aggScoreBooleans: record.agg_score_booleans ?? [],
   };
 };
 
@@ -229,9 +236,7 @@ const getProjectDatasetIdDefaultFilter = (
 };
 
 const getDatasetRunsTableInternal = async <T>(
-  opts: DatasetRunsMetricsTableQuery & {
-    tags: Record<string, string>;
-  },
+  opts: DatasetRunsMetricsTableQuery & {},
 ): Promise<Array<T>> => {
   const { projectId, datasetId, runIds, filter, orderBy, limit, offset } = opts;
   let select = "";
@@ -274,7 +279,8 @@ const getDatasetRunsTableInternal = async <T>(
 
         -- Score aggregations
         sa.scores_avg as agg_scores_avg,
-        sa.score_categories as agg_score_categories`;
+        sa.score_categories as agg_score_categories,
+        sa.score_booleans as agg_score_booleans`;
       break;
     case "count":
       select = "count(DISTINCT drm.dataset_run_id) as count";
@@ -341,7 +347,8 @@ const getDatasetRunsTableInternal = async <T>(
         groupArrayIf(
           concat(s.name, ':', s.string_value),
           s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-        ) AS score_categories
+        ) AS score_categories,
+        ${scoreBooleansAggregation("s.")} AS score_booleans
       FROM dataset_run_items_rmt dri
       LEFT JOIN (
         SELECT
@@ -353,6 +360,11 @@ const getDatasetRunsTableInternal = async <T>(
           avg(value) as avg_value
         FROM scores s FINAL
         WHERE ${appliedScoresFilter.query}
+        AND s.trace_id IN (
+          SELECT dri.trace_id
+          FROM dataset_run_items_rmt dri
+          WHERE ${baseFilter.query}
+        )
         GROUP BY
           project_id,
           trace_id,
@@ -488,13 +500,7 @@ const getDatasetRunsTableInternal = async <T>(
       ...appliedFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
-    tags: {
-      ...(opts.tags ?? {}),
-      feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
-      datasetId,
-    },
+    tags: { projectId },
   });
 
   return res;
@@ -507,7 +513,6 @@ export const getDatasetRunsTableMetricsCh = async (
   const rows = await getDatasetRunsTableInternal<DatasetRunsMetricsRecordType>({
     ...opts,
     select: "metrics",
-    tags: { kind: "list" },
   });
 
   return rows.map(convertDatasetRunsMetricsRecord);
@@ -519,7 +524,6 @@ export const getDatasetRunsTableRowsCh = async (
   const rows = await getDatasetRunsTableInternal<DatasetRunsRowsRecordType>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
   });
 
   return rows.map(convertDatasetRunsRowsRecord);
@@ -531,7 +535,6 @@ export const getDatasetRunsTableCountCh = async (
   const rows = await getDatasetRunsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
   });
 
   return Number(rows[0]?.count);
@@ -540,8 +543,8 @@ export const getDatasetRunsTableCountCh = async (
 type GetDatasetRunItemsTableOpts<IncludeIO extends boolean> =
   DatasetRunItemsTableQuery & {
     select: "count" | "rows";
-    tags: Record<string, string>;
     includeIO?: IncludeIO;
+    preferredClickhouseService?: PreferredClickhouseService;
   };
 
 // Phase 1: Find dataset item IDs or count that satisfy conditions across ALL runs
@@ -655,7 +658,8 @@ const getQualifyingDatasetItems = async <T>(opts: {
        groupArrayIf(
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-       ) AS score_categories
+       ) AS score_categories,
+        ${scoreBooleansAggregation("s.")} AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT
@@ -667,6 +671,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
          avg(value) as avg_value
        FROM scores s FINAL
        WHERE ${appliedScoresFilter.query}
+       AND s.trace_id IN (
+         SELECT dri.trace_id
+         FROM dataset_run_items_rmt dri
+         WHERE ${baseFilter.query}
+       )
        GROUP BY
          project_id,
          trace_id,
@@ -712,12 +721,7 @@ const getQualifyingDatasetItems = async <T>(opts: {
       }, {}),
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
     },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
-      datasetId,
-    },
+    tags: { projectId },
   });
 
   return res;
@@ -770,6 +774,7 @@ const getDatasetRunItemsTableInternal = async <
     projectId,
     datasetId,
   );
+  const baseFilter = datasetRunItemsFilter.apply();
 
   datasetRunItemsFilter.push(
     ...createFilterFromFilterState(
@@ -835,7 +840,8 @@ const getDatasetRunItemsTableInternal = async <
        groupArrayIf(
          concat(s.name, ':', s.string_value),
          s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)
-       ) AS score_categories
+       ) AS score_categories,
+        ${scoreBooleansAggregation("s.")} AS score_booleans
      FROM dataset_run_items_rmt dri
      LEFT JOIN (
        SELECT
@@ -847,6 +853,11 @@ const getDatasetRunItemsTableInternal = async <
          avg(value) as avg_value
        FROM scores s FINAL
        WHERE ${appliedScoresFilter.query}
+       AND s.trace_id IN (
+        SELECT dri.trace_id
+        FROM dataset_run_items_rmt dri
+        WHERE ${baseFilter.query}
+      )
        GROUP BY
          project_id,
          trace_id,
@@ -886,32 +897,29 @@ const getDatasetRunItemsTableInternal = async <
   const res = await queryClickhouse<T>({
     query,
     params: {
+      ...baseFilter.params,
       ...appliedFilter.params,
       ...appliedScoresFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),
       ...(datasetId ? { datasetId } : {}),
       projectId,
     },
-    tags: {
-      ...(opts.tags ?? {}),
-      feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
-      ...(datasetId ? { datasetId } : {}),
-    },
+    tags: { projectId },
     clickhouseConfigs: opts.clickhouseConfigs,
+    preferredClickhouseService: opts.preferredClickhouseService,
   });
 
   return res;
 };
 
 export const getDatasetRunItemsCh = async (
-  opts: DatasetRunItemsTableQuery,
+  opts: DatasetRunItemsTableQuery & {
+    preferredClickhouseService?: PreferredClickhouseService;
+  },
 ): Promise<DatasetRunItemDomain[]> => {
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
   });
 
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
@@ -923,7 +931,6 @@ export const getDatasetRunItemsByDatasetIdCh = async (
   const rows = await getDatasetRunItemsTableInternal<DatasetRunItemRecord>({
     ...opts,
     select: "rows",
-    tags: { kind: "list" },
   });
 
   return rows.map((row) => convertDatasetRunItemClickhouseToDomain(row));
@@ -984,7 +991,6 @@ export const getDatasetRunItemsWithoutIOByItemIds = async (
     ...rest,
     filter,
     select: "rows",
-    tags: { kind: "list" },
   });
 
   // Step 2: Convert to domain
@@ -1040,12 +1046,7 @@ export const getDatasetItemIdsByTraceIdCh = async (
     params: {
       ...appliedFilter.params,
     },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      projectId,
-      traceId,
-    },
+    tags: { projectId },
   });
 
   return res.map((runItem) => {
@@ -1063,7 +1064,6 @@ export const getDatasetRunItemsCountCh = async (
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
   });
 
   return Number(rows[0]?.count);
@@ -1075,7 +1075,6 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
   const rows = await getDatasetRunItemsTableInternal<{ count: string }>({
     ...opts,
     select: "count",
-    tags: { kind: "list" },
   });
 
   return Number(rows[0]?.count);
@@ -1094,12 +1093,7 @@ export const hasAnyDatasetRunItem = async (
   const rows = await queryClickhouse<{ 1: number }>({
     query,
     params: { projectId },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "hasAny",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return rows.length > 0;
@@ -1123,12 +1117,7 @@ export const deleteDatasetRunItemsByProjectId = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return true;
@@ -1156,12 +1145,7 @@ export const deleteDatasetRunItemsByDatasetId = async ({
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -1191,12 +1175,7 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "delete",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -1222,12 +1201,6 @@ export const getDatasetRunItemCountsByProjectInCreationInterval = async ({
     params: {
       start: convertDateToClickhouseDateTime(start),
       end: convertDateToClickhouseDateTime(end),
-    },
-    tags: {
-      feature: "datasets",
-      type: "dataset-run-items",
-      kind: "analytic",
-      operation_name: "getDatasetRunItemCountsByProjectInCreationInterval",
     },
   });
 

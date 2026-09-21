@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import {
   ChartContainer,
@@ -12,7 +13,10 @@ import {
   type PieSectorShapeProps,
 } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
-import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
+import {
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 
 /**
  * PieChart component
@@ -31,9 +35,12 @@ export const PieChart: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
-  valueFormatter = compactNumberFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
 }) => {
+  const formatValue = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
+
   // Calculate total metric value for center label
   const totalValue = useMemo(() => {
     return data.reduce((acc, curr) => acc + (curr.metric as number), 0);
@@ -76,7 +83,7 @@ export const PieChart: React.FC<ChartProps> = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={(v) => valueFormatter(Number(v))}
+              valueFormatter={(v) => formatValue(Number(v))}
             />
           )}
         />
@@ -91,6 +98,7 @@ export const PieChart: React.FC<ChartProps> = ({
           paddingAngle={2}
           strokeWidth={5}
           shape={renderSector}
+          isAnimationActive={false}
         >
           {/* Label in the center of the donut */}
           {data.length > 0 && (
@@ -109,7 +117,7 @@ export const PieChart: React.FC<ChartProps> = ({
                         y={viewBox.cy}
                         className="fill-foreground text-3xl font-bold"
                       >
-                        {numberFormatter(totalValue, 0)}
+                        {formatValue(totalValue)}
                       </tspan>
                       <tspan
                         x={viewBox.cx}
@@ -130,5 +138,3 @@ export const PieChart: React.FC<ChartProps> = ({
     </ChartContainer>
   );
 };
-
-export default PieChart;

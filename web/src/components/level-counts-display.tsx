@@ -19,7 +19,13 @@ export function LevelCountsDisplay({
   counts,
   isLoading,
 }: LevelCountsDisplayProps) {
-  if (isLoading) return <Skeleton className="h-3 w-1/2" />;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-6 items-center">
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    );
+  }
 
   const nonZeroCounts = counts.filter((item) => item.count > 0);
 

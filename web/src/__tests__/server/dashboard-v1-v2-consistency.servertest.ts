@@ -1,6 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { v4 } from "uuid";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import {
   createOrgProjectAndApiKey,
   createTrace,
@@ -28,7 +29,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 // Skip when events table is not enabled (v2 queries require events_core).
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -69,6 +70,22 @@ function pick<T>(arr: T[], i: number): T {
 }
 
 /**
+ * Type-level shim for event fixtures that pass `metadata` (and a stringified
+ * `prompt_version`), which EventRecordInsertType does not model. events_full
+ * has no `metadata` map column — ClickHouse skips unknown JSONEachRow fields
+ * on insert — so the extra key is inert; the cast keeps the fixture unchanged.
+ */
+type EventInsertInput = Parameters<typeof createEvent>[0];
+function asEventInsert(
+  event: Omit<EventInsertInput, "prompt_version"> & {
+    metadata?: Record<string, string>;
+    prompt_version?: string | number | null;
+  },
+): EventInsertInput {
+  return event as unknown as EventInsertInput;
+}
+
+/**
  * Derive v2 events from v1 traces + observations.
  *
  * Mirrors the logic in dev-tables.sh that populates events from
@@ -85,36 +102,38 @@ function buildMatchingEvents(
   // Root events — one per trace.
   for (const t of traces) {
     events.push(
-      createEvent({
-        id: `t-${t.id}`,
-        span_id: `t-${t.id}`,
-        trace_id: t.id,
-        project_id: t.project_id,
-        parent_span_id: "",
-        name: t.name ?? "",
-        type: "SPAN",
-        environment: t.environment,
-        trace_name: t.name ?? "",
-        user_id: t.user_id ?? "",
-        session_id: t.session_id ?? null,
-        tags: t.tags ?? [],
-        release: t.release ?? null,
-        version: t.version ?? null,
-        public: t.public,
-        bookmarked: t.bookmarked,
-        input: t.input ?? null,
-        output: t.output ?? null,
-        metadata: t.metadata ?? {},
-        start_time: t.timestamp * 1000,
-        end_time: null,
-        cost_details: {},
-        provided_cost_details: {},
-        usage_details: {},
-        provided_usage_details: {},
-        created_at: t.created_at * 1000,
-        updated_at: t.updated_at * 1000,
-        event_ts: t.event_ts * 1000,
-      }),
+      createEvent(
+        asEventInsert({
+          id: `t-${t.id}`,
+          span_id: `t-${t.id}`,
+          trace_id: t.id,
+          project_id: t.project_id,
+          parent_span_id: "",
+          name: t.name ?? "",
+          type: "SPAN",
+          environment: t.environment,
+          trace_name: t.name ?? "",
+          user_id: t.user_id ?? "",
+          session_id: t.session_id ?? null,
+          tags: t.tags ?? [],
+          release: t.release ?? null,
+          version: t.version ?? null,
+          public: t.public,
+          bookmarked: t.bookmarked,
+          input: t.input ?? null,
+          output: t.output ?? null,
+          metadata: t.metadata ?? {},
+          start_time: t.timestamp,
+          end_time: null,
+          cost_details: {},
+          provided_cost_details: {},
+          usage_details: {},
+          provided_usage_details: {},
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          event_ts: t.event_ts,
+        }),
+      ),
     );
   }
 
@@ -123,49 +142,49 @@ function buildMatchingEvents(
     const traceId = o.trace_id!;
     const t = traceMap.get(traceId)!;
     events.push(
-      createEvent({
-        id: o.id,
-        span_id: o.id,
-        trace_id: traceId,
-        project_id: o.project_id,
-        // dev-tables.sh: coalesce(parent_observation_id, concat('t-', trace_id))
-        parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
-        name: o.name ?? "",
-        type: o.type as string,
-        environment: o.environment,
-        trace_name: t.name ?? "",
-        user_id: t.user_id ?? "",
-        session_id: t.session_id ?? undefined,
-        tags: t.tags ?? [],
-        release: t.release ?? null,
-        version: o.version ?? null,
-        level: o.level ?? "DEFAULT",
-        status_message: o.status_message ?? null,
-        provided_model_name: o.provided_model_name ?? null,
-        model_parameters: o.model_parameters ?? "{}",
-        input: o.input ?? null,
-        output: o.output ?? null,
-        // dev-tables.sh: mapConcat(obs.metadata, trace.metadata)
-        metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
-        provided_usage_details: o.provided_usage_details ?? {},
-        usage_details: o.usage_details ?? {},
-        provided_cost_details: o.provided_cost_details ?? {},
-        cost_details: o.cost_details ?? {},
-        prompt_id: o.prompt_id ?? null,
-        prompt_name: o.prompt_name ?? null,
-        prompt_version: o.prompt_version ? String(o.prompt_version) : null,
-        tool_definitions: o.tool_definitions ?? {},
-        tool_calls: o.tool_calls ?? [],
-        tool_call_names: o.tool_call_names ?? [],
-        start_time: o.start_time * 1000,
-        end_time: o.end_time ? o.end_time * 1000 : null,
-        completion_start_time: o.completion_start_time
-          ? o.completion_start_time * 1000
-          : null,
-        created_at: o.created_at * 1000,
-        updated_at: o.updated_at * 1000,
-        event_ts: o.event_ts * 1000,
-      }),
+      createEvent(
+        asEventInsert({
+          id: o.id,
+          span_id: o.id,
+          trace_id: traceId,
+          project_id: o.project_id,
+          // dev-tables.sh: coalesce(parent_observation_id, concat('t-', trace_id))
+          parent_span_id: o.parent_observation_id ?? `t-${traceId}`,
+          name: o.name ?? "",
+          type: o.type as string,
+          environment: o.environment,
+          trace_name: t.name ?? "",
+          user_id: t.user_id ?? "",
+          session_id: t.session_id ?? undefined,
+          tags: t.tags ?? [],
+          release: t.release ?? null,
+          version: o.version ?? null,
+          level: o.level ?? "DEFAULT",
+          status_message: o.status_message ?? null,
+          provided_model_name: o.provided_model_name ?? null,
+          model_parameters: o.model_parameters ?? "{}",
+          input: o.input ?? null,
+          output: o.output ?? null,
+          // dev-tables.sh: mapConcat(obs.metadata, trace.metadata)
+          metadata: { ...(t.metadata ?? {}), ...(o.metadata ?? {}) },
+          provided_usage_details: o.provided_usage_details ?? {},
+          usage_details: o.usage_details ?? {},
+          provided_cost_details: o.provided_cost_details ?? {},
+          cost_details: o.cost_details ?? {},
+          prompt_id: o.prompt_id ?? null,
+          prompt_name: o.prompt_name ?? null,
+          prompt_version: o.prompt_version ? String(o.prompt_version) : null,
+          tool_definitions: o.tool_definitions ?? {},
+          tool_calls: o.tool_calls ?? [],
+          tool_call_names: o.tool_call_names ?? [],
+          start_time: o.start_time,
+          end_time: o.end_time ?? null,
+          completion_start_time: o.completion_start_time ?? null,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+          event_ts: o.event_ts,
+        }),
+      ),
     );
   }
 
@@ -207,7 +226,7 @@ async function seedFromSeeder(targetProjectId: string) {
   const maxTs = new Date(maxTsResult[0]?.max_ts ?? Date.now());
 
   let maxTsEvents = new Date(0);
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
     const maxTsEventsResult = await queryClickhouse<{ max_ts: string }>({
       query: `SELECT max(event_ts) as max_ts FROM events_core WHERE project_id = {projectId: String}`,
       params: { projectId: targetProjectId },
@@ -441,7 +460,7 @@ describe("dashboard v1 vs v2 consistency", () => {
   let toTimestamp: string;
 
   beforeAll(async () => {
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
@@ -477,6 +496,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -486,6 +506,7 @@ describe("dashboard v1 vs v2 consistency", () => {
                 name: "Test Project",
                 hasTraces: true,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
@@ -495,6 +516,8 @@ describe("dashboard v1 vs v2 consistency", () => {
           templateFlag: true,
           v4BetaToggleVisible: false,
           observationEvals: false,
+          experimentsV4Enabled: false,
+          searchBar: false,
         },
         admin: true,
       },
@@ -1473,9 +1496,9 @@ describe("dashboard v1 vs v2 consistency", () => {
     });
   });
 
-  // ─── v2 empty trace_name fallback to root event name ─────────────────
+  // ─── v2 empty trace_name fallback to semantic-root names ────────────
 
-  maybe("v2 empty trace_name fallback to root event name", () => {
+  maybe("v2 empty trace_name fallback to semantic-root names", () => {
     let fallbackProjectId: string;
     let fallbackFromTimestamp: string;
     let fallbackToTimestamp: string;
@@ -1491,151 +1514,191 @@ describe("dashboard v1 vs v2 consistency", () => {
       // events_core uses DateTime64(6) — timestamps in microseconds
       const baseTimeUs = baseTime * 1000;
 
-      // ── Trace 1: empty trace_name, root event name = "FallbackTraceName" ──
+      // ── Trace 1: empty trace_name, app-root fallback ──
       emptyTraceNameTraceId = v4();
       const childObsId = v4();
 
-      const rootEventEmpty = createEvent({
+      const rootEventEmpty = createEvent(
+        asEventInsert({
+          id: `app-${emptyTraceNameTraceId}`,
+          span_id: `app-${emptyTraceNameTraceId}`,
+          trace_id: emptyTraceNameTraceId,
+          project_id: fallbackProjectId,
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          name: "AppRootFallbackName",
+          type: "SPAN",
+          environment: "default",
+          trace_name: "",
+          user_id: "",
+          session_id: null,
+          tags: [],
+          release: null,
+          version: null,
+          public: false,
+          bookmarked: false,
+          input: null,
+          output: null,
+          metadata: {},
+          start_time: baseTimeUs,
+          end_time: null,
+          cost_details: {},
+          provided_cost_details: {},
+          usage_details: {},
+          provided_usage_details: {},
+          created_at: baseTimeUs,
+          updated_at: baseTimeUs,
+          event_ts: baseTimeUs,
+        }),
+      );
+
+      // Production ingestion also materializes one parentless trace event.
+      // Scores join this canonical row; including the app root as well would
+      // duplicate a score before aggregation.
+      const syntheticTraceEventEmpty = createEvent({
         id: `t-${emptyTraceNameTraceId}`,
         span_id: `t-${emptyTraceNameTraceId}`,
         trace_id: emptyTraceNameTraceId,
         project_id: fallbackProjectId,
         parent_span_id: "",
-        name: "FallbackTraceName",
-        type: "SPAN",
-        environment: "default",
-        trace_name: "",
-        user_id: "",
-        session_id: null,
-        tags: [],
-        release: null,
-        version: null,
-        public: false,
-        bookmarked: false,
-        input: null,
-        output: null,
-        metadata: {},
+        name: "AppRootFallbackName",
+        trace_name: "AppRootFallbackName",
         start_time: baseTimeUs,
-        end_time: null,
-        cost_details: {},
-        provided_cost_details: {},
-        usage_details: {},
-        provided_usage_details: {},
-        created_at: baseTimeUs,
-        updated_at: baseTimeUs,
-        event_ts: baseTimeUs,
       });
 
-      const childEventEmpty = createEvent({
-        id: childObsId,
-        span_id: childObsId,
-        trace_id: emptyTraceNameTraceId,
+      const childEventEmpty = createEvent(
+        asEventInsert({
+          id: childObsId,
+          span_id: childObsId,
+          trace_id: emptyTraceNameTraceId,
+          project_id: fallbackProjectId,
+          parent_span_id: `app-${emptyTraceNameTraceId}`,
+          name: "ChildObservationName",
+          type: "GENERATION",
+          environment: "default",
+          trace_name: "",
+          user_id: "",
+          session_id: null,
+          tags: [],
+          release: null,
+          version: null,
+          level: "DEFAULT",
+          status_message: null,
+          provided_model_name: "gpt-4o-mini-2024-07-18",
+          model_parameters: "{}",
+          input: null,
+          output: null,
+          metadata: {},
+          provided_usage_details: {},
+          usage_details: {},
+          provided_cost_details: {},
+          cost_details: {},
+          prompt_id: null,
+          prompt_name: null,
+          prompt_version: null,
+          start_time: baseTimeUs + 100_000,
+          end_time: baseTimeUs + 500_000,
+          completion_start_time: null,
+          created_at: baseTimeUs + 100_000,
+          updated_at: baseTimeUs + 500_000,
+          event_ts: baseTimeUs + 500_000,
+        }),
+      );
+
+      // ── Trace 2: empty trace_name, physical-root fallback ──
+      const physicalRootTraceId = v4();
+      const physicalRootTimeUs = baseTimeUs + 750_000;
+      const physicalRootEvent = createEvent({
+        trace_id: physicalRootTraceId,
         project_id: fallbackProjectId,
-        parent_span_id: `t-${emptyTraceNameTraceId}`,
-        name: "ChildObservationName",
-        type: "GENERATION",
-        environment: "default",
+        parent_span_id: "",
+        is_app_root: false,
+        name: "PhysicalRootFallbackName",
+        type: "SPAN",
         trace_name: "",
-        user_id: "",
-        session_id: null,
-        tags: [],
-        release: null,
-        version: null,
-        level: "DEFAULT",
-        status_message: null,
-        provided_model_name: "gpt-4o-mini-2024-07-18",
-        model_parameters: "{}",
-        input: null,
-        output: null,
-        metadata: {},
-        provided_usage_details: {},
-        usage_details: {},
-        provided_cost_details: {},
-        cost_details: {},
-        prompt_id: null,
-        prompt_name: null,
-        prompt_version: null,
-        start_time: baseTimeUs + 100_000,
-        end_time: baseTimeUs + 500_000,
-        completion_start_time: null,
-        created_at: baseTimeUs + 100_000,
-        updated_at: baseTimeUs + 500_000,
-        event_ts: baseTimeUs + 500_000,
+        start_time: physicalRootTimeUs,
+        created_at: physicalRootTimeUs,
+        updated_at: physicalRootTimeUs,
+        event_ts: physicalRootTimeUs,
       });
 
-      // ── Trace 2: populated trace_name (happy path) ──
+      // ── Trace 3: populated trace_name (happy path) ──
       populatedTraceNameTraceId = v4();
       const childObsId2 = v4();
 
-      const rootEventPopulated = createEvent({
-        id: `t-${populatedTraceNameTraceId}`,
-        span_id: `t-${populatedTraceNameTraceId}`,
-        trace_id: populatedTraceNameTraceId,
-        project_id: fallbackProjectId,
-        parent_span_id: "",
-        name: "PopulatedTraceName",
-        type: "SPAN",
-        environment: "default",
-        trace_name: "PopulatedTraceName",
-        user_id: "",
-        session_id: null,
-        tags: [],
-        release: null,
-        version: null,
-        public: false,
-        bookmarked: false,
-        input: null,
-        output: null,
-        metadata: {},
-        start_time: baseTimeUs + 1_000_000,
-        end_time: null,
-        cost_details: {},
-        provided_cost_details: {},
-        usage_details: {},
-        provided_usage_details: {},
-        created_at: baseTimeUs + 1_000_000,
-        updated_at: baseTimeUs + 1_000_000,
-        event_ts: baseTimeUs + 1_000_000,
-      });
+      const rootEventPopulated = createEvent(
+        asEventInsert({
+          id: `t-${populatedTraceNameTraceId}`,
+          span_id: `t-${populatedTraceNameTraceId}`,
+          trace_id: populatedTraceNameTraceId,
+          project_id: fallbackProjectId,
+          parent_span_id: "",
+          name: "PopulatedTraceName",
+          type: "SPAN",
+          environment: "default",
+          trace_name: "PopulatedTraceName",
+          user_id: "",
+          session_id: null,
+          tags: [],
+          release: null,
+          version: null,
+          public: false,
+          bookmarked: false,
+          input: null,
+          output: null,
+          metadata: {},
+          start_time: baseTimeUs + 1_000_000,
+          end_time: null,
+          cost_details: {},
+          provided_cost_details: {},
+          usage_details: {},
+          provided_usage_details: {},
+          created_at: baseTimeUs + 1_000_000,
+          updated_at: baseTimeUs + 1_000_000,
+          event_ts: baseTimeUs + 1_000_000,
+        }),
+      );
 
-      const childEventPopulated = createEvent({
-        id: childObsId2,
-        span_id: childObsId2,
-        trace_id: populatedTraceNameTraceId,
-        project_id: fallbackProjectId,
-        parent_span_id: `t-${populatedTraceNameTraceId}`,
-        name: "SomeObservation",
-        type: "GENERATION",
-        environment: "default",
-        trace_name: "PopulatedTraceName",
-        user_id: "",
-        session_id: null,
-        tags: [],
-        release: null,
-        version: null,
-        level: "DEFAULT",
-        status_message: null,
-        provided_model_name: "gpt-4o-mini-2024-07-18",
-        model_parameters: "{}",
-        input: null,
-        output: null,
-        metadata: {},
-        provided_usage_details: {},
-        usage_details: {},
-        provided_cost_details: {},
-        cost_details: {},
-        prompt_id: null,
-        prompt_name: null,
-        prompt_version: null,
-        start_time: baseTimeUs + 1_100_000,
-        end_time: baseTimeUs + 1_500_000,
-        completion_start_time: null,
-        created_at: baseTimeUs + 1_100_000,
-        updated_at: baseTimeUs + 1_500_000,
-        event_ts: baseTimeUs + 1_500_000,
-      });
+      const childEventPopulated = createEvent(
+        asEventInsert({
+          id: childObsId2,
+          span_id: childObsId2,
+          trace_id: populatedTraceNameTraceId,
+          project_id: fallbackProjectId,
+          parent_span_id: `t-${populatedTraceNameTraceId}`,
+          name: "SomeObservation",
+          type: "GENERATION",
+          environment: "default",
+          trace_name: "PopulatedTraceName",
+          user_id: "",
+          session_id: null,
+          tags: [],
+          release: null,
+          version: null,
+          level: "DEFAULT",
+          status_message: null,
+          provided_model_name: "gpt-4o-mini-2024-07-18",
+          model_parameters: "{}",
+          input: null,
+          output: null,
+          metadata: {},
+          provided_usage_details: {},
+          usage_details: {},
+          provided_cost_details: {},
+          cost_details: {},
+          prompt_id: null,
+          prompt_name: null,
+          prompt_version: null,
+          start_time: baseTimeUs + 1_100_000,
+          end_time: baseTimeUs + 1_500_000,
+          completion_start_time: null,
+          created_at: baseTimeUs + 1_100_000,
+          updated_at: baseTimeUs + 1_500_000,
+          event_ts: baseTimeUs + 1_500_000,
+        }),
+      );
 
-      // ── Scores for both traces (for scores view test) ──
+      // ── Scores for all traces (for scores view test) ──
       const scoreTs = baseTime + 200;
       const scoreEmpty = createTraceScore({
         project_id: fallbackProjectId,
@@ -1665,15 +1728,27 @@ describe("dashboard v1 vs v2 consistency", () => {
         updated_at: scoreTs + 100,
         event_ts: scoreTs + 100,
       });
+      const scorePhysicalRoot = createTraceScore({
+        project_id: fallbackProjectId,
+        trace_id: physicalRootTraceId,
+        name: "fb-score",
+        value: 0.7,
+        timestamp: scoreTs + 50,
+        created_at: scoreTs + 50,
+        updated_at: scoreTs + 50,
+        event_ts: scoreTs + 50,
+      });
 
       await Promise.all([
         createEventsCh([
           rootEventEmpty,
+          syntheticTraceEventEmpty,
           childEventEmpty,
+          physicalRootEvent,
           rootEventPopulated,
           childEventPopulated,
         ]),
-        createScoresCh([scoreEmpty, scorePopulated]),
+        createScoresCh([scoreEmpty, scorePhysicalRoot, scorePopulated]),
       ]);
 
       fallbackFromTimestamp = new Date(
@@ -1705,7 +1780,9 @@ describe("dashboard v1 vs v2 consistency", () => {
         result.map((r) => [r.name as string, Number(r.count_count)]),
       );
       // Trace with empty trace_name should resolve via root event's name
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      expect(nameMap.get("AppRootFallbackName")).toBe(1);
+      // A physical root remains a valid semantic-root fallback
+      expect(nameMap.get("PhysicalRootFallbackName")).toBe(1);
       // Trace with populated trace_name should resolve normally
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
       // Child observation name should never appear as a trace name
@@ -1731,7 +1808,8 @@ describe("dashboard v1 vs v2 consistency", () => {
       );
 
       const allNames = allResult.map((r) => r.traceName);
-      expect(allNames).toContain("FallbackTraceName");
+      expect(allNames).toContain("AppRootFallbackName");
+      expect(allNames).toContain("PhysicalRootFallbackName");
       expect(allNames).toContain("PopulatedTraceName");
       // Child observation name must never leak as traceName
       expect(allNames).not.toContain("ChildObservationName");
@@ -1767,17 +1845,18 @@ describe("dashboard v1 vs v2 consistency", () => {
           Number(r.uniq_traceId),
         ]),
       );
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      expect(nameMap.get("AppRootFallbackName")).toBe(1);
+      expect(nameMap.get("PhysicalRootFallbackName")).toBe(1);
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
     });
 
-    it("scores view: traceName resolves via COALESCE on joined root events", async () => {
+    it("scores view: joins only the parentless trace event when an app root coexists", async () => {
       const result = await executeQuery(
         fallbackProjectId,
         {
           view: "scores-numeric",
           dimensions: [{ field: "traceName" }],
-          metrics: [{ measure: "count", aggregation: "count" }],
+          metrics: [{ measure: "value", aggregation: "sum" }],
           timeDimension: null,
           filters: [
             {
@@ -1796,13 +1875,13 @@ describe("dashboard v1 vs v2 consistency", () => {
       );
 
       const nameMap = new Map(
-        result.map((r) => [r.traceName as string, Number(r.count_count)]),
+        result.map((r) => [r.traceName as string, Number(r.sum_value)]),
       );
-      // Score on trace with empty trace_name should resolve via root event name
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
-      // Score on trace with populated trace_name should resolve normally
-      expect(nameMap.get("PopulatedTraceName")).toBe(1);
-      // Child observation name should never appear
+      // Summing makes duplicate JOIN matches observable: the app-root score
+      // must remain 0.8 rather than being counted once per semantic root.
+      expect(nameMap.get("AppRootFallbackName")).toBeCloseTo(0.8);
+      expect(nameMap.get("PhysicalRootFallbackName")).toBeCloseTo(0.7);
+      expect(nameMap.get("PopulatedTraceName")).toBeCloseTo(0.9);
       expect(nameMap.has("ChildObservationName")).toBe(false);
     });
 

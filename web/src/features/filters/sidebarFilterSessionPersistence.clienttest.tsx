@@ -1,15 +1,28 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { FilterState } from "@langfuse/shared";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import type { FilterConfig } from "./lib/filter-config";
-import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
+import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
+import { getScoreFilterConfig } from "./config/scores-config";
+import { getFacetSummary } from "./lib/facet-display";
 
 const queryParamStore = new Map<string, unknown>();
+// Values placed here are NOT visible on the first render; they are applied on
+// mount via the query-param setter, reproducing the Next.js Pages Router race
+// where `router.query` is empty on the first render and only populated on a
+// later (hydration) render. See the deep-link expansion tests below.
+const deferredQueryParams = new Map<string, unknown>();
 
-jest.mock("use-query-params", () => {
+vi.mock("use-query-params", async () => {
   const React = require("react");
-  const actual = jest.requireActual("use-query-params");
+  const actual = await vi.importActual("use-query-params");
 
   return {
     ...actual,
@@ -51,6 +64,17 @@ jest.mock("use-query-params", () => {
         queryParamStore.set(key, value);
       }, [key, value]);
 
+      // Apply a deferred value once, on mount: this lands the param on a later
+      // render than the first, simulating Pages Router query hydration.
+      React.useEffect(() => {
+        if (deferredQueryParams.has(key)) {
+          const deferred = deferredQueryParams.get(key);
+          deferredQueryParams.delete(key);
+          setQueryValue(deferred);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+
       return [value, setQueryValue] as const;
     },
   };
@@ -80,6 +104,102 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
+describe("numeric conditions restored from the URL", () => {
+  it("keeps strict bounds visible and removes only the selected condition", () => {
+    const filters: FilterState = [
+      { column: "value", type: "number", operator: ">", value: 0.2 },
+      { column: "value", type: "number", operator: "<", value: 0.8 },
+      {
+        column: "source",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["API"],
+      },
+    ];
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+    queryParamStore.set("filter", encodeFiltersGeneric(filters));
+    const { result } = renderHook(() =>
+      useSidebarFilterState(
+        getScoreFilterConfig(),
+        {},
+        { stateLocation: "url" },
+      ),
+    );
+    const facet = result.current.filters.find(
+      (filter) => filter.type === "numeric",
+    );
+    if (!facet || facet.type !== "numeric")
+      throw new Error("numeric facet missing");
+
+    expect(getFacetSummary(facet)).toBe("> 0.2 · < 0.8");
+    expect(facet.value).toBeNull();
+    act(() => facet.onRemoveCondition(0));
+    expect(result.current.explicitFilterState).toEqual(filters.slice(1));
+  });
+
+  it.each<{
+    conditions: Extract<FilterState[number], { type: "number" }>[];
+    range: [number, number] | null;
+    summary: string;
+  }>([
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "=", value: 0.5 },
+      ],
+      range: null,
+      summary: "= 0.5",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: ">=", value: 0.4 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: ">= 0.2 · >= 0.4 · <= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: "<= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: [0.2, 0.8],
+      summary: "0.2–0.8",
+    },
+  ])(
+    "projects $summary without adding or collapsing bounds",
+    ({ conditions, range, summary }) => {
+      queryParamStore.clear();
+      deferredQueryParams.clear();
+      queryParamStore.set("filter", encodeFiltersGeneric(conditions));
+      const { result } = renderHook(() =>
+        useSidebarFilterState(
+          getScoreFilterConfig(),
+          {},
+          { stateLocation: "url" },
+        ),
+      );
+      const facet = result.current.filters.find(
+        (filter) => filter.type === "numeric",
+      );
+      if (!facet || facet.type !== "numeric")
+        throw new Error("numeric facet missing");
+
+      expect(getFacetSummary(facet)).toBe(summary);
+      expect(facet.value).toEqual(range);
+      expect(result.current.explicitFilterState).toEqual(conditions);
+    },
+  );
+});
+
 const FILTER_A: FilterState = [
   {
     column: "name",
@@ -98,8 +218,22 @@ const FILTER_B: FilterState = [
   },
 ];
 
+// Encodes to well over MAX_URL_FILTER_QUERY_LENGTH characters (LFE-10717).
+const OVERSIZED_FILTER: FilterState = [
+  {
+    column: "name",
+    type: "stringOptions",
+    operator: "any of",
+    value: Array.from(
+      { length: 400 },
+      (_, i) => `checkout-step-${i}-abcdefghijklmnop`,
+    ),
+  },
+];
+
 function SessionPersistenceHarness(props: { contextId?: string | null }) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: props.contextId ?? null,
   });
 
@@ -120,9 +254,147 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
       >
         Clear
       </button>
+      <button
+        data-testid="set-oversized"
+        onClick={() => queryFilter.setFilterState(OVERSIZED_FILTER)}
+      >
+        Set oversized
+      </button>
     </div>
   );
 }
+
+// An embedded, entity-scoped surface: the page bounds this column with its own
+// hidden filter, so the facet is omitted (a user-detail traces table omits
+// User ID).
+const EMBEDDED_FILTER_CONFIG = omitFilterFacets(TEST_FILTER_CONFIG, ["name"]);
+
+function EmbeddedSurfaceHarness() {
+  const queryFilter = useSidebarFilterState(
+    EMBEDDED_FILTER_CONFIG,
+    TEST_OPTIONS,
+    { stateLocation: "urlAndSessionStorage", sessionFilterContextId: null },
+  );
+
+  return (
+    <pre data-testid="explicit-state">
+      {JSON.stringify(queryFilter.explicitFilterState)}
+    </pre>
+  );
+}
+
+// Reports the expanded state of the single "name" facet and lets a test
+// collapse it. Used to assert the LFE-10164 deep-link expansion behavior.
+function ExpansionHarness() {
+  const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
+  });
+
+  const nameFacet = queryFilter.filters.find((f) => f.column === "name");
+
+  return (
+    <div>
+      <pre data-testid="name-expanded">{String(nameFacet?.expanded)}</pre>
+      <pre data-testid="expanded-list">
+        {JSON.stringify(queryFilter.expanded)}
+      </pre>
+      <button
+        data-testid="collapse-name"
+        onClick={() =>
+          queryFilter.onExpandedChange(
+            queryFilter.expanded.filter((c) => c !== "name"),
+          )
+        }
+      >
+        Collapse name
+      </button>
+    </div>
+  );
+}
+
+describe("useSidebarFilterState deep-link expansion (LFE-10164)", () => {
+  const encodedFilterA = encodeFiltersGeneric(FILTER_A);
+  const EXPANDED_STORAGE_KEY = `${TEST_FILTER_CONFIG.tableName}-filters-expanded`;
+  const SEEDED_STORAGE_KEY = `${TEST_FILTER_CONFIG.tableName}-filters-seeded`;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+  });
+
+  const getNameExpanded = () =>
+    screen.getByTestId("name-expanded").textContent === "true";
+
+  it("expands a facet section whose filter arrives on the first render", async () => {
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+    expect(
+      JSON.parse(sessionStorage.getItem(SEEDED_STORAGE_KEY) ?? '""'),
+    ).toContain("name");
+  });
+
+  it("expands a facet section whose URL filter only arrives on a later render (Pages Router race)", async () => {
+    // Empty on first render; the filter param lands on a later render. The old
+    // one-shot mount effect seeded against the empty first render and never
+    // re-ran, leaving the section collapsed. The during-render reconciliation
+    // must expand it once the filter actually arrives.
+    deferredQueryParams.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    // Section starts collapsed (no filter on first render).
+    expect(getNameExpanded()).toBe(false);
+
+    // Once the deferred filter arrives, the section expands.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+  });
+
+  it("does not re-expand a section the user collapsed, even though the URL filter is still active", async () => {
+    // Filter already active and already auto-expanded once in this session.
+    queryParamStore.set("filter", encodedFilterA);
+    sessionStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(""));
+    sessionStorage.setItem(SEEDED_STORAGE_KEY, JSON.stringify("name"));
+
+    render(<ExpansionHarness />);
+
+    // The seeded marker records that "name" was already reconciled, so the
+    // collapsed state is preserved instead of being re-expanded.
+    await waitFor(() => {
+      expect(screen.getByTestId("expanded-list").textContent).toBe("[]");
+    });
+    expect(getNameExpanded()).toBe(false);
+  });
+
+  it("keeps a manual collapse after it is reconciled within the same mount", async () => {
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    // Auto-expanded on arrival.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+
+    // User collapses it.
+    fireEvent.click(screen.getByTestId("collapse-name"));
+
+    // It stays collapsed; the still-active filter does not re-expand it.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(false);
+    });
+    // Give any stray re-render a chance to (incorrectly) re-seed.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(getNameExpanded()).toBe(false);
+  });
+});
 
 describe("useSidebarFilterState session persistence", () => {
   const encodedFilterA = encodeFiltersGeneric(FILTER_A);
@@ -213,6 +485,28 @@ describe("useSidebarFilterState session persistence", () => {
     expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
   });
 
+  it("never applies a filter on a column the surface omits (LFE-14824)", async () => {
+    // The project-wide table's persisted filter (or a deep link) reaching an
+    // embedded surface whose facet is omitted: applying it would AND an
+    // invisible constraint with the page's own scope and return nothing.
+    const sessionKey = buildSessionKey();
+    sessionStorage.setItem(sessionKey, encodeStoredState(encodedFilterA));
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<EmbeddedSurfaceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual([]);
+    });
+
+    // Scrubbed from both persistence channels, so what is stored stays equal to
+    // what the sidebar can show.
+    await waitFor(() => {
+      expect(queryParamStore.has("filter")).toBe(false);
+    });
+    expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+  });
+
   it("resets persisted query when session context changes", async () => {
     const oldSessionKey = buildSessionKey("old");
     const newSessionKey = buildSessionKey("new");
@@ -257,6 +551,94 @@ describe("useSidebarFilterState session persistence", () => {
 
     await waitFor(() => {
       expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+    });
+  });
+});
+
+describe("oversized filter queries stay out of the URL (LFE-10717)", () => {
+  // An oversized serialized filter state must never reach the URL: the full
+  // request head (URL + cookies + headers) is capped at ~16KB by Node and
+  // most proxies, so a giant `?filter=` 431s on the refresh round-trip. The
+  // state falls back to the session-storage mirror instead — same-tab
+  // refreshes keep working; a copied link degrades to "no filter" rather
+  // than a dead page.
+  const encodedOversized = encodeFiltersGeneric(OVERSIZED_FILTER);
+  const encodedFilterB = encodeFiltersGeneric(FILTER_B);
+  const sessionKey = buildSidebarFilterQueryStorageKey({
+    tableName: TEST_FILTER_CONFIG.tableName,
+    contextId: null,
+  });
+  const encodeStoredState = (query: string) =>
+    JSON.stringify({ contextId: null, query });
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+  });
+
+  const getExplicitState = () =>
+    JSON.parse(screen.getByTestId("explicit-state").textContent ?? "[]");
+
+  it("applies the filter, persists it to session storage, and keeps the URL param absent", async () => {
+    render(<SessionPersistenceHarness />);
+
+    fireEvent.click(screen.getByTestId("set-oversized"));
+
+    // State applies in the same interaction.
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+
+    await waitFor(() => {
+      expect(sessionStorage.getItem(sessionKey)).toBe(
+        encodeStoredState(encodedOversized),
+      );
+    });
+    // Give the async query-param writer a chance to (incorrectly) flush.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(queryParamStore.has("filter")).toBe(false);
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+  });
+
+  it("restores the oversized filter from session storage on remount (same-tab refresh)", async () => {
+    sessionStorage.setItem(sessionKey, encodeStoredState(encodedOversized));
+
+    render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+    });
+    // The sanitize/mirror effects must not push the oversized query into the URL.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(queryParamStore.has("filter")).toBe(false);
+  });
+
+  it("replaces an existing URL filter and resumes URL writes once the state fits again", async () => {
+    queryParamStore.set("filter", encodedFilterB);
+
+    render(<SessionPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(FILTER_B);
+    });
+
+    // Oversized write removes the stale URL param instead of replacing it.
+    fireEvent.click(screen.getByTestId("set-oversized"));
+    expect(getExplicitState()).toEqual(OVERSIZED_FILTER);
+    await waitFor(() => {
+      expect(queryParamStore.has("filter")).toBe(false);
+    });
+
+    // A later, small state goes back to normal URL persistence — the
+    // optimistic pending query must not get stuck on the oversized value.
+    fireEvent.click(screen.getByTestId("set-filter-b"));
+    await waitFor(() => {
+      expect(queryParamStore.get("filter")).toBe(encodedFilterB);
+    });
+    expect(getExplicitState()).toEqual(FILTER_B);
+    await waitFor(() => {
+      expect(sessionStorage.getItem(sessionKey)).toBe(
+        encodeStoredState(encodedFilterB),
+      );
     });
   });
 });

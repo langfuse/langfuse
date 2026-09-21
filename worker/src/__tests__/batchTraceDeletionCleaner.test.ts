@@ -1,28 +1,57 @@
-import { expect, describe, it, beforeEach, afterEach } from "vitest";
+import { expect, describe, it, beforeEach, afterEach, vi } from "vitest";
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { BatchTraceDeletionCleaner } from "../features/batch-trace-deletion-cleaner";
+import * as clickhouseTraceDelete from "../features/traces/processClickhouseTraceDelete";
+import * as postgresTraceDelete from "../features/traces/processPostgresTraceDelete";
 
 describe("BatchTraceDeletionCleaner", () => {
   let cleaner: BatchTraceDeletionCleaner;
   let projectId1: string;
   let projectId2: string;
+  let orgIds: string[];
+  let projectIds: string[];
+
+  const createTestProject = async () => {
+    const org = await prisma.organization.create({
+      data: {
+        id: randomUUID(),
+        name: randomUUID(),
+      },
+    });
+    const project = await prisma.project.create({
+      data: {
+        id: randomUUID(),
+        name: randomUUID(),
+        orgId: org.id,
+      },
+    });
+    orgIds.push(org.id);
+    projectIds.push(project.id);
+    return project.id;
+  };
 
   beforeEach(async () => {
-    const result1 = await createOrgProjectAndApiKey();
-    projectId1 = result1.projectId;
-
-    const result2 = await createOrgProjectAndApiKey();
-    projectId2 = result2.projectId;
+    orgIds = [];
+    projectIds = [];
+    projectId1 = await createTestProject();
+    projectId2 = await createTestProject();
 
     cleaner = new BatchTraceDeletionCleaner();
   });
 
   afterEach(async () => {
-    cleaner.stop();
+    cleaner?.stop();
+    vi.restoreAllMocks();
     await prisma.pendingDeletion.deleteMany({
-      where: { projectId: { in: [projectId1, projectId2] } },
+      where: { projectId: { in: projectIds } },
+    });
+    await prisma.project.deleteMany({
+      where: { id: { in: projectIds } },
+    });
+    await prisma.organization.deleteMany({
+      where: { id: { in: orgIds } },
     });
   });
 
@@ -83,6 +112,86 @@ describe("BatchTraceDeletionCleaner", () => {
       // Already-deleted trace should remain unchanged
       const alreadyDeleted = deletions.find((d) => d.objectId === deletedTrace);
       expect(alreadyDeleted?.isDeleted).toBe(true);
+    });
+
+    it("should leave failed trace deletions pending for a later retry", async () => {
+      const traceIds = Array.from({ length: 3 }, () => randomUUID());
+
+      await prisma.pendingDeletion.createMany({
+        data: traceIds.map((id) => ({
+          projectId: projectId1,
+          object: "trace",
+          objectId: id,
+          isDeleted: false,
+        })),
+      });
+
+      const processClickhouseTraceDeleteSpy = vi
+        .spyOn(clickhouseTraceDelete, "processClickhouseTraceDelete")
+        .mockRejectedValueOnce(new Error("ClickHouse timeout"));
+
+      await expect((cleaner as any).processProject(projectId1)).resolves.toBe(
+        false,
+      );
+
+      expect(processClickhouseTraceDeleteSpy).toHaveBeenCalledTimes(1);
+
+      const deletions = await prisma.pendingDeletion.findMany({
+        where: { projectId: projectId1 },
+      });
+      expect(deletions.every((d) => !d.isDeleted)).toBe(true);
+
+      await expect((cleaner as any).processProject(projectId1)).resolves.toBe(
+        true,
+      );
+
+      const retriedDeletions = await prisma.pendingDeletion.findMany({
+        where: { projectId: projectId1 },
+      });
+      expect(processClickhouseTraceDeleteSpy).toHaveBeenCalledTimes(2);
+      expect(retriedDeletions.every((d) => d.isDeleted)).toBe(true);
+    });
+
+    it("should log all failed deletion backends in a single failed run", async () => {
+      const traceIds = Array.from({ length: 3 }, () => randomUUID());
+
+      await prisma.pendingDeletion.createMany({
+        data: traceIds.map((id) => ({
+          projectId: projectId1,
+          object: "trace",
+          objectId: id,
+          isDeleted: false,
+        })),
+      });
+
+      vi.spyOn(
+        postgresTraceDelete,
+        "processPostgresTraceDelete",
+      ).mockRejectedValueOnce(new Error("Postgres timeout"));
+      vi.spyOn(
+        clickhouseTraceDelete,
+        "processClickhouseTraceDelete",
+      ).mockRejectedValueOnce(new Error("ClickHouse timeout"));
+      const loggerWarnSpy = vi.spyOn(logger, "warn");
+
+      await expect((cleaner as any).processProject(projectId1)).resolves.toBe(
+        false,
+      );
+
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        "BatchTraceDeletionCleaner: Trace deletion failed, will retry later",
+        expect.objectContaining({
+          failures: [
+            { backend: "postgres", errorName: "Error" },
+            { backend: "clickhouse", errorName: "Error" },
+          ],
+        }),
+      );
+
+      const deletions = await prisma.pendingDeletion.findMany({
+        where: { projectId: projectId1 },
+      });
+      expect(deletions.every((d) => !d.isDeleted)).toBe(true);
     });
   });
 

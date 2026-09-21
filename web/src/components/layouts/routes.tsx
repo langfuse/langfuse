@@ -1,6 +1,7 @@
 import { type Flag } from "@/src/features/feature-flags/types";
-import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
+import { type ProjectScope } from "@langfuse/shared";
 import {
+  BellRing,
   Database,
   LayoutDashboard,
   LifeBuoy,
@@ -22,16 +23,19 @@ import {
 } from "lucide-react";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
-import { type User } from "next-auth";
+import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
+import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
-import { V4BetaSidebarToggle } from "@/src/features/events/components/V4BetaSidebarToggle";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
+import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
 
 export enum RouteSection {
   Main = "main",
@@ -52,14 +56,25 @@ export type Route = {
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
   icon?: LucideIcon; // ignored for nested routes
-  pathname: string; // link
+  href: string;
+  isActive?: (pathname: string) => boolean;
+  legacyPathname?: string; // link used when the V4 preview is disabled
   items?: Array<Route>; // folder
   section?: RouteSection; // which section of the sidebar (top/main/bottom)
   newTab?: boolean; // open in new tab
   entitlements?: Entitlement[]; // entitlements required, array treated as OR
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
-    organization: User["organizations"][number] | undefined;
+    organization:
+      | NonNullable<Session["user"]>["organizations"][number]
+      | undefined;
+    projectId: string | undefined;
+    isLangfuseCloud: boolean;
+    hasActiveCloudIncident: boolean;
+    canToggleV4: boolean;
+    forceV3Experience: boolean;
+    v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
+    v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -67,33 +82,37 @@ export type Route = {
 export const ROUTES: Route[] = [
   {
     title: "Go to...",
-    pathname: "", // Empty pathname since this is a dropdown
+    href: "", // Empty pathname since this is a dropdown
     icon: Search,
     menuNode: <CommandMenuTrigger />,
     section: RouteSection.Main,
   },
   {
     title: "Organizations",
-    pathname: "/",
+    href: "/",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,
   },
   {
     title: "Projects",
-    pathname: "/organization/[organizationId]",
+    href: "/organization/[organizationId]",
     icon: Grid2X2,
     section: RouteSection.Main,
   },
   {
     title: "Home",
-    pathname: `/project/[projectId]`,
+    href: `/project/[projectId]`,
     icon: Home,
     section: RouteSection.Main,
   },
   {
     title: "Dashboards",
-    pathname: `/project/[projectId]/dashboards`,
+    href: `/project/[projectId]/dashboards`,
+    isActive: matchesPathname([
+      `/project/[projectId]/dashboards`,
+      `/project/[projectId]/widgets`,
+    ]),
     icon: LayoutDashboard,
     productModule: "dashboards",
     section: RouteSection.Main,
@@ -104,7 +123,11 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/traces`,
+    href: `/project/[projectId]/traces`,
+    isActive: matchesPathname([
+      `/project/[projectId]/traces`,
+      `/project/[projectId]/observations`,
+    ]),
   },
   {
     title: "Sessions",
@@ -112,19 +135,28 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/sessions`,
+    href: `/project/[projectId]/sessions`,
   },
   {
     title: "Users",
-    pathname: `/project/[projectId]/users`,
+    href: `/project/[projectId]/users`,
     icon: UsersIcon,
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
   {
+    title: "Alerts",
+    href: "/project/[projectId]/alerts",
+    icon: BellRing,
+    projectRbacScopes: ["alerts:read"],
+    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
     title: "Prompts",
-    pathname: "/project/[projectId]/prompts",
+    href: "/project/[projectId]/prompts",
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
@@ -133,7 +165,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Playground",
-    pathname: "/project/[projectId]/playground",
+    href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
     group: RouteGroup.PromptManagement,
@@ -141,23 +173,24 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Scores",
-    pathname: `/project/[projectId]/scores`,
+    href: `/project/[projectId]/scores`,
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
-    projectRbacScopes: ["evalJob:read"],
+    projectRbacScopes: ["evaluator:read", "evaluationRule:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    pathname: `/project/[projectId]/evals`,
+    href: `/project/[projectId]/evals`,
+    legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
     title: "Human Annotation",
-    pathname: `/project/[projectId]/annotation-queues`,
+    href: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
@@ -165,75 +198,90 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Datasets",
-    pathname: `/project/[projectId]/datasets`,
+    href: `/project/[projectId]/datasets`,
     icon: Database,
     productModule: "datasets",
+    projectRbacScopes: ["datasets:read"],
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
   },
   {
     title: "Experiments",
-    pathname: `/project/[projectId]/experiments`,
+    href: `/project/[projectId]/experiments`,
     icon: Beaker,
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/project/[projectId]/settings/billing",
+    // Keep Action required first in the secondary nav so it is not sandwiched
+    // between regular items like Upgrade Plan and Settings.
+    title: "Update",
+    href: "",
     section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
-  },
-  {
-    title: "Upgrade",
-    icon: Sparkle,
-    pathname: "/organization/[organizationId]/settings/billing",
-    section: RouteSection.Secondary,
-    entitlements: ["cloud-billing"],
-    organizationRbacScope: "langfuseCloudBilling:CRUD",
-    show: ({ organization }) => organization?.plan === "cloud:hobby",
+    show: ({ projectId, v4UpgradeUiAvailable }) =>
+      v4UpgradeUiAvailable && projectId !== undefined,
+    menuNode: <V4MigrationNavItem />,
   },
   {
     title: "Cloud Status",
     section: RouteSection.Secondary,
-    pathname: "",
+    href: "",
+    show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
+      isLangfuseCloud && hasActiveCloudIncident,
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "Preview (fast)",
-    pathname: "",
+    title: "V4 Preview",
+    href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    menuNode: <V4BetaSidebarToggle />,
+    // v4-upgrade users get this toggle inside the migration panel instead.
+    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
+      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    menuNode: <V4SidebarToggle />,
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    href: "/project/[projectId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
+  },
+  {
+    title: "Upgrade Plan",
+    icon: Sparkle,
+    href: "/organization/[organizationId]/settings/billing",
+    section: RouteSection.Secondary,
+    entitlements: ["cloud-billing"],
+    organizationRbacScope: "langfuseCloudBilling:CRUD",
+    show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
     title: "Settings",
-    pathname: "/project/[projectId]/settings",
+    href: "/project/[projectId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
     title: "Settings",
-    pathname: "/organization/[organizationId]/settings",
+    href: "/organization/[organizationId]/settings",
     icon: Settings,
     section: RouteSection.Secondary,
   },
   {
     title: "Book a call",
     section: RouteSection.Secondary,
-    pathname: "",
+    href: "",
     menuNode: <BookACallButton />,
   },
   {
     title: "Support",
     icon: LifeBuoy,
     section: RouteSection.Secondary,
-    pathname: "", // Empty pathname since this is a dropdown
+    href: "", // Empty pathname since this is a dropdown
     menuNode: <SupportButton />,
   },
 ];
@@ -254,14 +302,9 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <kbd className="pointer-events-none ml-auto inline-flex h-5 items-center gap-1 rounded-md border px-1.5 font-mono text-[10px] select-none">
-        {navigator.userAgent.includes("Mac") ? (
-          <span className="text-[12px]">⌘</span>
-        ) : (
-          <span>Ctrl</span>
-        )}
-        <span>K</span>
-      </kbd>
+      <span className="ml-auto hidden md:inline-flex">
+        <KeyboardShortcut keys={["Mod", "K"]} />
+      </span>
     </SidebarMenuButton>
   );
 }

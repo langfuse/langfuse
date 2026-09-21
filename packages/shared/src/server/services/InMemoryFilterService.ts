@@ -1,5 +1,11 @@
+/* eslint-disable no-nested-ternary */
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
+import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
+
+export type InMemoryFilterOptions = {
+  emptyEqualsNullColumns?: ReadonlySet<string>;
+};
 
 export class InMemoryFilterService {
   /**
@@ -8,12 +14,14 @@ export class InMemoryFilterService {
    * @param data - The data object to evaluate
    * @param filter - The filter conditions to apply
    * @param fieldMapper - Function to map filter column names to data object values
+   * @param options - Column-specific filter semantics
    * @returns true if the data matches all filter conditions, false otherwise
    */
   static evaluateFilter<T>(
     data: T,
     filter: FilterState,
     fieldMapper: (data: T, column: string) => unknown,
+    options?: InMemoryFilterOptions,
   ): boolean {
     try {
       // If no filters, data matches
@@ -23,7 +31,9 @@ export class InMemoryFilterService {
 
       // Evaluate each filter condition
       for (const condition of filter) {
-        if (!this.evaluateFilterCondition(data, condition, fieldMapper)) {
+        if (
+          !this.evaluateFilterCondition(data, condition, fieldMapper, options)
+        ) {
           return false;
         }
       }
@@ -46,6 +56,7 @@ export class InMemoryFilterService {
     data: T,
     condition: FilterCondition,
     fieldMapper: (data: T, column: string) => unknown,
+    options?: InMemoryFilterOptions,
   ): boolean {
     const { column, type, operator } = condition;
 
@@ -102,8 +113,19 @@ export class InMemoryFilterService {
           condition.value,
           operator,
         );
+      case "booleanObject":
+        return this.evaluateBooleanObjectFilter(
+          fieldValue,
+          condition.key,
+          condition.value,
+          operator,
+        );
       case "null":
-        return this.evaluateNullFilter(fieldValue, operator);
+        return this.evaluateNullFilter(
+          fieldValue,
+          operator,
+          options?.emptyEqualsNullColumns?.has(column) ?? false,
+        );
       case "positionInTrace":
         // Position filters are applied after all other filters in DB queries.
         // Ignore them in in-memory filtering.
@@ -135,6 +157,8 @@ export class InMemoryFilterService {
         return strValue.startsWith(filterValue);
       case "ends with":
         return strValue.endsWith(filterValue);
+      case "is not empty":
+        return strValue.length > 0;
       default:
         logger.error("Unsupported string filter operator", {
           operator,
@@ -315,13 +339,48 @@ export class InMemoryFilterService {
     filterValue: string,
     operator: string,
   ): boolean {
-    if (!fieldValue || typeof fieldValue !== "object") {
-      return false;
+    // Use hasOwnProperty rather than bracket-access-is-undefined: a key that
+    // collides with an Object.prototype name (e.g. "toString", "constructor")
+    // would otherwise resolve the inherited property instead of undefined,
+    // silently bypassing this guard.
+    const hasKey =
+      !!fieldValue &&
+      typeof fieldValue === "object" &&
+      Object.prototype.hasOwnProperty.call(
+        fieldValue as Record<string, unknown>,
+        key,
+      );
+
+    // Presence operators only care whether the key exists, mirroring the
+    // ClickHouse `has(names, k)` / `mapContains(column, k)` conditions.
+    if (operator === "is set") {
+      return hasKey;
+    }
+    if (operator === "is not set") {
+      return !hasKey;
     }
 
-    // Type assertion is safe here since we've checked typeof fieldValue === "object" above
-    const objectValue = (fieldValue as Record<string, unknown>)[key];
-    const stringValue = objectValue?.toString() || "";
+    if (!hasKey) {
+      // The key does not exist on the object. Coalescing this to an empty
+      // string below would make e.g. `contains ""` incorrectly match rows
+      // that never had the key, so require the key to exist for every value
+      // operator (matching the ClickHouse `mapContains` / `has` guard).
+      return false;
+    }
+    const record = fieldValue as Record<string, unknown>;
+    const objectValue = record[key];
+    // Mirror the ClickHouse-side representation exactly: ingestion stores a
+    // metadata value as `typeof value === "string" ? value : JSON.stringify(value)`
+    // (see convertRecordValuesToString). `.toString()` diverges from that for
+    // null ("" via `null?.toString()` vs. the stored "null"), arrays ("1,2"
+    // vs. the stored "[1,2]"), and plain objects ("[object Object]" vs. the
+    // stored '{"a":1}').
+    const stringValue =
+      typeof objectValue === "string"
+        ? objectValue
+        : objectValue === undefined
+          ? ""
+          : JSON.stringify(objectValue);
     return this.evaluateStringFilter(stringValue, filterValue, operator);
   }
 
@@ -368,17 +427,51 @@ export class InMemoryFilterService {
     }
   }
 
+  private static evaluateBooleanObjectFilter(
+    fieldValue: unknown,
+    key: string,
+    filterValue: boolean,
+    operator: string,
+  ): boolean {
+    // Same encoding as the score_booleans ClickHouse aggregation — callers
+    // must supply pre-lowercased `name:true|false` entries via their field
+    // mapper (raw score string_value is "True"/"False" and would not match).
+    const target = encodeBooleanScoreEntry(key, filterValue);
+    const hasValue = Array.isArray(fieldValue)
+      ? fieldValue.map(String).includes(target)
+      : false;
+
+    switch (operator) {
+      case "=":
+        return hasValue;
+      case "<>":
+        return !hasValue;
+      default:
+        logger.error("Unsupported booleanObject filter operator", {
+          operator,
+          filterValue,
+          fieldValue,
+          key,
+        });
+        return false;
+    }
+  }
+
   private static evaluateNullFilter(
     fieldValue: unknown,
     operator: string,
+    emptyEqualsNull: boolean,
   ): boolean {
+    const isNull =
+      fieldValue === null ||
+      fieldValue === undefined ||
+      (emptyEqualsNull && fieldValue === "");
+
     switch (operator) {
       case "is null":
-        return (
-          fieldValue === null || fieldValue === undefined || fieldValue === ""
-        );
+        return isNull;
       case "is not null":
-        return fieldValue !== null && fieldValue !== undefined;
+        return !isNull;
       default:
         logger.error("Unsupported null filter operator", {
           operator,

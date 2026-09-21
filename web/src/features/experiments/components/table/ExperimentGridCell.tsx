@@ -1,0 +1,965 @@
+/* The experiment marker's colour is data — which run this is, out of the N
+   selected (`getExperimentColorStyles`) — so it arrives as a class rather than
+   as a variant, the same way `DiffLabel` takes one. */
+/* eslint-disable @repo/no-style-props */
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
+import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
+import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
+import { Badge } from "@/src/components/ui/badge";
+import {
+  type ScoreAggregate,
+  type AggregatedScoreData,
+} from "@langfuse/shared";
+import { useMemo, Fragment, useState } from "react";
+import {
+  type BaselineDiff,
+  calculateNumericDiff,
+  computeScoreDiffs,
+  DiffLabel,
+} from "@/src/features/datasets";
+import { Separator } from "@/src/components/ui/separator";
+import { type VisibilityState } from "@tanstack/react-table";
+import {
+  type CellRowDef,
+  getVisibleCellRows,
+} from "@/src/features/experiments/components/table/types";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import { usdFormatter, latencyFormatter } from "@/src/utils/numbers";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/src/components/ui/hover-card";
+import {
+  MessageCircleMore,
+  BracesIcon,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
+import { Button } from "@/src/components/ui/button";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { api } from "@/src/utils/api";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { JSONView } from "@/src/components/ui/CodeJsonViewer";
+import {
+  decomposeAggregateScoreKey,
+  getScoreDataTypeExplanation,
+} from "@/src/features/scores";
+import { cn } from "@/src/utils/tailwind";
+import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
+import Link from "next/link";
+import { ScoreTag, type ScoreLevel } from "@/src/components/score-tag";
+import { NotRecordedMetric } from "./NotRecordedMetric";
+import { describeRunComparison } from "@/src/features/experiments/fns/describeRunComparison";
+
+type ExperimentGridCellProps = {
+  projectId: string;
+  itemId: string;
+  output: unknown;
+  level: string;
+  startTime: Date;
+  totalCost?: number | null;
+  latencyMs?: number | null;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
+  observationId: string;
+  traceId: string;
+  /** Render the output cell as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
+  scores: ScoreAggregate;
+  traceScores: ScoreAggregate;
+  observationScoreOrder: string[];
+  traceScoreOrder: string[];
+  isBaseline: boolean;
+  /** Whether this cell carries deltas against the baseline (the diff mode). */
+  showDiff?: boolean;
+  baselineScores?: ScoreAggregate;
+  baselineTraceScores?: ScoreAggregate;
+  /** Named in every diff chip's hover sentence, so the arrow has a direction. */
+  baselineExperimentName?: string;
+  isLoading?: boolean;
+  columnVisibility?: VisibilityState;
+  markerClassName?: string;
+  showScoreLevelLabels: boolean;
+  /** Clicking this experiment's cell selects it in peek navigation instead of the row's default (baseline) target. */
+  onExperimentClick?: (event: React.MouseEvent) => void;
+};
+
+/**
+ * Data passed to cell row render functions.
+ */
+type GridCellData = {
+  projectId: string;
+  itemId: string;
+  output: unknown;
+  level: string;
+  startTime: Date;
+  totalCost?: number | null;
+  latencyMs?: number | null;
+  totalCostDiff?: BaselineDiff;
+  latencyDiff?: BaselineDiff;
+  observationId: string;
+  traceId: string;
+  scores: ScoreAggregate;
+  traceScores: ScoreAggregate;
+  scoreDiffs?: Record<string, BaselineDiff>;
+  traceScoreDiffs?: Record<string, BaselineDiff>;
+  baselineScores?: ScoreAggregate;
+  baselineTraceScores?: ScoreAggregate;
+  baselineTotalCost?: number | null;
+  baselineLatencyMs?: number | null;
+  baselineExperimentName?: string;
+  isLoading: boolean;
+};
+
+/**
+ * Component to show score comment on hover
+ */
+const ScoreCommentPeek = ({
+  comment,
+  executionTraceId,
+  projectId,
+}: {
+  comment: string;
+  executionTraceId?: string | null;
+  projectId: string;
+}) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    await copyTextToClipboard(comment);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex cursor-pointer"
+          aria-label="View score comment"
+        >
+          <MessageCircleMore size={12} className="text-muted-foreground" />
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent className="flex flex-col p-0 text-xs break-normal whitespace-normal">
+        {/* Name what the icon opened: a bare block of text next to a score
+            does not say it is the score's comment. */}
+        <div className="bg-popover sticky top-0 z-10 flex h-8 items-center justify-between px-1">
+          <span className="text-muted-foreground pl-1.5 text-[10px] font-bold uppercase">
+            Score comment
+          </span>
+          <Button
+            onClick={handleCopy}
+            variant="ghost"
+            size="icon-xs"
+            className="hover:bg-accent rounded p-1"
+            aria-label={copied ? "Copied" : "Copy to clipboard"}
+          >
+            {copied ? (
+              <Check className="h-3 w-3" />
+            ) : (
+              <Copy className="h-3 w-3" />
+            )}
+          </Button>
+        </div>
+        <div className="max-h-[40vh] overflow-y-auto p-3 pt-0">
+          <p className="whitespace-pre-wrap">{comment}</p>
+          {executionTraceId && (
+            <Link
+              href={`/project/${projectId}/traces/${encodeURIComponent(executionTraceId)}`}
+              className="mt-2 flex items-center gap-1 text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+              View execution trace
+            </Link>
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
+
+/**
+ * Component to show score metadata on hover
+ */
+const ScoreMetadataPeek = ({
+  scoreId,
+  projectId,
+}: {
+  scoreId: string;
+  projectId: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { data: metadata } = api.scores.getScoreMetadataById.useQuery(
+    {
+      projectId,
+      id: scoreId,
+    },
+    {
+      enabled: !!projectId && !!scoreId && isOpen,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+
+  const metadataLoaded = metadata && Object.keys(metadata).length > 0;
+
+  return (
+    <HoverCard onOpenChange={setIsOpen}>
+      <HoverCardTrigger className="inline-flex cursor-pointer">
+        <BracesIcon size={12} className="text-muted-foreground" />
+      </HoverCardTrigger>
+      <HoverCardContent className="overflow-hidden rounded-md border-none p-0 text-xs break-normal whitespace-normal">
+        {metadataLoaded ? (
+          <JSONView codeClassName="rounded-md!" json={metadata} />
+        ) : (
+          <Skeleton className="h-12 w-full" />
+        )}
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
+
+/**
+ * How one score reads in a cell: a categorical score's modal value, a numeric
+ * score's average. Shared with the hover sentence beside it, which has to
+ * quote the same value the cell shows.
+ */
+const scoreValueOf = (aggregate?: AggregatedScoreData | null): string => {
+  if (!aggregate) return EMPTY_VALUE_PLACEHOLDER;
+  if (aggregate.type === "CATEGORICAL") {
+    if (aggregate.valueCounts && aggregate.valueCounts.length > 0) {
+      return [...aggregate.valueCounts].sort((a, b) => b.count - a.count)[0]
+        .value;
+    }
+    return aggregate.values?.[0] ?? EMPTY_VALUE_PLACEHOLDER;
+  }
+  return aggregate.average !== undefined
+    ? aggregate.average.toFixed(2)
+    : EMPTY_VALUE_PLACEHOLDER;
+};
+
+/**
+ * Simple score display component for grid cells.
+ * Shows only the score name, with source and type on hover.
+ */
+const ScoreItem = ({
+  scoreKey,
+  aggregate,
+  baselineAggregate,
+  baselineExperimentName,
+  diff,
+  projectId,
+  level,
+  showScoreLevelLabel,
+}: {
+  scoreKey: string;
+  aggregate: AggregatedScoreData | null;
+  baselineAggregate?: AggregatedScoreData | null;
+  baselineExperimentName?: string;
+  diff?: BaselineDiff | null;
+  projectId: string;
+  level: Extract<ScoreLevel, "observation" | "trace">;
+  showScoreLevelLabel: boolean;
+}) => {
+  // Decompose the key to get name, source, and dataType
+  const { name, source, dataType } = decomposeAggregateScoreKey(scoreKey);
+
+  const displayValue = scoreValueOf(aggregate);
+
+  const hasComment = aggregate?.comment;
+  const hasMetadata = aggregate?.hasMetadata && aggregate?.id;
+
+  // `true → false` and `+0.07` do not say which side is the baseline.
+  const diffTitle = diff
+    ? describeRunComparison({
+        baselineName: baselineExperimentName,
+        ...(diff.type === "CATEGORICAL"
+          ? {
+              baselineText: diff.from ?? "several values",
+              currentText: diff.to ?? "several values",
+            }
+          : {
+              baselineText: scoreValueOf(baselineAggregate),
+              currentText: scoreValueOf(aggregate),
+            }),
+      })
+    : undefined;
+
+  return (
+    <div className="flex items-center justify-between gap-1 text-xs">
+      <div className="flex max-w-[50%] min-w-0 items-center gap-1">
+        {showScoreLevelLabel && <ScoreTag level={level} />}
+        <HoverCard>
+          {/* `asChild` keeps this a <span>. Without it Radix renders its
+              default <a>, which `shouldIgnoreRowClickTarget` excludes — the
+              score name would be a dead zone in a cell that opens on click. */}
+          <HoverCardTrigger asChild>
+            <span
+              className="text-muted-foreground block min-w-0 truncate"
+              title={name}
+            >
+              {name}
+            </span>
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="left"
+            className="w-auto p-2 text-xs"
+            align="start"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Source:</span>
+                <span className="capitalize">{source.toLowerCase()}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Type:</span>
+                <span className="capitalize">{dataType.toLowerCase()}</span>
+              </div>
+              {/* The side-by-side layout has no score column headers, so the
+                  type is explained here instead. */}
+              <p className="text-muted-foreground max-w-[260px]">
+                {getScoreDataTypeExplanation(dataType)}
+              </p>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
+      </div>
+      {/* The value never gives up width for the move chip beside it: a
+          clipped value reads as data, so the move wraps under it instead. */}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-1 gap-y-0.5">
+        <span className="flex max-w-full shrink-0 items-center gap-1">
+          {displayValue === EMPTY_VALUE_PLACEHOLDER ? (
+            <span className="text-xs">
+              <EmptyValue />
+            </span>
+          ) : (
+            <Badge
+              variant="secondary"
+              className="min-w-0 truncate text-xs"
+              title={displayValue}
+            >
+              {displayValue}
+            </Badge>
+          )}
+          {hasComment && (
+            <ScoreCommentPeek
+              comment={aggregate.comment!}
+              executionTraceId={aggregate.executionTraceId}
+              projectId={projectId}
+            />
+          )}
+          {hasMetadata && (
+            <ScoreMetadataPeek scoreId={aggregate.id!} projectId={projectId} />
+          )}
+        </span>
+        {diff && (
+          <DiffLabel
+            diff={diff}
+            formatValue={(v) => v.toFixed(2)}
+            title={diffTitle}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const getScoreRowDefinition = (
+  scoreKey: string,
+  level: Extract<ScoreLevel, "observation" | "trace">,
+  showScoreLevelLabel: boolean,
+): CellRowDef<GridCellData> => ({
+  accessorKey: level === "trace" ? `Trace-${scoreKey}` : scoreKey,
+  cell: ({ data }) => (
+    <ScoreItem
+      scoreKey={scoreKey}
+      aggregate={
+        level === "trace" ? data.traceScores[scoreKey] : data.scores[scoreKey]
+      }
+      baselineAggregate={
+        level === "trace"
+          ? data.baselineTraceScores?.[scoreKey]
+          : data.baselineScores?.[scoreKey]
+      }
+      baselineExperimentName={data.baselineExperimentName}
+      diff={
+        level === "trace"
+          ? data.traceScoreDiffs?.[scoreKey]
+          : data.scoreDiffs?.[scoreKey]
+      }
+      projectId={data.projectId}
+      level={level}
+      showScoreLevelLabel={showScoreLevelLabel}
+    />
+  ),
+});
+
+/**
+ * Simple key-value display for metadata fields
+ */
+const MetadataItem = ({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) => (
+  <div className="flex items-center justify-between gap-4 text-xs">
+    <span className="text-muted-foreground shrink-0">{label}</span>
+    <div
+      className="min-w-0 truncate"
+      title={getPlainTextFromReactNode(children)}
+    >
+      {children}
+    </div>
+  </div>
+);
+
+/** Metadata fields that used to be a line each inside the cell. */
+const METADATA_KEYS = [
+  "totalCost",
+  "latencyMs",
+  "level",
+  "itemId",
+  "observationId",
+  "traceId",
+  "startTime",
+] as const;
+
+const isMetadataFieldVisible = (
+  columnVisibility: VisibilityState,
+  key: (typeof METADATA_KEYS)[number],
+) => columnVisibility[key] !== false;
+
+const hasVisibleCellMetadata = (columnVisibility: VisibilityState) =>
+  METADATA_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
+
+/** The footer fields that live behind the identifiers hover card. */
+const IDENTIFIER_KEYS = [
+  "itemId",
+  "observationId",
+  "traceId",
+  "startTime",
+] as const;
+
+const hasVisibleCellIdentifiers = (columnVisibility: VisibilityState) =>
+  IDENTIFIER_KEYS.some((key) => isMetadataFieldVisible(columnVisibility, key));
+
+/**
+ * The item's identifiers, one hover away. They are the same on every row of a
+ * run and the peek view already carries them, so they don't earn a line each in
+ * a cell whose payload is the output — but they stay reachable here, including
+ * the link out to the execution trace.
+ */
+const CellIdentifiers = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  const rows: Array<{ label: string; value: React.ReactNode }> = [
+    ...(visible("itemId")
+      ? [
+          {
+            label: "Item ID",
+            value: <span className="font-mono text-xs">{data.itemId}</span>,
+          },
+        ]
+      : []),
+    ...(visible("observationId")
+      ? [
+          {
+            label: "Observation",
+            value: (
+              <span className="font-mono text-xs">{data.observationId}</span>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("traceId")
+      ? [
+          {
+            label: "Execution Trace",
+            value: (
+              <Link
+                href={`/project/${encodeURIComponent(data.projectId)}/traces/${encodeURIComponent(data.traceId)}?observation=${encodeURIComponent(data.observationId)}`}
+                className="text-primary inline-flex max-w-full items-center gap-1 hover:underline"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span
+                  className="truncate font-mono text-xs"
+                  title={data.traceId}
+                >
+                  {data.traceId}
+                </span>
+                <ExternalLink className="h-3 w-3 shrink-0" />
+              </Link>
+            ),
+          },
+        ]
+      : []),
+    ...(visible("startTime")
+      ? [
+          {
+            label: "Start Time",
+            value: (
+              <span
+                className="text-xs"
+                title={
+                  buildLocalIsoDatePresentation({ date: data.startTime })?.title
+                }
+              >
+                {
+                  buildLocalIsoDatePresentation({ date: data.startTime })
+                    ?.display
+                }
+              </span>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  return (
+    <HoverCard>
+      <HoverCardTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-default text-[10px] font-bold uppercase underline decoration-dotted"
+          onClick={(event) => event.stopPropagation()}
+        >
+          IDs
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="left"
+        align="start"
+        className="flex w-auto max-w-96 flex-col gap-1 p-2"
+      >
+        {rows.map((row) => (
+          <MetadataItem key={row.label} label={row.label}>
+            {row.value}
+          </MetadataItem>
+        ))}
+      </HoverCardContent>
+    </HoverCard>
+  );
+};
+
+/**
+ * One line of per-item metadata under the scores: the two metrics, the status,
+ * and the identifiers behind a hover. Replaces the five-line labelled block
+ * that made a comparison row ~380px of chrome around a 64px output.
+ */
+const CellMetadataFooter = ({
+  data,
+  columnVisibility,
+}: {
+  data: GridCellData;
+  columnVisibility: VisibilityState;
+}) => {
+  const visible = (key: (typeof METADATA_KEYS)[number]) =>
+    isMetadataFieldVisible(columnVisibility, key);
+
+  return (
+    <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
+      {visible("totalCost") && (
+        // Same rule as the diff layout's metric columns: the delta wraps
+        // whole rather than being clipped mid-number.
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+          {data.totalCost ? (
+            usdFormatter(data.totalCost, 2, 6)
+          ) : (
+            <NotRecordedMetric metric="cost" />
+          )}
+          {data.totalCostDiff && (
+            <DiffLabel
+              diff={data.totalCostDiff}
+              preferNegativeDiff
+              formatValue={(value) => usdFormatter(value, 2, 6)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: usdFormatter(data.baselineTotalCost ?? 0, 2, 6),
+                currentText: usdFormatter(data.totalCost ?? 0, 2, 6),
+                verb: "cost",
+              })}
+            />
+          )}
+        </span>
+      )}
+      {visible("latencyMs") && (
+        <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+          {data.latencyMs != null ? (
+            latencyFormatter(data.latencyMs)
+          ) : (
+            <NotRecordedMetric metric="latency" />
+          )}
+          {data.latencyDiff && (
+            <DiffLabel
+              diff={data.latencyDiff}
+              preferNegativeDiff
+              formatValue={(value) => latencyFormatter(value)}
+              title={describeRunComparison({
+                baselineName: data.baselineExperimentName,
+                baselineText: latencyFormatter(data.baselineLatencyMs ?? 0),
+                currentText: latencyFormatter(data.latencyMs ?? 0),
+                verb: "took",
+              })}
+            />
+          )}
+        </span>
+      )}
+      {visible("level") && <span>{data.level}</span>}
+      {hasVisibleCellIdentifiers(columnVisibility) && (
+        <CellIdentifiers data={data} columnVisibility={columnVisibility} />
+      )}
+    </div>
+  );
+};
+
+/**
+ * Renders a group section with header and content
+ */
+const GroupSection = ({
+  header,
+  children,
+  markerClassName,
+  grow = false,
+}: {
+  header?: string;
+  children: React.ReactNode;
+  markerClassName?: string;
+  /** Take the cell's spare vertical space instead of hugging its content. */
+  grow?: boolean;
+}) => (
+  <div
+    className={cn(
+      "flex flex-col gap-1 px-2 py-1.5",
+      // `grow` takes the spare space but keeps its content's height as its
+      // base, so a cell with no spare space still shows the output rather than
+      // collapsing to its label and letting the output spill over the scores.
+      grow ? "shrink-0 grow" : "shrink-0",
+    )}
+  >
+    {header && (
+      <div className="flex items-center gap-1.5">
+        {markerClassName !== undefined && (
+          <span
+            className={cn(
+              "h-3 w-0.5 shrink-0 rounded-full",
+              markerClassName || "bg-transparent",
+            )}
+          />
+        )}
+        <span className="text-muted-foreground text-[10px] font-bold uppercase">
+          {header}
+        </span>
+      </div>
+    )}
+    {children}
+  </div>
+);
+
+/**
+ * Grid cell component for experiment comparison view.
+ * Uses CellRowDef pattern to declaratively define sections with visibility control.
+ */
+export const ExperimentGridCell = ({
+  projectId,
+  itemId,
+  output,
+  level,
+  startTime,
+  totalCost,
+  latencyMs,
+  baselineTotalCost,
+  baselineLatencyMs,
+  observationId,
+  traceId,
+  singleLine,
+  scores,
+  traceScores,
+  observationScoreOrder,
+  traceScoreOrder,
+  isBaseline,
+  showDiff = true,
+  baselineScores,
+  baselineTraceScores,
+  baselineExperimentName,
+  isLoading = false,
+  columnVisibility = {},
+  markerClassName,
+  showScoreLevelLabels,
+  onExperimentClick,
+}: ExperimentGridCellProps) => {
+  const scoreDiffs = useMemo(
+    () =>
+      !showDiff || isBaseline || !baselineScores
+        ? undefined
+        : computeScoreDiffs(scores, baselineScores),
+    [scores, baselineScores, isBaseline, showDiff],
+  );
+
+  const traceScoreDiffs = useMemo(
+    () =>
+      !showDiff || isBaseline || !baselineTraceScores
+        ? undefined
+        : computeScoreDiffs(traceScores, baselineTraceScores),
+    [traceScores, baselineTraceScores, isBaseline, showDiff],
+  );
+
+  const totalCostDiff = useMemo(
+    () =>
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(totalCost, baselineTotalCost),
+    [baselineTotalCost, isBaseline, showDiff, totalCost],
+  );
+  const latencyDiff = useMemo(
+    () =>
+      !showDiff || isBaseline
+        ? null
+        : calculateNumericDiff(latencyMs, baselineLatencyMs),
+    [baselineLatencyMs, isBaseline, latencyMs, showDiff],
+  );
+
+  const orderedObservationKeys = useMemo(
+    () =>
+      observationScoreOrder.length > 0
+        ? observationScoreOrder
+        : Object.keys(scores).sort(),
+    [observationScoreOrder, scores],
+  );
+
+  const orderedTraceKeys = useMemo(
+    () =>
+      traceScoreOrder.length > 0
+        ? traceScoreOrder
+        : Object.keys(traceScores).sort(),
+    [traceScoreOrder, traceScores],
+  );
+
+  const cellData: GridCellData = {
+    projectId,
+    itemId,
+    output,
+    level,
+    startTime,
+    totalCost,
+    latencyMs,
+    totalCostDiff,
+    latencyDiff,
+    observationId,
+    traceId,
+    scores,
+    traceScores,
+    scoreDiffs,
+    traceScoreDiffs,
+    baselineScores,
+    baselineTraceScores,
+    baselineTotalCost,
+    baselineLatencyMs,
+    baselineExperimentName,
+    isLoading,
+  };
+
+  // Define cell rows declaratively - mirrors LangfuseColumnDef pattern
+  // Fixed order: output, scores, metadata
+  const cellRows: CellRowDef<GridCellData>[] = useMemo(
+    () => [
+      // Output section
+      {
+        accessorKey: "output",
+        header: "Output",
+        cell: ({ data }) =>
+          data.isLoading ? (
+            <ConnectedIOTableCell
+              isLoading
+              variant="output"
+              singleLine={singleLine}
+            />
+          ) : (
+            <ConnectedIOTableCell
+              data={data.output ?? null}
+              variant="output"
+              singleLine={singleLine}
+            />
+          ),
+      },
+      // Keep all score levels together. Individual score visibility still
+      // follows the list-view columns.
+      {
+        accessorKey: "scores",
+        header: "Scores",
+        children: [
+          ...(columnVisibility.observationScores !== false
+            ? orderedObservationKeys.map((key) =>
+                getScoreRowDefinition(key, "observation", showScoreLevelLabels),
+              )
+            : []),
+          ...(columnVisibility.traceScores !== false
+            ? orderedTraceKeys.map((key) =>
+                getScoreRowDefinition(key, "trace", showScoreLevelLabels),
+              )
+            : []),
+        ],
+      },
+      // One compact line, replacing the five labelled metadata rows. The ids
+      // moved into its hover card; cost and latency stay visible because they
+      // are what a reader compares between runs.
+      ...(hasVisibleCellMetadata(columnVisibility)
+        ? ([
+            {
+              accessorKey: "metadata",
+              cell: ({ data }) => (
+                <CellMetadataFooter
+                  data={data}
+                  columnVisibility={columnVisibility}
+                />
+              ),
+            },
+          ] satisfies CellRowDef<GridCellData>[])
+        : []),
+    ],
+    [
+      columnVisibility,
+      orderedObservationKeys,
+      orderedTraceKeys,
+      showScoreLevelLabels,
+      singleLine,
+    ],
+  );
+
+  // Filter and compute visible rows
+  const visibleRows = getVisibleCellRows(cellRows, columnVisibility);
+
+  // For each group, check if it has visible children (for groups with children)
+  const getVisibleContent = (row: CellRowDef<GridCellData>) => {
+    if (row.children) {
+      const visibleChildren = getVisibleCellRows(
+        row.children,
+        columnVisibility,
+      );
+      return visibleChildren.length > 0 ? visibleChildren : null;
+    }
+    return row.cell ? [row] : null;
+  };
+
+  // Build list of sections to render with their content
+  const sectionsToRender = visibleRows
+    .map((row) => ({
+      row,
+      content: getVisibleContent(row),
+    }))
+    .filter((section) => section.content !== null);
+
+  // The cell is the scrollport in this layout: the output section keeps its
+  // content's height as its base, so a long output makes the cell taller than
+  // the row and the reader scrolls the cell to reach the scores under it.
+  // `scrollbar-visible` is what says so — under the platform's overlay
+  // scrollbars a cell with more to show reads as one that was cut off.
+  return (
+    <div
+      className={cn(
+        "scrollbar-visible flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-auto",
+        onExperimentClick && "cursor-pointer",
+      )}
+      onClick={onExperimentClick}
+    >
+      {sectionsToRender.map((section, index) => {
+        const { row, content } = section;
+        const isFirst = index === 0;
+        const isLast = index === sectionsToRender.length - 1;
+
+        // Output section - special handling for ConnectedIOTableCell. It is the
+        // one section that grows, so a taller row shows more output rather than
+        // more chrome.
+        if (row.accessorKey === "output" && row.cell) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+                grow
+              >
+                <div className="min-h-16 flex-1 overflow-hidden">
+                  {row.cell({ data: cellData })}
+                </div>
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
+
+        // Groups with children (metadata, scores)
+        if (row.children && content) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                <div className="flex flex-col gap-0.5">
+                  {(content as CellRowDef<GridCellData>[]).map((child) => (
+                    <div key={child.accessorKey}>
+                      {child.cell?.({ data: cellData })}
+                    </div>
+                  ))}
+                </div>
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
+
+        // Sections that render one cell of their own (the metadata footer).
+        if (row.cell) {
+          return (
+            <Fragment key={row.accessorKey}>
+              <GroupSection
+                header={row.header}
+                markerClassName={isFirst ? markerClassName : undefined}
+              >
+                {row.cell({ data: cellData })}
+              </GroupSection>
+              {!isLast && <Separator />}
+            </Fragment>
+          );
+        }
+
+        return null;
+      })}
+    </div>
+  );
+};
+
+/**
+ * Empty cell component for when there's no data for an experiment.
+ */
+export const ExperimentGridCellEmpty = () => {
+  return (
+    <div className="flex h-full w-full min-w-0 items-start justify-start p-2">
+      <span className="text-muted-foreground text-xs">No data</span>
+    </div>
+  );
+};

@@ -1,8 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -17,10 +18,11 @@ import {
   RESOURCE_METRICS,
   isEmptyChart,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import {
+  compareViewChartDataToDataPoints,
+  getCompareViewChartUnit,
+} from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -40,8 +42,10 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
-export default function DatasetCompare() {
+function DatasetCompareChartsLegacy() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -85,7 +89,7 @@ export default function DatasetCompare() {
   return (
     <Page
       headerProps={{
-        title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+        title: `Compare experiments: ${dataset.data?.name ?? datasetId}`,
         tabsProps: {
           tabs: getDatasetRunCompareTabs(projectId, datasetId),
           activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
@@ -99,9 +103,13 @@ export default function DatasetCompare() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+          },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: "Compare your experiments side by side",
         },
         actionButtonsRight: (
           <>
@@ -135,7 +143,7 @@ export default function DatasetCompare() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -176,7 +184,6 @@ export default function DatasetCompare() {
           <div className="flex w-full justify-end">
             <DatasetAnalytics
               key="dataset-analytics"
-              projectId={projectId}
               scoreOptions={scoreAnalyticsOptions}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
@@ -199,26 +206,13 @@ export default function DatasetCompare() {
                     : (RESOURCE_METRICS.find((metric) => metric.key === key)
                         ?.label ?? key);
 
-                  // TODO: remove when revamping the datasets api for it to directly return ms
-                  const valueFormatter =
-                    key === "latency"
-                      ? formatIntervalSeconds
-                      : key === "cost"
-                        ? usdFormatter
-                        : (v: number) =>
-                            compactNumberFormatter(
-                              v,
-                              RESOURCE_METRICS.find((m) => m.key === key)
-                                ?.maxFractionDigits,
-                            );
-
                   if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
                         key={key}
                         className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                       >
-                        <span className="shrink-0 text-sm font-medium">
+                        <span className="shrink-0 text-sm font-bold">
                           {title}
                         </span>
                         <NoDataOrLoading
@@ -229,17 +223,12 @@ export default function DatasetCompare() {
                     );
                   }
 
-                  const dataPoints =
-                    chartLabels.length === 1
-                      ? chartData.map((d) => ({
-                          time_dimension: d.binLabel,
-                          dimension: chartLabels[0]!,
-                          metric: (d[chartLabels[0]!] as number) ?? 0,
-                        }))
-                      : compareViewChartDataToDataPoints(
-                          chartData,
-                          chartLabels,
-                        );
+                  const dataPoints = compareViewChartDataToDataPoints(
+                    chartData,
+                    chartLabels,
+                    key,
+                  );
+
                   const chartType =
                     chartLabels.length === 1
                       ? "LINE_TIME_SERIES"
@@ -250,7 +239,7 @@ export default function DatasetCompare() {
                       key={key}
                       className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
                     >
-                      <span className="shrink-0 text-sm font-medium">
+                      <span className="shrink-0 text-sm font-bold">
                         {title}
                       </span>
                       <div className="min-h-[200px] min-w-0 flex-1">
@@ -258,11 +247,13 @@ export default function DatasetCompare() {
                           chartType={chartType}
                           data={dataPoints}
                           rowLimit={Math.max(dataPoints.length, 1)}
-                          chartConfig={{ type: chartType }}
-                          valueFormatter={valueFormatter}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
+                          chartConfig={{
+                            type: chartType,
+                            unit: getCompareViewChartUnit(key),
+                          }}
+                          // The x-axis is dataset-run names — long and cluttered;
+                          // show them on hover instead of on the axis.
+                          hideXAxisLabels
                         />
                       </div>
                     </div>
@@ -308,4 +299,35 @@ export default function DatasetCompare() {
       </div>
     </Page>
   );
+}
+
+function asArrayValue(value: string | string[] | undefined) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+export default function DatasetCompare() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const runsQuery = router.query.runs;
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (
+      !router.isReady ||
+      isInitializing ||
+      !isExperimentsBetaActive ||
+      !projectId
+    ) {
+      return;
+    }
+
+    router.replace(toExperimentsResultsUrl(projectId, asArrayValue(runsQuery)));
+  }, [isExperimentsBetaActive, isInitializing, projectId, router, runsQuery]);
+
+  if (!router.isReady || isInitializing || isExperimentsBetaActive) {
+    return <Skeleton className="h-full w-full" />;
+  }
+
+  return <DatasetCompareChartsLegacy />;
 }

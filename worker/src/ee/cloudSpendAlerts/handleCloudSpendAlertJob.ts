@@ -8,6 +8,19 @@ import { Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { sendCloudSpendAlertEmail } from "@langfuse/shared/src/server";
 
+const recordMissingBillingConfigSkip = (
+  reason: "missing_stripe_customer_id" | "missing_stripe_subscription_id",
+) => {
+  recordIncrement(
+    "langfuse.queue.cloud_spend_alert_queue.skipped_orgs_missing_billing_config",
+    1,
+    {
+      unit: "organizations",
+      reason,
+    },
+  );
+};
+
 export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
   const { orgId } = job.data;
 
@@ -55,23 +68,19 @@ export const handleCloudSpendAlertJob = async (job: Job<{ orgId: string }>) => {
   // Get Stripe customer ID
   const stripeCustomerId = org.cloudConfig?.stripe?.customerId;
   if (!stripeCustomerId) {
-    logger.error(
+    logger.warn(
       `[CLOUD SPEND ALERTS] Stripe customer id not found for org ${orgId}`,
     );
-    traceException(
-      `[CLOUD SPEND ALERTS] Stripe customer id not found for org ${orgId}`,
-    );
+    recordMissingBillingConfigSkip("missing_stripe_customer_id");
     return;
   }
   // Get Stripe subscription ID
   const stripeSubscriptionId = org.cloudConfig?.stripe?.activeSubscriptionId;
   if (!stripeSubscriptionId) {
-    logger.error(
+    logger.warn(
       `[CLOUD SPEND ALERTS] Stripe subscription id not found for org ${orgId}`,
     );
-    traceException(
-      `[CLOUD SPEND ALERTS] Stripe subscription id not found for org ${orgId}`,
-    );
+    recordMissingBillingConfigSkip("missing_stripe_subscription_id");
     return;
   }
 

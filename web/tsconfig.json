@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
-    "outDir": "dist",
     "plugins": [
       {
         "name": "next"
@@ -14,7 +13,8 @@
         "./*"
       ]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["node", "vitest/globals", "vitest/importMeta", "@testing-library/jest-dom"]
   },
   "exclude": [
     "node_modules",

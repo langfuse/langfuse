@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 describe("decodeUnicodeEscapesOnly", () => {
@@ -67,6 +69,29 @@ describe("decodeUnicodeEscapesOnly", () => {
       const input = '{"content": "\\\\uc885\\\\ubd80\\\\uc138"}';
       expect(decodeUnicodeEscapesOnly(input, true)).toBe(
         '{"content": "종부세"}',
+      );
+    });
+
+    it("should preserve lone high surrogate as literal in greedy mode", () => {
+      // Lone high surrogate without low surrogate pair should not emit WTF-16
+      expect(decodeUnicodeEscapesOnly("\\\\uD83D", true)).toBe("\\uD83D");
+    });
+
+    it("should preserve high surrogate followed by non-surrogate in greedy mode", () => {
+      // High surrogate followed by non-surrogate should preserve the surrogate literal
+      expect(decodeUnicodeEscapesOnly("\\\\uD83D\\\\u0041", true)).toBe(
+        "\\uD83DA",
+      );
+    });
+
+    it("should preserve lone low surrogate as literal in greedy mode", () => {
+      expect(decodeUnicodeEscapesOnly("\\\\uDE00", true)).toBe("\\uDE00");
+    });
+
+    it("should handle lone high surrogate followed by backslashes and non-surrogate in greedy mode", () => {
+      // \\uD83D\\\\u0041: high surrogate preserved, then \\\\u0041 decoded to A by main loop
+      expect(decodeUnicodeEscapesOnly("\\\\uD83D\\\\\\\\u0041", true)).toBe(
+        "\\uD83DA",
       );
     });
   });

@@ -12,10 +12,12 @@ import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { UsageDetailsEditor } from "./UsageDetailsEditor";
+import { StringMapEditor } from "./StringMapEditor";
 import { MatchedModelCard } from "./MatchedModelCard";
 import { MatchedTierCard } from "./MatchedTierCard";
 import { NoMatchDisplay } from "./NoMatchDisplay";
-import { Loader2, CheckCircle, SquareArrowOutUpRight } from "lucide-react";
+import { CheckCircle, SquareArrowOutUpRight } from "lucide-react";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type TestModelMatchDialogProps = {
   projectId: string;
@@ -25,6 +27,9 @@ type TestModelMatchDialogProps = {
 
 export type { TestModelMatchDialogProps };
 
+const validStringMap = (entries: Array<[string, string]>) =>
+  Object.fromEntries(entries.filter(([key]) => key.trim().length > 0));
+
 export function TestModelMatchDialog({
   projectId,
   open,
@@ -32,7 +37,15 @@ export function TestModelMatchDialog({
 }: TestModelMatchDialogProps) {
   const [modelName, setModelName] = useState("");
   const [usageDetails, setUsageDetails] = useState<Record<string, number>>({});
+  const [modelParameterEntries, setModelParameterEntries] = useState<
+    Array<[string, string]>
+  >([]);
+  const [metadataEntries, setMetadataEntries] = useState<
+    Array<[string, string]>
+  >([]);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const modelParameters = validStringMap(modelParameterEntries);
+  const metadata = validStringMap(metadataEntries);
 
   // Query for match result - only enabled after submit
   const { data, isLoading, error, refetch } = api.models.testMatch.useQuery(
@@ -40,6 +53,8 @@ export function TestModelMatchDialog({
       projectId,
       modelName,
       usageDetails,
+      modelParameters,
+      metadata,
     },
     {
       enabled: false, // Manual trigger only
@@ -47,11 +62,11 @@ export function TestModelMatchDialog({
   );
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     if (modelName.trim()) {
       setHasSubmitted(true);
-      void refetch();
+      refetch();
     }
   };
 
@@ -60,6 +75,8 @@ export function TestModelMatchDialog({
     if (!open) {
       setModelName("");
       setUsageDetails({});
+      setModelParameterEntries([]);
+      setMetadataEntries([]);
       setHasSubmitted(false);
     }
   }, [open]);
@@ -82,7 +99,7 @@ export function TestModelMatchDialog({
               <div className="space-y-6">
                 {/* Model Name Input */}
                 <div className="space-y-2">
-                  <div className="text-sm font-medium">Model Name *</div>
+                  <div className="text-sm font-bold">Model Name *</div>
                   <div className="text-muted-foreground text-sm">
                     The model name on your generations.
                   </div>
@@ -99,6 +116,20 @@ export function TestModelMatchDialog({
                 <UsageDetailsEditor
                   usageDetails={usageDetails}
                   onChange={setUsageDetails}
+                />
+
+                <StringMapEditor
+                  title="Model Parameters"
+                  description="Add top-level model parameters used by pricing tier conditions."
+                  entries={modelParameterEntries}
+                  onChange={setModelParameterEntries}
+                />
+
+                <StringMapEditor
+                  title="Metadata"
+                  description="Add top-level metadata used by pricing tier conditions."
+                  entries={metadataEntries}
+                  onChange={setMetadataEntries}
                 />
               </div>
 
@@ -132,7 +163,7 @@ export function TestModelMatchDialog({
                   <>
                     {isLoading && (
                       <div className="bg-muted/30 text-muted-foreground flex min-h-[300px] items-center justify-center gap-2 rounded-lg border p-6">
-                        <Loader2 className="h-5 w-5 animate-spin" />
+                        <Spinner size="md" />
                         <span>Testing match...</span>
                       </div>
                     )}
@@ -149,15 +180,11 @@ export function TestModelMatchDialog({
                           <>
                             <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5 dark:border-green-900 dark:bg-green-950">
                               <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                              <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                              <span className="text-sm font-bold text-green-900 dark:text-green-100">
                                 Match Found
                               </span>
                             </div>
-                            <MatchedModelCard
-                              projectId={projectId}
-                              model={data.model}
-                              pricingTierId={data.matchedTier.id}
-                            />
+                            <MatchedModelCard model={data.model} />
                             <MatchedTierCard tier={data.matchedTier} />
                           </>
                         ) : (

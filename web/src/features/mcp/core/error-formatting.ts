@@ -15,7 +15,7 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
 } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
 
 /**
  * Format an error for MCP response.
@@ -74,6 +74,30 @@ export function formatErrorForUser(error: unknown): McpError {
 
   if (error instanceof InvalidRequestError) {
     return new McpError(ErrorCode.InvalidRequest, error.message);
+  }
+
+  if (error instanceof ClickHouseResourceError) {
+    logger.warn("MCP ClickHouse resource limit exceeded", {
+      errorType: error.errorType,
+      tags: error.tags,
+    });
+    return new McpError(
+      ErrorCode.InvalidRequest,
+      error.errorType === "TIMEOUT"
+        ? "The ClickHouse query timed out. Narrow the query and try again."
+        : ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+    );
+  }
+
+  if (error instanceof BaseError && error.httpCode >= 500) {
+    logger.error("MCP BaseError (server-side)", {
+      name: error.name,
+      httpCode: error.httpCode,
+    });
+    return new McpError(
+      ErrorCode.InternalError,
+      "An internal server error occurred. Please try again later.",
+    );
   }
 
   if (error instanceof BaseError) {

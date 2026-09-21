@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import CodeMirror, {
   EditorView,
   type ReactCodeMirrorRef,
@@ -6,20 +7,24 @@ import CodeMirror, {
   ViewPlugin,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
-import { RangeSetBuilder } from "@codemirror/state";
-import { SearchQuery, search, setSearchQuery } from "@codemirror/search";
+import {
+  EditorState,
+  type Extension,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
+import { SearchQuery, setSearchQuery } from "@codemirror/search";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
+import { useState, useCallback, useMemo, type RefObject } from "react";
 import {
-  useState,
-  useCallback,
-  type MutableRefObject,
-  type RefObject,
-} from "react";
-import { LanguageSupport, StreamLanguage } from "@codemirror/language";
-import type { StringStream } from "@codemirror/language";
+  LanguageSupport,
+  StreamLanguage,
+  type StringStream,
+} from "@codemirror/language";
 import {
   isValidVariableName,
   MULTILINE_VARIABLE_REGEX,
@@ -30,6 +35,10 @@ import {
 } from "@langfuse/shared";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
+import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
+import { codeMirrorSearchPanel } from "@/src/constants/codeMirrorSearchPanel";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
@@ -42,6 +51,12 @@ const promptLanguage = StreamLanguage.define({
       stream.match("@@@");
 
       return "keyword";
+    }
+
+    // Extra surrounding braces are literals; the inner {{variable}} compiles.
+    if (stream.match("{{{", false)) {
+      stream.next();
+      return null;
     }
 
     // Highlight mustache variables
@@ -57,10 +72,8 @@ const promptLanguage = StreamLanguage.define({
   },
 });
 
-// Linter for prompt variables
-const promptLinter = linter((view) => {
+export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
   const diagnostics: Diagnostic[] = [];
-  const content = view.state.doc.toString();
 
   // Check for multiline variables
   for (const match of content.matchAll(MULTILINE_VARIABLE_REGEX)) {
@@ -128,7 +141,12 @@ const promptLinter = linter((view) => {
   }
 
   return diagnostics;
-});
+};
+
+// Linter for prompt variables
+const promptLinter = linter((view) =>
+  getPromptVariableDiagnostics(view.state.doc.toString()),
+);
 
 // Create a language support instance that combines the language and its configuration
 const promptSupport = new LanguageSupport(promptLanguage);
@@ -165,9 +183,220 @@ const bidiSupport = [
   ),
 ];
 
+// Add custom search highlight decoration using the same class names as the default search match decorations
+// See: https://github.com/codemirror/search/blob/36e8f21e070d471fcbe2e2f338ef4e647b492ba8/src/search.ts#L396
+const searchMatchMark = Decoration.mark({
+  class: "cm-searchMatch",
+});
+const selectedSearchMatchMark = Decoration.mark({
+  class: "cm-searchMatch cm-searchMatch-selected",
+});
+
+const setSearchHighlightMarks = StateEffect.define<
+  {
+    from: number;
+    to: number;
+  }[]
+>({
+  map: (ranges, change) =>
+    ranges.map(({ from, to }) => ({
+      from: change.mapPos(from),
+      to: change.mapPos(to),
+    })),
+});
+
+const setSelectedSearchHighlightMark = StateEffect.define<{
+  from: number;
+  to: number;
+}>({
+  map: ({ from, to }, change) => ({
+    from: change.mapPos(from),
+    to: change.mapPos(to),
+  }),
+});
+
+const unsetSelectedSearchHighlightMark = StateEffect.define({});
+
+const searchHighlightingSupport = StateField.define<DecorationSet>({
+  create() {
+    return Decoration.none;
+  },
+  update(decos, tr) {
+    decos = decos.map(tr.changes);
+    for (const effect of tr.effects) {
+      if (effect.is(setSearchHighlightMarks)) {
+        // Remove all existing search highlights
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            return !decoration.spec.class?.includes("cm-searchMatch");
+          },
+        });
+
+        decos = decos.update({
+          add: effect.value.map(({ from, to }) =>
+            searchMatchMark.range(from, to),
+          ),
+        });
+      }
+
+      if (effect.is(unsetSelectedSearchHighlightMark)) {
+        let selectedRange: { from: number; to: number } | null = null;
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (decoration.spec.class?.includes("cm-searchMatch-selected")) {
+              selectedRange = { from, to };
+              return false;
+            }
+            return true;
+          },
+        });
+
+        // Reassign the value and cast it because typescript infers it to be always null,
+        // not recognizing it to be assigned in the filter above.
+        selectedRange = selectedRange as {
+          from: number;
+          to: number;
+        } | null;
+
+        if (selectedRange) {
+          decos = decos.update({
+            add: [searchMatchMark.range(selectedRange.from, selectedRange.to)],
+          });
+        }
+      }
+
+      if (effect.is(setSelectedSearchHighlightMark)) {
+        // Remove normal search match mark from the selected range,
+        // otherwise there will _both_ a normal and selected highlight on the active match.
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (from === effect.value.from && to === effect.value.to) {
+              return !decoration.spec.class?.includes("cm-searchMatch");
+            }
+
+            return true;
+          },
+        });
+
+        let previousSelectedRange: { from: number; to: number } | null = null;
+
+        // Make the existing selected search highlight a normal search highlight
+        decos = decos.update({
+          filter: (from, to, decoration) => {
+            if (decoration.spec.class?.includes("cm-searchMatch-selected")) {
+              previousSelectedRange = { from, to };
+              return false;
+            }
+
+            return true;
+          },
+        });
+
+        // Reassign the value and cast it because typescript infers it to be always null,
+        // not recognizing it to be assigned in the filter above.
+        previousSelectedRange = previousSelectedRange as {
+          from: number;
+          to: number;
+        } | null;
+
+        decos = decos.update({
+          add: [
+            ...(previousSelectedRange
+              ? [
+                  searchMatchMark.range(
+                    previousSelectedRange.from,
+                    previousSelectedRange.to,
+                  ),
+                ]
+              : []),
+            selectedSearchMatchMark.range(effect.value.from, effect.value.to),
+          ].toSorted((a, b) => a.from - b.from),
+        });
+      }
+    }
+    return decos;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+// Static theme extensions hoisted to module scope so they keep a stable
+// identity across renders. react-codemirror reconfigures the editor whenever
+// the `extensions` array (by reference) changes, so churning these per render
+// would force a full reconfigure on every keystroke.
+const focusOutlineTheme = EditorView.theme({
+  "&.cm-focused": {
+    outline: "none",
+  },
+});
+
+const searchMatchTheme = EditorView.theme({
+  ".cm-searchMatch.cm-searchMatch": {
+    backgroundColor: "hsl(var(--find-match-background))",
+  },
+  ".cm-searchMatch.cm-searchMatch-selected": {
+    backgroundColor: "hsl(var(--find-match-selected-background))",
+    color: "hsl(var(--find-match-selected-foreground))",
+  },
+});
+
+const gutterHiddenTheme = EditorView.theme({
+  ".cm-gutters": { display: "none" },
+});
+
+const gutterBorderTheme = EditorView.theme({
+  ".cm-gutters": { borderRight: "1px solid" },
+});
+
 export function applyCodeMirrorSearchQuery(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   searchValue: string,
+  matchRanges: { from: number; to: number }[],
+) {
+  const view = editorRef?.current?.view;
+  if (!view) {
+    return;
+  }
+
+  const searchQuery = new SearchQuery({
+    search: searchValue,
+    caseSensitive: false,
+    literal: true,
+  });
+
+  view.dispatch({
+    effects: setSearchQuery.of(searchQuery),
+  });
+
+  view.dispatch({
+    effects: setSearchHighlightMarks.of(matchRanges),
+  });
+}
+
+export function setActiveSearchMarkCodeMirrorRange(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
+  range: { from: number; to: number } | null,
+  { scrollIntoView = true }: { scrollIntoView?: boolean } = {},
+) {
+  const view = editorRef?.current?.view;
+  if (!view || !range) {
+    return;
+  }
+
+  const effects: StateEffect<unknown>[] = [
+    setSelectedSearchHighlightMark.of(range),
+  ];
+
+  if (scrollIntoView) {
+    effects.push(EditorView.scrollIntoView(range.from));
+  }
+
+  view.dispatch({
+    effects,
+  });
+}
+
+export function unsetActiveSearchMarkCodeMirrorRange(
+  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
 ) {
   const view = editorRef?.current?.view;
   if (!view) {
@@ -175,31 +404,7 @@ export function applyCodeMirrorSearchQuery(
   }
 
   view.dispatch({
-    effects: setSearchQuery.of(
-      new SearchQuery({
-        search: searchValue,
-        caseSensitive: false,
-        literal: true,
-      }),
-    ),
-  });
-}
-
-export function selectCodeMirrorRange(
-  editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
-  range: { from: number; to: number } | null,
-) {
-  const view = editorRef?.current?.view;
-  if (!view || !range) {
-    return;
-  }
-
-  view.dispatch({
-    selection: {
-      anchor: range.from,
-      head: range.to,
-    },
-    scrollIntoView: true,
+    effects: unsetSelectedSearchHighlightMark.of(null),
   });
 }
 
@@ -218,6 +423,7 @@ export function CodeMirrorEditor({
   editorRef,
   enableSearchKeymap = true,
   onEditorMount,
+  extensions: additionalExtensions,
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -233,6 +439,9 @@ export function CodeMirrorEditor({
   editorRef?: RefObject<ReactCodeMirrorRef | null>;
   enableSearchKeymap?: boolean;
   onEditorMount?: () => void;
+  // Caller-provided CodeMirror extensions appended after the built-ins, e.g. a
+  // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
+  extensions?: Extension[];
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -244,8 +453,7 @@ export function CodeMirrorEditor({
   const handleEditorRef = useCallback(
     (instance: ReactCodeMirrorRef | null) => {
       if (editorRef) {
-        (editorRef as MutableRefObject<ReactCodeMirrorRef | null>).current =
-          instance;
+        (editorRef as RefObject<ReactCodeMirrorRef | null>).current = instance;
       }
 
       if (instance) {
@@ -255,84 +463,114 @@ export function CodeMirrorEditor({
     [editorRef, onEditorMount],
   );
 
+  // Memoize so the array keeps a stable identity across renders that don't
+  // change the inputs below. react-codemirror reconfigures the whole editor
+  // whenever `extensions` changes by reference, so an inline array would force
+  // a full reconfigure on every parent re-render (e.g. every keystroke).
+  const extensions = useMemo(
+    () => [
+      tolerateUnstableViewportPosAtCoords,
+      // Block document changes (including paste) when not editable; the
+      // `editable` DOM facet alone does not always prevent paste (see CM6
+      // EditorState.readOnly vs EditorView.editable).
+      ...(!editable ? [EditorState.readOnly.of(true)] : []),
+      // Restore native-textarea-like auto-scroll when a selection drag reaches
+      // the editor's top/bottom edge (CodeMirror doesn't do this on its own).
+      // Editable-only: read-only editors (JSON viewers, version panels) already
+      // auto-scroll natively, and we don't want their window-level mousemove/
+      // mouseup capture listeners registering on every drag.
+      ...(editable ? [autoScrollOnSelectionDrag()] : []),
+      searchHighlightingSupport,
+      codeMirrorSearchPanel,
+      // RTL/bidi support - must be early for proper line decoration
+      ...bidiSupport,
+      // Remove outline if field is focussed
+      focusOutlineTheme,
+      // Update search match highlight styles
+      searchMatchTheme,
+      // Hide gutter when lineNumbers is false
+      // Fix missing gutter border
+      ...(!lineNumbers ? [gutterHiddenTheme] : [gutterBorderTheme]),
+      // Extend gutter to full height when minHeight > content height
+      // This also enlarges the text area to minHeight
+      ...(!!minHeight
+        ? [
+            EditorView.theme({
+              ".cm-gutter,.cm-content": {
+                minHeight:
+                  typeof minHeight === "number" ? `${minHeight}px` : minHeight,
+              },
+              ".cm-scroller": { overflow: "auto" },
+            }),
+          ]
+        : []),
+      // Add max height support for very long bodies of text
+      ...(!!maxHeight
+        ? [
+            EditorView.theme({
+              ".cm-scroller": {
+                maxHeight:
+                  typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight,
+              },
+            }),
+          ]
+        : []),
+      ...(mode === "json" ? [json()] : []),
+      ...(mode === "json" && linterEnabled ? [linter(jsonParseLinter())] : []),
+      // Magic paste: when editing JSON, escape pasted text inside a string (or
+      // wrap a blob pasted into a blank field) so the JSON stays valid, with a
+      // "Paste raw" escape hatch. Conservative — defers to normal paste otherwise.
+      ...(editable && mode === "json" ? [createJsonMagicPasteExtension()] : []),
+      ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
+      ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      ...(additionalExtensions ?? []),
+    ],
+    [
+      editable,
+      lineNumbers,
+      minHeight,
+      maxHeight,
+      mode,
+      linterEnabled,
+      lineWrapping,
+      additionalExtensions,
+    ],
+  );
+
+  // `basicSetup` is also a reconfigure trigger; keep its identity stable.
+  const basicSetup = useMemo(
+    () => ({
+      foldGutter: lineNumbers,
+      highlightActiveLine: false,
+      lineNumbers: lineNumbers,
+      searchKeymap: enableSearchKeymap,
+    }),
+    [lineNumbers, enableSearchKeymap],
+  );
+
+  // Stable identity so the reconfigure effect (which lists `onChange` in its
+  // deps) doesn't fire on every render.
+  const handleChange = useCallback(
+    (c: string) => {
+      if (onChange) onChange(c);
+      setLinterEnabled(c !== "");
+    },
+    [onChange],
+  );
+
   return (
     <CodeMirror
       value={value}
       theme={codeMirrorTheme}
       ref={editorRef || onEditorMount ? handleEditorRef : undefined}
-      basicSetup={{
-        foldGutter: lineNumbers,
-        highlightActiveLine: false,
-        lineNumbers: lineNumbers,
-        searchKeymap: enableSearchKeymap,
-      }}
+      basicSetup={basicSetup}
       lang={mode === "json" ? "json" : undefined}
-      extensions={[
-        search(),
-        // RTL/bidi support - must be early for proper line decoration
-        ...bidiSupport,
-        // Remove outline if field is focussed
-        EditorView.theme({
-          "&.cm-focused": {
-            outline: "none",
-          },
-        }),
-        // Hide gutter when lineNumbers is false
-        // Fix missing gutter border
-        ...(!lineNumbers
-          ? [
-              EditorView.theme({
-                ".cm-gutters": { display: "none" },
-              }),
-            ]
-          : [
-              EditorView.theme({
-                ".cm-gutters": { borderRight: "1px solid" },
-              }),
-            ]),
-        // Extend gutter to full height when minHeight > content height
-        // This also enlarges the text area to minHeight
-        ...(!!minHeight
-          ? [
-              EditorView.theme({
-                ".cm-gutter,.cm-content": {
-                  minHeight:
-                    typeof minHeight === "number"
-                      ? `${minHeight}px`
-                      : minHeight,
-                },
-                ".cm-scroller": { overflow: "auto" },
-              }),
-            ]
-          : []),
-        // Add max height support for very long bodies of text
-        ...(!!maxHeight
-          ? [
-              EditorView.theme({
-                ".cm-scroller": {
-                  maxHeight:
-                    typeof maxHeight === "number"
-                      ? `${maxHeight}px`
-                      : maxHeight,
-                },
-              }),
-            ]
-          : []),
-        ...(mode === "json" ? [json()] : []),
-        ...(mode === "json" && linterEnabled
-          ? [linter(jsonParseLinter())]
-          : []),
-        ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
-        ...(lineWrapping ? [EditorView.lineWrapping] : []),
-      ]}
+      extensions={extensions}
       defaultValue={value}
-      onChange={(c) => {
-        if (onChange) onChange(c);
-        setLinterEnabled(c !== "");
-      }}
+      onChange={handleChange}
       onBlur={onBlur}
       className={cn(
-        "overflow-hidden overflow-y-auto rounded-md border text-xs",
+        "ph-no-capture overflow-hidden overflow-y-auto rounded-md border text-xs",
         className,
       )}
       editable={editable}

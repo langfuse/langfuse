@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
@@ -25,6 +25,7 @@ export async function handleGetApiKeys(
     where: {
       orgId: organizationId,
       scope: "ORGANIZATION",
+      isInAppAgentKey: false,
     },
     select: {
       id: true,
@@ -58,7 +59,7 @@ export async function handleCreateApiKey(
   if (!validationResult.success) {
     return res.status(400).json({
       error: "Invalid request body",
-      details: validationResult.error.format(),
+      details: z.formatError(validationResult.error),
     });
   }
 

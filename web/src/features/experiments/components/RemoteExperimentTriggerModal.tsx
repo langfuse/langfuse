@@ -21,12 +21,11 @@ import {
 } from "@/src/components/ui/form";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { Loader2 } from "lucide-react";
 import { getFormattedPayload } from "@/src/features/experiments/utils/format";
 import { type Prisma } from "@langfuse/shared";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 const RemoteExperimentTriggerSchema = z.object({
   payload: z.string(),
@@ -50,11 +49,6 @@ export const RemoteExperimentTriggerModal = ({
   };
   setShowTriggerModal: (show: boolean) => void;
 }) => {
-  const hasDatasetAccess = useHasProjectAccess({
-    projectId,
-    scope: "datasets:CUD",
-  });
-
   const dataset = api.datasets.byId.useQuery({
     projectId,
     datasetId,
@@ -70,7 +64,13 @@ export const RemoteExperimentTriggerModal = ({
   const runRemoteExperimentMutation =
     api.datasets.triggerRemoteExperiment.useMutation({
       onSuccess: (data) => {
-        if (data.success) {
+        if (data.success && data.skipped) {
+          showErrorToast(
+            "Trigger is disabled",
+            "Enable the trigger in settings to run remote experiments.",
+            "WARNING",
+          );
+        } else if (data.success) {
           showSuccessToast({
             title: "Remote experiment triggered",
             description:
@@ -105,10 +105,6 @@ export const RemoteExperimentTriggerModal = ({
       payload: data.payload,
     });
   };
-
-  if (!hasDatasetAccess) {
-    return null;
-  }
 
   return (
     <>
@@ -174,7 +170,9 @@ export const RemoteExperimentTriggerModal = ({
                 disabled={runRemoteExperimentMutation.isPending}
               >
                 {runRemoteExperimentMutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <div className="mr-2">
+                    <Spinner size="sm" />
+                  </div>
                 )}
                 Run
               </Button>

@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { scheduleObservationEvals } from "../scheduleObservationEvals";
 import {
   type ObservationForEval,
-  type ObservationEvalConfig,
+  type ObservationEvalRule,
+  type EvaluationRuleWithAssignments,
   type ObservationEvalSchedulerDeps,
 } from "../types";
 import { type Prisma } from "@langfuse/shared/src/db";
 import {
   EvalTargetObject,
+  EvalTemplateType,
   JobConfigState,
   JobExecutionStatus,
 } from "@langfuse/shared";
@@ -75,18 +77,44 @@ describe("scheduleObservationEvals", () => {
   });
 
   const createMockConfig = (
-    overrides: Partial<ObservationEvalConfig> = {},
-  ): ObservationEvalConfig => ({
+    overrides: Partial<ObservationEvalRule> = {},
+  ): ObservationEvalRule => ({
     id: "config-1",
     projectId: "project-789",
     filter: [],
     sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
     evalTemplateId: "template-1",
+    evalTemplate: { type: EvalTemplateType.LLM_AS_JUDGE },
     scoreName: "quality",
     variableMapping: [],
     targetObject: EvalTargetObject.EVENT,
     status: JobConfigState.ACTIVE,
     blockedAt: null,
+    ...overrides,
+  });
+
+  const createMockRule = (
+    overrides: Partial<EvaluationRuleWithAssignments> = {},
+  ): EvaluationRuleWithAssignments => ({
+    id: "rule-1",
+    ruleId: "rule-1",
+    projectId: "project-789",
+    filter: [],
+    sampling: { toNumber: () => 1 } as unknown as Prisma.Decimal,
+    targetObject: EvalTargetObject.EVENT,
+    status: JobConfigState.ACTIVE,
+    assignments: [
+      {
+        id: "assignment-1",
+        evaluatorId: "evaluator-1",
+        variableMapping: null,
+        evaluator: {
+          id: "evaluator-1",
+          projectId: "project-789",
+          type: EvalTemplateType.LLM_AS_JUDGE,
+        },
+      },
+    ],
     ...overrides,
   });
 
@@ -147,6 +175,41 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).not.toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).not.toHaveBeenCalled();
     });
+
+    it("should schedule inactive configs for manual execution while skipping blocked configs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const inactiveConfig = createMockConfig({
+        id: "inactive-config",
+        status: JobConfigState.INACTIVE,
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "blocked-config",
+            blockedAt: new Date(),
+          }),
+          inactiveConfig,
+        ],
+        schedulerDeps,
+        executionMode: "MANUAL",
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobConfigurationId: inactiveConfig.id,
+        }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionMode: "MANUAL",
+        }),
+      );
+    });
   });
 
   describe("S3 upload", () => {
@@ -163,6 +226,7 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
       expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledWith({
         projectId: "project-789",
+        traceId: "trace-456",
         observationId: "obs-123",
         data: observation,
       });
@@ -290,6 +354,33 @@ describe("scheduleObservationEvals", () => {
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
     });
+
+    it("should deterministically create nested samples across configs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ span_id: "obs-123" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            id: "sampled-out-config",
+            sampling: { toNumber: () => 0.5 } as unknown as Prisma.Decimal,
+          }),
+          createMockConfig({
+            id: "sampled-in-config",
+            sampling: { toNumber: () => 0.7 } as unknown as Prisma.Decimal,
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ jobConfigurationId: "sampled-in-config" }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("job creation and enqueuing", () => {
@@ -305,7 +396,12 @@ describe("scheduleObservationEvals", () => {
       });
 
       const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          observation.trace_id,
+          observation.span_id,
+        ]),
       );
       expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith({
         id: expectedJobExecutionId,
@@ -333,18 +429,428 @@ describe("scheduleObservationEvals", () => {
       });
 
       const expectedJobExecutionId = createW3CTraceId(
-        `${config.id}:${observation.span_id}`,
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          observation.trace_id,
+          observation.span_id,
+        ]),
       );
       expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith({
         jobExecutionId: expectedJobExecutionId,
         projectId: "project-789",
         observationS3Path: "observations/project-789/obs-123.json",
         delay: 0,
+        evalTemplateType: EvalTemplateType.LLM_AS_JUDGE,
       });
+    });
+
+    it("should pass code template type to the scheduler deps", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const config = createMockConfig({
+        evalTemplate: { type: EvalTemplateType.CODE },
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evalTemplateType: EvalTemplateType.CODE,
+        }),
+      );
+    });
+
+    it("should create distinct job executions for repeated observation ids on different traces", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const config = createMockConfig();
+      const firstObservation = createMockObservation({
+        span_id: "reused-observation-id",
+        trace_id: "trace-a",
+      });
+      const secondObservation = createMockObservation({
+        span_id: "reused-observation-id",
+        trace_id: "trace-b",
+      });
+
+      await scheduleObservationEvals({
+        observation: firstObservation,
+        configs: [config],
+        schedulerDeps,
+      });
+      await scheduleObservationEvals({
+        observation: secondObservation,
+        configs: [config],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
+
+      const firstJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          firstObservation.trace_id,
+          firstObservation.span_id,
+        ]),
+      );
+      const secondJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          config.id,
+          secondObservation.trace_id,
+          secondObservation.span_id,
+        ]),
+      );
+
+      expect(firstJobExecutionId).not.toBe(secondJobExecutionId);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ id: firstJobExecutionId }),
+      );
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ id: secondJobExecutionId }),
+      );
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          traceId: firstObservation.trace_id,
+          observationId: firstObservation.span_id,
+        }),
+      );
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          traceId: secondObservation.trace_id,
+          observationId: secondObservation.span_id,
+        }),
+      );
     });
   });
 
   describe("multiple configs", () => {
+    it("should fan out a matching rule to its executable assignments", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const rule = createMockRule({
+        assignments: [
+          {
+            id: "assignment-1",
+            evaluatorId: "evaluator-1",
+            variableMapping: null,
+            evaluator: {
+              id: "evaluator-1",
+              projectId: "project-789",
+              type: EvalTemplateType.LLM_AS_JUDGE,
+            },
+          },
+          {
+            id: "assignment-2",
+            evaluatorId: "evaluator-2",
+            variableMapping: null,
+            evaluator: {
+              id: "evaluator-2",
+              projectId: "project-789",
+              type: EvalTemplateType.CODE,
+            },
+          },
+        ],
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [rule],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(2);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          id: createW3CTraceId(
+            JSON.stringify([
+              "observation-eval",
+              rule.id,
+              "assignment-1",
+              observation.trace_id,
+              observation.span_id,
+            ]),
+          ),
+          jobConfigurationId: rule.id,
+          // Evaluator v2 resolves its definition at pickup, so nothing is
+          // pinned onto the job execution here.
+          jobTemplateId: null,
+        }),
+      );
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ jobConfigurationId: rule.id }),
+      );
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ evalTemplateType: EvalTemplateType.CODE }),
+      );
+    });
+
+    it("should carry evaluator identity in the queue payload", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [createMockRule()],
+        schedulerDeps,
+      });
+
+      const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
+      expect(payload).toMatchObject({
+        evaluatorId: "evaluator-1",
+        evaluationRuleId: "rule-1",
+      });
+      // The executor resolves the evaluator's current version on pickup.
+      expect(payload).not.toHaveProperty("evaluatorVersionId");
+    });
+
+    it("should omit the rule id for evaluators addressed without a rule", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [createMockRule({ id: "rule-1", ruleId: null })],
+        schedulerDeps,
+        executionMode: "MANUAL",
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobConfigurationId: "rule-1",
+          jobTemplateId: "evaluator-1",
+        }),
+      );
+      const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
+      expect(payload).toMatchObject({ evaluatorId: "evaluator-1" });
+      expect(payload).not.toHaveProperty("evaluationRuleId");
+    });
+
+    it("should carry a mapping override for ruleless batch runs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const variableMapping = [
+        { templateVariable: "output", selectedColumnId: "input" },
+      ];
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [
+          createMockRule({
+            id: "evaluator-1",
+            ruleId: null,
+            assignments: [
+              {
+                id: "evaluator-1",
+                evaluatorId: "evaluator-1",
+                variableMapping,
+                evaluator: {
+                  id: "evaluator-1",
+                  projectId: "project-789",
+                  type: EvalTemplateType.LLM_AS_JUDGE,
+                },
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+        executionMode: "MANUAL",
+      });
+
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evaluatorId: "evaluator-1",
+          variableMapping,
+        }),
+      );
+    });
+
+    it("should include an execution scope in the job identity", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const rule = createMockRule({
+        id: "evaluator-1",
+        ruleId: null,
+        assignments: [
+          {
+            id: "evaluator-1",
+            evaluatorId: "evaluator-1",
+            variableMapping: null,
+            evaluator: {
+              id: "evaluator-1",
+              projectId: "project-789",
+              type: EvalTemplateType.LLM_AS_JUDGE,
+            },
+          },
+        ],
+      });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [rule],
+        schedulerDeps,
+        executionMode: "MANUAL",
+        executionScopeId: "batch-action-1",
+      });
+
+      const scopedJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          "evaluator-1",
+          "evaluator-1",
+          observation.trace_id,
+          observation.span_id,
+          "batch-action-1",
+        ]),
+      );
+      const unscopedJobExecutionId = createW3CTraceId(
+        JSON.stringify([
+          "observation-eval",
+          "evaluator-1",
+          "evaluator-1",
+          observation.trace_id,
+          observation.span_id,
+        ]),
+      );
+
+      expect(scopedJobExecutionId).not.toBe(unscopedJobExecutionId);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({ id: scopedJobExecutionId }),
+      );
+    });
+
+    it("should keep live eval job identity unchanged when no execution scope is passed", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation();
+      const rule = createMockRule();
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [rule],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: createW3CTraceId(
+            JSON.stringify([
+              "observation-eval",
+              rule.id,
+              "assignment-1",
+              observation.trace_id,
+              observation.span_id,
+            ]),
+          ),
+        }),
+      );
+    });
+
+    it("should omit mapping when a ruleless batch run inherits the version mapping", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [createMockRule({ id: "evaluator-1", ruleId: null })],
+        schedulerDeps,
+        executionMode: "MANUAL",
+      });
+
+      const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
+      expect(payload).toMatchObject({ evaluatorId: "evaluator-1" });
+      expect(payload).not.toHaveProperty("variableMapping");
+    });
+
+    it("should omit mapping for rule-backed assignments", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [
+          createMockRule({
+            assignments: [
+              {
+                id: "assignment-1",
+                evaluatorId: "evaluator-1",
+                variableMapping: [
+                  { templateVariable: "output", selectedColumnId: "input" },
+                ],
+                evaluator: {
+                  id: "evaluator-1",
+                  projectId: "project-789",
+                  type: EvalTemplateType.LLM_AS_JUDGE,
+                },
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
+      expect(payload).toMatchObject({
+        evaluatorId: "evaluator-1",
+        evaluationRuleId: "rule-1",
+      });
+      expect(payload).not.toHaveProperty("variableMapping");
+    });
+
+    it("should not carry evaluator identity for legacy configs", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [createMockConfig()],
+        schedulerDeps,
+      });
+
+      const payload = vi.mocked(schedulerDeps.enqueueEvalJob).mock.calls[0]![0];
+      expect(payload).not.toHaveProperty("evaluatorId");
+      expect(payload).not.toHaveProperty("evaluatorVersionId");
+    });
+
+    it("should skip a cross-project assignment without blocking siblings", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const executableAssignment = createMockRule().assignments[0]!;
+
+      await scheduleObservationEvals({
+        observation: createMockObservation(),
+        configs: [
+          createMockRule({
+            assignments: [
+              executableAssignment,
+              {
+                id: "foreign-assignment",
+                evaluatorId: "foreign-evaluator",
+                variableMapping: null,
+                evaluator: {
+                  id: "foreign-evaluator",
+                  projectId: "other-project",
+                  type: EvalTemplateType.CODE,
+                },
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.uploadObservationToS3).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalledTimes(1);
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalledWith(
+        expect.objectContaining({ evaluatorId: "evaluator-1" }),
+      );
+    });
+
     it("should process multiple matching configs independently", async () => {
       const schedulerDeps = createMockSchedulerDeps();
       schedulerDeps.upsertJobExecution = vi

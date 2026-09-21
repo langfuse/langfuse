@@ -7,6 +7,7 @@ import {
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import {
+  createIngestionAttribution,
   eventTypes,
   logger,
   processEventBatch,
@@ -16,10 +17,14 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
-    fn: async ({ body, auth, res }) => {
+    // Writes an observation-create event that lands in the legacy observations
+    // ClickHouse table; events_only deployments expect OTel ingestion.
+    rejectInEventsOnlyMode: true,
+    fn: async ({ body, auth, req, res }) => {
       const { prompt, completion, ...rest } = body;
       const event = {
         id: v4(),
@@ -35,7 +40,12 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, {
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -52,10 +62,12 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Patch Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
-    fn: async ({ body, auth, res }) => {
+    rejectInEventsOnlyMode: true,
+    fn: async ({ body, auth, req, res }) => {
       const { generationId, prompt, completion, ...rest } = body;
       const event = {
         id: v4(),
@@ -69,7 +81,12 @@ export default withMiddlewares({
           output: completion,
         },
       };
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, {
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
