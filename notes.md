@@ -4,14 +4,20 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 
 ## Standing rules (read these first)
 
-- **Check the critical path before mining tests for optimisations** (09-11).
-  `e2e-tests` has been the long pole for many weeks (155.5s against a 186.3s
-  total on 09-08..09-14) while the web and worker shards run fully parallel to
-  it at ~67.5s and ~71.3s — roughly **84s of slack**. Shaving seconds off a
-  shard with that much slack cannot move the headline number, however real the
-  saving. Do the arithmetic first; if the candidate is off the critical path,
-  say so and stop. This is also the honest answer to "why no diff again this
-  week": a structural fact about the pipeline, not a failure to find candidates.
+- **Check the critical path before mining tests for optimisations** (09-11,
+  sharpened 09-21). `e2e-tests` is now effectively the WHOLE critical path:
+  `execution − e2e` was only 2-22s/day across 09-15..09-20, and shard slack has
+  widened from ~84s to ~114s. Shaving seconds off a shard with that much slack
+  cannot move the headline number, however real the saving. Do the arithmetic
+  first; if the candidate is off the critical path, say so and stop.
+- **A regression can live in the BUILD GRAPH, not in test code** (09-21). W39's
+  +25.6% came from a new workspace package (`@langfuse/native`, a Rust addon)
+  entering the e2e `Build` closure with `"cache": false, "outputs": []` in
+  `turbo.json` — deliberately uncacheable, because the author reasoned that
+  Cargo caches incrementally in `target/`. True on a laptop; false on an
+  ephemeral runner with no persisted `target/`. So when a step inflates with
+  no matching test change, read `turbo.json` task overrides and the selected
+  package set, not just the test suite.
 - **A capacity/concurrency change can swing these numbers ~20-35% on its own.**
   W36 regressed +21% on host capacity; W37 recovered -20% and beat the prior
   record when #17122 raised Blacksmith CPUs and set `VITEST_MAX_WORKERS=12`.
@@ -33,18 +39,15 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
 ## Dead and parked candidates — do not re-attempt
 
 - **score-comparison-analytics.servertest.ts `Promise.all` batching** (07-31).
-  `insertLargeTraceLevelScorePairs` (L112-161) inserts 120,000 rows via 12
-  SEQUENTIAL `await createScoresCh(...)`; batching is safe (stateless helper,
-  independent rows, no `beforeEach`); precedent `scores-api-v2.servertest.ts:104`.
-  **PARKED** — never verifiable (DB blocked) and the climb it targeted did not
-  persist. Re-open only if DB access returns AND a >=10% sustained regression does.
-- **layout.clienttest.ts hoist — DEAD.** Measured 08-24: 14.81s vs 14.90s,
-  inside noise. With no `rowRange`, `layout()` positions ALL rows, so
-  `manySpans(10_000)` drives ~140,000 `positionRow` calls; any real win means
-  cutting coverage — forbidden.
-- **webhooks.test.ts fake timers — DEAD** (09-07). #1 slowest worker file most
-  weeks (~23.5s / 22 tests) but grep found NO `setTimeout`/`sleep`/`waitFor`/
-  `useFakeTimers` in the file. The time is real DB and HTTP work.
+  `insertLargeTraceLevelScorePairs` L112-161 inserts 120k rows via 12 sequential
+  `await createScoresCh(...)`; batching is safe (precedent
+  `scores-api-v2.servertest.ts:104`). **PARKED** — unverifiable (DB blocked) and
+  the climb it targeted did not persist.
+- **layout.clienttest.ts hoist — DEAD.** 14.81s vs 14.90s (08-24), inside noise;
+  without `rowRange`, `layout()` positions all ~140k rows, so any real win means
+  cutting coverage.
+- **webhooks.test.ts fake timers — DEAD** (09-07). ~23.5s/22 tests, but no
+  `setTimeout`/`sleep`/`waitFor`/`useFakeTimers` anywhere in it — real DB/HTTP.
 - **bufferedStreamUploader.test.ts 3.00s retry test — DEAD** (re-confirmed
   09-14). Internal sleeps are only 10-100ms; the 3s is real orchestration.
 - **redisConsumer.test.ts:116 `setTimeout(2000)` — PARKED, weak** (re-confirmed
@@ -54,59 +57,60 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   its input in place (`packages/shared/src/utils/json.ts`), so the
   clone-per-parser cost is required.
 - **analyticsIntegrationSsrfPinning.test.ts is NOT a regression** (08-24):
-  18.07s/7 → 36.09s/13 tests is new coverage, per-test cost flat; both slow
-  cases are 18s SSRF connect-timeout waits.
-- **event-repository.servertest.ts / experiment-score-levels.servertest.ts**
-  (09-14). New #1 web file (20.2-21.8s) and 5 of the top-10 slowest individual
-  tests. Both DB-backed, both off the critical path — recorded so they are not
-  re-mined. Same verdict for `awsLambdaCodeEvalDispatcher.integration.test.ts`,
-  `batchExport.test.ts`, `IngestionService.integration.test.ts`.
+  18.07s/7 → 36.09s/13 is new coverage; both slow cases are 18s SSRF timeouts.
+- **event-repository.servertest.ts** (09-14, still #1 web file 09-21 at
+  19.6-23.1s) and `experiment-score-levels.servertest.ts`: DB-backed, off the
+  critical path, do not re-mine. Same verdict for
+  `awsLambdaCodeEvalDispatcher.integration.test.ts`, `batchExport.test.ts`,
+  `IngestionService.integration.test.ts`.
 
 ## Week-by-week record (condensed)
 
-- **W28 baseline (06-30..07-07)**: perceived p50=396s, p90=522s over 131 runs.
-  Pipeline is **execution-bound, not queue-bound** (runner wait 7-22s) — still
-  true. turbo cache hit/miss dominates the Build step; don't chase Build
-  variance without separating hits from misses. NAMING COLLISION open:
-  `history/2026-W28.json` covers a mostly-W27 window.
-- **08-03..08-17 — six fully-blocked runs.** Actions API filtered by secrecy
-  policy plus `host.docker.internal` → `EAI_AGAIN`; never diagnosed, stopped on
-  its own. Don't re-try `cat /etc/hosts` or `WebFetch` of pipeline.yml.
-- **08-18 — issue-output regime begins.** 33 runs, p50=224s / p90=675.4s; heavy
-  tail from 08-13/08-14 only, root-caused to Blacksmith runner contention.
-- **08-24 (W34) — the load-bearing dense comparator.** 37 sampled over 6
-  populated days. Pooled p50=198 / p90=284.6; weekly 198.3 / 185.3 / 15.3 / 48
-  / 77.8 / 106 / 158.3. Densest clean week we have. **08-31** by contrast had
-  only 4 successful merge_group runs, all on 08-30 — excluded from charts.
-- **09-07 (W36) — first real regression of the regime.** 145 successful, 28
-  sampled; weekly 240.5 / 224.5 / 15 / 52 / 91.5 / 113.5 / 165.5. +21.3% vs W34
-  with runner wait flat. **Host capacity, not code**, via a same-day fast/slow
-  pair on 09-03 (webRunTests 86s at 10:39 vs 163s at 17:45): wall grew 90% while
-  summed top-10 durations grew 23%, and inflation hit only write-heavy files
-  while read-heavy got faster. Uniform slowdown = CPU contention; write-only =
-  container I/O pressure.
-- **09-11 (W37) — best week on record.** 25 sampled; pooled p50 194 / p90
-  224.2; weekly 192 / 175.3 / 17 / 47.3 / 69 / 72.8 / 155.5. Attributed to
-  `aa5f60aa8 chore(ci): increase Blacksmith CPUs and tune concurrency (#17122)`
-  merged 09-07T10:24:32Z (same-day split: webRunTests 89→64s, workerRunTests
-  107→72s, client step 79-82→44-45s).
-- **09-14 (09-08..09-14) — flat, no regression, no diff.** 4 dense days
-  (09-08/09/10 reused from W37 history; 09-11 fresh, 42 successes). 09-12 Sat
-  had ZERO merge_group runs; 09-13 and 09-14 had 1 each (charted, flagged thin,
-  excluded from the aggregate). Weekly 186.3 / 170.3 / 16.8 / 47 / 67.5 / 71.3
-  / 155.5 — marginal new best, but -3.0% vs W37 is mostly **window shift**
-  (dropping 09-07 at 213.5, adding 09-11 at 182). #17122 gain confirmed durable.
-  Filed as `2026-W38-partial-0914.json` to preserve the `2026-W37.json` baseline.
+- **W28 baseline (06-30..07-07)**: p50=396s / p90=522s over 131 runs. Pipeline
+  is **execution-bound, not queue-bound** (wait 7-22s) — still true 09-21.
+  NAMING COLLISION open: `history/2026-W28.json` covers a mostly-W27 window.
+- **08-03..08-17 — six fully-blocked runs**, never diagnosed, stopped on their
+  own. Don't re-try `cat /etc/hosts` or `WebFetch` of pipeline.yml.
+- **08-18 — issue-output regime begins.** 33 runs, p50=224s / p90=675.4s.
+- **08-24 (W34) — the load-bearing dense comparator.** 37 sampled over 6 days;
+  pooled p50=198 / p90=284.6; weekly 198.3 / 185.3 / 15.3 / 48 / 77.8 / 106 /
+  158.3. **08-31** had only 4 successful merge_group runs — excluded from charts.
+- **09-07 (W36) — first real regression of the regime.** 28 sampled; weekly
+  240.5 / 224.5 / 15 / 52 / 91.5 / 113.5 / 165.5, +21.3% vs W34 with wait flat.
+  **Host capacity, not code**: a same-day 09-03 fast/slow pair showed wall +90%
+  while summed top-10 durations grew only 23%. Uniform slowdown = CPU
+  contention; write-heavy-only inflation = container I/O pressure.
+- **09-11 (W37) — best week on record.** 25 sampled; pooled p50 194 / p90 224.2;
+  weekly 192 / 175.3 / 17 / 47.3 / 69 / 72.8 / 155.5. Cause: `aa5f60aa8`
+  (#17122, more Blacksmith CPUs + concurrency tuning, 09-07T10:24:32Z) —
+  same-day split webRunTests 89→64s, workerRunTests 107→72s.
+- **09-14 (W38, 09-08..09-14) — flat, no diff.** 4 dense days. Weekly 186.3 /
+  170.3 / 16.8 / 47 / 67.5 / 71.3 / 155.5 — marginal new best, but -3.0% vs W37
+  is mostly **window shift**. This is the baseline W39 regressed against.
+
+- **09-21 (09-15..09-21, W39) — LARGE REGRESSION, first suggested diff of the
+  regime.** First window sharing NO days with a previously reported one, so the
+  delta is genuinely independent. 4 dense days (09-15..09-18, 6 sampled each);
+  09-19 Fri and 09-21 Mon had ZERO merge_group runs (09-19 validated against an
+  unfiltered fetch — real, not a stale filter); 09-20 had 1 (charted, thin,
+  excluded from the aggregate). Weekly 234 / 217.8 / 14 / 48 / 72 / 72.3 / 186:
+  perceived +25.6%, execution +27.9%, e2e +19.6% vs W38 — while runner wait
+  FELL 16.8→14s. Execution-bound. Localized to the e2e `Build` step (42s
+  pre-window → 69s, **+64%**); `Run e2e tests` flat at 47→49s and `tests-web`
+  Build flat at ~43→47s, so it is the build, not the tests. Cause:
+  `1a2d1f211` (#17062, native addon scaffold, 09-15T12:32:33Z — day one of the
+  window). Split on 09-15: pre-#17062 52s (n=3) vs post 71.5s (n=22, only 4/22
+  under 50s). `bb65111ff` (#17292) exonerated — 09-11/13/14 are post-#17292
+  and fast. Caveats kept honest in the issue: the worst outlier (09-15T07:55,
+  Build 122s) predates #17062, the pre-window baseline is n=3, and cargo/napi
+  execution is inferred from the turbo graph, not read off a log line.
 
 ## Incidents
 
-- **2026-09-11 main red ~06:35Z-11:32Z (~5h) — RESOLVED, infrastructure.** apt
-  / Ubuntu mirror failures installing Playwright system deps; fixed by
-  `ae2b6dbd3 fix(ci): add apt retries for Playwright dependencies (#17328)` at
-  11:32:19Z. **Signature to recognise next time**: uniform ~700-725s wall time
-  with `e2e-tests` + `tests-storybook` failing together across all event types
-  (`all-ci-passed` is just the gate). Found with `git log` on
-  `.github/workflows/` — the only workflow commit that day, matching exactly.
+- **2026-09-11 main red ~06:35Z-11:32Z — RESOLVED, infrastructure.** apt mirror
+  failures installing Playwright system deps; fixed by `ae2b6dbd3` (#17328).
+  **Signature**: uniform ~700-725s wall with `e2e-tests` + `tests-storybook`
+  failing together across all event types (`all-ci-passed` is just the gate).
 
 ## Flaky tracking
 
@@ -118,83 +122,89 @@ Append dated bullets. Keep under 200 lines; prune superseded notes.
   3+. One-line fix (assert `>= 2`, or scope to the two keys created). Needs
   Redis — first thing to ship if DB access returns.
 - Previously cleared and dropped: `unstable-evaluator-v2-api` (1 lifetime,
-  08-23), `otelToObservationForEval` (2, 07-30 / 08-13). Zero retried tests in
-  every sampled shard for two consecutive weeks.
+  08-23), `otelToObservationForEval` (2, 07-30 / 08-13). **Zero retried tests in
+  every sampled shard for three consecutive weeks** (09-21 sample was n=3, not
+  the usual 5 — two log tails under-shot the reporter block).
+- `worker/src/.../traceBatching.test.ts` — NOT flaky, just slow (09-21): 12.08s
+  for one test inside a 13.42s / 38-test file, ~4× the next slowest worker test
+  and a recent feature area. Off the critical path (~114s shard slack), so
+  recorded, not mined.
 
 ## Known CI waste — report only, never propose
 
 Fixes for these live in `.github/workflows/**`, edit-forbidden here.
 
-- **turbo cache reservation race**: both `tests-web` shards share one cache key,
-  so `Failed to save: Unable to reserve cache with key
-  Linux-X64-node24-turbo-ci-<hash>` appears on 09-13/09-14 (as
-  `Linux-turbo-tests-web-compile-<hash>` on 09-03) after tarring 0.8-2.6 GB.
-- **pnpm cache reservation race (NEW 09-14, warning-level)**: same for
-  `pnpm-lockfile-verified-Linux-x64-<hash>` and `node-cache-Linux-x64-pnpm-<hash>`.
-  Both off the critical path; worth a human reviewing cache key scoping.
+- **turbo + pnpm cache reservation races** (09-03 through 09-21, persistent):
+  parallel jobs share one cache key, so `Failed to save: Unable to reserve cache
+  with key Linux-X64-node24-turbo-ci-<hash>` (and the same for
+  `pnpm-lockfile-verified-*`, `node-cache-*`) recurs after tarring 0.8-2.6 GB.
+  Off the critical path; worth a human reviewing cache key scoping.
 
 ## Output contract
 
 - No PRs, ever. Every run files exactly one issue (label `ci-performance`,
   assignee `wochinge`). `issues.json` supersedes `prs.json` (kept, empty).
-- **No issue-search tool exists.** The GitHub MCP tools are only `actions_get`,
-  `actions_list`, `get_job_logs`, `list_pull_requests`, `pull_request_read`,
-  `search_pull_requests`. Backfilling a past issue's number/url is
-  **permanently impossible**; entries stay `number: null, url: null`.
+- **No issue-search tool exists** — GitHub MCP offers only `actions_get`,
+  `actions_list`, `get_job_logs`, and the PR readers. Backfilling a past
+  issue's number/url is permanently impossible; entries stay `number: null`.
   `missing_tool` filed 08-24 and 09-07 — don't re-file.
-- **`$GITHUB_STEP_SUMMARY` is NOT writable** (09-07): path outside the sandbox
-  mount, `appendFileSync` fails ENOENT. The filed issue is the only output.
+- **`$GITHUB_STEP_SUMMARY` is NOT writable** (09-07, ENOENT outside the mount).
+  The filed issue is the only output.
 
 ## Tooling notes
 
-- **Compute the ISO week label, don't assume it.** Convention: label = the ISO
-  week the window predominantly covers; `-partial-<MMDD>` when the week is not
-  fully covered or the record would collide with a published one. A wrong label
-  silently corrupts the series.
+- **Compute the ISO week label, don't assume it.** Label = the ISO week the
+  window predominantly covers, `-partial-<MMDD>` when incomplete or colliding.
 - `list_workflow_runs` caps at ~30 runs/page, ignores `per_page`, has no
-  `created` filter — filter `event: merge_group` (cut W36 from ~40 pages to 7)
-  and paginate until `created_at` passes the window start. Validate against an
-  unfiltered sample once; it has returned stale data.
-- Large tool responses are saved to a file, payload nested at
-  `.[0].content[0].text` (a JSON string), jobs at `.jobs.jobs[]`. **Never
-  `Read` those files** — parse with a small Node script written via `Write`.
-- **`get_job_logs` `tail_lines` — recalibrated 09-14.** The trailing cleanup
-  block is a docker image manifest, one line per image, so its length **scales
-  with that runner's manifest** — there is no single right value. Measured: 215
-  on a 25-image web shard, 190 on a 16-image web shard, 245 on a 59-image
-  worker shard, 130-142 on small worker shards; 135 and 60 returned cleanup
-  only. The old "use 265" is safe but costs ~15k tokens. **Start at 190-215 for
-  web, ~245 for worker**, step up only on a miss. You need just enough to catch
-  `Slowest test files` running into `Post job cleanup.` — that boundary is
-  itself proof of zero retries, since `Retried tests (N):` prints only on retry.
-- **`git log` is the cheapest attribution tool — use it first.** A bare
-  `git log` in the working dir needs no approval, and
-  `git log --oneline -25 --since=<date> -- .github/workflows/pipeline.yml`
-  works. Two uses weekly: pin a step-time inflection to a commit, and check
-  whether a suggested diff landed.
-- **Write temp scripts to `/tmp/gh-aw/agent/`, never the repo.** When a large
-  response is saved to a file, copy the path **including the session-id
-  segment** — dropping it yields ENOENT.
+  `created` filter — filter `event: merge_group` and paginate until
+  `created_at` passes the window start. Validate a zero-run day against an
+  unfiltered sample; the filter has returned stale data.
+- Large tool responses land in a file, payload at `.[0].content[0].text` (a
+  JSON string), jobs at `.jobs.jobs[]`. **Never `Read` those files** — parse
+  with a small Node script written via `Write`.
+- **`get_job_logs` `tail_lines`.** The trailing cleanup block is a docker image
+  manifest whose length scales with that runner's image count, so there is no
+  single right value. **Start at 190-215 for web, ~245 for worker**, step up on
+  a miss; 130-142 works only on small worker shards, and 30-60 returns cleanup
+  only (two shards under-shot on 09-21, leaving the zero-retry claim at n=3).
+  You need just enough to catch `Slowest test files` running into `Post job
+  cleanup.` — that boundary is itself the zero-retry proof, since
+  `Retried tests (N):` prints only on retry.
+- **`git log` is the cheapest attribution tool — use it first.** Bare `git log`
+  and `git log --oneline -25 --since=<date> -- <path>` need no approval;
+  `git show <sha> -- <file>` works, but `git log -S<string>` needs approval.
+  Use it to pin a step-time inflection to a commit and to check whether a
+  suggested diff landed.
+- **Write temp scripts to `/tmp/gh-aw/agent/` with `Write`, never the repo.**
+  Copy response paths **including the session-id segment** or you get ENOENT.
 - Sandbox bash blocks compound commands, `bash script.sh`, `jq -f`, heredocs,
-  redirects outside the workspace, `ls`/`find`/`wc` outside the repo dir, and
-  bare `pnpm`. `git -C`, `cd && git`, `git checkout --` need approval — revert
-  temporary edits with `Edit`, confirm with `git status --porcelain`. Use
-  `Glob`/`Grep` instead of `find`/`ls`; `node -e` + `fs.readdirSync` to list
-  paths outside the repo. Keep commands single and quote paths.
-- **Inline env-var prefixes are rejected** (`FOO=bar npx ...`, `env FOO=bar
-  ...`). To give a web vitest run its environment, `Write` a placeholder
-  `/…/langfuse/.env.test` (`web/vitest.config.mts` loads `../.env.test`);
-  `cp .env.test.example` is NOT enough. Needs `DATABASE_URL`, `DIRECT_URL`,
-  `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SALT`, `ENCRYPTION_KEY` (64 hex), the
-  three `CLICKHOUSE_*`, and `REDIS_CONNECTION_STRING` — even for pure-client
-  tests. **Delete the file before finishing.** `pnpm` is NOT on PATH; use
-  `npx --yes pnpm@10 install --frozen-lockfile` (~42s) with
-  `run_in_background` and poll, since foreground exceeds the 60s cap.
+  redirects outside the workspace, `ls`/`find`/`wc` outside the repo, and bare
+  `pnpm`; `git -C`, `cd && git`, `git checkout --` need approval. It also
+  rejects a `node -e` one-liner containing a newline followed by `#` — put
+  anything with markdown headings in a `Write`-created script file instead.
+  Use `Glob`/`Grep` over `find`/`ls`, `node -e` + `fs` for paths outside the
+  repo, one operation per call, and quote paths.
+- **Inline env-var prefixes are rejected** (`FOO=bar npx ...`). A web vitest run
+  needs a placeholder `/…/langfuse/.env.test` (`web/vitest.config.mts` loads
+  `../.env.test`; `cp .env.test.example` is not enough) with `DATABASE_URL`,
+  `DIRECT_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, `SALT`, `ENCRYPTION_KEY`
+  (64 hex), the three `CLICKHOUSE_*`, `REDIS_CONNECTION_STRING` — even for
+  client tests. **Delete it before finishing.**
+- **`pnpm` and `turbo` are NOT installed in this sandbox** (confirmed 09-21 —
+  `which` finds only `node`), and CLAUDE.md forbids `./node_modules/.bin/*`.
+  So `turbo run build --dry=json` is unavailable: verify a turbo/filter change
+  by **deriving the task closure statically** — read `pnpm-workspace.yaml`
+  globs, each `package.json`'s internal deps, then walk `^build` from the
+  selected set. Label it in the issue as a static derivation, not a turbo run.
+  `turbo.json` is JSONC: strip `//` lines before `JSON.parse`.
+- **A `--filter=!<app>` exclusion does NOT drop that app's workspace deps**
+  (09-21). `--filter=!worker` still built `@langfuse/native#build`, because
+  the addon is itself a selected workspace package with a build script. Exclude
+  every package you mean to exclude, and prove it with the closure script.
 - DB connectivity is a STANDING blocked condition: `host.docker.internal` →
   `EAI_AGAIN` since 08-03 (upstream github/gh-aw#52140, github/gh-aw-firewall#7268).
   Don't re-attempt DB-backed verification until one closes. Consequence: every
   top slowest file in both suites is DB-backed, so mining ends at "cannot verify".
-- `.svg` files DO persist in repo memory (`charts/` holds 9; verified 09-14).
-  The checkout being current (`HEAD..origin/main` = 0) is what makes in-sandbox
-  verification possible — check it first, every run. `missing_tool`/
-  `missing_data` safe outputs have worked cleanly since 08-03.
+- `.svg` files DO persist in repo memory (`charts/` holds 10). The checkout
+  being current (`HEAD..origin/main` = 0) is what makes in-sandbox verification
+  possible — check it first, every run.

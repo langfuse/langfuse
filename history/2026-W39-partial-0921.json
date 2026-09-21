@@ -1,0 +1,243 @@
+{
+  "window": {
+    "from": "2026-09-15",
+    "to": "2026-09-21",
+    "kind": "trailing-7-days",
+    "tz": "UTC"
+  },
+  "windowRule": "Trailing 7 calendar days ending today (UTC). Zero-run days omitted from charts.",
+  "isoWeekNote": "2026-09-21 is Monday of ISO W39; the window spans W38 Tue-Sun plus W39 Mon. Labelled by the end dates ISO week per the existing -partial- convention.",
+  "generatedAt": "2026-09-21",
+  "firstCleanComparison": "TRUE. This is the first window that does not overlap a previously reported one. The delta vs 2026-W38-partial-0914 is the first genuinely independent week-over-week number since W37, as that report predicted.",
+  "population": {
+    "timing": "successful merge_group runs only",
+    "vitest": "merge_group + pull_request, never push/main",
+    "excluded": "failed and cancelled runs excluded from all analysis, counted separately"
+  },
+  "runCounts": {
+    "2026-09-15": {
+      "merge_group_success": 34,
+      "merge_group_failed": 6,
+      "sampled": 6
+    },
+    "2026-09-16": {
+      "merge_group_success": 32,
+      "merge_group_failed": 2,
+      "sampled": 6
+    },
+    "2026-09-17": {
+      "merge_group_success": 35,
+      "merge_group_failed": 2,
+      "sampled": 6
+    },
+    "2026-09-18": {
+      "merge_group_success": 24,
+      "merge_group_failed": 1,
+      "sampled": 6
+    },
+    "2026-09-19": {
+      "merge_group_success": 0,
+      "note": "Friday with zero merge_group runs. Validated against an unfiltered fetch: plenty of pull_request runs that day, no merge_group. Real, not a stale-filter artifact. Omitted from charts."
+    },
+    "2026-09-20": {
+      "merge_group_success": 1,
+      "merge_group_failed": 0,
+      "sampled": 1,
+      "note": "thin day, below the >=5/day bar; charted but excluded from the weekly aggregate"
+    },
+    "2026-09-21": {
+      "merge_group_success": 0,
+      "note": "today, partial; zero merge_group runs so far. Omitted from charts."
+    },
+    "total": {
+      "success": 126,
+      "failed": 11
+    }
+  },
+  "dailyMedians": {
+    "2026-09-15": {
+      "n": 6,
+      "perceived": 246,
+      "execution": 234.5,
+      "runnerWait": 16,
+      "webBuildStep": 48,
+      "webRunTestsStep": 73,
+      "workerRunTestsStep": 66.5,
+      "e2eTestsJob": 197
+    },
+    "2026-09-16": {
+      "n": 6,
+      "perceived": 196,
+      "execution": 186.5,
+      "runnerWait": 5.5,
+      "webBuildStep": 47,
+      "webRunTestsStep": 68.5,
+      "workerRunTestsStep": 72.5,
+      "e2eTestsJob": 175
+    },
+    "2026-09-17": {
+      "n": 6,
+      "perceived": 224,
+      "execution": 211.5,
+      "runnerWait": 12,
+      "webBuildStep": 48,
+      "webRunTestsStep": 72.5,
+      "workerRunTestsStep": 75,
+      "e2eTestsJob": 197.5
+    },
+    "2026-09-18": {
+      "n": 6,
+      "perceived": 244,
+      "execution": 224,
+      "runnerWait": 16,
+      "webBuildStep": 48,
+      "webRunTestsStep": 71.5,
+      "workerRunTestsStep": 72,
+      "e2eTestsJob": 168
+    },
+    "2026-09-20": {
+      "n": 1,
+      "perceived": 202,
+      "execution": 187,
+      "runnerWait": 15,
+      "webBuildStep": 45,
+      "webRunTestsStep": 70,
+      "workerRunTestsStep": 70,
+      "e2eTestsJob": 185,
+      "thin": true
+    }
+  },
+  "denseDays": [
+    "2026-09-15",
+    "2026-09-16",
+    "2026-09-17",
+    "2026-09-18"
+  ],
+  "thinDaysExcludedFromAggregate": [
+    "2026-09-20"
+  ],
+  "weeklyAggregate": {
+    "perceived": 234,
+    "execution": 217.8,
+    "runnerWait": 14,
+    "webBuildStep": 48,
+    "webRunTestsStep": 72,
+    "workerRunTestsStep": 72.3,
+    "e2eTestsJob": 186,
+    "unit": "s",
+    "method": "median of dense (n>=5) daily medians"
+  },
+  "pooledPercentiles": {
+    "perceived": {
+      "p50": 222,
+      "p90": 300.2
+    },
+    "execution": {
+      "p50": 207,
+      "p90": 289
+    },
+    "runnerWait": {
+      "p50": 15,
+      "p90": 17
+    },
+    "webBuildStep": {
+      "p50": 47,
+      "p90": 61.2
+    },
+    "webRunTestsStep": {
+      "p50": 72,
+      "p90": 82.8
+    },
+    "workerRunTestsStep": {
+      "p50": 72,
+      "p90": 80.2
+    },
+    "e2eTestsJob": {
+      "p50": 184,
+      "p90": 259.6
+    },
+    "n": 25
+  },
+  "vsW38partial0914": {
+    "perceived": "186.3 -> 234 (+25.6%)",
+    "execution": "170.3 -> 217.8 (+27.9%)",
+    "runnerWait": "16.8 -> 14 (-16.7%)",
+    "webBuildStep": "47 -> 48 (+2.1%)",
+    "webRunTestsStep": "67.5 -> 72 (+6.7%)",
+    "workerRunTestsStep": "71.3 -> 72.3 (+1.4%)",
+    "e2eTestsJob": "155.5 -> 186 (+19.6%)"
+  },
+  "regressionCheck": {
+    "verdict": "REAL REGRESSION, execution-bound not queue-bound",
+    "evidence": "runnerWait fell 16.7% while execution rose 27.9%. No sustained intra-week drift (daily perceived 246/196/224/244 is noisy-flat), so this is a week-over-week step, not in-week creep."
+  },
+  "localization": {
+    "step1": "execution minus e2e is only 2-22s per day, so e2e-tests now effectively IS the entire critical path. The previously documented ~84s of shard slack has widened to ~114s. The standing do-not-mine-the-shards rule is stronger than ever.",
+    "step2": "Within e2e, all growth is in the Build step. Median 42s pre-window (09-11/13/14, values 42/42/48) -> 69s this week (n=25), +64%. Run e2e tests moved 47 -> 49s (+4%, flat). tests-web Build stayed ~43 -> 47s (flat). Neither Playwright nor the vitest shards.",
+    "correctedError": "An earlier pass filtered printed steps to >=3s and concluded the e2e install dependencies step was ABSENT on fast runs, implying pnpm cache misses were a driver. Wrong. Measured unconditionally, the step is always present, just <=1s when cached (25/25 this week, 3/3 pre-window). It is not a discriminator. The corrected conclusion is narrower and stronger: the regression is entirely in the Build step."
+  },
+  "causeAnalysis": {
+    "verdict": "CONFIRMED BY CONFIG, not just correlation",
+    "mechanism": "The e2e-tests job Build step runs pnpm run build --filter=!ai-gateway, a full turbo build, on a 4vCPU blacksmith runner. worker depends on @langfuse/native, and @langfuse/native is also selected directly by that filter. turbo.json pins @langfuse/native#build to cache:false with outputs:[], so turbo can never replay it: a cargo --release build runs on every single e2e run. The e2e job has no Rust toolchain setup step, so rustup is triggered implicitly inside Build.",
+    "authorsRationale": "The turbo.json comment reads: napi build compiles a host-specific binary and Cargo already caches incrementally in target/, so never replay this task from the turbo cache. That premise holds on a developer laptop where target/ persists. On an ephemeral CI runner target/ does not persist and no cargo cache action exists, so the reasoning does not carry over to CI.",
+    "timeline": [
+      "1a2d1f211 2026-09-15T12:32:33Z feat(worker): add Rust native addon scaffold (@langfuse/native) (#17062) - lands on the windows first day",
+      "8505c9e32 2026-09-15T17:16:58Z ci: install Rust toolchains before parallel builds (#17502)",
+      "49c8e009d 2026-09-16T14:51:43Z chore(worker): Avoid native build during lint (#17551) - team already hit native-build slowness in the lint job and excluded it there; direct precedent for this weeks suggested diff"
+    ],
+    "splitAroundCommit": "prior window 42s (n=3, all <50s); 09-15 pre-#17062 52s (n=3, [122,35,52]); post-#17062 71.5s (n=22), only 4/22 runs under 50s vs 3/3 pre-window.",
+    "honestCaveats": [
+      "The single worst outlier (09-15T07:55, Build 122s) PREDATES #17062.",
+      "The pre-window baseline is only n=3.",
+      "No Rust toolchain step is visible in the e2e job, and the 120-line log tail did not reach Build-step content, so cargo/napi execution inside that step is inferred from the turbo graph and package config, not read off a log line."
+    ],
+    "exonerated": "bb65111ff chore(ci): dont write next build cache always (#17292) (09-10). The 09-11/13/14 runs are all post-#17292 and all fast (Build 42-48s)."
+  },
+  "vitestAnalysis": {
+    "runsSampled": 5,
+    "shardLogsWithReporterBlock": 3,
+    "shortfall": "Only 3 of the 5 sampled runs yielded a vitest reporter block. Two tails (worker 09-20, web 09-17) were deliberately shortened to protect context for filing and caught only post-job cleanup. The zero-retry claim below therefore rests on n=3, not n=5.",
+    "runs": [
+      {
+        "job": 105613792165,
+        "day": "2026-09-18",
+        "shard": "tests-web (node24, pg15, mode)"
+      },
+      {
+        "job": 104361401875,
+        "day": "2026-09-15",
+        "shard": "tests-web (node24, pg15, mode-azure)"
+      },
+      {
+        "job": 104752682240,
+        "day": "2026-09-16",
+        "shard": "tests-worker (node24, pg15, mode-azure)"
+      }
+    ],
+    "retriedTests": {
+      "count": 0,
+      "detail": "No Retried tests (N): block in any of the 3 shard logs with a reporter block. In each case Slowest test files runs straight into Post job cleanup., the reporters zero-retry signature. Third consecutive week at zero."
+    },
+    "flakyWatchlist": {
+      "admin-api-keys.servertest.ts > invalidates all cached API keys without deleting other redis entries": "Did NOT recur. Still 2 lifetime occurrences (2026-09-04 and earlier). Dropped from active tracking on 09-14; keep parked."
+    },
+    "workerShardTotals": "185 files passed | 1 skipped (186), 2418 tests passed | 16 skipped (2434), duration 70.50s",
+    "newSlowTestObservation": "src/__tests__/traceBatching.test.ts is the standout worker outlier: a single test at 12.08s and 13.42s summed across 38 tests, roughly 4x the next slowest single test. Recent feature area (17561cdc2 feat(trace-batching)). Worth a look, but it is inside the worker shard which has ~114s of slack, so fixing it would not move the headline."
+  },
+  "suggestedDiff": {
+    "included": true,
+    "theme": "Stop building the Rust addon in the e2e job",
+    "file": ".github/workflows/pipeline.yml",
+    "verification": "Static derivation of the turbo build closure from pnpm-workspace.yaml + each package.json + turbo.json, run in-sandbox. pnpm and turbo are not installed in this sandbox, so turbo run build --dry=json could not be invoked; the closure was reproduced from config instead.",
+    "verificationResult": "CURRENT --filter=!ai-gateway selects 7 build tasks including @langfuse/native#build and worker#build. PROPOSED --filter=!ai-gateway --filter=!worker --filter=!@langfuse/native selects 5, dropping both, and still retains web#build, @langfuse/ee#build, @langfuse/shared#build, @repo/eslint-plugin#build and @repo/in-app-agent-sandbox-runtime#build.",
+    "caughtDuringVerification": "Excluding only worker is NOT sufficient. @langfuse/native is itself a selected workspace package with a build script, so it survives a worker-only exclusion. Both filters are required.",
+    "safety": "web/playwright.config.ts starts webServer with npm run start in web only. The e2e suite never loads the worker or the native addon."
+  },
+  "structuralWasteReportOnly": "The turbo cache reservation race persists: Failed to save: Unable to reserve cache with key Linux-X64-node24-turbo-ci-<hash>, another job may be creating this cache. Report-only, since any fix lives in .github/workflows/**.",
+  "followUps": [
+    "Verify next week whether the suggested e2e filter change (if applied) returns e2e Build to ~42-48s and perceived to ~190s. That is the falsifiable prediction.",
+    "If the filter change is rejected, the alternative lever is making @langfuse/native#build cacheable in turbo.json with declared outputs. Do not propose it casually: the cache:false was deliberate and caching a host-specific binary across differing runner images is genuinely risky. It would help every job that builds the worker, not just e2e.",
+    "Read an e2e Build step log with a large enough slice to actually see cargo/napi output, to convert the cause from config-inferred to log-confirmed.",
+    "Zero retried tests for a third consecutive week. Consider reducing flaky sampling effort and reallocating it to segment analysis."
+  ]
+}
