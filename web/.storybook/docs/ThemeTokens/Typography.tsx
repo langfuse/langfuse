@@ -293,7 +293,7 @@ export function Typography() {
 
         <PageSection
           title="Type scale"
-          blurb="Each size carries its weight and its line-height. leading-* is for single-line chrome only."
+          blurb="Each size carries its weight and its line-height: the three text sizes share 1.5, display sizes tighten to 1.35 and below. leading-* is for single-line chrome only."
           aside={<InlineCode>{sizeTokens.length} sizes</InlineCode>}
         >
           <div className="flex flex-col">
