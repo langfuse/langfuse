@@ -8,7 +8,7 @@ import {
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
 
-export default function Session() {
+export default function SessionDetailPage() {
   const route = useReadyRouteParams(["projectId", "sessionId"]);
   const { isV4 } = useReadPath();
 

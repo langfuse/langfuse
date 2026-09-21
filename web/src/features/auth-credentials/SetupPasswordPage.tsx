@@ -16,8 +16,13 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
   };
 };
 
-const Page = ({ passwordResetAvailable }: PageProps) => {
-  return <ResetPasswordPage passwordResetAvailable={passwordResetAvailable} />;
-};
-
-export default Page;
+export default function SetupPasswordPage({
+  passwordResetAvailable,
+}: PageProps) {
+  return (
+    <ResetPasswordPage
+      passwordResetAvailable={passwordResetAvailable}
+      intent="setup"
+    />
+  );
+}

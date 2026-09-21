@@ -1,13 +1,14 @@
 import ContainerPage from "@/src/components/layouts/container-page";
 import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
+import { RouteParamsPendingFallback } from "@/src/hooks/useReadyRouteParams";
 import { useRouter } from "next/router";
 
-export default function WebCalloutsSettings() {
+export default function WebCalloutsPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
 
   if (!projectId) {
-    return null;
+    return <RouteParamsPendingFallback />;
   }
 
   return (

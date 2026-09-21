@@ -2,7 +2,7 @@ import { ErrorPageWithSentry } from "@/src/components/error-page";
 import { isExpectedAuthErrorPageMessage } from "@/src/features/auth/lib/expectedAuthErrors";
 import { useRouter } from "next/router";
 
-export default function AuthError() {
+export default function AuthErrorPage() {
   const router = useRouter();
   const { error } = router.query;
   const errorMessage = error

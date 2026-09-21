@@ -19,6 +19,6 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   };
 };
 
-export default function RedirectPage() {
+export default function DatasetRedirectPage() {
   return <div>Redirecting...</div>;
 }
