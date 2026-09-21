@@ -1,6 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type Job } from "bullmq";
 import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+import { type Job } from "bullmq";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
+import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
+import {
+  getCurrentSpan,
   getTraceBatchEventStream,
   logger,
   QueueJobs,
@@ -11,6 +23,8 @@ import {
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { tokenCountAsync } from "../../features/tokenisation/async-usage";
+import { tokenCount } from "../../features/tokenisation/usage";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -19,17 +33,43 @@ import {
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getTraceBatchEventStream: vi.fn(),
+  getCurrentSpan: vi.fn(),
   recordDistribution: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
 }));
 
+// Exercise real tokenization without starting the compiled worker-thread pool.
+vi.mock("../../features/tokenisation/async-usage", () => ({
+  tokenCountAsync: vi.fn(async (params) => tokenCount(params)),
+}));
+
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
 const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 const originalExperimentId = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID;
+const processingSpan = trace.wrapSpanContext({
+  traceId: "0123456789abcdef0123456789abcdef",
+  spanId: "0123456789abcdef",
+  traceFlags: 1,
+});
+const exporter = new tracing.InMemorySpanExporter();
+const sdk = new NodeSDK({
+  spanProcessors: [new tracing.SimpleSpanProcessor(exporter)],
+  autoDetectResources: false,
+  instrumentations: [],
+});
+beforeAll(() => sdk.start());
+afterAll(async () => {
+  await sdk.shutdown();
+  trace.disable();
+  context.disable();
+});
 beforeEach(() => {
+  exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+  vi.mocked(getCurrentSpan).mockReturnValue(processingSpan);
+  vi.spyOn(processingSpan, "setAttributes");
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
@@ -40,7 +80,242 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it.each([false, true])(
+    "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
+    async (streamFails) => {
+      let resolveFirst!: (tokens: number) => void;
+      let rejectSecond!: (error: Error) => void;
+      let cleaningUp = false;
+      vi.mocked(tokenCountAsync)
+        .mockImplementationOnce(
+          () => new Promise<number>((resolve) => (resolveFirst = resolve)),
+        )
+        .mockImplementationOnce(() =>
+          cleaningUp
+            ? Promise.resolve(0)
+            : new Promise<number>((_, reject) => (rejectSecond = reject)),
+        );
+      let suppliedThirdTrace = false;
+      let reachedEnd = false;
+      let settled = false;
+      const failure = new Error("stream failed");
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const [index, traceId] of ["a", "b", "b", "c"].entries()) {
+            if (traceId === "c") suppliedThirdTrace = true;
+            yield {
+              project_id: "project",
+              trace_id: traceId,
+              span_id: `span-${index}`,
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: traceId === "c" ? "SPAN" : "GENERATION",
+              name: "generation",
+              input: "hello",
+              output: "world",
+              metadata: {},
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+          }
+          reachedEnd = true;
+          if (streamFails) throw failure;
+        },
+      );
+      const job = {
+        data: {
+          id: "bounded-tokenization",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["a", "b", "c"].map((traceId) => ({
+              projectId: "project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+      const processing = context
+        .with(trace.setSpan(context.active(), processingSpan), () =>
+          traceBatchQueueProcessor(job, undefined),
+        )
+        .then(
+          (result) => ({ result, error: undefined }),
+          (error: unknown) => ({ result: undefined, error }),
+        );
+      void processing.then(() => (settled = true));
+      try {
+        // While a is being tokenized, all of b can arrive. At c's boundary,
+        // processing waits for a before submitting b to the tokenizer pool.
+        await vi.waitFor(() => expect(suppliedThirdTrace).toBe(true));
+        expect(reachedEnd).toBe(false);
+        expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+        expect(exporter.getFinishedSpans()).toHaveLength(0);
+        resolveFirst(100);
+        await vi.waitFor(() => expect(reachedEnd).toBe(true));
+        expect(tokenCountAsync).toHaveBeenCalledTimes(2);
+        expect(settled).toBe(false);
+        // An unavailable token estimate must not retry a whole batch or mask
+        // the original stream failure; its promise is drained before returning.
+        rejectSecond(new Error("token count timed out"));
+        const outcome = await processing;
+        expect(outcome.error).toBe(streamFails ? failure : undefined);
+        const spans = exporter.getFinishedSpans();
+        expect(spans).toHaveLength(streamFails ? 2 : 3);
+        expect(spans[0].attributes).toMatchObject({
+          "langfuse.trace.id": "a",
+          "langfuse.trace_batch.transcript_tokens": 100,
+        });
+        expect(spans[1].attributes).toMatchObject({
+          "langfuse.trace.id": "b",
+          "langfuse.trace_batch.token_estimation": "failed",
+        });
+        expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
+        expect(spans[1].attributes).not.toHaveProperty(
+          "langfuse.trace_batch.transcript_tokens",
+        );
+        expect(
+          spans[1].attributes["langfuse.trace_batch.transcript_characters"],
+        ).toBeGreaterThan(0);
+        for (const span of spans) {
+          expect(span.parentSpanContext?.spanId).toBe(
+            processingSpan.spanContext().spanId,
+          );
+        }
+        expect(recordIncrement).toHaveBeenCalledWith(
+          "langfuse.trace_batch.token_estimation_failed",
+          1,
+        );
+        expect(
+          vi
+            .mocked(recordDistribution)
+            .mock.calls.filter(
+              ([name]) =>
+                name === "langfuse.trace_batch.transcript_assembly_duration_ms",
+            ),
+        ).toHaveLength(streamFails ? 2 : 3);
+      } finally {
+        cleaningUp = true;
+        resolveFirst?.(100);
+        rejectSecond?.(new Error("test cleanup"));
+        await processing;
+      }
+    },
+  );
+  it("assembles each tenant's trace at the boundary and EOF, tokenizing only the transcript", async () => {
+    const userMessage = { role: "user", content: "first question" };
+    const answer = { role: "assistant", content: "first answer" };
+    const row = {
+      project_id: "a",
+      trace_id: "shared-trace",
+      span_id: "first",
+      parent_span_id: null,
+      start_time: "2026-09-11 00:00:00.000000",
+      event_ts: "2026-09-11 00:00:00.000000",
+      type: "GENERATION",
+      name: "generation",
+      input: JSON.stringify([userMessage]),
+      output: JSON.stringify(answer),
+      metadata: {},
+      tool_definitions: {},
+      tool_calls: [],
+      tool_call_names: [],
+    };
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      // SQL groups traces but does not order observations within a trace.
+      yield {
+        ...row,
+        span_id: "second",
+        start_time: "2026-09-11 00:01:00.000000",
+        input: JSON.stringify([
+          userMessage,
+          answer,
+          { role: "user", content: "second question" },
+        ]),
+        output: JSON.stringify({ role: "assistant", content: "second answer" }),
+      };
+      yield row;
+      expect(tokenCountAsync).not.toHaveBeenCalled();
+      yield { ...row, project_id: "b", type: "SPAN" };
+      // The first trace is processed before requesting more stream rows.
+      expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+      yield { ...row, project_id: "b", type: "SPAN", span_id: "second" };
+    });
+    const job = {
+      data: {
+        id: "transcripts",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["a", "b"].map((projectId) => ({
+            projectId,
+            traceId: "shared-trace",
+            minStart: 0,
+            maxStart: 1,
+            revision: "r",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+    await traceBatchQueueProcessor(job, undefined);
+    const estimates = vi.mocked(tokenCountAsync).mock.calls;
+    expect(estimates).toHaveLength(1);
+    const serializedTranscript = JSON.stringify(estimates[0][0].text);
+    for (const content of [
+      "first question",
+      "first answer",
+      "second question",
+      "second answer",
+    ]) {
+      expect(serializedTranscript.split(content)).toHaveLength(2);
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      tokenCount(estimates[0][0]),
+      { tokenizer: "o200k_base" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tokens",
+      0,
+      { tokenizer: "o200k_base" },
+    );
+    for (const hasTranscript of ["true", "false"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.transcript_assembly_duration_ms",
+        expect.any(Number),
+        { has_transcript: hasTranscript },
+      );
+    }
+    const spans = exporter.getFinishedSpans();
+    expect(spans).toHaveLength(2);
+    for (const [index, projectId] of ["a", "b"].entries()) {
+      const span = spans[index];
+      expect(span.name).toBe("trace-batch-transcript");
+      expect(span.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "langfuse.trace.id": "shared-trace",
+        "langfuse.trace_batch.observation_count": 2,
+        "langfuse.trace_batch.has_transcript": index === 0,
+        "langfuse.trace_batch.transcript_tokens":
+          index === 0 ? tokenCount(estimates[0][0]) : 0,
+        "langfuse.trace_batch.transcript_characters":
+          index === 0 ? serializedTranscript.length : 0,
+        "langfuse.trace_batch.transcript_assembly_duration_ms":
+          expect.any(Number),
+      });
+      const url = new URL(String(span.attributes["langfuse.trace.url"]));
+      expect(url.pathname).toBe(`/project/${projectId}/traces`);
+      expect(url.searchParams.get("peek")).toBe("shared-trace");
+      expect(JSON.stringify(span.attributes)).not.toContain("first question");
+    }
+  });
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
+    env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "discarded-read";
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const job = {
       opts: {},
@@ -62,6 +337,14 @@ describe("trace batch queue", () => {
     );
     expect(recordGauge).not.toHaveBeenCalled();
     expect(job.opts.removeOnComplete).toBe(true);
+    expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ "langfuse.trace_batch.outcome": "discard" }),
+    );
+    expect(processingSpan.setAttributes).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        "langfuse.trace_batch.observation_count": expect.any(Number),
+      }),
+    );
   });
 
   it("discards an expired batch before querying, including on retry", async () => {
@@ -117,6 +400,16 @@ describe("trace batch queue", () => {
     const log = vi.spyOn(logger, "info").mockImplementation(() => logger);
     const failure = new Error("query failed");
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.batch_trace_count": 2,
+          "langfuse.trace_batch.batch_project_count": 2,
+          "langfuse.trace_batch.event_time_span_ms": 11_000,
+          "langfuse.trace_batch.max_trace_span_ms": 3_000,
+        }),
+      );
+      // Completion must annotate the processing span captured before child work.
+      vi.mocked(getCurrentSpan).mockReturnValue(undefined);
       yield {
         project_id: "project",
         trace_id: "trace",
@@ -167,11 +460,36 @@ describe("trace batch queue", () => {
       await expect(traceBatchQueueProcessor(job, undefined)).rejects.toBe(
         failure,
       );
+      expect(tokenCountAsync).not.toHaveBeenCalled();
       expect(getTraceBatchEventStream).toHaveBeenCalledWith(payload, {
         maxThreads: 1,
         maxBlockSize: 512,
         experimentId: "arm-b",
         queryId: expect.any(String),
+      });
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.experiment_id": "arm-b",
+          "langfuse.trace_batch.job_id": "batch-job",
+          "langfuse.trace_batch.attempt": 2,
+        }),
+      );
+      expect(processingSpan.setAttributes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          "langfuse.trace_batch.query_id": vi.mocked(getTraceBatchEventStream)
+            .mock.lastCall![1]!.queryId,
+        }),
+      );
+      expect(processingSpan.setAttributes).toHaveBeenLastCalledWith({
+        "langfuse.trace_batch.outcome": "failure",
+        "langfuse.trace_batch.duration_ms": expect.any(Number),
+        "langfuse.trace_batch.observation_count": 1,
+        "langfuse.trace_batch.found_trace_count": 1,
+        "langfuse.trace_batch.found_project_count": 1,
+        "langfuse.trace_batch.input_bytes": 5,
+        "langfuse.trace_batch.output_bytes": 6,
+        "langfuse.trace_batch.metadata_bytes": 9,
+        "langfuse.trace_batch.partial": true,
       });
       expect(log).toHaveBeenCalledWith(
         "Trace batch experiment read",
@@ -396,6 +714,17 @@ describe("trace batch queue", () => {
         expect.anything(),
       );
       expect(yieldedRows).toBe(8);
+      expect(processingSpan.setAttributes).toHaveBeenLastCalledWith({
+        "langfuse.trace_batch.outcome": "success",
+        "langfuse.trace_batch.duration_ms": expect.any(Number),
+        "langfuse.trace_batch.observation_count": 4,
+        "langfuse.trace_batch.found_trace_count": 3,
+        "langfuse.trace_batch.found_project_count": 2,
+        "langfuse.trace_batch.input_bytes": 20,
+        "langfuse.trace_batch.output_bytes": 24,
+        "langfuse.trace_batch.metadata_bytes": 36,
+        "langfuse.trace_batch.partial": false,
+      });
       expect(log).toHaveBeenCalledWith(
         "Trace batch experiment read completed",
         expect.objectContaining({
@@ -450,6 +779,8 @@ describe("trace batch queue", () => {
   it.each([true, false])(
     "normalizes persisted single-project jobs and counts returned projects (has rows: %s)",
     async (hasRows) => {
+      env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = hasRows ? undefined : "no-span";
+      if (!hasRows) vi.mocked(getCurrentSpan).mockReturnValue(undefined);
       const trace = {
         traceId: "trace",
         minStart: 1_000,
@@ -495,6 +826,7 @@ describe("trace batch queue", () => {
         metadataBytes: 0,
         ioMetadataBytes: hasRows ? 10 : 0,
       });
+      expect(processingSpan.setAttributes).not.toHaveBeenCalled();
       expect(recordDistribution).toHaveBeenCalledWith(
         "langfuse.trace_batch.input_bytes",
         hasRows ? 5 : 0,

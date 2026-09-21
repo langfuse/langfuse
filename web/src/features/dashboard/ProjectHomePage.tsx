@@ -3,14 +3,19 @@ import { api } from "@/src/utils/api";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import {
+  PopoverFilterBuilder,
+  useQueryFilterState,
+  MultiSelect,
+} from "@/src/features/filters";
+
 import {
   LANGFUSE_HOME_DASHBOARD_DEFINITION,
   LANGFUSE_HOME_DASHBOARD_ID,
   type ColumnDefinition,
   type FilterState,
 } from "@langfuse/shared";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
+
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
@@ -19,17 +24,14 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import Page from "@/src/components/layouts/page";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import {
-  useReadPath,
-  type ResolvedReadPath,
-} from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -40,13 +42,13 @@ import {
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
 
 // Controller: no widget query may fire before the session resolves the v3/v4

@@ -9,7 +9,7 @@ import {
   ModelLastUsedQueryResult,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

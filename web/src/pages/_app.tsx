@@ -49,6 +49,8 @@ import "streamdown/styles.css";
 // See: https://github.com/facebook/react/issues/11538
 // See also: https://issues.chromium.org/issues/41407169
 if (typeof window !== "undefined") {
+  installStaleChunkReloadListener();
+
   const originalRemoveChild = Element.prototype.removeChild;
   const originalInsertBefore = Element.prototype.insertBefore;
 
@@ -82,23 +84,24 @@ if (typeof window !== "undefined") {
 }
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
-import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
-import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
+import { InAppAiAgentProvider } from "@/src/features/in-app-agent";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { ScoreCacheProvider } from "@/src/features/scores";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  V4_BETA_ENABLED_POSTHOG_PROPERTY,
   getPostHogClientConfig,
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
-} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+} from "@/src/features/posthog-analytics";
 
 // Session replay is a Langfuse Cloud feature, so self-hosted never records.
 // The product-analytics gate makes this redundant in HIPAA (PostHog is not

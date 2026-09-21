@@ -46,3 +46,5 @@ export {
   type CommentRange,
   type CommentedPathsByField,
 } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
+
+export { default as TracesTable } from "@/src/features/traces/TracesTable";

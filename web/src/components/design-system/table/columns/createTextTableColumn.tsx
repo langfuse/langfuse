@@ -22,8 +22,9 @@ type TextTableColumnOptions<TData extends RowData, TValue> = TableColumnOptions<
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
   mapValue,
+  nullValue,
   ...options
-}: TextTableColumnOptions<TData, TValue>) {
+}: TextTableColumnOptions<TData, TValue> & { nullValue?: string }) {
   const loadingCell = <Skeleton className="h-4 w-1/2" />;
 
   return createTableColumn<TData, TValue>({
@@ -32,7 +33,13 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
     renderCell: (value, context) => {
       const text = mapValue ? mapValue(value, context) : value;
 
-      if (text === null || text === undefined) return null;
+      if (text === null || text === undefined) {
+        return nullValue ? (
+          <span className="block w-full truncate" title={nullValue}>
+            {nullValue}
+          </span>
+        ) : null;
+      }
       if (typeof text !== "string") return loadingCell;
 
       return (

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.38.0",
+  "version": "4.41.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -27,7 +27,8 @@
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts",
-    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts"
+    "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts",
+    "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec.integration"
   },
   "author": "engineering@langfuse.com",
   "dependencies": {
@@ -58,6 +59,7 @@
     "@prisma/instrumentation": "^6.19.3",
     "ai-sdk-amazon-bedrock-v4": "npm:@ai-sdk/amazon-bedrock@4.0.81",
     "ai-sdk-anthropic-v4": "npm:@ai-sdk/anthropic@3.0.111",
+    "ai-sdk-google-vertex-v4": "npm:@ai-sdk/google-vertex@4.0.186",
     "ai-sdk-openai-compatible-v4": "npm:@ai-sdk/openai-compatible@3.0.3",
     "ai-sdk-openai-v4": "npm:@ai-sdk/openai@3.0.99",
     "bullmq": "^5.76.3",

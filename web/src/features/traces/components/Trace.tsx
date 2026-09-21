@@ -17,7 +17,7 @@ import {
 } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
-import { TraceSummaryStrip } from "@/src/features/traces/components/TraceSummaryStrip";
+import { TraceHeader } from "@/src/features/traces/components/TraceHeader";
 import { TracePanelNavigation } from "@/src/features/traces/components/TracePanelNavigation";
 import { TracePanelDetail } from "@/src/features/traces/components/TracePanelDetail";
 import { TracePanelNavigationLayoutDesktop } from "@/src/features/traces/components/TracePanelNavigationLayoutDesktop/TracePanelNavigationLayoutDesktop";
@@ -202,8 +202,8 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <TraceSummaryStrip />
+    <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
+      <TraceHeader />
       <div className="min-h-0 flex-1">{panels}</div>
     </div>
   );

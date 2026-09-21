@@ -1,6 +1,7 @@
 # Internal cloud trace-batch experiment
 
-This read-only experiment measures full-event reads for idle traces. It requires
+This read-only experiment measures full-event reads and transcript assembly for
+idle traces. It requires
 `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. All four enablement
 flags below default to `false`; an ordinary release needs no infrastructure
 changes. These internal controls are intentionally absent from env templates.
@@ -102,6 +103,101 @@ Queries use response compression and chunked multipart parameters for up to
 rather than accepting partial results. This does not cap observation count,
 query memory or dispatcher snapshot memory.
 
+## Per-trace transcripts
+
+The reader orders only by project ID and trace ID. The worker keeps
+one trace's observations, assembles it when the pair changes, and flushes the last
+trace only after a successful end of stream. A stream error discards the current
+partial trace; earlier completed traces have already emitted samples. Each trace
+uses the shared depth-first ordering and transcript assembler. Transcripts are
+ephemeral: neither logs nor job results contain their content.
+
+Completion means all rows returned for that pair's query window, not that no late
+events can arrive. Event versions follow the current ClickHouse merge state;
+the shared ordering function keeps one observation per ID. Retries can repeat
+per-trace samples.
+
+These distributions use the `langfuse.trace_batch` prefix:
+
+| Metric | Sample |
+| --- | --- |
+| `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
+| `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
+
+Transcript token counts use the existing local worker-thread pool and bundled
+tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
+selects `o200k_base`, also used by GPT-5 mini and nano
+([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)); metrics are tagged
+`tokenizer:o200k_base`. These are serialized-payload estimates, not provider
+billing counts or a model's full request framing.
+Unknown estimates are omitted and counted in `token_estimation_unavailable`.
+Rejected estimates increment `token_estimation_failed` and omit the token sample;
+they do not retry the batch. Only the assembled transcript is tokenized.
+
+The worker submits one transcript for tokenization while streaming the next
+trace's observations. Before submitting another transcript it awaits the previous
+promise, keeping at most one pending token estimate per batch. Success and stream
+failure both drain accepted promises; a stream failure never assembles its
+partial final trace. Assembly itself remains synchronous. `read_duration_ms`
+includes all this processing.
+
+Memory includes the current trace, the previous transcript being tokenized and
+stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
+The default two-thread tokenizer pool is shared with ingestion; overlap hides
+waiting time but does not remove CPU use or contention. Its existing 30-second
+timeout rejects the promise without cancelling queued/running encoding, so the
+pending-promise bound is not a cancellation guarantee. Watch tokenization failures
+alongside `runtime.node.mem.rss`, `runtime.node.mem.heap_used`, worker
+CPU and queue depth before raising batch concurrency.
+
+ClickHouse must sort the filtered result, so compare query memory and latency against the unordered
+baseline before increasing load.
+
+Enable percentile aggregations for these distribution metrics in Datadog
+Metrics Summary, then select p50, p75, p90, p95 and p99 in Metrics Explorer.
+Datadog computes these across workers; do not average worker percentiles.
+See [Datadog distributions](https://docs.datadoghq.com/metrics/distributions/).
+Metric delivery and percentile configuration must be verified after deployment.
+
+### Inspect individual transcripts in Datadog
+
+Each completed trace emits a `trace-batch-transcript` child span under the batch
+processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
+and `langfuse.trace.url` (a peek link using the configured product base URL).
+Under `langfuse.trace_batch`, the span records `transcript_tokens`, `transcript_characters`,
+`transcript_assembly_duration_ms`, `observation_count` (rows before observation
+deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
+No transcript content is attached, and IDs are not distribution metric tags.
+`transcript_characters` measures the complete transcript JSON's JavaScript string
+length (UTF-16 code units, including JSON syntax), or zero for a null transcript.
+It is recorded before tokenization, so remains available if token estimation fails.
+Only recording spans serialize this extra temporary copy; it is not retained
+while tokenization runs or included in the assembly-duration measurement.
+
+The span stays open until token estimation settles, so its duration includes
+tokenization and pool waits. Use the assembly-duration attribute for assembly
+performance. Missing estimates have `token_estimation:unavailable|failed` and no
+token count; null transcripts have zero tokens. The child span does not become
+active while the next trace streams, and failed streams do not emit a span for
+their partial final trace.
+
+In Datadog APM Trace Explorer, search for:
+
+```text
+env:prod-eu service:worker-cpu resource_name:trace-batch-transcript @langfuse.trace_batch.transcript_tokens:>=100000
+```
+
+Add token count as a numeric measure to sort largest first, display the project
+and trace IDs, and open `langfuse.trace.url`. The peek view shows the current
+source observations, not a saved copy of the measured transcript. Late arrivals
+and retries can produce different or repeated samples for the same trace.
+
+These spans follow existing APM ingestion sampling and retention. Configure a
+[custom retention filter](https://docs.datadoghq.com/tracing/trace_pipeline/trace_retention/)
+at 100% for the outlier query to keep matching ingested spans searchable. This
+cannot recover spans dropped before ingestion. Distribution metrics remain
+independent and cannot identify a historical sample's trace retroactively.
+
 ## Capacity measurements
 
 The following metrics use the `langfuse.trace_batch` prefix. All additions are
@@ -170,6 +266,19 @@ the requested batch was empty. Successful counts cover the completed stream,
 not unique ingested events. Discarded/unparsed jobs omit stream counters.
 Use these existing logs to compare batch shape and volume across outcomes by
 query ID; no payload contents, project-ID lists or per-batch metric tags are added.
+
+With an experiment ID, the BullMQ processing span also carries attributes under
+`langfuse.trace_batch.*`: `experiment_id`, `job_id`, `attempt` (one-based),
+`query_id`, `batch_trace_count`, `batch_project_count`, `event_time_span_ms`,
+and `max_trace_span_ms`. Shape and query ID are attached before reading, so they
+remain available if the stream fails. Completion adds `outcome`, `duration_ms`,
+`observation_count`, `found_trace_count`, `found_project_count`, `input_bytes`,
+`output_bytes`, `metadata_bytes`, and `partial`, with the same semantics as the
+logs. Discards and validation failures omit query/stream fields. These reuse
+existing aggregates without additional queries or serialization. Payloads and
+project/trace-ID lists are not attached. Dispatcher size estimates remain aggregate
+metrics, not per-job span attributes; consumed bytes are not estimated total size.
+Span availability follows the existing tracing sampling and retention settings.
 
 For the initial scaling curve, use deterministic trace sampling at 10%, 20%,
 50%, then 100% across the same project population. Annotate fixed UTC windows;

@@ -6,6 +6,7 @@
  * - Title row with ItemBadge, trace name, options menu
  * - Action buttons (Dataset, Annotate, Queue, Comments)
  * - Metadata badges (timestamp, environment, release, version, target trace)
+ * - Trace-level score chips
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
@@ -27,8 +28,10 @@ import {
 } from "@/src/features/datasets";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
-import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import {
+  AnnotationQueueItemDropdownMenuController,
+  AnnotationQueueItemCountBadge,
+} from "@/src/features/annotation-queues";
 import {
   EnvironmentBadge,
   ReleaseBadge,

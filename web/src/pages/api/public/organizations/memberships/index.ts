@@ -6,9 +6,7 @@ import {
   handleUpdateMembership,
   handleDeleteMembership,
 } from "@/src/ee/features/admin-api/server/memberships";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeOrgError } from "@/src/features/public-api/server/writeError";
-
+import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 

@@ -6,9 +6,9 @@
 import { useRouter } from "next/router";
 import { useMemo } from "react";
 import type { Session } from "next-auth";
-import { useEntitlements } from "@/src/features/entitlements/hooks";
+import { useEntitlements } from "@/src/features/entitlements";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
 import {
   ROUTES,
@@ -147,7 +147,7 @@ export function useFilteredNavigation(
   return useMemo(() => {
     const mapRouteToNavigationItem = (route: Route): NavigationItem => {
       const pathname = resolveRoutePathname({
-        pathname: route.pathname,
+        pathname: route.href,
         legacyPathname: route.legacyPathname,
         v4Enabled: session?.user?.v4BetaEnabled === true,
         forceV3Experience,
@@ -164,12 +164,13 @@ export function useFilteredNavigation(
       return {
         ...route,
         url,
-        isActive:
-          isPathActive(route.pathname, router.pathname) ||
-          Boolean(
-            route.legacyPathname &&
-            isPathActive(route.legacyPathname, router.pathname),
-          ),
+        isActive: route.isActive
+          ? route.isActive(router.pathname)
+          : isPathActive(route.href, router.pathname) ||
+            Boolean(
+              route.legacyPathname &&
+              isPathActive(route.legacyPathname, router.pathname),
+            ),
         items: items && items.length > 0 ? items : undefined,
       };
     };

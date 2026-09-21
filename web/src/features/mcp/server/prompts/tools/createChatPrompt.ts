@@ -148,6 +148,7 @@ export const [createChatPromptTool, handleCreateChatPrompt] = defineTool({
       fn: async (span) => {
         const createdPrompt = await createPromptForApi({
           context,
+          ctx: context.auth,
           input: CreatePromptSchema.parse({
             name: input.name,
             type: PromptType.Chat,

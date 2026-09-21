@@ -1,8 +1,9 @@
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { useJsonBetaToggle } from "@/src/features/traces/hooks/useJsonBetaToggle";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
 
-export type ViewMode = "pretty" | "json" | "json-beta";
+export type ViewMode = JsonViewPreference;
 
 export interface ViewModeToggleProps {
   selectedView: ViewMode;

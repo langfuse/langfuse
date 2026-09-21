@@ -1,6 +1,17 @@
 /* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import {
+  useEventsSearchBar,
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
+
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -55,15 +66,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  buildAiContext,
-  EventsSearchBarRow,
-  filterStateToQueryText,
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  useSearchBarEnabled,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar";
+
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
@@ -75,7 +78,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   getRowHeightIOCharLimit,
   useRowHeightLocalStorage,
@@ -101,7 +104,7 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
 import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
@@ -111,17 +114,18 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  useSelectAll,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -132,6 +136,7 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
@@ -153,8 +158,7 @@ import { MobileFullTextSearch } from "@/src/features/events/components/MobileFul
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
-import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
@@ -167,7 +171,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 
 export type EventsTableRow = {
   // Identity fields
@@ -506,12 +510,15 @@ export default function ObservationsEventsTable({
   // Facets describe the whole window (see facetStartTimeFilter below); the paged
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
-  const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(
-      dateRange,
-      limitRows ? 0 : paginationState.page - 1,
-      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
-    );
+  const {
+    range: rowsDateRange,
+    pinOnLeavingFirstPage,
+    resetPin,
+  } = usePaginationWindowPin(
+    dateRange,
+    limitRows ? 0 : paginationState.page - 1,
+    { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+  );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -908,6 +915,15 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
+    tableDataScope: {
+      projectId,
+      filter:
+        externalFilterState ??
+        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      searchQuery,
+      searchType,
+      timeRange: externalDateRange ?? timeRange,
+    },
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
@@ -1658,6 +1674,12 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewSelected: () => {
+      resetPin();
+      setPaginationState({ ...paginationState, page: 1 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
     onViewApplied: (viewState) =>
       resetSearchBarDraft({
         filters: projectFiltersForSearchBar(viewState.filters),

@@ -15,7 +15,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/utils";
+} from "@/src/features/feature-flags/server";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -82,7 +82,7 @@ import {
   canToggleV4,
   isV4UpgradeUiAvailable,
 } from "@/src/features/events/lib/v4Rollout";
-import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { canCreateOrganizations } from "@/src/features/organizations/server";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
