@@ -74,6 +74,38 @@ function setupSplitEcho() {
 }
 
 describe("useEventsSearchBar.commit", () => {
+  it("retries the applied query by ID while preserving visible and hidden filters", () => {
+    const filters: FilterState = [
+      ...NEW_FILTERS,
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "all of",
+        value: ["synthetic-scope"],
+      },
+    ];
+    const query = "trace_checkout";
+    const { result, setFilterState, setSearchQuery, setSearchType } = setup({
+      filterState: filters,
+      searchQuery: query,
+      searchType: ["content"],
+    });
+    act(() => result.current.store.getState().actions.setDraft("unfinished:"));
+    act(() => result.current.applySearchType(["id"]));
+
+    expect(setSearchType).toHaveBeenCalledWith(["id"]);
+    expect(setSearchQuery).toHaveBeenCalledWith(query);
+    expect(setFilterState).toHaveBeenCalledWith(filters);
+    expect(result.current.store.getState().draft).toContain(`ids:${query}`);
+    expect(result.current.store.getState().draft).not.toContain("unfinished");
+    expect(capture).toHaveBeenCalledTimes(1);
+    expect(capture).toHaveBeenCalledWith(
+      "filters:search_submitted",
+      expect.objectContaining({ searchType: ["id"], trigger: "pick" }),
+    );
+    expect(JSON.stringify(capture.mock.calls)).not.toContain(query);
+  });
+
   it("keeps a mixed commit intact while the filter echoes before the search URL", () => {
     const { result, rerender, setSearchQuery } = setupSplitEcho();
 

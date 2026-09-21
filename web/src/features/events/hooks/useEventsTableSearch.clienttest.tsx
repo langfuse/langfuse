@@ -75,7 +75,7 @@ describe("embedded events search scopes", () => {
     expect(setSearchQuery).toHaveBeenCalledWith("refund");
   });
 
-  it("keeps the full-page grammar's original full-text default", () => {
+  it("searches only payloads for a new full-page free-text query", () => {
     const setSearchType = vi.fn();
     const { result } = renderHook(() =>
       useEventsSearchBar({
@@ -94,6 +94,6 @@ describe("embedded events search scopes", () => {
     );
     act(() => result.current.store.getState().actions.setDraft("refund"));
     act(() => result.current.commit("enter"));
-    expect(setSearchType).toHaveBeenCalledWith(["id", "content"]);
+    expect(setSearchType).toHaveBeenCalledWith(["content"]);
   });
 });

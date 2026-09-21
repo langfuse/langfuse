@@ -51,17 +51,19 @@ Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none.
 
-**Full-text search.** Each registry declares `defaultSearchType` and
+**Search scopes.** Each registry declares `defaultSearchType` and
 `searchScopes`. The adapter writes the existing `searchQuery` / `searchType`
 contract; it does not introduce backend filter columns or change matching rules.
 
 - **Bare text** (`refund policy`) is one phrase in the registry's default
-  scope. Full Events uses `['id', 'content']`; metadata-first hosts use `['id']`.
+  scope. Full Events uses `['content']` to search input/output without IDs or
+  names; metadata-first hosts use `['id']`.
 - **`content:"refund policy"`** searches only the declared content lane.
   For Events this is input/output; for Prompts it is the prompt body; for
   Dataset Items it includes input, expected output, and metadata.
 - **`all:"refund policy"`** uses `['id', 'content']`, including the host's
-  IDs/names lane. This preserves the additive Full Text dropdown choice.
+  IDs/names lane. Existing mixed-scope search URLs and saved views keep this
+  scope when reopened.
 - **`ids:<value>`** searches the Events IDs/names lane without input/output.
   A complete 16/32-character hex ID or UUID preselects this suggestion. Custom
   ID prefixes (`trace_`, `span_`, `obs_`, `observation_`, `session_`, `user_`,
@@ -70,6 +72,8 @@ contract; it does not introduce backend filter columns or change matching rules.
   Detection only ranks suggestions for a whole bare-text run; explicit scopes
   and existing filters keep their meaning. Hosts already defaulting to the
   IDs/names lane keep bare text, and the full-text alternative stays available.
+  An ID-like payload search with no results offers **Search as ID instead**,
+  preserving the query and existing filters.
 - **`input:` / `output:`** remain real string column filters on V4 Events,
   supporting comparisons such as exact/glob matches and negation. On legacy
   tracing and Dataset Items, registries instead declare them as search scopes
@@ -94,9 +98,9 @@ and is never offered in normal autocomplete. It cannot combine with a second
 `in:` or another scope token.
 
 Autocomplete offers only the registry's search scopes and supported V4 payload
-column rewrites, with host-specific descriptions. SQL search remains one
-`ILIKE %query%` phrase across an OR union of selected columns; V4's existing
-fast IO search also applies its token prefilter. Search operators are not
+column rewrites, with host-specific descriptions. SQL search remains one phrase
+across an OR union of selected columns; V4 matches span/trace IDs exactly and
+applies its token prefilter to input/output text. Search operators are not
 silently translated between these backend search lanes and column filters.
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit

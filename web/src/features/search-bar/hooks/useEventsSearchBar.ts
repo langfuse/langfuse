@@ -140,6 +140,7 @@ export function useEventsSearchBar({
   store: SearchBarStore;
   commit: SearchCommit;
   applyFilters: (filters: FilterState) => void;
+  applySearchType: (searchType: TracingSearchType[]) => string | null;
   resetDraft: (state: {
     filters: FilterState;
     searchQuery: string | null;
@@ -423,5 +424,15 @@ export function useEventsSearchBar({
     ],
   );
 
-  return { store, commit, applyFilters, resetDraft };
+  const applySearchType = (searchType: TracingSearchType[]) => {
+    const applied = appliedStateRef.current;
+    resetDraft({
+      filters: applied.filters,
+      searchQuery: applied.query,
+      searchType,
+    });
+    return commit("pick");
+  };
+
+  return { store, commit, applyFilters, applySearchType, resetDraft };
 }

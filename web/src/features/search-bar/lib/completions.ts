@@ -28,6 +28,7 @@ import {
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { idSearchConfidence } from "./id-search";
 import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
 import {
@@ -131,7 +132,7 @@ export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
 const SECTION_KEYS = "Observed keys";
 const SECTION_SCORE_NAMES = "Score names";
-const SECTION_SEARCH_IN = "Full-text search";
+const SECTION_SEARCH_IN = "Search scopes";
 
 const MAX_RECENTS_SHOWN = 5;
 const MAX_PRESETS_SHOWN = 10;
@@ -1205,8 +1206,8 @@ function freeTextRun(
   return { from, to, text };
 }
 
-// The full-text scopes the bar can switch a value between. `default` is bare
-// free text (ids, names, input & output); input:/output: are the scoped forms.
+// The search scopes the bar can switch a value between. `default` is bare
+// text in the host's default scope; declared scopes select other search lanes.
 type FullTextScope = string;
 
 // Switch options that move a full-text value between scopes, carrying the value
@@ -1278,27 +1279,6 @@ function scopeSwitchOptions(
     insert: d.insert,
     replaceSpan: span,
   }));
-}
-
-function idSearchConfidence(value: string): "high" | "low" | null {
-  // Complete trace/span IDs and UUIDs are strong signals. Custom identifiers
-  // are only suggestions: a prefix or mixed string can also be ordinary text.
-  if (
-    /^(?:[0-9a-f]{16}|[0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(
-      value,
-    )
-  )
-    return "high";
-  if (
-    /^(?:trace|span|obs|observation|session|user)[_-][a-z0-9][a-z0-9_-]*$/i.test(
-      value,
-    ) ||
-    (/^[a-z0-9][a-z0-9_-]{15,}$/i.test(value) &&
-      /[a-z]/i.test(value) &&
-      /[0-9]/.test(value))
-  )
-    return "low";
-  return null;
 }
 
 /**

@@ -37,17 +37,17 @@ describe("planCommit", () => {
       },
     ]);
     expect(r.searchQuery).toBe("timeout");
-    // Bare free text uses the default scope: ids+names+input+output.
-    expect(r.searchType).toEqual(["id", "content"]);
+    // Bare free text searches input and output.
+    expect(r.searchType).toEqual(["content"]);
     // Canonical text preserves the parsed (typed) order.
     expect(r.canonical).toBe("level:ERROR timeout");
   });
 
-  it("applies the default searchType (ids+names+input+output)", () => {
+  it("applies the payload search default", () => {
     const r = planCommit("level:ERROR");
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;
-    expect(r.searchType).toEqual(["id", "content"]);
+    expect(r.searchType).toEqual(["content"]);
     expect(r.searchQuery).toBeNull();
   });
 

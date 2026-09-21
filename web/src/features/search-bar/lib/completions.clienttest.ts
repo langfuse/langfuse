@@ -534,20 +534,20 @@ describe("planInputCompletions", () => {
   it("offers scoped full-text rewrites for free text, default scope first", () => {
     const p = plan("refund", 6);
     const opts = flattenOptions(p);
-    // The typed text itself (default scope = ids+names+input+output) is the
+    // The typed text itself (default scope = input/output) is the
     // first option — the anchor — ahead of the input:/output: rewrites.
     expect(opts[0]).toMatchObject({ id: "scope:default", label: "refund" });
     const labels = opts.map((o) => o.label);
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");
-    // Explicit content excludes IDs/names; all preserves the complete scope.
-    expect(labels).toContain("content:refund");
-    expect(labels).not.toContain("all:refund");
+    // Content duplicates the default; all adds the IDs/names lane.
+    expect(labels).not.toContain("content:refund");
+    expect(labels).toContain("all:refund");
     expect(
       flattenOptions(plan("", 0)).some(
         (option) => option.kind === "field" && option.fieldId === "all",
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(validateQuery("all:refund").valid).toBe(true);
   });
 
@@ -575,7 +575,7 @@ describe("planInputCompletions", () => {
     if (fullText.kind !== "pattern")
       throw new Error("Expected a scope suggestion");
     expect(planCommit(applyPick(fullText, input, p!).next)).toMatchObject({
-      searchType: ["id", "content"],
+      searchType: ["content"],
     });
   });
 
@@ -587,7 +587,7 @@ describe("planInputCompletions", () => {
       expect(p?.autoHighlight).toBe(false);
       expect(planCommit(input)).toMatchObject({
         searchQuery: input,
-        searchType: ["id", "content"],
+        searchType: ["content"],
       });
     },
   );
@@ -742,8 +742,9 @@ describe("planInputCompletions", () => {
       expect.arrayContaining(["scope:output", "scope:default"]),
     );
     expect(ids).not.toContain("scope:input");
-    // content: was removed — never offered as a switch target.
-    expect(ids).toContain("scope:content");
+    // The bare default already targets content; all adds the IDs/names lane.
+    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:all");
     const toOutput = opts.find((o) => o.id === "scope:output");
     expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
       "output:abc",
@@ -905,7 +906,8 @@ describe("planInputCompletions", () => {
       expect.arrayContaining(["scope:input", "scope:default"]),
     );
     expect(ids).not.toContain("scope:output");
-    expect(ids).toContain("scope:content");
+    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:all");
   });
 
   it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {
