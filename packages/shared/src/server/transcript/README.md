@@ -2,8 +2,7 @@
 
 PLEASE DO NOT USE IN PRODUCTION YET. This is a v1 implementation of the transcript builder and remains work in progress.
 
-Builds a conversation transcript from the observations of one trace, or of
-every trace in one session.
+Builds a conversation transcript from the observations of one trace.
 
 Status: generation-led builder with tool responses matched by ID or name and order.
 
@@ -13,13 +12,17 @@ Status: generation-led builder with tool responses matched by ID or name and ord
 ## Interface
 
 ```ts
-getTranscript(
-  observations: Observation[]
-): Transcript | null;
+orderObservations(observations: Observation[]): Observation[];
+assembleTranscript(orderedObservations: Observation[]): Transcript | null;
 
 type Transcript = { threads: Thread[] };
 
 type Thread = {
+  conversationHistory: NormalizedMessage[]; // replayed from earlier turns, no provenance
+  currentTurn: Turn;
+};
+
+type Turn = {
   messages: ThreadMessage[];
   observations: { id: string; traceId: string }[]; // observations that contributed, in order
 };
@@ -30,14 +33,46 @@ type ThreadMessage = NormalizedMessage & {
 };
 ```
 
-The input is the domain `Observation` (see `domain/observations.ts`), which
-the repositories produce from ClickHouse rows. Returns `null` when no eligible
-generations produce messages.
+Consumers load the domain `Observation`s (see `domain/observations.ts`)
+themselves, order them with `orderObservations`, and hand them to
+`assembleTranscript`, which consumes the given order and returns `null` when
+no eligible generations produce messages. For one trace, read it through
+`getObservationsForTraceFromEventsTable`, the same repository function and
+time bounds the trace tree uses: once for the structure of every observation
+without I/O, once for the `GENERATION` and `TOOL` observations with I/O, then
+merge the two by id so the walk order comes from the structure and the
+messages from the content.
+
+## Ordering
+
+The transcript walks observations the way the trace tree does: depth first,
+with roots and siblings by start time. That differs from plain start-time order
+when a span that started earlier contains a generation that started later than
+a sibling span's generation. `orderObservations` produces this order from the
+full structure, following the web tree builder's rules: one row per id with the
+earliest start winning, and a row whose parent is missing becomes a root. The
+assembler never sorts; callers, including the fixtures test, order first.
 
 A **transcript** contains the conversation threads inferred from the supplied
 observations. A **thread** is a sequence of messages connected by shared input
 history; it can span multiple traces. The consumer handles multiple threads
 and decides which, if any, is the main conversation.
+
+## Conversation history and current turn
+
+A trace is one turn. The input its generations replay from earlier turns, up
+to and including the last assistant or tool message before the trace's first
+output, is `conversationHistory` without provenance; everything after it is
+`currentTurn`, each message with the observation that emitted it.
+
+```
+input:   User: Refund my order.
+         Assistant: [refund call]
+         Tool: Refund succeeded.
+         Assistant: Your refund is complete.   <- conversation history ends here
+         User: When will it arrive?
+output:  Assistant: Within five business days.
+```
 
 ## Which observations contribute?
 
@@ -49,9 +84,9 @@ and decides which, if any, is the main conversation.
   Unknown explicit IDs do not fall back to names; unmatched tools are skipped.
   Preserve all normalized output parts; tool inputs are ignored. Provider-specific
   payload interpretation belongs to normalized IO, not the transcript builder.
-- The caller supplies observations from one trace or session. The builder
-  orders generations and tools by start time across the supplied traces.
-- Each observation is normalized once in this chronological pass. Generations
+- The caller supplies one trace's observations, already in transcript order
+  (see Ordering).
+- Each observation is normalized once in this ordered pass. Generations
   establish threads and register output tool-call IDs; tools enrich registered
   calls. Input messages are processed before output messages for generations.
 - Generations producing no messages are skipped and do not create empty threads.
@@ -145,26 +180,26 @@ and observation provenance are excluded. All fields inside parts are included.
 ```
 transcript/
 ├── README.md
-├── index.ts               getTranscript
+├── index.ts               public surface: assembleTranscript, orderObservations, types
+├── ordering.ts            orderObservations, the trace tree walk
+├── ordering.test.ts       ordering rules
+├── transcript.ts          assembleTranscript
 ├── threads.ts             thread selection and message deduplication
 ├── tool-calls.ts          tool matching and response association
-├── types.ts               Transcript, Thread, ThreadMessage
+├── types.ts               Transcript, Thread, Turn, ThreadMessage
 └── fixtures/
-    ├── README.md          how to turn a trace JSON export into a fixture
     ├── fixture-types.ts   TranscriptFixture
     ├── format-transcript.ts  chat-shaped printout used by the test
-    ├── index.ts           registry: trace-scoped and session-scoped fixtures
+    ├── index.ts           registry of fixtures
     ├── fixtures.test.ts   structural checks and behavior assertion per fixture
-    ├── trace/             one file per trace-scoped fixture
-    └── session/           one file per session-scoped fixture
+    └── trace/             one file per fixture
 ```
 
 ## Fixtures and verification
 
-Fixtures contain observation trees and an optional expected transcript.
-**Fixtures with `expected: undefined` exercise parsing and structural checks,
-but do not verify transcript correctness.** Their printed output is for manual
-review; expectations are authored by hand once the desired behavior is decided.
+Each fixture is one trace with an expected transcript, which the test asserts
+as a whole. Fixtures whose generations replay earlier turns pin the split
+between conversation history and current turn.
 
 Run with console output enabled to see it:
 

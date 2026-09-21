@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { claimed, unmatched } from "../..";
 import {
   asRecord,
@@ -273,6 +274,49 @@ const normalizeOpenAiResponsesCustomToolCall: PartHandler = (value) =>
 const normalizeOpenAiReasoningText: PartHandler = (value) =>
   claimed(reasoningPart(value.text));
 
+function isReasoningTextArray(
+  value: unknown,
+  expectedType: "summary_text" | "reasoning_text",
+): boolean {
+  if (!Array.isArray(value)) return false;
+
+  return value.every((entry) => {
+    const part = asRecord(entry);
+    return part?.type === expectedType && typeof part.text === "string";
+  });
+}
+
+const normalizeOpenAiReasoning: PartHandler = (value, context) => {
+  if (!isReasoningTextArray(value.summary, "summary_text")) {
+    return unmatched;
+  }
+
+  const hasInvalidContent =
+    value.content !== undefined &&
+    !isReasoningTextArray(value.content, "reasoning_text");
+
+  if (hasInvalidContent) {
+    return unmatched;
+  }
+
+  const encryptedContent = value.encrypted_content;
+  const isValidEncryptedContent =
+    encryptedContent === undefined ||
+    encryptedContent === null ||
+    typeof encryptedContent === "string";
+
+  if (!isValidEncryptedContent) {
+    return unmatched;
+  }
+
+  // Text-based reasoning belongs to the shared handler.
+  if (value.text !== undefined) {
+    return unmatched;
+  }
+
+  return claimed(openAiReasoningParts(value, [], context));
+};
+
 const OPENAI_PART_HANDLERS = {
   function: normalizeOpenAiFunctionCall,
   function_call: normalizeOpenAiFunctionCall,
@@ -285,6 +329,7 @@ const OPENAI_PART_HANDLERS = {
   input_file: normalizeOpenAiInputFile,
   refusal: normalizeOpenAiRefusal,
   reasoning_text: normalizeOpenAiReasoningText,
+  reasoning: normalizeOpenAiReasoning,
   summary_text: normalizeOpenAiReasoningText,
   mcp_call: normalizeOpenAiMcpCall,
   ...Object.fromEntries(
@@ -354,25 +399,35 @@ function openAiCollectSiblingParts(
   if (audioPart) parts.push(audioPart);
 
   if (value.type === "reasoning") {
-    const reasoningValues = (
-      baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
-    )
-      .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
-      .filter((entry) => entry !== undefined && entry !== null);
-    parts.push(...context.normalizePartList(reasoningValues));
-
-    const encryptedContent = optionalString(value.encrypted_content);
-    if (encryptedContent) {
-      parts.push({
-        type: "reasoning",
-        content: { kind: "encrypted", data: encryptedContent },
-      });
-    }
+    parts.push(...openAiReasoningParts(value, baseParts, context));
   }
 
   return parts.length > 0
     ? [{ sourceKey: "openai.siblings", slot: "after-tool-calls", parts }]
     : [];
+}
+
+function openAiReasoningParts(
+  value: Record<string, unknown>,
+  baseParts: readonly NormalizedMessagePart[],
+  context: { normalizePartList(values: unknown[]): NormalizedMessagePart[] },
+): NormalizedMessagePart[] {
+  const parts: NormalizedMessagePart[] = [];
+  const reasoningValues = (
+    baseParts.length === 0 ? [value.summary, value.content] : [value.summary]
+  )
+    .flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .filter((entry) => entry !== undefined && entry !== null);
+  parts.push(...context.normalizePartList(reasoningValues));
+
+  const encryptedContent = optionalString(value.encrypted_content);
+  if (encryptedContent) {
+    parts.push({
+      type: "reasoning",
+      content: { kind: "encrypted", data: encryptedContent },
+    });
+  }
+  return parts;
 }
 
 /**
