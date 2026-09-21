@@ -345,10 +345,10 @@ export const TestCompactsTokenCounts = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(
         "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
       ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
+    ).find((pill) => pill.textContent?.trim().endsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent(/^tokens\s*655k$/);
+    await expect(tokenPill).toHaveTextContent(/^655k\s*tokens$/);
   },
 });
 

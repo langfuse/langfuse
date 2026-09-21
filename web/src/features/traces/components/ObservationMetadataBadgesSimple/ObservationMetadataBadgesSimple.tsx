@@ -14,13 +14,7 @@ export function LatencyBadge({
 }) {
   if (latencySeconds == null) return null;
 
-  return (
-    <Badge
-      color="ghost"
-      label="latency"
-      text={formatIntervalSeconds(latencySeconds)}
-    />
-  );
+  return <Badge color="ghost" text={formatIntervalSeconds(latencySeconds)} />;
 }
 
 export function TimeToFirstTokenBadge({

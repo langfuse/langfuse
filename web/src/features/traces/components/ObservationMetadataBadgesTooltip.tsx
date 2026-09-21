@@ -32,12 +32,7 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge
-        color="ghost"
-        interactive
-        label="cost"
-        text={usdFormatter(totalCost)}
-      />
+      <Badge color="ghost" interactive text={usdFormatter(totalCost)} />
     </BreakdownTooltip>
   );
 }
@@ -56,13 +51,13 @@ export function UsageBadge({
   const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
 
   if (tokenText && !hasBreakdown(usageDetails)) {
-    return <Badge color="ghost" text={tokenText} />;
+    return <Badge color="ghost" text={`${tokenText} tokens`} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
       {tokenText ? (
-        <Badge color="ghost" interactive label="tokens" text={tokenText} />
+        <Badge color="ghost" interactive text={`${tokenText} tokens`} />
       ) : (
         <BadgeShell color="ghost" interactive aria-label="View usage breakdown">
           tokens

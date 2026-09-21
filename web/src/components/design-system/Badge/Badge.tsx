@@ -78,6 +78,7 @@ export function Badge({
   text,
   label,
   title,
+  interactive,
   trailingIcon: TrailingIcon,
   trailingIconTone = "default",
   ...props
@@ -86,7 +87,11 @@ export function Badge({
     <BadgeShell color={color} {...props}>
       {label && <span className="shrink-0">{label}</span>}
       <span
-        className="overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap"
+        className={cn(
+          "overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap",
+          interactive &&
+            "decoration-border-contrast underline underline-offset-4",
+        )}
         title={title ?? text}
       >
         {text}

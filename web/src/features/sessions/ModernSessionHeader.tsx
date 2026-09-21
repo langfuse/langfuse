@@ -413,8 +413,8 @@ export function ModernSessionHeader({
         <Badge
           color="ghost"
           data-session-header-pill="true"
-          label="p50"
           text={formatIntervalSeconds(p50LatencyMs / 1000)}
+          title="p50 latency"
         />
       ),
     });
@@ -435,8 +435,7 @@ export function ModernSessionHeader({
             color="ghost"
             interactive
             data-session-header-pill="true"
-            label="tokens"
-            text={compactTokenFormatter(totalTokens)}
+            text={`${compactTokenFormatter(totalTokens)} tokens`}
           />
         </BreakdownTooltip>
       ),
@@ -452,7 +451,6 @@ export function ModernSessionHeader({
       <Badge
         color="ghost"
         data-session-header-pill="true"
-        label="cost"
         text={usdFormatter(totalCost, 2, 3)}
         title={`exact $${totalCost.toFixed(6)}`}
       />
@@ -570,7 +568,7 @@ export function ModernSessionHeader({
   };
 
   return (
-    <div className="bg-header border-b px-4 py-2">
+    <div className="border-b px-4 py-2">
       <SingleLineOverflowList
         spacing="comfortable"
         items={visiblePills}
@@ -578,6 +576,7 @@ export function ModernSessionHeader({
           overflowUserDetails.length + manuallyHiddenPills.length
         }
         getKey={(pill) => pill.key}
+        isTightItem={(pill) => pill.type === "score"}
         renderItem={(pill) => (
           <SessionHeaderDetailWithVisibilityControl
             detail={pill}

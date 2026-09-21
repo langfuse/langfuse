@@ -67,7 +67,11 @@ export function TraceHeader() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
-        {traceScores.length > 0 && <GroupedScoreBadges scores={traceScores} />}
+        {traceScores.length > 0 && (
+          <div className="flex min-w-0 items-center gap-1">
+            <GroupedScoreBadges scores={traceScores} />
+          </div>
+        )}
         {trace.tags.length > 0 && (
           <div className="flex min-w-0 items-center gap-1">
             {visibleTags.map((tag) => (
