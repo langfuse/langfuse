@@ -383,7 +383,10 @@ export const env = createEnv({
 
     // langfuse caching
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
-    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
+    // Bounds how long a revoked API key can still authenticate. Entries are
+    // not refreshed on read, so a key stops working at most one TTL after its
+    // last cache write. Shared with the policy-core authz context cache.
+    LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(60),
 
     // The gateway data plane calls /resolve on every LLM request, so the
     // lookup is cached. The TTL bounds how long a revoked key or a disabled
