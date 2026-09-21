@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
 import {
   convertObservation,
+  getCurrentSpan,
   getTraceBatchEventStream,
   logger,
   recordDistribution,
@@ -27,6 +28,10 @@ export const traceBatchQueueProcessor: Processor<
   TQueueJobTypes[QueueName.TraceBatch]
 > = async (job) => {
   const startedAt = performance.now();
+  // Keep attributes on the processing span rather than a nested read span.
+  const span = env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID
+    ? getCurrentSpan()
+    : undefined;
   let outcome: "success" | "failure" | "discard" = "failure";
   let queryId: string | undefined;
   let batchShape:
@@ -44,6 +49,12 @@ export const traceBatchQueueProcessor: Processor<
   let outputBytes = 0;
   let metadataBytes = 0;
   try {
+    span?.setAttributes({
+      "langfuse.trace_batch.experiment_id":
+        env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
+      "langfuse.trace_batch.job_id": job.id,
+      "langfuse.trace_batch.attempt": job.attemptsMade + 1,
+    });
     const disabledReason = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
       ? "not_cloud"
       : env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true"
@@ -95,6 +106,14 @@ export const traceBatchQueueProcessor: Processor<
         eventTimeSpanMs: batch.traces.length ? maxStart - minStart : 0,
         maxTraceSpanMs,
       };
+      span?.setAttributes({
+        "langfuse.trace_batch.query_id": queryId,
+        "langfuse.trace_batch.batch_trace_count": batchShape.batchTraceCount,
+        "langfuse.trace_batch.batch_project_count":
+          batchShape.batchProjectCount,
+        "langfuse.trace_batch.event_time_span_ms": batchShape.eventTimeSpanMs,
+        "langfuse.trace_batch.max_trace_span_ms": batchShape.maxTraceSpanMs,
+      });
       logger.info("Trace batch experiment read", {
         ...queryOptions,
         jobId: job.id,
@@ -220,6 +239,21 @@ export const traceBatchQueueProcessor: Processor<
     };
   } finally {
     const durationMs = performance.now() - startedAt;
+    span?.setAttributes({
+      "langfuse.trace_batch.outcome": outcome,
+      "langfuse.trace_batch.duration_ms": durationMs,
+      ...(queryId
+        ? {
+            "langfuse.trace_batch.observation_count": observationCount,
+            "langfuse.trace_batch.found_trace_count": foundTraces.size,
+            "langfuse.trace_batch.found_project_count": foundProjects.size,
+            "langfuse.trace_batch.input_bytes": inputBytes,
+            "langfuse.trace_batch.output_bytes": outputBytes,
+            "langfuse.trace_batch.metadata_bytes": metadataBytes,
+            "langfuse.trace_batch.partial": outcome !== "success",
+          }
+        : {}),
+    });
     if (env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID) {
       logger.info("Trace batch experiment read completed", {
         experimentId: env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
