@@ -16,6 +16,10 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- OTEL event processing:
+  `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
+  after its legacy persistence path for event normalization, evaluation
+  scheduling, direct events-table writes, and trace-batch accounting.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
