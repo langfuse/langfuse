@@ -1,10 +1,15 @@
 import { type Model, type Observation } from "@langfuse/shared";
+import { SpanStatusCode } from "@opentelemetry/api";
 import {
   assembleTranscript,
+  buildTracesPath,
+  getProductBaseUrl,
+  getTracer,
   orderObservations,
   recordDistribution,
   recordIncrement,
 } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 import { tokenCountAsync } from "../tokenisation/async-usage";
 
 // A fixed tokenizer makes payload sizes comparable across models and projects.
@@ -29,35 +34,86 @@ const TOKENIZER_MODEL: Model = {
 export function recordTraceBatchTranscript(
   observations: Observation[],
 ): Promise<void> {
-  const startedAt = performance.now();
-  const transcript = assembleTranscript(orderObservations(observations));
-  recordDistribution(
-    "langfuse.trace_batch.transcript_assembly_duration_ms",
-    performance.now() - startedAt,
-    { has_transcript: String(transcript !== null) },
-  );
-
-  if (transcript === null) {
-    recordDistribution("langfuse.trace_batch.transcript_tokens", 0, {
-      tokenizer: "o200k_base",
+  // Inherit the batch parent without activating this span while the next trace streams.
+  const span = getTracer("trace-batch").startSpan("trace-batch-transcript", {
+    attributes: {
+      "langfuse.project.id": observations[0]?.projectId,
+      "langfuse.trace.id": observations[0]?.traceId ?? undefined,
+      "langfuse.trace_batch.observation_count": observations.length,
+      "langfuse.trace_batch.experiment_id":
+        env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID,
+      "langfuse.trace_batch.tokenizer": "o200k_base",
+    },
+  });
+  try {
+    if (span.isRecording() && env.NEXTAUTH_URL && observations[0]?.traceId) {
+      const { projectId, traceId } = observations[0];
+      span.setAttribute(
+        "langfuse.trace.url",
+        new URL(
+          buildTracesPath({ projectId, query: { peek: traceId } }).slice(1),
+          getProductBaseUrl(),
+        ).toString(),
+      );
+    }
+    const startedAt = performance.now();
+    const transcript = assembleTranscript(orderObservations(observations));
+    const assemblyDurationMs = performance.now() - startedAt;
+    recordDistribution(
+      "langfuse.trace_batch.transcript_assembly_duration_ms",
+      assemblyDurationMs,
+      { has_transcript: String(transcript !== null) },
+    );
+    span.setAttributes({
+      "langfuse.trace_batch.transcript_assembly_duration_ms":
+        assemblyDurationMs,
+      "langfuse.trace_batch.has_transcript": transcript !== null,
     });
-    return Promise.resolve();
-  }
 
-  // Returning only the tokenization promise lets the caller release observations
-  // and stream the next trace while the tokenizer thread processes its copy.
-  return tokenCountAsync({ model: TOKENIZER_MODEL, text: transcript })
-    .then((tokens) => {
-      if (tokens === undefined) {
-        recordIncrement("langfuse.trace_batch.token_estimation_unavailable", 1);
-        return;
-      }
-      recordDistribution("langfuse.trace_batch.transcript_tokens", tokens, {
+    if (transcript === null) {
+      recordDistribution("langfuse.trace_batch.transcript_tokens", 0, {
         tokenizer: "o200k_base",
       });
-    })
-    .catch(() => {
-      // A missing experiment metric must not retry all reads in the batch.
-      recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
+      span.setAttribute("langfuse.trace_batch.transcript_tokens", 0);
+      span.end();
+      return Promise.resolve();
+    }
+
+    // Callbacks capture only the span, releasing observations while the next trace streams.
+    return tokenCountAsync({ model: TOKENIZER_MODEL, text: transcript })
+      .then((tokens) => {
+        if (tokens === undefined) {
+          recordIncrement(
+            "langfuse.trace_batch.token_estimation_unavailable",
+            1,
+          );
+          span.setAttribute(
+            "langfuse.trace_batch.token_estimation",
+            "unavailable",
+          );
+          return;
+        }
+        recordDistribution("langfuse.trace_batch.transcript_tokens", tokens, {
+          tokenizer: "o200k_base",
+        });
+        span.setAttribute("langfuse.trace_batch.transcript_tokens", tokens);
+      })
+      .catch(() => {
+        // A missing experiment metric must not retry all reads in the batch.
+        recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
+        span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: "Token estimation failed",
+        });
+      })
+      .finally(() => span.end());
+  } catch (error) {
+    span.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: "Transcript assembly failed",
     });
+    span.end();
+    throw error;
+  }
 }

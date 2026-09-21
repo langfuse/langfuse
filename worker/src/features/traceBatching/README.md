@@ -159,6 +159,40 @@ Datadog computes these across workers; do not average worker percentiles.
 See [Datadog distributions](https://docs.datadoghq.com/metrics/distributions/).
 Metric delivery and percentile configuration must be verified after deployment.
 
+### Inspect individual transcripts in Datadog
+
+Each completed trace emits a `trace-batch-transcript` child span under the batch
+processing span. Its attributes include `langfuse.project.id`, `langfuse.trace.id`,
+and `langfuse.trace.url` (a peek link using the configured product base URL).
+Under `langfuse.trace_batch`, the span records `transcript_tokens`,
+`transcript_assembly_duration_ms`, `observation_count` (rows before observation
+deduplication), `has_transcript`, `tokenizer`, and `experiment_id`.
+No transcript content is attached, and IDs are not distribution metric tags.
+
+The span stays open until token estimation settles, so its duration includes
+tokenization and pool waits. Use the assembly-duration attribute for assembly
+performance. Missing estimates have `token_estimation:unavailable|failed` and no
+token count; null transcripts have zero tokens. The child span does not become
+active while the next trace streams, and failed streams do not emit a span for
+their partial final trace.
+
+In Datadog APM Trace Explorer, search for:
+
+```text
+env:prod-eu service:worker-cpu resource_name:trace-batch-transcript @langfuse.trace_batch.transcript_tokens:>=100000
+```
+
+Add token count as a numeric measure to sort largest first, display the project
+and trace IDs, and open `langfuse.trace.url`. The peek view shows the current
+source observations, not a saved copy of the measured transcript. Late arrivals
+and retries can produce different or repeated samples for the same trace.
+
+These spans follow existing APM ingestion sampling and retention. Configure a
+[custom retention filter](https://docs.datadoghq.com/tracing/trace_pipeline/trace_retention/)
+at 100% for the outlier query to keep matching ingested spans searchable. This
+cannot recover spans dropped before ingestion. Distribution metrics remain
+independent and cannot identify a historical sample's trace retroactively.
+
 ## Capacity measurements
 
 The following metrics use the `langfuse.trace_batch` prefix. All additions are
