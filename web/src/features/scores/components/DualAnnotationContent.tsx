@@ -41,7 +41,7 @@ export function DualAnnotationContent({
     analyticsData: { type: "trace", source: "TraceDetail", isV4 },
   });
   return (
-    <div className="flex max-h-[95vh] flex-col overflow-y-auto [--annotation-surface:var(--modal)]">
+    <div className="flex max-h-[95vh] flex-col overflow-y-auto">
       {observation.isLoading || trace.isLoading ? (
         <Skeleton className="h-full w-full" />
       ) : (
