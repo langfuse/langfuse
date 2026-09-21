@@ -118,6 +118,80 @@ describe("scores trpc", () => {
   });
 
   describe("scores.all", () => {
+    it("preserves evaluator-test filters for score rows and counts on both read paths", async () => {
+      const scores = [
+        createTraceScore({
+          project_id: projectId,
+          name: "missing-test-marker",
+          metadata: {},
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "false-test-marker",
+          metadata: { evaluator_test: "false" },
+        }),
+        createTraceScore({
+          project_id: projectId,
+          name: "true-test-marker",
+          metadata: { evaluator_test: "true" },
+        }),
+      ];
+      await createScoresCh(scores);
+
+      for (const { operator, value, expectedIds } of [
+        {
+          operator: "=" as const,
+          value: false,
+          expectedIds: [scores[0].id, scores[1].id],
+        },
+        {
+          operator: "=" as const,
+          value: true,
+          expectedIds: [scores[2].id],
+        },
+        {
+          operator: "<>" as const,
+          value: true,
+          expectedIds: [scores[0].id, scores[1].id],
+        },
+        {
+          operator: "<>" as const,
+          value: false,
+          expectedIds: [scores[2].id],
+        },
+      ]) {
+        const payload = {
+          projectId,
+          filter: [
+            {
+              column: "isEvaluatorTest",
+              type: "boolean" as const,
+              operator,
+              value,
+            },
+          ],
+          orderBy: { column: "timestamp", order: "DESC" as const },
+          page: 0,
+          limit: 50,
+        };
+        const [rows, eventRows, count, eventCount] = await Promise.all([
+          caller.scores.all(payload),
+          caller.scores.allFromEvents(payload),
+          caller.scores.countAll({ ...payload, orderBy: null }),
+          caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+        ]);
+
+        expect(rows.scores.map(({ id }) => id).sort()).toEqual(
+          [...expectedIds].sort(),
+        );
+        expect(eventRows.scores.map(({ id }) => id).sort()).toEqual(
+          [...expectedIds].sort(),
+        );
+        expect(count.totalCount).toBe(expectedIds.length);
+        expect(eventCount.totalCount).toBe(expectedIds.length);
+      }
+    });
+
     it("applies search-bar name matching and repeated numeric bounds to v4 rows and counts", async () => {
       await createScoresCh(
         [
