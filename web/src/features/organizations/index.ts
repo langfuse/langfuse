@@ -13,9 +13,6 @@
 // page would pull ai-gateway and search-bar into every useQueryProject
 // consumer, including filter-builder on the filters door that
 // ComposerTokens already imports.
-//
-// filter-builder keeps importing useLangfuseCloudRegion and
-// openAIFeaturesSettings by file path for the same reason.
 export {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
@@ -23,7 +20,10 @@ export {
   type CloudRegion,
   type CloudRegionName,
 } from "@/src/features/organizations/cloudRegions";
-export { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+export {
+  AIFeaturesDisabledNotice,
+  openAIFeaturesSettings,
+} from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 export {
   useLangfuseCloudRegion,
   useLangfuseV4WriteMode,

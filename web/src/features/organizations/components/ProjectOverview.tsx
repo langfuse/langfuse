@@ -28,7 +28,7 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup/setupRoutes";
+} from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";

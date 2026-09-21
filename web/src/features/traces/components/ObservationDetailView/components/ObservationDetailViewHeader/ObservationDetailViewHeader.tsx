@@ -33,7 +33,7 @@ import {
   AnnotationQueueItemDropdownMenuController,
   AnnotationQueueItemCountBadge,
 } from "@/src/features/annotation-queues";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,

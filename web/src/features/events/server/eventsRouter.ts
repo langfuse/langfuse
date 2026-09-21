@@ -45,7 +45,7 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view/server";
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({

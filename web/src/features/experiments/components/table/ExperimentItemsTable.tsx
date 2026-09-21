@@ -8,7 +8,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {

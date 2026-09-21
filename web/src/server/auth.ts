@@ -54,7 +54,7 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/utils";
+} from "@/src/ee/features/multi-tenant-sso/server";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,

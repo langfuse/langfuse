@@ -35,7 +35,7 @@ import {
   listPublicDashboards,
   updatePublicDashboard,
   updatePublicDashboardPlacement,
-} from "@/src/features/dashboard/server/public-dashboard-service";
+} from "@/src/features/dashboard/server";
 
 const auditScope = (context: { orgId: string; apiKeyId: string }) => ({
   orgId: context.orgId,

@@ -81,7 +81,7 @@ import {
   calculateAggregatedUsage,
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -115,7 +115,7 @@ import {
 import { showSuccessToast } from "@/src/features/notifications";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {

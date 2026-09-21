@@ -46,7 +46,7 @@ import {
 } from "@/src/features/comments";
 import { useRouter } from "next/router";
 import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {

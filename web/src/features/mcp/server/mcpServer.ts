@@ -17,7 +17,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { isProductFeedbackAvailable } from "@/src/features/feedback/server/FeedbackService";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
 import { shadowAuthorize } from "@/src/features/public-api/server";
 import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
