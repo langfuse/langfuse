@@ -37,7 +37,7 @@ const formatScoreValue = (score: {
   value: number | null;
 }) => score.stringValue ?? score.value?.toFixed(2) ?? "";
 
-export function TraceSummaryStrip() {
+export function TraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [search, setSearch] = useState("");
 
