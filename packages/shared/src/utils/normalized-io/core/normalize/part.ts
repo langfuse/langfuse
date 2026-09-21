@@ -75,7 +75,8 @@ export function normalizePartList(
 function asParts(
   value: NormalizedMessagePart | NormalizedMessagePart[] | null,
 ): NormalizedMessagePart[] {
-  return value === null ? [] : Array.isArray(value) ? value : [value];
+  if (value === null) return [];
+  return Array.isArray(value) ? value : [value];
 }
 
 function normalizePartBase(
