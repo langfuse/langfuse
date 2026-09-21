@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { DialogTrigger } from "@radix-ui/react-dialog";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -16,12 +16,18 @@ export const NewDatasetItemButton = (props: {
   datasetId?: string;
 }) => {
   const [open, setOpen] = useState(false);
+  const submissionPending = useRef(false);
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
     scope: "datasets:CUD",
   });
   return (
-    <Dialog open={hasAccess && open} onOpenChange={setOpen}>
+    <Dialog
+      open={hasAccess && open}
+      onOpenChange={(next) => {
+        if (!submissionPending.current) setOpen(next);
+      }}
+    >
       <DialogTrigger asChild>
         <ActionButton
           variant="outline"
@@ -39,6 +45,9 @@ export const NewDatasetItemButton = (props: {
         <NewDatasetItemForm
           projectId={props.projectId}
           datasetId={props.datasetId}
+          onPendingChange={(pending) => {
+            submissionPending.current = pending;
+          }}
           onFormSuccess={() => setOpen(false)}
           className="h-full overflow-y-auto"
         />

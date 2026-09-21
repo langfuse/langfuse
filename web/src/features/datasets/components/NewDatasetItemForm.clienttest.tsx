@@ -10,6 +10,7 @@ import { type ComponentProps, type ReactNode } from "react";
 import { vi } from "vitest";
 
 import { NewDatasetItemForm } from "./NewDatasetItemForm";
+import { NewDatasetItemFromExistingObjectDialogController } from "./NewDatasetItemFromExistingObjectDialogController";
 
 const { query, generateExample, createItems } = vi.hoisted(() => ({
   query: {
@@ -52,14 +53,17 @@ vi.mock("@/src/components/editor", () => ({
     id,
     value,
     onChange,
+    editable = true,
   }: {
     id?: string;
     value: string;
     onChange: (value: string) => void;
+    editable?: boolean;
   }) => (
     <textarea
       id={id}
       value={value}
+      readOnly={!editable}
       onChange={(event) => onChange(event.target.value)}
     />
   ),
@@ -89,16 +93,25 @@ vi.mock(
       value,
       options,
       onValueChange,
+      disabled,
     }: {
       value: string[];
       options: { value: string; label: string }[];
       onValueChange: (value: string[]) => void;
+      disabled?: boolean;
     }) => (
       <select
         aria-label="Target datasets"
-        value={value[0] ?? ""}
+        multiple
+        disabled={disabled}
+        value={value}
         onChange={(event) =>
-          onValueChange(event.target.value ? [event.target.value] : [])
+          onValueChange(
+            Array.from(
+              event.target.selectedOptions,
+              (option) => option.value,
+            ).filter(Boolean),
+          )
         }
       >
         <option value="">Choose dataset</option>
@@ -111,6 +124,35 @@ vi.mock(
     ),
   }),
 );
+
+vi.mock("./DatasetForm", () => ({
+  DatasetForm: ({
+    onCreateDatasetSuccess,
+    onCancel,
+  }: {
+    onCreateDatasetSuccess: (dataset: unknown) => void;
+    onCancel?: () => void;
+  }) => (
+    <div>
+      <button type="button" onClick={onCancel}>
+        Back to item
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onCreateDatasetSuccess({
+            id: "created",
+            name: "Created dataset",
+            inputSchema: null,
+            expectedOutputSchema: null,
+          })
+        }
+      >
+        Finish creating dataset
+      </button>
+    </div>
+  ),
+}));
 
 const datasets = ["a", "b"].map((id) => ({
   id,
@@ -241,32 +283,129 @@ describe("NewDatasetItemForm schema defaults", () => {
     expect(screen.getByLabelText("Expected output")).toHaveValue('"a output"');
   });
 
-  it("preserves supplied source values through selection and submission", async () => {
+  it("keeps editable source values and provenance when adding to multiple datasets", async () => {
     renderForm({
       datasetId: "a",
       traceId: "trace",
+      observationId: "observation",
       input: "source input",
       output: "source output",
     });
     expect(await screen.findByLabelText("Input")).toHaveValue('"source input"');
-    fireEvent.change(screen.getByLabelText("Target datasets"), {
-      target: { value: "b" },
+    const selector = screen.getByLabelText(
+      "Target datasets",
+    ) as HTMLSelectElement;
+    selector.options[2].selected = true;
+    fireEvent.change(selector);
+    fireEvent.change(screen.getByLabelText("Expected output"), {
+      target: { value: '"Reviewed answer"' },
+    });
+    fireEvent.change(screen.getByLabelText("Metadata"), {
+      target: { value: '{"reviewed":true}' },
     });
     expect(generateExample).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Add to dataset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add to 2 datasets" }));
 
     await waitFor(() =>
       expect(createItems).toHaveBeenCalledWith({
         projectId: "project",
-        items: [
+        items: ["a", "b"].map((datasetId) =>
           expect.objectContaining({
-            datasetId: "b",
+            datasetId,
             sourceTraceId: "trace",
+            sourceObservationId: "observation",
             input: '"source input"',
-            expectedOutput: '"source output"',
+            expectedOutput: '"Reviewed answer"',
+            metadata: '{"reviewed":true}',
           }),
-        ],
+        ),
       }),
     );
+  });
+
+  it("returns from dataset creation with the item draft and adds the new target", async () => {
+    renderForm({ datasetId: "a", input: "source", output: "answer" });
+    fireEvent.change(await screen.findByLabelText("Input"), {
+      target: { value: '"reviewed draft"' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create dataset" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to item" }));
+    expect(screen.getByLabelText("Input")).toHaveValue('"reviewed draft"');
+    fireEvent.click(screen.getByRole("button", { name: "Create dataset" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Finish creating dataset" }),
+    );
+    expect(screen.getByLabelText("Input")).toHaveValue('"reviewed draft"');
+    expect(screen.getByLabelText("Target datasets")).toHaveValue([
+      "a",
+      "created",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Add to 2 datasets" }));
+    await waitFor(() =>
+      expect(createItems).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: ["a", "created"].map((datasetId) =>
+            expect.objectContaining({ datasetId, input: '"reviewed draft"' }),
+          ),
+        }),
+      ),
+    );
+  });
+
+  it("keeps the submitting item open and immutable, then preserves its draft on failure", async () => {
+    let rejectSubmission!: (error: Error) => void;
+    createItems.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectSubmission = reject;
+        }),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <NewDatasetItemFromExistingObjectDialogController projectId="project">
+          {({ openDialog }) => (
+            <button
+              onClick={() =>
+                openDialog({
+                  traceId: "trace",
+                  observationId: "observation",
+                  input: "source",
+                  output: "answer",
+                  metadata: null,
+                })
+              }
+            >
+              Open dataset item
+            </button>
+          )}
+        </NewDatasetItemFromExistingObjectDialogController>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open dataset item" }));
+    const input = await screen.findByLabelText("Input");
+    fireEvent.change(screen.getByLabelText("Target datasets"), {
+      target: { value: "a" },
+    });
+    fireEvent.change(input, { target: { value: '"draft"' } });
+    fireEvent.click(screen.getByRole("button", { name: "Add to dataset" }));
+    await waitFor(() => expect(createItems).toHaveBeenCalledTimes(1));
+    expect(input).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Target datasets")).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.submit(input.closest("form")!);
+    expect(createItems).toHaveBeenCalledTimes(1);
+    await act(async () => rejectSubmission(new Error("Temporary failure")));
+    expect(input).not.toHaveAttribute("readonly");
+    expect(input).toHaveValue('"draft"');
+    expect(screen.getByLabelText("Target datasets")).not.toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Add to dataset" }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(createItems).toHaveBeenCalledTimes(2);
   });
 });

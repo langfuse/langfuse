@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
 import Link from "next/link";
@@ -78,6 +78,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -113,7 +114,9 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
@@ -128,13 +131,16 @@ export const DatasetItemsOnboarding = ({
               hasAccess={hasProjectAccess}
             />
           </DialogTrigger>
-          <DialogContent size="lg">
+          <DialogContent size="xl">
             <DialogHeader>
               <DialogTitle>Create dataset item</DialogTitle>
             </DialogHeader>
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />

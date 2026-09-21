@@ -12,7 +12,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
+import { api } from "@/src/utils/api";
+import { Plus } from "lucide-react";
 import {
   useState,
   useMemo,
@@ -47,9 +48,15 @@ import { generateSchemaExample } from "../lib/generateSchemaExample";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import {
+  DatasetItemEditorLayout,
+  DatasetItemPreviewField,
+} from "./DatasetItemEditorLayout";
+import {
   isValidDatasetJson,
   parseDatasetJson,
 } from "../utils/parseDatasetJson";
+import { DatasetForm } from "./DatasetForm";
+import { submitDatasetItems } from "./submitDatasetItems";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
@@ -117,6 +124,7 @@ type NewDatasetItemFormProps = {
   datasetId?: string;
   className?: string;
   onFormSuccess?: () => void;
+  onPendingChange?: (pending: boolean) => void;
   currentDatasetId?: string;
 };
 
@@ -171,15 +179,16 @@ async function prepareInitialValues(
 }
 
 export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
+  const [source] = useState(props);
   const formId = useId();
   const datasets = api.datasets.allDatasetMeta.useQuery({
-    projectId: props.projectId,
+    projectId: source.projectId,
   });
   // Initial examples belong to this form instance. Metadata refetches must not
   // seed its editable values again, including values the user has cleared.
   const initialValues = useQuery({
     queryKey: ["dataset-item-form-defaults", formId],
-    queryFn: () => prepareInitialValues(props, datasets.data ?? []),
+    queryFn: () => prepareInitialValues(source, datasets.data ?? []),
     enabled: datasets.data !== undefined,
     staleTime: Infinity,
     gcTime: 0,
@@ -203,7 +212,7 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
 
   return (
     <InitializedNewDatasetItemForm
-      {...props}
+      {...source}
       initialValues={initialValues.data}
       datasets={datasets.data ?? []}
     />
@@ -212,13 +221,26 @@ export function NewDatasetItemForm(props: NewDatasetItemFormProps) {
 
 function InitializedNewDatasetItemForm({
   initialValues,
-  datasets,
+  datasets: queriedDatasets,
   ...props
 }: NewDatasetItemFormProps & {
   initialValues: NewDatasetItemFormValues;
   datasets: DatasetWithSchema[];
 }) {
   const [formError, setFormError] = useState<string | null>(null);
+  const [screen, setScreen] = useState<"item" | "create">("item");
+  const [createdDatasets, setCreatedDatasets] = useState<DatasetWithSchema[]>(
+    [],
+  );
+  const datasets = [
+    ...queriedDatasets,
+    ...createdDatasets.filter(
+      (created) =>
+        !queriedDatasets.some((dataset) => dataset.id === created.id),
+    ),
+  ];
+  const [isPending, setPending] = useState(false);
+  const submissionOwner = useRef({ pending: false });
   const capture = usePostHogClientCapture();
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -259,6 +281,7 @@ function InitializedNewDatasetItemForm({
 
   const uploadMedia = useCallback(
     async (file: File): Promise<string | null> => {
+      if (submissionOwner.current.pending) return null;
       if (!uploadDatasetId) {
         showErrorToast(
           "Select a dataset first",
@@ -331,18 +354,10 @@ function InitializedNewDatasetItemForm({
   const createManyDatasetItemsMutation =
     api.datasets.createManyDatasetItems.useMutation({
       onSuccess: () => utils.datasets.invalidate(),
-      onError: (error) => {
-        if (error.message.includes("Body exc")) {
-          setFormError(
-            "Data exceeds maximum size (4.5MB). Please attempt to create dataset item programmatically.",
-          );
-        } else {
-          setFormError(error.message);
-        }
-      },
     });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    if (submissionOwner.current.pending || pendingUploads.length) return;
     if (props.traceId) {
       capture("dataset_item:new_from_trace_form_submit", {
         object: props.observationId ? "observation" : "trace",
@@ -351,8 +366,9 @@ function InitializedNewDatasetItemForm({
       capture("dataset_item:new_form_submit");
     }
 
-    createManyDatasetItemsMutation
-      .mutateAsync({
+    return submitDatasetItems({
+      owner: submissionOwner.current,
+      input: {
         projectId: props.projectId,
         items: values.datasetIds.map((datasetId) => ({
           id: getDatasetItemId(datasetId),
@@ -363,173 +379,215 @@ function InitializedNewDatasetItemForm({
           sourceTraceId: props.traceId,
           sourceObservationId: props.observationId,
         })),
-      })
-      .then((result) => {
-        if (result.success) {
-          props.onFormSuccess?.();
+      },
+      submit: createManyDatasetItemsMutation.mutateAsync,
+      onPendingChange: (pending) => {
+        setPending(pending);
+        props.onPendingChange?.(pending);
+      },
+      onSuccess: () => {
+        selectionVersion.current += 1;
+        editedFields.current.clear();
+        form.reset();
+        props.onFormSuccess?.();
+      },
+      onError: setFormError,
+    });
+  }
+
+  if (screen === "create") {
+    return (
+      <DatasetForm
+        projectId={props.projectId}
+        mode="create"
+        redirectOnSuccess={false}
+        onSubmittingChange={props.onPendingChange}
+        onCancel={() => setScreen("item")}
+        onCreateDatasetSuccess={(dataset) => {
+          const created = {
+            ...dataset,
+            inputSchema: dataset.inputSchema as Prisma.JsonValue | null,
+            expectedOutputSchema:
+              dataset.expectedOutputSchema as Prisma.JsonValue | null,
+          };
+          setCreatedDatasets((current) => [...current, created]);
+          const ids = [
+            ...new Set([...form.getValues("datasetIds"), dataset.id]),
+          ];
+          form.setValue("datasetIds", ids, { shouldValidate: true });
           selectionVersion.current += 1;
-          editedFields.current.clear();
-          form.reset();
-
-          return;
-        }
-
-        // The user already sees the validation errors via setFormError above;
-        // a bare console.error(object) would only add an opaque, non-actionable
-        // Sentry capture (captureConsoleIntegration), so we omit it here.
-        setFormError(
-          `Item does not match dataset schema. Errors: ${JSON.stringify(result.validationErrors, null, 2)}`,
-        );
-      })
-      .catch((error) => reportTrpcErrorWithoutToast(error, "datasets"));
+          setScreen("item");
+        }}
+      />
+    );
   }
 
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className={cn("flex h-full flex-col gap-6", props.className)}
+        onSubmit={(event) => {
+          if (submissionOwner.current.pending) {
+            event.preventDefault();
+            return;
+          }
+          return form.handleSubmit(onSubmit)(event);
+        }}
+        className={cn("flex h-full min-h-0 flex-col", props.className)}
       >
-        <DialogBody className="grid grid-rows-[auto_1fr]">
-          <div className="flex-none">
+        <DialogBody className="min-h-0 overflow-hidden p-0">
+          <DatasetItemEditorLayout
+            preview={<FormPreview control={form.control} />}
+            previewDescription="Review the values that will be added to each selected dataset."
+            selector={
+              <div className="flex items-end gap-2">
+                <FormField
+                  control={form.control}
+                  name="datasetIds"
+                  render={({ field }) => (
+                    <FormItem className="flex min-w-0 flex-1 flex-col">
+                      <FormLabel>Target datasets</FormLabel>
+                      <FormControl>
+                        <MultiSelectTagInput
+                          aria-label="Target datasets"
+                          disabled={isPending}
+                          value={field.value}
+                          options={datasets.map((dataset) => ({
+                            value: dataset.id,
+                            label: dataset.name,
+                            optionSuffix:
+                              dataset.id === props.currentDatasetId ? (
+                                <span className="text-muted-foreground">
+                                  (current)
+                                </span>
+                              ) : undefined,
+                          }))}
+                          onValueChange={(datasetIds) => {
+                            field.onChange(datasetIds);
+                            selectDatasets(datasetIds);
+                          }}
+                          placeholder="Select datasets"
+                          searchPlaceholder="Search datasets..."
+                          emptyMessage="No datasets found."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isPending || pendingUploads.length > 0}
+                  onClick={() => setScreen("create")}
+                >
+                  <Plus className="size-4" />
+                  Create dataset
+                </Button>
+              </div>
+            }
+          >
             <FormField
               control={form.control}
-              name="datasetIds"
+              name="input"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Target datasets</FormLabel>
+                <FormItem className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Input</FormLabel>
+                    {hasInputSchema &&
+                      selectedDatasets
+                        .filter((d) => d.inputSchema)
+                        .map((dataset) => (
+                          <DatasetSchemaHoverCard
+                            key={dataset.id}
+                            schema={dataset.inputSchema!}
+                            schemaType="input"
+                            showLabel
+                          />
+                        ))[0]}
+                    <DatasetItemFieldToolbar
+                      copyValue={field.value}
+                      disabled={isPending}
+                      onSelectFile={handleFileUpload(inputEditorRef)}
+                    />
+                  </div>
                   <FormControl>
-                    <MultiSelectTagInput
-                      aria-label="Target datasets"
+                    <CodeMirrorEditor
+                      mode="json"
+                      editable={!isPending}
                       value={field.value}
-                      options={datasets.map((dataset) => ({
-                        value: dataset.id,
-                        label: dataset.name,
-                        optionSuffix:
-                          dataset.id === props.currentDatasetId ? (
-                            <span className="text-muted-foreground">
-                              (current)
-                            </span>
-                          ) : undefined,
-                      }))}
-                      onValueChange={(datasetIds) => {
-                        field.onChange(datasetIds);
-                        selectDatasets(datasetIds);
+                      onChange={(value) => {
+                        editedFields.current.add("input");
+                        field.onChange(value);
                       }}
-                      placeholder="Select datasets"
-                      searchPlaceholder="Search datasets..."
-                      emptyMessage="No datasets found."
+                      editorRef={inputEditorRef}
+                      minHeight={140}
+                      extensions={mediaDropPasteExtensions}
+                      placeholder={`{
+  "question": "What is the capital of England?"
+}`}
                     />
                   </FormControl>
                   <FormMessage />
+                  <FieldSchemaErrors
+                    field="input"
+                    value={field.value}
+                    datasets={selectedDatasets}
+                    show={hasInitialValues || !!hasInteractedWithInput}
+                  />
                 </FormItem>
               )}
             />
-          </div>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
-            <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="input"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Input</FormLabel>
-                      {hasInputSchema &&
-                        selectedDatasets
-                          .filter((d) => d.inputSchema)
-                          .map((dataset) => (
-                            <DatasetSchemaHoverCard
-                              key={dataset.id}
-                              schema={dataset.inputSchema!}
-                              schemaType="input"
-                              showLabel
-                            />
-                          ))[0]}
-                      <DatasetItemFieldToolbar
-                        copyValue={field.value}
-                        onSelectFile={handleFileUpload(inputEditorRef)}
-                      />
-                    </div>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        mode="json"
-                        value={field.value}
-                        onChange={(value) => {
-                          editedFields.current.add("input");
-                          field.onChange(value);
-                        }}
-                        editorRef={inputEditorRef}
-                        minHeight={200}
-                        extensions={mediaDropPasteExtensions}
-                        placeholder={`{
-  "question": "What is the capital of England?"
-}`}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <FieldSchemaErrors
-                      field="input"
-                      value={field.value}
-                      datasets={selectedDatasets}
-                      show={hasInitialValues || !!hasInteractedWithInput}
+            <FormField
+              control={form.control}
+              name="expectedOutput"
+              render={({ field }) => (
+                <FormItem className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <FormLabel>Expected output</FormLabel>
+                    {hasOutputSchema &&
+                      selectedDatasets
+                        .filter((d) => d.expectedOutputSchema)
+                        .map((dataset) => (
+                          <DatasetSchemaHoverCard
+                            key={dataset.id}
+                            schema={dataset.expectedOutputSchema!}
+                            schemaType="expectedOutput"
+                            showLabel
+                          />
+                        ))[0]}
+                    <DatasetItemFieldToolbar
+                      copyValue={field.value}
+                      disabled={isPending}
+                      onSelectFile={handleFileUpload(expectedOutputEditorRef)}
                     />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="expectedOutput"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <FormLabel>Expected output</FormLabel>
-                      {hasOutputSchema &&
-                        selectedDatasets
-                          .filter((d) => d.expectedOutputSchema)
-                          .map((dataset) => (
-                            <DatasetSchemaHoverCard
-                              key={dataset.id}
-                              schema={dataset.expectedOutputSchema!}
-                              schemaType="expectedOutput"
-                              showLabel
-                            />
-                          ))[0]}
-                      <DatasetItemFieldToolbar
-                        copyValue={field.value}
-                        onSelectFile={handleFileUpload(expectedOutputEditorRef)}
-                      />
-                    </div>
-                    <FormControl>
-                      <CodeMirrorEditor
-                        mode="json"
-                        value={field.value}
-                        onChange={(value) => {
-                          editedFields.current.add("expectedOutput");
-                          field.onChange(value);
-                        }}
-                        editorRef={expectedOutputEditorRef}
-                        minHeight={200}
-                        extensions={mediaDropPasteExtensions}
-                        placeholder={`{
+                  </div>
+                  <FormControl>
+                    <CodeMirrorEditor
+                      mode="json"
+                      editable={!isPending}
+                      value={field.value}
+                      onChange={(value) => {
+                        editedFields.current.add("expectedOutput");
+                        field.onChange(value);
+                      }}
+                      editorRef={expectedOutputEditorRef}
+                      minHeight={140}
+                      extensions={mediaDropPasteExtensions}
+                      placeholder={`{
   "answer": "London"
 }`}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                    <FieldSchemaErrors
-                      field="expectedOutput"
-                      value={field.value}
-                      datasets={selectedDatasets}
-                      show={
-                        hasInitialValues || !!hasInteractedWithExpectedOutput
-                      }
                     />
-                  </FormItem>
-                )}
-              />
-            </div>
-
+                  </FormControl>
+                  <FormMessage />
+                  <FieldSchemaErrors
+                    field="expectedOutput"
+                    value={field.value}
+                    datasets={selectedDatasets}
+                    show={hasInitialValues || !!hasInteractedWithExpectedOutput}
+                  />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="metadata"
@@ -539,12 +597,14 @@ function InitializedNewDatasetItemForm({
                     <FormLabel>Metadata</FormLabel>
                     <DatasetItemFieldToolbar
                       copyValue={field.value}
+                      disabled={isPending}
                       onSelectFile={handleFileUpload(metadataEditorRef)}
                     />
                   </div>
                   <FormControl>
                     <CodeMirrorEditor
                       mode="json"
+                      editable={!isPending}
                       value={field.value}
                       onChange={field.onChange}
                       editorRef={metadataEditorRef}
@@ -560,7 +620,7 @@ function InitializedNewDatasetItemForm({
               control={form.control}
               pendingUploads={pendingUploads}
             />
-          </div>
+          </DatasetItemEditorLayout>
         </DialogBody>
         <DialogFooter>
           <div className="flex flex-col gap-4">
@@ -568,7 +628,7 @@ function InitializedNewDatasetItemForm({
               control={form.control}
               datasets={selectedDatasets}
               selectedDatasetCount={selectedDatasetCount}
-              isPending={createManyDatasetItemsMutation.isPending}
+              isPending={isPending}
               pendingUploads={pendingUploads}
             />
             {formError ? (
@@ -581,6 +641,39 @@ function InitializedNewDatasetItemForm({
         {mediaChipPortals}
       </form>
     </Form>
+  );
+}
+
+function FormPreview({
+  control,
+}: {
+  control: Control<NewDatasetItemFormValues>;
+}) {
+  const values = useWatch({
+    control,
+    name: ["input", "expectedOutput", "metadata"],
+  });
+  return (
+    <>
+      {["Input", "Expected output", "Metadata"].map((label, index) => {
+        const value = values[index] ?? "";
+        const valid = isValidDatasetJson(value);
+        return (
+          <DatasetItemPreviewField
+            key={label}
+            label={label}
+            value={valid ? parseDatasetJson(value) : undefined}
+            feedback={
+              !valid && (
+                <p className="text-destructive border-t px-3 py-2 text-xs">
+                  Enter valid JSON to preview this field.
+                </p>
+              )
+            }
+          />
+        );
+      })}
+    </>
   );
 }
 
@@ -669,7 +762,6 @@ const AddItemsButton = ({
     <Button
       type="submit"
       loading={isPending}
-      className="w-full"
       // Block submit while uploads are in flight: the media reference is only
       // inserted into the form value after the upload resolves, so submitting
       // early would persist the item without the attachment and orphan the

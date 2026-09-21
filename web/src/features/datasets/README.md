@@ -23,6 +23,15 @@ one `ActiveCellProvider` per project and dataset.
 - `components/NewDatasetItemForm.tsx` prepares initial schema examples before
   mounting editable fields. Later dataset selections fill only empty, unedited
   fields; metadata refetches and obsolete generation results preserve drafts.
+  Its opening source and callbacks belong to that form instance. Creating a
+  dataset keeps the item draft and appends the created dataset to its targets.
+- `components/submitDatasetItems.ts` owns immediate submission and its pending
+  guard. Edits, repeated submits and dialog dismissal stay blocked until the
+  request settles; errors preserve the draft. The dialog controller scopes
+  completion callbacks to the instance that submitted them.
+- `components/DatasetForm.tsx` owns dataset creation and updates, including its
+  footer and pending state. Single and bulk item creation reuse it and receive
+  pending/completion notifications directly from the submission event.
 
 ## Structure and consumers
 
