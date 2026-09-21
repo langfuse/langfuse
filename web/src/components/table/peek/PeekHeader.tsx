@@ -17,8 +17,10 @@ import {
   getItemTypeLabels,
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import {
+  DetailPageNav,
+  type ListEntry,
+} from "@/src/features/navigate-detail-pages";
 import {
   ExternalLink,
   Maximize2,

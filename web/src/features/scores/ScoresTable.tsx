@@ -21,7 +21,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  transformFiltersForBackend,
+  sortOptionValues,
+} from "@/src/features/filters";
+
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -41,8 +44,7 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
@@ -57,8 +59,13 @@ import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import { showSuccessToast } from "@/src/features/notifications";
+import {
+  TableActionMenu,
+  type TableAction,
+  useSelectAll,
+  TableSelectionManager,
+} from "@/src/features/table";
 import React, {
   type ReactNode,
   useState,
@@ -66,23 +73,20 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import {
   ScoreTag,
   scoreLevelFromScore,
   type ScoreLevel,
 } from "@/src/components/score-tag";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import { ViewModeToggle } from "@/src/features/chart-view";
 import {
   ScoresChartView,
   ScoresOutlierStrip,

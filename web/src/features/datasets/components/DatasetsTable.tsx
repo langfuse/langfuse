@@ -6,7 +6,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { DeleteDatasetDialogController } from "@/src/features/datasets/components/DeleteDatasetDialogController";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { UpdateDatasetDialogController } from "@/src/features/datasets/components/UpdateDatasetDialogController";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
@@ -42,9 +42,11 @@ import {
 } from "@/src/features/datasets/store/datasetsTableStore";
 import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
 import { useStore } from "zustand";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { showSuccessToast } from "@/src/features/notifications";
 import { Pen, Trash } from "lucide-react";
 

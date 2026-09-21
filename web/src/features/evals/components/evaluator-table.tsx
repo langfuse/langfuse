@@ -11,9 +11,9 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { useColumnVisibility } from "@/src/features/column-visibility";
 import { EvaluatorFilterCell } from "@/src/features/evals/components/EvaluatorFilterCell";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { LEGACY_EVALUATORS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
 import { useSidebarFilterState } from "@/src/features/filters";

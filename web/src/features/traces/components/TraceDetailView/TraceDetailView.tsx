@@ -50,7 +50,7 @@ import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
@@ -61,7 +61,7 @@ import { useSession } from "next-auth/react";
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import ScoresTable from "@/src/features/scores/ScoresTable";
+import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export interface TraceDetailViewProps {

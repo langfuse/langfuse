@@ -24,15 +24,15 @@ import {
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
+import { type OrganizationScope } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { V4SidebarToggle } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";

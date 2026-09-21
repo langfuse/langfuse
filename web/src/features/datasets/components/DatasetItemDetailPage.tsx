@@ -4,7 +4,7 @@ import Page from "@/src/components/layouts/page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { CopyIcon, ListTree, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
@@ -28,11 +28,12 @@ import {
   DATASET_ITEM_TABS,
   type DatasetItemTab,
 } from "@/src/features/navigation/utils/dataset-item-tabs";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { useExperimentAccess } from "@/src/features/experiments";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
+
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,

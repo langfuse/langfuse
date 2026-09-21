@@ -15,19 +15,22 @@ import {
   useRef,
   useCallback,
 } from "react";
-import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
-import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
 import {
+  useQueryFilterState,
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   getObservationsFilterConfig,
   OBSERVATION_COLUMN_TO_BACKEND_KEY,
   type ObservationsOmittableFilterColumn,
-} from "@/src/features/filters/config/observations-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+  buildSidebarFilterSessionContextId,
+  transformFiltersForBackend,
+  sortOptionValues,
+  observationsFieldRegistry,
+} from "@/src/features/filters";
+
+import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useFacetOptionsWithObservedMetadata } from "@/src/hooks/useObservedMetadata";
+
 import {
   normalizeOrderByForTable,
   DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
@@ -45,8 +48,7 @@ import {
   type ScoreAggregate,
   buildTracePath,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -71,7 +73,7 @@ import {
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   BreakdownTooltip,
   calculateAggregatedUsage,
@@ -93,7 +95,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import {
@@ -101,15 +103,16 @@ import {
   toObservedOptions,
   useFullTextSearch,
 } from "@/src/features/search-bar";
-import { observationsFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
+
 import { useRouter } from "next/router";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
+import { showSuccessToast } from "@/src/features/notifications";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { getSafeRedirectPath } from "@/src/utils/redirect";

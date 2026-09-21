@@ -18,7 +18,7 @@ import {
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -56,7 +56,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";

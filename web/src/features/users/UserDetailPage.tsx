@@ -10,14 +10,14 @@ import { ScoresTable } from "@/src/features/scores";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { SessionsTable } from "@/src/features/sessions";
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
 import { ActionButton } from "@/src/components/ActionButton";
 import { LayoutDashboard } from "lucide-react";
 import Page from "@/src/components/layouts/page";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;

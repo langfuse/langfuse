@@ -26,7 +26,7 @@ import {
 import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import React, { useMemo, useRef } from "react";
 import {
   useController,

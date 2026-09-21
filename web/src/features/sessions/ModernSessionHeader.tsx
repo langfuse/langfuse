@@ -50,7 +50,7 @@ import {
   usdFormatter,
 } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
   projectId: string;

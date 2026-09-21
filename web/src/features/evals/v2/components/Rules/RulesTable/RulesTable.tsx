@@ -33,7 +33,7 @@ import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTabl
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "@/src/features/table";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import {
   useColumnOrder,
@@ -64,8 +64,8 @@ import {
   omitFilterFacets,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {

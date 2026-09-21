@@ -44,7 +44,7 @@ import {
   getCommentDrawerInitialStateFromUrl,
 } from "@/src/features/comments/CommentDrawerController";
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/features/scores/ScoresTable";
+import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
@@ -52,7 +52,7 @@ import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {

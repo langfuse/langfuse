@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -63,7 +63,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import {

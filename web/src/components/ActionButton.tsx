@@ -9,9 +9,9 @@ import {
   HoverCardPortal,
 } from "@/src/components/ui/hover-card";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
-type ActionButtonProps = Pick<
+export type ActionButtonProps = Pick<
   ButtonProps,
   "disabled" | "onClick" | "size" | "title" | "type" | "variant"
 > & {
