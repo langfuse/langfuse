@@ -47,17 +47,37 @@ vi.mock(
 );
 
 function ReviewHarness() {
-  const { activeCell, setActiveCell, clearActiveCell } = useActiveCell();
+  const { activeCell, setActiveCell, clearActiveCell, closeRunAnnotation } =
+    useActiveCell();
+  const [runs, setRuns] = useState(["first", "second"]);
   return (
     <>
       {["first", "second"].map((traceId) => (
         <button
           key={traceId}
-          onClick={() => setActiveCell({ traceId, scoreAggregates: {} })}
+          onClick={() =>
+            setActiveCell({
+              traceId,
+              datasetRunId: traceId,
+              scoreAggregates: {},
+            })
+          }
         >
           Review {traceId}
         </button>
       ))}
+      {["first", "second"].map((runId) => (
+        <button
+          key={runId}
+          onClick={() => {
+            if (closeRunAnnotation?.(runId))
+              setRuns((current) => current.filter((id) => id !== runId));
+          }}
+        >
+          Remove {runId}
+        </button>
+      ))}
+      <output aria-label="Compared runs">{runs.join(",")}</output>
       <button onClick={clearActiveCell}>Close side panel</button>
       <span data-testid="active-cell">{activeCell?.traceId ?? "closed"}</span>
       {activeCell && <AnnotationPanel projectId="project" />}
@@ -100,5 +120,31 @@ it("guards every cell switch and close while preserving the current draft on rer
   fireEvent.click(screen.getByRole("button", { name: "Review second" }));
   expect(screen.getByTestId("active-cell")).toHaveTextContent("second");
   fireEvent.click(screen.getByRole("button", { name: "Close side panel" }));
+  expect(screen.getByTestId("active-cell")).toHaveTextContent("closed");
+});
+
+it("guards removal of the reviewed run and leaves unrelated run changes alone", () => {
+  render(
+    <ActiveCellProvider>
+      <ReviewHarness />
+    </ActiveCellProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Review first" }));
+  fireEvent.change(screen.getByLabelText("Comment draft"), {
+    target: { value: "Keep this comment" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Remove second" }));
+  expect(screen.getByLabelText("Compared runs")).toHaveTextContent(/^first$/);
+  expect(screen.getByLabelText("Comment draft")).toHaveValue(
+    "Keep this comment",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Remove first" }));
+  expect(screen.getByLabelText("Compared runs")).toHaveTextContent(/^first$/);
+  expect(screen.getByTestId("active-cell")).toHaveTextContent("first");
+  fireEvent.change(screen.getByLabelText("Comment draft"), {
+    target: { value: "" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Remove first" }));
+  expect(screen.getByLabelText("Compared runs")).toBeEmptyDOMElement();
   expect(screen.getByTestId("active-cell")).toHaveTextContent("closed");
 });
