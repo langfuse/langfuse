@@ -21,7 +21,10 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
+  transformFiltersForBackend,
+  sortOptionValues,
+} from "@/src/features/filters";
+
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
@@ -41,8 +44,7 @@ import {
   TableViewPresetTableName,
   type TimeFilter,
 } from "@langfuse/shared";
-import { transformFiltersForBackend } from "@/src/features/filters/lib/filter-transform";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
