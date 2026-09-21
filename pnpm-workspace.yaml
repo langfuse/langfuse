@@ -155,3 +155,8 @@ minimumReleaseAgeExclude:
   # User impersonation via trusted-proxy confusion (CVE-2026-90711); 2.0.8 is
   # the only patched release, pulled in transitively through express.
   - proxy-addr@2.0.8
+  - "@ai-sdk/gateway@4.0.87"
+  - "@ai-sdk/provider-utils@5.0.45"
+  - "@ai-sdk/provider@4.0.17"
+  - "@ai-sdk/typesafe-ai@3.0.4"
+  - "ai@7.0.107"
