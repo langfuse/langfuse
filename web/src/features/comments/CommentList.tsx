@@ -94,7 +94,7 @@ function CommentThread({
     <div
       className={cn(
         "flex h-full min-h-0 flex-col overflow-hidden",
-        cardView && "rounded-md border",
+        cardView && "rounded-md",
       )}
     >
       {cardView ? (

@@ -52,7 +52,7 @@ function DatasetCompareLegacy() {
     setLocalRuns,
   } = useDatasetRunsCompare(projectId, datasetId);
 
-  const { activeCell, clearActiveCell } = useActiveCell();
+  const { activeCell, clearActiveCell, closeRunAnnotation } = useActiveCell();
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -150,6 +150,7 @@ function DatasetCompareLegacy() {
                     });
                     setLocalRuns([]);
                   } else {
+                    if (!closeRunAnnotation(changedValueId)) return;
                     capture("dataset_run:compare_run_removed");
                     const newRunIds =
                       runIds?.filter((id) => id !== changedValueId) ?? [];

@@ -143,6 +143,7 @@ const DatasetAggregateCellContent = ({
 
   const handleOpenReview = () => {
     const opened = setActiveCell({
+      datasetRunId: value.datasetRunId,
       traceId: value.trace.id,
       observationId: value.observation?.id,
       scoreAggregates: scores,
