@@ -20,7 +20,7 @@ describe("TraceMetadataBadges session replay privacy", () => {
       </>,
     );
 
-    expect(screen.getByText("customer-session").closest("a")).toHaveClass(
+    expect(screen.getByTitle("customer-session").closest("a")).toHaveClass(
       "ph-no-capture",
     );
     expect(screen.getByText("customer-user").closest("a")).toHaveClass(
