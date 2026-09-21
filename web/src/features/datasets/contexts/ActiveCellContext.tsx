@@ -5,6 +5,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 
 type ActiveCell = {
+  datasetRunId: string;
   traceId: string;
   observationId?: string;
   scoreAggregates: ScoreAggregate;
@@ -19,6 +20,7 @@ type ActiveCellState = {
   actions: {
     setActiveCell: (cell: ActiveCell | null) => boolean;
     clearActiveCell: () => boolean;
+    closeRunAnnotation: (datasetRunId: string) => boolean;
     setCommentDraft: (target: CellTarget, hasDraft: boolean) => void;
   };
 };
@@ -46,6 +48,9 @@ function createActiveCellStore() {
         return true;
       },
       clearActiveCell: () => get().actions.setActiveCell(null),
+      closeRunAnnotation: (datasetRunId) =>
+        get().activeCell?.datasetRunId !== datasetRunId ||
+        get().actions.clearActiveCell(),
       setCommentDraft: (target, hasDraft) => {
         if (isSameTarget(get().activeCell, target)) {
           set({ hasCommentDraft: hasDraft });
