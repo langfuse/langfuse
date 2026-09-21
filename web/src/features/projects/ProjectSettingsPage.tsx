@@ -8,9 +8,9 @@ import Link from "next/link";
 import { LlmApiKeyList } from "@/src/features/public-api/components/LLMApiKeyList";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
+import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
 import {
-  ConnectedMembershipInvitesSettingsTable,
-  ConnectedMembersSettingsTable,
   useHasProjectAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac";

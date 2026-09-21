@@ -8,6 +8,11 @@
 // `server/` is deliberately absent: membersRouter stays a direct import
 // from the tRPC root, which is not a feature.
 //
+// Members and invites tables stay off this door. onboardingService and
+// other server modules already import the access helpers from here, and
+// putting those tables on the barrel pulled CreateProjectMemberDialog
+// (react-hook-form) into instrumentation and API routes.
+//
 // auth/policy/types.ts keeps importing organizationAccessRights by file
 // path: it needs the runtime `organizationScopes` value, and routing
 // that module through this door would pull the React access hooks into
@@ -31,6 +36,3 @@ export {
   organizationRoleAccessRights,
   type OrganizationScope,
 } from "@/src/features/rbac/constants/organizationAccessRights";
-
-export { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
-export { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";

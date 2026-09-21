@@ -1,11 +1,9 @@
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
-import {
-  ConnectedMembershipInvitesSettingsTable,
-  ConnectedMembersSettingsTable,
-  useHasOrganizationAccess,
-} from "@/src/features/rbac";
+import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
+import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
