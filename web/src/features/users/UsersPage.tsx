@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
