@@ -31,7 +31,7 @@ export type PlanPeekHeaderArgs = {
   navFullWidth: number;
   /** Prev/next nav width as compact icon arrows, px (0 when no nav). */
   navCompactWidth: number;
-  /** Pinned controls other than nav (expand + close + divider), px. */
+  /** Pinned controls other than nav (expand + close + extra pinned), px. */
   otherPinnedWidth: number;
   /** Width of the "…" overflow trigger, counted once anything folds, px. */
   moreWidth: number;

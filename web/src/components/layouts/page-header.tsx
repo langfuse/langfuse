@@ -108,11 +108,13 @@ const PageHeader = ({
         >
           <div
             className={cn(
+              // Named container so chrome controls compact from remaining
+              // pane width (docked right rail) rather than the viewport.
               // Each flex line is 43px plus the shared 1px border. A single
-              // line therefore stays aligned with the sidebar's 44px row,
-              // while wrapped controls form a second full-height row instead
-              // of looking squeezed between the header edges.
-              "flex h-full w-full flex-wrap items-center justify-between gap-x-3 gap-y-px px-3 leading-none",
+              // line stays aligned with the sidebar's 44px row; wrapped
+              // controls form a second full-height row instead of looking
+              // squeezed between the header edges.
+              "@container/pageheader flex h-full w-full flex-wrap items-center justify-between gap-x-3 gap-y-px px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
@@ -138,7 +140,7 @@ const PageHeader = ({
                   />
                 )}
               </div>
-              <div className="flex translate-y-px items-center gap-2">
+              <div className="flex min-w-0 translate-y-px items-center gap-2">
                 <BreadcrumbComponent items={breadcrumb} />
                 {breadcrumbBadges}
               </div>

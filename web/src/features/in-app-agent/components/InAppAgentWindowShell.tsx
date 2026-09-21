@@ -17,6 +17,7 @@ import {
 } from "@/src/components/movable-resizable-panel";
 import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { useIsHandheld } from "@/src/hooks/use-mobile";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX = 8;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_WIDTH_PX = 448;
@@ -139,6 +140,7 @@ export function InAppAgentWindowShell({
   panelRef,
 }: InAppAgentWindowShellProps) {
   const isHandheld = useIsHandheld();
+  const capture = usePostHogClientCapture();
   // State, not a ref: the drawer portals into its layer container, which itself
   // resolves in an effect, so the node arrives a commit late and has to be the
   // dependency that arms the anchoring.
@@ -216,6 +218,7 @@ export function InAppAgentWindowShell({
       // layout under the home indicator and, in landscape, the notch.
       <div
         ref={panelRef}
+        data-testid="in-app-agent-fullscreen"
         className="pointer-events-auto fixed top-[calc(var(--banner-offset)+0.75rem)] right-[calc(0.75rem+env(safe-area-inset-right,0px))] bottom-[calc(0.75rem+env(safe-area-inset-bottom,0px))] left-[calc(0.75rem+env(safe-area-inset-left,0px))] origin-top-left"
         data-ignore-outside-interaction
       >
@@ -239,6 +242,10 @@ export function InAppAgentWindowShell({
       // The header's own `onDoubleClick` covers every other presentation; only
       // here is the handle also a drag surface that eats the event.
       onDragHandleDoubleClick={() => {
+        capture("in_app_agent:presentation_changed", {
+          presentation: "fullscreen",
+          source: "header_double_click",
+        });
         onExpandedChange(true);
       }}
     >
