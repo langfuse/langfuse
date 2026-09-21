@@ -133,7 +133,7 @@ describe("trace deletion", () => {
       session_id: "",
       ...row,
       id: randomUUID(),
-      unit_timestamp: timestamp,
+      unit_start_time: timestamp,
     }));
 
     await Promise.all([

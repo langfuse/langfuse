@@ -32,8 +32,8 @@ const deleteTopicResultsForTraces = async (
         max_timestamp: string;
         count: string;
       }>({
-        query: `SELECT min(unit_timestamp) AS min_timestamp,
-            max(unit_timestamp) AS max_timestamp, count() AS count
+        query: `SELECT min(unit_start_time) AS min_timestamp,
+            max(unit_start_time) AS max_timestamp, count() AS count
           FROM ${table}
           WHERE project_id = {projectId: String}
             AND trace_id IN ({traceIds: Array(String)})`,
@@ -47,8 +47,8 @@ const deleteTopicResultsForTraces = async (
         query: `DELETE FROM ${table}
           WHERE project_id = {projectId: String}
             AND trace_id IN ({traceIds: Array(String)})
-            AND unit_timestamp >= {minTimestamp: DateTime64(3)}
-            AND unit_timestamp <= {maxTimestamp: DateTime64(3)}`,
+            AND unit_start_time >= {minTimestamp: DateTime64(3)}
+            AND unit_start_time <= {maxTimestamp: DateTime64(3)}`,
         params: {
           ...params,
           minTimestamp: bounds.min_timestamp,

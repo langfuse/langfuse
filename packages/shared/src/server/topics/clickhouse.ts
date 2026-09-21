@@ -62,7 +62,7 @@ async function insertTopicRows<T extends { projectId: string }>(
 const summaryColumns = `id, project_id AS projectId, facet_id AS facetId,
   facet_version_id AS facetVersionId, facet_version AS facetVersion,
   trace_id AS traceId, session_id AS sessionId, trigger_type AS triggerType,
-  toUnixTimestamp64Milli(unit_timestamp) AS traceTimestampMs,
+  toUnixTimestamp64Milli(unit_start_time) AS traceTimestampMs,
   toString(revision) AS revision, execution_id AS executionId,
   result_version AS resultVersion, processing_state AS state, summary, embedding,
   input_hash AS inputHash, invocation_hash AS invocationHash,
@@ -220,7 +220,7 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
     trace_id: row.traceId ?? "",
     session_id: row.sessionId ?? "",
     trigger_type: "manual_poc",
-    unit_timestamp: convertDateToClickhouseDateTime(
+    unit_start_time: convertDateToClickhouseDateTime(
       new Date(row.traceTimestamp),
     ),
     revision: row.revision,
@@ -275,7 +275,7 @@ export async function writeTopicAssignments(
     facet_version: row.facetVersion,
     trace_id: row.traceId ?? "",
     session_id: row.sessionId ?? "",
-    unit_timestamp: convertDateToClickhouseDateTime(
+    unit_start_time: convertDateToClickhouseDateTime(
       new Date(row.traceTimestamp),
     ),
     facet_summary_id: row.summaryId,
@@ -299,7 +299,7 @@ export async function writeTopicAssignments(
 const assignmentColumns = `id, project_id AS projectId, facet_id AS facetId,
       facet_version_id AS facetVersionId, facet_version AS facetVersion, trace_id AS traceId,
       session_id AS sessionId,
-      toUnixTimestamp64Milli(unit_timestamp) AS traceTimestampMs,
+      toUnixTimestamp64Milli(unit_start_time) AS traceTimestampMs,
       facet_summary_id AS summaryId, execution_id AS executionId, coordinates,
       toString(summary_revision) AS summaryRevision,
       clustering_run_id AS runId, toString(run_sequence) AS runSequence,
