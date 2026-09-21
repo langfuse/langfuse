@@ -115,7 +115,7 @@ export function useIOPreviewParser(
         output: parsedOutput,
         metadata: parsedMetadata,
       });
-      normalizedResult = toIOPreview(normalized, parsedInput);
+      normalizedResult = toIOPreview(normalized);
     } catch {
       // The legacy parser remains the visible fallback for malformed input.
     }
