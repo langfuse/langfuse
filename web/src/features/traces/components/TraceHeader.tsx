@@ -19,7 +19,7 @@ import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregatio
 
 const MAX_VISIBLE_TAGS = 3;
 
-export function TraceSummaryStrip() {
+export function TraceHeader() {
   const { trace, observations, mergedScores } = useTraceData();
   const [showAllTags, setShowAllTags] = useState(false);
 
