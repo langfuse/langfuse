@@ -27,8 +27,8 @@ export type ParsedIOValue = {
 function collectToolDefinitionsFromRecord(
   record: Record<string, unknown>,
   accumulator: NormalizedIOAccumulator,
-): void {
-  addToolDefinitionValue(accumulator, record.tools, {
+): boolean {
+  const toolsFullyParsed = addToolDefinitionValue(accumulator, record.tools, {
     allowProviderToolWithoutName: true,
     allowToolMap: true,
   });
@@ -36,14 +36,16 @@ function collectToolDefinitionsFromRecord(
   if (isToolDefinitionMessage(record)) {
     addToolDefinitionValue(accumulator, record.content);
   }
+  return toolsFullyParsed;
 }
 
 function collectRootToolDefinitions(
   root: Record<string, unknown>,
   accumulator: NormalizedIOAccumulator,
 ): void {
-  collectToolDefinitionsFromRecord(root, accumulator);
-  recordKeyAsParsed(root, "tools");
+  if (collectToolDefinitionsFromRecord(root, accumulator)) {
+    recordKeyAsParsed(root, "tools");
+  }
 
   // Definitions are independent of the message claim. A record can contain
   // an OpenAI `choices` carrier and, next to it, a framework `messages` or
@@ -205,15 +207,16 @@ function emitRootSource(
   );
 }
 
-function findSystemMessage(
+function findSystemMessageSources(
   root: Record<string, unknown>,
   source: "input" | "output",
-): MessageSource | undefined {
+): MessageSource[] {
+  const sources: MessageSource[] = [];
   for (const provider of registeredProviders) {
     const systemMessage = provider.getSystemMessage?.(root, source);
-    if (systemMessage) return systemMessage;
+    if (systemMessage) sources.push(systemMessage);
   }
-  return undefined;
+  return sources;
 }
 
 function claimMessages(
@@ -239,8 +242,8 @@ function collectRecordMessages(
   const { source } = parserContext;
   const fallbackRole = source === "input" ? "user" : "assistant";
 
-  const systemMessage =
-    source === "input" ? findSystemMessage(root, source) : undefined;
+  const systemSources =
+    source === "input" ? findSystemMessageSources(root, source) : [];
   const claimedSources = claimMessages(root, source, parserContext);
   const rootMessages = parseArray(root.messages);
 
@@ -270,9 +273,12 @@ function collectRecordMessages(
   // System instructions supplement the selected input conversation. Defer
   // them until after message normalization so an existing system message
   // suppresses every top-level system sidecar.
-  if (systemMessage && source === "input" && !parserContext.hasSystemMessage) {
+  if (source === "input" && !parserContext.hasSystemMessage) {
     const systemMessages: NormalizedMessage[] = [];
-    emitRootSource(systemMessage, parserContext, systemMessages, accumulator);
+    for (const systemSource of systemSources) {
+      emitRootSource(systemSource, parserContext, systemMessages, accumulator);
+      if (systemMessages.length > 0) break;
+    }
     messages.unshift(...systemMessages);
   }
 

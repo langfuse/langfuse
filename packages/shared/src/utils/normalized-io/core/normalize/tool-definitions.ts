@@ -104,31 +104,49 @@ export function normalizeToolDefinitionValue(
   value: unknown,
   options: ToolDefinitionOptions = {},
 ): ToolDefinition[] {
+  return parseToolDefinitionValue(value, options).definitions;
+}
+
+export function parseToolDefinitionValue(
+  value: unknown,
+  options: ToolDefinitionOptions = {},
+): { definitions: ToolDefinition[]; fullyParsed: boolean } {
   const parsed = parseIfString(value);
 
   if (Array.isArray(parsed)) {
-    return parsed
-      .map((item) => normalizeDefinitionItem(parseIfString(item), options))
-      .filter((def): def is ToolDefinition => def !== null);
+    const results = parsed.map((item) =>
+      normalizeDefinitionItem(parseIfString(item), options),
+    );
+    return {
+      definitions: results.filter((def): def is ToolDefinition => def !== null),
+      fullyParsed: results.every((def) => def !== null),
+    };
   }
 
-  if (!isRecord(parsed)) return [];
+  if (!isRecord(parsed)) return { definitions: [], fullyParsed: false };
 
   const singleDefinition = normalizeDefinitionItem(parsed, options);
-  if (singleDefinition) return [singleDefinition];
+  if (singleDefinition) {
+    return { definitions: [singleDefinition], fullyParsed: true };
+  }
 
-  if (!options.allowToolMap) return [];
+  if (!options.allowToolMap) return { definitions: [], fullyParsed: false };
 
   // Some instrumentation exports definitions as a map keyed by tool name.
   const definitions: ToolDefinition[] = [];
+  let fullyParsed = true;
   for (const [name, rawDefinition] of Object.entries(parsed)) {
     const definition = parseRecord(rawDefinition);
-    if (!definition) continue;
+    if (!definition) {
+      fullyParsed = false;
+      continue;
+    }
 
     const normalized = normalizeDefinitionItem({ name, ...definition }, {});
     if (normalized) definitions.push(normalized);
+    else fullyParsed = false;
   }
-  return definitions;
+  return { definitions, fullyParsed };
 }
 
 export type ToolDefinitionFields = {
