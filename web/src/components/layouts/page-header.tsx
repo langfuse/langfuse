@@ -168,7 +168,7 @@ const PageHeader = ({
           <div
             className={cn(
               "flex w-full flex-wrap items-center justify-between gap-1 px-3 md:flex-nowrap",
-              divider ? "min-h-11 py-1" : "min-h-0 pt-3 pb-0",
+              divider ? "min-h-11 py-1" : "min-h-0 pt-2 pb-0",
               container && containerLayoutClassName,
             )}
           >
