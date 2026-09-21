@@ -46,10 +46,10 @@ export function TraceHeader() {
     <div
       className={cn(
         "shrink-0 border-b px-3",
-        traceContext === "fullscreen" ? "pt-1.5 pb-6" : "py-2",
+        traceContext === "fullscreen" ? "pt-0 pb-3" : "py-2",
       )}
     >
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-6">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
@@ -76,13 +76,11 @@ export function TraceHeader() {
         {trace.userId && (
           <UserIdBadge userId={trace.userId} projectId={trace.projectId} />
         )}
-        {traceScores.length > 0 && (
-          <div className="flex min-w-0 items-center gap-1">
-            <GroupedScoreBadges scores={traceScores} />
-          </div>
-        )}
-        {trace.tags.length > 0 && (
-          <div className="flex min-w-0 items-center gap-1">
+        {(traceScores.length > 0 || trace.tags.length > 0) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
+            {traceScores.length > 0 && (
+              <GroupedScoreBadges scores={traceScores} />
+            )}
             {visibleTags.map((tag) => (
               <TagButton key={tag} tag={tag} loading={false} viewOnly />
             ))}
