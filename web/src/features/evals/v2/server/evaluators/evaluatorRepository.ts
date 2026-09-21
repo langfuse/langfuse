@@ -103,11 +103,10 @@ function versionData(
     case EvalTemplateType.DECISION_MODEL:
       return {
         ...commonVersionData,
-        prompt: definition.prompt,
         provider: definition.provider,
         model: definition.model,
-        vars: [],
-        outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
       };
     case EvalTemplateType.CODE:
       return {

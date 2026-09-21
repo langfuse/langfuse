@@ -3,10 +3,15 @@ import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/pr
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import {
+  buildDecisionModelDraftQuestions,
+  DECISION_MODEL_DRAFT_STATE_MAPPING,
+} from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
 
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
+  | "name"
   | "promptMessages"
   | "instructions"
   | "sourceCode"
@@ -32,21 +37,21 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
       : [];
 
   if (params.type === "DECISION_MODEL") {
-    const instructions = params.instructions.trim();
+    const questions = buildDecisionModelDraftQuestions({
+      instructions: params.instructions,
+      scoreName: params.name,
+      scoreOutput: params.scoreOutput,
+    });
     const definition =
-      outputDefinition &&
-      outputDefinition.dataType === "CATEGORICAL" &&
-      !outputDefinition.score.shouldAllowMultipleMatches &&
-      instructions &&
-      params.selectedModel
+      questions && params.selectedModel
         ? {
             type: params.type,
-            prompt: instructions,
+            questions,
             modelConfig: {
               provider: params.selectedModel.provider,
               model: params.selectedModel.model,
             },
-            outputDefinition,
+            variableMapping: DECISION_MODEL_DRAFT_STATE_MAPPING,
           }
         : null;
     return { definition, mappings };

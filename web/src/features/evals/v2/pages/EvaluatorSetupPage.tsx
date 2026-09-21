@@ -28,7 +28,10 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import { getDecisionModelInstructions } from "@/src/features/evals/v2/fns/evaluators/getDecisionModelInstructions";
+import {
+  buildDecisionModelDraftQuestions,
+  DECISION_MODEL_DRAFT_QUESTION_ID,
+} from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -111,13 +114,18 @@ export function getEvaluatorVersionDefinition(
   >;
 
   if (version.type === "DECISION_MODEL") {
+    type DecisionModelDefinition = Extract<
+      NormalizedEvaluatorDefinition,
+      { type: "DECISION_MODEL" }
+    >;
     return {
       type: version.type,
-      prompt: getDecisionModelInstructions(version),
+      questions: version.questions as DecisionModelDefinition["questions"],
       provider: version.provider ?? "",
       model: version.model ?? "",
-      outputDefinition:
-        version.outputDefinition as LlmEvaluatorDefinition["outputDefinition"],
+      vars: version.vars,
+      variableMapping:
+        version.variableMapping as DecisionModelDefinition["variableMapping"],
     };
   }
 
@@ -193,14 +201,16 @@ export function EvaluatorSetupPage(
     projectId,
     evaluatorId: initialEvaluator?.id ?? null,
   });
-  const scoreDataType = initialEvaluator
-    ? initialEvaluator.definition.type === "CODE"
+  const scoreDataType =
+    initialEvaluator?.definition.type === "CODE"
       ? getFirstCodeEvaluatorScoreDataType(
           initialEvaluator.definition.sourceCode,
         )
-      : toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
-          .dataType
-    : undefined;
+      : initialEvaluator?.definition.type === "LLM_AS_JUDGE"
+        ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+            .dataType
+        : // Decision models write several differently typed scores.
+          undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -316,6 +326,7 @@ export function EvaluatorSetupPage(
     vars: version.vars,
     variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
+    questions: version.questions,
     createdByUser: version.createdByUser,
   }));
 
@@ -381,7 +392,15 @@ export function EvaluatorSetupPage(
       case "CODE":
         return { type: state.type, sourceCode: state.sourceCode };
       case "DECISION_MODEL":
-        return { type: state.type, prompt: state.instructions };
+        return {
+          type: state.type,
+          questions:
+            buildDecisionModelDraftQuestions({
+              instructions: state.instructions,
+              scoreName: state.name || DECISION_MODEL_DRAFT_QUESTION_ID,
+              scoreOutput: state.scoreOutput,
+            }) ?? [],
+        };
     }
   };
 

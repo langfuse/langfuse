@@ -7,7 +7,6 @@ import {
   type FilterState,
   getBlockReasonForInvalidModelConfig,
   getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
   getEvaluatorBlockMetadata,
   getEvaluatorPromptMessages,
   isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
@@ -63,7 +62,10 @@ type SuggestEvaluatorTextParams = {
           "promptMessages"
         >
       | { sourceCode: string }
-      | { prompt: string }
+      | Pick<
+          Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+          "questions"
+        >
     );
 };
 
@@ -118,10 +120,7 @@ function prepareEvaluatorDefinitionForPersistence(
   }
 
   if (definition.type === EvalTemplateType.DECISION_MODEL) {
-    return {
-      ...definition,
-      variableMapping: getDecisionModelVariableMapping(),
-    };
+    return definition;
   }
 
   return {
@@ -935,6 +934,7 @@ export function toEvaluatorDefinition(
     outputDefinition: unknown;
     sourceCode: string | null;
     sourceCodeLanguage: "PYTHON" | "TYPESCRIPT" | null;
+    questions?: unknown;
   },
 ): NormalizedEvaluatorDefinition {
   return EvaluatorDefinitionSchema.parse(
@@ -964,10 +964,11 @@ function toEvaluatorDefinitionInput(
     case EvalTemplateType.DECISION_MODEL:
       return {
         type,
-        prompt: version.prompt ?? "",
+        questions: version.questions,
         provider: version.provider ?? "",
         model: version.model ?? "",
-        outputDefinition: version.outputDefinition,
+        vars: version.vars,
+        variableMapping: version.variableMapping,
       };
     case EvalTemplateType.CODE:
       return {
@@ -982,9 +983,14 @@ function getSuggestionDefinitionText(params: SuggestEvaluatorTextParams) {
   if ("promptMessages" in params.definition) {
     return getLegacyEvaluatorPrompt(params.definition.promptMessages);
   }
-  return "sourceCode" in params.definition
-    ? params.definition.sourceCode
-    : params.definition.prompt;
+  if ("sourceCode" in params.definition) return params.definition.sourceCode;
+  return params.definition.questions
+    .map((question) =>
+      typeof question.instructions === "string"
+        ? question.instructions
+        : JSON.stringify(question.instructions),
+    )
+    .join("\n\n");
 }
 
 async function defaultNameGenerator(

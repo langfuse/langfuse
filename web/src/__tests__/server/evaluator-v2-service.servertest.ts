@@ -1,8 +1,4 @@
-import {
-  EvalTargetObject,
-  getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
-} from "@langfuse/shared";
+import { EvalTargetObject, getCodeEvalVariableMapping } from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
   ChatMessageRole,
@@ -397,7 +393,35 @@ describe("EvaluatorService", () => {
     );
   });
 
-  it("writes the managed state mapping when creating a decision-model evaluator", async () => {
+  it("persists the state mapping and typed questions of a decision-model evaluator", async () => {
+    const questions = [
+      {
+        id: "readiness",
+        scoreName: "send_readiness",
+        type: "choice" as const,
+        instructions: "Is `reply` ready to send as an answer to `question`?",
+        options: [{ value: "ready" }, { value: "needs_revision" }],
+      },
+      {
+        id: "refund",
+        scoreName: "refund_requested",
+        type: "noul" as const,
+        instructions: "Does `question` request a refund?",
+      },
+    ];
+    const variableMapping = [
+      {
+        templateVariable: "question",
+        selectedColumnId: "input",
+        jsonSelector: "$.messages[-1].content",
+      },
+      {
+        templateVariable: "reply",
+        selectedColumnId: "output",
+        jsonSelector: null,
+      },
+    ];
+
     const created = await createService().create(
       {
         projectId,
@@ -405,18 +429,11 @@ describe("EvaluatorService", () => {
         description: null,
         definition: {
           type: "DECISION_MODEL",
-          prompt: "Is this reply ready to send?",
+          questions,
           provider: "typesafe",
           model: "jev-1.13.0",
-          outputDefinition: {
-            dataType: "CATEGORICAL",
-            reasoning: { description: "" },
-            score: {
-              description: "",
-              categories: ["ready", "needs_revision"],
-              shouldAllowMultipleMatches: false,
-            },
-          },
+          vars: ["question", "reply"],
+          variableMapping,
         },
       },
       null,
@@ -426,13 +443,11 @@ describe("EvaluatorService", () => {
     expect(created.versions[0]).toMatchObject({
       provider: "typesafe",
       model: "jev-1.13.0",
-      vars: [],
-      variableMapping: getDecisionModelVariableMapping(),
-      // The service normalizes every version prompt into prompt messages, so
-      // the question instructions arrive as a single user message.
-      promptMessages: [
-        { role: "user", content: "Is this reply ready to send?" },
-      ],
+      vars: ["question", "reply"],
+      variableMapping,
+      questions,
+      promptMessages: null,
+      outputDefinition: null,
     });
   });
 

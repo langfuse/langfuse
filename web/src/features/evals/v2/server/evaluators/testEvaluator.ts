@@ -1,6 +1,5 @@
 import {
   getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -22,6 +21,7 @@ import {
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
+  type DecisionModelRequest,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
@@ -54,7 +54,13 @@ export async function testEvaluator(params: {
   if (params.definition.type === "CODE") {
     variableMapping = getCodeEvalVariableMapping();
   } else if (params.definition.type === "DECISION_MODEL") {
-    variableMapping = getDecisionModelVariableMapping();
+    assertCompleteEvaluatorVariableMapping({
+      promptVariables: params.definition.vars,
+      variableMapping: params.definition.variableMapping,
+    });
+    variableMapping = observationVariableMappingList.parse(
+      params.definition.variableMapping,
+    );
   } else {
     const llmVariableMapping = params.definition.variableMapping ?? [];
     assertCompleteEvaluatorVariableMapping({
@@ -139,28 +145,29 @@ async function testDecisionModelEvaluator(params: {
   }
 
   const executionTraceId = createW3CTraceId();
-  let interpolatedPrompt: string | undefined;
+  let request: DecisionModelRequest | undefined;
   try {
     const client = createTypeSafeDecisionModelClient({
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
     });
     const execution = await executeDecisionModelEvaluator({
-      instructions: params.definition.prompt,
       variables: params.variables,
-      outputDefinition: params.definition.outputDefinition,
+      questions: params.definition.questions,
       client: {
-        evaluateChoice: (request) => {
-          interpolatedPrompt = JSON.stringify(request, null, 2);
-          return client.evaluateChoice(request);
+        evaluate: (sent) => {
+          request = sent;
+          return client.evaluate(sent);
         },
       },
     });
 
+    // Decision models return no rationale, so the exact request is the
+    // debugging aid: the state built from the observation plus the questions.
     return {
       success: true as const,
-      result: execution.output,
-      interpolatedPrompt,
+      scores: execution.scores,
+      request: execution.request,
       model: execution.evaluation.model,
       provider: modelConfig.config.provider,
       executionTraceId,
@@ -170,7 +177,7 @@ async function testDecisionModelEvaluator(params: {
     return {
       success: false as const,
       error: error instanceof Error ? error.message : String(error),
-      interpolatedPrompt,
+      request,
       executionTraceId,
     };
   }

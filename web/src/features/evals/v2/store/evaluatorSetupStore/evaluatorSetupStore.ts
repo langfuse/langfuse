@@ -21,6 +21,7 @@ import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { decisionModelQuestionsToDraft } from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
@@ -74,11 +75,14 @@ function buildInitialScoreOutput(
   definition: NormalizedEvaluatorDefinition | null | undefined,
   type: EvalTemplateType,
 ): ScoreOutputFormState {
-  if (
-    definition?.type === "LLM_AS_JUDGE" ||
-    definition?.type === "DECISION_MODEL"
-  ) {
+  if (definition?.type === "LLM_AS_JUDGE") {
     return toScoreOutputFormState(definition.outputDefinition);
+  }
+  if (definition?.type === "DECISION_MODEL") {
+    return (
+      decisionModelQuestionsToDraft(definition.questions)?.scoreOutput ??
+      DEFAULT_DECISION_MODEL_SCORE_OUTPUT
+    );
   }
   if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
     return DEFAULT_DECISION_MODEL_SCORE_OUTPUT;
@@ -203,9 +207,10 @@ export function createEvaluatorSetupStore({
     promptMessages: initialPromptMessages,
     promptMessageIds: initialPromptMessages.map(() => safeRandomUUID()),
     instructions:
-      initialDefinition?.type === "DECISION_MODEL"
-        ? initialDefinition.prompt
-        : DEFAULT_DECISION_MODEL_INSTRUCTIONS,
+      (initialDefinition?.type === "DECISION_MODEL"
+        ? decisionModelQuestionsToDraft(initialDefinition.questions)
+            ?.instructions
+        : undefined) ?? DEFAULT_DECISION_MODEL_INSTRUCTIONS,
     sourceCode: initialSourceCode,
     sourceCodeLanguage: initialSourceCodeLanguage,
     sourceCodeDrafts: {
@@ -401,10 +406,13 @@ export function createEvaluatorSetupStore({
               : null;
 
           if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+            const draft = decisionModelQuestionsToDraft(definition.questions);
             return {
               type: definition.type,
-              instructions: definition.prompt,
-              scoreOutput: toScoreOutputFormState(definition.outputDefinition),
+              instructions:
+                draft?.instructions ?? DEFAULT_DECISION_MODEL_INSTRUCTIONS,
+              scoreOutput:
+                draft?.scoreOutput ?? DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
               activeMapping: null,
               modelMode: "custom",
               selectedModel,

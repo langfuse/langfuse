@@ -5,8 +5,6 @@ import {
   observationVariableMappingList,
 } from "@langfuse/shared";
 import {
-  buildDecisionModelChoiceQuestion,
-  DecisionModelEvaluatorError,
   DefaultEvalModelService,
   isDecisionModelAdapter,
 } from "@langfuse/shared/src/server";
@@ -218,17 +216,18 @@ async function assertDecisionModelDefinitionValid(params: {
   name: string;
   definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
 }) {
-  try {
-    buildDecisionModelChoiceQuestion({
-      instructions: params.definition.prompt,
-      outputDefinition: params.definition.outputDefinition,
-    });
-  } catch (error) {
-    if (error instanceof DecisionModelEvaluatorError) {
-      throw new InvalidRequestError(error.message);
-    }
-    throw error;
+  // The state must have at least one key and every key must be mapped; the
+  // mapping doubles as the state definition, so this reuses the prompt-variable
+  // completeness check with the state keys in place of prompt variables.
+  if (params.definition.vars.length === 0) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators need at least one state field",
+    );
   }
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: params.definition.vars,
+    variableMapping: params.definition.variableMapping,
+  });
 
   const error = await getDecisionModelConfigurationError(params);
   if (error) throw new EvaluatorModelConfigurationError(error);

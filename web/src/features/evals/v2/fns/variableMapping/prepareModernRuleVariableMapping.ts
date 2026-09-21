@@ -1,7 +1,6 @@
 import {
   EvalTemplateType,
   getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
   observationVariableMappingList,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -27,13 +26,6 @@ export function prepareModernRuleVariableMapping(
 ): ModernRuleVariableMapping {
   if (evaluatorType === EvalTemplateType.CODE) {
     const mapping = getCodeEvalVariableMapping();
-    return {
-      defaultVariableMapping: mapping,
-      initialVariableMapping: null,
-    };
-  }
-  if (evaluatorType === EvalTemplateType.DECISION_MODEL) {
-    const mapping = getDecisionModelVariableMapping();
     return {
       defaultVariableMapping: mapping,
       initialVariableMapping: null,

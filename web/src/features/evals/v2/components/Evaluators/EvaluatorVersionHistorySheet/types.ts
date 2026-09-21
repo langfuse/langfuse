@@ -19,5 +19,7 @@ export type EvaluatorVersion = {
   vars: string[];
   variableMapping: unknown;
   outputDefinition: unknown;
+  /** Decision-model questions; absent on other evaluator types. */
+  questions?: unknown;
   createdByUser: { name: string | null; email: string | null } | null;
 };

@@ -5,7 +5,6 @@ import {
   ForbiddenError,
   InvalidRequestError,
   getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
   JobConfigState,
   JobType,
   LangfuseConflictError,
@@ -267,12 +266,13 @@ function evaluatorVersionData(
       return {
         ...common,
         variableMapping:
-          getDecisionModelVariableMapping() as Prisma.InputJsonValue,
-        prompt: definition.prompt,
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
         provider: definition.provider,
         model: definition.model,
-        vars: [],
-        outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
       };
     case EvalTemplateType.LLM_AS_JUDGE:
       return {
@@ -312,10 +312,10 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     b.type === EvalTemplateType.DECISION_MODEL
   ) {
     return (
-      a.prompt === b.prompt &&
+      isEqual(a.questions, b.questions) &&
       a.provider === b.provider &&
       a.model === b.model &&
-      isEqual(a.outputDefinition, b.outputDefinition)
+      isEqual([...a.vars].sort(), [...b.vars].sort())
     );
   }
   if (

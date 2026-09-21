@@ -141,12 +141,14 @@ async function testDecisionModelConnection(params: {
       apiKey: params.secretKey,
       model: params.model,
     });
-    await client.evaluateChoice({
+    await client.evaluate({
       state: { message: "Hello, is anyone there?" },
-      question: {
-        type: "choice",
-        instructions: "What kind of message is this?",
-        criteria: { greeting: null, other: null },
+      questions: {
+        kind: {
+          type: "choice",
+          instructions: "What kind of message is `message`?",
+          criteria: { greeting: null, other: null },
+        },
       },
     });
     return { success: true };

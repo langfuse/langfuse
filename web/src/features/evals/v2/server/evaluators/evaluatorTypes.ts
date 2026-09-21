@@ -1,5 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import {
+  DecisionModelQuestionsSchema,
+  DecisionModelStateKeySchema,
   EvalOutputDefinitionSchema,
   EvalTemplateType,
   EvaluatorPromptMessagesSchema,
@@ -9,6 +11,7 @@ import {
   PersistedEvalOutputDefinitionSchema,
   ZodModelConfig,
   jsonSchema,
+  observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
   type ObservationVariableMapping,
@@ -70,18 +73,20 @@ export const CodeEvaluatorDefinitionSchema = z.object({
 });
 
 /**
- * Decision-model evaluators (experimental) hold the question instructions in
- * `prompt`; the observation fields are the model state, so there is no user
- * variable mapping and the model connection is always explicit.
+ * Decision-model evaluators (experimental): the state is the JSON object
+ * built from the variable mapping (key → extractor), `questions` are the
+ * typed questions asked about it, and each question writes its own score.
+ * The model connection is always explicit; there is no project default.
  */
-const DecisionModelEvaluatorDefinitionSchema = z.object({
-  type: z.literal(EvalTemplateType.DECISION_MODEL),
-  prompt: z.string().trim().min(1).max(20_000),
-  provider: z.string().min(1),
-  model: z.string().min(1),
-  outputDefinition: PersistedEvalOutputDefinitionSchema,
-  variableMapping: z.never().optional(),
-});
+const DecisionModelEvaluatorDefinitionSchema =
+  EvaluatorVersionBaseSchema.extend({
+    type: z.literal(EvalTemplateType.DECISION_MODEL),
+    questions: DecisionModelQuestionsSchema,
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    /** State keys, derived from the variable mapping. */
+    vars: z.array(DecisionModelStateKeySchema),
+  });
 
 export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   LlmEvaluatorDefinitionSchema,
@@ -104,9 +109,10 @@ const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
 
 const DecisionModelEvaluatorDefinitionInputSchema = z.object({
   type: z.literal(EvalTemplateType.DECISION_MODEL),
-  prompt: z.string().trim().min(1).max(20_000),
+  questions: DecisionModelQuestionsSchema,
   modelConfig: EvaluatorModelConfigSchema.pick({ provider: true, model: true }),
-  outputDefinition: EvalOutputDefinitionSchema,
+  /** The state: one entry per key. Required, unlike LLM judges. */
+  variableMapping: observationVariableMappingList.min(1),
 });
 
 export const EvaluatorDefinitionInputSchema = z
@@ -122,10 +128,13 @@ export const EvaluatorDefinitionInputSchema = z
       case EvalTemplateType.DECISION_MODEL:
         return {
           type: EvalTemplateType.DECISION_MODEL,
-          prompt: definition.prompt,
+          questions: definition.questions,
           provider: definition.modelConfig.provider,
           model: definition.modelConfig.model,
-          outputDefinition: definition.outputDefinition,
+          vars: definition.variableMapping.map(
+            ({ templateVariable }) => templateVariable,
+          ),
+          variableMapping: definition.variableMapping,
         };
       case EvalTemplateType.LLM_AS_JUDGE:
         return {
@@ -293,7 +302,7 @@ export const SuggestEvaluatorTextSchema = z.object({
     }),
     z.object({
       type: z.literal(EvalTemplateType.DECISION_MODEL),
-      prompt: z.string().min(1),
+      questions: DecisionModelQuestionsSchema,
     }),
   ]),
 });
@@ -308,12 +317,7 @@ export type EvaluatorDefinitionForPersistence =
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
     })
-  | (Omit<
-      Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
-      "variableMapping"
-    > & {
-      variableMapping: ObservationVariableMapping[];
-    });
+  | Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
 export type PatchEvaluatorInput = Pick<

@@ -1,8 +1,8 @@
 import { showSuccessToast } from "@/src/features/notifications";
 import {
+  EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
-  hasManagedVariableMapping,
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
@@ -53,7 +53,7 @@ export function EditRuleDialogContent({
           evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: preparedDefault.defaultVariableMapping,
           variableMapping:
-            hasManagedVariableMapping(assignment.evaluator.type) ||
+            assignment.evaluator.type === EvalTemplateType.CODE ||
             assignment.variableMapping == null
               ? preparedDefault.initialVariableMapping
               : observationVariableMappingList

@@ -3,7 +3,6 @@ import type { EvalTemplateType } from "@langfuse/shared";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
-import { getDecisionModelInstructions } from "../fns/evaluators/getDecisionModelInstructions";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 type EvaluatorVersionRow = RouterOutputs["evalsV2"]["get"]["versions"][number];
@@ -28,10 +27,11 @@ function toSetupDefinition(
     case "DECISION_MODEL":
       return {
         type,
-        prompt: getDecisionModelInstructions(latest),
+        questions: latest.questions,
         provider: latest.provider ?? "",
         model: latest.model ?? "",
-        outputDefinition: latest.outputDefinition,
+        vars: latest.vars,
+        variableMapping: latest.variableMapping,
       } as NormalizedEvaluatorDefinition;
     case "CODE":
       return {

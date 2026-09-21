@@ -9,7 +9,6 @@ import {
   validateEvaluatorFiltersForTarget,
   type FilterState,
   type ObservationVariableMapping,
-  hasManagedVariableMapping,
 } from "@langfuse/shared";
 import {
   JobConfigState,
@@ -778,14 +777,10 @@ export class RuleService {
       if (!latestVersion) {
         throw new LangfuseNotFoundError("Evaluator version not found");
       }
-      if (hasManagedVariableMapping(evaluator.type)) {
+      if (evaluator.type === EvalTemplateType.CODE) {
         if (assignment.variableMapping !== null) {
           throw new InvalidRequestError(
-            `${
-              evaluator.type === EvalTemplateType.CODE
-                ? "Code evaluator"
-                : "Decision-model evaluator"
-            } mappings are managed by Langfuse and cannot be provided.`,
+            "Code evaluator mappings are managed by Langfuse and cannot be provided.",
           );
         }
         return {
@@ -799,12 +794,19 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      const promptMessages = reconcileEvaluatorPromptMessages({
-        prompt: latestVersion.prompt,
-        promptMessages: latestVersion.promptMessages,
-      });
+      // Decision models declare their state keys directly; LLM judges derive
+      // the variables from the prompt.
+      const requiredVariables =
+        evaluator.type === EvalTemplateType.DECISION_MODEL
+          ? latestVersion.vars
+          : extractEvaluatorPromptVariables(
+              reconcileEvaluatorPromptMessages({
+                prompt: latestVersion.prompt,
+                promptMessages: latestVersion.promptMessages,
+              }),
+            );
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: extractEvaluatorPromptVariables(promptMessages),
+        promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });
