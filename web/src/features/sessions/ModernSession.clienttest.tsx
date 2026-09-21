@@ -53,7 +53,6 @@ const defaultProps = {
     outputUsage: 0,
     totalTokens: 0,
     totalCost: 0,
-    environment: undefined,
     users: [],
     scores: [],
     minTimestamp: new Date("2026-01-01T00:00:00.000Z"),

@@ -110,7 +110,7 @@ const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
   >
     <Badge
       color="ghost"
-      interactive
+      interactive="link"
       data-session-header-pill="true"
       label="user"
       text={user}

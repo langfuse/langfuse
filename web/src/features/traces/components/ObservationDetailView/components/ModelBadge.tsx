@@ -29,7 +29,7 @@ export function ModelBadge({
       >
         <Badge
           color="ghost"
-          interactive
+          interactive="link"
           text={model}
           trailingIcon={ExternalLinkIcon}
         />
