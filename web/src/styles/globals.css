@@ -170,13 +170,13 @@
      root), line-height and canonical weight, so `text-*` alone yields a
      complete style. Heavier text opts in via `font-bold`, never a raw number. */
   --text-xs: 0.75rem;
-  --text-xs--line-height: calc(16 / 12);
+  --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
   --text-sm: 0.8125rem;
   --text-sm--line-height: calc(20 / 13);
   --text-sm--font-weight: var(--font-weight-regular);
   --text-base: 0.875rem;
-  --text-base--line-height: 1.4;
+  --text-base--line-height: 1.5;
   --text-base--font-weight: var(--font-weight-regular);
   --text-lg: 1rem;
   --text-lg--line-height: 1.35;
