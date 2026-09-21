@@ -15,17 +15,14 @@ export function SessionBadge({
   sessionId: string;
   projectId: string;
 }) {
-  const label = "session";
-  const text = sessionId;
-
   return (
     <Link
       href={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
       className="ph-no-capture inline-flex"
     >
       <Badge
-        label={label}
-        text={text}
+        text="session"
+        title={sessionId}
         trailingIcon={ArrowUpRight}
         trailingIconTone="link"
       />

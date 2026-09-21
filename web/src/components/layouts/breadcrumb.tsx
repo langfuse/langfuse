@@ -61,7 +61,7 @@ const BreadcrumbComponent = ({
                 {isCloudPlan(organization?.plan) &&
                   organization.id !== env.NEXT_PUBLIC_DEMO_ORG_ID && (
                     <Badge
-                      className="ml-1 px-1 py-0 text-xs font-normal"
+                      className="ml-1"
                       variant="secondary"
                     >
                       {planLabels[organization.plan]}

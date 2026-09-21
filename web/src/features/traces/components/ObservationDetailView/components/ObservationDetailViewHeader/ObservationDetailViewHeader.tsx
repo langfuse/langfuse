@@ -155,8 +155,6 @@ export const ObservationDetailViewHeader = memo(
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
-    const inputUsage = observation.inputUsage;
-    const outputUsage = observation.outputUsage;
     const evaluatorId = resolveEvaluatorIdMetadata(
       observationWithIO?.metadata ?? observation.metadata,
     );
@@ -756,8 +754,6 @@ export const ObservationDetailViewHeader = memo(
                 ? subtreeMetrics.hasGenerationLike &&
                   subtreeMetrics.usageDetails && (
                     <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
                       totalUsage={subtreeMetrics.totalUsage}
                       usageDetails={subtreeMetrics.usageDetails}
                     />
@@ -765,8 +761,6 @@ export const ObservationDetailViewHeader = memo(
                 : isGenerationLike(observation.type) &&
                   observation.usageDetails && (
                     <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
                       totalUsage={totalUsage}
                       usageDetails={observation.usageDetails}
                     />

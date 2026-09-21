@@ -1,7 +1,16 @@
 /* eslint-disable no-nested-ternary */
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
+import {
+  ArrowRight,
+  Sigma,
+  ArrowUpRight,
+  Eye,
+  EyeOff,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import Link from "next/link";
@@ -88,7 +97,7 @@ type SessionHeaderDetailControlLocation = "header" | "overflow";
 const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-muted-foreground">{children}</span>
+  <span>{children}</span>
 );
 
 const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
@@ -444,19 +453,30 @@ export function ModernSessionHeader({
   }
 
   if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} → ${numberFormatter(tokensOut, 0)} (Σ ${numberFormatter(totalTokens, 0)})`;
+    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} in, ${numberFormatter(tokensOut, 0)} out, ${numberFormatter(totalTokens, 0)} total`;
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
       visibilityLabel: "token usage",
       type: "tokens",
       content: (
-        <Badge
+        <BadgeShell
           data-session-header-pill="true"
-          label="tokens"
-          text={`${compactTokenFormatter(tokensIn)} → ${compactTokenFormatter(tokensOut)} (Σ ${compactTokenFormatter(totalTokens)})`}
           title={`tokens ${exactTokenCounts}`}
-        />
+        >
+          <span>tokens</span>
+          <span>{compactTokenFormatter(tokensIn)}</span>
+          <ArrowRight
+            aria-hidden
+            className="text-foreground-tertiary -mx-0.5 size-3 shrink-0"
+          />
+          <span>{compactTokenFormatter(tokensOut)}</span>
+          <Sigma
+            aria-hidden
+            className="text-foreground-tertiary -mr-0.5 size-3 shrink-0"
+          />
+          <span>{compactTokenFormatter(totalTokens)}</span>
+        </BadgeShell>
       ),
     });
   }

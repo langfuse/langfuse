@@ -52,8 +52,6 @@ export function TraceSummaryStrip() {
         {aggregatedMetrics.hasGenerationLike &&
           aggregatedMetrics.usageDetails && (
             <UsageBadge
-              inputUsage={aggregatedMetrics.inputUsage}
-              outputUsage={aggregatedMetrics.outputUsage}
               totalUsage={aggregatedMetrics.totalUsage}
               usageDetails={aggregatedMetrics.usageDetails}
             />
