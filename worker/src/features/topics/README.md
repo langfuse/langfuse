@@ -44,7 +44,10 @@ pnpm --filter @langfuse/native run build
 The worker reads `OPENAI_API_KEY` from its environment through the normal `.env`
 loader. Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
-Summary records set `unit_type=trace`, `unit_id` to the source trace ID, and
+Summary and assignment records identify exactly one source: `trace_id` or
+`session_id`. The other is empty in ClickHouse and `null` in TypeScript; the
+database constraint and storage adapters enforce XOR. The current pipeline
+processes traces only and sets `trace_id` to the source trace ID. Summaries set
 `trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
 attempt while keeping the previous published map available.
 

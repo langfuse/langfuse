@@ -14,13 +14,19 @@ export async function currentTopicResults(projectId: string) {
   return Promise.all(
     facets.map(async (facet) => {
       const version = facet.versions[0];
-      const [assignments, latestSummaries, run] = await Promise.all([
-        readLatestTopicAssignments(projectId, { facetId: facet.id }),
+      const [storedAssignments, storedSummaries, run] = await Promise.all([
+        readLatestTopicAssignments(projectId, facet.id),
         version
           ? getLatestFacetSummaries(projectId, facet.id, version.id)
           : Promise.resolve([]),
         getPublishedTopicRun(projectId, facet.id),
       ]);
+      const assignments = storedAssignments.filter(
+        (row) => row.traceId !== null,
+      );
+      const latestSummaries = storedSummaries.filter(
+        (row) => row.traceId !== null,
+      );
       const topicVersionIds = [
         ...new Set(
           assignments.flatMap((row) =>

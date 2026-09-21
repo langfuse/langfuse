@@ -66,6 +66,8 @@
   Processing jobs carry at most 100 trace IDs and accepted summary references.
   Cluster retries create fresh unpublished attempts; Topics does not use object storage.
   Summaries, embeddings, assignments and map coordinates live in ClickHouse.
+  Summary/assignment identity is XOR: exactly one of `traceId` or `sessionId`;
+  the other is `null` (`''` in ClickHouse). Processing remains trace-only.
   `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
   enqueues reference-only embedding batches. Consumers persist completed results
   to ClickHouse before deleting staged payloads; queue job retention is separate

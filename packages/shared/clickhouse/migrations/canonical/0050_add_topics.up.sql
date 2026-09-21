@@ -4,8 +4,9 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     facet_id String,
     facet_version_id String,
     facet_version UInt32,
-    unit_type LowCardinality(String) DEFAULT 'trace',
-    unit_id String,
+    trace_id String DEFAULT '',
+    session_id String DEFAULT '',
+    CONSTRAINT topic_source_xor CHECK notEmpty(trace_id) != notEmpty(session_id),
     unit_timestamp DateTime64(3, 'UTC'),
     id String,
     revision UInt64,
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(result_version)
 PARTITION BY toYYYYMM(unit_timestamp)
 PRIMARY KEY (project_id, facet_id, toDate(unit_timestamp))
-ORDER BY (project_id, facet_id, toDate(unit_timestamp), unit_id, facet_version_id, revision, id);
+ORDER BY (project_id, facet_id, toDate(unit_timestamp), trace_id, session_id, facet_version_id, revision, id);
 
 CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 (
@@ -38,8 +39,9 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     facet_id String,
     facet_version_id String,
     facet_version UInt32,
-    unit_type LowCardinality(String) DEFAULT 'trace',
-    unit_id String,
+    trace_id String DEFAULT '',
+    session_id String DEFAULT '',
+    CONSTRAINT topic_source_xor CHECK notEmpty(trace_id) != notEmpty(session_id),
     unit_timestamp DateTime64(3, 'UTC'),
     id String,
     facet_summary_id String,
@@ -61,4 +63,4 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(result_version)
 PARTITION BY toYYYYMM(unit_timestamp)
 PRIMARY KEY (project_id, facet_id, toDate(unit_timestamp))
-ORDER BY (project_id, facet_id, toDate(unit_timestamp), unit_id, facet_summary_id, clustering_run_id, id);
+ORDER BY (project_id, facet_id, toDate(unit_timestamp), trace_id, session_id, facet_summary_id, clustering_run_id, id);

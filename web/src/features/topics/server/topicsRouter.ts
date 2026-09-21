@@ -164,7 +164,9 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
   return execution;
 }
 
-type MapSummary = Pick<TopicSummary, "traceId" | "summary"> & {
+type MapSummary = {
+  traceId: string;
+  summary: string;
   summaryId: string;
   topicId: string | null;
   outcome: "assigned" | "outlier" | "unassigned";
@@ -293,24 +295,26 @@ async function publishedTopicMap(input: {
       )
       .map((row) => [row.summaryId, row]),
   );
-  const publicSummary = (row: TopicSummary): MapSummary => {
-    const assignment = assignedById.get(row.id);
-    return {
-      summaryId: row.id,
-      traceId: row.traceId,
-      summary: row.summary,
-      topicId: assignment?.outcome === "assigned" ? assignment.topicId : null,
-      outcome:
-        assignment?.outcome === "assigned" || assignment?.outcome === "outlier"
-          ? assignment.outcome
-          : "unassigned",
-    };
-  };
-  const points = run.summaryIds.flatMap((id) => {
+  const points = run.summaryIds.flatMap((id): TopicMap["points"] => {
     const row = byId.get(id);
-    if (!row) return [];
+    if (!row || row.traceId === null) return [];
     const [x, y] = projectedById.get(id)!.coordinates!;
-    return [{ ...publicSummary(row), x, y }];
+    const assignment = assignedById.get(row.id);
+    return [
+      {
+        summaryId: row.id,
+        traceId: row.traceId,
+        summary: row.summary,
+        topicId: assignment?.outcome === "assigned" ? assignment.topicId : null,
+        outcome:
+          assignment?.outcome === "assigned" ||
+          assignment?.outcome === "outlier"
+            ? assignment.outcome
+            : "unassigned",
+        x,
+        y,
+      },
+    ];
   });
   const unpositionedCount = [...executionIds].filter(
     (id) => byId.has(id) && !discoveryIds.has(id),
@@ -543,12 +547,14 @@ export const topicsRouter = createTRPCRouter({
       ]);
       return {
         run: run ? publicRun(run) : null,
-        summaries: summaries.map((s) => ({
-          id: s.id,
-          traceId: s.traceId,
-          state: s.state,
-          summary: s.summary,
-        })),
+        summaries: summaries
+          .filter((row) => row.traceId !== null)
+          .map((s) => ({
+            id: s.id,
+            traceId: s.traceId,
+            state: s.state,
+            summary: s.summary,
+          })),
         assignments,
       };
     }),
@@ -629,7 +635,8 @@ export const topicsRouter = createTRPCRouter({
       const [summary] = await readTopicSummaries(input.projectId, [
         input.summaryId,
       ]);
-      if (!summary) throw new LangfuseNotFoundError("Summary not found.");
+      if (!summary || summary.traceId === null)
+        throw new LangfuseNotFoundError("Trace summary not found.");
       let projection:
         | Awaited<ReturnType<typeof loadTopicTranscript>>["transcript"]
         | null = null;

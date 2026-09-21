@@ -18,6 +18,7 @@ import {
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   TopicsEmbeddingQueue,
   enqueueTopicEmbeddingBatch,
+  readStagedTopicSummary,
 } from "./embedding-queue";
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   eval: vi.fn(),
   hget: vi.fn(),
   exists: vi.fn(),
+  get: vi.fn(),
 }));
 vi.mock("./journal", () => ({
   readTopicExecutionSummary: mocks.read,
@@ -33,7 +35,12 @@ vi.mock("./journal", () => ({
 }));
 vi.mock("../redis/redis", () => ({
   createBullMQQueueOptionsWithRedis: () => null,
-  redis: { eval: mocks.eval, hget: mocks.hget, exists: mocks.exists },
+  redis: {
+    eval: mocks.eval,
+    hget: mocks.hget,
+    exists: mocks.exists,
+    get: mocks.get,
+  },
 }));
 vi.mock("../logger", () => ({ logger: { error: vi.fn() } }));
 vi.mock("./config", () => ({ isTopicsEnabled: () => true }));
@@ -447,6 +454,15 @@ describe("Topics embedding queue handoff", () => {
       { summaryId: "summary", facetVersionId: "facet", traceId: "trace" },
     ],
   };
+
+  it("rejects a staged summary belonging to another project", async () => {
+    mocks.get.mockResolvedValue(
+      JSON.stringify({ summary: { projectId: "different-project" } }),
+    );
+    await expect(
+      readStagedTopicSummary(batch, batch.summaries[0]!),
+    ).rejects.toThrow("scope mismatch");
+  });
 
   it("only retries failed batches on explicit resume and preserves expiry errors", async () => {
     const getState = vi.fn().mockResolvedValue("failed");

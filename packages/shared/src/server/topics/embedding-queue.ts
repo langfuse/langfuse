@@ -75,6 +75,8 @@ export async function stageTopicSummary(
   summary: TopicSummary,
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<TopicSummary> {
+  if (summary.traceId === null)
+    throw new Error("Topics processing requires a trace summary.");
   const client = getRedis();
   const key = summaryKey(summary, summary);
   const payload = JSON.stringify({

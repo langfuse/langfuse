@@ -130,14 +130,17 @@ export interface TopicFacet {
   publishedRunId: string | null;
   versions: TopicFacetVersion[];
 }
-export interface TopicSummary {
+export const topicSourceSchema = z.union([
+  z.object({ traceId: z.string().min(1), sessionId: z.null() }),
+  z.object({ traceId: z.null(), sessionId: z.string().min(1) }),
+]);
+
+export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   id: string;
   projectId: string;
   facetId: string;
   facetVersionId: string;
   facetVersion: number;
-  traceId: string;
-  unitType: "trace";
   triggerType: "manual_poc";
   traceTimestamp: string;
   revision: string;
@@ -157,8 +160,8 @@ export interface TopicSummary {
   embeddingCostUsd: number;
   processedAt: string;
   metadata: Record<string, unknown>;
-}
-export interface TopicAssignment {
+};
+export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   id: string;
   executionId: string;
   coordinates: [number, number] | null;
@@ -166,8 +169,6 @@ export interface TopicAssignment {
   facetId: string;
   facetVersionId: string;
   facetVersion: number;
-  traceId: string;
-  unitType: "trace";
   traceTimestamp: string;
   summaryId: string;
   summaryRevision: string;
@@ -186,7 +187,7 @@ export interface TopicAssignment {
   rejectionReason: string;
   origin: "initial" | "online" | "backfill";
   assignedAt: string;
-}
+};
 export interface TopicDefinition {
   topicVersionId: string;
   projectId: string;

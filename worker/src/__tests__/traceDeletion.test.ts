@@ -94,38 +94,45 @@ describe("trace deletion", () => {
     const rows = [
       {
         project_id: projectId,
-        unit_id: traceId,
+        trace_id: traceId,
         facet_id: "intent",
         facet_version_id: "v1",
       },
       {
         project_id: projectId,
-        unit_id: traceId,
+        trace_id: traceId,
         facet_id: "intent",
         facet_version_id: "v2",
       },
       {
         project_id: projectId,
-        unit_id: traceId,
+        trace_id: traceId,
         facet_id: "outcome",
         facet_version_id: "v1",
       },
       {
         project_id: projectId,
-        unit_id: retainedTraceId,
+        trace_id: retainedTraceId,
         facet_id: "intent",
         facet_version_id: "v1",
       },
       {
         project_id: otherProjectId,
-        unit_id: traceId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version_id: "v1",
+      },
+      {
+        project_id: projectId,
+        trace_id: "",
+        session_id: traceId,
         facet_id: "intent",
         facet_version_id: "v1",
       },
     ].map((row) => ({
+      session_id: "",
       ...row,
       id: randomUUID(),
-      unit_type: "trace",
       unit_timestamp: timestamp,
     }));
 
@@ -157,17 +164,27 @@ describe("trace deletion", () => {
     for (const table of ["topic_facet_summaries", "topic_assignments"]) {
       const remaining = await queryClickhouse<{
         project_id: string;
-        unit_id: string;
+        trace_id: string;
+        session_id: string;
       }>({
-        query: `SELECT project_id, unit_id FROM ${table}
+        query: `SELECT project_id, trace_id, session_id FROM ${table}
           WHERE project_id IN ({projectIds: Array(String)})`,
         params: { projectIds: [projectId, otherProjectId] },
       });
-      expect(remaining).toHaveLength(2);
+      expect(remaining).toHaveLength(3);
       expect(remaining).toEqual(
         expect.arrayContaining([
-          { project_id: projectId, unit_id: retainedTraceId },
-          { project_id: otherProjectId, unit_id: traceId },
+          {
+            project_id: projectId,
+            trace_id: retainedTraceId,
+            session_id: "",
+          },
+          {
+            project_id: otherProjectId,
+            trace_id: traceId,
+            session_id: "",
+          },
+          { project_id: projectId, trace_id: "", session_id: traceId },
         ]),
       );
     }

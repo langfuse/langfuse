@@ -70,11 +70,6 @@ type SummaryBatch = {
   summaries: TopicEmbeddingRef[];
   failedCounts: Record<string, number>;
 };
-const summaryRef = (row: TopicSummary): TopicEmbeddingRef => ({
-  summaryId: row.id,
-  facetVersionId: row.facetVersionId,
-  traceId: row.traceId,
-});
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
@@ -205,7 +200,7 @@ async function summarizeTrace(
       facetVersionId: facet.id,
       facetVersion: facet.version,
       traceId,
-      unitType: "trace" as const,
+      sessionId: null,
       triggerType: "manual_poc" as const,
       traceTimestamp,
       revision: execution.revision,
@@ -482,7 +477,7 @@ function assignmentRows(
   summaries: TopicSummary[],
   run: TopicRun,
   coordinates: Map<string, [number, number]> = new Map(),
-): TopicAssignment[] {
+): Extract<TopicAssignment, { traceId: string }>[] {
   const prototypes = run.topics.map((topic) => ({
     id: topic.topicVersionId,
     centroid: topic.centroid,
@@ -490,6 +485,8 @@ function assignmentRows(
   }));
   const time = new Date().toISOString();
   return summaries.map((summary) => {
+    if (summary.traceId === null)
+      throw new Error("Topics processing requires a trace summary.");
     const assigned = classifyTopic(summary.embedding, prototypes);
     const topic = run.topics.find(
       (candidate) => candidate.topicVersionId === assigned.topicId,
@@ -502,7 +499,7 @@ function assignmentRows(
       facetId: facet.facetId,
       facetVersionId: facet.id,
       facetVersion: facet.version,
-      unitType: "trace",
+      sessionId: summary.sessionId,
       traceId: summary.traceId,
       traceTimestamp: summary.traceTimestamp,
       summaryId: summary.id,
@@ -815,7 +812,7 @@ async function clusterFacet(
           candidateTopics: topics,
           previousMemberships: previousAssignments.flatMap((row) => {
             const summary = bySummary.get(row.summaryId);
-            return summary
+            return summary && summary.traceId !== null
               ? [
                   {
                     traceId: summary.traceId,
@@ -915,6 +912,8 @@ async function writeUnassignedSummaries(
   summaries: TopicSummary[],
 ) {
   const rows: TopicAssignment[] = summaries.flatMap((summary) => {
+    if (summary.traceId === null)
+      throw new Error("Topics processing requires a trace summary.");
     if (summary.state === "summarized") return [];
     const outcome =
       summary.state === "complete" ? "awaiting_topics" : summary.state;
@@ -927,7 +926,7 @@ async function writeUnassignedSummaries(
         facetId: facet.facetId,
         facetVersionId: facet.id,
         facetVersion: facet.version,
-        unitType: "trace" as const,
+        sessionId: summary.sessionId,
         traceId: summary.traceId,
         traceTimestamp: summary.traceTimestamp,
         summaryId: summary.id,
@@ -1061,7 +1060,11 @@ async function processTraces(
             new Set(progress.summaryIds),
             getTranscript,
           );
-          state.summaries.push(summaryRef(summary));
+          state.summaries.push({
+            summaryId: summary.id,
+            facetVersionId: facet.id,
+            traceId,
+          });
           progress.summaryIds.push(summary.id);
           await save("summarizing");
         } catch (error) {

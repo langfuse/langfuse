@@ -35,8 +35,8 @@ const deleteTopicResultsForTraces = async (
         query: `SELECT min(unit_timestamp) AS min_timestamp,
             max(unit_timestamp) AS max_timestamp, count() AS count
           FROM ${table}
-          WHERE project_id = {projectId: String} AND unit_type = 'trace'
-            AND unit_id IN ({traceIds: Array(String)})`,
+          WHERE project_id = {projectId: String}
+            AND trace_id IN ({traceIds: Array(String)})`,
         params,
         clickhouseConfigs,
         tags: { projectId },
@@ -45,8 +45,8 @@ const deleteTopicResultsForTraces = async (
 
       await commandClickhouse({
         query: `DELETE FROM ${table}
-          WHERE project_id = {projectId: String} AND unit_type = 'trace'
-            AND unit_id IN ({traceIds: Array(String)})
+          WHERE project_id = {projectId: String}
+            AND trace_id IN ({traceIds: Array(String)})
             AND unit_timestamp >= {minTimestamp: DateTime64(3)}
             AND unit_timestamp <= {maxTimestamp: DateTime64(3)}`,
         params: {

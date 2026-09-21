@@ -1,14 +1,16 @@
-import type { TopicDefinition, TopicSummary } from "@langfuse/shared/topics";
+import type { TopicDefinition } from "@langfuse/shared/topics";
 import { normalizeVector } from "./classifier";
 
-type Membership = Pick<TopicSummary, "traceId" | "inputHash"> & {
+type Membership = {
+  traceId: string;
+  inputHash: string;
   topicVersionId: string | null;
 };
 
-const evidenceKey = (row: Pick<TopicSummary, "traceId" | "inputHash">) =>
+const evidenceKey = (row: Pick<Membership, "traceId" | "inputHash">) =>
   JSON.stringify([row.traceId, row.inputHash]);
 
-function uniqueEvidence<T extends Pick<TopicSummary, "traceId" | "inputHash">>(
+function uniqueEvidence<T extends Pick<Membership, "traceId" | "inputHash">>(
   rows: readonly T[],
 ): Map<string, T> {
   const traces = new Map<string, string>();

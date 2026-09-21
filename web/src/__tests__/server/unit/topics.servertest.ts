@@ -1299,9 +1299,10 @@ describe("Topics current results", () => {
       },
     ]);
     const result = await caller("VIEWER").currentResults({ projectId });
-    expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(projectId, {
-      facetId: "intent",
-    });
+    expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
+      projectId,
+      "intent",
+    );
     expect(mocks.getTopicDefinitions).toHaveBeenCalledWith(projectId, [
       "version-old",
     ]);

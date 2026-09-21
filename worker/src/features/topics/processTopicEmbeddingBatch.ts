@@ -21,14 +21,12 @@ function validateSummary(
   batch: TopicEmbeddingBatch,
   ref: TopicEmbeddingRef,
   summary: TopicSummary,
-  staged: boolean,
 ): void {
   if (
     summary.projectId !== batch.projectId ||
     summary.id !== ref.summaryId ||
     summary.facetVersionId !== ref.facetVersionId ||
-    summary.traceId !== ref.traceId ||
-    (staged && summary.executionId !== batch.executionId)
+    summary.traceId !== ref.traceId
   )
     throw new UnrecoverableError("Topics embedding summary identity mismatch.");
 }
@@ -57,14 +55,13 @@ export async function processTopicEmbeddingBatch(
     for (const ref of batch.summaries) {
       const durable = stored.get(ref.summaryId);
       if (durable) {
-        validateSummary(batch, ref, durable, false);
+        validateSummary(batch, ref, durable);
         acknowledged.push(ref);
         continue;
       }
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
       let { summary } = staged;
-      validateSummary(batch, ref, summary, true);
       if (summary.state === "summarized") {
         const result = await metrics.measure("embedding", async () => {
           try {

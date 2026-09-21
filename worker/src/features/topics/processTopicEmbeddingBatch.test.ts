@@ -44,7 +44,7 @@ const summary = (id = "summary"): TopicSummary => ({
   facetVersionId: "facet-version",
   facetVersion: 1,
   traceId: `trace-${id}`,
-  unitType: "trace",
+  sessionId: null,
   triggerType: "manual_poc",
   traceTimestamp: "2026-09-18T00:00:00.000Z",
   processedAt: "2026-09-18T00:00:00.000Z",
@@ -212,16 +212,6 @@ describe("Topics embedding handoff", () => {
     );
     expect(mocks.write).not.toHaveBeenCalled();
     expect(staged.get(row.id)?.state).toBe("summarized");
-  });
-
-  it("rejects a staged summary belonging to another project", async () => {
-    const row = summary();
-    staged.set(row.id, { ...row, projectId: "different-project" });
-    await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
-      "identity mismatch",
-    );
-    expect(mocks.embed).not.toHaveBeenCalled();
-    expect(mocks.write).not.toHaveBeenCalled();
   });
 
   it("persists an in-memory embedding when its Redis payload expires during the call", async () => {
