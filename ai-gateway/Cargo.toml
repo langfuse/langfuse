@@ -6,21 +6,32 @@ publish = false
 license = "MIT"
 
 [dependencies]
-axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "tokio"] }
+axum = { version = "0.8.9", default-features = false, features = ["http1", "json", "matched-path", "tokio"] }
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 hmac = "0.13"
 http-body-util = "0.1"
 futures-util = "0.3"
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls-native-roots", "stream"] }
+opentelemetry-http = "0.32"
+opentelemetry = { version = "0.32", default-features = false, features = ["trace", "metrics", "internal-logs"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["trace", "metrics", "internal-logs"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["trace", "metrics", "http-proto", "reqwest-blocking-client", "internal-logs"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream"] }
+reqwest-middleware = "0.5"
+reqwest-tracing = { version = "0.7", default-features = false, features = ["opentelemetry_0_32"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
 tokio = { version = "1.53.1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tower-http = { version = "0.7", features = ["trace"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", default-features = false, features = ["fmt", "json"] }
-uuid = { version = "1", features = ["v4"] }
+tracing-opentelemetry = { version = "0.33", default-features = false }
+tracing-subscriber = { version = "0.3.23", default-features = false, features = ["env-filter", "fmt", "json"] }
 
 [dev-dependencies]
+http-body = "1"
+opentelemetry-proto = { version = "0.32", default-features = false, features = ["gen-tonic-messages", "trace", "metrics"] }
+opentelemetry_sdk = { version = "0.32", default-features = false, features = ["testing"] }
+prost = "0.14"
 tokio = { version = "1.53.1", features = ["io-util"] }
 tower = { version = "0.5", features = ["util"] }
 

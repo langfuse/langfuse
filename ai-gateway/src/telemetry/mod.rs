@@ -1,4 +1,5 @@
 //! Immediate, best-effort delivery of finalized inference facts.
+mod context;
 mod mapping;
 mod otlp;
 
@@ -10,13 +11,18 @@ use std::{
     },
 };
 
+use axum::http::HeaderMap;
+use opentelemetry::trace::{FutureExt, TraceContextExt};
+use serde_json::{Map, Value};
 use tokio::{sync::Semaphore, task::JoinSet, time::Instant};
-use uuid::Uuid;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::{
     capture::InferenceFacts,
     resolution::{ControlPlaneConfig, ResolutionError, ResolvedRequestContext},
 };
+use context::GenerationContext;
+pub(crate) use context::take_agent_client_metadata;
 use otlp::Uploader;
 
 const MAX_UPLOADS: usize = 32;
@@ -29,18 +35,20 @@ pub(crate) struct DeliveryContext {
     pub project_id: String,
     pub access_token: String,
     pub expires_at: u64,
-    trace_id: String,
-    observation_id: String,
+    generation: GenerationContext,
 }
 
 impl DeliveryContext {
-    pub fn from_resolved(context: &ResolvedRequestContext) -> Self {
+    pub fn from_resolved(
+        context: &ResolvedRequestContext,
+        headers: &HeaderMap,
+        client_metadata: Option<&Map<String, Value>>,
+    ) -> Self {
         Self {
             project_id: context.attribution().project_id().to_owned(),
             access_token: context.ingestion().access_token().to_owned(),
             expires_at: context.ingestion().expires_at(),
-            trace_id: Uuid::new_v4().simple().to_string(),
-            observation_id: Uuid::new_v4().simple().to_string()[..16].to_owned(),
+            generation: GenerationContext::from_request(headers, client_metadata),
         }
     }
 }
@@ -93,7 +101,9 @@ impl Telemetry {
             bytes: context.access_token.len() + context.project_id.len(),
             limit: MAX_FACT_BYTES,
         };
-        if serde_json::to_writer(&mut size, &facts).is_err() {
+        if serde_json::to_writer(&mut size, &context.generation).is_err()
+            || serde_json::to_writer(&mut size, &facts).is_err()
+        {
             self.drop_record("size");
             return;
         }
@@ -115,27 +125,47 @@ impl Telemetry {
         while tasks.try_join_next().is_some() {}
         let uploader = self.0.uploader.clone();
         let stats = self.0.stats.clone();
-        tasks.spawn(async move {
-            let _capacity = capacity;
-            let _bytes = bytes;
-            let span = mapping::span(facts, &context.trace_id, &context.observation_id);
-            match uploader.export(&context, &[span]).await {
-                Ok(()) => {
-                    stats.accepted.fetch_add(1, Ordering::Relaxed);
-                    tracing::debug!("gateway telemetry accepted");
-                }
-                Err(error) => {
-                    stats.failed.fetch_add(1, Ordering::Relaxed);
-                    // Error categories contain no URLs, credentials, response bodies or content.
-                    tracing::warn!(reason = error.reason(), "gateway telemetry upload failed");
+        let parent = tracing::Span::current().context();
+        tasks.spawn(
+            async move {
+                let _capacity = capacity;
+                let _bytes = bytes;
+                let span = mapping::span(facts, &context.generation);
+                match uploader.export(&context, &[span]).await {
+                    Ok(()) => {
+                        stats.accepted.fetch_add(1, Ordering::Relaxed);
+                        crate::observability::delivery("accepted", "success");
+                        tracing::debug!("gateway telemetry accepted");
+                    }
+                    Err(error) => {
+                        let failed = stats.failed.fetch_add(1, Ordering::Relaxed) + 1;
+                        crate::observability::delivery("failed", error.reason());
+                        // Error categories contain no URLs, credentials, response bodies or content.
+                        if failed == 1 || failed.is_multiple_of(100) {
+                            let context = opentelemetry::Context::current();
+                            let span = context.span();
+                            let context = span.span_context();
+                            tracing::warn!(
+                                trace_id = %context.trace_id(),
+                                span_id = %context.span_id(),
+                                reason = error.reason(),
+                                failed,
+                                "gateway telemetry upload failed"
+                            );
+                        }
+                    }
                 }
             }
-        });
+            .with_context(parent),
+        );
     }
 
     fn drop_record(&self, reason: &'static str) {
-        self.0.stats.dropped.fetch_add(1, Ordering::Relaxed);
-        tracing::warn!(reason, "gateway telemetry dropped");
+        let dropped = self.0.stats.dropped.fetch_add(1, Ordering::Relaxed) + 1;
+        crate::observability::delivery("dropped", reason);
+        if dropped == 1 || dropped.is_multiple_of(100) {
+            tracing::warn!(reason, dropped, "gateway telemetry dropped");
+        }
     }
 
     /// Stop accepting work and finish uploads within the existing process drain deadline.
@@ -158,6 +188,7 @@ impl Telemetry {
                 Ok(Some(Ok(()))) => {}
                 Ok(Some(Err(_))) => {
                     self.0.stats.failed.fetch_add(1, Ordering::Relaxed);
+                    crate::observability::delivery("failed", "task");
                 }
                 Ok(None) => break,
                 Err(_) => {
@@ -165,6 +196,7 @@ impl Telemetry {
                     while let Some(result) = tasks.join_next().await {
                         if result.is_err() {
                             self.0.stats.dropped.fetch_add(1, Ordering::Relaxed);
+                            crate::observability::delivery("dropped", "shutdown");
                         }
                     }
                     break;
@@ -200,8 +232,19 @@ impl Write for SizeCounter {
 }
 
 pub(crate) fn debug_record(facts: &InferenceFacts) {
-    // Full mode intentionally includes native request and completed output content.
-    tracing::debug!(capture = %format_args!("{:#}", serde_json::to_value(facts).expect("captured facts must serialize")), "gateway response captured");
+    tracing::debug!(
+        api_format = facts.api_format,
+        outcome = facts.outcome.as_str(),
+        http_status = facts.http_status,
+        duration_ms = u64::try_from(facts.duration_ms).unwrap_or(u64::MAX),
+        first_byte_ms = facts
+            .first_byte_ms
+            .map(|ms| u64::try_from(ms).unwrap_or(u64::MAX)),
+        input_complete = facts.inference.input_complete,
+        output_complete = facts.inference.output_complete,
+        capture_complete = facts.inference.capture_complete,
+        "gateway response captured"
+    );
 }
 
 #[cfg(test)]

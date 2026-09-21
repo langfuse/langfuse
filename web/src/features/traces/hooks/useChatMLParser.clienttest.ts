@@ -18,10 +18,7 @@ const parserImplementations = [
   {
     name: "normalized",
     parse: (input: unknown, output: unknown) =>
-      toIOPreview(
-        normalizeSpanIO({ input, output, metadata: undefined }),
-        input,
-      ),
+      toIOPreview(normalizeSpanIO({ input, output, metadata: undefined })),
     // The normalized parser canonicalizes: JSON-string arguments are decoded
     // once, so consumers always receive the parsed value.
     expectedArguments: (raw: string): unknown => JSON.parse(raw),

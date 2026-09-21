@@ -5,12 +5,12 @@ import {
   type EventsObservation,
   OBSERVATION_FIELD_GROUPS_PUBLIC_API,
   ObservationLevel,
-  eventsTableSingleFilter,
+  eventsTableSingleFilterList,
   optionalCommaSeparatedStringArray,
   optionalJsonParam,
   paginationMetaResponseZod,
   publicApiPaginationZod,
-  singleFilter,
+  singleFilterList,
   InvalidRequestError,
 } from "@langfuse/shared";
 import {
@@ -226,7 +226,7 @@ export const GetObservationsV1Query = z.object({
   fromStartTime: stringDateTime,
   toStartTime: stringDateTime,
   useEventsTable: useEventsTableSchema,
-  filter: optionalJsonParam(z.array(singleFilter), "filter"),
+  filter: optionalJsonParam(singleFilterList, "filter"),
 });
 export const GetObservationsV1Response = z
   .object({
@@ -346,7 +346,7 @@ export const GetObservationsV2Query = z.object({
   environment: z.union([z.array(z.string()), z.string()]).nullish(),
   fromStartTime: stringDateTime.optional(),
   toStartTime: stringDateTime.optional(),
-  filter: optionalJsonParam(z.array(eventsTableSingleFilter), "filter"),
+  filter: optionalJsonParam(eventsTableSingleFilterList, "filter"),
 });
 
 /**

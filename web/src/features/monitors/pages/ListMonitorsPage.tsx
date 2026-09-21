@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { PlusIcon } from "lucide-react";
 
 import { ActionButton } from "@/src/components/ActionButton";

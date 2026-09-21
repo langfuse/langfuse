@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
@@ -73,13 +74,13 @@ import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFil
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   buildSidebarFilterQueryStorageKey,
   readPersistedSidebarFilterQuery,
-} from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+  PopoverFilterBuilder,
+} from "@/src/features/filters";
+
 import { StringParam, useQueryParam } from "use-query-params";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";

@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
+import { ScoreConfigsTable } from "@/src/features/score-configs/ScoreConfigsTable";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
   return (

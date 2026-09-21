@@ -10,6 +10,7 @@ use reqwest::{
     Client, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
+use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt,
     net::IpAddr,
@@ -79,7 +80,7 @@ impl ControlPlaneConfig {
 
 /// Reuses the HTTP connection pool; credentials belong exclusively to each request.
 pub struct ControlPlaneClient {
-    client: Client,
+    client: ClientWithMiddleware,
     config: ControlPlaneConfig,
 }
 
@@ -99,7 +100,10 @@ impl ControlPlaneClient {
             .no_deflate()
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
-        Ok(Self { client, config })
+        Ok(Self {
+            client: crate::observability::instrument_client(client, "resolver"),
+            config,
+        })
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.

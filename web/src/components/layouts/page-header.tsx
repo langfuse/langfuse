@@ -1,7 +1,12 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  getItemTypeLabels,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -103,19 +108,15 @@ const PageHeader = ({
         >
           <div
             className={cn(
-              // No extra vertical padding: min-h-11 + border-b already is
-              // the 44px box. Extra py would grow the row past the sidebar
-              // strip (border-box counts padding inside min-height, then
-              // 32px controls no longer fit). justify-between (not ml-auto
-              // on the slot) so the controls sit right when the row fits on
-              // one line but fall back to the LEFT edge when they wrap to
-              // their own line on narrow viewports (a line with a single
-              // flex item renders as flex-start).
-              "flex h-full w-full flex-wrap items-center justify-between gap-3 px-3 leading-none",
+              // Each flex line is 43px plus the shared 1px border. A single
+              // line therefore stays aligned with the sidebar's 44px row,
+              // while wrapped controls form a second full-height row instead
+              // of looking squeezed between the header edges.
+              "flex h-full w-full flex-wrap items-center justify-between gap-x-3 gap-y-px px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-5 min-w-0 flex-wrap items-center gap-3">
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-3">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -145,7 +146,7 @@ const PageHeader = ({
             {/* Slot for page-level controls (time range, auto-refresh)
                 hoisted from a list table via PageHeaderControlsPortal.
                 Empty on pages that don't use it. */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex min-h-[43px] flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
               {isInAppAgentLauncherVisible && <InAppAiAgentButton />}
             </div>
@@ -165,7 +166,7 @@ const PageHeader = ({
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+                    <TextChip text={getItemTypeLabels(itemType).displayLabel} />
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">

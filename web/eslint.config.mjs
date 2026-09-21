@@ -52,6 +52,12 @@ const sentryCapturePattern = {
     "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
 };
 
+const designSystemInternalPattern = {
+  regex: "(^|/)design-system/internal(?:/|$)",
+  message:
+    "Design-system internals may only be imported by other design-system components.",
+};
+
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
 const tailwindcssRecommendedConfig =
@@ -69,6 +75,74 @@ export default [
     files: ["src/**/*.stories.{ts,tsx}"],
     rules: {
       "@repo/storybook-play-requires-test-name": "error",
+    },
+  },
+  {
+    name: "langfuse/web/no-abstracted-overlay-trigger",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.story.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": [
+        "warn",
+        {
+          overlayFamilies: [
+            {
+              module: "@/src/components/ui/dialog",
+              root: "Dialog",
+              trigger: "DialogTrigger",
+              contents: ["DialogContent"],
+            },
+            {
+              module: "@/src/components/ui/alert-dialog",
+              root: "AlertDialog",
+              trigger: "AlertDialogTrigger",
+              contents: ["AlertDialogContent"],
+            },
+            {
+              module: "@/src/components/ui/dropdown-menu",
+              root: "DropdownMenu",
+              trigger: "DropdownMenuTrigger",
+              contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
+            },
+            {
+              module: "@/src/components/ui/drawer",
+              root: "Drawer",
+              trigger: "DrawerTrigger",
+              contents: ["DrawerContent"],
+            },
+            {
+              module: "@/src/components/ui/popover",
+              root: "Popover",
+              trigger: "PopoverTrigger",
+              contents: ["PopoverContent"],
+            },
+            {
+              module: "@/src/components/ui/sheet",
+              root: "Sheet",
+              trigger: "SheetTrigger",
+              contents: ["SheetContent"],
+            },
+          ],
+          overlayControllerFamilies: [
+            {
+              module:
+                "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+              root: "ConfirmationDialogController",
+            },
+            {
+              module:
+                "@/src/components/design-system/DialogController/DialogController",
+              root: "DialogController",
+            },
+          ],
+        },
+      ],
     },
   },
   {
@@ -207,11 +281,17 @@ export default [
   // Root design-system components follow `Name/Name.tsx`, optionally alongside
   // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
   // match that folder's name, and expose a matching named runtime export. The
-  // table subtree is a domain-specific exception with its own structure.
+  // charts, factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
-    ignores: ["src/components/design-system/table/**"],
+      ignores: [
+        "src/components/design-system/charts/**",
+        "src/components/design-system/factories/**",
+        "src/components/design-system/internal/**",
+        "src/components/design-system/table/**",
+    ],
     plugins: {
       "check-file": checkFile,
     },
@@ -243,10 +323,11 @@ export default [
   {
     name: "langfuse/web/design-system-component-exports",
     files: ["src/components/design-system/*/*.{ts,tsx}"],
-    ignores: [
-      "src/components/design-system/**/*.stories.{ts,tsx}",
-      "src/components/design-system/table/**",
-    ],
+      ignores: [
+        "src/components/design-system/**/*.stories.{ts,tsx}",
+        "src/components/design-system/charts/**",
+        "src/components/design-system/table/**",
+      ],
     rules: {
       "@repo/filename-matches-export": "error",
       "import/no-default-export": "error",
@@ -308,9 +389,6 @@ export default [
           ],
         },
       ],
-
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
     },
   },
 
@@ -420,7 +498,41 @@ export default [
       "no-restricted-imports": [
         "error",
         {
+          patterns: [
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            designSystemInternalPattern,
+          ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-allow-internal-imports",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
           patterns: [...restrictedImportPatterns, sentryCapturePattern],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-naming",
+    files: ["src/components/design-system/internal/**/*.{ts,tsx}"],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "PASCAL_CASE",
         },
       ],
     },
@@ -437,7 +549,7 @@ export default [
       "no-restricted-imports": [
         "error",
         {
-          patterns: restrictedImportPatterns,
+          patterns: [...restrictedImportPatterns, designSystemInternalPattern],
         },
       ],
     },

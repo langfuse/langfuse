@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
@@ -29,10 +30,7 @@ const makeSession = ({
       name,
       canCreateOrganizations,
       organizations,
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as Session["environment"],

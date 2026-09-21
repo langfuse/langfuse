@@ -2,7 +2,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   EvalTemplateType,
   observationVariableMappingList,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
@@ -40,7 +40,7 @@ export function EditRuleDialogContent({
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: rule.name,
-      filter: singleFilter.array().catch([]).parse(rule.filter),
+      filter: singleFilterList.catch([]).parse(rule.filter),
       sampling: rule.sampling,
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(

@@ -4,9 +4,10 @@ use axum::{
     http::{HeaderMap, Response},
 };
 use tokio::sync::Semaphore;
+use tracing::Instrument;
 
 use crate::{
-    providers::openai::{OpenAiProvider, ProviderError, RequestPermit},
+    providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
     resolution::{
         ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
     },
@@ -57,11 +58,37 @@ impl InferenceService {
         &self,
         gateway_key: &str,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let span = tracing::info_span!(
+            "resolution",
+            otel.kind = "internal",
+            gateway.outcome = tracing::field::Empty
+        );
+        async {
+            let prepared = self.prepare(gateway_key).await;
+            tracing::Span::current().record(
+                "gateway.outcome",
+                match &prepared {
+                    Ok(_) => "admitted",
+                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
+                    Err(RequestPreparationError::Provider(_)) => "busy",
+                },
+            );
+            prepared
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn prepare(
+        &self,
+        gateway_key: &str,
+    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
-            let _permit = self
-                .resolution_capacity
-                .try_acquire()
-                .map_err(|_| RequestPreparationError::Resolution(ResolutionError::Unavailable))?;
+            let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
+                crate::observability::rejected("resolution");
+                RequestPreparationError::Resolution(ResolutionError::Unavailable)
+            })?;
+            let _active = crate::observability::Active::new("resolution");
             self.control_plane
                 .resolve(gateway_key, ApiFormat::OpenAiResponses)
                 .await
@@ -80,8 +107,11 @@ impl InferenceService {
         context: ResolvedRequestContext,
         headers: &HeaderMap,
         body: Bytes,
+        route: OpenAiRoute,
     ) -> Result<Response<Body>, ProviderError> {
-        self.provider.forward(permit, context, headers, body).await
+        self.provider
+            .forward_route(permit, context, headers, body, route)
+            .await
     }
 
     #[cfg(test)]

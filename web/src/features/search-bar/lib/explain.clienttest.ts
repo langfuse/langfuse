@@ -3,7 +3,7 @@
 import { deriveComposerSegments } from "@/src/features/search-bar/lib/composer-segments";
 import { explainSegment } from "@/src/features/search-bar/lib/explain";
 import { FIELDS } from "@/src/features/search-bar/lib/fields";
-import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters";
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
 
 /** Explain the nth token of `query` as the tooltip reads it. */

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import type { Session } from "next-auth";
 
@@ -55,14 +56,7 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: {
-      searchBar: false,
-      excludeClickhouseRead: false,
-      templateFlag: true,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as never,

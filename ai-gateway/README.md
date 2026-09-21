@@ -1,9 +1,11 @@
 # AI Gateway service
 
-A standalone Rust gateway for `POST /openai/v1/responses`. Web resolves the gateway
-key to a trusted provider connection; Rust relays native JSON or SSE without
-rewriting provider bytes. A bounded capture layer captures request/response facts and
-logs the finalized record at debug level. Each finalized execution is immediately
+A standalone Rust gateway for `POST /openai/v1/responses`, `POST /openai/v1/responses/compact`,
+and `GET /openai/v1/models`. Web resolves the gateway key to a trusted provider connection;
+Rust relays native JSON or SSE without rewriting provider bytes. Compact uses the same
+Responses capture path. Models listing is a GET proxy of OpenAI's catalog and is not ingested
+as a generation. A bounded capture layer captures request/response facts and
+logs capture completeness at debug level. Each finalized generation is immediately
 uploaded as a Langfuse generation through OTLP. Building and testing need no real
 Web, database or provider credentials.
 
@@ -67,7 +69,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS`           | `0.0.0.0:8080` | IP address and port; IPv6 uses `[::]:8080`         |
 | `LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT` | `false` | `true`, `false`; the pnpm dev task sets `true` |
 | `LANGFUSE_LOG_FORMAT`                          | `text`         | `text`, `json`                                     |
-| `LANGFUSE_LOG_LEVEL`                           | `info`         | `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `LANGFUSE_LOG_LEVEL`                           | `info`         | `debug`, `info`, `warn`, `error`, `fatal` |
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
 | `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
@@ -84,10 +86,80 @@ Both formats use the same log level and preserve event fields. For example:
 ```
 
 Invalid values fail startup without echoing their contents. At the default `info`
-level, logs contain service lifecycle events. Debug logging also includes the
-captured request and completed output when Web resolves `ingestion_mode: full`;
-see capture details below. For direct
+level, logs contain service lifecycle events and HTTP response summaries.
+Debug logging adds content-free phase and capture details. For direct
 host-only development, set `LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS=127.0.0.1:8080`.
+
+## Operational observability
+
+Logs and operational OpenTelemetry exports describe gateway health independently
+of the inference generations sent to Langfuse. They do not include request/response
+content, credentials, key metadata, or URL query strings. Health probes are excluded
+from request logs and spans.
+
+Use `LANGFUSE_LOG_FORMAT=text` locally and `json` for log collectors. Built-in `tracing-subscriber` formatters handle both modes. JSON event fields
+are top-level attributes; span fields are nested. HTTP response and execution
+summaries include top-level `trace_id` and `span_id` for Datadog correlation.
+`info` emits lifecycle, HTTP response, and execution summaries; `debug` adds
+sanitized capture details. Other log events do not automatically include trace IDs. Dependency logs stay at `warn`. Log severity does not control
+trace sampling. `trace` is not an accepted gateway log level.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Enables operational traces and metrics; HTTP/protobuf base URL, e.g. `http://localhost:4318` |
+| `OTEL_SERVICE_NAME` | `ai-gateway` | Operational service name |
+| `DD_ENV` | `development` | Deployment environment resource attribute |
+| `BUILD_ID` | Cargo package version | Service version; set to the deployed image's commit SHA |
+| `OTEL_TRACES_SAMPLER_ARG` | `1` | Sampling ratio from 0 to 1 for independent operational root traces |
+
+Tower's `TraceLayer` keeps the server span alive through the response body.
+The HTTP response log and `http.server.request.duration` measure time to response
+headers, not full SSE duration; the `gateway response completed` log reports the
+stream duration once the body reaches end of stream. Execution summaries and
+`gateway.phase.duration` with `phase=execution` measure the provider relay through
+completion, cancellation, timeout, or transport error. HTTP status and stream
+outcome are separate: a 200 response can still fail while streaming. The server
+span carries `http.request.body.size`, `gateway.outcome`, and
+`gateway.first_byte_ms` once they are known.
+
+Each inference request phase has a child span of the server span so a waterfall
+has no unattributed wall time:
+
+| Span | Covers |
+| --- | --- |
+| `resolution` | Resolution admission, the `resolver` Web call, and execution admission; `gateway.outcome` is `admitted`, `resolution_failed`, or `busy` |
+| `request.body` | Buffering the caller's request body, mostly upload time; `http.request.body.size` |
+| `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
+| `provider.headers` | The provider HTTP send through response headers, including connection setup |
+| `provider.stream` | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
+| `ingestion` | The inference-telemetry upload, scheduled after the relay finishes |
+
+`reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
+Each request starts a fresh operational trace, independent of incoming trace IDs,
+tracestate, baggage, Langfuse headers and sampling decisions. Only trusted Web calls
+receive this internal W3C trace context; the external provider receives no tracing
+or Langfuse headers. Inference generations use the caller context described below.
+Client spans measure the HTTP send through response headers;
+streaming execution and inference-telemetry delivery are tracked separately.
+
+A small Axum middleware records `http.server.request.duration` through the
+OpenTelemetry SDK, with method, matched route, and HTTP status as its only
+dimensions. The histogram's count supplies request volume and error rates,
+including responses rejected before provider execution. Metrics are independent
+of trace sampling. Health probes are excluded.
+
+Gateway-specific metrics include `gateway.active` (resolution/execution),
+`gateway.phase.duration` (execution/provider.first_byte), `gateway.executions`,
+`gateway.admission.rejected`, and `gateway.telemetry.records`. Durations use seconds;
+first-byte timing measures provider bytes arriving at the gateway, not first-token
+delivery to the caller. Metric attributes contain bounded categories, not tenant
+or request identifiers.
+
+Trace export uses a 512-span queue, batches of up to 64, and a one-second interval.
+Metrics export every 30 seconds. Export calls use a three-second timeout; failures
+do not fail inference. Shutdown flushes within the remaining shared drain deadline.
+Telemetry delivery warnings report the first failure/drop and every hundredth;
+metrics count each occurrence. This is best-effort operational telemetry.
 
 ## Call the gateway
 
@@ -110,6 +182,14 @@ curl http://localhost:8080/openai/v1/responses \
   -H 'Content-Type: application/json' \
   -d '{"model":"gpt-4.1-mini","input":"Say hello"}'
 # Add "stream":true to the JSON and use curl -N for SSE.
+
+curl http://localhost:8080/openai/v1/responses/compact \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gpt-4.1","input":[]}'
+
+curl http://localhost:8080/openai/v1/models \
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"
 ```
 
 ```python
@@ -125,9 +205,11 @@ response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
 print(response.output_text)
 ```
 
-The gateway forwards inference to the official OpenAI Responses endpoint only. It does not
-retry, follow redirects, or accept client routing overrides. Request parsing is
-best-effort capture only; Web still selects the provider connection.
+The gateway forwards inference to official OpenAI v1 paths only: Responses, Responses compact,
+and GET `/models`. It does not retry, follow redirects, or accept client routing overrides.
+Request parsing is best-effort capture only; Web still selects the provider connection.
+Compact `encrypted_content` is relayed unchanged. GET `/models` returns OpenAI's list
+payload as-is, drops request query strings, and does not upload a generation.
 Provider errors retain their status and body. Gateway errors use an OpenAI-style
 `{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
 
@@ -174,14 +256,51 @@ and never sends the provider credential or the client's gateway key to ingestion
 Ingestion JWTs stay outside serializable capture facts and debug logs. Expired grants
 are dropped without re-resolving the execution. Requests explicitly select v4 ingestion.
 
-Each execution becomes one root generation with generated trace/observation IDs,
+Each execution becomes one generation with a new observation ID and either the
+caller's trace/parent IDs or a generated root trace ID,
 actual/requested model, model parameters, native usage, and trusted key/connection
-attribution. Full mode includes the captured native input/output; usage mode omits
-content. First-byte timing supplies Langfuse's completion-start time as the gateway's
-first-token approximation. Relay outcome, provider status and capture completeness
-remain separate metadata fields. The exporter projects native OpenAI usage into the
-receiver's supported shape for pricing and preserves the untouched usage object as
-`native_usage` metadata. Missing usage is not reported as zero.
+attribution. Full mode includes the captured input/output; usage mode omits content.
+Completion-start time is emitted only for upstream `text/event-stream` responses,
+on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
+and streams without a captured content delta have no completion-start time or TTFT.
+The exporter projects native OpenAI usage into the receiver's supported shape for
+pricing without duplicating it in metadata. Missing usage is not reported as zero.
+
+Gateway metadata uses `langfuse.gateway.*`, grouped by the resource or exchange
+each field describes:
+
+| Suffix                                                                                      | Meaning                                                                     |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
+| `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
+| `ingestion.mode`                                                                            | Effective capture mode                                                      |
+| `request.api_format`                                                                        | Native API contract, such as `openai.responses`                             |
+| `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
+| `response.id`                                                                               | Native response object's ID                                                 |
+| `response.status_code`                                                                      | HTTP status returned to the caller                                          |
+| `upstream.request.id`                                                                       | Provider request ID received in the upstream `x-request-id` response header |
+
+`request.id` is reserved for a future gateway-generated request ID and is not
+emitted. The upstream request ID is separate and is omitted when unavailable.
+API-key attribution entries appear both as top-level metadata and under
+`langfuse.gateway.api_key.metadata.*`.
+Gateway, agent and OpenTelemetry fields win collisions; the namespaced attribution
+copy preserves the original value. `agent.*` and native request field names retain
+their existing spelling. Metadata names apply to newly captured generations;
+historical traces are not rewritten.
+
+`response.status_code` includes gateway-generated 502/504 errors before upstream
+headers arrive. After headers arrive it retains the relayed status, even if a
+stream subsequently fails; cancellation before headers leaves the status unknown.
+Relay outcome, provider status, completeness flags and first-byte timing remain
+internal facts rather than generation metadata. Ingestion removes mapped observation-attribute
+duplicates for the gateway scope while preserving custom attributes, scope and
+resources.
+
+Provider HTTP failures and failed SSE responses set the generation level to `ERROR`
+with the available HTTP status in its status message. Full mode also includes a
+bounded provider error code/message; usage mode omits these details because provider
+errors may echo request content.
 
 Provisional upload limits are 32 concurrent tasks, 4 MiB serialized facts per record,
 16 MiB total retained serialized-fact/credential bytes, 8 MiB encoded payloads, and
@@ -203,22 +322,137 @@ a span collection; future project batching can replace immediate scheduling whil
 retaining each execution's original attribution/content policy and selecting a valid
 compatible grant. Capture and provider byte forwarding do not need to change.
 
+## Caller tracing context
+
+Incoming `traceparent` and `tracestate` apply only to the Langfuse generation.
+A valid `traceparent` supplies its trace ID and parent observation ID; the generation
+always gets a new observation ID. Missing or malformed context starts a new root.
+Valid `tracestate` is included in the generation's OTLP `traceState` field; it is not
+copied into generation metadata. An unsampled caller still produces a generation.
+Operational trace sampling and best-effort ingestion remain independent.
+
+The following optional headers enrich the generation, including in usage mode:
+
+| Header | Format | Python SDK baggage key |
+| --- | --- | --- |
+| `langfuse-trace-name` | String | `langfuse_trace_name` |
+| `langfuse-session-id` | String | `langfuse_session_id` |
+| `langfuse-user-id` | String | `langfuse_user_id` |
+| `langfuse-tags` | Comma-separated strings | `langfuse_tags` |
+| `langfuse-metadata` | Comma-separated `key:value` entries | `langfuse_metadata_<key>` |
+
+For example:
+
+```text
+langfuse-trace-name: support-workflow
+langfuse-session-id: conversation-123
+langfuse-user-id: user-456
+langfuse-tags: support,production
+langfuse-metadata: team:search,variant:B,note:hello%2C%20world
+```
+
+Percent-encode literal commas and other escaped characters in individual custom
+header values, and colons inside metadata keys. Metadata splits at the first colon;
+values remain strings. A literal `+` stays `+` in custom headers. Tags are trimmed
+and deduplicated. Valid explicit headers override baggage for the same field;
+metadata merges by key with explicit entries winning. Invalid entries are ignored
+independently, and invalid overrides leave valid baggage intact. Caller metadata
+cannot replace protected gateway facts or trusted API-key attribution.
+
+Extraction is bounded to 8 KiB across the eight context header values above
+(`traceparent`, `tracestate`, `baggage` and the five custom headers). Above that
+limit, context is ignored and a fresh generation trace is created. Decoded fields
+are limited to 1 KiB; each baggage/tag/metadata list is limited to 64 entries.
+Repeated list header lines are combined in order within that same entry limit.
+Empty values, control characters, invalid encoding and duplicate scalar headers
+are ignored without rejecting inference.
+
+Python callers can use `propagate_attributes(..., as_baggage=True)` with HTTP
+instrumentation or explicit OTel header injection. Baggage decoding handles Python's
+`+` space encoding and quoted-list tags, as well as JSON-array tags. Only the keys
+listed above are mapped; other baggage, including `langfuse_trace_id`, does not
+override trace identity or project selection.
+
+The gateway also recognizes correlation headers emitted by coding agents:
+
+| Agent | Session source | Turn source |
+| --- | --- | --- |
+| Claude Code | `x-claude-code-session-id` | Not available |
+| Codex | `thread_id` in the Codex turn snapshot | `turn_id` in the Codex turn snapshot |
+| OpenCode | `x-opencode-session`, falling back to `x-session-id` or `x-session-affinity` for an OpenCode user agent | `x-opencode-request` |
+| Pi | `x-session-id`, `session_id`, `x-session-affinity`, or `x-client-request-id` for a Pi user agent | Not available |
+
+An inferred session becomes `<agent>:<session>` and an inferred turn deterministically
+selects the generation trace ID, grouping the requests made before and after tool
+execution into one trace. A valid `traceparent` always wins trace identity; explicit
+Langfuse session and trace-name headers or baggage always win their respective
+attributes. Agent headers never infer a user ID.
+
+Original identifiers remain searchable in generation metadata under `agent.*`.
+This includes `agent.name`, `agent.project_id`, `agent.session_id`,
+`agent.thread_id`, `agent.turn_id`, `agent.id`, `agent.parent_id`, and
+`agent.parent_session_id` when the source agent provides them. Codex's
+routing-oriented `session_id` is retained as metadata, while its
+conversation-oriented `thread_id` supplies the Langfuse session.
+
+Codex sends its turn snapshot canonically in the request body as
+`client_metadata["x-codex-turn-metadata"]`; the `x-codex-turn-metadata` header and the
+flat `client_metadata` keys (`session_id`, `thread_id`, `turn_id`, `root_turn_id`,
+`parent_turn_id`, `x-codex-installation-id`, `x-codex-window-id`,
+`x-codex-parent-thread-id`) are compatibility projections of it. The gateway reads the
+body snapshot first, then the header, and finally the flat keys. A recognized
+`client_metadata` object is removed from the recorded input in full mode because it is
+request metadata rather than prompt content; other clients' `client_metadata` stays in
+the input untouched. Besides the identifiers above, Codex generations carry
+`agent.id` (Codex's `agent_name`, the agent's path in a multi-agent team such as
+`/root`), `agent.installation_id`, `agent.root_turn_id`, `agent.parent_turn_id`,
+`agent.parent_thread_id`, `agent.forked_from_thread_id`,
+`agent.forked_from_ordinal_exclusive`, `agent.window_id`, `agent.window_number`,
+`agent.context_window_id`, `agent.request_kind` (`turn`, `compaction`, `prewarm`,
+`memory`), `agent.compaction.{trigger,reason,implementation,phase,strategy}`,
+`agent.subagent_kind`, `agent.thread_source`, `agent.turn_trigger`, `agent.sandbox`,
+`agent.sandbox_mode`, `agent.workspace_kind`, `agent.auto_review_enabled`, and
+`agent.turn_started_at_unix_ms`. Numbers and booleans keep their native JSON type.
+Nested snapshot objects such as `workspaces` and `tool_namespaces_info` are not
+copied, and unknown snapshot keys are ignored so they cannot override `agent.name`.
+
+Agent extraction has a separate 8 KiB aggregate header limit. The Codex turn metadata
+header is limited to 4 KiB and the body `client_metadata` object to 64 KiB, and each
+extracted identifier uses the same 1 KiB field limit as the explicit context headers.
+Empty, duplicate, malformed, oversized, or control-character-bearing values are
+ignored. Generic affinity/request headers are used only after an agent-specific header
+or user agent identifies the caller.
+
+Caller context is kept outside ambient operational context and operational logs.
+Resolver and ingestion HTTP requests propagate only the gateway's internal trace;
+the generation's caller context travels in the ingestion payload. Provider requests
+receive neither tracing context nor these custom headers.
+
 ## Response capture
 
 Set `LANGFUSE_LOG_LEVEL=debug` to print one `gateway response captured` event at
-execution end. Its `capture` field is JSON with `input`, `output`, model,
-parameters, usage, attribution, timestamps, capture completeness and relay outcome.
-Text logs pretty-print the captured JSON across multiple lines.
-`LANGFUSE_LOG_FORMAT=json` keeps each surrounding log event on one line, with
-newlines escaped inside the `capture` string.
+execution end with HTTP status, timing, capture completeness and relay outcome.
+Operational logs exclude prompts, outputs, model parameters and key metadata,
+including at debug level. `LANGFUSE_LOG_FORMAT=json` emits one JSON object per line.
 
 Web's resolved ingestion mode controls content capture:
 
-- `full`: input is the native request JSON object, including `input`, `instructions`,
-  tools, parameters, context references and unknown fields. Output is an ordered
-  array of native completed items. Debug logs intentionally contain this content.
+- `full`: input retains native `input`, `instructions`, tools, prompt/context
+  references and unknown fields. Model, configuration and a recognized coding agent's
+  `client_metadata` are projected out of input. Output is an ordered array of native
+  completed items. Content is sent only through Langfuse ingestion.
 - `usage`: input and output are null. Model, scalar parameters, native usage,
   timing and trusted attribution are retained; request schemas/content are omitted.
+
+Full-mode model parameters include sampling/token limits, service tier, reasoning,
+text formatting, tool choice/limits, context management, truncation, streaming options,
+background/store/include flags, moderation and cache options/retention. Capture retains
+JSON types; ingestion applies Langfuse's existing model-parameter normalization
+(booleans and structured values become JSON strings). Omitted request parameters
+are not filled with assumed defaults.
+The response model and service tier take precedence over requested values when present.
+Request `metadata`, `prompt_cache_key`, `safety_identifier` and deprecated `user` are
+stored under `langfuse.gateway.request.*` only in full mode.
 
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
@@ -235,10 +469,11 @@ output array at EOF. Missing usage remains null, rather than invented zeros.
 `outcome` describes the relay (`eof`, `cancelled`, `timeout`, `transport_error`);
 `provider_status` is separate. For example, a completed provider response can
 still end with downstream cancellation. `first_byte_ms` measures the first body
-bytes observed by the gateway. Telemetry uses this as the first-token approximation
-for Langfuse completion-start time; it does not wait for completed output items.
+bytes observed by the gateway for operational metrics. `completion_start_ms` measures
+the first captured SSE content delta independently; it ignores response-created
+events and keepalives and does not retain or reconstruct delta content.
 
-`input_complete` means the full native request was captured; it is false when
+`input_complete` means request input was captured and configuration projected; it is false when
 content is omitted in usage mode. `output_complete` means response inspection
 finished without capture gaps for the configured mode (including a terminal event
 and all expected completed items for full-mode SSE). It does not promise that the
@@ -250,7 +485,7 @@ fully captured response, and downstream cancellation does not erase completed ca
 The implementation separates shared `ExecutionCapture` lifecycle/timing, the
 `OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
 enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
-to telemetry for debug logging and immediate upload. Another provider can supply
+to telemetry for a safe debug summary and immediate upload. Another provider can supply
 native facts through the same interface without changing the relay. The current
 usage mapping targets OpenAI Responses; no Anthropic adapter is implemented yet.
 Capture and upload run independently of log level; debug emission alone is gated.
@@ -265,8 +500,7 @@ these limits never cap the actual provider response. Media is not fetched/upload
 
 Provider credentials, the gateway credential and ingestion tokens are not part of
 the capture record; raw headers are not logged. Full captured content and resolved
-key metadata may themselves be sensitive. Keep debug logging enabled only where
-that content is intended to be recorded. No data is posted to Langfuse yet.
+key metadata remain in Langfuse ingestion and are excluded from operational logs.
 
 ## Process lifecycle
 
@@ -287,13 +521,19 @@ that content is intended to be recorded. No data is posted to Langfuse yet.
 From the repository root:
 
 ```sh
-docker build --target runtime -t langfuse-ai-gateway:dev ./ai-gateway
+docker build --target runtime \
+  --build-arg BUILD_ID="$(git rev-parse HEAD)" \
+  -t langfuse-ai-gateway:dev ./ai-gateway
 docker run --rm --name langfuse-ai-gateway-dev \
   -e LANGFUSE_LOG_FORMAT=json -p 127.0.0.1:8080:8080 langfuse-ai-gateway:dev
 # In another terminal:
 docker stop --time 15 langfuse-ai-gateway-dev
 bash ai-gateway/scripts/smoke-image.sh langfuse-ai-gateway:dev
 ```
+
+The `BUILD_ID` build argument is stored as runtime `BUILD_ID`, so operational
+telemetry identifies the built commit. Omit the build argument to use the Cargo
+package version, or override `BUILD_ID` at runtime.
 
 The runtime image runs as UID/GID 10001, includes CA certificates, and executes
 the binary directly so it receives signals. Set the container/orchestrator stop
@@ -377,7 +617,7 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/openai.rs`: fixed destination, provider credentials and admission.
+- `providers/openai.rs`: fixed OpenAI v1 origin, route, provider credentials and admission.
 - `transport/mod.rs`: header allowlists, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.

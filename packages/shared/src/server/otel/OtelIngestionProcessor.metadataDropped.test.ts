@@ -119,6 +119,99 @@ const expectDropTags = (
   expect(tags?.sdkVersion).toBe("3.8.1");
 };
 
+describe("gateway metadata", () => {
+  it.each([
+    ["v3", "langfuse-ai-gateway"],
+    ["v4", "langfuse-ai-gateway"],
+    ["v3", "other-instrumentation"],
+    ["v4", "other-instrumentation"],
+  ])(
+    "preserves canonical fields and metadata for %s %s",
+    async (path, scope) => {
+      const completionStartTime = "2025-07-13T05:20:00.500Z";
+      const modelParameters = {
+        service_tier: "default",
+        stream: true,
+        reasoning: { effort: "low" },
+      };
+      const usageDetails = { input: 10, output: 21 };
+      const canonicalAttributes = {
+        "langfuse.observation.type": "generation",
+        "langfuse.observation.level": "ERROR",
+        "langfuse.observation.status_message": "HTTP 429: rate limited",
+        "langfuse.observation.model.name": "test-model",
+        "langfuse.observation.model.parameters":
+          JSON.stringify(modelParameters),
+        "langfuse.observation.usage_details": JSON.stringify(usageDetails),
+        "langfuse.observation.cost_details": JSON.stringify({ total: 0.001 }),
+        "langfuse.observation.completion_start_time": completionStartTime,
+      };
+      const batch = buildBatch(
+        Object.entries({
+          ...canonicalAttributes,
+          "langfuse.observation.input": '[{"role":"user","content":"Hi"}]',
+          "langfuse.observation.output": '[{"type":"message","content":[]}]',
+          "langfuse.observation.metadata": JSON.stringify({
+            "langfuse.gateway.provider.request.id": "req-test",
+          }),
+          "langfuse.observation.metadata.langfuse.gateway.api-key.id":
+            "key-test",
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        }).map(([key, value]) => ({ key, value: { stringValue: value } })),
+      );
+      batch[0].scopeSpans![0].scope!.name = scope;
+      const processor = createProcessor();
+      const observation =
+        path === "v4"
+          ? processor.processToEvent(batch)[0]
+          : (await processor.processToIngestionEvents(batch)).find(
+              (event) => event.type === "generation-create",
+            )?.body;
+
+      expect(observation).toMatchObject({
+        level: "ERROR",
+        statusMessage: "HTTP 429: rate limited",
+        modelParameters: {
+          service_tier: "default",
+          stream: "true",
+          reasoning: '{"effort":"low"}',
+        },
+        completionStartTime,
+        input: '[{"role":"user","content":"Hi"}]',
+        output: '[{"type":"message","content":[]}]',
+        ...(path === "v4"
+          ? {
+              type: "GENERATION",
+              modelName: "test-model",
+              providedUsageDetails: usageDetails,
+              providedCostDetails: { total: 0.001 },
+            }
+          : {
+              model: "test-model",
+              usageDetails,
+              costDetails: { total: 0.001 },
+            }),
+      });
+      expect(observation?.metadata).toEqual({
+        "langfuse.gateway.provider.request.id": "req-test",
+        "langfuse.gateway.api-key.id": "key-test",
+        attributes: {
+          ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
+          "custom.attribute": "keep-custom",
+          "langfuse.observation.custom": "keep-unknown",
+        },
+        resourceAttributes: { "service.name": "test-svc" },
+        scope: {
+          name: scope,
+          version: "3.8.1",
+          attributes: { public_key: "pk-test" },
+        },
+      });
+    },
+  );
+});
+
 describe("OTel metadata_dropped metric", () => {
   beforeEach(() => {
     recordIncrementMock.mockClear();

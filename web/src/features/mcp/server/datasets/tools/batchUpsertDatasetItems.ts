@@ -10,6 +10,7 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
     name: "batchUpsertDatasetItems",
     description:
       "Upsert multiple dataset items in one dataset. Items are processed in order. The operation stops on the first failure and is not atomic.",
+    action: "datasets:CUD",
     baseSchema: BatchUpsertDatasetItemsMcpInput,
     inputSchema: BatchUpsertDatasetItemsMcpInput,
     handler: async (input, context) =>
@@ -25,7 +26,12 @@ export const [batchUpsertDatasetItemsTool, handleBatchUpsertDatasetItems] =
 
           for (const item of input.items) {
             const result = await createDatasetItemForApi({
-              input: { ...item, datasetId: input.datasetId },
+              input: {
+                ...item,
+                datasetId: input.datasetId,
+                expectedOutput:
+                  item.expectedOutput === null ? "" : item.expectedOutput,
+              },
               projectId: context.projectId,
               auditScope: context,
             });
