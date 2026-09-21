@@ -36,8 +36,9 @@ belong to the form actions; neither changes an existing score's attachment.
 Saved scores, pending writes, invalid drafts, and occupied destinations prevent a
 level change. Single-target and fixed queue forms retain their supplied targets.
 Config deselection clears remembered empty choices across both levels so hidden
-preferences cannot restore a removed field on the next open. Only mixed-level
-forms show level badges; each row's menu always identifies its current level.
+preferences cannot restore a removed field on the next open. The selector shows
+configs without level badges. Mixed-level forms show badges beside score fields;
+each row's menu always identifies its current level.
 
 Typing updates the owning row and save-status subscriber. It must not rebuild the
 header, picker, other rows, or keyboard listeners. Changing field selection may

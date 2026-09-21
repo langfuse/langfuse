@@ -5,7 +5,6 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { Badge } from "@/src/components/ui/badge";
 import Header from "@/src/components/layouts/header";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -226,24 +225,7 @@ export function AnnotationFormContent({
               placeholder="Choose scores"
               searchPlaceholder="Search scores..."
               emptyMessage="No scores found."
-              options={selectionOptions.map((option) => ({
-                ...option,
-                selectedSuffix: showSelectedTargets ? (
-                  <span className="flex gap-1">
-                    {[
-                      ...new Set(
-                        fields
-                          .filter((field) => field.configId === option.value)
-                          .map((field) => targetFor(field).label),
-                      ),
-                    ].map((label) => (
-                      <Badge key={label} variant="outline-solid" size="sm">
-                        {label}
-                      </Badge>
-                    ))}
-                  </span>
-                ) : undefined,
-              }))}
+              options={selectionOptions}
               onValueChange={(values) =>
                 getScoreConfigSelection({
                   targets,
