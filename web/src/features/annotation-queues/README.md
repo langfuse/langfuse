@@ -12,13 +12,16 @@ each project and queue; changing the current item keeps the same run history.
   Its named start, next, back, and complete actions serialize transitions and
   commit navigation and history together. They can run independently of React.
   The current editor stays mounted while transitions are pending or fail;
-  navigation controls stay disabled until the action finishes.
+  navigation controls stay disabled until the action finishes. Failed transitions
+  expose a retry action. Confirmed completion IDs survive a failed refresh or
+  advance, and an acquired next-item lock survives failed navigation, so retries
+  neither complete twice nor acquire a different item.
 - `AnnotationQueueItemPage.tsx` adapts tRPC and routing to those actions. A query
   gates initial loading, shares the initial lock during Strict Mode replay, and
   owns cancellation. Actions check that this query still has an active observer
   before navigating, so late responses cannot leave the user's new queue.
 - tRPC owns queue/item/object server data. Mutation results populate the item
-  cache; the run stores only IDs and initial observation locations. Initial
+  cache; the run stores only IDs, initial observation locations, and transition outcomes. Initial
   direct links preserve an explicit observation and single-item mode. Refetches
   do not reset the reviewer's chosen span or trace.
 - `processors/TraceAnnotationProcessor.tsx` and `SessionAnnotationProcessor.tsx`

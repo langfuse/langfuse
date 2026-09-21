@@ -621,54 +621,87 @@ describe("unified annotation targets", () => {
     ).toHaveAttribute("aria-checked", "true");
   });
 
-  it("rolls back an earlier target failure while another target succeeds and allows retry", async () => {
-    const first = deferred();
-    const second = deferred();
-    mocks.create
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise)
-      .mockResolvedValue({});
-    await renderBothTargets();
-    expect(
-      screen.queryByRole("status", { name: "Score save status" }),
-    ).not.toBeInTheDocument();
-    const observationRow = screen.getByRole("group", {
-      name: "Quality (Observation)",
-    });
-    const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
-    fireEvent.click(
-      within(observationRow).getByRole("radio", { name: /False/ }),
-    );
-    fireEvent.click(within(traceRow).getByRole("radio", { name: /True/ }));
-    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
-    expect(
-      screen.getByRole("status", { name: "Score save status" }),
-    ).toHaveTextContent("Saving");
-    await act(async () => {
-      first.reject(new Error("Could not write observation"));
-      second.resolve({});
-    });
-    await waitFor(() =>
-      expect(
-        screen.getByRole("status", { name: "Score save status" }),
-      ).toHaveTextContent("Could not save"),
-    );
-    expect(
-      within(observationRow).getByRole("radio", { name: /False/ }),
-    ).toHaveAttribute("aria-checked", "false");
-    expect(
-      within(traceRow).getByRole("radio", { name: /True/ }),
-    ).toHaveAttribute("aria-checked", "true");
-    act(() => observationRow.focus());
-    fireEvent.keyDown(observationRow, { key: "1" });
-    await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(3));
-    expect(mocks.update).not.toHaveBeenCalled();
+  it("keeps the latest saved status when an older edit of the same field fails", async () => {
+    const older = deferred();
+    const newer = deferred();
+    mocks.create.mockResolvedValue({});
+    mocks.update
+      .mockReturnValueOnce(older.promise)
+      .mockReturnValueOnce(newer.promise);
+    renderContent();
+    const row = screen.getByRole("group", { name: "Quality" });
+    fireEvent.click(within(row).getByRole("radio", { name: /False/ }));
     await waitFor(() =>
       expect(
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
+    fireEvent.click(within(row).getByRole("radio", { name: /True/ }));
+    fireEvent.click(within(row).getByRole("radio", { name: /False/ }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledTimes(2));
+    await act(async () => newer.resolve({}));
+    await act(async () => older.reject(new Error("Earlier edit failed")));
+    expect(
+      screen.getByRole("status", { name: "Score save status" }),
+    ).toHaveTextContent("Saved");
+    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
   });
+
+  it.each([false, true])(
+    "rolls back a target failure and retries while another save is pending: %s",
+    async (retryWhilePending) => {
+      const first = deferred();
+      const second = deferred();
+      mocks.create
+        .mockReturnValueOnce(first.promise)
+        .mockReturnValueOnce(second.promise)
+        .mockResolvedValue({});
+      await renderBothTargets();
+      expect(
+        screen.queryByRole("status", { name: "Score save status" }),
+      ).not.toBeInTheDocument();
+      const observationRow = screen.getByRole("group", {
+        name: "Quality (Observation)",
+      });
+      const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
+      fireEvent.click(
+        within(observationRow).getByRole("radio", { name: /False/ }),
+      );
+      fireEvent.click(within(traceRow).getByRole("radio", { name: /True/ }));
+      await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Saving");
+      await act(async () => {
+        first.reject(new Error("Could not write observation"));
+        if (!retryWhilePending) second.resolve({});
+      });
+      await waitFor(() =>
+        expect(
+          screen.getByRole("status", { name: "Score save status" }),
+        ).toHaveTextContent(retryWhilePending ? "Saving" : "Could not save"),
+      );
+      expect(
+        within(observationRow).getByRole("radio", { name: /False/ }),
+      ).toHaveAttribute("aria-checked", "false");
+      expect(
+        within(traceRow).getByRole("radio", { name: /True/ }),
+      ).toHaveAttribute("aria-checked", "true");
+      act(() => observationRow.focus());
+      fireEvent.keyDown(observationRow, { key: "1" });
+      await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(3));
+      expect(mocks.update).not.toHaveBeenCalled();
+      if (retryWhilePending) await act(async () => second.resolve({}));
+      await waitFor(() =>
+        expect(
+          screen.getByRole("status", { name: "Score save status" }),
+        ).toHaveTextContent("Saved"),
+      );
+    },
+  );
 
   it("rolls back the same target after an earlier empty row is removed during its save", async () => {
     const pending = deferred();
