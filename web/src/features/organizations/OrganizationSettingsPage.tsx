@@ -12,6 +12,7 @@ import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
 import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
 import ContainerPage from "@/src/components/layouts/container-page";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
 import { isCloudPlan } from "@langfuse/shared";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -292,7 +293,17 @@ const OrganizationSettingsPage = () => {
   const { page } = router.query;
   const pages = useOrganizationSettingsPages();
 
-  if (!organization) return null;
+  if (!organization) {
+    return (
+      <ContainerPage
+        headerProps={{
+          title: "Organization Settings",
+        }}
+      >
+        <NoDataOrLoading isLoading />
+      </ContainerPage>
+    );
+  }
 
   return (
     <ContainerPage
