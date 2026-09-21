@@ -162,6 +162,41 @@ steps:
         | jq 'add' | jq -f "$FILTER_PATH" > "$ALERTS_PATH"
       jq -e 'type == "array"' "$ALERTS_PATH" >/dev/null
 
+# Runs on the runner after the agent, outside the sandbox. Claude Code writes
+# its transcript to ~/.claude/projects, which the sandbox bind-mounts from the
+# runner, so the Langfuse hook can replay it into the same trace gh-aw exports.
+post-steps:
+  - name: Set up uv
+    if: always()
+    continue-on-error: true
+    uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+  - name: Export Claude Code transcript to Langfuse
+    if: always()
+    continue-on-error: true
+    env:
+      LANGFUSE_BASE_URL: https://cloud.langfuse.com
+      GH_AW_LANGFUSE_OTLP_BASIC_AUTH: ${{ secrets.GH_AW_LANGFUSE_OTLP_BASIC_AUTH }}
+      CC_LANGFUSE_DEBUG: "true"
+      # Outside /tmp/gh-aw so nothing from this step lands in the run artifact.
+      CC_LANGFUSE_STATE_DIR: ${{ runner.temp }}/langfuse-hook-state
+    run: |
+      set -euo pipefail
+      creds="$(printf '%s' "$GH_AW_LANGFUSE_OTLP_BASIC_AUTH" | base64 -d)"
+      export LANGFUSE_PUBLIC_KEY="${creds%%:*}" LANGFUSE_SECRET_KEY="${creds#*:}"
+      echo "::add-mask::$LANGFUSE_SECRET_KEY"
+      export CC_LANGFUSE_TRACEPARENT="00-${GITHUB_AW_OTEL_TRACE_ID}-${GITHUB_AW_OTEL_PARENT_SPAN_ID}-01"
+      session="$(grep -m1 '"type":"result"' /tmp/gh-aw/agent-stdio.log | jq -r .session_id)"
+      transcript="$(ls "$HOME"/.claude/projects/*/"$session".jsonl)"
+      # Transcripts stay on the runner: they are not covered by gh-aw's secret
+      # redaction, so they must not be copied into the uploaded artifact.
+      echo "session=$session transcript=$transcript ($(wc -l < "$transcript") lines)"
+      mkdir -p "$CC_LANGFUSE_STATE_DIR"
+      jq -n --arg s "$session" --arg t "$transcript" \
+        '{session_id:$s, transcript_path:$t, hook_event_name:"SessionEnd"}' \
+        | uv run --script .github/scripts/langfuse_hook.py
+      tail -n 20 "$CC_LANGFUSE_STATE_DIR/langfuse_hook.log" || true
+
 safe-outputs:
   # Keep inline: GitHub forbids env here after compilation.
   staged: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.mode != 'live' }}
