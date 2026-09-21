@@ -27,6 +27,8 @@ import {
   PromptNameSchema,
   promptsTableCols,
   PromptType,
+  isBaseError,
+  LangfuseNotFoundError,
   StringNoHTMLNonEmpty,
   TracingSearchType,
   orderBy,
@@ -677,12 +679,19 @@ export const promptRouter = createTRPCRouter({
           scope: "prompts:CUD",
         });
 
-        const promptVersion = await ctx.prisma.prompt.findFirstOrThrow({
+        const promptVersion = await ctx.prisma.prompt.findFirst({
           where: {
             id: input.promptVersionId,
             projectId,
           },
         });
+
+        if (!promptVersion) {
+          throw new LangfuseNotFoundError(
+            `Prompt version with id ${input.promptVersionId} not found in project ${projectId}`,
+          );
+        }
+
         const { name: promptName, version, labels } = promptVersion;
 
         // Check if prompt has a protected label
@@ -812,7 +821,11 @@ export const promptRouter = createTRPCRouter({
           },
         );
       } catch (e) {
-        logger.error(e);
+        // Expected client errors are logged at their own severity by the tRPC
+        // error middleware; only unexpected failures are logged here.
+        if (!isBaseError(e) && !(e instanceof TRPCError)) {
+          logger.error(e);
+        }
         throw e;
       }
     }),

@@ -13,12 +13,20 @@ export type DeletePromptParams = {
 export const deletePrompt = async (params: DeletePromptParams) => {
   const { promptName, projectId, version, label, promptVersions } = params;
 
-  if (version && label) {
+  if (version != null && label) {
     throw new InvalidRequestError("Cannot specify both version and label");
   }
 
   if (promptVersions.length === 0) {
-    throw new LangfuseNotFoundError("Prompt not found");
+    let errorMessage = `Prompt not found: '${promptName}'`;
+
+    if (version != null) {
+      errorMessage += ` with version ${version}`;
+    } else if (label) {
+      errorMessage += ` with label '${label}'`;
+    }
+
+    throw new LangfuseNotFoundError(errorMessage);
   }
 
   // Check if other prompts depend on the specific prompt versions being deleted

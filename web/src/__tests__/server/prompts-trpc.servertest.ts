@@ -1155,6 +1155,47 @@ describe("prompts trpc", () => {
       });
       expect(remainingChild).not.toBeNull();
     });
+
+    it("should return NOT_FOUND for a prompt version that does not exist", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.prompts.deleteVersion({
+          projectId: project.id,
+          promptVersionId: v4(),
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    });
+
+    it("should return NOT_FOUND for a prompt version of another project", async () => {
+      const { project, caller } = await prepare();
+      const other = await prepare();
+
+      const otherProjectPrompt = await prisma.prompt.create({
+        data: {
+          id: v4(),
+          projectId: other.project.id,
+          name: `test-prompt-cross-project-${v4()}`,
+          version: 1,
+          type: "text",
+          prompt: "other project content",
+          createdBy: "test-user",
+          labels: ["latest"],
+        },
+      });
+
+      await expect(
+        caller.prompts.deleteVersion({
+          projectId: project.id,
+          promptVersionId: otherProjectPrompt.id,
+        }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+      const remaining = await prisma.prompt.findUnique({
+        where: { id: otherProjectPrompt.id },
+      });
+      expect(remaining).not.toBeNull();
+    });
   });
 
   describe("prompts.duplicatePrompt", () => {
