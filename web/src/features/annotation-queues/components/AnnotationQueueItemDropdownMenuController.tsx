@@ -11,11 +11,14 @@ import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 import { type ReactNode, useCallback, useState } from "react";
 import { useSession } from "next-auth/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { type AnalyticsData } from "@/src/features/scores/types";
 
 type AnnotationQueueItemDropdownMenuControllerProps = {
   projectId: string;
   objectId: string;
   objectType: AnnotationQueueObjectType;
+  analyticsData: Pick<AnalyticsData, "source" | "isV4">;
   children: (control: {
     disabled: { reason: string } | undefined;
     totalCount: number;
@@ -26,8 +29,10 @@ export function AnnotationQueueItemDropdownMenuController({
   projectId,
   objectId,
   objectType,
+  analyticsData,
   children,
 }: AnnotationQueueItemDropdownMenuControllerProps) {
+  const capture = usePostHogClientCapture();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const session = useSession();
   const hasAccess = useHasProjectAccess({
@@ -47,26 +52,53 @@ export function AnnotationQueueItemDropdownMenuController({
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation();
   const removeFromQueueMutation =
     api.annotationQueueItems.deleteMany.useMutation();
+  const targetType = (
+    {
+      TRACE: "trace",
+      OBSERVATION: "observation",
+      SESSION: "session",
+    } as const
+  )[objectType];
+  const type = objectType === "SESSION" ? "session" : "trace";
+  const queueCount = queues.data?.totalCount ?? 0;
 
   const handleQueueItemToggle = useCallback(
     async (queueId: string, queueName: string, itemId?: string) => {
       try {
         if (!itemId) {
-          await addToQueueMutation.mutateAsync({
+          const result = await addToQueueMutation.mutateAsync({
             projectId,
             objectIds: [objectId],
             objectType,
             queueId,
           });
+          if (result.createdCount > 0) {
+            capture("annotation_queues:item_added", {
+              ...analyticsData,
+              type,
+              targetType,
+              objectType,
+              queueCount: 1,
+            });
+          }
         } else if (
           confirm(
             `Are you sure you want to remove this item from the queue "${queueName}"?`,
           )
         ) {
-          await removeFromQueueMutation.mutateAsync({
+          const result = await removeFromQueueMutation.mutateAsync({
             projectId,
             itemIds: [itemId],
           });
+          if (result.deletedCount > 0) {
+            capture("annotation_queues:item_removed", {
+              ...analyticsData,
+              type,
+              targetType,
+              objectType,
+              queueCount: 1,
+            });
+          }
         }
 
         await utils.annotationQueues.byObjectId.invalidate({
@@ -80,10 +112,14 @@ export function AnnotationQueueItemDropdownMenuController({
     },
     [
       addToQueueMutation,
+      analyticsData,
+      capture,
       objectId,
       objectType,
       projectId,
       removeFromQueueMutation,
+      targetType,
+      type,
       utils.annotationQueues,
     ],
   );
@@ -103,7 +139,17 @@ export function AnnotationQueueItemDropdownMenuController({
     <DropdownMenu
       open={hasAccess && isDropdownOpen}
       onOpenChange={(open) => {
-        if (hasAccess) setIsDropdownOpen(open);
+        if (hasAccess) {
+          if (open && !isDropdownOpen) {
+            capture("annotation:entry_click", {
+              ...analyticsData,
+              type,
+              targetType,
+              entryPoint: "queue_button",
+            });
+          }
+          setIsDropdownOpen(open);
+        }
       }}
     >
       <DropdownMenuTrigger asChild>
@@ -116,6 +162,15 @@ export function AnnotationQueueItemDropdownMenuController({
             (queues.data?.queues ?? []) satisfies AnnotationQueueItemMenuQueue[]
           }
           onQueueItemToggle={handleQueueItemToggle}
+          onManageClick={() =>
+            capture("annotation_queues:manage_click", {
+              ...analyticsData,
+              type,
+              targetType,
+              objectType,
+              queueCount,
+            })
+          }
         />
       ) : null}
     </DropdownMenu>

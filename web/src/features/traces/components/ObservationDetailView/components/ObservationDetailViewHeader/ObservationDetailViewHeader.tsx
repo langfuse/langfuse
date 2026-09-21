@@ -11,6 +11,7 @@
  */
 
 import { memo, useMemo } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ObservationType,
   AnnotationQueueObjectType,
@@ -126,6 +127,15 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isV4: isV4Enabled } = useReadPath();
+    const capture = usePostHogClientCapture();
+    const captureAnnotationEntry = () =>
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "TraceDetail",
+        targetType: "observation",
+        isV4: isV4Enabled,
+      });
     const { trace, serverScores } = useTraceData();
 
     // Get trace-level scores for V4 dual annotation
@@ -362,6 +372,7 @@ export const ObservationDetailViewHeader = memo(
                               variant="ghost"
                               size="sm"
                               disabled={!hasAnnotationAccess}
+                              onClick={captureAnnotationEntry}
                               className="w-full justify-start gap-2 font-normal"
                             >
                               {!hasAnnotationAccess ? (
@@ -374,6 +385,7 @@ export const ObservationDetailViewHeader = memo(
                           </DrawerTrigger>
                           <DrawerContent className="p-3">
                             <DualAnnotationContent
+                              isV4={isV4Enabled}
                               projectId={projectId}
                               traceId={traceId}
                               observationId={observation.id}
@@ -403,6 +415,7 @@ export const ObservationDetailViewHeader = memo(
                                   analyticsData: {
                                     type: "trace",
                                     source: "TraceDetail",
+                                    isV4: isV4Enabled,
                                   },
                                   scoreMetadata: {
                                     projectId,
@@ -425,6 +438,10 @@ export const ObservationDetailViewHeader = memo(
                         projectId={projectId}
                         objectId={observation.id}
                         objectType={AnnotationQueueObjectType.OBSERVATION}
+                        analyticsData={{
+                          source: "TraceDetail",
+                          isV4: isV4Enabled,
+                        }}
                       >
                         {({ disabled, totalCount }) => (
                           <Button
@@ -434,7 +451,9 @@ export const ObservationDetailViewHeader = memo(
                             className="w-full justify-start gap-2 font-normal"
                           >
                             <ListPlus className="h-4 w-4" />
-                            <span className="text-sm">Add to queue</span>
+                            <span className="text-sm">
+                              Add to human annotation queue
+                            </span>
                             {totalCount > 0 && (
                               <AnnotationQueueItemCountBadge
                                 totalCount={totalCount}
@@ -569,7 +588,7 @@ export const ObservationDetailViewHeader = memo(
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
-                <div className="flex items-start">
+                <div className="flex flex-wrap items-start gap-2">
                   {isV4Enabled ? (
                     <Drawer key={"annotation-drawer-" + observation.id}>
                       <DrawerTrigger asChild>
@@ -577,7 +596,7 @@ export const ObservationDetailViewHeader = memo(
                           variant="secondary"
                           size="sm"
                           disabled={!hasAnnotationAccess}
-                          className="rounded-r-none"
+                          onClick={captureAnnotationEntry}
                         >
                           {!hasAnnotationAccess ? (
                             <LockIcon className="mr-1.5 h-3 w-3" />
@@ -589,6 +608,7 @@ export const ObservationDetailViewHeader = memo(
                       </DrawerTrigger>
                       <DrawerContent className="p-3">
                         <DualAnnotationContent
+                          isV4={isV4Enabled}
                           projectId={projectId}
                           traceId={traceId}
                           observationId={observation.id}
@@ -606,7 +626,6 @@ export const ObservationDetailViewHeader = memo(
                           variant="secondary"
                           size="sm"
                           disabled={disabled}
-                          className="rounded-r-none"
                           onClick={() =>
                             openDrawer({
                               scoreTarget: {
@@ -618,6 +637,7 @@ export const ObservationDetailViewHeader = memo(
                               analyticsData: {
                                 type: "trace",
                                 source: "TraceDetail",
+                                isV4: isV4Enabled,
                               },
                               scoreMetadata: {
                                 projectId,
@@ -640,23 +660,21 @@ export const ObservationDetailViewHeader = memo(
                     projectId={projectId}
                     objectId={observation.id}
                     objectType={AnnotationQueueObjectType.OBSERVATION}
+                    analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   >
                     {({ disabled, totalCount }) => (
                       <Button
                         variant="secondary"
                         size="sm"
                         disabled={disabled !== undefined}
-                        className="rounded-l-none rounded-r-md border-l-2"
+                        className="gap-1.5"
                       >
-                        <span className="relative mr-1 text-xs">
-                          <ChevronDown className="h-3 w-3" />
-                          {totalCount > 0 && (
-                            <AnnotationQueueItemCountBadge
-                              totalCount={totalCount}
-                              layout="toolbar"
-                            />
-                          )}
-                        </span>
+                        <ListPlus className="h-3.5 w-3.5" />
+                        <span>Add to human annotation queue</span>
+                        {totalCount > 0 && (
+                          <ActionButtonCountBadge count={totalCount} />
+                        )}
+                        <ChevronDown className="h-3 w-3" />
                       </Button>
                     )}
                   </AnnotationQueueItemDropdownMenuController>

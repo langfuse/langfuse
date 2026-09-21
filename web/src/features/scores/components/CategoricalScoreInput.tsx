@@ -12,12 +12,12 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";
-import { type AnalyticsData } from "@/src/features/scores/types";
+import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
 
 const CHAR_CUTOFF = 6;
 const DIGIT_SHORTCUTS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
-function shouldUseCombobox(
+export function shouldUseCombobox(
   categories: Pick<ScoreConfigCategoryDomain, "label">[],
 ) {
   const hasMoreThanThreeCategories = categories.length > 3;
@@ -38,7 +38,7 @@ export function CategoricalScoreInput({
   value,
   disabled,
   name,
-  source,
+  analyticsData,
   onValueChange,
 }: {
   projectId: string;
@@ -47,7 +47,7 @@ export function CategoricalScoreInput({
   value: string;
   disabled: boolean;
   name: string;
-  source: AnalyticsData["source"] | undefined;
+  analyticsData: AnnotationAnalyticsContext;
   onValueChange: (value: string, numericValue?: number) => void;
 }) {
   const hasConfigCudAccess = useHasProjectAccess({
@@ -170,7 +170,7 @@ export function CategoricalScoreInput({
           projectId={projectId}
           config={config}
           initialLabel={pendingLabel}
-          source={source}
+          analyticsData={analyticsData}
           onClose={() => setPendingLabel(null)}
           onCategoryAdded={onValueChange}
         />

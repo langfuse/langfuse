@@ -1,12 +1,8 @@
 import { type ScoreAggregate } from "@langfuse/shared";
-import {
-  createContext,
-  useContext,
-  useState,
-  useCallback,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
+import { toast } from "sonner";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 
 type ActiveCell = {
   traceId: string;
@@ -15,49 +11,69 @@ type ActiveCell = {
   environment?: string;
 };
 
-type ActiveCellContextValue = {
+type CellTarget = Pick<ActiveCell, "traceId" | "observationId">;
+
+type ActiveCellState = {
   activeCell: ActiveCell | null;
-  setActiveCell: (cell: ActiveCell | null) => void;
-  clearActiveCell: () => void;
+  hasCommentDraft: boolean;
+  actions: {
+    setActiveCell: (cell: ActiveCell | null) => boolean;
+    clearActiveCell: () => boolean;
+    setCommentDraft: (target: CellTarget, hasDraft: boolean) => void;
+  };
 };
 
-/**
- * Tracks active dataset run item cell for annotation UI.
- *
- * Single cell can be active at a time. Used for cell highlighting
- * and side panel state management.
- */
-const ActiveCellContext = createContext<ActiveCellContextValue | undefined>(
-  undefined,
-);
+const isSameTarget = (left: CellTarget | null, right: CellTarget | null) =>
+  left?.traceId === right?.traceId &&
+  left?.observationId === right?.observationId;
+
+function createActiveCellStore() {
+  return createStore<ActiveCellState>((set, get) => ({
+    activeCell: null,
+    hasCommentDraft: false,
+    actions: {
+      setActiveCell: (cell) => {
+        const { activeCell, hasCommentDraft } = get();
+        const sameTarget = isSameTarget(activeCell, cell);
+        if (!sameTarget && hasCommentDraft) {
+          toast.error("Please save or discard your comment before proceeding");
+          return false;
+        }
+        set({
+          activeCell: cell,
+          hasCommentDraft: sameTarget && hasCommentDraft,
+        });
+        return true;
+      },
+      clearActiveCell: () => get().actions.setActiveCell(null),
+      setCommentDraft: (target, hasDraft) => {
+        if (isSameTarget(get().activeCell, target)) {
+          set({ hasCommentDraft: hasDraft });
+        }
+      },
+    },
+  }));
+}
+
+const ActiveCellContext = createContext<
+  ReturnType<typeof createActiveCellStore> | undefined
+>(undefined);
 
 export function ActiveCellProvider({ children }: { children: ReactNode }) {
-  const [activeCell, setActiveCellState] = useState<ActiveCell | null>(null);
-
-  const setActiveCell = useCallback((cell: ActiveCell | null) => {
-    setActiveCellState(cell);
-  }, []);
-
-  const clearActiveCell = useCallback(() => {
-    setActiveCellState(null);
-  }, []);
-
-  const value = useMemo(
-    () => ({ activeCell, setActiveCell, clearActiveCell }),
-    [activeCell, setActiveCell, clearActiveCell],
-  );
+  const [store] = useState(createActiveCellStore);
 
   return (
-    <ActiveCellContext.Provider value={value}>
+    <ActiveCellContext.Provider value={store}>
       {children}
     </ActiveCellContext.Provider>
   );
 }
 
 export function useActiveCell() {
-  const context = useContext(ActiveCellContext);
-  if (!context) {
+  const store = useContext(ActiveCellContext);
+  if (!store) {
     throw new Error("useActiveCell must be used within ActiveCellProvider");
   }
-  return context;
+  const activeCell = useStore(store, (state) => state.activeCell);
+  return { activeCell, ...store.getState().actions };
 }

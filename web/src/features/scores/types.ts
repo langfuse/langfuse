@@ -63,11 +63,15 @@ export type AnnotationScore = {
 
 export type AnalyticsData = {
   type: "trace" | "session";
+  isV4: boolean;
   source:
     | "TraceDetail"
     | "SessionDetail"
     | "AnnotationQueue"
-    | "DatasetCompare";
+    | "DatasetCompare"
+    | "TraceTable"
+    | "ObservationTable"
+    | "SessionTable";
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
@@ -106,11 +110,12 @@ export type AnnotationForm<Target extends ScoreTarget> = {
     environment?: string;
   };
   configSelection?: ScoreConfigSelection;
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
 };
 
 export type AnnotationScoreFormData = {
+  targetKey?: string;
   id: string | null;
   configId: string;
   name: string;
@@ -121,19 +126,26 @@ export type AnnotationScoreFormData = {
   timestamp?: Date | null;
 };
 
-export type InnerAnnotationFormProps<Target extends ScoreTarget> = {
+type InnerAnnotationFormProps<Target extends ScoreTarget> = {
   scoreTarget: Target;
   initialFormData: AnnotationScoreFormData[];
   configControl: {
     configs: ScoreConfigDomain[];
     allowManualSelection: boolean;
     emptySelectedConfigIdsStorageKey?: string;
+    setSelectedConfigIds: (ids: string[]) => void;
+    selectedConfigIds: string[];
   };
   scoreMetadata: {
     projectId: string;
     queueId?: string;
     environment?: string;
   };
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
+};
+
+export type PreparedAnnotationTarget = InnerAnnotationFormProps<ScoreTarget> & {
+  key: string;
+  label: string;
 };

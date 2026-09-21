@@ -22,12 +22,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { ChevronDown, ChevronRight } from "lucide-react";
-import {
-  getScoreDataTypeIcon,
-  MultiSelectKeyValues,
-} from "@/src/features/scores";
-import { DropdownMenuItemWithSecondaryAction } from "@/src/components/ui/dropdown-menu";
+import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
+import Link from "next/link";
+import { getScoreDataTypeIcon } from "@/src/features/scores";
+import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
+import { Badge } from "@/src/components/ui/badge";
 import {
   CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
@@ -89,11 +88,8 @@ export function AnnotationQueueFormDialogContent({
     whitelistedName: mode === "edit" ? initialValues.name : undefined,
   });
 
-  const handleScoreConfigValueChange = (values: Record<string, string>[]) => {
-    form.setValue(
-      "scoreConfigIds",
-      values.map((value) => value.key),
-    );
+  const handleScoreConfigValueChange = (values: string[]) => {
+    form.setValue("scoreConfigIds", values);
 
     if (values.length === 0) {
       form.setError("scoreConfigIds", {
@@ -104,10 +100,6 @@ export function AnnotationQueueFormDialogContent({
       form.clearErrors("scoreConfigIds");
     }
   };
-
-  const activeScoreConfigs = scoreConfigs.filter(
-    (config) => !config.isArchived,
-  );
 
   return (
     <>
@@ -163,42 +155,59 @@ export function AnnotationQueueFormDialogContent({
               name="scoreConfigIds"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Score Configs</FormLabel>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <FormLabel>Score configs</FormLabel>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-accent gap-1.5 text-xs"
+                      asChild
+                    >
+                      <Link
+                        href={`/project/${projectId}/settings/scores`}
+                        target="_blank"
+                        onClick={onManageScoreConfigsClick}
+                        onAuxClick={(event) => {
+                          if (event.button === 1) onManageScoreConfigsClick();
+                        }}
+                      >
+                        <Settings2 className="size-3" aria-hidden="true" />
+                        Manage score configs
+                      </Link>
+                    </Button>
+                  </div>
                   <FormDescription>
                     Define which dimensions annotators should score for the
                     given queue.
                   </FormDescription>
                   <FormControl>
-                    <MultiSelectKeyValues
-                      placeholder="Value"
-                      align="end"
-                      variant="outline"
-                      className="grid grid-cols-[auto_1fr_auto_auto] gap-2"
+                    <MultiSelectTagInput
+                      aria-label="Score configs"
+                      placeholder="Choose score configs"
+                      searchPlaceholder="Search score configs..."
+                      emptyMessage="No score configs found."
                       onValueChange={handleScoreConfigValueChange}
-                      options={activeScoreConfigs.map((config) => ({
-                        key: config.id,
-                        value: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                        isArchived: config.isArchived,
-                      }))}
-                      values={field.value.map((configId) => {
-                        const config = scoreConfigs.find(
-                          (scoreConfig) => scoreConfig.id === configId,
-                        );
-                        return {
-                          value: config
-                            ? `${getScoreDataTypeIcon(config.dataType)} ${config.name}`
-                            : `${configId}`,
-                          key: configId,
-                        };
-                      })}
-                      controlButtons={
-                        <DropdownMenuItemWithSecondaryAction
-                          onBeforeAction={onManageScoreConfigsClick}
-                          href={`/project/${projectId}/settings/scores`}
-                          target="_blank"
-                          title="Manage score configs"
-                        />
-                      }
+                      options={scoreConfigs
+                        .filter(
+                          (config) =>
+                            !config.isArchived ||
+                            field.value.includes(config.id),
+                        )
+                        .map((config) => ({
+                          value: config.id,
+                          label: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
+                          optionSuffix: config.isArchived ? (
+                            <Badge variant="outline-solid" size="sm">
+                              Archived
+                            </Badge>
+                          ) : undefined,
+                          selectedSuffix: config.isArchived ? (
+                            <Badge variant="outline-solid" size="sm">
+                              Archived
+                            </Badge>
+                          ) : undefined,
+                        }))}
+                      value={field.value}
                     />
                   </FormControl>
                   <FormMessage />

@@ -2,14 +2,20 @@ import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
-import { type RouterOutput } from "@/src/utils/types";
 import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "zustand";
+import {
+  createAnnotationQueueRun,
+  type AnnotationQueueRun,
+  type QueueRunDependencies,
+} from "../state/annotationQueueRun";
 import { Button } from "@/src/components/ui/button";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
@@ -52,161 +58,172 @@ const ShortcutRow: React.FC<{
   </div>
 );
 
-export const AnnotationQueueItemPage: React.FC<{
+type QueuePageProps = {
   annotationQueueId: string;
   projectId: string;
   queryItemId?: string;
-}> = ({ annotationQueueId, projectId, queryItemId }) => {
+};
+
+export function AnnotationQueueItemPage(props: QueuePageProps) {
   const router = useRouter();
-  const { status: sessionStatus } = useSession();
-  const sessionLoaded = sessionStatus !== "loading";
-  const isSingleItem = router.query.singleItem === "true";
-  const [nextItemData, setNextItemData] = useState<
-    RouterOutput["annotationQueues"]["fetchAndLockNext"] | null
-  >(null);
-  const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
-  const [progressIndex, setProgressIndex] = useState(0);
-
-  const hasAccess = useHasProjectAccess({
-    projectId,
-    scope: "annotationQueues:CUD",
-  });
-
-  const itemId = isSingleItem ? queryItemId : seenItemIds[progressIndex];
-
-  const seenItemData = api.annotationQueueItems.byId.useQuery(
-    { projectId, itemId: itemId as string },
-    { enabled: !!itemId && sessionLoaded, refetchOnMount: false },
+  const { status } = useSession();
+  if (!router.isReady) return <Skeleton className="h-full w-full" />;
+  const singleItem = router.query.singleItem === "true";
+  return (
+    <AnnotationQueueRunLoader
+      key={singleItem ? props.queryItemId : "run"}
+      {...props}
+      singleItem={singleItem}
+      sessionReady={status !== "loading"}
+    />
   );
+}
 
-  const fetchAndLockNextMutation =
-    api.annotationQueues.fetchAndLockNext.useMutation();
-
-  // Effects
-  useEffect(() => {
-    async function fetchNextItem() {
-      if (!itemId && !isSingleItem && sessionLoaded) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-    }
-    fetchNextItem();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLoaded]);
-  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
-
-  const unseenPendingItemCount =
-    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
-      {
-        queueId: annotationQueueId,
-        projectId,
-        seenItemIds,
-      },
-      { refetchOnWindowFocus: false },
-    );
-
+function AnnotationQueueRunLoader({
+  annotationQueueId,
+  projectId,
+  queryItemId,
+  singleItem,
+  sessionReady,
+}: QueuePageProps & { singleItem: boolean; sessionReady: boolean }) {
+  const router = useRouter();
+  const runId = useId();
+  const queryClient = useQueryClient();
+  const queryKey = ["annotation-queue-run", runId];
+  const [run] = useState(() =>
+    createAnnotationQueueRun({ initialItemId: queryItemId, singleItem }),
+  );
   const utils = api.useUtils();
-  const completeMutation = api.annotationQueueItems.complete.useMutation({
-    onSuccess: async () => {
-      utils.annotationQueueItems.invalidate();
-      if (isSingleItem) {
-        return;
-      }
-
-      if (progressIndex >= seenItemIds.length - 1) {
-        const nextItem = await fetchAndLockNextMutation.mutateAsync({
-          queueId: annotationQueueId,
-          projectId,
-          seenItemIds,
-        });
-        setNextItemData(nextItem);
-      }
-
-      if (progressIndex + 1 < totalItems) {
-        setProgressIndex(Math.max(progressIndex + 1, 0));
-      }
-    },
-  });
-
-  const totalItems = useMemo(() => {
-    return seenItemIds.length + (unseenPendingItemCount.data ?? 0);
-  }, [unseenPendingItemCount.data, seenItemIds.length]);
-
-  const relevantItem = useMemo(() => {
-    if (isSingleItem) return seenItemData.data;
-    return progressIndex < seenItemIds.length
-      ? seenItemData.data
-      : nextItemData;
-  }, [
-    progressIndex,
-    seenItemIds.length,
-    seenItemData.data,
-    nextItemData,
-    isSingleItem,
-  ]);
-
-  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
-
-  useEffect(() => {
-    if (relevantItem?.id && router.query.itemId !== relevantItem.id) {
-      const observation =
-        relevantItem.objectType === AnnotationQueueObjectType.OBSERVATION
-          ? relevantItem.objectId
-          : undefined;
-      router.push(
-        {
-          pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
-          query: observation ? { observation } : undefined,
-        },
-        undefined,
-      );
-    }
-  }, [relevantItem, router, projectId, annotationQueueId]);
-
-  useEffect(() => {
-    if (
-      relevantItem &&
-      !seenItemIds.includes(relevantItem.id) &&
-      !isSingleItem
-    ) {
-      setSeenItemIds((prev) => [...prev, relevantItem.id]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevantItem]);
-
-  const isNextItemAvailable = totalItems > progressIndex + 1;
-  const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
-
-  // LFE-7628 — keyboard-first navigation/completion.
-  const handleNavigateBack = useCallback(() => {
-    setProgressIndex((prev) => prev - 1);
-  }, []);
-
-  const handleNavigateNext = useCallback(async () => {
-    if (progressIndex >= seenItemIds.length - 1) {
-      const nextItem = await fetchAndLockNextMutation.mutateAsync({
+  const fetchNext = api.annotationQueues.fetchAndLockNext.useMutation();
+  const complete = api.annotationQueueItems.complete.useMutation();
+  const dependencies: QueueRunDependencies = {
+    isActive: () =>
+      queryClient.getQueryCache().find({ queryKey })?.isActive() ?? false,
+    loadItem: (itemId) =>
+      utils.annotationQueueItems.byId.fetch({ projectId, itemId }),
+    loadNext: async (seenItemIds) => {
+      const item = await fetchNext.mutateAsync({
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
       });
-      setNextItemData(nextItem);
-    }
-    setProgressIndex(Math.max(progressIndex + 1, 0));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [progressIndex, seenItemIds, annotationQueueId, projectId]);
+      return item
+        ? {
+            ...item,
+            lockedByUser: { name: item.lockedByUser.name ?? null },
+          }
+        : null;
+    },
+    cacheItem: (item) =>
+      utils.annotationQueueItems.byId.setData(
+        { projectId, itemId: item.id },
+        item,
+      ),
+    completeItem: (itemId) => complete.mutateAsync({ projectId, itemId }),
+    refreshItems: () => utils.annotationQueueItems.invalidate(),
+    navigate: async (item, initialize) => {
+      if (initialize && router.query.itemId === item.id) {
+        if (item.observationId && !router.query.observation) {
+          await router.replace(
+            {
+              pathname: router.pathname,
+              query: { ...router.query, observation: item.observationId },
+            },
+            undefined,
+            { shallow: true },
+          );
+        }
+        return;
+      }
+      await router.push({
+        pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${item.id}`,
+        query: item.observationId
+          ? { observation: item.observationId }
+          : undefined,
+      });
+    },
+  };
+  const bootstrap = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => run.actions.start(dependencies, signal),
+    enabled: sessionReady,
+    staleTime: Infinity,
+    gcTime: 0,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  if (bootstrap.isPending) return <Skeleton className="h-full w-full" />;
+  if (bootstrap.isError) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <p>Unable to load the annotation queue.</p>
+        <Button onClick={() => bootstrap.refetch()}>Try again</Button>
+      </div>
+    );
+  }
+  return (
+    <AnnotationQueueRunContent
+      annotationQueueId={annotationQueueId}
+      projectId={projectId}
+      isSingleItem={singleItem}
+      run={run}
+      dependencies={dependencies}
+    />
+  );
+}
 
-  const handleComplete = useCallback(async () => {
-    if (!relevantItem) return;
-    await completeMutation.mutateAsync({
-      itemId: relevantItem.id,
-      projectId,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevantItem?.id, projectId]);
+function AnnotationQueueRunContent({
+  annotationQueueId,
+  projectId,
+  isSingleItem,
+  run,
+  dependencies,
+}: {
+  annotationQueueId: string;
+  projectId: string;
+  isSingleItem: boolean;
+  run: AnnotationQueueRun;
+  dependencies: QueueRunDependencies;
+}) {
+  const { history, progressIndex, isTransitioning, exhausted } = useStore(
+    run.store,
+  );
+  const seenItemIds = history.map((item) => item.id);
+  const itemId = history[progressIndex]?.id;
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "annotationQueues:CUD",
+  });
+  const seenItemData = api.annotationQueueItems.byId.useQuery(
+    { projectId, itemId: itemId as string },
+    { enabled: !!itemId, refetchOnMount: false },
+  );
+  const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
+  const unseenPendingItemCount =
+    api.annotationQueueItems.unseenPendingItemCountByQueueId.useQuery(
+      { queueId: annotationQueueId, projectId, seenItemIds },
+      { refetchOnWindowFocus: false },
+    );
+  const totalItems =
+    seenItemIds.length + (exhausted ? 0 : (unseenPendingItemCount.data ?? 0));
+  const relevantItem = seenItemData.data;
+  const objectData = useAnnotationObjectData(relevantItem ?? null, projectId);
+  const isNextItemAvailable = totalItems > progressIndex + 1;
+  const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
+  const handleNavigateBack = useCallback(
+    () => run.actions.back(dependencies),
+    [run, dependencies],
+  );
+  const handleNavigateNext = useCallback(
+    () => run.actions.next(dependencies),
+    [run, dependencies],
+  );
+  const handleComplete = useCallback(
+    () => run.actions.complete(dependencies),
+    [run, dependencies],
+  );
 
   // Brief highlight on the button when its shortcut fires.
   const [shortcutPulse, setShortcutPulse] = useState<
@@ -239,12 +256,7 @@ export const AnnotationQueueItemPage: React.FC<{
       // not complete or skip an item the annotator hasn't actually seen yet
       // (e.g. a quick → between ⌘/Ctrl+Enter and onSuccess advancing would skip
       // the next item, which only flashed as a Skeleton).
-      if (
-        objectData.isLoading ||
-        fetchAndLockNextMutation.isPending ||
-        completeMutation.isPending
-      )
-        return;
+      if (objectData.isLoading || isTransitioning) return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -252,7 +264,7 @@ export const AnnotationQueueItemPage: React.FC<{
       // open drawer/dialog so it never steals that surface's own submit.
       if (isCompleteShortcut(event)) {
         if (isOpenDialogPresent()) return;
-        if (isPending && !completeMutation.isPending && !objectData.isError) {
+        if (isPending && !isTransitioning && !objectData.isError) {
           event.preventDefault();
           // An out-of-range numeric score is vetoed on blur (no mutation fires),
           // so completing now would silently drop it. Scan *all* numeric score
@@ -326,7 +338,7 @@ export const AnnotationQueueItemPage: React.FC<{
         if (progressIndex > 0) {
           event.preventDefault();
           pulse("back");
-          handleNavigateBack();
+          handleNavigateBack().catch(() => {});
         }
         return;
       }
@@ -339,10 +351,9 @@ export const AnnotationQueueItemPage: React.FC<{
     isPending,
     isNextItemAvailable,
     progressIndex,
-    completeMutation.isPending,
+    isTransitioning,
     objectData.isError,
     objectData.isLoading,
-    fetchAndLockNextMutation.isPending,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
@@ -351,10 +362,9 @@ export const AnnotationQueueItemPage: React.FC<{
 
   if (
     (seenItemData.isPending && itemId) ||
-    (fetchAndLockNextMutation.isPending && !itemId) ||
+    (isTransitioning && !itemId) ||
     unseenPendingItemCount.isPending ||
-    objectData.isLoading ||
-    (!sessionLoaded && !isSingleItem)
+    objectData.isLoading
   ) {
     return <Skeleton className="h-full w-full" />;
   }
@@ -431,9 +441,11 @@ export const AnnotationQueueItemPage: React.FC<{
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={handleNavigateBack}
+                  onClick={() => handleNavigateBack().catch(() => {})}
                   variant="outline"
-                  disabled={progressIndex === 0 || !hasAccess}
+                  disabled={
+                    progressIndex === 0 || !hasAccess || isTransitioning
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -478,8 +490,10 @@ export const AnnotationQueueItemPage: React.FC<{
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  onClick={handleNavigateNext}
-                  disabled={!isNextItemAvailable || !hasAccess}
+                  onClick={() => handleNavigateNext().catch(() => {})}
+                  disabled={
+                    !isNextItemAvailable || !hasAccess || isTransitioning
+                  }
                   size="lg"
                   className={cn(
                     "gap-1.5 px-4 transition-colors duration-150",
@@ -509,16 +523,14 @@ export const AnnotationQueueItemPage: React.FC<{
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    onClick={handleComplete}
+                    onClick={() => handleComplete().catch(() => {})}
                     size="lg"
                     className={cn(
                       "mr-2 w-full gap-1.5 transition-colors duration-150",
                       shortcutPulse === "complete" && "ring-primary/40 ring-2",
                     )}
                     disabled={
-                      completeMutation.isPending ||
-                      !hasAccess ||
-                      objectData.isError
+                      isTransitioning || !hasAccess || objectData.isError
                     }
                   >
                     <span>Mark Completed</span>
@@ -613,4 +625,4 @@ export const AnnotationQueueItemPage: React.FC<{
       </Dialog>
     </div>
   );
-};
+}

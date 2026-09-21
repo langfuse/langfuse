@@ -12,6 +12,7 @@
  */
 
 import { memo } from "react";
+import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -85,6 +86,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const {
     existingDatasetItems,
@@ -248,6 +250,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                               analyticsData: {
                                 type: "trace",
                                 source: "TraceDetail",
+                                isV4,
                               },
                               scoreMetadata: {
                                 projectId,
@@ -269,6 +272,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       projectId={projectId}
                       objectId={trace.id}
                       objectType={AnnotationQueueObjectType.TRACE}
+                      analyticsData={{ source: "TraceDetail", isV4 }}
                     >
                       {({ disabled, totalCount }) => (
                         <Button
@@ -278,7 +282,9 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           className="w-full justify-start gap-2 font-normal"
                         >
                           <ListPlus className="h-4 w-4" />
-                          <span className="text-sm">Add to queue</span>
+                          <span className="text-sm">
+                            Add to human annotation queue
+                          </span>
                           {totalCount > 0 && (
                             <AnnotationQueueItemCountBadge
                               totalCount={totalCount}
@@ -379,14 +385,13 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
             </NewDatasetItemFromExistingObjectDialogController>
             {/* Hide annotation buttons in annotation mode (panel shown separately) */}
             {!isAnnotationMode && (
-              <div className="flex items-start">
+              <div className="flex flex-wrap items-start gap-2">
                 <AnnotateDrawerController projectId={projectId}>
                   {({ disabled, openDrawer }) => (
                     <Button
                       variant="secondary"
                       size="sm"
                       disabled={disabled}
-                      className="rounded-r-none"
                       onClick={() =>
                         openDrawer({
                           scoreTarget: {
@@ -397,6 +402,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4,
                           },
                           scoreMetadata: {
                             projectId,
@@ -418,23 +424,21 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   projectId={projectId}
                   objectId={trace.id}
                   objectType={AnnotationQueueObjectType.TRACE}
+                  analyticsData={{ source: "TraceDetail", isV4 }}
                 >
                   {({ disabled, totalCount }) => (
                     <Button
                       variant="secondary"
                       size="sm"
                       disabled={disabled !== undefined}
-                      className="rounded-l-none rounded-r-md border-l-2"
+                      className="gap-1.5"
                     >
-                      <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="toolbar"
-                          />
-                        )}
-                      </span>
+                      <ListPlus className="h-3.5 w-3.5" />
+                      <span>Add to human annotation queue</span>
+                      {totalCount > 0 && (
+                        <ActionButtonCountBadge count={totalCount} />
+                      )}
+                      <ChevronDown className="h-3 w-3" />
                     </Button>
                   )}
                 </AnnotationQueueItemDropdownMenuController>

@@ -285,6 +285,7 @@ export const SessionAnnotationProcessor: React.FC<
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,
