@@ -1199,7 +1199,7 @@ describe("filterStateToQueryText", () => {
         searchQuery: "hello",
         searchType: ["id"],
       }).text,
-    ).toBe("in:id hello");
+    ).toBe("ids:hello");
   });
 
   it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {

@@ -62,6 +62,14 @@ contract; it does not introduce backend filter columns or change matching rules.
   Dataset Items it includes input, expected output, and metadata.
 - **`all:"refund policy"`** uses `['id', 'content']`, including the host's
   IDs/names lane. This preserves the additive Full Text dropdown choice.
+- **`ids:<value>`** searches the Events IDs/names lane without input/output.
+  A complete 16/32-character hex ID or UUID preselects this suggestion. Custom
+  ID prefixes (`trace_`, `span_`, `obs_`, `observation_`, `session_`, `user_`,
+  also with `-`) and mixed letter/number identifiers of at least 16 characters
+  put it first without preselecting it, so Enter keeps full-text search.
+  Detection only ranks suggestions for a whole bare-text run; explicit scopes
+  and existing filters keep their meaning. Hosts already defaulting to the
+  IDs/names lane keep bare text, and the full-text alternative stays available.
 - **`input:` / `output:`** remain real string column filters on V4 Events,
   supporting comparisons such as exact/glob matches and negation. On legacy
   tracing and Dataset Items, registries instead declare them as search scopes

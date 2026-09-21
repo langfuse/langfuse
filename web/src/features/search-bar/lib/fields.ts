@@ -543,6 +543,11 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   traceScores: true,
   allowFreeText: true,
   searchScopes: {
+    ids: {
+      searchType: ["id"],
+      label: "IDs and names",
+      description: "search IDs, user IDs and names",
+    },
     content: {
       searchType: ["content"],
       label: "Content",

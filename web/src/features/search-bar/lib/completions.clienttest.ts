@@ -19,6 +19,7 @@ import {
 } from "@/src/features/search-bar/lib/observed-options";
 import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
 import { validateQuery } from "./validate";
+import { planCommit } from "./commit";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -549,6 +550,116 @@ describe("planInputCompletions", () => {
     ).toBe(false);
     expect(validateQuery("all:refund").valid).toBe(true);
   });
+
+  it.each([
+    "0123456789abcdef",
+    "0123456789ABCDEF0123456789ABCDEF",
+    "550e8400-e29b-41d4-a716-446655440000",
+  ])("defaults to IDs and names for a confident ID: %s", (input) => {
+    const p = plan(input, input.length, { observed: {} });
+    expect(p?.autoHighlight).toBe(true);
+    const first = flattenOptions(p)[0]!;
+    expect(first.id).toBe("scope:ids");
+    if (first.kind !== "pattern")
+      throw new Error("Expected a scope suggestion");
+    const picked = applyPick(first, input, p!);
+    expect(planCommit(picked.next)).toMatchObject({
+      status: "committed",
+      searchQuery: input,
+      searchType: ["id"],
+      filters: [],
+    });
+    const fullText = flattenOptions(p).find(
+      (o) => o.kind === "pattern" && o.id === "scope:default",
+    )!;
+    if (fullText.kind !== "pattern")
+      throw new Error("Expected a scope suggestion");
+    expect(planCommit(applyPick(fullText, input, p!).next)).toMatchObject({
+      searchType: ["id", "content"],
+    });
+  });
+
+  it.each(["trace_checkout", "obs_12345", "c1234567890abcdefghijklmno"])(
+    "prominently suggests a plausible custom ID without arming Enter: %s",
+    (input) => {
+      const p = plan(input, input.length);
+      expect(flattenOptions(p)[0]?.id).toBe("scope:ids");
+      expect(p?.autoHighlight).toBe(false);
+      expect(planCommit(input)).toMatchObject({
+        searchQuery: input,
+        searchType: ["id", "content"],
+      });
+    },
+  );
+
+  it("prioritizes an ID over observed matches and replaces only its free-text run", () => {
+    const id = "0123456789abcdef0123456789abcdef";
+    const input = `level:ERROR ${id}`;
+    const p = plan(input, input.length, {
+      observed: { name: [{ value: id }] },
+    });
+    const first = flattenOptions(p)[0]!;
+    expect(first.id).toBe("scope:ids");
+    if (first.kind !== "pattern")
+      throw new Error("Expected a scope suggestion");
+    expect(planCommit(applyPick(first, input, p!).next)).toMatchObject({
+      status: "committed",
+      searchQuery: id,
+      searchType: ["id"],
+      filters: [{ column: "level", value: ["ERROR"] }],
+    });
+  });
+
+  it.each([
+    "refund policy",
+    "version12345",
+    "refund 0123456789abcdef",
+    "-0123456789abcdef",
+    "name:0123456789abcdef",
+    "content:0123456789abcdef",
+  ])("does not automatically scope ordinary or explicit input: %s", (input) => {
+    const p = plan(input, input.length);
+    expect(p?.autoHighlight).not.toBe(true);
+    expect(
+      p?.sections.find((section) => section.title === "Suggestions"),
+    ).toBeUndefined();
+  });
+
+  it("does not introduce an ID scope on a host that does not declare it", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      searchScopes: { content: EVENTS_FIELD_REGISTRY.searchScopes.content! },
+    });
+    const input = "0123456789abcdef";
+    const p = planInputCompletions(
+      {
+        input,
+        caret: input.length,
+        currentQueryText: input,
+        recents: [],
+        observed: {},
+      },
+      registry,
+    );
+    expect(p?.autoHighlight).not.toBe(true);
+    expect(flattenOptions(p).some((o) => o.id === "scope:ids")).toBe(false);
+  });
+
+  it.each([
+    ["in:id 0123456789abcdef", 22],
+    ["in:(id OR input) 0123456789abcdef", 32],
+    ["0123456789abcdef name:checkout refund", 16],
+  ] as const)(
+    "does not preselect a conflicting ID scope in %s",
+    (input, caret) => {
+      expect(planCommit(input).status).toBe("committed");
+      const p = plan(input, caret);
+      expect(p?.autoHighlight).not.toBe(true);
+      expect(
+        p?.sections.find((section) => section.title === "Suggestions"),
+      ).toBeUndefined();
+    },
+  );
 
   it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
     // Caret inside the middle word of `abc abc abc` — the rewrite must wrap the
