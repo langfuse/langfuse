@@ -75,8 +75,12 @@ export const ScoreBadge = <
         <ScoreTag key={level} level={level} />
       ))}
       <BadgeShell>
+        <span
+          aria-hidden
+          className="bg-dark-yellow size-1.25 shrink-0 rounded-[1px]"
+        />
         <span className="min-w-0 flex-1 truncate" title={name}>
-          {name}:
+          {name}
         </span>
         <span className="flex min-w-0 items-center gap-1 text-nowrap">
           {scores.map((score, index) => {
