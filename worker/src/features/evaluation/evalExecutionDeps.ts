@@ -18,8 +18,8 @@ import {
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
   type ChatMessage,
-  type DecisionModelChoiceQuestion,
   type DecisionModelEvaluation,
+  type DecisionModelRequest,
   type InternalTraceWriter,
   writeInternalTraceViaOtelIngestion,
 } from "@langfuse/shared/src/server";
@@ -80,8 +80,7 @@ interface LLMCallParams {
  */
 interface DecisionModelCallParams {
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
-  state: Record<string, unknown>;
-  question: DecisionModelChoiceQuestion;
+  request: DecisionModelRequest;
 }
 
 /**
@@ -367,10 +366,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         model: params.modelConfig.model,
       });
 
-      return client.evaluateChoice({
-        state: params.state,
-        question: params.question,
-      });
+      return client.evaluate(params.request);
     },
 
     writeInternalTrace: (trace) => writeInternalTraceViaOtelIngestion(trace),
@@ -394,19 +390,35 @@ export function createMockEvalExecutionDeps(
       valid: false,
       error: "Mock - no config",
     }),
-    callDecisionModel: async ({ question }) => {
-      const [choice = "mock"] = Object.keys(question.criteria);
-      return {
-        model: "mock-decision-model",
-        answer: {
-          type: "choice",
-          choice,
-          probabilities: { [choice]: 1 },
-          confidence: 1,
-        },
-        usage: null,
-      };
-    },
+    callDecisionModel: async ({ request }) => ({
+      model: "mock-decision-model",
+      answers: Object.fromEntries(
+        Object.entries(request.questions).map(([id, question]) => {
+          switch (question.type) {
+            case "choice": {
+              const [choice = "mock"] = Object.keys(question.criteria);
+              return [
+                id,
+                {
+                  type: "choice",
+                  choice,
+                  probabilities: { [choice]: 1 },
+                  confidence: 1,
+                },
+              ];
+            }
+            case "score":
+              return [
+                id,
+                { type: "score", score: 0, probabilities: {}, confidence: 1 },
+              ];
+            case "boolean":
+              return [id, { type: "boolean", probability: 1 }];
+          }
+        }),
+      ),
+      usage: null,
+    }),
     writeInternalTrace: async () => {},
   };
 

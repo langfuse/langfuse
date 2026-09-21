@@ -18,18 +18,6 @@ export const EvalTemplateTypeEnum = {
   DECISION_MODEL: "DECISION_MODEL",
 } as const satisfies Record<EvalTemplateType, EvalTemplateType>;
 
-/**
- * Evaluator types whose variable mapping is owned by Langfuse rather than
- * configured by the user: code evaluators receive the full observation
- * payload, and decision models receive the observation fields as their state.
- */
-export function hasManagedVariableMapping(type: EvalTemplateType): boolean {
-  return (
-    type === EvalTemplateTypeEnum.CODE ||
-    type === EvalTemplateTypeEnum.DECISION_MODEL
-  );
-}
-
 export const EvalTemplateSourceCodeLanguageEnum = {
   PYTHON: "PYTHON",
   TYPESCRIPT: "TYPESCRIPT",
@@ -112,17 +100,18 @@ export type EvalTemplateCodeBased = EvalTemplate & {
 
 /**
  * Decision-model evaluators (experimental) call a System One model such as
- * TypeSafe Jev. `prompt` holds the plain-text question instructions; the
- * observation fields become the model state, so there are no prompt
- * variables, and `outputDefinition` is always a single-match categorical
- * definition whose categories are the answer choices.
+ * TypeSafe Jev. The state is built from the variable mapping (key → extractor)
+ * and `questions` holds the typed questions asked about it; each question
+ * writes its own score. There is no prompt and no single output definition.
  */
 export type EvalTemplateDecisionModel = EvalTemplate & {
   type: typeof EvalTemplateType.DECISION_MODEL;
-  prompt: string;
-  outputDefinition: NonNullable<EvalTemplate["outputDefinition"]>;
+  prompt: null;
+  outputDefinition: null;
   sourceCode: null;
   sourceCodeLanguage: null;
+  /** Persisted `DecisionModelQuestions`; parsed at execution time. */
+  questions: unknown;
 };
 
 export type EvalTemplateWithType =

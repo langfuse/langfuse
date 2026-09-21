@@ -29,11 +29,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-import {
-  createCategoricalEvalOutputDefinition,
-  EvalTargetObject,
-  EvalTemplateType,
-} from "@langfuse/shared";
+import { EvalTargetObject, EvalTemplateType } from "@langfuse/shared";
 import {
   EvaluatorBlockSource,
   LLMValidationError,
@@ -98,19 +94,30 @@ describe("runDecisionModelEvaluation", () => {
     name: "Send readiness",
     version: 1,
     type: EvalTemplateType.DECISION_MODEL,
-    prompt: "Is this reply ready to send to the customer?",
+    prompt: null,
     partner: null,
     model: "jev-1.13.0",
     provider: "typesafe",
     modelParams: null,
-    vars: [],
-    outputDefinition: createCategoricalEvalOutputDefinition({
-      scoreDescription: "",
-      reasoningDescription: "",
-      categories: ["ready", "needs_revision"],
-    }),
+    vars: ["input", "output"],
+    outputDefinition: null,
     sourceCode: null,
     sourceCodeLanguage: null,
+    questions: [
+      {
+        id: "readiness",
+        scoreName: "send_readiness",
+        type: "choice",
+        instructions: "Is `output` ready to send as an answer to `input`?",
+        options: [{ value: "ready" }, { value: "needs_revision" }],
+      },
+      {
+        id: "refund",
+        scoreName: "refund_requested",
+        type: "noul",
+        instructions: "Does `input` request a refund?",
+      },
+    ],
   };
 
   const typeSafeModelConfig = {
@@ -142,14 +149,17 @@ describe("runDecisionModelEvaluation", () => {
     evaluatorId: "evaluator-1",
   };
 
-  it("writes one categorical score carrying the probability distribution", async () => {
+  it("writes one score per question carrying the probability distribution", async () => {
     const callDecisionModel = vi.fn().mockResolvedValue({
       model: "jev-1.13.0",
-      answer: {
-        type: "choice",
-        choice: "ready",
-        probabilities: { ready: 0.91, needs_revision: 0.09 },
-        confidence: 0.82,
+      answers: {
+        readiness: {
+          type: "choice",
+          choice: "ready",
+          probabilities: { ready: 0.91, needs_revision: 0.09 },
+          confidence: 0.82,
+        },
+        refund: { type: "boolean", probability: 0.97 },
       },
       usage: { inputTokens: 200, outputTokens: 3 },
     });
@@ -178,32 +188,44 @@ describe("runDecisionModelEvaluation", () => {
 
     expect(callDecisionModel).toHaveBeenCalledWith({
       modelConfig: typeSafeModelConfig.config,
-      state: {
-        input: "Can I get a refund?",
-        output: "Yes, unused items within 30 days.",
-      },
-      question: {
-        type: "choice",
-        instructions: "Is this reply ready to send to the customer?",
-        criteria: { ready: null, needs_revision: null },
-      },
-    });
-    expect(result.scores).toEqual([
-      {
-        name: "send_ready",
-        dataType: "CATEGORICAL",
-        value: "ready",
-        comment:
-          "ready (p=0.91) · confidence 0.82 · runner-up needs_revision (0.09) · jev-1.13.0",
-        metadata: {
-          decisionModel: {
-            model: "jev-1.13.0",
-            choice: "ready",
-            confidence: 0.82,
-            probabilities: { ready: 0.91, needs_revision: 0.09 },
+      request: {
+        state: {
+          input: "Can I get a refund?",
+          output: "Yes, unused items within 30 days.",
+        },
+        questions: {
+          readiness: {
+            type: "choice",
+            instructions: "Is `output` ready to send as an answer to `input`?",
+            criteria: { ready: null, needs_revision: null },
+          },
+          refund: {
+            type: "boolean",
+            instructions: "Does `input` request a refund?",
           },
         },
       },
+    });
+    expect(result.scores).toEqual([
+      expect.objectContaining({
+        name: "send_readiness",
+        dataType: "CATEGORICAL",
+        value: "ready",
+        metadata: {
+          decisionModel: expect.objectContaining({
+            questionId: "readiness",
+            type: "choice",
+            choice: "ready",
+            confidence: 0.82,
+            probabilities: { ready: 0.91, needs_revision: 0.09 },
+          }),
+        },
+      }),
+      expect.objectContaining({
+        name: "refund_requested",
+        dataType: "NUMERIC",
+        value: 0.97,
+      }),
     ]);
     expect(mocks.blockEvaluator).not.toHaveBeenCalled();
   });

@@ -6,7 +6,7 @@ import {
 import {
   getBlockReasonForInvalidModelConfig,
   getEvaluatorBlockMetadata,
-  PersistedEvalOutputDefinitionSchema,
+  parseDecisionModelQuestions,
   type EvalExecutionContext,
   type EvalTemplateDecisionModel,
 } from "@langfuse/shared";
@@ -26,7 +26,6 @@ import { UnrecoverableError } from "../../../errors/UnrecoverableError";
 import { createW3CTraceId } from "../../utils";
 import { type EvalExecutionResult } from "../evalCompletion";
 import { type EvalExecutionDeps } from "../evalExecutionDeps";
-import { toNormalizedScores } from "../evalService";
 import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
@@ -34,8 +33,8 @@ import {
 
 /**
  * Executes a decision-model evaluator (experimental): resolves the TypeSafe
- * connection, asks one Choice question about the observation, and returns a
- * single categorical score. Definition and answer problems are unrecoverable.
+ * connection, sends the state and every question in one call, and returns
+ * one score per question. Definition and answer problems are unrecoverable.
  * Provider failures are AI SDK errors and follow the LLM-as-a-judge policy:
  * the queue retries rate limits, and credential failures pause the evaluator.
  */
@@ -88,7 +87,6 @@ export async function runDecisionModelEvaluation({
       span.setAttribute("eval.template.name", template.name);
       span.setAttribute("eval.template.id", template.id);
       span.setAttribute("eval.template.version", template.version);
-      span.setAttribute("eval.score.name", config.scoreName);
       span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
       if (job.jobInputTraceId) {
         span.setAttribute("eval.target.trace_id", job.jobInputTraceId);
@@ -101,16 +99,15 @@ export async function runDecisionModelEvaluation({
       }
 
       span.setAttribute("eval.execution.stage", "validate_template");
-      const parsedOutputDefinition =
-        PersistedEvalOutputDefinitionSchema.safeParse(
-          template.outputDefinition,
-        );
-      if (!parsedOutputDefinition.success) {
+      const parsedQuestions = parseDecisionModelQuestions(template.questions);
+      if (!parsedQuestions.success) {
         span.setAttribute("eval.execution.outcome", "invalid_template");
         throw new UnrecoverableError(
-          "Output definition not found or invalid in evaluation template",
+          `Decision-model questions are invalid: ${parsedQuestions.error}`,
         );
       }
+      const questions = parsedQuestions.data;
+      span.setAttribute("eval.decision_model.question_count", questions.length);
 
       span.setAttribute("eval.execution.stage", "resolve_model_config");
       const modelConfig = await deps.fetchModelConfig({
@@ -171,14 +168,13 @@ export async function runDecisionModelEvaluation({
       let execution: Awaited<ReturnType<typeof executeDecisionModelEvaluator>>;
       try {
         execution = await executeDecisionModelEvaluator({
-          instructions: template.prompt,
           variables: extractedVariables,
-          outputDefinition: parsedOutputDefinition.data,
+          questions,
           client: {
-            evaluateChoice: (params) =>
+            evaluate: (request) =>
               deps.callDecisionModel({
                 modelConfig: modelConfig.config,
-                ...params,
+                request,
               }),
           },
         });
@@ -206,21 +202,15 @@ export async function runDecisionModelEvaluation({
         throw e;
       }
 
-      span.setAttributes({
-        "eval.decision_model.model": execution.evaluation.model,
-        "eval.decision_model.choice": execution.evaluation.answer.choice,
-        ...(execution.evaluation.answer.confidence !== null
-          ? {
-              "eval.decision_model.confidence":
-                execution.evaluation.answer.confidence,
-            }
-          : {}),
-      });
+      span.setAttribute(
+        "eval.decision_model.model",
+        execution.evaluation.model,
+      );
       logger.debug(
-        `Job ${jobExecutionId} received decision-model answer: ${execution.output.reasoning}`,
+        `Job ${jobExecutionId} received ${execution.scores.length} decision-model answer(s) from ${execution.evaluation.model}`,
       );
 
-      // The trace is a debugging aid; a write failure must not fail the score.
+      // The trace is a debugging aid; a write failure must not fail the scores.
       try {
         await deps.writeInternalTrace(
           buildDecisionModelTraceInput({
@@ -228,8 +218,7 @@ export async function runDecisionModelEvaluation({
             executionTraceId,
             traceStartTime,
             traceName: `Execute evaluator: ${template.name}`,
-            state: execution.state,
-            question: execution.question,
+            request: execution.request,
             evaluation: execution.evaluation,
             metadata: executionMetadata,
             evaluationContext,
@@ -243,20 +232,14 @@ export async function runDecisionModelEvaluation({
         });
       }
 
-      const scores = toNormalizedScores({
-        outputResult: execution.output,
-        scoreName: config.scoreName,
-        metadata: execution.scoreMetadata,
-      });
-
-      span.setAttribute("eval.score.count", scores.length);
+      span.setAttribute("eval.score.count", execution.scores.length);
       span.setAttributes({
         "eval.execution.stage": "completed",
         "eval.execution.outcome": "success",
       });
 
       return {
-        scores,
+        scores: execution.scores,
         executionTraceId,
         metadata: executionMetadata,
         evaluationContext,

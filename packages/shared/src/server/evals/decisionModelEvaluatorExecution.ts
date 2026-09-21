@@ -1,10 +1,11 @@
 import { ScoreDataTypeEnum } from "../../domain/scores";
-import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import {
-  resolvePersistedEvalOutputDefinition,
-  type EvalOutputResult,
-  type PersistedEvalOutputDefinition,
-} from "../../features/evals/outputDefinition";
+  DecisionModelQuestionType,
+  type DecisionModelEntry,
+  type DecisionModelQuestion,
+  type DecisionModelQuestions,
+} from "../../features/evals/decisionModel";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import { stringifyValue } from "../../utils/stringChecks";
 import {
   INTERNAL_TRACE_EVENT_SOURCE,
@@ -14,55 +15,76 @@ import {
   LangfuseInternalTraceEnvironment,
   type InternalTraceWriteInput,
 } from "../llm/types";
+import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
 /**
- * Decision-model evaluators (experimental) ask a System One model such as
- * TypeSafe Jev one Choice question about the evaluated observation. The model
- * returns a label plus a probability distribution instead of generated text.
- *
- * The question and answer shapes mirror the AI SDK's experimental
- * `EvaluationModel` contract so the HTTP client can be swapped for the SDK
- * provider without touching the evaluator.
+ * Decision-model evaluators (experimental) send one state and N typed
+ * questions to a System One model such as TypeSafe Jev in a single call and
+ * turn every answer into a score. The request and answer shapes mirror the AI
+ * SDK's experimental `EvaluationModel` contract.
  */
 
-export type DecisionModelChoiceQuestion = {
-  type: "choice";
-  instructions: string;
-  /** Option name to description. `null` sends the bare option name. */
-  criteria: Record<string, string | null>;
+export type DecisionModelRequestQuestion =
+  | {
+      type: "choice";
+      instructions: DecisionModelEntry;
+      criteria: Record<string, DecisionModelEntry | null>;
+    }
+  | {
+      type: "score";
+      instructions: DecisionModelEntry;
+      criteria: DecisionModelEntry[];
+    }
+  | {
+      type: "boolean";
+      instructions: DecisionModelEntry;
+      criteria?: {
+        true?: DecisionModelEntry | null;
+        false?: DecisionModelEntry | null;
+      };
+    };
+
+export type DecisionModelRequest = {
+  state: Record<string, unknown>;
+  questions: Record<string, DecisionModelRequestQuestion>;
 };
 
-export type DecisionModelChoiceAnswer = {
-  type: "choice";
-  /** The option with the highest probability. */
-  choice: string;
-  /** Distribution over the options; sums to 1. */
-  probabilities: Record<string, number>;
-  /**
-   * How concentrated the distribution is, from 0 (uniform) to 1 (one option).
-   * Derived from `probabilities`; not the probability of `choice`.
-   */
-  confidence: number | null;
-};
+export type DecisionModelAnswer =
+  | {
+      type: "choice";
+      choice: string;
+      probabilities: Record<string, number>;
+      /** How peaked the distribution is (0–1); derived, not the winner's probability. */
+      confidence: number | null;
+    }
+  | {
+      type: "score";
+      /** Probability-weighted level, a float in [0, levels − 1]. */
+      score: number;
+      probabilities: Record<string, number>;
+      confidence: number | null;
+    }
+  | {
+      type: "boolean";
+      /** P(true). Noul answers carry no separate confidence. */
+      probability: number;
+    };
 
 export type DecisionModelEvaluation = {
-  /** The resolved model version, e.g. `jev-1.13.0` when `jev-latest` was requested. */
+  /** Resolved model version, e.g. `jev-1.13.0` when `jev-latest` was requested. */
   model: string;
-  answer: DecisionModelChoiceAnswer;
+  answers: Record<string, DecisionModelAnswer>;
   usage: { inputTokens: number | null; outputTokens: number | null } | null;
 };
 
 export type DecisionModelClient = {
-  evaluateChoice: (params: {
-    state: Record<string, unknown>;
-    question: DecisionModelChoiceQuestion;
-  }) => Promise<DecisionModelEvaluation>;
+  evaluate: (request: DecisionModelRequest) => Promise<DecisionModelEvaluation>;
 };
 
 /**
- * Thrown when the evaluator definition or the model answer cannot be mapped to
- * a score. Callers treat this as a permanent failure of the job.
+ * Thrown when the definition or an answer cannot be turned into scores.
+ * Callers treat this as a permanent failure of the job.
  */
 export class DecisionModelEvaluatorError extends Error {
   constructor(message: string) {
@@ -72,117 +94,276 @@ export class DecisionModelEvaluatorError extends Error {
 }
 
 /**
- * The state is a JSON object keyed by variable name. Absent fields are dropped
- * so the model only sees material that exists on the observation.
+ * The state is a JSON object keyed by the mapped variable names. Fields the
+ * observation does not have are dropped; empty strings are real values.
  */
 export function buildDecisionModelState(
   variables: ExtractedVariable[],
 ): Record<string, unknown> {
   const state: Record<string, unknown> = {};
   for (const variable of variables) {
-    // An empty string is a real value (a model that answered nothing); only
-    // fields the observation does not have are dropped.
     if (variable.value === null || variable.value === undefined) continue;
     state[variable.var] = variable.value;
   }
   return state;
 }
 
-export function buildDecisionModelChoiceQuestion(params: {
-  instructions: string;
-  outputDefinition: PersistedEvalOutputDefinition;
-}): DecisionModelChoiceQuestion {
-  const instructions = params.instructions.trim();
-  if (!instructions) {
-    throw new DecisionModelEvaluatorError(
-      "Decision-model evaluators require question instructions",
-    );
+export function toDecisionModelRequestQuestion(
+  question: DecisionModelQuestion,
+): DecisionModelRequestQuestion {
+  switch (question.type) {
+    case DecisionModelQuestionType.CHOICE:
+      return {
+        type: "choice",
+        instructions: question.instructions,
+        criteria: Object.fromEntries(
+          question.options.map((option) => [
+            option.value,
+            option.description ?? null,
+          ]),
+        ),
+      };
+    case DecisionModelQuestionType.SCORE:
+      return {
+        type: "score",
+        instructions: question.instructions,
+        criteria: question.levels.map((level) => level.description),
+      };
+    case DecisionModelQuestionType.NOUL:
+      return {
+        type: "boolean",
+        instructions: question.instructions,
+        ...(question.criteria
+          ? {
+              criteria: {
+                true: question.criteria.true ?? null,
+                false: question.criteria.false ?? null,
+              },
+            }
+          : {}),
+      };
   }
+}
 
-  const resolved = resolvePersistedEvalOutputDefinition(
-    params.outputDefinition,
-  );
-  if (resolved.dataType !== ScoreDataTypeEnum.CATEGORICAL) {
+export function buildDecisionModelRequest(params: {
+  variables: ExtractedVariable[];
+  questions: DecisionModelQuestions;
+}): DecisionModelRequest {
+  const state = buildDecisionModelState(params.variables);
+  if (Object.keys(state).length === 0) {
     throw new DecisionModelEvaluatorError(
-      "Decision-model evaluators require a categorical output definition",
+      "Decision-model state is empty: none of the mapped fields exist on this observation",
     );
   }
-  if (resolved.shouldAllowMultipleMatches) {
-    throw new DecisionModelEvaluatorError(
-      "Decision-model evaluators select exactly one category",
-    );
-  }
-  if (resolved.categories.length < 2) {
-    throw new DecisionModelEvaluatorError(
-      "Decision-model evaluators require at least two categories",
-    );
-  }
-
   return {
-    type: "choice",
-    instructions,
-    criteria: Object.fromEntries(
-      resolved.categories.map((category) => [category, null]),
+    state,
+    questions: Object.fromEntries(
+      params.questions.map((question) => [
+        question.id,
+        toDecisionModelRequestQuestion(question),
+      ]),
     ),
   };
 }
 
-function formatProbability(value: number) {
+function formatNumber(value: number) {
   return value.toFixed(2);
+}
+
+function rankedEntries(probabilities: Record<string, number>) {
+  return Object.entries(probabilities).sort(([, a], [, b]) => b - a);
 }
 
 /**
  * Decision models return no rationale, so the comment carries the numbers a
  * reviewer needs to judge the verdict from the trace view.
  */
-export function formatDecisionModelComment(
-  evaluation: DecisionModelEvaluation,
-): string {
-  const { answer, model } = evaluation;
-  const ranked = Object.entries(answer.probabilities).sort(
-    ([, a], [, b]) => b - a,
-  );
-  const winnerProbability = answer.probabilities[answer.choice];
-  const parts = [
-    winnerProbability === undefined
-      ? answer.choice
-      : `${answer.choice} (p=${formatProbability(winnerProbability)})`,
-  ];
-  if (answer.confidence !== null) {
-    parts.push(`confidence ${formatProbability(answer.confidence)}`);
-  }
-  const runnerUp = ranked.find(([option]) => option !== answer.choice);
-  if (runnerUp) {
-    parts.push(`runner-up ${runnerUp[0]} (${formatProbability(runnerUp[1])})`);
+export function formatDecisionModelComment(params: {
+  question: DecisionModelQuestion;
+  answer: DecisionModelAnswer;
+  model: string;
+}): string {
+  const { question, answer, model } = params;
+  const parts: string[] = [];
+  if (answer.type === "choice") {
+    const winner = answer.probabilities[answer.choice];
+    parts.push(
+      winner === undefined
+        ? answer.choice
+        : `${answer.choice} (p=${formatNumber(winner)})`,
+    );
+    if (answer.confidence !== null) {
+      parts.push(`confidence ${formatNumber(answer.confidence)}`);
+    }
+    const runnerUp = rankedEntries(answer.probabilities).find(
+      ([option]) => option !== answer.choice,
+    );
+    if (runnerUp) {
+      parts.push(`runner-up ${runnerUp[0]} (${formatNumber(runnerUp[1])})`);
+    }
+  } else if (answer.type === "score") {
+    const nearestLevel = Math.min(
+      Math.max(Math.round(answer.score), 0),
+      question.type === DecisionModelQuestionType.SCORE
+        ? question.levels.length - 1
+        : 0,
+    );
+    const levelDescription =
+      question.type === DecisionModelQuestionType.SCORE
+        ? question.levels[nearestLevel]?.description
+        : undefined;
+    parts.push(
+      typeof levelDescription === "string"
+        ? `${formatNumber(answer.score)} ≈ level ${nearestLevel} "${levelDescription}"`
+        : `${formatNumber(answer.score)} ≈ level ${nearestLevel}`,
+    );
+    if (answer.confidence !== null) {
+      parts.push(`confidence ${formatNumber(answer.confidence)}`);
+    }
+  } else {
+    parts.push(`P(true)=${formatNumber(answer.probability)}`);
   }
   parts.push(model);
   return parts.join(" · ");
 }
 
-export function toDecisionModelScoreMetadata(
-  evaluation: DecisionModelEvaluation,
-): Record<string, unknown> {
-  return {
-    decisionModel: {
-      model: evaluation.model,
-      choice: evaluation.answer.choice,
-      confidence: evaluation.answer.confidence,
-      probabilities: evaluation.answer.probabilities,
-    },
-  };
+function toScoreMetadata(params: {
+  question: DecisionModelQuestion;
+  answer: DecisionModelAnswer;
+  model: string;
+}): Record<string, unknown> {
+  const { question, answer, model } = params;
+  const base = { questionId: question.id, type: question.type, model };
+  switch (answer.type) {
+    case "choice":
+      return {
+        decisionModel: {
+          ...base,
+          choice: answer.choice,
+          confidence: answer.confidence,
+          probabilities: answer.probabilities,
+        },
+      };
+    case "score":
+      return {
+        decisionModel: {
+          ...base,
+          confidence: answer.confidence,
+          probabilities: answer.probabilities,
+          legend:
+            question.type === DecisionModelQuestionType.SCORE
+              ? Object.fromEntries(
+                  question.levels.map((level, index) => [
+                    String(index),
+                    level.description,
+                  ]),
+                )
+              : undefined,
+        },
+      };
+    case "boolean":
+      return { decisionModel: base };
+  }
+}
+
+function expectedAnswerType(
+  question: DecisionModelQuestion,
+): DecisionModelAnswer["type"] {
+  return question.type === DecisionModelQuestionType.NOUL
+    ? "boolean"
+    : question.type;
 }
 
 /**
- * One-span execution trace so the "view execution trace" link on a decision
- * model score shows exactly what was sent (state and question) and returned.
+ * Maps every answer to the score its question declares. Choice → categorical
+ * label; score → numeric expected level; noul → numeric P(true). Certainty
+ * never changes the value: probabilities and confidence go into metadata.
+ */
+export function mapDecisionModelAnswersToScores(params: {
+  questions: DecisionModelQuestions;
+  evaluation: DecisionModelEvaluation;
+}): CodeEvalScoreWithName[] {
+  const { questions, evaluation } = params;
+
+  return questions.map((question) => {
+    const answer = evaluation.answers[question.id];
+    if (!answer) {
+      throw new DecisionModelEvaluatorError(
+        `Decision model returned no answer for question "${question.scoreName}"`,
+      );
+    }
+    if (answer.type !== expectedAnswerType(question)) {
+      throw new DecisionModelEvaluatorError(
+        `Decision model returned a ${answer.type} answer for the ${question.type} question "${question.scoreName}"`,
+      );
+    }
+
+    const common = {
+      name: question.scoreName,
+      comment: formatDecisionModelComment({
+        question,
+        answer,
+        model: evaluation.model,
+      }),
+      metadata: toScoreMetadata({ question, answer, model: evaluation.model }),
+    };
+
+    switch (answer.type) {
+      case "choice": {
+        if (
+          question.type !== DecisionModelQuestionType.CHOICE ||
+          !question.options.some((option) => option.value === answer.choice)
+        ) {
+          throw new DecisionModelEvaluatorError(
+            `Decision model returned "${answer.choice}", which is not an option of question "${question.scoreName}"`,
+          );
+        }
+        return {
+          ...common,
+          dataType: ScoreDataTypeEnum.CATEGORICAL,
+          value: answer.choice,
+        };
+      }
+      case "score":
+        return {
+          ...common,
+          dataType: ScoreDataTypeEnum.NUMERIC,
+          value: answer.score,
+        };
+      case "boolean":
+        return {
+          ...common,
+          dataType: ScoreDataTypeEnum.NUMERIC,
+          value: answer.probability,
+        };
+    }
+  });
+}
+
+export async function executeDecisionModelEvaluator(params: {
+  variables: ExtractedVariable[];
+  questions: DecisionModelQuestions;
+  client: DecisionModelClient;
+}) {
+  const request = buildDecisionModelRequest(params);
+  const evaluation = await params.client.evaluate(request);
+  const scores = mapDecisionModelAnswersToScores({
+    questions: params.questions,
+    evaluation,
+  });
+  return { request, evaluation, scores };
+}
+
+/**
+ * One-span execution trace so the "view execution trace" link on every score
+ * of the run shows exactly what was sent and what came back.
  */
 export function buildDecisionModelTraceInput(params: {
   projectId: string;
   executionTraceId: string;
   traceStartTime: Date;
   traceName: string;
-  state: Record<string, unknown>;
-  question: DecisionModelChoiceQuestion;
+  request: DecisionModelRequest;
   evaluation: DecisionModelEvaluation;
   metadata: Record<string, unknown>;
   evaluationContext?: EvalExecutionContext;
@@ -199,11 +380,8 @@ export function buildDecisionModelTraceInput(params: {
     type: "GENERATION",
     environment: LangfuseInternalTraceEnvironment.LLMJudge,
     modelName: params.evaluation.model,
-    input: stringifyValue({
-      state: params.state,
-      questions: { verdict: params.question },
-    }),
-    output: stringifyValue(params.evaluation.answer),
+    input: stringifyValue(params.request),
+    output: stringifyValue(params.evaluation.answers),
     ...(usage
       ? {
           providedUsageDetails: {
@@ -222,40 +400,5 @@ export function buildDecisionModelTraceInput(params: {
   return {
     rootSpanId: params.executionTraceId,
     eventInputs: [eventInput],
-  };
-}
-
-export async function executeDecisionModelEvaluator(params: {
-  instructions: string;
-  variables: ExtractedVariable[];
-  outputDefinition: PersistedEvalOutputDefinition;
-  client: DecisionModelClient;
-}) {
-  const question = buildDecisionModelChoiceQuestion({
-    instructions: params.instructions,
-    outputDefinition: params.outputDefinition,
-  });
-  const state = buildDecisionModelState(params.variables);
-
-  const evaluation = await params.client.evaluateChoice({ state, question });
-
-  if (!Object.hasOwn(question.criteria, evaluation.answer.choice)) {
-    throw new DecisionModelEvaluatorError(
-      `Decision model returned "${evaluation.answer.choice}", which is not one of the configured categories`,
-    );
-  }
-
-  const output: EvalOutputResult = {
-    dataType: ScoreDataTypeEnum.CATEGORICAL,
-    matches: [evaluation.answer.choice],
-    reasoning: formatDecisionModelComment(evaluation),
-  };
-
-  return {
-    state,
-    question,
-    evaluation,
-    output,
-    scoreMetadata: toDecisionModelScoreMetadata(evaluation),
   };
 }

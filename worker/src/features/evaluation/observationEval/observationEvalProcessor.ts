@@ -9,7 +9,6 @@ import {
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
   getCodeEvalVariableMapping,
-  getDecisionModelVariableMapping,
   observationForEvalSchema,
   observationVariableMappingList,
   type EvalTemplateWithType,
@@ -440,7 +439,7 @@ const evaluatorInclude = {
 } satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
-  template: EvalTemplate & { promptMessages?: unknown },
+  template: EvalTemplate & { promptMessages?: unknown; questions?: unknown },
   evaluatorType: EvalTemplateType,
 ): EvalTemplateWithType {
   switch (evaluatorType) {
@@ -483,8 +482,8 @@ function normalizeEvalTemplate(
     case EvalTemplateType.DECISION_MODEL:
       if (
         template.type !== evaluatorType ||
-        template.prompt === null ||
-        template.outputDefinition === null
+        template.questions === null ||
+        template.questions === undefined
       ) {
         throw new UnrecoverableError(
           "Evaluator template is incomplete for DECISION_MODEL execution",
@@ -493,23 +492,12 @@ function normalizeEvalTemplate(
       return {
         ...template,
         type: evaluatorType,
-        prompt: template.prompt,
-        outputDefinition: template.outputDefinition,
+        prompt: null,
+        outputDefinition: null,
         sourceCode: null,
         sourceCodeLanguage: null,
+        questions: template.questions,
       };
-  }
-}
-
-/** Fallback mapping for versions persisted without one. */
-function getManagedVariableMapping(evaluatorType: EvalTemplateType) {
-  switch (evaluatorType) {
-    case EvalTemplateType.CODE:
-      return getCodeEvalVariableMapping();
-    case EvalTemplateType.DECISION_MODEL:
-      return getDecisionModelVariableMapping();
-    case EvalTemplateType.LLM_AS_JUDGE:
-      return [];
   }
 }
 
@@ -545,7 +533,9 @@ function buildV2Execution(params: {
   const variableMapping =
     assignment?.variableMapping ??
     version.variableMapping ??
-    getManagedVariableMapping(evaluator.type);
+    (evaluator.type === EvalTemplateType.CODE
+      ? getCodeEvalVariableMapping()
+      : []);
   const config = {
     id: rule?.id ?? evaluator.id,
     createdAt: rule?.createdAt ?? evaluator.createdAt,
@@ -583,6 +573,7 @@ function buildV2Execution(params: {
     outputDefinition: version.outputDefinition,
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
+    questions: version.questions,
   };
 
   return {
