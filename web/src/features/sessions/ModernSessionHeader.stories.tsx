@@ -5,23 +5,47 @@ import preview from "@/.storybook/preview";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
 import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
 
-const scores = [
-  {
-    id: "score-helpfulness",
-    name: "Helpfulness",
-    value: 0.86,
+type SessionScore = ComponentProps<
+  typeof ModernSessionHeader
+>["scores"][number];
+
+const makeScore = (
+  overrides: Pick<SessionScore, "id" | "name" | "value">,
+): SessionScore =>
+  ({
+    projectId: "project-1",
+    environment: "default",
+    source: "EVAL",
+    authorUserId: null,
+    comment: null,
+    metadata: "{}",
+    configId: null,
+    queueId: null,
+    executionTraceId: null,
+    createdAt: new Date("2026-09-11T10:00:00Z"),
+    updatedAt: new Date("2026-09-11T10:00:00Z"),
+    timestamp: new Date("2026-09-11T10:00:00Z"),
+    traceId: null,
+    sessionId: "session-1",
+    datasetRunId: null,
+    observationId: null,
+    longStringValue: "",
     stringValue: null,
     dataType: "NUMERIC",
-  },
-] satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
+    ...overrides,
+  }) as SessionScore;
 
-const overflowScores = Array.from({ length: 16 }, (_, index) => ({
-  id: `score-quality-${index + 1}`,
-  name: `Quality ${index + 1}`,
-  value: (index + 1) / 20,
-  stringValue: null,
-  dataType: "NUMERIC" as const,
-})) satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
+const scores = [
+  makeScore({ id: "score-helpfulness", name: "Helpfulness", value: 0.86 }),
+];
+
+const overflowScores = Array.from({ length: 16 }, (_, index) =>
+  makeScore({
+    id: `score-quality-${index + 1}`,
+    name: `Quality ${index + 1}`,
+    value: (index + 1) / 20,
+  }),
+);
 
 const manyUsers = Array.from(
   { length: 1_000 },

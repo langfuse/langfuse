@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { percentile, type ScoreDomain } from "@langfuse/shared";
 import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
@@ -61,12 +62,7 @@ type ModernSessionHeaderProps = {
   environment: string | null;
   users: readonly string[];
   metadataJsonPaths: SessionMetadataJsonPathState;
-  scores: ReadonlyArray<
-    Pick<
-      WithStringifiedMetadata<ScoreDomain>,
-      "id" | "name" | "dataType" | "value" | "stringValue"
-    >
-  >;
+  scores: ReadonlyArray<WithStringifiedMetadata<ScoreDomain>>;
 };
 
 type SessionHeaderDetailType =
@@ -481,33 +477,15 @@ export function ModernSessionHeader({
   });
 
   scores.forEach((score, index) => {
-    const value = scoreChipValue(score);
-    const isFraction =
-      score.dataType === "NUMERIC" &&
-      score.value !== null &&
-      score.value !== undefined &&
-      score.value >= 0 &&
-      score.value <= 1;
     pills.push({
       key: sessionHeaderDynamicDetailKey("score", score.id),
-      searchText: `score ${score.name} ${value}`,
+      searchText: `score ${score.name} ${scoreChipValue(score)}`,
       visibilityLabel: `score ${index + 1}`,
       type: "score",
       content: (
-        <BadgeShell data-session-header-pill="true" title={score.name}>
-          {isFraction ? (
-            <span className="bg-dark-yellow h-1.5 w-1.5 shrink-0 rounded-[1px]" />
-          ) : null}
-          <span
-            className="text-muted-foreground max-w-40 truncate"
-            title={score.name}
-          >
-            {score.name}
-          </span>
-          <span className="truncate" title={value}>
-            {value}
-          </span>
-        </BadgeShell>
+        <span data-session-header-pill="true" className="inline-flex min-w-0">
+          <ScoreBadge name={score.name} scores={[score]} />
+        </span>
       ),
     });
   });
