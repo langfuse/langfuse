@@ -5,6 +5,7 @@ import {
   usePreparedAnnotationFormTarget,
 } from "@/src/features/scores/components/AnnotationForm";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { prepareCombinedAnnotationTargets } from "@/src/features/scores/lib/prepareAnnotationFormData";
 
 interface DualAnnotationContentProps {
   projectId: string;
@@ -46,7 +47,10 @@ export function DualAnnotationContent({
       ) : (
         <AnnotationFormContent
           key={JSON.stringify([observation.target.key, trace.target.key])}
-          targets={[observation.target, trace.target]}
+          targets={prepareCombinedAnnotationTargets([
+            observation.target,
+            trace.target,
+          ])}
         />
       )}
     </div>

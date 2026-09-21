@@ -117,6 +117,7 @@ export function AnnotationFormContent({
     createAnnotationFormActions({
       form,
       replaceField: update,
+      insertField: insert,
       initialTargets: targets,
       capture,
       createScore: createMutation.mutateAsync,
@@ -138,11 +139,7 @@ export function AnnotationFormContent({
     targetFor(field).configControl.configs.find(
       (config) => config.id === field.configId,
     );
-  const selectedConfigIds = fields.map(annotationFieldKey);
-  const showOptionTargets =
-    new Set(
-      targets.map((target) => getAnnotationTargetType(target.scoreTarget)),
-    ).size > 1;
+  const selectedConfigIds = [...new Set(fields.map((field) => field.configId))];
   const showSelectedTargets =
     new Set(
       fields.map((field) =>
@@ -231,19 +228,20 @@ export function AnnotationFormContent({
               emptyMessage="No scores found."
               options={selectionOptions.map((option) => ({
                 ...option,
-                accessibleLabel: showOptionTargets
-                  ? `${option.label} (${option.targetLabel})`
-                  : option.label,
-                keywords: [option.targetLabel],
-                optionSuffix: showOptionTargets ? (
-                  <Badge variant="outline-solid" size="sm">
-                    {option.targetLabel}
-                  </Badge>
-                ) : undefined,
                 selectedSuffix: showSelectedTargets ? (
-                  <Badge variant="outline-solid" size="sm">
-                    {option.targetLabel}
-                  </Badge>
+                  <span className="flex gap-1">
+                    {[
+                      ...new Set(
+                        fields
+                          .filter((field) => field.configId === option.value)
+                          .map((field) => targetFor(field).label),
+                      ),
+                    ].map((label) => (
+                      <Badge key={label} variant="outline-solid" size="sm">
+                        {label}
+                      </Badge>
+                    ))}
+                  </span>
                 ) : undefined,
               }))}
               onValueChange={(values) =>
@@ -282,6 +280,28 @@ export function AnnotationFormContent({
                 showTarget={showSelectedTargets}
                 formRootRef={formRootRef}
                 commentSaving={updateMutation.isPending}
+                targetOptions={
+                  target.configControl.allowManualSelection
+                    ? targets
+                        .filter(
+                          (candidate) =>
+                            candidate.key !== target.key &&
+                            candidate.configControl.allowManualSelection &&
+                            candidate.configControl.configs.some(
+                              (candidateConfig) =>
+                                candidateConfig.id === config.id,
+                            ),
+                        )
+                        .map((candidate) => ({
+                          target: candidate,
+                          hasField: fields.some(
+                            (current) =>
+                              current.configId === config.id &&
+                              current.targetKey === candidate.key,
+                          ),
+                        }))
+                    : []
+                }
               />
             ) : null;
           })}

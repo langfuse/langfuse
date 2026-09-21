@@ -29,6 +29,16 @@ callbacks. Each form owns one action instance and one save store; unrelated form
 cannot share drafts or save status. Existing score cache scope and API payloads
 remain owned by the mutation bridge.
 
+The combined trace/observation picker lists each config once. Initial preparation
+keeps every saved score and places remembered empty fields on the observation by
+default. Draft-only level changes and adding a blank field for the other level
+belong to the form actions; neither changes an existing score's attachment.
+Saved scores, pending writes, invalid drafts, and occupied destinations prevent a
+level change. Single-target and fixed queue forms retain their supplied targets.
+Config deselection clears remembered empty choices across both levels so hidden
+preferences cannot restore a removed field on the next open. Only mixed-level
+forms show level badges; each row's menu always identifies its current level.
+
 Typing updates the owning row and save-status subscriber. It must not rebuild the
 header, picker, other rows, or keyboard listeners. Changing field selection may
 rerender the row structure. Score-comment popovers seed drafts on mount; closing

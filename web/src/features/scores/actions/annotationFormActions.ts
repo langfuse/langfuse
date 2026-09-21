@@ -1,4 +1,8 @@
-import type { UseFieldArrayUpdate, UseFormReturn } from "react-hook-form";
+import type {
+  UseFieldArrayInsert,
+  UseFieldArrayUpdate,
+  UseFormReturn,
+} from "react-hook-form";
 import { v4 as uuid } from "uuid";
 import {
   isPresent,
@@ -34,6 +38,7 @@ import {
 type Dependencies = {
   form: UseFormReturn<AnnotateFormSchemaType>;
   replaceField: UseFieldArrayUpdate<AnnotateFormSchemaType, "scoreData">;
+  insertField: UseFieldArrayInsert<AnnotateFormSchemaType, "scoreData">;
   initialTargets: PreparedAnnotationTarget[];
   capture: ReturnType<typeof usePostHogClientCapture>;
   createScore: (data: CreateAnnotationScoreData) => Promise<unknown>;
@@ -46,6 +51,7 @@ type Dependencies = {
 export function createAnnotationFormActions({
   form,
   replaceField,
+  insertField,
   initialTargets,
   capture,
   createScore,
@@ -301,6 +307,67 @@ export function createAnnotationFormActions({
     indexOf,
     clear,
     validateNumericInput,
+    addDraftTarget(key: string, destination: PreparedAnnotationTarget) {
+      const field = find(key);
+      const config = destination.configControl.configs.find(
+        (config) => config.id === field?.configId,
+      );
+      if (
+        !field ||
+        !destination.configControl.allowManualSelection ||
+        !config ||
+        config.isArchived
+      )
+        return undefined;
+      const next = {
+        ...field,
+        targetKey: destination.key,
+        id: null,
+        timestamp: null,
+        value: null,
+        stringValue: null,
+        comment: null,
+      };
+      const nextKey = annotationFieldKey(next);
+      if (find(nextKey)) return nextKey;
+      insertField(indexOf(key) + 1, next, { shouldFocus: false });
+      capture("score:level_added", {
+        ...destination.analyticsData,
+        targetType: getAnnotationTargetType(destination.scoreTarget),
+        dataType: field.dataType,
+      });
+      return nextKey;
+    },
+    changeDraftTarget(key: string, destination: PreparedAnnotationTarget) {
+      const field = find(key);
+      if (!field || field.id || saveStore.getState().pending) return undefined;
+      const source = initialTargets.find(
+        (target) => target.key === field.targetKey,
+      );
+      const config = destination.configControl.configs.find(
+        (config) => config.id === field.configId,
+      );
+      const next = { ...field, targetKey: destination.key };
+      const index = indexOf(key);
+      if (
+        !source?.configControl.allowManualSelection ||
+        !destination.configControl.allowManualSelection ||
+        !config ||
+        config.isArchived ||
+        find(annotationFieldKey(next)) ||
+        form.getFieldState(`scoreData.${index}.value`).invalid ||
+        form.getFieldState(`scoreData.${index}.stringValue`).invalid
+      )
+        return undefined;
+      replaceField(index, next);
+      capture("score:level_changed", {
+        ...source.analyticsData,
+        targetType: getAnnotationTargetType(destination.scoreTarget),
+        previousTargetType: getAnnotationTargetType(source.scoreTarget),
+        dataType: field.dataType,
+      });
+      return annotationFieldKey(next);
+    },
     open() {
       analytics.forEach((tracker) => tracker.open());
     },

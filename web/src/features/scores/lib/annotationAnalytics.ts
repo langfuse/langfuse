@@ -35,6 +35,13 @@ export type AnnotationEventMap = {
   "score:delete": ScoreProperties;
   "score:update_comment": ScoreProperties;
   "score:delete_comment": ScoreProperties;
+  "score:level_changed": AnnotationAnalyticsContext & {
+    previousTargetType: AnnotationAnalyticsContext["targetType"];
+    dataType: AnnotationScoreFormData["dataType"];
+  };
+  "score:level_added": AnnotationAnalyticsContext & {
+    dataType: AnnotationScoreFormData["dataType"];
+  };
   "score:value_set": AnnotationAnalyticsContext &
     ControlProperties & {
       dataType: AnnotationScoreFormData["dataType"];

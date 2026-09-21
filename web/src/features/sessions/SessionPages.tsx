@@ -782,7 +782,9 @@ export const SessionPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Add to queue</span>
+                    <span className="text-sm">
+                      Add to human annotation queue
+                    </span>
                     {totalCount > 0 && (
                       <AnnotationQueueItemCountBadge
                         totalCount={totalCount}
@@ -1864,7 +1866,9 @@ const LoadedSessionEventsPage: React.FC<{
                     className="w-full justify-start gap-2 font-normal"
                   >
                     <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Add to queue</span>
+                    <span className="text-sm">
+                      Add to human annotation queue
+                    </span>
                     {totalCount > 0 && (
                       <AnnotationQueueItemCountBadge
                         totalCount={totalCount}

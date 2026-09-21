@@ -2,7 +2,41 @@ import type { ScoreConfigDomain } from "@langfuse/shared";
 import type {
   AnnotationScore,
   AnnotationScoreFormData,
+  PreparedAnnotationTarget,
 } from "@/src/features/scores/types";
+import { preferredAnnotationTargets } from "@/src/features/scores/lib/annotationConfigSelection";
+
+export function prepareCombinedAnnotationTargets(
+  targets: PreparedAnnotationTarget[],
+): PreparedAnnotationTarget[] {
+  const ordered = preferredAnnotationTargets(targets);
+  const savedConfigIds = new Set(
+    ordered.flatMap((target) =>
+      target.initialFormData
+        .filter((field) => field.id)
+        .map((field) => field.configId),
+    ),
+  );
+  const emptyFields = new Map<string, AnnotationScoreFormData>();
+  for (const target of ordered) {
+    for (const field of target.initialFormData) {
+      if (!field.id && !savedConfigIds.has(field.configId))
+        emptyFields.set(field.configId, field);
+    }
+  }
+  return ordered.map((target) => {
+    const fields = target.initialFormData.filter((field) => field.id);
+    for (const [configId, field] of emptyFields) {
+      if (
+        !target.configControl.configs.some((config) => config.id === configId)
+      )
+        continue;
+      fields.push(field);
+      emptyFields.delete(configId);
+    }
+    return { ...target, initialFormData: fields };
+  });
+}
 
 export function prepareAnnotationFormData(
   scores: AnnotationScore[],

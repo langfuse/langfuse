@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import {
-  annotationFieldKey,
-  getScoreConfigSelection,
-} from "../lib/annotationConfigSelection";
+import { getScoreConfigSelection } from "../lib/annotationConfigSelection";
+import { prepareCombinedAnnotationTargets } from "../lib/prepareAnnotationFormData";
 import type { PreparedAnnotationTarget } from "../types";
 
 const { setEmptySelectedConfigIds } = vi.hoisted(() => ({
@@ -72,7 +70,7 @@ function makeTarget(
   };
 }
 
-it("keeps remembered saved fields and deselects only the matching target", () => {
+it("lists each config once, defaults additions to observation, and preserves saved scores when deselecting", () => {
   const config = {
     id: "quality",
     name: "Quality",
@@ -99,15 +97,61 @@ it("keeps remembered saved fields and deselects only the matching target", () =>
   };
   const empty = { ...saved, targetKey: trace.key, id: null };
   const remove = vi.fn();
+  const insert = vi.fn();
+  const selection = getScoreConfigSelection({
+    targets: [trace, observation],
+    controlledFields: [],
+    insert,
+    remove,
+  });
+  expect(selection.selectionOptions).toHaveLength(1);
+  selection.handleSelectionChange([config.id]);
+  expect(insert).toHaveBeenCalledExactlyOnceWith(
+    0,
+    expect.objectContaining({
+      configId: config.id,
+      targetKey: observation.key,
+    }),
+  );
+  observation.configControl.setSelectedConfigIds = vi.fn();
+  trace.configControl.setSelectedConfigIds = vi.fn();
   getScoreConfigSelection({
-    targets: [observation, trace],
+    targets: [trace, observation],
     controlledFields: [saved, empty],
     insert: vi.fn(),
     remove,
-  }).handleSelectionChange([annotationFieldKey(saved)]);
+  }).handleSelectionChange([]);
   expect(remove).toHaveBeenCalledExactlyOnceWith([1]);
   expect(observation.configControl.setSelectedConfigIds).not.toHaveBeenCalled();
   expect(
     trace.configControl.setSelectedConfigIds,
   ).toHaveBeenCalledExactlyOnceWith([]);
+
+  observation.initialFormData = [{ ...saved, id: null }];
+  trace.initialFormData = [{ ...empty }];
+  const prepared = prepareCombinedAnnotationTargets([trace, observation]);
+  expect(prepared[0]!.initialFormData).toHaveLength(1);
+  expect(prepared[1]!.initialFormData).toHaveLength(0);
+  observation.configControl.setSelectedConfigIds = vi.fn();
+  trace.configControl.setSelectedConfigIds = vi.fn();
+  getScoreConfigSelection({
+    targets: [trace, observation],
+    controlledFields: [{ ...saved, id: null }],
+    insert: vi.fn(),
+    remove: vi.fn(),
+  }).handleSelectionChange([]);
+  expect(
+    observation.configControl.setSelectedConfigIds,
+  ).toHaveBeenCalledExactlyOnceWith([]);
+  expect(
+    trace.configControl.setSelectedConfigIds,
+  ).toHaveBeenCalledExactlyOnceWith([]);
+
+  observation.initialFormData = [{ ...saved, value: 0 }];
+  trace.initialFormData = [{ ...empty, id: "trace-score", value: 1 }];
+  const existing = prepareCombinedAnnotationTargets([trace, observation]);
+  expect(existing.flatMap((target) => target.initialFormData)).toEqual([
+    expect.objectContaining({ id: "saved-score", value: 0 }),
+    expect.objectContaining({ id: "trace-score", value: 1 }),
+  ]);
 });

@@ -35,6 +35,8 @@ import { Badge } from "@/src/components/ui/badge";
 import {
   DropdownMenuController,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/src/components/ui/dropdown-menu";
 import { ScoreConfigDetails } from "@/src/features/score-configs/components/ScoreConfigDetails";
 import { CategoricalScoreInput } from "@/src/features/scores/components/CategoricalScoreInput";
@@ -141,6 +143,7 @@ export function AnnotationScoreRow({
   showTarget,
   formRootRef,
   commentSaving,
+  targetOptions,
 }: {
   form: UseFormReturn<AnnotateFormSchemaType>;
   actions: AnnotationFormActions;
@@ -151,6 +154,7 @@ export function AnnotationScoreRow({
   showTarget: boolean;
   formRootRef: React.RefObject<HTMLDivElement | null>;
   commentSaving: boolean;
+  targetOptions: { target: PreparedAnnotationTarget; hasField: boolean }[];
 }) {
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
@@ -166,6 +170,13 @@ export function AnnotationScoreRow({
   const deferredInput = useRef<HTMLInputElement | HTMLTextAreaElement | null>(
     null,
   );
+  const focusFieldKey = useRef(fieldKey);
+  const hasScoreValue = Boolean(
+    score.id || isPresent(score.value) || score.stringValue || score.comment,
+  );
+  const invalid =
+    form.getFieldState(`scoreData.${index}.value`, fieldState).invalid ||
+    form.getFieldState(`scoreData.${index}.stringValue`, fieldState).invalid;
   const isMovingToScoreActions = (
     event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -415,32 +426,95 @@ export function AnnotationScoreRow({
               />
             ) : null}
           </div>
-          {score.id ||
-          isPresent(score.value) ||
-          score.stringValue ||
-          score.comment ||
-          form.getFieldState(`scoreData.${index}.value`, fieldState).invalid ? (
+          {hasScoreValue || invalid || targetOptions.length > 0 ? (
             <DropdownMenuController
               align="end"
               onCloseAutoFocus={(event) => {
                 event.preventDefault();
+                const nextFocus = focusFieldKey.current;
+                focusFieldKey.current = fieldKey;
                 commitDeferredScore();
                 formRootRef.current
                   ?.querySelector<HTMLElement>(
-                    `[data-score-row="${actions.indexOf(fieldKey)}"]`,
+                    `[data-score-row="${actions.indexOf(nextFocus)}"]`,
                   )
                   ?.focus();
               }}
               renderMenu={() => (
-                <DropdownMenuItem
-                  disabled={saving}
-                  onSelect={() => {
-                    deferredInput.current = null;
-                    actions.clear(fieldKey, target);
-                  }}
-                >
-                  Clear score
-                </DropdownMenuItem>
+                <>
+                  {targetOptions.length > 0 ? (
+                    <>
+                      <DropdownMenuLabel>
+                        Score level: {target.label}
+                      </DropdownMenuLabel>
+                      {score.id ? (
+                        <div className="text-muted-foreground px-2 pb-2 text-xs">
+                          Saved scores keep their level.
+                        </div>
+                      ) : (
+                        targetOptions.map(
+                          ({ target: destination, hasField }) => (
+                            <DropdownMenuItem
+                              key={destination.key}
+                              disabled={
+                                saving ||
+                                invalid ||
+                                hasField ||
+                                config.isArchived
+                              }
+                              onSelect={() => {
+                                const input = deferredInput.current;
+                                deferredInput.current = null;
+                                const nextKey = actions.changeDraftTarget(
+                                  fieldKey,
+                                  destination,
+                                );
+                                if (nextKey) focusFieldKey.current = nextKey;
+                                else deferredInput.current = input;
+                              }}
+                            >
+                              Score {destination.label.toLowerCase()} instead
+                              {hasField ? " (already selected)" : ""}
+                            </DropdownMenuItem>
+                          ),
+                        )
+                      )}
+                      {targetOptions.map(
+                        ({ target: destination, hasField }) => (
+                          <DropdownMenuItem
+                            key={`add-${destination.key}`}
+                            disabled={hasField || config.isArchived}
+                            onSelect={() => {
+                              commitDeferredScore();
+                              const nextKey = actions.addDraftTarget(
+                                fieldKey,
+                                destination,
+                              );
+                              if (nextKey) focusFieldKey.current = nextKey;
+                            }}
+                          >
+                            Also score {destination.label.toLowerCase()}
+                            {hasField ? " (already selected)" : ""}
+                          </DropdownMenuItem>
+                        ),
+                      )}
+                    </>
+                  ) : null}
+                  {(hasScoreValue || invalid) && targetOptions.length > 0 ? (
+                    <DropdownMenuSeparator />
+                  ) : null}
+                  {hasScoreValue || invalid ? (
+                    <DropdownMenuItem
+                      disabled={saving}
+                      onSelect={() => {
+                        deferredInput.current = null;
+                        actions.clear(fieldKey, target);
+                      }}
+                    >
+                      Clear score
+                    </DropdownMenuItem>
+                  ) : null}
+                </>
               )}
             >
               {({ Trigger }) => (

@@ -141,6 +141,8 @@ const events = {
     "delete_comment",
     "form_abandoned",
     "value_set",
+    "level_changed",
+    "level_added",
   ],
   annotation: ["entry_click"],
   annotation_queues: ["item_added", "item_removed", "manage_click"],

@@ -32,21 +32,20 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   headerRender: vi.fn(),
 }));
-const configs = [
-  {
-    id: "quality",
-    name: "Quality",
-    projectId: "project",
-    dataType: "BOOLEAN",
-    categories: [
-      { label: "False", value: 0 },
-      { label: "True", value: 1 },
-    ],
-    isArchived: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-] satisfies ScoreConfigDomain[];
+const defaultConfig = {
+  id: "quality",
+  name: "Quality",
+  projectId: "project",
+  dataType: "BOOLEAN",
+  categories: [
+    { label: "False", value: 0 },
+    { label: "True", value: 1 },
+  ],
+  isArchived: false,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+} satisfies ScoreConfigDomain;
+const configs: ScoreConfigDomain[] = [defaultConfig];
 
 vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   const { default: Header } = await importOriginal<{
@@ -142,6 +141,7 @@ function renderContent(children = content) {
 describe("unified annotation targets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
       "emptySelectedConfigIds:observation",
@@ -161,11 +161,142 @@ describe("unified annotation targets", () => {
     );
   });
 
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    configs.splice(1);
+    vi.unstubAllGlobals();
+  });
+
+  it("chooses a level before the first save and cannot change it during or after saving", async () => {
+    const pending = deferred();
+    mocks.create.mockReturnValue(pending.promise);
+    renderContent();
+    expect(screen.getAllByRole("group", { name: "Quality" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("combobox", { name: "Scores" }));
+    expect(screen.getAllByRole("option", { name: /Quality/ })).toHaveLength(1);
+    fireEvent.keyDown(screen.getByPlaceholderText("Search scores..."), {
+      key: "Escape",
+    });
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Score actions for Quality" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Score trace instead" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith("score:level_changed", {
+      type: "trace",
+      source: "TraceDetail",
+      isV4: true,
+      previousTargetType: "observation",
+      targetType: "trace",
+      dataType: "BOOLEAN",
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          scoreTarget: { type: "trace", traceId: "trace" },
+          value: 1,
+        }),
+      ),
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Score actions for Quality" }),
+      { key: "ArrowDown" },
+    );
+    expect(
+      await screen.findByText("Saved scores keep their level."),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("menuitem", { name: "Score observation instead" }),
+    ).not.toBeInTheDocument();
+    await act(async () => pending.resolve({}));
+    expect(
+      screen.queryByRole("menuitem", { name: "Score observation instead" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Also score observation" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    const observationRow = screen.getByRole("group", {
+      name: "Quality (Observation)",
+    });
+    const traceRow = screen.getByRole("group", { name: "Quality (Trace)" });
+    expect(
+      within(observationRow).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "false");
+    expect(
+      within(traceRow).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(
+      within(traceRow).getByRole("button", { name: /Score actions/ }),
+      { key: "ArrowDown" },
+    );
+    expect(
+      await screen.findByRole("menuitem", {
+        name: "Also score observation (already selected)",
+      }),
+    ).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+    await waitFor(() => expect(traceRow).toHaveFocus());
+    expect(mocks.create).toHaveBeenCalledTimes(1);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it("keeps a text draft while changing level without saving it on menu close", async () => {
+    configs.push({
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: null,
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["feedback"]),
+    );
+    localStorage.setItem("emptySelectedConfigIds:trace", JSON.stringify([]));
+    mocks.create.mockResolvedValue({});
+    renderContent();
+    const input = screen.getByRole("textbox");
+    act(() => input.focus());
+    fireEvent.change(input, { target: { value: "My unsaved review" } });
+    const menu = screen.getByRole("button", {
+      name: "Score actions for Feedback",
+    });
+    act(() => menu.focus());
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Score trace instead" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("My unsaved review");
+    expect(mocks.create).not.toHaveBeenCalled();
+    fireEvent.blur(screen.getByRole("textbox"));
+    await waitFor(() =>
+      expect(mocks.create).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          scoreTarget: { type: "trace", traceId: "trace" },
+          stringValue: "My unsaved review",
+        }),
+      ),
+    );
+  });
 
   it("keeps draft edits local, preserves them through refetch, and resets only for another target", () => {
     const text = {
-      ...configs[0]!,
+      ...defaultConfig,
       id: "feedback",
       name: "Feedback",
       dataType: "TEXT" as const,
@@ -220,7 +351,7 @@ describe("unified annotation targets", () => {
 
   it("navigates one form and saves the same config independently for observation and trace", async () => {
     mocks.create.mockResolvedValue({});
-    renderContent();
+    await renderBothTargets();
 
     expect(screen.getAllByRole("combobox", { name: "Scores" })).toHaveLength(1);
     expect(
@@ -294,7 +425,7 @@ describe("unified annotation targets", () => {
     mocks.remove
       .mockRejectedValueOnce(new Error("Could not clear score"))
       .mockResolvedValue({});
-    renderContent();
+    await renderBothTargets();
     const observationRow = screen.getByRole("group", {
       name: "Quality (Observation)",
     });
@@ -359,7 +490,7 @@ describe("unified annotation targets", () => {
       .mockReturnValueOnce(first.promise)
       .mockReturnValueOnce(second.promise)
       .mockResolvedValue({});
-    renderContent();
+    await renderBothTargets();
     expect(
       screen.queryByRole("status", { name: "Score save status" }),
     ).not.toBeInTheDocument();
@@ -404,7 +535,7 @@ describe("unified annotation targets", () => {
   it("rolls back the same target after an earlier empty row is removed during its save", async () => {
     const pending = deferred();
     mocks.create.mockReturnValueOnce(pending.promise).mockResolvedValue({});
-    renderContent();
+    await renderBothTargets();
     fireEvent.click(
       within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
         "radio",
@@ -412,9 +543,7 @@ describe("unified annotation targets", () => {
       ),
     );
     await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
-    fireEvent.click(
-      screen.getByRole("button", { name: /Remove .*Quality \(Observation\)/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Remove .*Quality/ }));
     await act(async () => pending.reject(new Error("Trace save failed")));
     const remaining = screen.getByRole("group", { name: "Quality" });
     expect(
@@ -434,7 +563,7 @@ describe("unified annotation targets", () => {
 
   it("keeps a single-target numeric form untagged and hides Saved while its next draft is invalid", async () => {
     const numeric = {
-      ...configs[0]!,
+      ...defaultConfig,
       id: "numeric",
       name: "Rating",
       dataType: "NUMERIC" as const,
@@ -481,7 +610,7 @@ describe("unified annotation targets", () => {
 
   it("does not delete a saved score for Firefox badInput and recovers from number and range errors", async () => {
     const numeric = {
-      ...configs[0]!,
+      ...defaultConfig,
       id: "numeric",
       name: "Rating",
       dataType: "NUMERIC" as const,
@@ -553,7 +682,7 @@ describe("unified annotation targets", () => {
 
   it("saves on another row's actions and when dismissing its own actions without clearing", async () => {
     const text = {
-      ...configs[0]!,
+      ...defaultConfig,
       id: "feedback",
       name: "Feedback",
       dataType: "TEXT" as const,
@@ -620,7 +749,7 @@ describe("unified annotation targets", () => {
 
   it("clears an unsaved draft from the labeled menu without posting it or removing a fixed field", async () => {
     const text = {
-      ...configs[0]!,
+      ...defaultConfig,
       id: "feedback",
       name: "Feedback",
       dataType: "TEXT" as const,
@@ -670,4 +799,20 @@ function deferred() {
     reject = onReject;
   });
   return { promise, resolve, reject };
+}
+
+async function renderBothTargets() {
+  renderContent();
+  fireEvent.keyDown(
+    screen.getByRole("button", { name: "Score actions for Quality" }),
+    { key: "ArrowDown" },
+  );
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Also score trace" }),
+  );
+  await waitFor(() =>
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+  );
+  expect(screen.getAllByRole("group", { name: /Quality/ })).toHaveLength(2);
+  expect(mocks.create).not.toHaveBeenCalled();
 }

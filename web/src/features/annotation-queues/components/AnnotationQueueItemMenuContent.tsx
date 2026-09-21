@@ -41,7 +41,7 @@ export function AnnotationQueueItemMenuContent({
 
   return (
     <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
-      <DropdownMenuLabel>Add to queue</DropdownMenuLabel>
+      <DropdownMenuLabel>Add to human annotation queue</DropdownMenuLabel>
       {queues.length ? (
         queues.map((queue) => (
           <DropdownMenuCheckboxItem

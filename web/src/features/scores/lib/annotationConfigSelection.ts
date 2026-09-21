@@ -12,6 +12,20 @@ export const annotationFieldKey = (field: {
   configId: string;
 }) => JSON.stringify([field.targetKey, field.configId]);
 
+export function preferredAnnotationTargets(
+  targets: PreparedAnnotationTarget[],
+) {
+  return [...targets].sort(
+    (left, right) =>
+      Number(
+        right.scoreTarget.type === "trace" && !!right.scoreTarget.observationId,
+      ) -
+      Number(
+        left.scoreTarget.type === "trace" && !!left.scoreTarget.observationId,
+      ),
+  );
+}
+
 export function getScoreConfigSelection({
   targets,
   controlledFields,
@@ -23,14 +37,12 @@ export function getScoreConfigSelection({
   insert: UseFieldArrayInsert<AnnotateFormSchemaType, "scoreData">;
   remove: UseFieldArrayRemove;
 }) {
-  const selectionOptions = targets
+  const seenConfigs = new Set<string>();
+  const selectionOptions = preferredAnnotationTargets(targets)
     .flatMap((target) =>
       target.configControl.allowManualSelection
         ? target.configControl.configs.map((config) => ({
-            value: annotationFieldKey({
-              targetKey: target.key,
-              configId: config.id,
-            }),
+            value: config.id,
             label: resolveConfigValue(config),
             targetKey: target.key,
             targetLabel: target.label,
@@ -39,10 +51,17 @@ export function getScoreConfigSelection({
           }))
         : [],
     )
+    .filter((option) => {
+      if (seenConfigs.has(option.value)) return false;
+      seenConfigs.add(option.value);
+      return true;
+    })
     .sort((a, b) => a.config.name.localeCompare(b.config.name));
 
   const handleSelectionChange = (values: string[]) => {
-    const currentKeys = new Set(controlledFields.map(annotationFieldKey));
+    const currentKeys = new Set(
+      controlledFields.map((field) => field.configId),
+    );
     const newOptions = selectionOptions.filter(
       (option) =>
         values.includes(option.value) &&
@@ -50,7 +69,7 @@ export function getScoreConfigSelection({
         !option.disabled,
     );
     const deselectedFields = controlledFields.flatMap((field, index) =>
-      !values.includes(annotationFieldKey(field)) ? [{ field, index }] : [],
+      !values.includes(field.configId) ? [{ field, index }] : [],
     );
     if (deselectedFields.some(({ field }) => field.id)) {
       toast.error("Cannot deselect a populated score");
@@ -99,14 +118,23 @@ export function getScoreConfigSelection({
       const added = newOptions.filter(
         (option) => option.targetKey === target.key,
       );
-      const removed = removableFields.filter(
-        ({ field }) => field.targetKey === target.key,
-      );
-      if (!added.length && !removed.length) continue;
       const selected = new Set(target.configControl.selectedConfigIds);
       added.forEach((option) => selected.add(option.config.id));
-      removed.forEach(({ field }) => selected.delete(field.configId));
-      target.configControl.setSelectedConfigIds([...selected]);
+      deselectedFields.forEach(({ field }) => {
+        if (
+          !remainingFields.some(
+            (remaining) =>
+              remaining.configId === field.configId &&
+              remaining.targetKey === target.key,
+          )
+        )
+          selected.delete(field.configId);
+      });
+      if (
+        selected.size !== target.configControl.selectedConfigIds.length ||
+        target.configControl.selectedConfigIds.some((id) => !selected.has(id))
+      )
+        target.configControl.setSelectedConfigIds([...selected]);
     }
   };
 
