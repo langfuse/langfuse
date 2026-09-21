@@ -20,6 +20,7 @@ import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -475,19 +476,17 @@ export const ObservationDetailViewHeader = memo(
           )}
         </div>
 
-        {/* Metadata badges */}
-
-        <div className="flex flex-col gap-2">
-          {/* Timestamp */}
-          {preparedDate ? (
-            <div className="flex flex-wrap items-center gap-1 text-sm">
-              <span title={preparedDate.title}>{preparedDate.display}</span>
-            </div>
-          ) : null}
-
-          {/* Other badges */}
+        {/* Metadata line */}
+        <CollapsibleBadgeRow>
+          {preparedDate && (
+            <Badge
+              color="ghost"
+              text={preparedDate.display}
+              title={preparedDate.title}
+            />
+          )}
           {!isAnnotationMode && (
-            <CollapsibleBadgeRow>
+            <>
               <LatencyBadge latencySeconds={latencySeconds} />
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
@@ -546,9 +545,9 @@ export const ObservationDetailViewHeader = memo(
                   projectId={projectId}
                 />
               )}
-            </CollapsibleBadgeRow>
+            </>
           )}
-        </div>
+        </CollapsibleBadgeRow>
       </div>
     );
   },

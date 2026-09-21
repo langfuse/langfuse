@@ -10,7 +10,6 @@ import {
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
-import { InfoIcon } from "lucide-react";
 
 export function CostBadge({
   totalCost,
@@ -24,7 +23,7 @@ export function CostBadge({
   costSource?: CostSource;
 }) {
   if (!hasBreakdown(costDetails)) {
-    return <Badge text={usdFormatter(totalCost)} />;
+    return <Badge color="ghost" text={usdFormatter(totalCost)} />;
   }
   return (
     <BreakdownTooltip
@@ -34,9 +33,10 @@ export function CostBadge({
       costSource={costSource}
     >
       <Badge
+        color="ghost"
+        interactive
         label="cost"
         text={usdFormatter(totalCost)}
-        trailingIcon={InfoIcon}
       />
     </BreakdownTooltip>
   );
@@ -56,16 +56,16 @@ export function UsageBadge({
   const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
 
   if (tokenText && !hasBreakdown(usageDetails)) {
-    return <Badge text={tokenText} />;
+    return <Badge color="ghost" text={tokenText} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
       {tokenText ? (
-        <Badge label="tokens" text={tokenText} trailingIcon={InfoIcon} />
+        <Badge color="ghost" interactive label="tokens" text={tokenText} />
       ) : (
-        <BadgeShell aria-label="View usage breakdown">
-          <InfoIcon aria-hidden className="size-3" />
+        <BadgeShell color="ghost" interactive aria-label="View usage breakdown">
+          tokens
         </BadgeShell>
       )}
     </BreakdownTooltip>

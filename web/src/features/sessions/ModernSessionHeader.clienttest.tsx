@@ -79,13 +79,13 @@ describe("ModernSessionHeader", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     );
 
     expect(
       screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     expect(
@@ -108,13 +108,13 @@ describe("ModernSessionHeader", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
+        name: "Show trace count in session header",
       }),
     );
 
     expect(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).toBeInTheDocument();
     expect(
@@ -141,7 +141,7 @@ describe("ModernSessionHeader", () => {
 
     expect(
       screen.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     fireEvent.click(
@@ -151,7 +151,7 @@ describe("ModernSessionHeader", () => {
     );
     expect(
       screen.getByRole("button", {
-        name: "Show trace and span counts in session header",
+        name: "Show trace count in session header",
       }),
     ).toBeInTheDocument();
   });
@@ -182,7 +182,7 @@ describe("ModernSessionHeader", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     );
 

@@ -348,11 +348,7 @@ export const TestCompactsTokenCounts = meta.story({
     ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent(/649k.*7k.*655k/);
-    await expect(tokenPill).toHaveAttribute(
-      "title",
-      "tokens 648,714 in, 6,697 out, 655,411 total",
-    );
+    await expect(tokenPill).toHaveTextContent(/^tokens\s*655k$/);
   },
 });
 
@@ -376,7 +372,7 @@ export const TestHidesAndRevealsDetails = meta.story({
 
     const canvas = within(canvasElement);
     const hideTraceDetail = await canvas.findByRole("button", {
-      name: "Hide trace and span counts in session header",
+      name: "Hide trace count in session header",
     });
     const visibleTraceDetail = hideTraceDetail.closest(
       "[data-overflow-visible-item='true']",
@@ -393,7 +389,7 @@ export const TestHidesAndRevealsDetails = meta.story({
     await userEvent.click(hideTraceDetail);
     await expect(
       canvas.queryByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).not.toBeInTheDocument();
     await expect(
@@ -410,7 +406,7 @@ export const TestHidesAndRevealsDetails = meta.story({
       name: "Search session details",
     });
     const showTraceDetail = await body.findByRole("button", {
-      name: "Show trace and span counts in session header",
+      name: "Show trace count in session header",
     });
     showTraceDetail.focus();
     await waitFor(() => expect(showTraceDetail).toBeVisible());
@@ -418,7 +414,7 @@ export const TestHidesAndRevealsDetails = meta.story({
 
     await expect(
       canvas.getByRole("button", {
-        name: "Hide trace and span counts in session header",
+        name: "Hide trace count in session header",
       }),
     ).toBeInTheDocument();
     await expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([]));

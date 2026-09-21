@@ -1,22 +1,14 @@
 /* eslint-disable no-nested-ternary */
 import { ScoreBadge } from "@/src/components/ScoreBadge/ScoreBadge";
 import { percentile, type ScoreDomain } from "@langfuse/shared";
-import {
-  ArrowRight,
-  Sigma,
-  ArrowUpRight,
-  Eye,
-  EyeOff,
-  Plus,
-  Search,
-  X,
-} from "lucide-react";
+import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
 
 import Link from "next/link";
 
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
+import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
   MAX_STORED_HIDDEN_SESSION_HEADER_DETAILS,
   parseStoredHiddenSessionHeaderDetails,
@@ -99,8 +91,6 @@ const EMPTY_HIDDEN_SESSION_HEADER_DETAILS: readonly string[] = [];
 const ChipKey = ({ children }: { children: React.ReactNode }) => (
   <span>{children}</span>
 );
-
-const ChipDot = () => <span className="text-foreground-tertiary">·</span>;
 
 const compactTokenFormatter = (tokens: number) =>
   compactNumberFormatter(tokens, 0).toLowerCase();
@@ -396,32 +386,18 @@ export function ModernSessionHeader({
             : [],
         )
       : [];
-  const spanCount =
-    traces.state === "loaded"
-      ? traces.data.reduce((total, trace) => total + trace.observationCount, 0)
-      : null;
   const p50LatencyMs = latencies.length > 0 ? percentile(latencies, 0.5) : null;
-  const p95LatencyMs =
-    latencies.length > 0 ? percentile(latencies, 0.95) : null;
   const pills: SessionHeaderDetail[] = [
     {
       key: "traces",
-      searchText: `traces ${countTraces} spans ${spanCount ?? ""}`,
-      visibilityLabel: "trace and span counts",
+      searchText: `traces ${countTraces}`,
+      visibilityLabel: "trace count",
       type: "traces",
       content: (
-        <BadgeShell data-session-header-pill="true">
+        <BadgeShell color="ghost" data-session-header-pill="true">
           <span>
             {numberFormatter(countTraces, 0)} <ChipKey>traces</ChipKey>
           </span>
-          {spanCount !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                {numberFormatter(spanCount, 0)} <ChipKey>spans</ChipKey>
-              </span>
-            </>
-          ) : null}
         </BadgeShell>
       ),
     },
@@ -430,53 +406,39 @@ export function ModernSessionHeader({
   if (p50LatencyMs !== null) {
     pills.push({
       key: "latency",
-      searchText: `latency p50 ${p50LatencyMs} p95 ${p95LatencyMs ?? ""}`,
-      visibilityLabel: "latency percentiles",
+      searchText: `latency p50 ${p50LatencyMs}`,
+      visibilityLabel: "latency",
       type: "latency",
       content: (
-        <BadgeShell data-session-header-pill="true">
-          <span>
-            <ChipKey>p50</ChipKey> {formatIntervalSeconds(p50LatencyMs / 1000)}
-          </span>
-          {p95LatencyMs !== null ? (
-            <>
-              <ChipDot />
-              <span>
-                <ChipKey>p95</ChipKey>{" "}
-                {formatIntervalSeconds(p95LatencyMs / 1000)}
-              </span>
-            </>
-          ) : null}
-        </BadgeShell>
+        <Badge
+          color="ghost"
+          data-session-header-pill="true"
+          label="p50"
+          text={formatIntervalSeconds(p50LatencyMs / 1000)}
+        />
       ),
     });
   }
 
   if (totalTokens > 0) {
-    const exactTokenCounts = `${numberFormatter(tokensIn, 0)} in, ${numberFormatter(tokensOut, 0)} out, ${numberFormatter(totalTokens, 0)} total`;
     pills.push({
       key: "tokens",
       searchText: `tokens ${tokensIn} ${tokensOut} ${totalTokens}`,
       visibilityLabel: "token usage",
       type: "tokens",
       content: (
-        <BadgeShell
-          data-session-header-pill="true"
-          title={`tokens ${exactTokenCounts}`}
+        <BreakdownTooltip
+          details={{ input: tokensIn, output: tokensOut, total: totalTokens }}
+          isCost={false}
         >
-          <span>tokens</span>
-          <span>{compactTokenFormatter(tokensIn)}</span>
-          <ArrowRight
-            aria-hidden
-            className="text-foreground-tertiary -mx-0.5 size-3 shrink-0"
+          <Badge
+            color="ghost"
+            interactive
+            data-session-header-pill="true"
+            label="tokens"
+            text={compactTokenFormatter(totalTokens)}
           />
-          <span>{compactTokenFormatter(tokensOut)}</span>
-          <Sigma
-            aria-hidden
-            className="text-foreground-tertiary -mr-0.5 size-3 shrink-0"
-          />
-          <span>{compactTokenFormatter(totalTokens)}</span>
-        </BadgeShell>
+        </BreakdownTooltip>
       ),
     });
   }
@@ -488,6 +450,7 @@ export function ModernSessionHeader({
     type: "cost",
     content: (
       <Badge
+        color="ghost"
         data-session-header-pill="true"
         label="cost"
         text={usdFormatter(totalCost, 2, 3)}
