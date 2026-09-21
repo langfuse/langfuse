@@ -6,6 +6,7 @@ type DatasetMappingState = {
   datasetId: string | null;
   createdDataset: DatasetInfo | null;
   mapping: MappingConfig;
+  editedFields: Set<keyof MappingConfig>;
   screen: "compose" | "create";
   submission:
     | { status: "idle" }
@@ -25,11 +26,18 @@ type DatasetMappingState = {
   };
 };
 
+function mappingForDataset(dataset: DatasetInfo, state: DatasetMappingState) {
+  const mapping = createDatasetMapping(dataset);
+  for (const field of state.editedFields) mapping[field] = state.mapping[field];
+  return mapping;
+}
+
 export function createDatasetMappingStore() {
   return createStore<DatasetMappingState>((set, get) => ({
     datasetId: null,
     createdDataset: null,
     mapping: createDatasetMapping(null),
+    editedFields: new Set(),
     screen: "compose",
     submission: { status: "idle" },
     actions: {
@@ -39,14 +47,17 @@ export function createDatasetMappingStore() {
           get().datasetId === dataset.id
         )
           return;
-        set({ datasetId: dataset.id, mapping: createDatasetMapping(dataset) });
+        set({
+          datasetId: dataset.id,
+          mapping: mappingForDataset(dataset, get()),
+        });
       },
       datasetCreated: (dataset) => {
         if (get().submission.status !== "idle") return;
         set({
           datasetId: dataset.id,
           createdDataset: dataset,
-          mapping: createDatasetMapping(dataset),
+          mapping: mappingForDataset(dataset, get()),
           screen: "compose",
         });
       },
@@ -56,7 +67,10 @@ export function createDatasetMappingStore() {
       },
       changeMapping: (field, config) => {
         if (get().submission.status !== "idle") return;
-        set((state) => ({ mapping: { ...state.mapping, [field]: config } }));
+        set((state) => ({
+          mapping: { ...state.mapping, [field]: config },
+          editedFields: new Set([...state.editedFields, field]),
+        }));
       },
       startSubmission: () => {
         if (get().submission.status !== "idle") return false;

@@ -47,6 +47,29 @@ describe("Dataset mapping ownership", () => {
     ).toEqual([]);
   });
 
+  it.each(["selectDataset", "datasetCreated"] as const)(
+    "keeps edited mappings when %s supplies schema defaults",
+    (action) => {
+      const store = createDatasetMappingStore();
+      const actions = store.getState().actions;
+      actions.changeMapping("input", { mode: "full" });
+      actions.changeMapping("metadata", { mode: "full" });
+      const schema = {
+        type: "object",
+        properties: { answer: { type: "string" } },
+      };
+      actions[action]({
+        ...dataset,
+        inputSchema: schema,
+        expectedOutputSchema: schema,
+      });
+      expect(store.getState().mapping.input).toEqual({ mode: "full" });
+      expect(store.getState().mapping.metadata).toEqual({ mode: "full" });
+      expect(store.getState().mapping.expectedOutput.mode).toBe("custom");
+      expect(store.getState().datasetId).toBe(dataset.id);
+    },
+  );
+
   it("validates JSONPath syntax for every field without a schema and retains preview misses as warnings", () => {
     const mapping = createDatasetMapping(null);
     mapping.metadata = {
