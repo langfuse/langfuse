@@ -269,12 +269,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 
@@ -428,6 +423,16 @@ CI on `main` and `pull_request`
 CD on `main`
 
 - Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
+
+### Version tests
+
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
+using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+Additionally, we use those files to test different ClickHouse versions.
+- Azure: Use 25.12 for compatibility testing with our lowest supported version.
+- Redis Cluster: Use 26.8 as the latest available ClickHouse release.
+- Plain: Use 26.4 as the current Cloud version.
 
 ## Staging environment
 

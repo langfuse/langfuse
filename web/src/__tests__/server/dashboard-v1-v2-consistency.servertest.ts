@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";

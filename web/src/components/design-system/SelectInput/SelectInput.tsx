@@ -3,13 +3,11 @@
 import * as React from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 
-import { assertUnreachable } from "@langfuse/shared";
 import { useCallback } from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import { Check, ChevronDown, ChevronUp } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
-import { useScrollGradients } from "@/src/hooks/useScrollGradients";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { InputControl } from "../internal/InputControl/InputControl";
+import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 
 type SelectOption<V> =
   | {
@@ -39,6 +37,8 @@ type SelectInputProps<V> = {
   options: SelectInputNode<V>[];
   onValueChange: (newValue: V) => void;
   placeholder: string;
+  emptyMessage?: string;
+  error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
   "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
@@ -54,19 +54,20 @@ function SelectInputInner<V extends string>(
     options,
     onValueChange,
     placeholder,
+    emptyMessage = "No options available.",
+    error,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
 ) {
   const container = useLayerContainer("popover");
   const [open, setOpen] = React.useState(false);
-  const { register, recompute, top, bottom } =
-    useScrollGradients<React.ComponentRef<typeof SelectPrimitive.Viewport>>(
-      true,
-    );
   const selectedOption = options
     .flatMap((node) => (isSelectGroup(node) ? node.options : [node]))
     .find((option) => option.value === value);
+  const hasOptions = options.some((node) =>
+    isSelectGroup(node) ? node.options.length > 0 : true,
+  );
   const renderNode = useCallback(
     (
       node: SelectInputNode<V>,
@@ -88,31 +89,31 @@ function SelectInputInner<V extends string>(
         );
       }
 
-      if ("value" in node) {
-        return (
-          <SelectPrimitive.SelectItem
-            key={node.value}
-            value={node.value}
-            disabled={node.disabled}
-            className={cn(
-              "focus:bg-accent focus:text-accent-foreground relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none data-disabled:opacity-50",
-              hasPreviousGroup ? "mt-4" : "",
-            )}
-          >
-            <span
-              className="min-w-0 flex-1 truncate"
-              title={node.disabled ? node.disabledReason : node.label}
+      return (
+        <React.Fragment key={node.value}>
+          {hasPreviousGroup && <div aria-hidden="true" className="h-4" />}
+          <InputDropdown.Option highlight="focus">
+            <SelectPrimitive.SelectItem
+              value={node.value}
+              disabled={node.disabled}
             >
-              <SelectPrimitive.ItemText>{node.label}</SelectPrimitive.ItemText>
-            </span>
-            <SelectPrimitive.ItemIndicator className="ml-auto flex size-3.5 shrink-0 items-center justify-center">
-              <Check className="size-4" />
-            </SelectPrimitive.ItemIndicator>
-          </SelectPrimitive.SelectItem>
-        );
-      }
-
-      return assertUnreachable(node);
+              <InputDropdown.OptionContent
+                label={
+                  <SelectPrimitive.ItemText>
+                    {node.label}
+                  </SelectPrimitive.ItemText>
+                }
+                title={node.disabled ? node.disabledReason : node.label}
+                indicator={
+                  <SelectPrimitive.ItemIndicator>
+                    <InputDropdown.CheckIndicator checked />
+                  </SelectPrimitive.ItemIndicator>
+                }
+              />
+            </SelectPrimitive.SelectItem>
+          </InputDropdown.Option>
+        </React.Fragment>
+      );
     },
     [],
   );
@@ -124,7 +125,7 @@ function SelectInputInner<V extends string>(
       open={open}
       onOpenChange={setOpen}
     >
-      <InputControl contentLayout="spread">
+      <InputControl contentLayout="spread" error={error}>
         <SelectPrimitive.Trigger
           ref={ref}
           title={selectedOption?.label}
@@ -142,37 +143,38 @@ function SelectInputInner<V extends string>(
         </SelectPrimitive.Trigger>
       </InputControl>
       <SelectPrimitive.Portal container={container}>
-        <SelectPrimitive.Content
-          position="popper"
-          sideOffset={4}
-          className="bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative w-(--radix-select-trigger-width) min-w-32 overflow-hidden rounded-md border shadow-md"
-        >
-          <SelectPrimitive.ScrollUpButton
-            aria-label="Scroll up"
-            className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
-          >
-            <ChevronUp className="size-4" />
-          </SelectPrimitive.ScrollUpButton>
-          <SelectPrimitive.Viewport
-            ref={register}
-            onScroll={recompute}
-            className={cn(
-              "before:from-popover after:from-popover max-h-96 overflow-auto p-1.5 before:pointer-events-none before:sticky before:-top-1.5 before:z-2 before:-mx-1.5 before:-mb-6 before:block before:h-6 before:bg-linear-to-b before:to-transparent before:content-[''] after:pointer-events-none after:sticky after:-bottom-1.5 after:z-2 after:-mx-1.5 after:-mt-6 after:block after:h-6 after:bg-linear-to-t after:to-transparent after:content-['']",
-              top ? "before:opacity-100" : "before:opacity-0",
-              bottom ? "after:opacity-100" : "after:opacity-0",
-            )}
-          >
-            {options.map((node, index) =>
-              renderNode(node, index > 0 && isSelectGroup(options[index - 1])),
-            )}
-          </SelectPrimitive.Viewport>
-          <SelectPrimitive.ScrollDownButton
-            aria-label="Scroll down"
-            className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
-          >
-            <ChevronDown className="size-4" />
-          </SelectPrimitive.ScrollDownButton>
-        </SelectPrimitive.Content>
+        <InputDropdown.Content width="select-trigger">
+          <SelectPrimitive.Content position="popper" sideOffset={4}>
+            <SelectPrimitive.ScrollUpButton
+              aria-label="Scroll up"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+            >
+              <ChevronUp className="size-4" />
+            </SelectPrimitive.ScrollUpButton>
+            <InputDropdown.List>
+              <SelectPrimitive.Viewport>
+                {!hasOptions ? (
+                  <div className="text-muted-foreground py-6 text-center text-sm">
+                    {emptyMessage}
+                  </div>
+                ) : (
+                  options.map((node, index) =>
+                    renderNode(
+                      node,
+                      index > 0 && isSelectGroup(options[index - 1]),
+                    ),
+                  )
+                )}
+              </SelectPrimitive.Viewport>
+            </InputDropdown.List>
+            <SelectPrimitive.ScrollDownButton
+              aria-label="Scroll down"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+            >
+              <ChevronDown className="size-4" />
+            </SelectPrimitive.ScrollDownButton>
+          </SelectPrimitive.Content>
+        </InputDropdown.Content>
       </SelectPrimitive.Portal>
     </SelectPrimitive.Root>
   );

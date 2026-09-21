@@ -1,17 +1,7 @@
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/src/components/ui/alert-dialog";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -49,7 +39,7 @@ import {
   Copy,
   TrashIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -138,62 +128,65 @@ function DomainsTable({ orgId }: { orgId: string }) {
   const query = api.verifiedDomain.list.useQuery({ orgId });
   const [collapsedRows, setCollapsedRows] = useState<Set<string>>(new Set());
 
-  const columns: LangfuseColumnDef<DomainRowData>[] = [
-    {
-      accessorKey: "domain",
-      header: "Domain",
-      cell: ({ row }) =>
-        !row.original.verifiedAt ? (
-          <button
-            type="button"
-            onClick={() =>
-              setCollapsedRows((current) => {
-                const next = new Set(current);
-                if (next.has(row.original.id)) next.delete(row.original.id);
-                else next.add(row.original.id);
-                return next;
-              })
-            }
-            className="flex items-center gap-1"
-          >
-            <ChevronRight
-              className={`h-3 w-3 transition-transform ${
-                collapsedRows.has(row.original.id) ? "" : "rotate-90"
-              }`}
-            />
-            {row.original.domain}
-          </button>
-        ) : (
-          row.original.domain
+  const columns = useMemo<LangfuseColumnDef<DomainRowData>[]>(
+    () => [
+      {
+        accessorKey: "domain",
+        header: "Domain",
+        cell: ({ row }) =>
+          !row.original.verifiedAt ? (
+            <button
+              type="button"
+              onClick={() =>
+                setCollapsedRows((current) => {
+                  const next = new Set(current);
+                  if (next.has(row.original.id)) next.delete(row.original.id);
+                  else next.add(row.original.id);
+                  return next;
+                })
+              }
+              className="flex items-center gap-1"
+            >
+              <ChevronRight
+                className={`h-3 w-3 transition-transform ${
+                  collapsedRows.has(row.original.id) ? "" : "rotate-90"
+                }`}
+              />
+              {row.original.domain}
+            </button>
+          ) : (
+            row.original.domain
+          ),
+      },
+      {
+        accessorKey: "verifiedAt",
+        header: "Status",
+        cell: ({ row }) =>
+          row.original.verifiedAt ? (
+            <Badge variant="default">Verified</Badge>
+          ) : (
+            <Badge variant="secondary">Pending verification</Badge>
+          ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Added",
+        hideBelowMd: true,
+        cell: ({ row }) => row.original.createdAt.toLocaleDateString(),
+      },
+      {
+        accessorKey: "id",
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex items-center justify-end gap-2">
+            <DomainActions orgId={orgId} row={row.original} />
+          </div>
         ),
-    },
-    {
-      accessorKey: "verifiedAt",
-      header: "Status",
-      cell: ({ row }) =>
-        row.original.verifiedAt ? (
-          <Badge variant="default">Verified</Badge>
-        ) : (
-          <Badge variant="secondary">Pending verification</Badge>
-        ),
-    },
-    {
-      accessorKey: "createdAt",
-      header: "Added",
-      hideBelowMd: true,
-      cell: ({ row }) => row.original.createdAt.toLocaleDateString(),
-    },
-    {
-      accessorKey: "id",
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <DomainActions orgId={orgId} row={row.original} />
-        </div>
-      ),
-    },
-  ];
+      },
+    ],
+    [collapsedRows, orgId],
+  );
 
   const renderDetailRow = (row: Row<DomainRowData>) =>
     !row.original.verifiedAt && !collapsedRows.has(row.original.id) ? (
@@ -461,31 +454,30 @@ function DeleteDomainButton({
   });
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon-xs" aria-label={`Delete ${domain}`}>
+    <ConfirmationDialogController
+      title={`Remove ${domain}?`}
+      text={
+        verified
+          ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
+          : "This removes the pending claim. The domain can be re-added and verified later."
+      }
+      confirmLabel="Remove"
+      variant="destructive"
+      loading={deleteMutation.isPending}
+      onConfirm={async () => {
+        await deleteMutation.mutateAsync({ orgId, id });
+      }}
+    >
+      {({ openDialog }) => (
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Delete ${domain}`}
+          onClick={openDialog}
+        >
           <TrashIcon className="h-4 w-4" />
         </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove {domain}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            {verified
-              ? "If an SSO configuration exists for this domain, you must remove it first. The domain can be re-verified later."
-              : "This removes the pending claim. The domain can be re-added and verified later."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => deleteMutation.mutate({ orgId, id })}
-            disabled={deleteMutation.isPending}
-          >
-            Remove
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      )}
+    </ConfirmationDialogController>
   );
 }

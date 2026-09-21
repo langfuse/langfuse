@@ -5,7 +5,7 @@ import {
   type FilterState,
   type DatasetItem,
   type TracingSearchType,
-  singleFilter,
+  singleFilterList,
   type DatasetRunItemDomain,
   AGGREGATABLE_SCORE_TYPES,
 } from "@langfuse/shared";
@@ -27,7 +27,7 @@ import { calculateRecursiveMetricsForRunItems } from "./utils";
 export const datasetRunsTableSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   ...optionalPaginationZod,
 });
 
@@ -35,7 +35,7 @@ export const datasetRunTableMetricsSchema = z.object({
   projectId: z.string(),
   datasetId: z.string(),
   runIds: z.array(z.string()),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
 });
 
 export type DatasetRunItemsTableInput = {

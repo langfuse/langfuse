@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import React, {
   useMemo,
@@ -65,12 +66,11 @@ import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
 import { LargeStringFallback } from "@/src/components/ui/LargeStringFallback";
 
-// Constants for table layout
 const INDENTATION_PER_LEVEL = 16;
-const INDENTATION_BASE = 8;
-const BUTTON_WIDTH = 16;
-const MARGIN_LEFT_1 = 4;
-const CELL_PADDING_X = 8; // px-2
+const INDENTATION_BASE = 12;
+const KEY_CLASSES = "text-muted-foreground font-mono text-xs/5 wrap-break-word";
+const CELL_CLASSES =
+  "border-border/60 py-1 pr-2 pl-1 align-top whitespace-normal";
 
 // Constants for smart expansion logic
 // Used for nested objects to control smart expansion depth
@@ -82,10 +82,8 @@ const DEFAULT_MAX_ROWS_IF_ROOT = 100;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 
 const ASSISTANT_TITLES = ["assistant", "Output", "model"];
-const SYSTEM_TITLES = ["system", "Input"];
 
-const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
-const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 type PrettyJsonViewTone = "danger" | "warning" | "muted" | "neutral";
 
@@ -166,14 +164,17 @@ function getContainerClasses(
   scrollable: boolean | undefined,
   codeClassName: string | undefined,
   baseClasses = "whitespace-pre-wrap wrap-break-word p-3 text-xs",
+  borderless = false,
 ) {
+  const toned = ASSISTANT_TITLES.includes(title || "");
   return cn(
     baseClasses,
-    ASSISTANT_TITLES.includes(title || "")
-      ? "bg-accent-light-green dark:border-accent-dark-green/30"
-      : "",
-    SYSTEM_TITLES.includes(title || "") ? "bg-card" : "",
-    scrollable ? "" : "rounded-sm border",
+    toned ? "bg-accent-light-green dark:border-accent-dark-green/30" : "",
+    borderless
+      ? "rounded-md overflow-clip"
+      : scrollable
+        ? ""
+        : "rounded-sm border",
     codeClassName,
   );
 }
@@ -333,7 +334,6 @@ interface JsonTableRowProps {
   expandedCells: Set<string>;
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey: boolean;
-  stickyOffsets: { header: number; row: number };
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
 }
 
@@ -346,7 +346,6 @@ const JsonTableRowComponent = memo(
     expandedCells,
     toggleCellExpansion,
     stickyTopLevelKey,
-    stickyOffsets,
     toneClasses,
   }: JsonTableRowProps) => {
     // Hook is now at top level of this component ✅
@@ -379,21 +378,18 @@ const JsonTableRowComponent = memo(
           "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
           isExpandable ? "cursor-pointer" : "",
           row.original.level === 0 && stickyTopLevelKey
-            ? "bg-background sticky z-10 shadow-xs"
+            ? "bg-background sticky top-0 z-10 shadow-xs"
             : "",
           toneClasses?.row,
         )}
-        style={
-          row.original.level === 0 && stickyTopLevelKey
-            ? { top: `${stickyOffsets.header}px` }
-            : undefined
-        }
       >
         {row.getVisibleCells().map((cell) => (
           <td
             key={cell.id}
             className={cn(
-              "h-full border-b px-2 py-1 align-top whitespace-normal [&:has([role=checkbox])]:pr-0 [:last-child_>_&]:border-b-0",
+              "h-full border-b [:last-child_>_&]:border-b-0",
+              CELL_CLASSES,
+              cell.column.id === "value" && "[&>div]:wrap-anywhere",
               toneClasses?.cell,
             )}
             style={{ width: `${cell.column.columnDef.size}%` }}
@@ -423,6 +419,7 @@ function JsonPrettyTable({
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
   metadataActions,
+  rowActions,
   toneClasses,
 }: {
   data: JsonTableRow[];
@@ -441,139 +438,140 @@ function JsonPrettyTable({
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
   metadataActions?: MetadataFilterActions;
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
   toneClasses?: (typeof PRETTY_JSON_VIEW_TONE_CLASSES)[PrettyJsonViewTone];
+  /** Drop the Path / Value header row. */
 }) {
-  const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
-  const [stickyOffsets, setStickyOffsets] = useState({ header: 32, row: 32 });
+  const [topLevelRowHeight, setTopLevelRowHeight] = useState(32);
 
-  // calculate height of top row to calculate offsets for other headings to not go beneath sticky rows
   useEffect(() => {
-    if (stickyTopLevelKey && headerRef.current) {
-      const headerHeight = headerRef.current.offsetHeight;
-
-      // get first top-level row height (if it exists)
-      let rowHeight = 32; // default fallback
-      if (topLevelRowRef.current) {
-        rowHeight = topLevelRowRef.current.offsetHeight;
-      }
-
-      setStickyOffsets({
-        header: headerHeight,
-        row: rowHeight,
-      });
+    if (stickyTopLevelKey && topLevelRowRef.current) {
+      setTopLevelRowHeight(topLevelRowRef.current.offsetHeight);
     }
   }, [stickyTopLevelKey, data, expanded]);
 
-  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
-    {
-      accessorKey: "key",
-      header: "Path",
-      size: 35,
-      cell: ({ row }) => {
-        // we need to calculate the indentation here for a good line break
-        // because of the padding, we don't know when to break the line otherwise
-        const indentationWidth =
-          row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
-        const buttonWidth = row.original.hasChildren ? BUTTON_WIDTH : 0;
-        const availableTextWidth = `calc(100% - ${indentationWidth + buttonWidth + CELL_PADDING_X + MARGIN_LEFT_1}px)`;
+  const indentationWidthFor = (row: Row<JsonTableRow>) =>
+    row.original.level * INDENTATION_PER_LEVEL + INDENTATION_BASE;
 
-        const valueLength = getValueStringLength(row.original.value);
-        const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+  const renderKeyText = (key: string) =>
+    key.includes(".")
+      ? key.split(".").map((segment, index, segments) => (
+          <span key={index}>
+            {segment}
+            {index < segments.length - 1 && (
+              <>
+                .<wbr />
+              </>
+            )}
+          </span>
+        ))
+      : key;
 
-        const itemBadgeType =
-          showObservationTypeBadge &&
-          row.original.level === 0 &&
-          row.original.value &&
-          typeof row.original.value === "object" &&
-          !Array.isArray(row.original.value) &&
-          "type" in row.original.value &&
-          typeof (row.original.value as any).type === "string" &&
-          (row.original.value as any).type
-            ? ((row.original.value as any).type as LangfuseItemType)
-            : null;
+  const renderKey = (row: Row<JsonTableRow>) => {
+    const indentationWidth = indentationWidthFor(row);
 
-        const content = (
-          <div className="flex items-start wrap-break-word">
-            <div
-              className="flex shrink-0 items-center justify-end"
-              style={{ width: `${indentationWidth}px` }}
+    const itemBadgeType =
+      showObservationTypeBadge &&
+      row.original.level === 0 &&
+      row.original.value &&
+      typeof row.original.value === "object" &&
+      !Array.isArray(row.original.value) &&
+      "type" in row.original.value &&
+      typeof (row.original.value as any).type === "string" &&
+      (row.original.value as any).type
+        ? ((row.original.value as any).type as LangfuseItemType)
+        : null;
+
+    return (
+      <div className="flex w-max max-w-[40cqw] min-w-40 items-start text-xs/5 wrap-break-word">
+        <div
+          className="flex h-[1lh] shrink-0 items-center justify-end"
+          style={{ width: `${indentationWidth}px` }}
+        >
+          {row.original.hasChildren ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRowExpansion(
+                  row,
+                  onLazyLoadChildren,
+                  expandedCells,
+                  toggleCellExpansion,
+                );
+              }}
+              className="text-muted-foreground hover:text-foreground h-4 w-4 p-0 hover:bg-transparent"
             >
-              {row.original.hasChildren && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleRowExpansion(
-                      row,
-                      onLazyLoadChildren,
-                      expandedCells,
-                      toggleCellExpansion,
-                    );
-                  }}
-                  className="h-4 w-4 p-0"
-                >
-                  {row.getIsExpanded() ? (
-                    <ChevronDown className="h-3 w-3" />
-                  ) : (
-                    <ChevronRight className="h-3 w-3" />
-                  )}
-                </Button>
+              {row.getIsExpanded() ? (
+                <ChevronDown className="h-3 w-3" />
+              ) : (
+                <ChevronRight className="h-3 w-3" />
               )}
-            </div>
-            <span
-              className={`ml-1 ${MONO_TEXT_CLASSES} cursor-text`}
-              style={{ maxWidth: availableTextWidth }}
-            >
-              {itemBadgeType && (
-                <span className="mr-1 inline-block align-middle">
-                  <ItemBadge type={itemBadgeType} isSmall={true} />
-                </span>
-              )}
-              {row.original.key}
+            </Button>
+          ) : null}
+        </div>
+        <span className={cn("min-w-0 cursor-text", KEY_CLASSES)}>
+          {itemBadgeType && (
+            <span className="mr-1 inline-block align-middle">
+              <ItemBadge type={itemBadgeType} isSmall={true} />
             </span>
-          </div>
-        );
+          )}
+          {renderKeyText(row.original.key)}
+        </span>
+      </div>
+    );
+  };
 
-        if (isLongValue) {
-          // calculate sticky position based on level and stickyTopLevelKey setting
-          let topPosition = "0";
-          if (stickyTopLevelKey) {
-            // Level 0: position below header
-            // Level > 0: position below header + one top-level row
-            topPosition =
-              row.original.level === 0
-                ? `${stickyOffsets.header}px`
-                : `${stickyOffsets.header + stickyOffsets.row}px`;
-          }
+  const renderValue = (row: Row<JsonTableRow>) => (
+    <ValueCell
+      row={row}
+      expandedCells={expandedCells}
+      toggleCellExpansion={toggleCellExpansion}
+      preserveStringWhitespace={row.original.key === "code_eval_source_code"}
+      metadataActions={metadataActions}
+      rowActions={rowActions}
+    />
+  );
 
-          return (
-            <div className="sticky z-5 py-1" style={{ top: topPosition }}>
-              {content}
-            </div>
-          );
+  const keyColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "key",
+    header: "Path",
+    size: 1,
+    cell: ({ row }) => {
+      const content = renderKey(row);
+      const valueLength = getValueStringLength(row.original.value);
+      const isLongValue = valueLength > MAX_CELL_DISPLAY_CHARS / 3; // already long if we don't truncate
+
+      if (isLongValue) {
+        let topPosition = "0";
+        if (stickyTopLevelKey) {
+          topPosition =
+            row.original.level === 0 ? "0" : `${topLevelRowHeight}px`;
         }
 
-        return content;
-      },
+        return (
+          <div className="sticky z-5 -my-1 py-1" style={{ top: topPosition }}>
+            {content}
+          </div>
+        );
+      }
+
+      return content;
     },
-    {
-      accessorKey: "value",
-      header: "Value",
-      size: 65,
-      cell: ({ row }) => (
-        <ValueCell
-          row={row}
-          expandedCells={expandedCells}
-          toggleCellExpansion={toggleCellExpansion}
-          preserveStringWhitespace={
-            row.original.key === "code_eval_source_code"
-          }
-          metadataActions={metadataActions}
-        />
-      ),
-    },
+  };
+
+  const valueColumn: LangfuseColumnDef<JsonTableRow, unknown> = {
+    accessorKey: "value",
+    header: "Value",
+    size: 99,
+    cell: ({ row }) => renderValue(row),
+  };
+
+  const columns: LangfuseColumnDef<JsonTableRow, unknown>[] = [
+    keyColumn,
+    valueColumn,
   ];
 
   const table = useReactTable({
@@ -689,38 +687,12 @@ function JsonPrettyTable({
 
   return (
     <div className={cn("w-full", !noBorder && "rounded-sm border")}>
-      <table className="w-full table-fixed caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
-        <thead className="[&_tr]:border-b">
-          {table.getHeaderGroups().map((headerGroup, index) => (
-            <tr
-              key={headerGroup.id}
-              ref={index === 0 ? headerRef : undefined}
-              className={cn(
-                "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
-                stickyTopLevelKey ? "sticky top-0 z-20" : "",
-                toneClasses?.row,
-              )}
-            >
-              {headerGroup.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className={cn(
-                    "text-muted-foreground relative h-8 border-b px-2 py-1 text-left align-middle font-bold [&:has([role=checkbox])]:pr-0",
-                    stickyTopLevelKey ? "bg-background" : "bg-transparent",
-                    toneClasses?.cell,
-                  )}
-                  style={{ width: `${header.column.columnDef.size}%` }}
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                </th>
-              ))}
-            </tr>
-          ))}
+      <table className="w-full table-auto caption-bottom border-separate border-spacing-0 space-y-4 overflow-auto text-sm">
+        <thead className="sr-only">
+          <tr>
+            <th scope="col">Path</th>
+            <th scope="col">Value</th>
+          </tr>
         </thead>
         <tbody className="text-xs [&_tr:last-child]:border-0">
           {table.getRowModel().rows.map((row, rowIndex) => (
@@ -737,7 +709,6 @@ function JsonPrettyTable({
               expandedCells={expandedCells}
               toggleCellExpansion={toggleCellExpansion}
               stickyTopLevelKey={stickyTopLevelKey}
-              stickyOffsets={stickyOffsets}
               toneClasses={toneClasses}
             />
           ))}
@@ -752,6 +723,7 @@ export function PrettyJsonView(props: {
   parsedJson?: unknown; // Pre-parsed data (optional, from useParsedObservation hook)
   title?: string;
   titleIcon?: React.ReactNode;
+  /** Drop the Path / Value header row. */
   className?: string;
   isLoading?: boolean;
   isParsing?: boolean;
@@ -772,12 +744,11 @@ export function PrettyJsonView(props: {
   inset?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
-  /** Titled sections (Input/Output/Metadata): header controls (copy,
-      expand-all) reveal on section hover instead of rendering always. */
-  hoverControls?: boolean;
   /** When set, rows show an actions menu with copy + add-to-filter shortcuts
       (metadata views only). */
   metadataActions?: MetadataFilterActions;
+  /** Replaces the built-in row menu, for tables with their own actions. */
+  rowActions?: (row: Row<JsonTableRow>) => React.ReactNode;
   /** Collapse long string content to a preview (from raw `role === "system"`,
       since the title can carry a message `name` instead of the role). */
   isSystemPrompt?: boolean;
@@ -842,6 +813,8 @@ export function PrettyJsonView(props: {
     // non-ASCII characters correctly in the trace detail view.
     return decodeUnicodeInJson(result);
   }, [props.json, props.parsedJson, props.isParsing, largeStringValue]);
+
+  const tableBorderless = Boolean(props.title) && !props.tone;
 
   // JSONView internally calls deepParseJson (with maxDepth:3) which mutates
   // nested string fields in place. Because baseTableData[].rawChildData holds
@@ -1226,6 +1199,12 @@ export function PrettyJsonView(props: {
     }
   };
 
+  const hasExpandableRows = useMemo(() => {
+    if (typeof parsedJson !== "object" || parsedJson === null) return false;
+    return Object.values(parsedJson as Record<string, unknown>).some((value) =>
+      hasChildren(value, getValueType(value)),
+    );
+  }, [parsedJson]);
   const emptyValueDisplay = getEmptyValueDisplay(parsedJson);
   const isPrettyView = actualCurrentView === "pretty";
   const isMarkdownMode = isMarkdown && isPrettyView;
@@ -1249,12 +1228,9 @@ export function PrettyJsonView(props: {
     !emptyValueDisplay;
 
   const getBackgroundColorClass = () =>
-    cn(
-      ASSISTANT_TITLES.includes(props.title || "")
-        ? "bg-accent-light-green"
-        : "",
-      SYSTEM_TITLES.includes(props.title || "") ? "bg-card" : "",
-    );
+    ASSISTANT_TITLES.includes(props.title || "")
+      ? "bg-accent-light-green rounded-md overflow-clip"
+      : "";
 
   const body = (
     <>
@@ -1284,7 +1260,13 @@ export function PrettyJsonView(props: {
           <div
             className={cn(
               "flex items-center",
-              getContainerClasses(props.title, props.scrollable, codeClassName),
+              getContainerClasses(
+                props.title,
+                props.scrollable,
+                codeClassName,
+                undefined,
+                tableBorderless,
+              ),
             )}
           >
             <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
@@ -1317,11 +1299,15 @@ export function PrettyJsonView(props: {
             style={{ display: shouldUseTableView ? "flex" : "none" }}
           >
             <div
-              className={getContainerClasses(
-                props.title,
-                props.scrollable,
-                codeClassName,
-                "flex text-xs wrap-break-word whitespace-pre-wrap",
+              className={cn(
+                getContainerClasses(
+                  props.title,
+                  props.scrollable,
+                  codeClassName,
+                  "flex text-xs wrap-break-word whitespace-pre-wrap",
+                  tableBorderless,
+                ),
+                "@container w-full",
               )}
             >
               {props.isLoading ? (
@@ -1344,6 +1330,7 @@ export function PrettyJsonView(props: {
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
                   metadataActions={props.metadataActions}
+                  rowActions={props.rowActions}
                   toneClasses={toneClasses}
                 />
               )}
@@ -1415,12 +1402,12 @@ export function PrettyJsonView(props: {
 
   const expandCollapseButton = (
     <>
-      {shouldUseTableView && (
+      {shouldUseTableView && hasExpandableRows && (
         <Button
           variant="ghost"
           size="icon-xs"
           onClick={() => expandAllRef.current?.()}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           title={allRowsExpanded ? "Collapse all rows" : "Expand all rows"}
         >
           {allRowsExpanded ? (
@@ -1435,7 +1422,7 @@ export function PrettyJsonView(props: {
           variant="ghost"
           size="icon-xs"
           onClick={handleJsonToggleCollapse}
-          className="hover:bg-border -mr-2"
+          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           title={jsonIsCollapsed ? "Expand all" : "Collapse all"}
         >
           {jsonIsCollapsed ? (
@@ -1452,7 +1439,7 @@ export function PrettyJsonView(props: {
     <div
       className={cn(
         "flex max-h-full min-h-0 flex-col",
-        props.hoverControls && "group/iosection",
+        "group/iosection",
         props.inset && "[&_.io-message-content]:px-2",
         props.className,
         props.scrollable ? "overflow-hidden" : "",
@@ -1474,7 +1461,7 @@ export function PrettyJsonView(props: {
               : undefined
           }
           inset={props.inset}
-          hoverRevealControls={props.hoverControls}
+          hoverRevealControls
           controlButtons={
             <>
               {expandCollapseButton}
@@ -1488,7 +1475,11 @@ export function PrettyJsonView(props: {
         <div
           className={cn(
             "flex h-full min-h-0 overflow-hidden",
-            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
+            isMarkdownMode
+              ? getBackgroundColorClass()
+              : shouldUseTableView && tableBorderless
+                ? ""
+                : "rounded-sm border",
           )}
         >
           <div className="max-h-full min-h-0 w-full overflow-y-auto">

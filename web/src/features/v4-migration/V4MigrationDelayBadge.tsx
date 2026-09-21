@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";

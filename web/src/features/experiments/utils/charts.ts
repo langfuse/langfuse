@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   BASE_CHART_IDS,
   CATEGORICAL_SCORE_CHART_CONFIG,

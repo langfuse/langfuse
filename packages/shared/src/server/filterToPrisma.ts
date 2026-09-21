@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
@@ -126,6 +127,18 @@ export function tableColumnsToSqlFilter(
     }
     if (filter.type === "string" && filter.operator === "is not empty") {
       return Prisma.sql`(${filterAndColumn.internalColumn} IS NOT NULL AND ${filterAndColumn.internalColumn} <> '')`;
+    }
+
+    if (
+      filter.type === "stringObject" &&
+      (filter.operator === "is set" || filter.operator === "is not set")
+    ) {
+      // Key presence, mirroring the ClickHouse `has`/`mapContains` semantics.
+      // COALESCE handles a NULL column (no metadata at all) as "key absent".
+      const keyExists = Prisma.sql`COALESCE(jsonb_exists(${filterAndColumn.internalColumn}::jsonb, ${filter.key}), false)`;
+      return filter.operator === "is set"
+        ? keyExists
+        : Prisma.sql`NOT ${keyExists}`;
     }
 
     const jsonKeyPrisma =

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useMemo } from "react";
 import {
   normalizeOrderByForTable,
@@ -29,7 +30,7 @@ import {
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
+import { useFullTextSearch } from "@/src/features/search-bar";
 import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
 import { buildFullPath } from "@/src/features/folders/utils";
 import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";

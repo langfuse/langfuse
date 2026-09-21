@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";

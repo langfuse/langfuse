@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Reusable property-test harness for the search bar — the universal safety net
 // described in README.md ("Round-trip property test", "Extending to other
 // views"). It is PURE (no vitest import, no global state) so it is safe in the

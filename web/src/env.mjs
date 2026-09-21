@@ -588,6 +588,10 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
+    // Simulate worker admission without changing OTLP request processing.
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     // Maximum encoded and decompressed OTLP request body size in bytes.
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES: z.coerce
       .number()
@@ -1178,6 +1182,8 @@ export const env = createEnv({
     // Api Performance Flags
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
+    LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED:
+      process.env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED,
     LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES:
       process.env.LANGFUSE_OTEL_INGESTION_MAX_BODY_BYTES,
 

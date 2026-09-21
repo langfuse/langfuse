@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
-import { DashboardTable } from "@/src/features/dashboard/components/DashboardTable";
+import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -42,7 +42,7 @@ export default function Dashboards() {
         ),
       }}
     >
-      <DashboardTable />
+      <ConnectedDashboardTable />
     </Page>
   );
 }
