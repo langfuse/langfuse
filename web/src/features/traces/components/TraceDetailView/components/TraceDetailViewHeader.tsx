@@ -281,9 +281,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           className="w-full justify-start gap-2 font-normal"
                         >
                           <ListPlus className="h-4 w-4" />
-                          <span className="text-sm">
-                            Add to human annotation queue
-                          </span>
+                          <span className="text-sm">Queue</span>
                           {totalCount > 0 && (
                             <AnnotationQueueItemCountBadge
                               totalCount={totalCount}
@@ -433,7 +431,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       className="gap-1.5"
                     >
                       <ListPlus className="h-3.5 w-3.5" />
-                      <span>Add to human annotation queue</span>
+                      <span>Queue</span>
                       {totalCount > 0 && (
                         <ActionButtonCountBadge count={totalCount} />
                       )}

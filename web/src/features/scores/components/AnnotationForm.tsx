@@ -84,9 +84,11 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
 export function AnnotationFormContent({
   targets,
   actionButtons,
+  isActive = true,
 }: {
   targets: PreparedAnnotationTarget[];
   actionButtons?: React.ReactNode;
+  isActive?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const primaryTarget = targets[0]!;
@@ -130,7 +132,7 @@ export function AnnotationFormContent({
     return () => actions.close();
   }, [actions]);
   const formRootRef = useRef<HTMLDivElement | null>(null);
-  useAnnotationKeyboard({ formRootRef, form, actions, targets });
+  useAnnotationKeyboard({ formRootRef, form, actions, targets, isActive });
 
   const targetFor = (field: AnnotationScoreSchemaType) =>
     targets.find((target) => target.key === field.targetKey)!;
@@ -221,6 +223,7 @@ export function AnnotationFormContent({
           <div className="flex flex-col gap-2">
             <span className="text-sm font-bold">Scores</span>
             <MultiSelectTagInput
+              disabled={!isActive}
               aria-label="Scores"
               placeholder="Choose scores"
               searchPlaceholder="Search scores..."
@@ -253,6 +256,7 @@ export function AnnotationFormContent({
             return config ? (
               <AnnotationScoreRow
                 key={field.id}
+                isActive={isActive}
                 form={form}
                 actions={actions}
                 index={index}
@@ -400,6 +404,7 @@ export function AnnotationForm<Target extends ScoreTarget>(
       key={target.key}
       targets={[target]}
       actionButtons={props.actionButtons}
+      isActive={props.isActive}
     />
   );
 }

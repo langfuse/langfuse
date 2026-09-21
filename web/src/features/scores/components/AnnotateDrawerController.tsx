@@ -2,24 +2,15 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
-  type AnalyticsData,
   type ScoreTarget,
+  type AnnotationPanelData,
 } from "@/src/features/scores/types";
-import { type ReactNode, useMemo } from "react";
+import { type ReactNode } from "react";
 import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAnalytics";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
-import {
-  filterAndValidateDbScoreList,
-  ScoreDataTypeArray,
-  ScoreDataTypeEnum,
-  type ScoreDomain,
-} from "@langfuse/shared";
-import {
-  toDomainArrayWithStringifiedMetadata,
-  type WithStringifiedMetadata,
-} from "@/src/utils/clientSideDomainTypes";
-import { api } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
+import { type ScoreDomain } from "@langfuse/shared";
+import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { AnnotationPanelContent } from "./AnnotationPanelContent";
+import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   children: (control: {
@@ -29,16 +20,7 @@ export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   projectId: string;
 };
 
-type AnnotateDrawerState = {
-  analyticsData: AnalyticsData;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  scoreTarget: ScoreTarget;
-  scores?: WithStringifiedMetadata<ScoreDomain>[];
-};
+type AnnotateDrawerState = AnnotationPanelData;
 
 type AnnotateDrawerPayload<Target extends ScoreTarget> =
   Target extends Extract<ScoreTarget, { type: "trace" }>
@@ -51,83 +33,12 @@ type AnnotateDrawerPayload<Target extends ScoreTarget> =
         scores: WithStringifiedMetadata<ScoreDomain>[];
       };
 
-function ConnectedAnnotateDrawerContent({
-  state,
-}: {
-  state: AnnotateDrawerState;
-}) {
-  const shouldFetchScores =
-    state.scores === undefined && state.scoreTarget.type === "trace";
-  const scoresQuery = api.events.scoresForTrace.useQuery(
-    {
-      projectId: state.scoreMetadata.projectId,
-      traceId:
-        state.scoreTarget.type === "trace" ? state.scoreTarget.traceId : "",
-    },
-    {
-      enabled: shouldFetchScores,
-      staleTime: 60 * 1000,
-    },
-  );
-  const fetchedScores = useMemo(() => {
-    const scoreTarget = state.scoreTarget;
-    if (!scoresQuery.data || scoreTarget.type !== "trace") return;
-
-    const scores = filterAndValidateDbScoreList({
-      scores: scoresQuery.data,
-      dataTypes: [...ScoreDataTypeArray],
-      onParseError: (error) => console.error(error),
-    }).filter((score) => {
-      if (score.dataType === ScoreDataTypeEnum.CORRECTION) return false;
-      if (scoreTarget.observationId) {
-        return score.observationId === scoreTarget.observationId;
-      }
-      return !score.observationId;
-    });
-
-    return toDomainArrayWithStringifiedMetadata(scores);
-  }, [scoresQuery.data, state.scoreTarget]);
-  const scores = state.scores ?? fetchedScores;
-
-  if (scoresQuery.isError && scores === undefined) {
-    return (
-      <DrawerContent className="flex flex-col gap-3 p-3">
-        <p className="text-sm">Could not load scores.</p>
-        <Button
-          className="self-start"
-          onClick={async () => {
-            await scoresQuery.refetch();
-          }}
-        >
-          Try again
-        </Button>
-      </DrawerContent>
-    );
-  }
-
-  if (scores === undefined) {
-    return (
-      <DrawerContent className="p-3">
-        <p className="text-muted-foreground text-sm">Loading scores...</p>
-      </DrawerContent>
-    );
-  }
-
-  return (
-    <AnnotateDrawerContent
-      analyticsData={state.analyticsData}
-      scoreMetadata={state.scoreMetadata}
-      scoreTarget={state.scoreTarget}
-      scores={scores}
-    />
-  );
-}
-
 export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
   const capture = usePostHogClientCapture();
+  const reviewPanel = useTraceReviewPanelOptional();
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
@@ -137,7 +48,9 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   return (
     <DrawerController<AnnotateDrawerState>
       renderContent={({ state }) => (
-        <ConnectedAnnotateDrawerContent state={state} />
+        <DrawerContent className="overflow-y-auto p-3 [--annotation-surface:var(--modal)]">
+          <AnnotationPanelContent data={state} actionButtons={null} isActive />
+        </DrawerContent>
       )}
     >
       {({ openDrawer }) =>
@@ -151,7 +64,16 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               targetType: getAnnotationTargetType(payload.scoreTarget),
               entryPoint: "annotate_button",
             });
-            openDrawer(payload);
+            if (reviewPanel) {
+              reviewPanel
+                .getState()
+                .actions.rememberTrigger(
+                  document.activeElement instanceof HTMLElement
+                    ? document.activeElement
+                    : null,
+                );
+              reviewPanel.getState().actions.openAnnotation(payload);
+            } else openDrawer(payload);
           },
         })
       }

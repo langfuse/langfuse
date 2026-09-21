@@ -35,6 +35,7 @@ export function CommentComposer({
   onDraftChange,
   onMentionDropdownChange,
   onCommentCreated,
+  isActive = true,
 }: {
   projectId: string;
   objectId: string;
@@ -45,8 +46,10 @@ export function CommentComposer({
   onDraftChange?: (hasDraft: boolean) => void;
   onMentionDropdownChange?: (isOpen: boolean) => void;
   onCommentCreated: () => void | Promise<void>;
+  isActive?: boolean;
 }) {
   const editorRef = useRef<CommentEditorHandle>(null);
+  const formElementRef = useRef<HTMLFormElement | null>(null);
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
@@ -55,6 +58,7 @@ export function CommentComposer({
       editorRef.current?.getCursorRect() ?? new DOMRect(),
   }));
   const attachForm = useCallback((node: HTMLFormElement | null) => {
+    formElementRef.current = node;
     if (node) setPortalContainer(node.closest<HTMLElement>('[role="dialog"]'));
   }, []);
   const hasMembersReadAccess = useHasProjectAccess({
@@ -75,7 +79,7 @@ export function CommentComposer({
 
   // Window capture runs before the overlay's document-level Escape handler.
   useEffect(() => {
-    if (!showDropdown) return;
+    if (!showDropdown || !isActive) return;
     function dismissMentions(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -84,7 +88,7 @@ export function CommentComposer({
     }
     window.addEventListener("keydown", dismissMentions, true);
     return () => window.removeEventListener("keydown", dismissMentions, true);
-  }, [showDropdown, closeDropdown]);
+  }, [showDropdown, closeDropdown, isActive]);
 
   const createComment = api.comments.create.useMutation({
     onSuccess: async () => {
@@ -93,7 +97,12 @@ export function CommentComposer({
       mentions.closeDropdown();
       onSelectionUsed?.();
       await onCommentCreated();
-      editorRef.current?.focus();
+      const element = formElementRef.current;
+      if (
+        element?.isConnected &&
+        !element.closest('[inert], [hidden], [data-state="closed"]')
+      )
+        editorRef.current?.focus();
     },
   });
 
@@ -155,6 +164,7 @@ export function CommentComposer({
     <Form {...form}>
       <form
         ref={attachForm}
+        inert={!isActive}
         className="flex min-w-0 flex-col gap-3"
         onSubmit={form.handleSubmit(submit)}
       >
@@ -181,7 +191,7 @@ export function CommentComposer({
                   }
                   onKeyDown={handleKeyDown}
                   disabled={createComment.isPending}
-                  autoFocus
+                  autoFocus={isActive}
                 />
               </FormControl>
               <FormMessage />
@@ -189,7 +199,7 @@ export function CommentComposer({
           )}
         />
         <Popover
-          open={mentions.showDropdown}
+          open={isActive && mentions.showDropdown}
           onOpenChange={(open) => {
             if (!open) mentions.closeDropdown();
           }}

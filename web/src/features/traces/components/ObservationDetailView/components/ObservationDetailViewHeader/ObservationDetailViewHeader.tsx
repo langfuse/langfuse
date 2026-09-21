@@ -11,7 +11,6 @@
  */
 
 import { memo, useMemo } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ObservationType,
   AnnotationQueueObjectType,
@@ -26,10 +25,7 @@ import {
   NewDatasetItemFromExistingObjectDialogController,
   useDatasetItemFromTraceOrObservation,
 } from "@/src/features/datasets";
-import {
-  AnnotateDrawerController,
-  DualAnnotationContent,
-} from "@/src/features/scores";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
@@ -71,16 +67,10 @@ import {
   Terminal,
 } from "lucide-react";
 import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/src/components/ui/drawer";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -127,15 +117,6 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isV4: isV4Enabled } = useReadPath();
-    const capture = usePostHogClientCapture();
-    const captureAnnotationEntry = () =>
-      capture("annotation:entry_click", {
-        type: "trace",
-        entryPoint: "annotate_button",
-        source: "TraceDetail",
-        targetType: "observation",
-        isV4: isV4Enabled,
-      });
     const { trace, serverScores } = useTraceData();
 
     // Get trace-level scores for V4 dual annotation
@@ -144,11 +125,6 @@ export const ObservationDetailViewHeader = memo(
       [serverScores],
     );
 
-    // Access check for annotation drawer
-    const hasAnnotationAccess = useHasProjectAccess({
-      projectId,
-      scope: "scores:CUD",
-    });
     const {
       existingDatasetItems,
       hasAccess: hasDatasetAccess,
@@ -363,77 +339,48 @@ export const ObservationDetailViewHeader = memo(
                   )}
                   {!isAnnotationMode && (
                     <>
-                      {isV4Enabled ? (
-                        <Drawer
-                          key={"annotation-drawer-menu-" + observation.id}
-                        >
-                          <DrawerTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={!hasAnnotationAccess}
-                              onClick={captureAnnotationEntry}
-                              className="w-full justify-start gap-2 font-normal"
-                            >
-                              {!hasAnnotationAccess ? (
-                                <LockIcon className="h-3 w-3" />
-                              ) : (
-                                <SquarePen className="h-4 w-4" />
-                              )}
-                              <span className="text-sm">Annotate</span>
-                            </Button>
-                          </DrawerTrigger>
-                          <DrawerContent className="p-3">
-                            <DualAnnotationContent
-                              isV4={isV4Enabled}
-                              projectId={projectId}
-                              traceId={traceId}
-                              observationId={observation.id}
-                              traceEnvironment={trace.environment}
-                              observationEnvironment={observation.environment}
-                              observationScores={observationScores}
-                              traceScores={traceScores}
-                            />
-                          </DrawerContent>
-                        </Drawer>
-                      ) : (
-                        <AnnotateDrawerController projectId={projectId}>
-                          {({ disabled, openDrawer }) => (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={disabled}
-                              className="w-full justify-start gap-2 font-normal"
-                              onClick={() =>
-                                openDrawer({
-                                  scoreTarget: {
-                                    type: "trace",
-                                    traceId,
-                                    observationId: observation.id,
-                                  },
-                                  scores: observationScores,
-                                  analyticsData: {
-                                    type: "trace",
-                                    source: "TraceDetail",
-                                    isV4: isV4Enabled,
-                                  },
-                                  scoreMetadata: {
-                                    projectId,
-                                    environment: observation.environment,
-                                  },
-                                })
-                              }
-                            >
-                              {disabled ? (
-                                <LockIcon className="h-3 w-3" />
-                              ) : (
-                                <SquarePen className="h-4 w-4" />
-                              )}
-                              <span className="text-sm">Annotate</span>
-                            </Button>
-                          )}
-                        </AnnotateDrawerController>
-                      )}
+                      <AnnotateDrawerController projectId={projectId}>
+                        {({ disabled, openDrawer }) => (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={disabled}
+                            className="w-full justify-start gap-2 font-normal"
+                            onClick={() =>
+                              openDrawer({
+                                scoreTarget: {
+                                  type: "trace",
+                                  traceId,
+                                  observationId: observation.id,
+                                },
+                                scores: observationScores,
+                                companionTrace: isV4Enabled
+                                  ? {
+                                      environment: trace.environment,
+                                      scores: traceScores,
+                                    }
+                                  : undefined,
+                                analyticsData: {
+                                  type: "trace",
+                                  source: "TraceDetail",
+                                  isV4: isV4Enabled,
+                                },
+                                scoreMetadata: {
+                                  projectId,
+                                  environment: observation.environment,
+                                },
+                              })
+                            }
+                          >
+                            {disabled ? (
+                              <LockIcon className="h-3 w-3" />
+                            ) : (
+                              <SquarePen className="h-4 w-4" />
+                            )}
+                            <span className="text-sm">Annotate</span>
+                          </Button>
+                        )}
+                      </AnnotateDrawerController>
                       <AnnotationQueueItemDropdownMenuController
                         projectId={projectId}
                         objectId={observation.id}
@@ -451,9 +398,7 @@ export const ObservationDetailViewHeader = memo(
                             className="w-full justify-start gap-2 font-normal"
                           >
                             <ListPlus className="h-4 w-4" />
-                            <span className="text-sm">
-                              Add to human annotation queue
-                            </span>
+                            <span className="text-sm">Queue</span>
                             {totalCount > 0 && (
                               <AnnotationQueueItemCountBadge
                                 totalCount={totalCount}
@@ -589,73 +534,47 @@ export const ObservationDetailViewHeader = memo(
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
                 <div className="flex flex-wrap items-start gap-2">
-                  {isV4Enabled ? (
-                    <Drawer key={"annotation-drawer-" + observation.id}>
-                      <DrawerTrigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={!hasAnnotationAccess}
-                          onClick={captureAnnotationEntry}
-                        >
-                          {!hasAnnotationAccess ? (
-                            <LockIcon className="mr-1.5 h-3 w-3" />
-                          ) : (
-                            <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                          )}
-                          <span>Annotate</span>
-                        </Button>
-                      </DrawerTrigger>
-                      <DrawerContent className="p-3">
-                        <DualAnnotationContent
-                          isV4={isV4Enabled}
-                          projectId={projectId}
-                          traceId={traceId}
-                          observationId={observation.id}
-                          traceEnvironment={trace.environment}
-                          observationEnvironment={observation.environment}
-                          observationScores={observationScores}
-                          traceScores={traceScores}
-                        />
-                      </DrawerContent>
-                    </Drawer>
-                  ) : (
-                    <AnnotateDrawerController projectId={projectId}>
-                      {({ disabled, openDrawer }) => (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={disabled}
-                          onClick={() =>
-                            openDrawer({
-                              scoreTarget: {
-                                type: "trace",
-                                traceId,
-                                observationId: observation.id,
-                              },
-                              scores: observationScores,
-                              analyticsData: {
-                                type: "trace",
-                                source: "TraceDetail",
-                                isV4: isV4Enabled,
-                              },
-                              scoreMetadata: {
-                                projectId,
-                                environment: observation.environment,
-                              },
-                            })
-                          }
-                        >
-                          {disabled ? (
-                            <LockIcon className="mr-1.5 h-3 w-3" />
-                          ) : (
-                            <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                          )}
-                          <span>Annotate</span>
-                        </Button>
-                      )}
-                    </AnnotateDrawerController>
-                  )}
+                  <AnnotateDrawerController projectId={projectId}>
+                    {({ disabled, openDrawer }) => (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={disabled}
+                        onClick={() =>
+                          openDrawer({
+                            scoreTarget: {
+                              type: "trace",
+                              traceId,
+                              observationId: observation.id,
+                            },
+                            scores: observationScores,
+                            companionTrace: isV4Enabled
+                              ? {
+                                  environment: trace.environment,
+                                  scores: traceScores,
+                                }
+                              : undefined,
+                            analyticsData: {
+                              type: "trace",
+                              source: "TraceDetail",
+                              isV4: isV4Enabled,
+                            },
+                            scoreMetadata: {
+                              projectId,
+                              environment: observation.environment,
+                            },
+                          })
+                        }
+                      >
+                        {disabled ? (
+                          <LockIcon className="mr-1.5 h-3 w-3" />
+                        ) : (
+                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        <span>Annotate</span>
+                      </Button>
+                    )}
+                  </AnnotateDrawerController>
                   <AnnotationQueueItemDropdownMenuController
                     projectId={projectId}
                     objectId={observation.id}
@@ -670,7 +589,7 @@ export const ObservationDetailViewHeader = memo(
                         className="gap-1.5"
                       >
                         <ListPlus className="h-3.5 w-3.5" />
-                        <span>Add to human annotation queue</span>
+                        <span>Queue</span>
                         {totalCount > 0 && (
                           <ActionButtonCountBadge count={totalCount} />
                         )}

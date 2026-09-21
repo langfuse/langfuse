@@ -40,6 +40,7 @@ export function CategoricalScoreInput({
   name,
   analyticsData,
   onValueChange,
+  isActive = true,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
@@ -49,6 +50,7 @@ export function CategoricalScoreInput({
   name: string;
   analyticsData: AnnotationAnalyticsContext;
   onValueChange: (value: string, numericValue?: number) => void;
+  isActive?: boolean;
 }) {
   const hasConfigCudAccess = useHasProjectAccess({
     projectId,
@@ -84,7 +86,7 @@ export function CategoricalScoreInput({
         <Combobox
           name={name}
           value={value}
-          disabled={disabled}
+          disabled={disabled || !isActive}
           onValueChange={onValueChange}
           options={categories.map((category) => ({
             value: category.label,
@@ -167,6 +169,7 @@ export function CategoricalScoreInput({
       )}
       {pendingLabel !== null ? (
         <AddScoreCategoryDialog
+          isActive={isActive}
           projectId={projectId}
           config={config}
           initialLabel={pendingLabel}

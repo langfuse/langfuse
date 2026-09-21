@@ -313,6 +313,9 @@ export function MultiSelectTagInput<V extends string>({
           <PopoverPrimitive.Content
             align="start"
             sideOffset={4}
+            onCloseAutoFocus={(event) => {
+              if (disabled) event.preventDefault();
+            }}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}
           >
