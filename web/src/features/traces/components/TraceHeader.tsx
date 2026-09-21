@@ -51,13 +51,15 @@ export function TraceHeader() {
     [mergedScores],
   );
 
-  const items: TraceHeaderItem[] = [
-    {
+  const items: TraceHeaderItem[] = [];
+
+  if (trace.latency != null) {
+    items.push({
       key: "latency",
-      searchText: `latency ${trace.latency ?? ""}`,
-      content: <LatencyBadge latencySeconds={trace.latency ?? null} />,
-    },
-  ];
+      searchText: `latency ${trace.latency}`,
+      content: <LatencyBadge latencySeconds={trace.latency} />,
+    });
+  }
 
   if (aggregatedMetrics.totalCost != null && aggregatedMetrics.costDetails) {
     items.push({
