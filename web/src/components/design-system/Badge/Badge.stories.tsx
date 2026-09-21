@@ -17,7 +17,6 @@ const meta = preview.meta({
 
 const allColors = Object.keys({
   primary: true,
-  emphasis: true,
   red: true,
   yellow: true,
   blue: true,

@@ -11,7 +11,6 @@ const badgeVariants = cva(
     variants: {
       color: {
         primary: "border-border bg-transparent text-foreground-secondary",
-        emphasis: "border-transparent bg-tertiary/60 text-foreground-secondary",
         red: "border-transparent bg-light-red/60 text-dark-red/90 dark:bg-light-red/40 dark:text-dark-red/90",
         yellow: "border-transparent bg-light-yellow/80 text-dark-yellow",
         blue: "border-transparent bg-light-blue text-dark-blue",
@@ -67,7 +66,7 @@ export function Badge({
 }: BadgeProps) {
   return (
     <BadgeShell color={color} {...props}>
-      {label && <span className="text-muted-foreground shrink-0">{label}</span>}
+      {label && <span className="shrink-0">{label}</span>}
       <span className="truncate" title={title ?? text}>
         {text}
       </span>
@@ -76,7 +75,9 @@ export function Badge({
           aria-hidden
           className={cn(
             "size-3 shrink-0",
-            trailingIconTone === "link" && "text-link",
+            trailingIconTone === "link"
+              ? "text-foreground-tertiary -ml-0.5"
+              : "text-foreground-tertiary",
           )}
         />
       )}

@@ -11,7 +11,7 @@ export const TagButton: React.FC<{
 }> = React.memo(({ tag, loading, viewOnly = false, isTableCell = false }) => {
   const label = (
     <>
-      <TagIcon className="size-3 shrink-0" />
+      <TagIcon className="text-foreground-tertiary size-3 shrink-0" />
       <span
         className={cn(
           "overflow-hidden text-ellipsis whitespace-nowrap",
@@ -27,18 +27,18 @@ export const TagButton: React.FC<{
   if (viewOnly) {
     return (
       <span className="inline-flex max-w-40 min-w-0">
-        <BadgeShell color="emphasis">{label}</BadgeShell>
+        <BadgeShell>{label}</BadgeShell>
       </span>
     );
   }
 
   return (
-    <BadgeShell asChild color="emphasis">
+    <BadgeShell asChild>
       <button
         key={tag}
         type="button"
         disabled={loading}
-        className="focus-visible:ring-ring hover:bg-tertiary w-fit max-w-40 min-w-0 gap-1 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-visible:ring-ring hover:bg-accent w-fit max-w-40 min-w-0 focus-visible:ring-2 focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
       >
         {label}
       </button>
