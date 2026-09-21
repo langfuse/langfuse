@@ -400,6 +400,7 @@ export function ConnectedObservationDetailView({
                 ) : null}
 
                 {(selectedTab === "log" ||
+                  selectedTab === "attributes" ||
                   (selectedTab === "preview" && isPrettyViewAvailable)) && (
                   <>
                     <div className="ml-auto h-fit px-2 py-0.5">
