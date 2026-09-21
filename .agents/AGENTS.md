@@ -17,6 +17,11 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
+- Before creating a new component or reusing one from elsewhere in
+  `web/src/components`, first check `web/src/components/design-system` for an
+  existing component that satisfies the use case. Prefer the design-system
+  component and extend it when appropriate; use another component only when
+  the design system has no suitable option.
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
