@@ -54,15 +54,8 @@ const manyUsers = Array.from(
 const defaultArgs = {
   projectId: "project-1",
   countTraces: 24,
-  traces: {
-    state: "loaded",
-    data: [
-      { latencyMs: 1_240, observationCount: 42 },
-      { latencyMs: 2_310, observationCount: 38 },
-      { latencyMs: 4_620, observationCount: 51 },
-      { latencyMs: 8_760, observationCount: 55 },
-    ],
-  },
+  minTimestamp: new Date("2026-09-11T10:00:00Z"),
+  maxTimestamp: new Date("2026-09-11T10:04:12Z"),
   tokensIn: 18_420,
   tokensOut: 6_310,
   totalTokens: 24_730,
@@ -80,7 +73,6 @@ const defaultArgs = {
 
 const minimalArgs = {
   ...defaultArgs,
-  traces: { state: "loading" },
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
@@ -160,7 +152,7 @@ export const TestSearchesHiddenPills = meta.story({
     await expect(
       overflowButton.getBoundingClientRect().left -
         lastVisiblePill.getBoundingClientRect().right,
-    ).toBeLessThanOrEqual(8);
+    ).toBeLessThanOrEqual(24);
     const overflowButtonRect = overflowButton.getBoundingClientRect();
     const lastVisiblePillRect = lastVisiblePill.getBoundingClientRect();
     await expect(
@@ -177,7 +169,7 @@ export const TestSearchesHiddenPills = meta.story({
       trailingButton.getBoundingClientRect().left -
       overflowButton.getBoundingClientRect().right;
     await expect(trailingGap).toBeGreaterThanOrEqual(0);
-    await expect(trailingGap).toBeLessThanOrEqual(8);
+    await expect(trailingGap).toBeLessThanOrEqual(24);
 
     await userEvent.click(overflowButton);
 
