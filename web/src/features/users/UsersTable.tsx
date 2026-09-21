@@ -31,7 +31,7 @@ import {
   sortOptionValues,
 } from "@/src/features/filters";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 

@@ -18,17 +18,17 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { type ScoreAggregate } from "@langfuse/shared";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import Page from "@/src/components/layouts/page";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { TruncatedLabels } from "@/src/components/TruncatedLabels";
 import {
   getPromptTabs,
   PROMPT_TABS,
 } from "@/src/features/navigation/utils/prompt-tabs";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import {
+  useScoreColumns,
   scoreFilters,
   addPrefixToScoreKeys,
-} from "@/src/features/scores/lib/scoreColumns";
+} from "@/src/features/scores";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";

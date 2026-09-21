@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   mixpanelIntegrationFormSchema,
   MIXPANEL_REGIONS,
@@ -41,7 +41,7 @@ import {
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
 } from "@/src/features/analytics-integrations/exportSource";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";

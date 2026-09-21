@@ -16,7 +16,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useProjectSettingsPages } from "@/src/features/projects";
-import { useOrganizationSettingsPages } from "@/src/features/organizations";
+import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { useAccountSettingsPages } from "@/src/features/account";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { api } from "@/src/utils/api";

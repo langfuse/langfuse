@@ -57,7 +57,7 @@ import {
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {

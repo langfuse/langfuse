@@ -60,7 +60,12 @@ import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import {
+  TableActionMenu,
+  type TableAction,
+  useSelectAll,
+  TableSelectionManager,
+} from "@/src/features/table";
 import React, {
   type ReactNode,
   useState,
@@ -68,12 +73,9 @@ import React, {
   useCallback,
   useMemo,
 } from "react";
-import type { TableAction } from "@/src/features/table/types";
 import type { RowSelectionState } from "@tanstack/react-table";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";

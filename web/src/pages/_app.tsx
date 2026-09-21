@@ -84,7 +84,7 @@ if (typeof window !== "undefined") {
 }
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
-import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
 import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
@@ -92,16 +92,16 @@ import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawer
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { ScoreCacheProvider } from "@/src/features/scores";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
-import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  V4_BETA_ENABLED_POSTHOG_PROPERTY,
   getPostHogClientConfig,
   isPostHogClientEnabled,
   isProductAnalyticsAvailable,
-} from "@/src/features/posthog-analytics/productAnalyticsAvailability";
+} from "@/src/features/posthog-analytics";
 
 // Session replay is a Langfuse Cloud feature, so self-hosted never records.
 // The product-analytics gate makes this redundant in HIPAA (PostHog is not
