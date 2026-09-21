@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
 };
@@ -121,10 +121,26 @@ where
     T: Send + 'static,
 {
     let (sender, receiver) = mpsc::channel(1);
+    // Covers the response body after provider headers until the relay is
+    // finalized, which the header-scoped client span cannot see.
+    let span = tracing::info_span!(
+        "provider.stream",
+        otel.kind = "internal",
+        otel.status_code = tracing::field::Empty,
+        http.response.body.size = tracing::field::Empty,
+        gateway.chunks = tracing::field::Empty,
+        gateway.outcome = tracing::field::Empty,
+    );
     let resources = Arc::new(StreamResources {
-        owner: Mutex::new(Some((owner, capture))),
+        relay: Mutex::new(Some(Relay {
+            owner,
+            capture,
+            span,
+        })),
         failed: AtomicBool::new(false),
         released: Notify::new(),
+        bytes: AtomicUsize::new(0),
+        chunks: AtomicUsize::new(0),
     });
     let pump_resources = resources.clone();
     let task = tokio::spawn(async move {
@@ -132,6 +148,10 @@ where
             tokio::pin!(upstream);
             while let Some(chunk) = upstream.next().await {
                 let chunk = chunk?;
+                pump_resources
+                    .bytes
+                    .fetch_add(chunk.len(), Ordering::Relaxed);
+                pump_resources.chunks.fetch_add(1, Ordering::Relaxed);
                 pump_resources.observe(|capture| capture.push_bytes(&chunk));
                 // One queued chunk plus one pending send; no per-chunk tasks.
                 for bytes in chunk.chunks(64 * 1024) {
@@ -172,17 +192,27 @@ where
     })
 }
 
+/// Everything the winning finalizer releases at once: admission and trusted
+/// context, the capture, and the stream span, which ends when it is dropped here.
+struct Relay<T> {
+    owner: T,
+    capture: Option<ExecutionCapture>,
+    span: tracing::Span,
+}
+
 struct StreamResources<T> {
-    owner: Mutex<Option<(T, Option<ExecutionCapture>)>>,
+    relay: Mutex<Option<Relay<T>>>,
     failed: AtomicBool,
     released: Notify,
+    bytes: AtomicUsize,
+    chunks: AtomicUsize,
 }
 
 impl<T> StreamResources<T> {
     fn release(&self, outcome: RelayOutcome) {
-        let owner = {
-            let mut owner = self.owner.lock().expect("relay owner lock poisoned");
-            let taken = owner.take();
+        let relay = {
+            let mut relay = self.relay.lock().expect("relay owner lock poisoned");
+            let taken = relay.take();
             // Only the winning finalizer publishes the body failure. In
             // particular, a deadline racing downstream EOF cannot change it later.
             if taken.is_some()
@@ -195,7 +225,14 @@ impl<T> StreamResources<T> {
             }
             taken
         };
-        if let Some((owner, capture)) = owner {
+        if let Some(Relay {
+            owner,
+            capture,
+            span,
+        }) = relay
+        {
+            self.record_outcome(&span, outcome);
+            drop(span);
             drop(owner);
             if let Some(mut capture) = capture {
                 capture.finish(outcome);
@@ -204,12 +241,29 @@ impl<T> StreamResources<T> {
         self.released.notify_one();
     }
 
+    fn record_outcome(&self, span: &tracing::Span, outcome: RelayOutcome) {
+        let count = |value: usize| i64::try_from(value).unwrap_or(i64::MAX);
+        span.record(
+            "http.response.body.size",
+            count(self.bytes.load(Ordering::Relaxed)),
+        );
+        span.record("gateway.chunks", count(self.chunks.load(Ordering::Relaxed)));
+        span.record("gateway.outcome", outcome.as_str());
+        if matches!(
+            outcome,
+            RelayOutcome::Timeout | RelayOutcome::TransportError
+        ) {
+            span.record("otel.status_code", "ERROR");
+        }
+    }
+
     fn observe(&self, update: impl FnOnce(&mut ExecutionCapture)) {
-        if let Some((_, Some(capture))) = self
-            .owner
+        if let Some(capture) = self
+            .relay
             .lock()
             .expect("relay owner lock poisoned")
             .as_mut()
+            .and_then(|relay| relay.capture.as_mut())
         {
             update(capture);
         }
@@ -273,9 +327,15 @@ mod tests {
     fn eof_and_deadline_finalizers_cannot_overwrite_each_other() {
         for first in [RelayOutcome::Eof, RelayOutcome::Timeout] {
             let resources = StreamResources {
-                owner: Mutex::new(Some(((), None))),
+                relay: Mutex::new(Some(Relay {
+                    owner: (),
+                    capture: None,
+                    span: tracing::Span::none(),
+                })),
                 failed: AtomicBool::new(false),
                 released: Notify::new(),
+                bytes: AtomicUsize::new(0),
+                chunks: AtomicUsize::new(0),
             };
             resources.release(first);
             resources.release(RelayOutcome::Timeout);
@@ -285,8 +345,57 @@ mod tests {
                 resources.failed.load(Ordering::Acquire),
                 first == RelayOutcome::Timeout
             );
-            assert!(resources.owner.lock().unwrap().is_none());
+            assert!(resources.relay.lock().unwrap().is_none());
         }
+    }
+
+    #[tokio::test]
+    async fn stream_span_ends_with_the_relay_and_records_the_failed_outcome() {
+        use opentelemetry::trace::TracerProvider;
+        use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
+        use tracing_subscriber::prelude::*;
+
+        let exporter = InMemorySpanExporter::default();
+        let provider = SdkTracerProvider::builder()
+            .with_simple_exporter(exporter.clone())
+            .build();
+        let _guard = tracing::subscriber::set_default(
+            tracing_subscriber::registry()
+                .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test"))),
+        );
+        let released = Arc::new(Notify::new());
+        let body = relay_stream(
+            stream::iter([
+                Ok(Bytes::from_static(b"partial")),
+                Err(ProviderError::Transport),
+            ]),
+            Instant::now() + Duration::from_secs(1),
+            Owner(released.clone()),
+            None,
+        );
+        tokio::time::timeout(Duration::from_secs(1), released.notified())
+            .await
+            .unwrap();
+        // The finalizer drops the span, so it is exported before the body is even polled.
+        let spans = exporter.get_finished_spans().unwrap();
+        assert_eq!(spans.len(), 1);
+        let stream = &spans[0];
+        assert_eq!(stream.name, "provider.stream");
+        assert!(matches!(
+            stream.status,
+            opentelemetry::trace::Status::Error { .. }
+        ));
+        let attribute = |key: &str| {
+            stream
+                .attributes
+                .iter()
+                .find(|attribute| attribute.key.as_str() == key)
+                .map(|attribute| attribute.value.clone())
+        };
+        assert_eq!(attribute("gateway.outcome"), Some("transport_error".into()));
+        assert_eq!(attribute("http.response.body.size"), Some(7i64.into()));
+        assert_eq!(attribute("gateway.chunks"), Some(1i64.into()));
+        assert!(to_bytes(body, 1024).await.is_err());
     }
 
     #[tokio::test]

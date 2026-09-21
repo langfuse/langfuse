@@ -39,8 +39,12 @@
       ],
     },
     "web": {
-      // Components imported by MDX documentation, which Knip does not trace.
-      "entry": [".storybook/docs/**/*.tsx"],
+      "entry": [
+        // Components imported by MDX documentation, which Knip does not trace.
+        ".storybook/docs/**/*.tsx",
+        // Runtime worker entry loaded by filename through Piscina.
+        "src/server/otel/otelIngestionWorker.ts",
+      ],
       "ignoreFiles": [
         // Standalone benchmark invoked directly with Node rather than imported by the application.
         "src/features/traces/components/AdvancedJsonViewer/lazy/benchByteJsonIndex.ts",

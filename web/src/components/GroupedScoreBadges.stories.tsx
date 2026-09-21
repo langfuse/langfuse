@@ -1,5 +1,5 @@
 import { type LastUserScore } from "@langfuse/shared";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../.storybook/preview";
 import { GroupedScoreBadges } from "./grouped-score-badge";
@@ -47,6 +47,7 @@ export const Compact = meta.story({
 });
 
 export const WithOverflow = meta.story({
+  name: "(Test) With Overflow",
   args: {
     scores: [
       ...scores,
@@ -58,6 +59,21 @@ export const WithOverflow = meta.story({
       },
     ],
     maxVisible: 2,
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      body.getByRole("button", { name: "Show all 3 scores" }),
+    );
+
+    await waitFor(async () => {
+      await expect(
+        canvasElement.ownerDocument.body.querySelectorAll(
+          '[role="dialog"][data-state="open"] li',
+        ),
+      ).toHaveLength(3);
+    });
   },
 });
 
@@ -124,13 +140,15 @@ export const ScoreGroup = meta.story({
       canvasElement.querySelector('[title="OutputModerationPrecision.pii"]'),
     ).toBeNull();
     // ...and count as one toward the cap: helpfulness shows, quality rolls
-    // into "+1".
+    // into "+1". The popover still lists every score by name.
     await expect(
       canvasElement.querySelector('[title="helpfulness"]'),
     ).not.toBeNull();
-    await expect(
-      canvasElement.querySelector('[aria-label="Show 1 more score"]'),
-    ).not.toBeNull();
+    const overflow = canvasElement.querySelector(
+      '[aria-label="Show all 6 scores"]',
+    );
+    await expect(overflow).not.toBeNull();
+    await expect(overflow?.textContent).toBe("+1");
   },
 });
 

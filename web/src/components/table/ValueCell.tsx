@@ -39,8 +39,8 @@ export type MetadataFilterActions = {
 const MAX_STRING_LENGTH_FOR_LINK_DETECTION = 1500;
 const MAX_CELL_DISPLAY_CHARS = 2000;
 const ARRAY_PREVIEW_ITEMS = 3;
-const MONO_TEXT_CLASSES = "font-mono text-xs wrap-break-word";
-const PREVIEW_TEXT_CLASSES = "italic text-gray-500 dark:text-gray-400";
+const VALUE_TEXT_CLASSES = "font-mono text-xs/5 wrap-break-word";
+const PREVIEW_TEXT_CLASSES = "text-gray-500 dark:text-gray-400";
 
 const ROW_ACTION_BUTTON_CLASSES =
   "text-muted-foreground absolute top-0 h-5 w-5 rounded-sm p-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100 hover:bg-transparent hover:text-foreground";
@@ -92,10 +92,8 @@ function getValueType(value: unknown): JsonTableRow["type"] {
   return typeof value as JsonTableRow["type"];
 }
 
-function renderArrayValue(arr: unknown[]): JSX.Element {
-  if (arr.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty list</span>;
-  }
+function arrayPreviewText(arr: unknown[]): string {
+  if (arr.length === 0) return "empty list";
 
   if (arr.length <= SMALL_ARRAY_THRESHOLD) {
     // Show inline values for small arrays
@@ -117,7 +115,7 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
         return String(item);
       })
       .join(", ");
-    return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
+    return `[${displayItems}]`;
   }
   // Show truncated values for large arrays
   const preview = arr
@@ -129,11 +127,11 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
       return String(item);
     })
     .join(", ");
-  return (
-    <span className={PREVIEW_TEXT_CLASSES}>
-      [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-    </span>
-  );
+  return `[${preview}, ...${arr.length - ARRAY_PREVIEW_ITEMS} more]`;
+}
+
+function renderPreview(text: string): JSX.Element {
+  return <span className={PREVIEW_TEXT_CLASSES}>{text}</span>;
 }
 
 function formatPreviewPrimitive(value: unknown): string {
@@ -151,16 +149,10 @@ function formatShortObjectPreview(obj: Record<string, unknown>): string | null {
   return `{${fields.join(", ")}}`;
 }
 
-function renderObjectValue(obj: Record<string, unknown>): JSX.Element {
+function objectPreviewText(obj: Record<string, unknown>): string {
   const keys = Object.keys(obj);
-  if (keys.length === 0) {
-    return <span className={PREVIEW_TEXT_CLASSES}>empty object</span>;
-  }
-  const shortPreview = formatShortObjectPreview(obj);
-  if (shortPreview) {
-    return <span className={PREVIEW_TEXT_CLASSES}>{shortPreview}</span>;
-  }
-  return <span className={PREVIEW_TEXT_CLASSES}>{keys.length} items</span>;
+  if (keys.length === 0) return "empty object";
+  return formatShortObjectPreview(obj) ?? `${keys.length} items`;
 }
 
 function getValueStringLength(value: unknown): number {
@@ -373,7 +365,8 @@ export const ValueCell = memo(
 
     const handleCopy = async (e: React.MouseEvent) => {
       e.stopPropagation();
-      const copyValue = getCopyValue(value);
+      const copyValue =
+        typeof value === "string" ? JSON.stringify(value) : getCopyValue(value);
 
       try {
         await copyTextToClipboard(copyValue);
@@ -414,7 +407,7 @@ export const ValueCell = memo(
                     : "whitespace-pre-line"
                 }`}
               >
-                &quot;{renderStringWithLinks(displayValue)}&quot;
+                {renderStringWithLinks(displayValue)}
               </span>
             ),
             needsTruncation,
@@ -459,11 +452,11 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          const arrayValue = value as unknown[];
-          // Arrays always show previews, never truncate
+          const arrayPreview = arrayPreviewText(value as unknown[]);
           return {
-            content: renderArrayValue(arrayValue),
+            content: renderPreview(arrayPreview),
             needsTruncation: false,
+            previewTitle: arrayPreview,
           };
         }
         case "object": {
@@ -475,11 +468,13 @@ export const ValueCell = memo(
               needsTruncation: false,
             };
           }
-          const objectValue = value as Record<string, unknown>;
-          // Objects always show previews, never truncate
+          const objectPreview = objectPreviewText(
+            value as Record<string, unknown>,
+          );
           return {
-            content: renderObjectValue(objectValue),
+            content: renderPreview(objectPreview),
             needsTruncation: false,
+            previewTitle: objectPreview,
           };
         }
         default: {
@@ -502,11 +497,23 @@ export const ValueCell = memo(
       }
     };
 
-    const { content, needsTruncation } = getDisplayValue();
+    const { content, needsTruncation, previewTitle } = getDisplayValue();
+    const singleLine = previewTitle !== undefined;
 
     return (
-      <div className={`${MONO_TEXT_CLASSES} group relative max-w-full`}>
-        <span className="cursor-text">{content}</span>
+      <div
+        className={cn(
+          VALUE_TEXT_CLASSES,
+          "group relative max-w-full",
+          singleLine && "w-0 min-w-full",
+        )}
+      >
+        <span
+          className={cn("cursor-text", singleLine && "block truncate")}
+          title={previewTitle}
+        >
+          {content}
+        </span>
         {needsTruncation && !row.original.hasChildren && (
           <div
             className="inline cursor-pointer opacity-50"

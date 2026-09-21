@@ -24,7 +24,6 @@ import {
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import {
   getScoreFilterConfig,
   observationScopeFilter,
@@ -58,7 +57,7 @@ import {
   groupScoreRowsByPrefix,
   type GroupedScoreRows,
   type ScoreRowGroup,
-} from "@/src/components/table/use-cases/groupScoreRows";
+} from "@/src/features/scores/lib/groupScoreRows";
 
 import type { RouterOutput } from "@/src/utils/types";
 import TagList from "@/src/features/tag/components/TagList";
@@ -67,7 +66,13 @@ import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrde
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, {
+  type ReactNode,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import type { TableAction } from "@/src/features/table/types";
 import type {
   Row,
@@ -164,6 +169,11 @@ export type ScoresTableProps = {
    * project-wide table keeps its flat rows.
    */
   groupByNamePrefix?: boolean;
+  /** Page-owned peek panel; omit when embedded inside a trace/observation view. */
+  renderTracePeek?: (api: {
+    closePeek: () => void;
+    expandPeek: (openInNewTab: boolean) => void;
+  }) => ReactNode;
 };
 
 function createFilterState(
@@ -195,6 +205,7 @@ export default function ScoresTable({
   showControlsInPageHeader = false,
   showAllEnvironments = false,
   groupByNamePrefix = false,
+  renderTracePeek,
 }: ScoresTableProps) {
   const peekContext = usePeekTableState();
   const hasBatchExportAccess = useHasProjectAccess({
@@ -1407,16 +1418,11 @@ export default function ScoresTable({
             )}
           </div>
         </ResizableFilterLayout>
-        {peekEnabled && (
-          <TablePeekViewTraceDetail
-            closePeek={closeScorePeek}
-            expandPeek={expandScorePeek}
-            itemType="TRACE"
-            tableName={scoresFilterConfig.tableName}
-            isV4={isV4}
-            projectId={projectId}
-          />
-        )}
+        {peekEnabled &&
+          renderTracePeek?.({
+            closePeek: closeScorePeek,
+            expandPeek: expandScorePeek,
+          })}
       </div>
     </DataTableControlsProvider>
   );

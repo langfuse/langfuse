@@ -2,7 +2,7 @@ import type {
   NormalizedMessage,
   ToolCallPart,
 } from "../../utils/normalized-io";
-import type { Thread, ThreadMessage } from "./types";
+import type { Turn, ThreadMessage } from "./types";
 import {
   addContributor,
   type KeyedMessage,
@@ -10,7 +10,7 @@ import {
 } from "./threads";
 
 type Call = {
-  thread: Thread;
+  thread: Turn;
   message: ThreadMessage;
   response?: ThreadMessage;
   fromTool?: boolean;
@@ -19,14 +19,14 @@ const key = (traceId: string, id: string) => JSON.stringify([traceId, id]);
 
 export function createToolCallRegistry() {
   const calls = new Map<string, Call>();
-  const callsByThread = new WeakMap<Thread, Map<string, Call[]>>();
+  const callsByThread = new WeakMap<Turn, Map<string, Call[]>>();
   const pending = new Map<string, { calls: Call[]; next: number }>();
   const responseTails = new WeakMap<ThreadMessage, ThreadMessage>();
 
   function register(
     observation: TranscriptObservation,
     part: ToolCallPart,
-    thread: Thread,
+    thread: Turn,
     message: ThreadMessage,
   ) {
     const id = part.toolCallId
@@ -80,7 +80,7 @@ export function createToolCallRegistry() {
   function consumePart(
     observation: TranscriptObservation,
     part: NormalizedMessage["parts"][number],
-    thread: Thread,
+    thread: Turn,
     message: ThreadMessage,
     replayCalls: Map<string, number>,
     replayTotals: Map<string, number>,
