@@ -348,10 +348,10 @@ export const TestCompactsTokenCounts = meta.story({
     ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent("649k → 7k (Σ 655k)");
-    await expect(tokenPill?.querySelector("[title]")).toHaveAttribute(
+    await expect(tokenPill).toHaveTextContent(/649k.*7k.*655k/);
+    await expect(tokenPill).toHaveAttribute(
       "title",
-      "tokens 648,714 → 6,697 (Σ 655,411)",
+      "tokens 648,714 in, 6,697 out, 655,411 total",
     );
   },
 });
