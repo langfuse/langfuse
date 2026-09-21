@@ -11,7 +11,7 @@ import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPag
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 

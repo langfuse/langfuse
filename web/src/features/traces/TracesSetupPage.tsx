@@ -9,7 +9,7 @@ import { Button } from "@/src/components/ui/button";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
 import { type RouterOutput } from "@/src/utils/types";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 
 export const TracingSetup = ({
   projectId,

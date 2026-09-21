@@ -32,7 +32,7 @@ import {
 } from "@/src/features/filters";
 
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useEventsFilterOptions } from "@/src/features/events";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";

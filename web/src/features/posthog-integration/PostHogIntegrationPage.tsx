@@ -21,7 +21,7 @@ import {
   getExportSourceFormValue,
 } from "@/src/features/analytics-integrations/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";

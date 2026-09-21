@@ -66,7 +66,7 @@ import {
   TableSelectionManager,
 } from "@/src/features/table";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 

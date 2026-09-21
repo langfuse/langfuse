@@ -34,6 +34,7 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
@@ -42,7 +43,7 @@ import {
   isExportSourceSelectable,
 } from "@/src/features/analytics-integrations/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";

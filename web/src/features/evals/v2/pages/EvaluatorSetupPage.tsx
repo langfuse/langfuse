@@ -49,7 +49,7 @@ import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/component
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useProject } from "@/src/features/projects/hooks";
+import { useProject } from "@/src/features/projects";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";

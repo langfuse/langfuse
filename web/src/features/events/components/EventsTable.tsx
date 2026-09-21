@@ -136,6 +136,7 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
@@ -157,8 +158,7 @@ import { MobileFullTextSearch } from "@/src/features/events/components/MobileFul
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
-import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
@@ -171,7 +171,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 
 export type EventsTableRow = {
   // Identity fields

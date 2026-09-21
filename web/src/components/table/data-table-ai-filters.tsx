@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { Info } from "lucide-react";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations";
 import { api, reportNonTrpcError } from "@/src/utils/api";

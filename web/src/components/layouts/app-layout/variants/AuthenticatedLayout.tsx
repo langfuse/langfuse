@@ -45,12 +45,12 @@ import {
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
-import { usePlan } from "@/src/features/entitlements/hooks";
+import { usePlan } from "@/src/features/entitlements";
 import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   PaymentBannerView,

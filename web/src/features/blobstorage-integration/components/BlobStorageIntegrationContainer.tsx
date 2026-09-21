@@ -12,7 +12,7 @@ import {
 import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useQueryProject } from "@/src/features/projects";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
 

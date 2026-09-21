@@ -41,11 +41,9 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   RESOURCE_METRICS,
   transformAggregatedRunMetricsToChartData,
-} from "@/src/features/dashboard/lib/score-analytics-utils";
-import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
-} from "@/src/features/dashboard/lib/chart-data-adapters";
+} from "@/src/features/dashboard";
 import { Chart } from "@/src/features/widgets";
 import {
   addPrefixToScoreKeys,

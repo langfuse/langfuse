@@ -57,8 +57,10 @@ import {
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
-import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import {
+  AnnotationQueueItemDropdownMenuController,
+  AnnotationQueueItemCountBadge,
+} from "@/src/features/annotation-queues";
 import {
   useWebCalloutAction,
   WebCalloutButton,
@@ -71,8 +73,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import {
+  observationEventsFilterConfig,
+  useEventsFilterOptions,
+} from "@/src/features/events";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
