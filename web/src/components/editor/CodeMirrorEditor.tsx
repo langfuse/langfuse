@@ -111,7 +111,7 @@ export const getPromptVariableDiagnostics = (content: string): Diagnostic[] => {
         to: match.index + match[0].length,
         severity: "error",
         message:
-          "Variable must start with a letter and can only contain letters and underscores",
+          "Variable must start with a letter and can only contain letters, numbers and underscores",
       });
     }
   }
