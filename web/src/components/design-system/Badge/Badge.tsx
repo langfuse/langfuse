@@ -85,7 +85,10 @@ export function Badge({
   return (
     <BadgeShell color={color} {...props}>
       {label && <span className="shrink-0">{label}</span>}
-      <span className="truncate" title={title ?? text}>
+      <span
+        className="overflow-x-clip overflow-y-visible text-ellipsis whitespace-nowrap"
+        title={title ?? text}
+      >
         {text}
       </span>
       {TrailingIcon && (
