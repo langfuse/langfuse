@@ -9,7 +9,7 @@ import {
   vi,
 } from "vitest";
 import { type Job } from "bullmq";
-import { context, trace } from "@opentelemetry/api";
+import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
 import {
   getCurrentSpan,
@@ -175,6 +175,7 @@ describe("trace batch queue", () => {
           "langfuse.trace.id": "b",
           "langfuse.trace_batch.token_estimation": "failed",
         });
+        expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
         expect(spans[1].attributes).not.toHaveProperty(
           "langfuse.trace_batch.transcript_tokens",
         );

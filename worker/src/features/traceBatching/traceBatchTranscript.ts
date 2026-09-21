@@ -109,10 +109,6 @@ export function recordTraceBatchTranscript(
         // A missing experiment metric must not retry all reads in the batch.
         recordIncrement("langfuse.trace_batch.token_estimation_failed", 1);
         span.setAttribute("langfuse.trace_batch.token_estimation", "failed");
-        span.setStatus({
-          code: SpanStatusCode.ERROR,
-          message: "Token estimation failed",
-        });
       })
       .finally(() => span.end());
   } catch (error) {
