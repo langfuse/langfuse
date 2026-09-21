@@ -3,6 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { MultiSelectTagInput } from "./MultiSelectTagInput";
+import { Badge } from "@/src/components/ui/badge";
 
 const options = [
   { value: "option-1", label: "Option 1" },
@@ -100,6 +101,120 @@ export const ManySelected = meta.story({
       <MultiSelectTagInput {...args} />
     </div>
   ),
+});
+
+export const ScoreFields = meta.story({
+  args: {
+    value: ["feedback", "manual-score"],
+    options: [
+      { value: "feedback", label: "Feedback" },
+      { value: "manual-score", label: "manual-score" },
+    ],
+    onValueChange: fn(),
+    placeholder: "Choose score fields",
+    searchPlaceholder: "Search score fields...",
+    emptyMessage: "No score fields found.",
+  },
+});
+
+export const ScopedScoreFields = meta.story({
+  name: "(Test) Scoped Score Fields",
+  args: {
+    value: ["trace-quality", "observation-quality"],
+    options: [
+      {
+        value: "trace-quality",
+        label: "Quality",
+        accessibleLabel: "Quality (Trace)",
+        keywords: ["Trace"],
+        optionSuffix: (
+          <Badge variant="outline" size="sm">
+            Trace
+          </Badge>
+        ),
+      },
+      {
+        value: "observation-quality",
+        label: "Quality",
+        accessibleLabel: "Quality (Observation)",
+        keywords: ["Observation"],
+        optionSuffix: (
+          <Badge variant="outline" size="sm">
+            Observation
+          </Badge>
+        ),
+      },
+    ],
+    onValueChange: fn(),
+    placeholder: "Choose score fields",
+    searchPlaceholder: "Search score fields...",
+    emptyMessage: "No score fields found.",
+    "aria-label": "Score fields",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+    return (
+      <MultiSelectTagInput
+        {...args}
+        value={value}
+        onValueChange={setValue}
+        options={args.options.map((option) => ({
+          ...option,
+          selectedSuffix: value.length > 1 ? option.optionSuffix : undefined,
+        }))}
+      />
+    );
+  },
+  play: async ({ canvasElement, step }) => {
+    const canvas = within(canvasElement);
+    await step(
+      "Remove only the named scope and hide the remaining selected suffix",
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("button", { name: "Remove Quality (Trace)" }),
+        );
+        await expect(
+          canvas.getByRole("button", { name: "Remove Quality (Observation)" }),
+        ).toBeVisible();
+        await expect(
+          within(
+            canvas.getByRole("combobox", { name: "Score fields" }),
+          ).queryByText("Observation"),
+        ).not.toBeInTheDocument();
+      },
+    );
+    await step(
+      "Search the available scope without changing the score label",
+      async () => {
+        await userEvent.click(
+          canvas.getByRole("combobox", { name: "Score fields" }),
+        );
+        const page = within(document.body);
+        await userEvent.type(
+          page.getByPlaceholderText("Search score fields..."),
+          "Trace",
+        );
+        await expect(
+          page.getByRole("option", { name: "Quality (Trace)" }),
+        ).toBeVisible();
+        await expect(
+          page.queryByRole("option", { name: "Quality (Observation)" }),
+        ).not.toBeInTheDocument();
+        await userEvent.click(
+          page.getByRole("option", { name: "Quality (Trace)" }),
+        );
+        await userEvent.keyboard("{Escape}");
+        await expect(
+          canvas.getByRole("button", { name: "Remove Quality (Trace)" }),
+        ).toBeVisible();
+        await expect(
+          within(
+            canvas.getByRole("combobox", { name: "Score fields" }),
+          ).getByText("Observation"),
+        ).toBeVisible();
+      },
+    );
+  },
 });
 
 export const TestRemovesTag = meta.story({
@@ -201,5 +316,30 @@ export const TestOverflowBadgePlacement = meta.story({
         Math.abs(clearRightGap - expectedClearRightGap),
       ).toBeLessThanOrEqual(0.5);
     });
+  },
+});
+
+export const TestKeepsDisabledTagsWhenClearing = meta.story({
+  name: "(Test) Keeps Disabled Tags When Clearing",
+  args: {
+    value: ["option-1", "option-2", "option-3"],
+    options: options.map((option) => ({
+      ...option,
+      disabled: option.value === "option-1",
+    })),
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Remove Option 1" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear selection" }),
+    );
+    await expect(args.onValueChange).toHaveBeenCalledWith(["option-1"]);
   },
 });

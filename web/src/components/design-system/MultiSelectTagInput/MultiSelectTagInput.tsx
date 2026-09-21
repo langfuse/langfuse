@@ -14,6 +14,11 @@ import { InputDropdown } from "../internal/InputDropdown/InputDropdown";
 type MultiSelectTagOption<V> = {
   value: V;
   label: string;
+  disabled?: boolean;
+  optionSuffix?: React.ReactNode;
+  selectedSuffix?: React.ReactNode;
+  accessibleLabel?: string;
+  keywords?: string[];
 };
 
 type MultiSelectTagInputProps<V> = {
@@ -27,6 +32,7 @@ type MultiSelectTagInputProps<V> = {
   disabled?: boolean;
   error?: boolean;
   id?: string;
+  "aria-label"?: string;
   "aria-describedby"?: string;
   "aria-invalid"?: boolean;
 };
@@ -42,6 +48,7 @@ export function MultiSelectTagInput<V extends string>({
   disabled,
   error,
   id,
+  "aria-label": ariaLabel,
   "aria-describedby": ariaDescribedBy,
   "aria-invalid": ariaInvalid,
 }: MultiSelectTagInputProps<V>) {
@@ -56,17 +63,26 @@ export function MultiSelectTagInput<V extends string>({
   const listId = React.useId();
   const selectedOptions = React.useMemo(
     () =>
-      value.map((selectedValue) => ({
-        value: selectedValue,
-        label:
-          options.find((option) => option.value === selectedValue)?.label ??
-          selectedValue,
-      })),
+      value.map((selectedValue) => {
+        const option = options.find((option) => option.value === selectedValue);
+        return {
+          value: selectedValue,
+          label: option?.label ?? selectedValue,
+          disabled: option?.disabled,
+          selectedSuffix: option?.selectedSuffix,
+          accessibleLabel:
+            option?.accessibleLabel ?? option?.label ?? selectedValue,
+        };
+      }),
     [options, value],
   );
+  const enabledOptions = options.filter((option) => !option.disabled);
+  const disabledValues = options
+    .filter((option) => option.disabled)
+    .map((option) => option.value);
   const allSelected =
-    options.length > 0 &&
-    options.every((option) => value.includes(option.value));
+    enabledOptions.length > 0 &&
+    enabledOptions.every((option) => value.includes(option.value));
   const hiddenOptionCount = selectedOptions.filter(
     (option) => !fullyVisibleValues.has(option.value),
   ).length;
@@ -126,7 +142,17 @@ export function MultiSelectTagInput<V extends string>({
 
   const changeValue = (newValue: V[]) => {
     if (disabled) return;
-    onValueChange(newValue);
+    onValueChange([
+      ...newValue.filter(
+        (nextValue) =>
+          !disabledValues.includes(nextValue) || value.includes(nextValue),
+      ),
+      ...value.filter(
+        (currentValue) =>
+          disabledValues.includes(currentValue) &&
+          !newValue.includes(currentValue),
+      ),
+    ]);
   };
 
   const removeValue = (removedValue: V) => {
@@ -147,7 +173,9 @@ export function MultiSelectTagInput<V extends string>({
         <PopoverPrimitive.Trigger asChild>
           <div
             id={id}
+            className="cursor-pointer aria-disabled:cursor-not-allowed"
             role="combobox"
+            aria-label={ariaLabel}
             aria-controls={listId}
             aria-describedby={ariaDescribedBy}
             aria-expanded={open}
@@ -173,7 +201,11 @@ export function MultiSelectTagInput<V extends string>({
 
               if (event.key === "Backspace" && value.length > 0) {
                 event.preventDefault();
-                const lastValue = value.at(-1);
+                const lastValue = value
+                  .filter(
+                    (selectedValue) => !disabledValues.includes(selectedValue),
+                  )
+                  .at(-1);
                 if (lastValue !== undefined) removeValue(lastValue);
               }
             }}
@@ -202,20 +234,28 @@ export function MultiSelectTagInput<V extends string>({
                         tagRefs.current.delete(option.value);
                       }}
                       data-value={option.value}
-                      title={option.label}
+                      title={option.accessibleLabel}
                       className={cn(
-                        "bg-muted flex h-6 max-w-48 min-w-10 shrink items-center gap-1 rounded px-2",
+                        "bg-muted flex h-6 max-w-48 min-w-10 shrink-0 items-center gap-1 rounded px-2",
                         !fullyVisibleValues.has(option.value) && "invisible",
                       )}
                     >
-                      <span className="min-w-0 truncate" title={option.label}>
+                      <span
+                        className="min-w-0 truncate"
+                        title={option.accessibleLabel}
+                      >
                         {option.label}
                       </span>
+                      {option.selectedSuffix ? (
+                        <span className="shrink-0">
+                          {option.selectedSuffix}
+                        </span>
+                      ) : null}
                       <button
                         type="button"
-                        disabled={disabled}
-                        aria-label={`Remove ${option.label}`}
-                        className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm"
+                        disabled={disabled || option.disabled}
+                        aria-label={`Remove ${option.accessibleLabel}`}
+                        className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
                         onClick={(event) => {
                           event.stopPropagation();
                           removeValue(option.value);
@@ -247,10 +287,15 @@ export function MultiSelectTagInput<V extends string>({
               {value.length > 0 && (
                 <button
                   type="button"
-                  disabled={disabled}
+                  disabled={
+                    disabled ||
+                    value.every((selectedValue) =>
+                      disabledValues.includes(selectedValue),
+                    )
+                  }
                   data-clear-selection
                   aria-label="Clear selection"
-                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1"
+                  className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center rounded-sm px-1 disabled:cursor-not-allowed"
                   onClick={(event) => {
                     event.stopPropagation();
                     changeValue([]);
@@ -268,6 +313,9 @@ export function MultiSelectTagInput<V extends string>({
           <PopoverPrimitive.Content
             align="start"
             sideOffset={4}
+            onCloseAutoFocus={(event) => {
+              if (disabled) event.preventDefault();
+            }}
             onWheel={stopScrollPropagation()}
             onTouchMove={stopScrollPropagation()}
           >
@@ -285,9 +333,14 @@ export function MultiSelectTagInput<V extends string>({
                   <CommandPrimitive.List id={listId}>
                     <CommandPrimitive.Group className="text-foreground overflow-hidden">
                       {selectAllLabel && options.length > 0 && (
-                        <InputDropdown.Option highlight="aria-selected">
+                        <InputDropdown.Option
+                          highlight="aria-selected"
+                          checked={allSelected}
+                        >
                           <CommandPrimitive.Item
                             value={selectAllLabel}
+                            aria-checked={allSelected}
+                            disabled={enabledOptions.length === 0}
                             onSelect={() =>
                               changeValue(
                                 allSelected
@@ -318,10 +371,19 @@ export function MultiSelectTagInput<V extends string>({
                           <InputDropdown.Option
                             key={option.value}
                             highlight="aria-selected"
+                            checked={isSelected}
                           >
                             <CommandPrimitive.Item
                               value={option.value || option.label}
-                              keywords={[option.label]}
+                              keywords={[
+                                option.label,
+                                ...(option.keywords ?? []),
+                              ]}
+                              aria-label={
+                                option.accessibleLabel ?? option.label
+                              }
+                              aria-checked={isSelected}
+                              disabled={option.disabled}
                               onSelect={() => {
                                 if (isSelected) {
                                   removeValue(option.value);
@@ -332,8 +394,24 @@ export function MultiSelectTagInput<V extends string>({
                               }}
                             >
                               <InputDropdown.OptionContent
-                                label={option.label}
-                                title={option.label}
+                                label={
+                                  <span className="flex min-w-0 items-center gap-2">
+                                    <span
+                                      className="truncate"
+                                      title={
+                                        option.accessibleLabel ?? option.label
+                                      }
+                                    >
+                                      {option.label}
+                                    </span>
+                                    {option.optionSuffix ? (
+                                      <span className="shrink-0">
+                                        {option.optionSuffix}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                }
+                                title={option.accessibleLabel ?? option.label}
                                 indicator={
                                   <InputDropdown.CheckIndicator
                                     checked={isSelected}

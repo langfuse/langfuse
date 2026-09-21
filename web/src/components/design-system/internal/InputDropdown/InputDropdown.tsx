@@ -81,14 +81,17 @@ function List({ ...props }: SlottedProps) {
 
 function Option({
   highlight,
+  checked,
   ...props
 }: SlottedProps & {
   highlight: "aria-selected" | "focus";
+  checked?: boolean;
 }) {
   return (
     <Slot
+      data-checked={checked}
       className={cn(
-        "relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none",
+        "data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground relative flex w-full cursor-pointer items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[checked=true]:font-bold",
         highlight === "aria-selected"
           ? "aria-selected:bg-accent aria-selected:text-accent-foreground"
           : "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
