@@ -43,6 +43,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
+import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
@@ -57,7 +61,7 @@ import { useSession } from "next-auth/react";
 import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import ScoresTable from "@/src/features/scores/ScoresTable";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 
 export interface TraceDetailViewProps {
@@ -105,8 +109,7 @@ export function TraceDetailView({
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
 
-  const selectedViewTab =
-    jsonViewPreference === "pretty" ? "pretty" : ("json" as const);
+  const selectedViewTab = jsonViewToggleTab(jsonViewPreference);
 
   const handleViewTabChange = useCallback(
     (tab: string) => {
@@ -118,10 +121,10 @@ export function TraceDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [

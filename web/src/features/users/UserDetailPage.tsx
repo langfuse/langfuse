@@ -5,8 +5,9 @@ import {
   RouteParamsPendingFallback,
   useReadyRouteParams,
 } from "@/src/hooks/useReadyRouteParams";
-import TracesTable from "@/src/components/table/use-cases/traces";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import { TracesTable } from "@/src/features/traces";
+import { ScoresTable } from "@/src/features/scores";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
@@ -196,11 +197,23 @@ type TabProps = {
 };
 
 function ScoresTab({ userId, projectId }: TabProps) {
+  const { isV4 } = useReadPath();
+
   return (
     <ScoresTable
       projectId={projectId}
       userId={userId}
       hiddenColumns={["userId"]}
+      renderTracePeek={({ closePeek, expandPeek }) => (
+        <TablePeekViewTraceDetail
+          projectId={projectId}
+          itemType="TRACE"
+          tableName="scores"
+          closePeek={closePeek}
+          expandPeek={expandPeek}
+          isV4={isV4}
+        />
+      )}
     />
   );
 }

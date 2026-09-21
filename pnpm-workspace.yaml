@@ -119,6 +119,10 @@ overrides:
   # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
   # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
   "@storybook/addon-vitest>@vitest/browser": 4.1.11
+  # CVE-2026-93981: XSS in hono, fixed in 4.13.7. Its dependents declare ^4
+  # and ^4.8.3, which the vulnerable 4.13.5 already satisfies, so only an
+  # override moves it to the patched release.
+  hono: 4.13.7
   # next-auth 4.24.x caps its optional nodemailer peer at ^7 but contains no
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.

@@ -2,6 +2,9 @@
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
+  type ColumnOrderState,
+  type OnChangeFn,
+  type VisibilityState,
   flexRender,
   getCoreRowModel,
   useReactTable,
@@ -11,6 +14,7 @@ import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -37,6 +41,10 @@ export interface TableProps<TData> {
   loadingRowCount?: number;
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
+  columnOrder?: ColumnOrderState;
+  onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
 }
 
 export function Table<TData extends object>({
@@ -49,6 +57,10 @@ export function Table<TData extends object>({
   loadingRowCount = 8,
   noResultsMessage = "No results",
   onRowClick,
+  columnVisibility,
+  onColumnVisibilityChange,
+  columnOrder,
+  onColumnOrderChange,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -96,6 +108,9 @@ export function Table<TData extends object>({
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     columnResizeMode: "onChange",
+    state: { columnVisibility, columnOrder },
+    onColumnVisibilityChange,
+    onColumnOrderChange,
   });
 
   const visibleColumns = table.getVisibleLeafColumns();
@@ -197,6 +212,12 @@ export function Table<TData extends object>({
                               />
                             )}
                           </button>
+                        )}
+                        {column.headerTooltip && (
+                          <DocPopup
+                            description={column.headerTooltip.description}
+                            href={column.headerTooltip.href}
+                          />
                         )}
                       </div>
                       {header.column.getCanResize() && (
