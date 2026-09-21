@@ -59,7 +59,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { cn } from "@/src/utils/tailwind";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   TableActionMenu,
   type TableAction,
@@ -74,19 +74,19 @@ import React, {
   useMemo,
 } from "react";
 import type { RowSelectionState } from "@tanstack/react-table";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import {
   ScoreTag,
   scoreLevelFromScore,
   type ScoreLevel,
 } from "@/src/components/score-tag";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import { ViewModeToggle } from "@/src/features/chart-view";
 import {
   ScoresChartView,
   ScoresOutlierStrip,

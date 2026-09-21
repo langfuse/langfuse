@@ -14,17 +14,19 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import {
+  CreateExperimentsForm,
+  useExperimentAccess,
+  toExperimentsResultsUrl,
+} from "@/src/features/experiments";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnalytics";
 import {
   RESOURCE_METRICS,
   isEmptyChart,
-} from "@/src/features/dashboard/lib/score-analytics-utils";
-import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
-} from "@/src/features/dashboard/lib/chart-data-adapters";
+} from "@/src/features/dashboard";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
@@ -44,8 +46,6 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 function DatasetCompareChartsLegacy() {
   const router = useRouter();

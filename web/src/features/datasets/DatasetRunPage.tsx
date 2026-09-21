@@ -23,8 +23,10 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import {
+  useExperimentAccess,
+  singleRunToExperimentsUrl,
+} from "@/src/features/experiments";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 function DatasetRunLegacy() {

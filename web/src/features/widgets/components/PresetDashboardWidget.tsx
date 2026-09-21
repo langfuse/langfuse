@@ -16,7 +16,7 @@ import {
   getHomePreset,
   type PresetWidgetContext,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
+import { buildPresetExport } from "@/src/features/dashboard";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {

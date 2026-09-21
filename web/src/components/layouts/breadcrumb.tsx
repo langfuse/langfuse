@@ -12,7 +12,7 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects/hooks";
+} from "@/src/features/projects";
 import { useSession } from "next-auth/react";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { isCloudPlan, planLabels } from "@langfuse/shared";

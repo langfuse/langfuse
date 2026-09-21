@@ -27,7 +27,7 @@ import { type Session } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/support-button";
 import { V4MigrationNavItem } from "@/src/features/v4-migration/V4MigrationNavItem";
-import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
+import { V4SidebarToggle } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";

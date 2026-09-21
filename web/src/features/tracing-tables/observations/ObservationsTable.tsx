@@ -110,7 +110,7 @@ import {
   TableActionMenu,
   type TableAction,
 } from "@/src/features/table";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
