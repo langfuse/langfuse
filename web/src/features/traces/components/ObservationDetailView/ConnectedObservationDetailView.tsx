@@ -44,7 +44,7 @@ import {
   getCommentDrawerInitialStateFromUrl,
 } from "@/src/features/comments/CommentDrawerController";
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/components/table/use-cases/scores";
+import ScoresTable from "@/src/features/scores/ScoresTable";
 import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
