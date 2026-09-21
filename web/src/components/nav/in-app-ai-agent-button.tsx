@@ -9,7 +9,6 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import {
-  useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
   type InAppAgentEntryPoint,
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
@@ -135,11 +134,6 @@ export const InAppAiAgentButton = ({
  * cluster and must not register a second Cmd+I listener. */
 export function InAppAiAgentPeekHeaderButton() {
   const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
-  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-
-  if (!isInAppAgentLauncherVisible) {
-    return null;
-  }
 
   const attentionSuffix =
     attentionCount > 0
