@@ -13,6 +13,44 @@ describe("events search scope", () => {
     expect(eventsSearchRegistry([])).toBe(EVENTS_FIELD_REGISTRY);
   });
 
+  it("round-trips IDs and names search without changing the observation ID filter", () => {
+    const query = "trace_checkout_123";
+    const projection = filterStateToQueryText([], {
+      searchQuery: query,
+      searchType: ["id"],
+    });
+    expect(projection.text).toBe(`ids:${query}`);
+    expect(planCommit(projection.text)).toMatchObject({
+      status: "committed",
+      searchQuery: query,
+      searchType: ["id"],
+      filters: [],
+    });
+    expect(planCommit(`id:${query}`)).toMatchObject({
+      status: "committed",
+      searchQuery: null,
+      filters: [{ column: "id", operator: "contains", value: query }],
+    });
+  });
+
+  it("keeps bare IDs in the existing scope on embedded hosts", () => {
+    const registry = eventsSearchRegistry(["userId"], true);
+    const query = "0123456789abcdef";
+    expect(planCommit(query, undefined, registry)).toMatchObject({
+      status: "committed",
+      searchQuery: query,
+      searchType: ["id"],
+      filters: [],
+    });
+    expect(
+      filterStateToQueryText(
+        [],
+        { searchQuery: query, searchType: ["id"] },
+        registry,
+      ).text,
+    ).toBe(query);
+  });
+
   it("keeps remaining fields' meaning while closing host-owned fields and aliases", () => {
     const registry = eventsSearchRegistry([
       "userId",

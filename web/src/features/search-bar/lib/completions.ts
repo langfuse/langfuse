@@ -28,9 +28,13 @@ import {
   type FieldRef,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
+import { idSearchConfidence } from "./id-search";
 import { validateQuery } from "./validate";
 import { rankFilter } from "./rank";
-import type { ObservedOptions } from "./observed-options";
+import {
+  scoreTypeContextFromObserved,
+  type ObservedOptions,
+} from "./observed-options";
 
 type CompletionStage = "empty" | "field" | "value" | "operator" | "recent";
 
@@ -110,10 +114,8 @@ export type CompletionPlan = {
   /** Defaults to false; useful for incomplete grouped value entry. */
   keepOpenOnPick?: boolean;
   /**
-   * Highlight the first option on open. True only when the user TYPED a
-   * partial token that the options complete — then Enter picks the match.
-   * Empty terms and exact-complete tokens highlight nothing, so Enter falls
-   * through to committing the query (defaults to false).
+   * Highlight the first option on open for a completion or a confident ID
+   * search suggestion. Enter picks the match; otherwise it commits the query.
    */
   autoHighlight?: boolean;
 };
@@ -130,7 +132,7 @@ export const SECTION_MATCH_OPS = "Match operators";
 export const SECTION_COMPARE_OPS = "Comparisons";
 const SECTION_KEYS = "Observed keys";
 const SECTION_SCORE_NAMES = "Score names";
-const SECTION_SEARCH_IN = "Full-text search";
+const SECTION_SEARCH_IN = "Search scopes";
 
 const MAX_RECENTS_SHOWN = 5;
 const MAX_PRESETS_SHOWN = 10;
@@ -1204,8 +1206,8 @@ function freeTextRun(
   return { from, to, text };
 }
 
-// The full-text scopes the bar can switch a value between. `default` is bare
-// free text (ids, names, input & output); input:/output: are the scoped forms.
+// The search scopes the bar can switch a value between. `default` is bare
+// text in the host's default scope; declared scopes select other search lanes.
 type FullTextScope = string;
 
 // Switch options that move a full-text value between scopes, carrying the value
@@ -1479,6 +1481,29 @@ export function planInputCompletions(
             { keepCurrentFirst: true },
           )
         : [];
+    const idConfidence = run === null ? null : idSearchConfidence(run.text);
+    const idScope = suggestedSearchScopes(registry).find(
+      ([, scope]) =>
+        scope.searchType.length === 1 && scope.searchType[0] === "id",
+    )?.[0];
+    const idSearchCandidate =
+      idConfidence !== null && registry.resolveField(keyPart) === null
+        ? searchScopes.find((option) => option.id === `scope:${idScope}`)
+        : undefined;
+    // An explicit scope or another free-text run can make this local rewrite
+    // conflict with the rest of the query. Only promote a committable rewrite.
+    const preferredIdSearch =
+      idSearchCandidate?.kind === "pattern" &&
+      run !== null &&
+      validateQuery(
+        ctx.currentQueryText.slice(0, run.from) +
+          idSearchCandidate.insert +
+          ctx.currentQueryText.slice(run.to),
+        scoreTypeContextFromObserved(ctx.observed),
+        registry,
+      ).valid
+        ? idSearchCandidate
+        : undefined;
     // Contextual facet matches share the run gate (and its span) with the scope
     // switches: both rewrite the whole free-text block the user sees, and the
     // gate already excludes negated terms and existing `key:` tokens.
@@ -1520,11 +1545,16 @@ export function planInputCompletions(
       // unchanged.
       autoHighlight:
         colon === -1
-          ? registry.resolveField(keyPart) !== null
+          ? registry.resolveField(keyPart) !== null ||
+            (preferredIdSearch !== undefined && idConfidence === "high")
           : resolvedKey === null && fields.length > 0,
       sections: [
-        // Fields stay first: options[0] must remain the field so the
-        // exact-alias autoHighlight (Enter → `level:`) keeps picking it.
+        ...section(
+          SECTION_SUGGESTIONS,
+          preferredIdSearch === undefined ? [] : [preferredIdSearch],
+        ),
+        // Exact field names suppress the ID heuristic so options[0] remains
+        // the field for exact-alias autoHighlight (Enter → `level:`).
         // Concrete facet matches beat the generic operator/pattern syntax help
         // and the full-text fallback.
         ...section(SECTION_FIELDS, fields),
@@ -1532,7 +1562,10 @@ export function planInputCompletions(
         ...section(SECTION_PRESENCE, presence),
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
-        ...section(SECTION_SEARCH_IN, searchScopes),
+        ...section(
+          SECTION_SEARCH_IN,
+          searchScopes.filter((option) => option !== preferredIdSearch),
+        ),
       ],
     };
   }

@@ -31,7 +31,7 @@ import {
 } from "@/src/features/filters/config/scores-config";
 import type { FilterState } from "@langfuse/shared";
 import { validateQuery } from "./validate";
-import { DEFAULT_SEARCH_TYPE, planCommit } from "./commit";
+import { planCommit } from "./commit";
 import { filterStateToQueryText } from "./filter-state-to-query";
 import {
   applyPick,
@@ -1205,15 +1205,17 @@ describe("search bar invariants — users registry", () => {
     expect(
       filterStateToQueryText(
         [],
-        { searchQuery: "alice", searchType: DEFAULT_SEARCH_TYPE },
+        {
+          searchQuery: "alice",
+          searchType: [...USERS_FIELD_REGISTRY.defaultSearchType],
+        },
         USERS_FIELD_REGISTRY,
       ).text,
     ).toBe("alice");
   });
 
   it("describes the free-text lane as user ids, and offers no other scope", () => {
-    // The generic copy claims a bare word matches "ids, names, input and
-    // output". On this page it matches user ids and nothing else, and there is
+    // On this page a bare word matches user ids and nothing else, and there is
     // no `input:`/`output:` field to switch into — offering the rewrite would
     // hand the user a token the parser rejects.
     expect(USERS_FIELD_REGISTRY.freeTextScopeLabel).toBe("user IDs");

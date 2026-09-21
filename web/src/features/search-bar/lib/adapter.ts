@@ -11,8 +11,8 @@
 // guaranteed to lower.
 //
 // Rules:
-// - Top-level AND chain: bare text nodes become searchQuery terms (the default
-//   scope searches ids+names+input+output); everything else lowers into one or
+// - Top-level AND chain: bare text nodes become searchQuery terms in the host's
+//   default scope; everything else lowers into one or
 //   more single filters. Declared search scopes select the one backend phrase;
 //   absent a scope token, the registry supplies the host's default.
 // - A top-level OR of same-field `key:v` equalities collapses to one any-of
@@ -219,8 +219,8 @@ function lowerDefaultTextField(ctx: LowerContext): boolean {
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the
-// flat contract) accept free text (-> searchQuery; the default scope searches
-// ids, names, input, and output) and lower everything else into single filters.
+// flat contract) accept free text (-> searchQuery in the registry's default
+// scope) and lower everything else into single filters.
 function lowerTopLevel(
   node: ASTNode,
   negated: boolean,

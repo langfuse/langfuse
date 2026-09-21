@@ -667,7 +667,7 @@ describe("astToFilterState", () => {
 
   it("lowers bare free text to searchQuery with the default scope", () => {
     // The bar emits no scope token; searchType is null and the caller applies
-    // the default (ids+names+input+output). Multiple bare words are one phrase.
+    // the host's default. Multiple bare words are one phrase.
     const r = lower("refund policy");
     expect(r.errors).toEqual([]);
     expect(r.searchType).toBeNull();
@@ -1187,19 +1187,19 @@ describe("filterStateToQueryText", () => {
         searchQuery: "hello",
         searchType: ["id", "content"],
       }).text,
-    ).toBe("hello");
+    ).toBe("all:hello");
     expect(
       filterStateToQueryText([], {
         searchQuery: "hello",
         searchType: ["content"],
       }).text,
-    ).toBe("content:hello");
+    ).toBe("hello");
     expect(
       filterStateToQueryText([], {
         searchQuery: "hello",
         searchType: ["id"],
       }).text,
-    ).toBe("in:id hello");
+    ).toBe("ids:hello");
   });
 
   it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {

@@ -285,13 +285,13 @@ export function explainSegment(
           astToFilterState(query.ast, undefined, registry).errors.length === 0
         ) {
           return {
-            subject: "Full-text search",
+            subject: "Search",
             predicate: `for ${phrase} — uses the scope selected by in:.`,
           };
         }
       }
       return {
-        subject: "Full-text search",
+        subject: "Search",
         predicate: registry.freeTextScopeLabel
           ? `for ${phrase} — matches ${registry.freeTextScopeLabel}.`
           : `for ${phrase}.`,

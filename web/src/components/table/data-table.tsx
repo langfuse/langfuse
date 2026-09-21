@@ -1077,6 +1077,12 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   const nextDataArr =
     !next.data.isLoading && !next.data.isError ? next.data.data : undefined;
   if (prevDataArr !== nextDataArr) return false;
+  // A refetch can change the empty-state action while retaining cached rows.
+  if (
+    nextDataArr?.length === 0 &&
+    prev.noResultsMessage !== next.noResultsMessage
+  )
+    return false;
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;

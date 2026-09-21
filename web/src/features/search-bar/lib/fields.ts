@@ -117,7 +117,7 @@ export type FieldRegistry = {
   defaultTextField: string | null;
   /**
    * What a bare word matches, phrased for the hint and the scope list
-   * ("ids, names, input & output"). Written per view because the registry
+   * ("input and output"). Written per view because the registry
    * cannot see it: `searchQuery` lowers to a column list the BACKEND picks,
    * and the users query narrows that list to `user_id` while keeping the same
    * field catalog. Null drops the clause rather than guessing — vague beats
@@ -542,7 +542,13 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
   scores: true,
   traceScores: true,
   allowFreeText: true,
+  defaultSearchType: ["content"],
   searchScopes: {
+    ids: {
+      searchType: ["id"],
+      label: "IDs and names",
+      description: "search IDs, user IDs and names",
+    },
     content: {
       searchType: ["content"],
       label: "Content",
@@ -555,7 +561,7 @@ export const EVENTS_FIELD_REGISTRY = createFieldRegistry({
     },
   },
   defaultTextField: null,
-  freeTextScopeLabel: "ids, names, input & output",
+  freeTextScopeLabel: "input and output",
   searchExamples: [
     "level:ERROR",
     "-env:dev",

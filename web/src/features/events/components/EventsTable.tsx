@@ -1,6 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { idSearchConfidence } from "@/src/features/search-bar/lib/id-search";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -790,6 +792,7 @@ export default function ObservationsEventsTable({
     store: searchBarStore,
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
+    applySearchType: searchBarApplySearchType,
     resetDraft: resetSearchBarDraft,
   } = useEventsSearchBar({
     projectId,
@@ -935,6 +938,17 @@ export default function ObservationsEventsTable({
     rowsEnabled: !chartActive,
     ioCharLimit: getRowHeightIOCharLimit(rowHeight),
   });
+
+  const canRetrySearchById =
+    searchBarMode &&
+    observations.status === "success" &&
+    !isFetching &&
+    paginationState.page === 1 &&
+    !searchType.includes("id") &&
+    searchType.some((scope) =>
+      ["content", "input", "output"].includes(scope),
+    ) &&
+    idSearchConfidence(searchQuery?.trim() ?? "") !== null;
 
   useApplyAppRootFallback({
     additionalRowsFound: usedAppRootFallback,
@@ -2267,6 +2281,22 @@ export default function ObservationsEventsTable({
                     <span className="text-muted-foreground">
                       {RESOURCE_LIMIT_ERROR_MESSAGE}
                     </span>
+                  ) : canRetrySearchById ? (
+                    <div className="pointer-events-auto flex flex-col items-center gap-2">
+                      <span>
+                        No results. Full-text search doesn’t search IDs.
+                      </span>
+                      <Button
+                        variant="secondary"
+                        text="Search as ID instead"
+                        onClick={() => {
+                          if (searchBarApplySearchType(["id"]) !== null) {
+                            resetPin();
+                            setPaginationState({ ...paginationState, page: 1 });
+                          }
+                        }}
+                      />
+                    </div>
                   ) : undefined
                 }
                 pagination={

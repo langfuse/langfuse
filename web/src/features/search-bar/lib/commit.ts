@@ -21,7 +21,9 @@ import { validateQuery } from "./validate";
 
 // The full Events default. Other hosts declare their own defaultSearchType
 // in the registry so bare text keeps the host's existing search behavior.
-export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id", "content"];
+export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = [
+  ...EVENTS_FIELD_REGISTRY.defaultSearchType,
+];
 
 export type CommitResult =
   | {

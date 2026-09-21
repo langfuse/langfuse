@@ -1,7 +1,6 @@
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 import { EventsSearchBarRow } from "./EventsSearchBarRow";
 import { useEventsSearchBar } from "../hooks/useEventsSearchBar";
-import { DEFAULT_SEARCH_TYPE } from "../lib/commit";
 import type { FieldRegistry } from "../lib/fields";
 import type { ObservedOptions } from "../lib/observed-options";
 
@@ -47,7 +46,7 @@ export function TableSearchBar({
     observed,
     searchQuery: search?.query ?? null,
     setSearchQuery: search?.setQuery ?? noSearchLane,
-    searchType: search?.type ?? DEFAULT_SEARCH_TYPE,
+    searchType: search?.type ?? [...registry.defaultSearchType],
     analyticsSearchType: search?.setType ? undefined : (search?.type ?? []),
     setSearchType: search?.setType ?? noSearchLane,
   });
