@@ -741,10 +741,16 @@ export function isStaleChunkParseErrorEvent(event: ErrorEvent): boolean {
 }
 
 /**
- * PostHog's lazily-loaded session-replay recorder script (served as
- * `/static/posthog-recorder.js?v=<posthog-js version>`).
+ * PostHog's lazily-loaded session-replay recorder script. Older posthog-js
+ * served `/static/posthog-recorder.js?v=<version>`; 1.417+ serves
+ * `/static/<version>/posthog-recorder.js`. Match the filename as a path
+ * segment so both layouts (and a query string) count.
  */
-const POSTHOG_RECORDER_SCRIPT_SUFFIX = "/static/posthog-recorder.js";
+function isPosthogRecorderFilename(path: string): boolean {
+  return (
+    path === "posthog-recorder.js" || path.endsWith("/posthog-recorder.js")
+  );
+}
 
 /**
  * Frames that carry no attribution: browser-native/eval frames, and the Sentry
@@ -767,8 +773,11 @@ function isOpaqueOrSdkFrame(filename: string): boolean {
  * every attributable stack frame lives in the recorder script (plus at most
  * browser-native and Sentry-SDK wrapper frames). rrweb's DOM serialization
  * throws on exotic page content (observed: `SyntaxError: Invalid or unexpected
- * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX), and each
- * throw site mints a new fingerprint per recorder version.
+ * token` from `processMutations` / `onRRwebEmit`, LANGFUSE-5VY/5VX; later
+ * `TypeError: string "" is not a function` from `onRRwebEmit` under the
+ * path-versioned script, LANGFUSE-621/620), and each throw site mints a new
+ * fingerprint per recorder version. The recorder filename may sit at
+ * `/static/posthog-recorder.js` or `/static/<version>/posthog-recorder.js`.
  *
  * Safe to drop: an error thrown by OUR code always carries at least one app
  * chunk frame (the throwing frame), which fails this check. Errors with no
@@ -794,11 +803,9 @@ export function isPosthogRecorderInternalEvent(event: ErrorEvent): boolean {
     const filename = frame?.filename;
     // A frame with no filename has no attribution — treat like <anonymous>.
     if (typeof filename !== "string" || filename.length === 0) continue;
-    // The recorder loads with a version query (`?v=<posthog-js version>`) that
-    // survives into wire-format frame filenames — strip query/fragment before
-    // matching the path suffix.
+    // Strip query/fragment (older `?v=` layout) before matching the filename.
     const path = filename.split(/[?#]/)[0];
-    if (path.endsWith(POSTHOG_RECORDER_SCRIPT_SUFFIX)) {
+    if (isPosthogRecorderFilename(path)) {
       sawRecorderFrame = true;
       continue;
     }
