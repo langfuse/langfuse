@@ -65,9 +65,7 @@ type TokenKind = "filter" | "freeText" | "operator" | "paren" | "invalid";
 function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
   return text
     .split(/(\s+)/)
-    .map((part, index) => (
-      <React.Fragment key={`${keyPrefix}:${index}`}>{part}</React.Fragment>
-    ));
+    .map((part, index) => <span key={`${keyPrefix}:${index}`}>{part}</span>);
 }
 
 function FilterTokenBody({ segment }: { segment: FilterSegment }) {

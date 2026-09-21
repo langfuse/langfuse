@@ -362,6 +362,8 @@ export function SearchComposer({
     React.useState<LogicalRange>({ start: 0, end: 0 });
   const rootRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const [domRevision, setDomRevision] = React.useState(0);
+  const compositionNodesRef = React.useRef<Set<ChildNode> | null>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
 
@@ -572,7 +574,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft]);
+  }, [draft, domRevision]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -591,6 +593,26 @@ export function SearchComposer({
       document.removeEventListener("selectionchange", onSelectionChange);
   }, []);
 
+  // IMEs can replace the root's children with new text or formatting elements.
+  // Restore React's root nodes before remounting so it can safely remove them,
+  // and discard browser-created nodes that React cannot reconcile.
+  const reprojectDom = React.useCallback((root: HTMLElement) => {
+    const compositionNodes = compositionNodesRef.current;
+    compositionNodesRef.current = null;
+    for (const node of Array.from(root.childNodes)) {
+      if (
+        node.nodeType === Node.TEXT_NODE ||
+        (compositionNodes !== null && !compositionNodes.has(node))
+      ) {
+        node.remove();
+      }
+    }
+    for (const node of compositionNodes ?? []) {
+      if (node.parentNode !== root) root.appendChild(node);
+    }
+    setDomRevision((revision) => revision + 1);
+  }, []);
+
   // Safety net for mutations that bypass beforeinput (IME composition,
   // browser quirks): re-read the DOM and reproject. Skipped mid-composition
   // so IMEs keep their composing run.
@@ -598,11 +620,22 @@ export function SearchComposer({
     const root = rootRef.current;
     if (root === null) return;
     const next = textFromRoot(root);
-    if (next === draftRef.current) return;
-    const caretNow = selectionOffsets(root).end;
-    setDraftWithSelection(next, caretNow);
+    const changed = next !== draftRef.current;
+    if (!changed && compositionNodesRef.current === null) return;
+    const selection = selectionOffsets(root);
+    reprojectDom(root);
+    if (changed) {
+      setDraftWithSelection(next, selection.end);
+    } else {
+      pendingSelectionRef.current = selection;
+    }
     openAutocompleteAfterEdit();
-  }, [draftRef, openAutocompleteAfterEdit, setDraftWithSelection]);
+  }, [
+    draftRef,
+    openAutocompleteAfterEdit,
+    reprojectDom,
+    setDraftWithSelection,
+  ]);
 
   const applyTextInsert = React.useCallback(
     (insert: string) => {
@@ -734,7 +767,11 @@ export function SearchComposer({
         const sel = selectionOffsets(root);
         caretAtEnd =
           sel.start === sel.end && sel.end === text.length && text.length > 0;
-        if (text !== storeApi.getState().draft) actions.setDraft(text);
+        if (text !== storeApi.getState().draft) {
+          pendingSelectionRef.current = sel;
+          reprojectDom(root);
+          actions.setDraft(text);
+        }
       }
       // The container validates, lowers, and writes the filter state; on failure
       // it reveals the invalid draft and returns null. On success it returns the
@@ -786,6 +823,7 @@ export function SearchComposer({
       storeApi,
       commitToFilterState,
       setDraftWithSelection,
+      reprojectDom,
       scoreTypes,
       registry,
     ],
@@ -1444,6 +1482,11 @@ export function SearchComposer({
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
+          onCompositionStart={(event) => {
+            compositionNodesRef.current = new Set(
+              event.currentTarget.childNodes,
+            );
+          }}
           onCompositionEnd={syncFromDom}
           // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
           // the delete branch applies) without a matching insert, silently
@@ -1460,6 +1503,7 @@ export function SearchComposer({
           onMouseOver={onRootMouseOver}
         >
           <ComposerTokens
+            key={domRevision}
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}
