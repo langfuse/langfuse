@@ -33,4 +33,6 @@ export {
   transformCategoricalScoresToChartData,
   uniqueAndSort,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-export { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
+// buildPresetExport stays a deep import: dashboard-import-export loads
+// @/src/features/widgets, so putting it on this door would close a
+// widgets/dashboard cycle.
