@@ -15,7 +15,10 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
+  internalFlagDescriptions,
+  internalFlagLabels,
   type FeaturePreviewFlag,
+  type InternalFlag,
 } from "@/src/features/feature-flags/available-flags";
 
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
@@ -93,12 +96,20 @@ export type FeaturePreviewModalProps = {
   onOpenChange: (open: boolean) => void;
   /** Dynamic state per preview flag. Only previews with an entry here render. */
   state: Partial<Record<PreviewFlag, PreviewState>>;
+  /** Employee-only flags. Omitted for everyone else. */
+  internalFlags?: Array<{
+    flag: InternalFlag;
+    enabled: boolean;
+    onToggle: (enabled: boolean) => void;
+    isToggling?: boolean;
+  }>;
 };
 
 export function FeaturePreviewModal({
   open,
   onOpenChange,
   state,
+  internalFlags,
 }: FeaturePreviewModalProps) {
   const items = PREVIEW_REGISTRY.filter((item) => state[item.flag]);
   const [selectedFlag, setSelectedFlag] = useState<PreviewFlag | null>(
@@ -238,6 +249,37 @@ export function FeaturePreviewModal({
             ) : null}
           </section>
         </DialogBody>
+        {internalFlags && internalFlags.length > 0 ? (
+          <div className="border-border border-t px-6 py-4">
+            <h3 className="text-foreground text-sm font-bold">Internal</h3>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Visible only to Langfuse employees.
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              {internalFlags.map((item) => (
+                <div
+                  key={item.flag}
+                  className="flex items-start justify-between gap-6"
+                >
+                  <div>
+                    <p className="text-sm font-bold">
+                      {internalFlagLabels[item.flag]}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs leading-5">
+                      {internalFlagDescriptions[item.flag]}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={item.enabled}
+                    disabled={item.isToggling === true}
+                    onCheckedChange={item.onToggle}
+                    aria-label={`Toggle ${internalFlagLabels[item.flag]}`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

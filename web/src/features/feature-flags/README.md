@@ -15,9 +15,15 @@ When is a feature flag enabled?
 3. the user's `feature_flags` contains the flag
 4. `user.admin` is true for consumers that keep the admin bypass enabled
 
+Restricted flags (`aiGateway`) ignore 1 and 4 and follow organization
+allowlisting only. Internal flags (`inAppAgentTraceLink`) ignore 1, 2, and 4:
+they are true only for `@langfuse.com` / `@clickhouse.com` users who opted in,
+and they never appear in customer Feature Preview settings.
+
 User-controlled previews may pass `{ enableForAdmins: false }` so an
 administrator can opt in or out like any other user. The deployment-wide
-`LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on.
+`LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on,
+except restricted and internal flags.
 
 Organization defaults are evaluated only for the active project or
 organization. They are never copied into users and never unioned across all of

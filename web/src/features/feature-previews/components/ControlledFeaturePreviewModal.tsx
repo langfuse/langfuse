@@ -3,7 +3,13 @@ import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import {
+  featurePreviewLabels,
+  internalFlagLabels,
+  internalFlags,
+  type InternalFlag,
+} from "@/src/features/feature-flags/available-flags";
+import { isLangfuseInternalUserEmail } from "@/src/features/feature-flags/utils";
 import { api } from "@/src/utils/api";
 
 import {
@@ -41,9 +47,28 @@ export function ControlledFeaturePreviewModal({
         showErrorToast("Failed to update feature preview", error.message);
       },
     });
+  const setInternalFlagEnabled =
+    api.userAccount.setInternalFlagEnabled.useMutation({
+      onSuccess: async (_data, variables) => {
+        await authSession.update();
+        capture("user_settings:feature_preview_toggled", {
+          feature: variables.flag,
+          isEnabled: variables.enabled,
+        });
+        showSuccessToast({
+          title: "Internal flag updated",
+          description: `${internalFlagLabels[variables.flag]} has been ${variables.enabled ? "enabled" : "disabled"}.`,
+        });
+      },
+      onError: (error) => {
+        showErrorToast("Failed to update internal flag", error.message);
+      },
+    });
 
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
+  const onToggleInternalFlag = (flag: InternalFlag) => (enabled: boolean) =>
+    setInternalFlagEnabled.mutate({ flag, enabled });
 
   const isModernSessionEnabled =
     authSession.data?.user?.featureFlags.modernSession === true ||
@@ -96,11 +121,25 @@ export function ControlledFeaturePreviewModal({
     },
   };
 
+  const showInternalFlags = isLangfuseInternalUserEmail(
+    authSession.data?.user?.email,
+  );
+
   return (
     <FeaturePreviewModal
       open={open}
       onOpenChange={onOpenChange}
       state={state}
+      internalFlags={
+        showInternalFlags
+          ? internalFlags.map((flag) => ({
+              flag,
+              enabled: authSession.data?.user?.featureFlags[flag] === true,
+              onToggle: onToggleInternalFlag(flag),
+              isToggling: setInternalFlagEnabled.isPending,
+            }))
+          : undefined
+      }
     />
   );
 }

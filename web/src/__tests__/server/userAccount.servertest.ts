@@ -105,6 +105,42 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 });
 
+describe("userAccountRouter.setInternalFlagEnabled", () => {
+  it("lets Langfuse employees opt into an internal flag", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "langfuse.com",
+    });
+
+    const result = await caller.userAccount.setInternalFlagEnabled({
+      flag: "inAppAgentTraceLink",
+      enabled: true,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      flag: "inAppAgentTraceLink",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual(["templateFlag", "inAppAgentTraceLink"]);
+  });
+
+  it("rejects non-employees", async () => {
+    const { caller } = await createCaller();
+
+    await expect(
+      caller.userAccount.setInternalFlagEnabled({
+        flag: "inAppAgentTraceLink",
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
 describe("userAccountRouter.signOutAllSessions", () => {
   it("advances the user's session revocation timestamp", async () => {
     const { caller, userId } = await createCaller();

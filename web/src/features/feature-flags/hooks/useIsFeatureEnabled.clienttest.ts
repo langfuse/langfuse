@@ -59,4 +59,23 @@ describe("useIsFeatureEnabled", () => {
 
     expect(result.current).toBe(true);
   });
+
+  it("does not let admin or experimental-feature overrides enable internal flags", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        environment: { enableExperimentalFeatures: true },
+        user: {
+          admin: true,
+          featureFlags: { inAppAgentTraceLink: false },
+          organizations: [],
+        },
+      },
+    } as unknown as ReturnType<typeof useSession>);
+
+    const { result } = renderHook(() =>
+      useIsFeatureEnabled("inAppAgentTraceLink"),
+    );
+
+    expect(result.current).toBe(false);
+  });
 });
