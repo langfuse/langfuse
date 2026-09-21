@@ -18,7 +18,9 @@ Peek views allow users to quickly preview table items in a side panel. When navi
 - **Handheld** (`useIsHandheld` — narrower than `md`, _or_ a coarse pointer on a
   short screen, i.e. a phone in landscape) — a `vaul` bottom drawer with native
   swipe-down dismissal (Expand is hidden). Not width-only: a landscape phone is
-  wider than `md` and would otherwise get the desktop sheet.
+  wider than `md` and would otherwise get the desktop sheet. An inner non-modal
+  Radix root keeps child menus and dialogs accessible: Vaul's `modal` option
+  controls its gestures and backdrop but is not forwarded to its Radix root.
 
 Dismissal:
 

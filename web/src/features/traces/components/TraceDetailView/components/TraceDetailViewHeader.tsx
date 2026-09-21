@@ -11,7 +11,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
@@ -88,6 +88,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   const { isAnnotationMode } = useViewPreferences();
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
+  const [isMobileActionsOpen, setMobileActionsOpen] = useState(false);
   const {
     existingDatasetItems,
     hasAccess: hasDatasetAccess,
@@ -146,174 +147,185 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
               full-width labeled rows, next to the `⋮` utility menu. */}
           {isMobile && (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="More actions"
-                  className="ml-auto shrink-0"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                // forceMount + hide-when-closed: CommentDrawerController lives in
-                // here, and its deep-link auto-open effect (?comments=open) and
-                // controlled inline-selection flow only work while mounted. A
-                // default Popover unmounts its content when closed (the default
-                // state), silently breaking both. Keep it mounted, just hidden.
-                forceMount
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
-              >
-                <NewDatasetItemFromExistingObjectDialogController
+            <NewDatasetItemFromExistingObjectDialogController
+              projectId={projectId}
+            >
+              {({ openDialog }) => (
+                <ExistingDatasetItemsDropdownMenuController
                   projectId={projectId}
+                  datasetItems={existingDatasetItems}
+                  disabled={!hasDatasetAccess}
+                  onOpenDialog={() => {
+                    setMobileActionsOpen(false);
+                    openDialog({
+                      traceId: trace.id,
+                      input: trace.input,
+                      output: trace.output,
+                      metadata: trace.metadata,
+                    });
+                  }}
                 >
-                  {({ openDialog }) => (
-                    <ExistingDatasetItemsDropdownMenuController
-                      projectId={projectId}
-                      datasetItems={existingDatasetItems}
-                      disabled={!hasDatasetAccess}
-                      onOpenDialog={() =>
-                        openDialog({
-                          traceId: trace.id,
-                          input: trace.input,
-                          output: trace.output,
-                          metadata: trace.metadata,
-                        })
-                      }
-                    >
-                      {({ Anchor, openDropdown }) => (
-                        <Anchor>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={!hasDatasetAccess}
-                            className="w-full justify-start gap-2 font-normal"
-                            onClick={() => {
-                              if (hasExistingDatasetItems) {
-                                openDropdown();
-                                return;
-                              }
-
-                              captureNewDatasetItemFormOpen();
-                              openDialog({
-                                traceId: trace.id,
-                                input: trace.input,
-                                output: trace.output,
-                                metadata: trace.metadata,
-                              });
-                            }}
-                          >
-                            {hasExistingDatasetItems || hasDatasetAccess ? (
-                              <PlusIcon
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                            <span className="text-sm">
-                              {hasExistingDatasetItems
-                                ? `In ${datasetCount} dataset(s)`
-                                : "Add to datasets"}
-                            </span>
-                            {hasExistingDatasetItems ? (
-                              <ChevronDown className="ml-auto h-3 w-3" />
-                            ) : !hasDatasetAccess ? (
-                              <LockIcon
-                                className="ml-auto h-3 w-3"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </Button>
-                        </Anchor>
-                      )}
-                    </ExistingDatasetItemsDropdownMenuController>
-                  )}
-                </NewDatasetItemFromExistingObjectDialogController>
-                {!isAnnotationMode && (
-                  <>
+                  {({ Anchor, openDropdown }) => (
                     <AnnotateDrawerController projectId={projectId}>
-                      {({ disabled, openDrawer }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={disabled}
-                          className="w-full justify-start gap-2 font-normal"
-                          onClick={() =>
-                            openDrawer({
-                              scoreTarget: {
-                                type: "trace",
-                                traceId: trace.id,
-                              },
-                              scores: traceScores,
-                              analyticsData: {
-                                type: "trace",
-                                source: "TraceDetail",
-                                isV4,
-                              },
-                              scoreMetadata: {
-                                projectId,
-                                environment: trace.environment,
-                              },
-                            })
-                          }
+                      {({ disabled: annotationDisabled, openDrawer }) => (
+                        <Popover
+                          open={isMobileActionsOpen}
+                          onOpenChange={setMobileActionsOpen}
                         >
-                          {disabled ? (
-                            <LockIcon className="h-3 w-3" />
-                          ) : (
-                            <SquarePen className="h-4 w-4" />
-                          )}
-                          <span className="text-sm">Annotate</span>
-                        </Button>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              aria-label="More actions"
+                              className="ml-auto shrink-0"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            onFocusOutside={(event) => {
+                              // Keep the anchor mounted while a portaled action menu takes focus.
+                              event.preventDefault();
+                            }}
+                            align="end"
+                            className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+                          >
+                            <Anchor>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={!hasDatasetAccess}
+                                className="w-full justify-start gap-2 font-normal"
+                                onClick={() => {
+                                  if (hasExistingDatasetItems) {
+                                    openDropdown();
+                                    return;
+                                  }
+
+                                  setMobileActionsOpen(false);
+                                  captureNewDatasetItemFormOpen();
+                                  openDialog({
+                                    traceId: trace.id,
+                                    input: trace.input,
+                                    output: trace.output,
+                                    metadata: trace.metadata,
+                                  });
+                                }}
+                              >
+                                {hasExistingDatasetItems || hasDatasetAccess ? (
+                                  <PlusIcon
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                                <span className="text-sm">
+                                  {hasExistingDatasetItems
+                                    ? `In ${datasetCount} dataset(s)`
+                                    : "Add to datasets"}
+                                </span>
+                                {hasExistingDatasetItems ? (
+                                  <ChevronDown className="ml-auto h-3 w-3" />
+                                ) : !hasDatasetAccess ? (
+                                  <LockIcon
+                                    className="ml-auto h-3 w-3"
+                                    aria-hidden="true"
+                                  />
+                                ) : null}
+                              </Button>
+                            </Anchor>
+                            {!isAnnotationMode && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={annotationDisabled}
+                                  className="w-full justify-start gap-2 font-normal"
+                                  onClick={() => {
+                                    setMobileActionsOpen(false);
+                                    openDrawer({
+                                      scoreTarget: {
+                                        type: "trace",
+                                        traceId: trace.id,
+                                      },
+                                      scores: traceScores,
+                                      analyticsData: {
+                                        type: "trace",
+                                        source: "TraceDetail",
+                                        isV4,
+                                      },
+                                      scoreMetadata: {
+                                        projectId,
+                                        environment: trace.environment,
+                                      },
+                                    });
+                                  }}
+                                >
+                                  {annotationDisabled ? (
+                                    <LockIcon className="h-3 w-3" />
+                                  ) : (
+                                    <SquarePen className="h-4 w-4" />
+                                  )}
+                                  <span className="text-sm">Annotate</span>
+                                </Button>
+                                <AnnotationQueueItemDropdownMenuController
+                                  projectId={projectId}
+                                  objectId={trace.id}
+                                  objectType={AnnotationQueueObjectType.TRACE}
+                                  analyticsData={{
+                                    source: "TraceDetail",
+                                    isV4,
+                                  }}
+                                >
+                                  {({ disabled, totalCount }) => (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      disabled={disabled !== undefined}
+                                      className="w-full justify-start gap-2 font-normal"
+                                    >
+                                      <ListPlus className="h-4 w-4" />
+                                      <span className="text-sm">Queue</span>
+                                      {totalCount > 0 && (
+                                        <AnnotationQueueItemCountBadge
+                                          totalCount={totalCount}
+                                          layout="menu"
+                                        />
+                                      )}
+                                    </Button>
+                                  )}
+                                </AnnotationQueueItemDropdownMenuController>
+                              </>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={commentDrawerControl.disabled}
+                              onClick={() => {
+                                setMobileActionsOpen(false);
+                                commentDrawerControl.openDrawer();
+                              }}
+                              className="w-full justify-start gap-2 font-normal"
+                            >
+                              {commentDrawerControl.disabled ? (
+                                <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                              ) : (
+                                <MessageSquare className="h-4 w-4" />
+                              )}
+                              <span className="text-sm">Add comment</span>
+                              {!commentDrawerControl.disabled &&
+                              commentCount ? (
+                                <ActionButtonCountBadge count={commentCount} />
+                              ) : null}
+                            </Button>
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </AnnotateDrawerController>
-                    <AnnotationQueueItemDropdownMenuController
-                      projectId={projectId}
-                      objectId={trace.id}
-                      objectType={AnnotationQueueObjectType.TRACE}
-                      analyticsData={{ source: "TraceDetail", isV4 }}
-                    >
-                      {({ disabled, totalCount }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={disabled !== undefined}
-                          className="w-full justify-start gap-2 font-normal"
-                        >
-                          <ListPlus className="h-4 w-4" />
-                          <span className="text-sm">Queue</span>
-                          {totalCount > 0 && (
-                            <AnnotationQueueItemCountBadge
-                              totalCount={totalCount}
-                              layout="menu"
-                            />
-                          )}
-                        </Button>
-                      )}
-                    </AnnotationQueueItemDropdownMenuController>
-                  </>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  disabled={commentDrawerControl.disabled}
-                  onClick={commentDrawerControl.openDrawer}
-                  className="w-full justify-start gap-2 font-normal"
-                >
-                  {commentDrawerControl.disabled ? (
-                    <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                  ) : (
-                    <MessageSquare className="h-4 w-4" />
                   )}
-                  <span className="text-sm">Add comment</span>
-                  {!commentDrawerControl.disabled && commentCount ? (
-                    <ActionButtonCountBadge count={commentCount} />
-                  ) : null}
-                </Button>
-              </PopoverContent>
-            </Popover>
+                </ExistingDatasetItemsDropdownMenuController>
+              )}
+            </NewDatasetItemFromExistingObjectDialogController>
           )}
         </div>
         {/* Action buttons (desktop inline cluster) */}
