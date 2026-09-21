@@ -17,6 +17,11 @@ const badgeVariants = cva(
         violet: "border-transparent bg-light-violet text-dark-violet",
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
+        ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+      },
+      interactive: {
+        true: "decoration-border-contrast underline underline-offset-4",
+        false: "",
       },
       size: {
         default: "h-5.5 gap-1.5 pr-1.5 pl-2",
@@ -26,6 +31,7 @@ const badgeVariants = cva(
     defaultVariants: {
       color: "primary",
       size: "default",
+      interactive: false,
     },
   },
 );
@@ -45,11 +51,17 @@ export function BadgeShell({
   asChild = false,
   color,
   size,
+  interactive,
   ...props
 }: BadgeShellProps) {
   const Component = asChild ? Slot : "span";
 
-  return <Component className={badgeVariants({ color, size })} {...props} />;
+  return (
+    <Component
+      className={badgeVariants({ color, size, interactive })}
+      {...props}
+    />
+  );
 }
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
