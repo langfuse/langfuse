@@ -1,5 +1,6 @@
 import {
   EvalTargetObject,
+  EvalTemplateType,
   InvalidRequestError,
   isExperimentEvaluationRule,
   LangfuseConflictError,
@@ -780,7 +781,11 @@ export class RuleService {
       if (hasManagedVariableMapping(evaluator.type)) {
         if (assignment.variableMapping !== null) {
           throw new InvalidRequestError(
-            "Mappings for this evaluator type are managed by Langfuse and cannot be provided.",
+            `${
+              evaluator.type === EvalTemplateType.CODE
+                ? "Code evaluator"
+                : "Decision-model evaluator"
+            } mappings are managed by Langfuse and cannot be provided.`,
           );
         }
         return {

@@ -4,8 +4,6 @@ import { type EvalTemplateType } from "@langfuse/shared";
 
 import { Label } from "@/src/components/ui/label";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { EvaluationTypeToggle } from "./components/EvaluationTypeToggle/EvaluationTypeToggle";
 
 /** Shared execution row; its container owns which mode-specific selector follows it. */
@@ -13,18 +11,16 @@ export function EvaluationTypeConfiguration({
   mode,
   onModeChange,
   disabled,
+  showDecisionModel = false,
   children,
 }: {
   mode: EvalTemplateType;
   onModeChange: (mode: EvalTemplateType) => void;
   disabled: boolean;
+  /** Offers the experimental decision-model type; the container owns the flag. */
+  showDecisionModel?: boolean;
   children: ReactNode;
 }) {
-  const projectId = useProjectIdFromURL();
-  const showDecisionModel = useIsFeatureEnabled("decisionModelEvaluators", {
-    projectId,
-  });
-
   return (
     <div className="flex flex-col gap-2">
       <Label className="flex items-center gap-1.5">

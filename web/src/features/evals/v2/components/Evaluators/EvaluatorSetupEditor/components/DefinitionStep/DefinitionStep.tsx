@@ -9,6 +9,7 @@ type DefinitionStepProps = {
   onOpenChange: (open: boolean) => void;
   onTypeChange: (type: EvalTemplateType) => void;
   isEditing: boolean;
+  showDecisionModel: boolean;
 } & DefinitionStepContent;
 
 type DefinitionStepContent =
@@ -64,6 +65,7 @@ export function DefinitionStep(props: DefinitionStepProps) {
         mode={props.type}
         onModeChange={props.onTypeChange}
         disabled={props.isEditing}
+        showDecisionModel={props.showDecisionModel}
       >
         {props.typeConfiguration}
       </EvaluationTypeConfiguration>

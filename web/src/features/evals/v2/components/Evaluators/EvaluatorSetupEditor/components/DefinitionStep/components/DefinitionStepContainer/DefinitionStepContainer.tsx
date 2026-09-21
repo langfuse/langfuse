@@ -2,6 +2,8 @@ import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { LLMAdapter } from "@langfuse/shared";
 
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
 import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
@@ -50,11 +52,15 @@ export function DefinitionStepContainer({
     })),
   );
 
+  const showDecisionModel = useIsFeatureEnabled("decisionModelEvaluators", {
+    projectId,
+  });
   const stepProps = {
     open: state.open,
     onOpenChange: (open: boolean) => onStepOpenChange(1, open),
     onTypeChange: state.actions.setType,
     isEditing,
+    showDecisionModel,
   };
 
   switch (state.type) {
