@@ -48,10 +48,8 @@ vi.mock("@/src/components/SingleLineOverflowList", () => ({
 const defaultProps = {
   projectId: "project-1",
   countTraces: 3,
-  traces: {
-    state: "loaded" as const,
-    data: [{ latencyMs: null, observationCount: 7 }],
-  },
+  minTimestamp: new Date("2026-01-01T00:00:00.000Z"),
+  maxTimestamp: new Date("2026-01-01T00:00:01.000Z"),
   tokensIn: 0,
   tokensOut: 0,
   totalTokens: 0,
@@ -174,10 +172,8 @@ describe("ModernSessionHeader", () => {
 
   it("preserves preferences for details that are temporarily unavailable", () => {
     const storageKey = sessionHeaderVisibilityStorageKey("project-1");
-    localStorage.setItem(storageKey, JSON.stringify(["latency"]));
-    render(
-      <ModernSessionHeader {...defaultProps} traces={{ state: "loading" }} />,
-    );
+    localStorage.setItem(storageKey, JSON.stringify(["tokens"]));
+    render(<ModernSessionHeader {...defaultProps} />);
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -186,7 +182,7 @@ describe("ModernSessionHeader", () => {
     );
 
     expect(JSON.parse(localStorage.getItem(storageKey) ?? "[]")).toEqual([
-      "latency",
+      "tokens",
       "traces",
     ]);
   });
