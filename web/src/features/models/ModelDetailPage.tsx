@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
   CardContent,

@@ -8,7 +8,7 @@ import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integratio
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { deriveSyncStatus } from "@/src/features/blobstorage-integration/deriveSyncStatus";
 import { type BlobStorageSyncStatus } from "@/src/features/blobstorage-integration/types";

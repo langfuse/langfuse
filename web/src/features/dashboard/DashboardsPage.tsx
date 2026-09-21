@@ -3,7 +3,7 @@ import Page from "@/src/components/layouts/page";
 import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   getDashboardTabs,
   DASHBOARD_TABS,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { NotificationChannel, NotificationType } from "@prisma/client";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
