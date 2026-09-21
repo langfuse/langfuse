@@ -23,23 +23,23 @@ import { getUsersFilterConfig } from "@/src/features/filters/config/users-config
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
-} from "@/src/features/filters/config/usersSearchRegistry";
-import {
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
   type FacetOptions,
   type UseSidebarFilterStateOptions,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { sortOptionValues } from "@/src/features/filters";
+  buildSidebarFilterSessionContextId,
+  sortOptionValues,
+} from "@/src/features/filters";
+
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";

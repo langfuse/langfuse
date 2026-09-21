@@ -4,7 +4,7 @@ import { getScoreFilterConfig, observationScopeFilter } from "./scores-config";
 import { decodeAndNormalizeFilters } from "../hooks/useSidebarFilterState";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { planCommit } from "@/src/features/search-bar";
 
 describe("getScoreFilterConfig", () => {
   it("keeps the evaluator-test filter when opening a score URL and editing its search pill", () => {
