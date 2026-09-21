@@ -532,6 +532,37 @@ describe("buildStepData", () => {
     });
 
     it(
+      "should group a long sequential chain without overflowing the call stack",
+      { timeout: 15_000 },
+      () => {
+        // Each non-overlapping observation becomes its own step group. A
+        // recursive walk overflows the browser stack on a long sequential
+        // trace even when every group makes progress.
+        const COUNT = 8_000;
+        const base = Date.parse("2025-08-21T18:53:25.000Z");
+        const observations: AgentGraphDataResponse[] = Array.from(
+          { length: COUNT },
+          (_, i) =>
+            createMockObservation({
+              id: `seq-${i}`,
+              name: `seq-${i}`,
+              startTime: new Date(base + i * 20).toISOString(),
+              endTime: new Date(base + i * 20 + 10).toISOString(),
+            }),
+        );
+
+        const result = buildStepData(observations);
+        const userObservations = result.filter(
+          (obs) => !obs.name.includes("__"),
+        );
+
+        expect(userObservations).toHaveLength(COUNT);
+        expect(userObservations[0].step).toBe(1);
+        expect(userObservations[COUNT - 1].step).toBe(COUNT);
+      },
+    );
+
+    it(
       "should handle large number of observations with identical timestamps just below limit",
       { timeout: 5000 },
       () => {

@@ -33,7 +33,7 @@ import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";

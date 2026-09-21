@@ -54,6 +54,7 @@ export const promptVersionProcessor = async (
           {
             Name: event.prompt.name,
             Labels: event.prompt.labels,
+            Tags: event.prompt.tags,
             action: event.action,
           },
           trigger,

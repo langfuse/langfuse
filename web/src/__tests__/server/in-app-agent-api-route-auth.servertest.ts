@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -352,7 +353,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: false,
-      featureFlags: {},
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)
           ? [

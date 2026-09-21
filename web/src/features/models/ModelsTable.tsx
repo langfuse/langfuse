@@ -30,7 +30,7 @@ import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnit
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
 import { TestModelMatchButton } from "@/src/features/models/components/test-match/TestModelMatchButton";
 import { ActionButton } from "@/src/components/ActionButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 
 export type ModelTableRow = {

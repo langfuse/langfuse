@@ -46,7 +46,7 @@ import {
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
