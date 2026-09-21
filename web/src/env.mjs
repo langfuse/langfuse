@@ -530,7 +530,12 @@ export const env = createEnv({
     // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
     // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
     // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
-    LANGFUSE_AI_PROVIDER: z.enum(["bedrock", "anthropic", "openai"]).optional(),
+    // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
+    // authenticates through the instance credential chain (GCP application
+    // default credentials) and takes no key.
+    LANGFUSE_AI_PROVIDER: z
+      .enum(["bedrock", "anthropic", "openai", "vertex"])
+      .optional(),
     LANGFUSE_AI_MODEL: z.string().optional(),
     LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
     LANGFUSE_AI_API_KEY: z.string().optional(),
@@ -558,6 +563,7 @@ export const env = createEnv({
         },
       ),
     LANGFUSE_AI_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_AI_VERTEX_LOCATION: z.string().optional(),
     LANGFUSE_IN_APP_AGENT_ENABLED: z.enum(["true", "false"]).optional(),
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT: z
       .enum(["url", "inline", "disabled"])
@@ -1163,6 +1169,7 @@ export const env = createEnv({
     LANGFUSE_AI_USE_RESPONSES_API: process.env.LANGFUSE_AI_USE_RESPONSES_API,
     LANGFUSE_AI_EXTRA_HEADERS: process.env.LANGFUSE_AI_EXTRA_HEADERS,
     LANGFUSE_AI_AWS_BEDROCK_REGION: process.env.LANGFUSE_AI_AWS_BEDROCK_REGION,
+    LANGFUSE_AI_VERTEX_LOCATION: process.env.LANGFUSE_AI_VERTEX_LOCATION,
     LANGFUSE_IN_APP_AGENT_ENABLED: process.env.LANGFUSE_IN_APP_AGENT_ENABLED,
     LANGFUSE_EVALUATOR_MEDIA_TRANSPORT:
       process.env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,

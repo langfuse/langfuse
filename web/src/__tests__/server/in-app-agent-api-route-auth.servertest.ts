@@ -82,6 +82,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 
@@ -92,6 +93,7 @@ describe("in-app agent public API route auth", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Access denied - in-app agent keys are not allowed for this endpoint",
+      error: "UnauthorizedError",
     });
   });
 

@@ -1,6 +1,7 @@
 # Internal cloud trace-batch experiment
 
-This read-only experiment measures full-event reads for idle traces. It requires
+This read-only experiment measures full-event reads and transcript assembly for
+idle traces. It requires
 `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. All four enablement
 flags below default to `false`; an ordinary release needs no infrastructure
 changes. These internal controls are intentionally absent from env templates.
@@ -101,6 +102,62 @@ Queries use response compression and chunked multipart parameters for up to
 10,000 UUID-sized trace/project IDs. The fixed 30-second timeout fails the job
 rather than accepting partial results. This does not cap observation count,
 query memory or dispatcher snapshot memory.
+
+## Per-trace transcripts
+
+The reader orders only by project ID and trace ID. The worker keeps
+one trace's observations, assembles it when the pair changes, and flushes the last
+trace only after a successful end of stream. A stream error discards the current
+partial trace; earlier completed traces have already emitted samples. Each trace
+uses the shared depth-first ordering and transcript assembler. Transcripts are
+ephemeral: neither logs nor job results contain their content.
+
+Completion means all rows returned for that pair's query window, not that no late
+events can arrive. Event versions follow the current ClickHouse merge state;
+the shared ordering function keeps one observation per ID. Retries can repeat
+per-trace samples.
+
+These distributions use the `langfuse.trace_batch` prefix:
+
+| Metric | Sample |
+| --- | --- |
+| `transcript_assembly_duration_ms` | One trace's ordering and assembly time, excluding I/O conversion, stream waits and tokenization; `has_transcript:true\|false`. |
+| `transcript_tokens` | Token estimate of the complete transcript JSON (history, current turn and provenance); zero when no transcript can be assembled. |
+
+Transcript token counts use the existing local worker-thread pool and bundled
+tiktoken WASM, without a network or model API call. The `gpt-4o` configuration
+selects `o200k_base`, also used by GPT-5 mini and nano
+([OpenAI mapping](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py)); metrics are tagged
+`tokenizer:o200k_base`. These are serialized-payload estimates, not provider
+billing counts or a model's full request framing.
+Unknown estimates are omitted and counted in `token_estimation_unavailable`.
+Rejected estimates increment `token_estimation_failed` and omit the token sample;
+they do not retry the batch. Only the assembled transcript is tokenized.
+
+The worker submits one transcript for tokenization while streaming the next
+trace's observations. Before submitting another transcript it awaits the previous
+promise, keeping at most one pending token estimate per batch. Success and stream
+failure both drain accepted promises; a stream failure never assembles its
+partial final trace. Assembly itself remains synchronous. `read_duration_ms`
+includes all this processing.
+
+Memory includes the current trace, the previous transcript being tokenized and
+stream buffers, multiplied by active batch jobs. A single trace remains unbounded.
+The default two-thread tokenizer pool is shared with ingestion; overlap hides
+waiting time but does not remove CPU use or contention. Its existing 30-second
+timeout rejects the promise without cancelling queued/running encoding, so the
+pending-promise bound is not a cancellation guarantee. Watch tokenization failures
+alongside `runtime.node.mem.rss`, `runtime.node.mem.heap_used`, worker
+CPU and queue depth before raising batch concurrency.
+
+ClickHouse must sort the filtered result, so compare query memory and latency against the unordered
+baseline before increasing load.
+
+Enable percentile aggregations for these distribution metrics in Datadog
+Metrics Summary, then select p50, p75, p90, p95 and p99 in Metrics Explorer.
+Datadog computes these across workers; do not average worker percentiles.
+See [Datadog distributions](https://docs.datadoghq.com/metrics/distributions/).
+Metric delivery and percentile configuration must be verified after deployment.
 
 ## Capacity measurements
 
