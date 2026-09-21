@@ -380,8 +380,12 @@ function ProjectMembersSettings({
         <Header title="Project Members" />
         <ConnectedMembersSettingsTable orgId={orgId} project={project} />
       </div>
-      {hasProjectViewAccess && membershipInvites.data?.totalCount !== 0 && (
-        <div>
+      {hasProjectViewAccess && (
+        <div
+          className={
+            membershipInvites.data?.totalCount === 0 ? "hidden" : undefined
+          }
+        >
           <Header title="Membership Invites" />
           <ConnectedMembershipInvitesSettingsTable
             orgId={orgId}

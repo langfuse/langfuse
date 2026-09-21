@@ -329,8 +329,12 @@ function OrganizationMembersSettings({ orgId }: { orgId: string }) {
         <Header title="Organization Members" />
         <ConnectedMembersSettingsTable orgId={orgId} />
       </div>
-      {hasViewAccess && membershipInvites.data?.totalCount !== 0 && (
-        <div>
+      {hasViewAccess && (
+        <div
+          className={
+            membershipInvites.data?.totalCount === 0 ? "hidden" : undefined
+          }
+        >
           <Header title="Membership Invites" />
           <ConnectedMembershipInvitesSettingsTable
             orgId={orgId}

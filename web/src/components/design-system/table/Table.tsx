@@ -14,6 +14,7 @@ import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
@@ -211,6 +212,12 @@ export function Table<TData extends object>({
                               />
                             )}
                           </button>
+                        )}
+                        {column.headerTooltip && (
+                          <DocPopup
+                            description={column.headerTooltip.description}
+                            href={column.headerTooltip.href}
+                          />
                         )}
                       </div>
                       {header.column.getCanResize() && (

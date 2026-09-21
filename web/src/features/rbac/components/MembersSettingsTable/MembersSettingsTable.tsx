@@ -112,6 +112,11 @@ export function MembersSettingsTable({
       {
         accessorKey: "orgRole",
         header: "Organization Role",
+        headerTooltip: {
+          description:
+            "The organization role is the default role for this user across the organization and its projects.",
+          href: "https://langfuse.com/docs/administration/rbac",
+        },
         size: 160,
         cell: ({ row }) => {
           const select = (
@@ -156,6 +161,11 @@ export function MembersSettingsTable({
             {
               accessorKey: "projectRole",
               header: "Project Role",
+              headerTooltip: {
+                description:
+                  "The project role applies to this project and overrides the default organization role.",
+                href: "https://langfuse.com/docs/administration/rbac",
+              },
               size: 160,
               cell: ({ row }) => {
                 if (!projectRolesEntitlement) return "N/A on plan";
