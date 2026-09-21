@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -5,19 +6,20 @@ import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { useEffect, useMemo } from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { ListTree } from "lucide-react";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { convertRunItemToItemsByItemUiTableRow } from "@/src/features/datasets/lib/convertRunItemDataToUiTableRow";
 import {
   DatasetItemIOCell,
@@ -72,7 +74,6 @@ export function DatasetRunItemsByItemTable(props: {
       header: "Run Name",
       size: 150,
       isPinnedLeft: true,
-      emptyValue: "-",
     }),
     createDateTableColumn<DatasetRunItemByItemRowData>({
       accessorKey: "runAt",
@@ -228,6 +229,7 @@ export function DatasetRunItemsByItemTable(props: {
   return (
     <>
       <DataTableToolbar
+        tableName="dataset-run-items-by-item"
         columns={columns}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}

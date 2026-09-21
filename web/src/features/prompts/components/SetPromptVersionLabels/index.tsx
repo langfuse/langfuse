@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef, type ReactNode } from "react";
 import { CircleFadingArrowUp } from "lucide-react";
@@ -178,10 +179,12 @@ export function SetPromptVersionLabels({
           )}
         >
           {title && title}
-          <TruncatedLabels
-            labels={promptLabels}
-            maxVisibleLabels={maxVisibleLabels}
-          />
+          {promptLabels.length > 0 && (
+            <TruncatedLabels
+              labels={promptLabels}
+              maxVisibleLabels={maxVisibleLabels}
+            />
+          )}
           <Button
             variant="outline"
             title="Add prompt label"

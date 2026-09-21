@@ -2,7 +2,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import {
   EvalTemplateType,
   observationVariableMappingList,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import { useState } from "react";
 import { DialogBody } from "@/src/components/ui/dialog";
@@ -14,6 +14,7 @@ import type { RuleEvaluatorOption } from "@/src/features/evals/v2/types/rules";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 
 type Rule = RouterOutputs["evalsV2"]["rules"]["get"];
 
@@ -39,7 +40,7 @@ export function EditRuleDialogContent({
   const [ruleSetupStore] = useState(() =>
     createRuleSetupStore({
       name: rule.name,
-      filter: singleFilter.array().catch([]).parse(rule.filter),
+      filter: singleFilterList.catch([]).parse(rule.filter),
       sampling: rule.sampling,
       assignments: rule.assignments.map((assignment) => {
         const preparedDefault = prepareModernRuleVariableMapping(
@@ -93,7 +94,7 @@ export function EditRuleDialogContent({
     });
     capture("evaluation_rules:update", {
       assignmentCount: draft.assignments.length,
-      filterCount: draft.filter.length,
+      ...getFilterAnalyticsProperties(draft.filter),
       samplingPercent: Math.round(draft.sampling * 100),
       isEnabled: rule.enabled,
     });

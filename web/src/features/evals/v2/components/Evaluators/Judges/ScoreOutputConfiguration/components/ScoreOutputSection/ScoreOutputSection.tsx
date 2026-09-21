@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useId, useState, type ReactNode } from "react";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
@@ -350,11 +351,11 @@ export function ScoreOutputSection({
         {state.dataType === ScoreDataTypeEnum.BOOLEAN && (
           <>
             <span>as</span>
-            <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
+            <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               true
             </span>
             <span>or</span>
-            <span className="bg-background inline-flex h-8 items-center rounded-md border px-2 font-bold">
+            <span className="bg-muted/50 text-foreground inline-flex h-8 items-center rounded-md border px-3 opacity-50">
               false
             </span>
           </>

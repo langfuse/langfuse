@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo, useRef, useState } from "react";
 import {
   ChartActiveReferenceLine,
@@ -296,10 +297,12 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           setSelfHovered(false);
       }}
     >
-      <SeriesOverflowNote
-        visibleCount={dimensions.length}
-        totalCount={series.total}
-      />
+      {series.total > dimensions.length && (
+        <SeriesOverflowNote
+          visibleCount={dimensions.length}
+          totalCount={series.total}
+        />
+      )}
       <ChartContainer
         ref={chartBoxRef}
         config={config}
@@ -416,15 +419,16 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
         </LineChart>
       </ChartContainer>
-      {(legendPosition === "below" ||
-        (legendPosition === "auto" && legendItems.length > 1)) && (
-        <TimeSeriesLegend
-          items={legendItems}
-          interaction={legendInteraction}
-          onItemClick={onLegendClick}
-          formatSummary={tooltipFormatter}
-        />
-      )}
+      {legendItems.length > 0 &&
+        (legendPosition === "below" ||
+          (legendPosition === "auto" && legendItems.length > 1)) && (
+          <TimeSeriesLegend
+            items={legendItems}
+            interaction={legendInteraction}
+            onItemClick={onLegendClick}
+            formatSummary={tooltipFormatter}
+          />
+        )}
     </div>
   );
 };

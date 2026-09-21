@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useFormState, useWatch } from "react-hook-form";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import {

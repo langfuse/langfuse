@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type { NormalizerContext, ProviderAdapter } from "../types";
 import {
   parseMetadata,

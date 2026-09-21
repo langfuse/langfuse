@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
@@ -24,9 +25,10 @@ import {
   getSuggestedHomePresetIds,
   HOME_PRESET_METADATA,
 } from "@/src/features/dashboard/components/home-preset-registry";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
+import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 export type WidgetItem = {
   id: string;
@@ -105,6 +107,7 @@ export function SelectWidgetDialog({
 }: SelectWidgetDialogProps) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
+  const { isAvailable, openAssistant, submit } = useInAppAiAgent();
 
   const openCapturedRef = useRef(false);
   useEffect(() => {
@@ -178,9 +181,13 @@ export function SelectWidgetDialog({
             </div>
           ) : (
             <div className="flex flex-col gap-3 p-1">
-              <InAppAgentWidgetComposer
-                onSubmitted={() => onOpenChange(false)}
-              />
+              {isAvailable && (
+                <InAppAgentWidgetComposer
+                  onSubmitted={() => onOpenChange(false)}
+                  openAssistant={openAssistant}
+                  submit={submit}
+                />
+              )}
               <button
                 type="button"
                 onClick={() => {

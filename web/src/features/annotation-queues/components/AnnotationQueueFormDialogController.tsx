@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
@@ -70,7 +71,7 @@ export function AnnotationQueueFormDialogController(
   );
   const allQueueNamesAndIds = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: hasQueueAccess && mode === "create" && open },
+    { enabled: hasQueueAccess && open },
   );
 
   const utils = api.useUtils();
@@ -170,9 +171,7 @@ export function AnnotationQueueFormDialogController(
             projectId={projectId}
             queueId={queueId}
             queueNames={
-              mode === "create"
-                ? (allQueueNamesAndIds.data?.map((queue) => queue.name) ?? [])
-                : []
+              allQueueNamesAndIds.data?.map((queue) => queue.name) ?? []
             }
             onManageScoreConfigsClick={() => {
               capture("score_configs:manage_configs_item_click", {

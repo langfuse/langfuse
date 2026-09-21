@@ -1,5 +1,5 @@
 import { GetDatasetRunsV1Response } from "@/src/features/public-api/server";
-import { listDatasetRunsByDatasetIdForApi } from "@/src/features/datasets/server/publicDatasetService";
+import { listDatasetRunsByDatasetIdForApi } from "@/src/features/datasets/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildDatasetRunUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -10,6 +10,7 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
   name: "listDatasetRuns",
   description:
     "List dataset runs, each experiment or evaluation execution over a dataset, by dataset ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetRunsMcpInput,
   inputSchema: GetDatasetRunsMcpInput,
   handler: async (input, context) =>

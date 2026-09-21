@@ -1,5 +1,4 @@
-/* eslint-disable boundaries/dependencies */
-import { Button } from "@/src/components/ui/button";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
@@ -11,6 +10,7 @@ interface Props {
   language: string;
   value: string;
   theme?: "light" | "dark";
+  borderless?: boolean;
   /** Hide the language caption when the surrounding UI already states it. */
   showLanguage?: boolean;
   /** Match immutable form fields instead of using the recessed code surface. */
@@ -18,7 +18,14 @@ interface Props {
 }
 
 const CodeBlock: FC<Props> = memo(
-  ({ language, value, theme, showLanguage = true, variant = "default" }) => {
+  ({
+    language,
+    value,
+    theme,
+    borderless = false,
+    showLanguage = true,
+    variant = "default",
+  }) => {
     const [isCopied, setIsCopied] = useState(false);
     const { resolvedTheme } = useTheme();
     const appliedTheme = theme ?? resolvedTheme;
@@ -29,30 +36,20 @@ const CodeBlock: FC<Props> = memo(
     };
 
     const copyButton = (
-      <Button
-        variant="ghost"
+      <IconButton
+        icon={isCopied ? Check : Copy}
+        label="Copy code"
         size="xs"
-        className={cn(
-          "text-xs focus-visible:ring-1 focus-visible:ring-offset-0",
-          variant === "read-only"
-            ? "text-muted-foreground hover:bg-background/50 absolute top-1.5 right-1.5"
-            : "hover:bg-border",
-        )}
+        variant={variant === "read-only" ? "ghost" : "subtle"}
         onClick={handleCopy}
-      >
-        {isCopied ? (
-          <Check className="h-3 w-3" />
-        ) : (
-          <Copy className="h-3 w-3" />
-        )}
-        <span className="sr-only">Copy code</span>
-      </Button>
+      />
     );
 
     return (
       <div
         className={cn(
-          "codeblock relative w-full overflow-hidden rounded border font-sans",
+          "codeblock relative w-full overflow-hidden rounded font-sans",
+          !borderless && "border",
           variant === "read-only" ? "bg-muted" : "bg-surface-code",
         )}
       >
@@ -64,7 +61,9 @@ const CodeBlock: FC<Props> = memo(
             <div className="flex items-center py-1">{copyButton}</div>
           </div>
         ) : (
-          copyButton
+          <div className="text-muted-foreground absolute top-1.5 right-1.5">
+            {copyButton}
+          </div>
         )}
         <Highlight
           theme={appliedTheme === "dark" ? themes.vsDark : themes.github}
@@ -104,4 +103,4 @@ const CodeBlock: FC<Props> = memo(
 );
 CodeBlock.displayName = "CodeBlock";
 
-export { CodeBlock };
+export { CodeBlock as Codeblock };

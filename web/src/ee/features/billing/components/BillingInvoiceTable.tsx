@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -277,7 +278,7 @@ export function BillingInvoiceTable() {
       <div className="flex items-center justify-between pt-4">
         <h3 className="font-bold">Invoice History</h3>
       </div>
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="billing-invoices" />
       <DataTable
         tableName="invoices"
         columns={columns}

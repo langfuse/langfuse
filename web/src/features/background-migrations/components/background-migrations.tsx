@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -89,7 +90,7 @@ export default function BackgroundMigrationsTable() {
         title: "Background Migrations",
       }}
     >
-      <DataTableToolbar columns={columns} />
+      <DataTableToolbar columns={columns} tableName="background-migrations" />
       <DataTable
         tableName="backgroundMigrations"
         columns={columns}

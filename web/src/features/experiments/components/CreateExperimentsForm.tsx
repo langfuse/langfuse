@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -85,6 +86,10 @@ export const CreateExperimentsForm = ({
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
     scope: "promptExperiments:CUD",
+  });
+  const hasDatasetAccess = useHasProjectAccess({
+    projectId,
+    scope: "datasets:CUD",
   });
   const fixedDatasetId = defaultValues.datasetId;
   const [remoteExperimentDataset, setRemoteExperimentDataset] = useState<
@@ -306,14 +311,25 @@ export const CreateExperimentsForm = ({
                   <div className="flex w-full items-start">
                     <Button
                       className="w-full rounded-r-none"
-                      disabled={!datasetId || !isRemoteExperimentEnabled}
+                      disabled={
+                        !datasetId ||
+                        !isRemoteExperimentEnabled ||
+                        !hasDatasetAccess
+                      }
                       title={
-                        isRemoteExperimentEnabled
-                          ? undefined
-                          : "please edit and enable webhook"
+                        !hasDatasetAccess
+                          ? "You do not have permission to run remote experiments"
+                          : isRemoteExperimentEnabled
+                            ? undefined
+                            : "please edit and enable webhook"
                       }
                       onClick={() => {
-                        if (!datasetId || !isRemoteExperimentEnabled) return;
+                        if (
+                          !datasetId ||
+                          !isRemoteExperimentEnabled ||
+                          !hasDatasetAccess
+                        )
+                          return;
                         setShowRemoteExperimentTriggerModal(true);
                       }}
                     >
@@ -366,7 +382,8 @@ export const CreateExperimentsForm = ({
   if (
     showRemoteExperimentTriggerModal &&
     datasetId &&
-    existingRemoteExperiment.data
+    existingRemoteExperiment.data &&
+    hasDatasetAccess
   ) {
     return (
       <RemoteExperimentTriggerModal

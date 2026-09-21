@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import { Button } from "@/src/components/ui/button";
@@ -28,7 +29,7 @@ import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type CommentObjectType, CreateCommentData } from "@langfuse/shared";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ArrowUpToLine, Search, Trash, X } from "lucide-react";
 import { useSession } from "next-auth/react";
 import React, {
@@ -80,6 +81,7 @@ export function CommentList({
   projectId,
   objectId,
   objectType,
+  objectStartTime,
   cardView = false,
   className,
   onDraftChange,
@@ -92,6 +94,7 @@ export function CommentList({
   projectId: string;
   objectId: string;
   objectType: CommentObjectType;
+  objectStartTime?: Date | null;
   cardView?: boolean;
   className?: string;
   onDraftChange?: (hasDraft: boolean) => void;
@@ -422,6 +425,7 @@ export function CommentList({
   function onSubmit(values: z.infer<typeof CreateCommentData>) {
     createCommentMutation.mutateAsync({
       ...values,
+      objectStartTime: objectStartTime ?? undefined,
       dataField: pendingSelection?.dataField,
       path: pendingSelection?.path,
       rangeStart: pendingSelection?.rangeStart,

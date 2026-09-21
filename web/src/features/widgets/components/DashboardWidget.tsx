@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
@@ -61,7 +62,7 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { type ResolvedReadPath } from "@/src/features/events/hooks/useReadPath";
+import type { ResolvedReadPath } from "@/src/features/events";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

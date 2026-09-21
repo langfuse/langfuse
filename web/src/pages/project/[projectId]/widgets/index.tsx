@@ -3,7 +3,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import Page from "@/src/components/layouts/page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
-import { DashboardWidgetTable } from "@/src/features/widgets";
+import { ConnectedDashboardWidgetTable } from "@/src/features/widgets";
 import {
   getDashboardTabs,
   DASHBOARD_TABS,
@@ -42,7 +42,7 @@ export default function Widgets() {
         ),
       }}
     >
-      <DashboardWidgetTable />
+      <ConnectedDashboardWidgetTable />
     </Page>
   );
 }

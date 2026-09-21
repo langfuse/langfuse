@@ -1,19 +1,17 @@
-/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/ui/badge";
-import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
 
-export const BillingDiscountView = () => {
-  const { organization, billingProvider } = useBillingInformation();
-
-  const shouldRenderComponent = Boolean(
-    organization?.cloudConfig?.stripe?.customerId,
-  );
-
+export const BillingDiscountView = ({
+  orgId,
+  hasStripeCustomer,
+}: {
+  orgId: string;
+  hasStripeCustomer: boolean;
+}) => {
   const { data } = api.cloudBilling.getSubscriptionInfo.useQuery(
-    { orgId: organization?.id ?? "" },
-    { enabled: Boolean(organization?.id && shouldRenderComponent) },
+    { orgId },
+    { enabled: hasStripeCustomer },
   );
 
   const discounts = data?.discounts ?? [];
@@ -32,21 +30,10 @@ export const BillingDiscountView = () => {
     }
   };
 
-  // No promotion-code API on the ClickHouse Billing path yet
-  if (billingProvider === "clickhouse") {
-    return null;
-  }
-
-  // Hide promotion code view and button when user is on Hobby Plan
-  // Hobby plan users don't have an active subscription ID
-  if (!organization?.cloudConfig?.stripe?.activeSubscriptionId) {
-    return null;
-  }
-
-  if (!shouldRenderComponent) {
+  if (!hasStripeCustomer) {
     return (
       <div className="flex items-center">
-        <BillingDiscountCodeButton orgId={organization?.id} />
+        <BillingDiscountCodeButton orgId={orgId} />
       </div>
     );
   }
@@ -69,7 +56,7 @@ export const BillingDiscountView = () => {
             </Badge>
           );
         })}
-        <BillingDiscountCodeButton orgId={organization?.id} />
+        <BillingDiscountCodeButton orgId={orgId} />
       </div>
     </div>
   );

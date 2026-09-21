@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
@@ -17,14 +18,17 @@ import {
   LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
-import { type SelectionData } from "@/src/features/comments/contexts/InlineCommentSelectionContext";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import { ExistingDatasetItemsDropdownMenuController } from "@/src/features/datasets/components/ExistingDatasetItemsDropdownMenuController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { useDatasetItemFromTraceOrObservation } from "@/src/features/datasets/hooks/useDatasetItemFromTraceOrObservation";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  ExistingDatasetItemsDropdownMenuController,
+  NewDatasetItemFromExistingObjectDialogController,
+  useDatasetItemFromTraceOrObservation,
+} from "@/src/features/datasets";
+import {
+  AnnotateDrawerController,
+  DualAnnotationContent,
+} from "@/src/features/scores";
 import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
 import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
 import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
@@ -32,22 +36,15 @@ import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
   TimeToFirstTokenBadge,
-  EnvironmentBadge,
-  ReleaseBadge,
-  VersionBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
-import {
-  SessionBadge,
-  UserIdBadge,
-} from "@/src/features/traces/components/TraceMetadataBadges";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
   UsageBadge,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
+import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
-import { ModelParametersBadges } from "@/src/features/traces/components/ObservationDetailView/components/ModelParametersBadges";
 import {
   type WithStringifiedMetadata,
   type MetadataDomainClient,
@@ -56,7 +53,7 @@ import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggr
 import type Decimal from "decimal.js";
 import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { Button } from "@/src/components/ui/button";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
@@ -83,7 +80,6 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DualAnnotationContent } from "@/src/features/scores/components/DualAnnotationContent";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -106,11 +102,10 @@ export interface ObservationDetailViewHeaderProps {
   latencySeconds: number | null;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   commentCount: number | undefined;
-  // Inline comment props
-  pendingSelection?: SelectionData | null;
-  onSelectionUsed?: () => void;
-  isCommentDrawerOpen?: boolean;
-  onCommentDrawerOpenChange?: (open: boolean) => void;
+  commentDrawerControl: {
+    disabled: boolean;
+    openDrawer: () => void;
+  };
   subtreeMetrics?: AggregatedTraceMetrics | null;
   treeNodeTotalCost?: Decimal;
 }
@@ -124,10 +119,7 @@ export const ObservationDetailViewHeader = memo(
     latencySeconds,
     observationScores,
     commentCount,
-    pendingSelection,
-    onSelectionUsed,
-    isCommentDrawerOpen,
-    onCommentDrawerOpenChange,
+    commentDrawerControl,
     subtreeMetrics,
     treeNodeTotalCost,
   }: ObservationDetailViewHeaderProps) {
@@ -186,18 +178,47 @@ export const ObservationDetailViewHeader = memo(
       date: observation.startTime,
       accuracy: "millisecond",
     });
+    const displayedTotalCost = subtreeMetrics
+      ? (treeNodeTotalCost?.toNumber() ?? subtreeMetrics.totalCost)
+      : totalCost;
+    const displayedCostDetails =
+      subtreeMetrics?.costDetails ?? observation.costDetails;
+    const showsOwnObservationCost = !subtreeMetrics;
+    const hasProvidedCostDetails =
+      Object.keys(observation.providedCostDetails).length > 0;
+    const costSource = resolveObservationCostSource({
+      hasSubtreeMetrics: Boolean(subtreeMetrics),
+      hasProvidedCostDetails,
+    });
+    const priceSource =
+      isGenerationLike(observation.type) &&
+      observation.internalModelId &&
+      observation.model &&
+      observation.usagePricingTierId &&
+      observation.usagePricingTierName &&
+      !hasProvidedCostDetails &&
+      showsOwnObservationCost
+        ? {
+            projectId,
+            modelId: observation.internalModelId,
+            modelName: observation.model,
+            pricingTierId: observation.usagePricingTierId,
+            pricingTierName: observation.usagePricingTierName,
+          }
+        : undefined;
 
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
         <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
-          <div className="flex w-full flex-row items-center gap-1">
+          <div className="flex w-full min-w-0 flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
               className={cn(
-                "mb-0 line-clamp-2 min-w-0 font-bold break-all md:break-normal md:wrap-break-word",
+                "mb-0 min-w-0 truncate font-bold",
                 isMobile && "flex-1",
               )}
+              title={observation.name || observation.id}
             >
               {observation.name || observation.id}
             </span>
@@ -208,6 +229,15 @@ export const ObservationDetailViewHeader = memo(
               ]}
               observationType={observation.type}
               projectId={projectId}
+              observation={
+                isV4Enabled
+                  ? {
+                      id: observation.id,
+                      traceId,
+                      startTime: observation.startTime,
+                    }
+                  : undefined
+              }
               spanName={observation.name ?? ""}
               webCallout={{
                 traceId,
@@ -255,19 +285,22 @@ export const ObservationDetailViewHeader = memo(
                 >
                   {observationWithIO && (
                     <NewDatasetItemFromExistingObjectDialogController
-                      traceId={traceId}
-                      observationId={observation.id}
                       projectId={projectId}
-                      input={observationWithIO.input}
-                      output={observationWithIO.output}
-                      metadata={observationWithIO.metadata}
                     >
                       {({ openDialog }) => (
                         <ExistingDatasetItemsDropdownMenuController
                           projectId={projectId}
                           datasetItems={existingDatasetItems}
                           disabled={!hasDatasetAccess}
-                          onOpenDialog={openDialog}
+                          onOpenDialog={() =>
+                            openDialog({
+                              traceId,
+                              observationId: observation.id,
+                              input: observationWithIO.input,
+                              output: observationWithIO.output,
+                              metadata: observationWithIO.metadata,
+                            })
+                          }
                         >
                           {({ Anchor, openDropdown }) => (
                             <Anchor>
@@ -283,7 +316,13 @@ export const ObservationDetailViewHeader = memo(
                                   }
 
                                   captureNewDatasetItemFormOpen();
-                                  openDialog();
+                                  openDialog({
+                                    traceId,
+                                    observationId: observation.id,
+                                    input: observationWithIO.input,
+                                    output: observationWithIO.output,
+                                    metadata: observationWithIO.metadata,
+                                  });
                                 }}
                               >
                                 {hasExistingDatasetItems || hasDatasetAccess ? (
@@ -346,27 +385,31 @@ export const ObservationDetailViewHeader = memo(
                           </DrawerContent>
                         </Drawer>
                       ) : (
-                        <AnnotateDrawerController
-                          key={"annotation-drawer-menu-" + observation.id}
-                          projectId={projectId}
-                          scoreTarget={{
-                            type: "trace",
-                            traceId: traceId,
-                            observationId: observation.id,
-                          }}
-                          scores={observationScores}
-                          scoreMetadata={{
-                            projectId: projectId,
-                            environment: observation.environment,
-                          }}
-                        >
+                        <AnnotateDrawerController projectId={projectId}>
                           {({ disabled, openDrawer }) => (
                             <Button
                               variant="ghost"
                               size="sm"
                               disabled={disabled}
                               className="w-full justify-start gap-2 font-normal"
-                              onClick={openDrawer}
+                              onClick={() =>
+                                openDrawer({
+                                  scoreTarget: {
+                                    type: "trace",
+                                    traceId,
+                                    observationId: observation.id,
+                                  },
+                                  scores: observationScores,
+                                  analyticsData: {
+                                    type: "trace",
+                                    source: "TraceDetail",
+                                  },
+                                  scoreMetadata: {
+                                    projectId,
+                                    environment: observation.environment,
+                                  },
+                                })
+                              }
                             >
                               {disabled ? (
                                 <LockIcon className="h-3 w-3" />
@@ -392,10 +435,12 @@ export const ObservationDetailViewHeader = memo(
                           >
                             <ListPlus className="h-4 w-4" />
                             <span className="text-sm">Add to queue</span>
-                            <AnnotationQueueItemCountBadge
-                              totalCount={totalCount}
-                              layout="menu"
-                            />
+                            {totalCount > 0 && (
+                              <AnnotationQueueItemCountBadge
+                                totalCount={totalCount}
+                                layout="menu"
+                              />
+                            )}
                           </Button>
                         )}
                       </AnnotationQueueItemDropdownMenuController>
@@ -431,37 +476,24 @@ export const ObservationDetailViewHeader = memo(
                         )}
                       </JumpToPlaygroundDropdownMenuController>
                     )}
-                  <CommentDrawerController
-                    projectId={projectId}
-                    objectId={observation.id}
-                    objectType="OBSERVATION"
-                    count={commentCount}
-                    pendingSelection={pendingSelection}
-                    onSelectionUsed={onSelectionUsed}
-                    isOpen={isCommentDrawerOpen}
-                    onOpenChange={onCommentDrawerOpenChange}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={commentDrawerControl.disabled}
+                    onClick={commentDrawerControl.openDrawer}
+                    className="w-full justify-start gap-2 font-normal"
                   >
-                    {({ disabled, openDrawer }) => (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={disabled}
-                        onClick={openDrawer}
-                        className="w-full justify-start gap-2 font-normal"
-                      >
-                        {disabled ? (
-                          <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                        ) : (
-                          <MessageSquare className="h-4 w-4" />
-                        )}
-                        <span className="text-sm">Add comment</span>
-                        {!disabled && commentCount ? (
-                          <ActionButtonCountBadge count={commentCount} />
-                        ) : null}
-                      </Button>
+                    {commentDrawerControl.disabled ? (
+                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                    ) : (
+                      <MessageSquare className="h-4 w-4" />
                     )}
-                  </CommentDrawerController>
+                    <span className="text-sm">Add comment</span>
+                    {!commentDrawerControl.disabled && commentCount ? (
+                      <ActionButtonCountBadge count={commentCount} />
+                    ) : null}
+                  </Button>
                 </PopoverContent>
               </Popover>
             )}
@@ -471,12 +503,7 @@ export const ObservationDetailViewHeader = memo(
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
                 <NewDatasetItemFromExistingObjectDialogController
-                  traceId={traceId}
-                  observationId={observation.id}
                   projectId={projectId}
-                  input={observationWithIO.input}
-                  output={observationWithIO.output}
-                  metadata={observationWithIO.metadata}
                   key={observation.id}
                 >
                   {({ openDialog }) => (
@@ -484,7 +511,15 @@ export const ObservationDetailViewHeader = memo(
                       projectId={projectId}
                       datasetItems={existingDatasetItems}
                       disabled={!hasDatasetAccess}
-                      onOpenDialog={openDialog}
+                      onOpenDialog={() =>
+                        openDialog({
+                          traceId,
+                          observationId: observation.id,
+                          input: observationWithIO.input,
+                          output: observationWithIO.output,
+                          metadata: observationWithIO.metadata,
+                        })
+                      }
                     >
                       {({ Anchor, openDropdown }) => (
                         <Anchor>
@@ -499,7 +534,13 @@ export const ObservationDetailViewHeader = memo(
                               }
 
                               captureNewDatasetItemFormOpen();
-                              openDialog();
+                              openDialog({
+                                traceId,
+                                observationId: observation.id,
+                                input: observationWithIO.input,
+                                output: observationWithIO.output,
+                                metadata: observationWithIO.metadata,
+                              });
                             }}
                           >
                             {!hasExistingDatasetItems && hasDatasetAccess ? (
@@ -559,27 +600,31 @@ export const ObservationDetailViewHeader = memo(
                       </DrawerContent>
                     </Drawer>
                   ) : (
-                    <AnnotateDrawerController
-                      key={"annotation-drawer-" + observation.id}
-                      projectId={projectId}
-                      scoreTarget={{
-                        type: "trace",
-                        traceId: traceId,
-                        observationId: observation.id,
-                      }}
-                      scores={observationScores}
-                      scoreMetadata={{
-                        projectId: projectId,
-                        environment: observation.environment,
-                      }}
-                    >
+                    <AnnotateDrawerController projectId={projectId}>
                       {({ disabled, openDrawer }) => (
                         <Button
                           variant="secondary"
                           size="sm"
                           disabled={disabled}
                           className="rounded-r-none"
-                          onClick={openDrawer}
+                          onClick={() =>
+                            openDrawer({
+                              scoreTarget: {
+                                type: "trace",
+                                traceId,
+                                observationId: observation.id,
+                              },
+                              scores: observationScores,
+                              analyticsData: {
+                                type: "trace",
+                                source: "TraceDetail",
+                              },
+                              scoreMetadata: {
+                                projectId,
+                                environment: observation.environment,
+                              },
+                            })
+                          }
                         >
                           {disabled ? (
                             <LockIcon className="mr-1.5 h-3 w-3" />
@@ -605,10 +650,12 @@ export const ObservationDetailViewHeader = memo(
                       >
                         <span className="relative mr-1 text-xs">
                           <ChevronDown className="h-3 w-3" />
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="toolbar"
-                          />
+                          {totalCount > 0 && (
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="toolbar"
+                            />
+                          )}
                         </span>
                       </Button>
                     )}
@@ -644,39 +691,26 @@ export const ObservationDetailViewHeader = memo(
                     )}
                   </JumpToPlaygroundDropdownMenuController>
                 )}
-              <CommentDrawerController
-                projectId={projectId}
-                objectId={observation.id}
-                objectType="OBSERVATION"
-                count={commentCount}
-                pendingSelection={pendingSelection}
-                onSelectionUsed={onSelectionUsed}
-                isOpen={isCommentDrawerOpen}
-                onOpenChange={onCommentDrawerOpenChange}
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={commentDrawerControl.disabled}
+                onClick={commentDrawerControl.openDrawer}
+                className="gap-1"
               >
-                {({ disabled, openDrawer }) => (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={disabled}
-                    onClick={openDrawer}
-                    className="gap-1"
-                  >
-                    {disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
-                    ) : (
-                      <>
-                        <MessageSquare className="h-3.5 w-3.5" />
-                        <span>Add comment</span>
-                        {!!commentCount ? (
-                          <ActionButtonCountBadge count={commentCount} />
-                        ) : null}
-                      </>
-                    )}
-                  </Button>
+                {commentDrawerControl.disabled ? (
+                  <MessageSquareOff className="text-muted-foreground h-3.5 w-3.5" />
+                ) : (
+                  <>
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>Add comment</span>
+                    {!!commentCount ? (
+                      <ActionButtonCountBadge count={commentCount} />
+                    ) : null}
+                  </>
                 )}
-              </CommentDrawerController>
+              </Button>
             </div>
           )}
         </div>
@@ -698,81 +732,53 @@ export const ObservationDetailViewHeader = memo(
               <TimeToFirstTokenBadge
                 timeToFirstToken={observation.timeToFirstToken}
               />
-              <SessionBadge
-                sessionId={observation.sessionId ?? null}
-                projectId={projectId}
-              />
-              <UserIdBadge
-                userId={observation.userId ?? null}
-                projectId={projectId}
-              />
-              <EvaluatorBadge
-                evaluatorId={evaluatorId}
-                evaluatorName={evaluator.data?.name}
-                environment={observation.environment}
-                projectId={projectId}
-              />
-              <EnvironmentBadge environment={observation.environment} />
-              <ReleaseBadge release={observation.release} />
-              <CostBadge
-                totalCost={
-                  subtreeMetrics
-                    ? (treeNodeTotalCost?.toNumber() ??
-                      subtreeMetrics.totalCost)
-                    : totalCost
-                }
-                costDetails={
-                  subtreeMetrics?.costDetails ?? observation.costDetails
-                }
-                priceSource={
-                  isGenerationLike(observation.type) &&
-                  observation.internalModelId &&
-                  observation.model &&
-                  observation.usagePricingTierId &&
-                  observation.usagePricingTierName &&
-                  Object.keys(observation.providedCostDetails).length === 0 &&
-                  (!subtreeMetrics ||
-                    treeNodeTotalCost?.eq(totalCost ?? 0) === true)
-                    ? {
-                        projectId,
-                        modelId: observation.internalModelId,
-                        modelName: observation.model,
-                        pricingTierId: observation.usagePricingTierId,
-                        pricingTierName: observation.usagePricingTierName,
-                      }
-                    : undefined
-                }
-              />
-              {subtreeMetrics ? (
-                subtreeMetrics.hasGenerationLike &&
-                subtreeMetrics.usageDetails && (
-                  <UsageBadge
-                    type="GENERATION"
-                    inputUsage={subtreeMetrics.inputUsage}
-                    outputUsage={subtreeMetrics.outputUsage}
-                    totalUsage={subtreeMetrics.totalUsage}
-                    usageDetails={subtreeMetrics.usageDetails}
+              {evaluatorId &&
+                (observation.environment ===
+                  LangfuseInternalTraceEnvironment.LLMJudge ||
+                  observation.environment ===
+                    LangfuseInternalTraceEnvironment.CodeEval) &&
+                !evaluatorId.startsWith("managed:") && (
+                  <EvaluatorBadge
+                    evaluatorId={evaluatorId}
+                    evaluatorName={evaluator.data?.name}
+                    projectId={projectId}
                   />
-                )
-              ) : (
-                <UsageBadge
-                  type={observation.type}
-                  inputUsage={inputUsage}
-                  outputUsage={outputUsage}
-                  totalUsage={totalUsage}
+                )}
+              {displayedTotalCost != null && displayedCostDetails && (
+                <CostBadge
+                  totalCost={displayedTotalCost}
+                  costDetails={displayedCostDetails}
+                  costSource={costSource}
+                  priceSource={priceSource}
+                />
+              )}
+              {subtreeMetrics
+                ? subtreeMetrics.hasGenerationLike &&
+                  subtreeMetrics.usageDetails && (
+                    <UsageBadge
+                      inputUsage={subtreeMetrics.inputUsage}
+                      outputUsage={subtreeMetrics.outputUsage}
+                      totalUsage={subtreeMetrics.totalUsage}
+                      usageDetails={subtreeMetrics.usageDetails}
+                    />
+                  )
+                : isGenerationLike(observation.type) &&
+                  observation.usageDetails && (
+                    <UsageBadge
+                      inputUsage={inputUsage}
+                      outputUsage={outputUsage}
+                      totalUsage={totalUsage}
+                      usageDetails={observation.usageDetails}
+                    />
+                  )}
+              {observation.model && (
+                <ModelBadge
+                  model={observation.model}
+                  internalModelId={observation.internalModelId}
+                  projectId={projectId}
                   usageDetails={observation.usageDetails}
                 />
               )}
-              <VersionBadge version={observation.version} />
-              <ModelBadge
-                model={observation.model}
-                internalModelId={observation.internalModelId}
-                projectId={projectId}
-                usageDetails={observation.usageDetails}
-              />
-              <ModelParametersBadges
-                modelParameters={observation.modelParameters}
-              />
               {observation.level !== "DEFAULT" && (
                 <ObservationLevelBadge
                   level={observation.level}

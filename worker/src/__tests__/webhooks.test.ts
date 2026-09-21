@@ -9,6 +9,7 @@ import {
   vi,
 } from "vitest";
 import { v4 } from "uuid";
+import { backOff } from "exponential-backoff";
 import {
   ActionExecutionStatus,
   JobConfigState,
@@ -31,6 +32,18 @@ import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { executeWebhook } from "../queues/webhooks";
+
+vi.mock("exponential-backoff", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("exponential-backoff")>();
+  return {
+    ...actual,
+    // State-transition tests exercise every HTTP attempt without waiting between them.
+    // The endpoint-error test restores the real delays to cover the production policy.
+    backOff: vi.fn((...args: Parameters<typeof actual.backOff>) =>
+      actual.backOff(args[0], { ...args[1], startingDelay: 0 }),
+    ),
+  };
+});
 
 // Mock webhook server for testing HTTP requests
 class WebhookTestServer {
@@ -459,6 +472,11 @@ describe("Webhook Integration Tests", () => {
     });
 
     it("should handle webhook endpoint returning error", async () => {
+      const actual = await vi.importActual<
+        typeof import("exponential-backoff")
+      >("exponential-backoff");
+      vi.mocked(backOff).mockImplementationOnce(actual.backOff);
+      vi.mocked(backOff).mockClear();
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
       });
@@ -518,6 +536,11 @@ describe("Webhook Integration Tests", () => {
       };
 
       await executeWebhook(webhookInput, { skipValidation: true });
+
+      expect(backOff).toHaveBeenCalledWith(expect.any(Function), {
+        numOfAttempts: 4,
+      });
+      expect(webhookServer.getReceivedRequests()).toHaveLength(4);
 
       // Verify execution was marked as error
       const execution = await prisma.automationExecution.findUnique({

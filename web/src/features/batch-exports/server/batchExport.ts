@@ -1,11 +1,11 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server/hasEntitlement";
+} from "@/src/features/entitlements/server";
 import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   type AuthedSession,
@@ -52,7 +52,8 @@ const canReadAuditLogs = (session: AuthedSession, projectId: string) =>
     entitlement: "audit-logs",
     sessionUser: session.user,
     projectId,
-  }) && hasProjectAccess({ session, projectId, scope: "auditLogs:read" });
+  }) &&
+  hasProjectAccess({ session, projectId, scope: "projectAuditLogs:read" });
 
 // An audit-log export holds actor identifiers and admin actions, so reading
 // one needs the audit-log gates too, not just the batch-export ones.
@@ -62,7 +63,11 @@ const assertCanReadAuditLogs = (session: AuthedSession, projectId: string) => {
     sessionUser: session.user,
     projectId,
   });
-  throwIfNoProjectAccess({ session, projectId, scope: "auditLogs:read" });
+  throwIfNoProjectAccess({
+    session,
+    projectId,
+    scope: "projectAuditLogs:read",
+  });
 };
 
 const isDownloadWindowExpired = (batchExport: {

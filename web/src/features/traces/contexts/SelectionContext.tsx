@@ -28,14 +28,15 @@ import {
 } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { useDebounce } from "@/src/hooks/useDebounce";
+import { useViewPreferences } from "./ViewPreferencesContext";
 import {
-  useViewPreferences,
+  isPrettyLikeJsonView,
   type JsonViewPreference,
-} from "./ViewPreferencesContext";
+} from "@/src/components/ui/jsonViewPreference";
 
 // Valid tab values for detail view
-export type DetailTab = "preview" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "log", "scores"];
+export type DetailTab = "preview" | "attributes" | "log" | "scores";
+const VALID_TABS: DetailTab[] = ["preview", "attributes", "log", "scores"];
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
@@ -95,11 +96,11 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     : DEFAULT_TAB;
 
   // Map localStorage JsonViewPreference to ViewPref format
-  // Both "json" and "json-beta" map to "json" ViewPref
-  const localStorageViewPref: ViewPref =
-    jsonViewPreference === "json" || jsonViewPreference === "json-beta"
-      ? "json"
-      : "formatted";
+  const localStorageViewPref: ViewPref = isPrettyLikeJsonView(
+    jsonViewPreference,
+  )
+    ? "formatted"
+    : "json";
 
   // View preference: URL param overrides localStorage default
   const viewPref: ViewPref = VALID_PREFS.includes(prefParam as ViewPref)

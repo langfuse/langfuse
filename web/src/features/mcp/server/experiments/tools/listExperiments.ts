@@ -7,7 +7,7 @@ import {
   ListExperimentsBaseSchema,
   ListExperimentsInputSchema,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 
 export const [listExperimentsTool, handleListExperiments] = defineTool({
   name: "listExperiments",
@@ -17,6 +17,7 @@ export const [listExperimentsTool, handleListExperiments] = defineTool({
     "Results are sorted newest first by the latest event for each experiment, not by the returned experiment startTime.",
     "fromStartTime is required. Time filters and cursor bounds are applied before experiments are grouped, so a time range can return partial experiment aggregates.",
   ].join("\n"),
+  action: "experiments:read",
   baseSchema: ListExperimentsBaseSchema,
   inputSchema: ListExperimentsInputSchema,
   handler: async (input, context) =>

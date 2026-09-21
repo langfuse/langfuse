@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 export type PersistedSidebarFilterQueryState = {
   contextId: string | null;
   query: string;

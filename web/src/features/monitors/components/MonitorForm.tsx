@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";
@@ -40,7 +41,7 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
-import { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
+import { WidgetPropertySelectItem } from "@/src/features/widgets";
 import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";

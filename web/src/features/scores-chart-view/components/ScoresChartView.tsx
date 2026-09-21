@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
@@ -14,6 +15,7 @@ import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
 import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the
@@ -55,6 +57,10 @@ export function ScoresChartView({
   onConfigChange: (patch: Partial<ScoreChartViewConfig>) => void;
   viewVersion: ViewVersion;
 }) {
+  const canManageDashboards = useHasProjectAccess({
+    projectId,
+    scope: "dashboards:CUD",
+  });
   const filters = useMemo(
     () =>
       mapLegacyUiTableFilterToView(
@@ -110,7 +116,12 @@ export function ScoresChartView({
       isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       chartActions={
-        <AddToDashboardButton projectId={projectId} widgetInput={widgetInput} />
+        canManageDashboards && (
+          <AddToDashboardButton
+            projectId={projectId}
+            widgetInput={widgetInput}
+          />
+        )
       }
     />
   );

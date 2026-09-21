@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
 import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
@@ -274,7 +274,7 @@ export function InAppAgentWindowHost({ children }: { children: ReactNode }) {
               // `agent` overlay layer — a <body>-level layer container that
               // floats above page content and panel surfaces, but below true
               // modals and transient overlays by DOM order alone. No z-index:
-              // layer ORDER stacks it (see components/ui/layer.tsx). The
+              // layer ORDER stacks it (see context/LayerContext/layers.ts). The
               // docked sidebar is in-flow above, not in this layer.
               <Layer name="agent">
                 <InAppAgentWindowShell

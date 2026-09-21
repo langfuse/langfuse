@@ -1,9 +1,10 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 // Langfuse Cloud only
 
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
@@ -16,6 +17,8 @@ import { BillingPlanPeriodView } from "@/src/ee/features/billing/components/Bill
 import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { SpendAlertsSection } from "./SpendAlerts/SpendAlertsSection";
 import { useBillingInformation } from "./useBillingInformation";
+import { api } from "@/src/utils/api";
+import { MAX_EVENTS_FREE_PLAN } from "@/src/ee/features/billing/constants";
 
 export const BillingSettings = () => {
   const router = useRouter();
@@ -28,7 +31,34 @@ export const BillingSettings = () => {
   const isCloudBillingAvailable = useIsCloudBillingAvailable();
   const isCloudBillingEntitled = useHasEntitlement("cloud-billing");
   const isSpendAlertEntitled = useHasEntitlement("cloud-spend-alerts");
-  const { hasActiveSubscription } = useBillingInformation();
+  const {
+    organization,
+    billingProvider,
+    hasActiveSubscription,
+    planLabel,
+    cancellation,
+    scheduledPlanSwitch,
+  } = useBillingInformation();
+  const usage = api.cloudBilling.getUsage.useQuery(
+    { orgId: organization?.id ?? "" },
+    {
+      enabled: Boolean(
+        organization &&
+        isCloudBillingAvailable &&
+        isCloudBillingEntitled &&
+        hasAccess,
+      ),
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+    },
+  );
+  const showBillingDiscount = Boolean(
+    organization?.cloudConfig?.stripe?.activeSubscriptionId &&
+    billingProvider !== "clickhouse",
+  );
 
   // Don't render billing settings if cloud billing is not available
   if (!isCloudBillingAvailable) {
@@ -54,13 +84,41 @@ export const BillingSettings = () => {
 
   return (
     <div>
-      <BillingScheduleNotification />
+      {cancellation ? (
+        <BillingScheduleNotification
+          type="cancellation"
+          planLabel={planLabel}
+          cancellation={cancellation}
+        />
+      ) : scheduledPlanSwitch ? (
+        <BillingScheduleNotification
+          type="scheduled-plan-switch"
+          planLabel={planLabel}
+          scheduledPlanSwitch={scheduledPlanSwitch}
+        />
+      ) : null}
 
       <Header title="Usage & Billing" />
       <div className="space-y-6">
-        <BillingUsageChart />
+        {usage.data !== null && (
+          <BillingUsageChart
+            usage={usage.data}
+            hobbyPlanLimit={
+              organization?.cloudConfig?.monthlyObservationLimit ??
+              MAX_EVENTS_FREE_PLAN
+            }
+            plan={organization?.plan ?? "cloud:hobby"}
+          />
+        )}
         <BillingPlanPeriodView />
-        <BillingDiscountView />
+        {showBillingDiscount && organization && (
+          <BillingDiscountView
+            orgId={organization.id}
+            hasStripeCustomer={Boolean(
+              organization.cloudConfig?.stripe?.customerId,
+            )}
+          />
+        )}
         <BillingActionButtons />
         <BillingInvoiceTable />
         {isSpendAlertEntitled && orgId && hasActiveSubscription && (

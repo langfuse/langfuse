@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
@@ -8,10 +9,16 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
+import {
+  DEFAULT_JSON_VIEW_PREFERENCE,
+  JSON_VIEW_PREFERENCE_STORAGE_KEY,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
+import type { IOPreviewParserComparisonOutcome } from "../../hooks/useIOPreviewParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
@@ -151,9 +158,10 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
-  // The normalized-parser formatted view is gated to admins and explicitly
-  // flagged users; it must never surface for regular users.
-  const showPrettyBeta = useIsFeatureEnabled("normalizedIoPreview", {
+  // "Improved Message Rendering" feature preview: when enabled, the Formatted
+  // view is powered by the normalized parser instead of the legacy one.
+  const improvedRenderingEnabled = useIsFeatureEnabled("normalizedIoPreview", {
+    enableForAdmins: false,
     projectId,
   });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
@@ -161,10 +169,11 @@ export function IOPreview({
 
   // View state management
   const [localCurrentView, setLocalCurrentView] = useLocalStorage<ViewMode>(
-    "jsonViewPreference",
-    "pretty",
+    JSON_VIEW_PREFERENCE_STORAGE_KEY,
+    DEFAULT_JSON_VIEW_PREFERENCE,
   );
-  const selectedView = currentView ?? localCurrentView;
+  const selectedView =
+    currentView ?? normalizeJsonViewPreference(localCurrentView);
   const showViewToggle = currentView === undefined;
 
   const [compensateScrollRef, startPreserveScroll] =
@@ -232,8 +241,6 @@ export function IOPreview({
           selectedView={selectedView}
           onViewChange={handleViewChange}
           compensateScrollRef={compensateScrollRef}
-          showPrettyBeta={showPrettyBeta}
-          prettyBetaDisabled={chatMLParserResult !== undefined}
         />
       )}
 
@@ -249,6 +256,7 @@ export function IOPreview({
        */}
       {selectedView === "json-beta" ? (
         <IOPreviewJSON
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -276,6 +284,7 @@ export function IOPreview({
         />
       ) : selectedView === "json" ? (
         <IOPreviewJSONSimple
+          hideMetadata={!showMetadata}
           input={input}
           output={output}
           status={status}
@@ -306,13 +315,14 @@ export function IOPreview({
         <IOPreviewPretty
           {...sharedProps}
           parser={
-            // Precomputed legacy parses win inside the parser hook, so a
-            // beta-labeled view must never claim them as normalized output.
-            selectedView === "pretty-beta" &&
-            showPrettyBeta &&
-            chatMLParserResult === undefined
+            // Precomputed legacy parses win inside the parser hook, so the
+            // Formatted view must never claim them as normalized output.
+            improvedRenderingEnabled && chatMLParserResult === undefined
               ? "normalized"
               : "legacy"
+          }
+          onParserComparison={(outcome: IOPreviewParserComparisonOutcome) =>
+            capture("trace_detail:io_parser_comparison", { outcome })
           }
           observationName={observationName}
           showMetadata={showMetadata}

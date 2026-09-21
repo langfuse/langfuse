@@ -1,12 +1,18 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
+import {
+  getItemTypeLabels,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -77,6 +83,7 @@ const PageHeader = ({
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
+  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   // The sidebar trigger + brand mark only make sense where a real AppSidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
@@ -103,17 +110,15 @@ const PageHeader = ({
             className={cn(
               // Named container so chrome controls compact from remaining
               // pane width (docked right rail) rather than the viewport.
-              // No extra vertical padding: min-h-11 + border-b already is
-              // the 44px box. Extra py would grow the row past the sidebar
-              // strip (border-box counts padding inside min-height, then
-              // 32px controls no longer fit). nowrap keeps breadcrumbs and
-              // controls on one row; the controls compact at the pageheader
-              // container breakpoint instead of wrapping.
-              "@container/pageheader flex h-full w-full flex-nowrap items-center justify-between gap-2 px-3 leading-none",
+              // Each flex line is 43px plus the shared 1px border. A single
+              // line stays aligned with the sidebar's 44px row; wrapped
+              // controls form a second full-height row instead of looking
+              // squeezed between the header edges.
+              "@container/pageheader flex h-full w-full flex-wrap items-center justify-between gap-x-3 gap-y-px px-3 leading-none",
               container && containerLayoutClassName,
             )}
           >
-            <div className="flex min-h-5 min-w-0 flex-nowrap items-center gap-2">
+            <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-3">
               {showSidebarChrome ? (
                 <>
                   <SidebarTrigger />
@@ -143,9 +148,9 @@ const PageHeader = ({
             {/* Slot for page-level controls (time range, auto-refresh)
                 hoisted from a list table via PageHeaderControlsPortal.
                 Empty on pages that don't use it. */}
-            <div className="flex shrink-0 flex-nowrap items-center gap-2">
+            <div className="flex min-h-[43px] flex-wrap items-center gap-2">
               <PageHeaderControlsSlotTarget />
-              <InAppAiAgentButton />
+              {isInAppAgentLauncherVisible && <InAppAiAgentButton />}
             </div>
           </div>
         </div>
@@ -163,7 +168,7 @@ const PageHeader = ({
               <div className="mr-2 flex items-center gap-1">
                 {itemType && (
                   <div className="flex items-center">
-                    <ItemBadge type={itemType} showLabel />
+                    <TextChip text={getItemTypeLabels(itemType).displayLabel} />
                   </div>
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">

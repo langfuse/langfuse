@@ -1,11 +1,8 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import startCase from "lodash/startCase";
 
-import {
-  DashboardWidgetChartType,
-  singleFilter,
-  type FilterState,
-} from "@langfuse/shared";
+import { singleFilterList, type FilterState } from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
   getWidgetRequiredVersion,
@@ -21,6 +18,7 @@ import {
   normalizeStoredWidgetFiltersForEditor,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
 import {
   buildWidgetDescription,
   buildWidgetName,
@@ -188,11 +186,11 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
       name: z.string().nullable(),
       description: z.string().nullable(),
       view: views,
-      filters: z.array(singleFilter),
+      filters: singleFilterList,
       metrics: z.array(MetricFieldSchema).min(1),
       dimensions: z.array(z.object({ field: z.string() })),
       chart: z.object({
-        type: z.enum(DashboardWidgetChartType),
+        type: dashboardWidgetChartTypeSchema,
         bins: z.coerce.number().int().min(1).max(100),
         rowLimit: z.coerce.number().int().min(0).max(1000),
         sort: SortFieldSchema.nullable(),

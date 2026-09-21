@@ -1,13 +1,12 @@
-/* eslint-disable @repo/no-null-render */
 /**
  * Tooltip-based metadata badges for ObservationDetailView
  * These badges use BreakdownTooltip to show detailed cost/usage information
  */
 
-import { type ObservationType, isGenerationLike } from "@langfuse/shared";
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import {
   BreakdownTooltip,
+  type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
@@ -17,47 +16,53 @@ export function CostBadge({
   totalCost,
   costDetails,
   priceSource,
+  costSource,
 }: {
-  totalCost: number | null;
-  costDetails: Record<string, number> | undefined;
+  totalCost: number;
+  costDetails: Record<string, number>;
   priceSource?: PriceSource;
+  costSource?: CostSource;
 }) {
-  // Don't show if no cost data. Explicit 0 is a real value and should render.
-  if (totalCost == null || !costDetails) return null;
-
+  if (!hasBreakdown(costDetails)) {
+    return <Badge text={usdFormatter(totalCost)} />;
+  }
   return (
     <BreakdownTooltip
       details={costDetails}
       isCost={true}
       priceSource={priceSource}
+      costSource={costSource}
     >
       <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
     </BreakdownTooltip>
   );
 }
 
+/** A breakdown of nothing but zeros has nothing to say. */
+const hasBreakdown = (details: Record<string, number>) =>
+  Object.values(details).some((value) => value > 0);
+
 export function UsageBadge({
-  type,
   inputUsage,
   outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  type: ObservationType;
   inputUsage: number;
   outputUsage: number;
   totalUsage: number;
-  usageDetails: Record<string, number> | undefined;
+  usageDetails: Record<string, number>;
 }) {
-  // Only show for generation-like observations
-  if (!isGenerationLike(type) || !usageDetails) return null;
-
   const tokenText = formatTokenCounts(
     inputUsage,
     outputUsage,
     totalUsage,
     true,
   );
+
+  if (tokenText && !hasBreakdown(usageDetails)) {
+    return <Badge text={tokenText} />;
+  }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
@@ -15,10 +16,15 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
+import { useSidebarFilterState } from "@/src/features/filters";
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { JobExecutionStatus, type Prisma } from "@langfuse/shared";
@@ -68,9 +74,14 @@ export default function EvalLogTable({
     pageSize: withDefault(NumberParam, 50),
   });
 
+  const filterOptions = Object.fromEntries(
+    evalLogFilterConfig.columnDefinitions.flatMap((column) =>
+      column.type === "stringOptions" ? [[column.id, column.options]] : [],
+    ),
+  );
   const queryFilter = useSidebarFilterState(
     evalLogFilterConfig,
-    {}, // No dynamic options needed - status options are in column definition
+    filterOptions,
     {
       loading: false,
       stateLocation: "urlAndSessionStorage",
@@ -120,7 +131,7 @@ export default function EvalLogTable({
           return undefined;
         }
         if (typeof value === "number") {
-          return value % 1 === 0 ? value : value.toFixed(4);
+          return <span title={value.toFixed(4)}>{value.toFixed(2)}</span>;
         }
         return value;
       },
@@ -251,7 +262,18 @@ export default function EvalLogTable({
       defaultSidebarCollapsed={evalLogFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        <TableSearchBar
+          key={queryFilter.draftResetKey}
+          projectId={projectId}
+          tableName={evalLogFilterConfig.tableName}
+          registry={EVAL_LOGS_FIELD_REGISTRY}
+          filterState={queryFilter.searchBarFilterState}
+          setFilterState={queryFilter.setFilterState}
+          observed={toObservedOptions(filterOptions, false)}
+          isV4={false}
+        />
         <DataTableToolbar
+          tableName="evalLogs"
           columns={columns}
           columnVisibility={columnVisibility}
           setColumnVisibility={setColumnVisibility}
@@ -263,7 +285,10 @@ export default function EvalLogTable({
         />
 
         <ResizableFilterLayout>
-          <DataTableControls queryFilter={queryFilter} />
+          <DataTableControls
+            key={queryFilter.draftResetKey}
+            queryFilter={queryFilter}
+          />
 
           <div className="flex flex-1 flex-col overflow-hidden">
             <DataTable

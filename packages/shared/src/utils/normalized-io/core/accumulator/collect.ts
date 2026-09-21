@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { registeredProviders } from "../../conventions";
 import type { MessageSource } from "../../conventions/io-convention";
 import { asRecord, parseIfString, parseRecord } from "../utils/json";
@@ -6,7 +7,7 @@ import { addMessage, addToolDefinitionValue } from "./helpers";
 import type { NormalizedIOAccumulator } from "./interface";
 import type { ParserContext } from "../parser-context";
 import {
-  normalizePart,
+  normalizePartValue,
   normalizeMessage,
   normalizeFinishReason,
 } from "../normalize";
@@ -121,6 +122,19 @@ function collectMessageSequence(
   };
 
   for (const value of values) {
+    // Some providers return a list of messages, rather than a single message.
+    if (Array.isArray(value)) {
+      flushStandaloneToolCalls();
+      collectMessageSequence(
+        value,
+        fallbackRole,
+        parserContext,
+        messages,
+        accumulator,
+      );
+      continue;
+    }
+
     const record = asRecord(value);
     if (record) collectToolDefinitionsFromRecord(record, accumulator);
 
@@ -129,9 +143,11 @@ function collectMessageSequence(
     if (record?.type === "mcp_list_tools") continue;
 
     if (record && !isMessageLike(record)) {
-      const part = normalizePart(record, parserContext);
-      if (part?.type === "tool-call") {
-        standaloneToolCalls.push(part);
+      const parts = normalizePartValue(record, parserContext);
+      const onlyToolCalls =
+        parts.length > 0 && parts.every((part) => part.type === "tool-call");
+      if (onlyToolCalls) {
+        standaloneToolCalls.push(...parts);
         continue;
       }
     }

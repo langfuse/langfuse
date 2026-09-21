@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-null-render */
 import { useCallback, useEffect } from "react";
 import { BotMessageSquare } from "lucide-react";
 
@@ -30,7 +29,6 @@ export const InAppAiAgentButton = ({
   prominent?: boolean;
 } = {}) => {
   const { open, setOpen, openAssistant, attentionCount } = useInAppAiAgent();
-  const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
 
   const toggleAssistant = useCallback(
     (source: InAppAgentEntryPoint) => {
@@ -45,10 +43,6 @@ export const InAppAiAgentButton = ({
   );
 
   useEffect(() => {
-    if (!isInAppAgentLauncherVisible) {
-      return;
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (
         event.repeat ||
@@ -66,11 +60,7 @@ export const InAppAiAgentButton = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isInAppAgentLauncherVisible, toggleAssistant]);
-
-  if (!isInAppAgentLauncherVisible) {
-    return null;
-  }
+  }, [toggleAssistant]);
 
   const attentionSuffix =
     attentionCount > 0

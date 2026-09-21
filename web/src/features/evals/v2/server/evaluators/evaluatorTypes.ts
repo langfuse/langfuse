@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   EvalOutputDefinitionSchema,
   EvalTemplateType,
@@ -9,11 +10,12 @@ import {
   ZodModelConfig,
   jsonSchema,
   paginationLimitZod,
-  singleFilter,
+  singleFilterList,
   type ObservationVariableMapping,
   type PersistedEvaluatorPromptMessages,
 } from "@langfuse/shared";
 import { z } from "zod";
+import { endOfDay, startOfDay, subMonths } from "date-fns";
 
 const EvaluatorMetadataSchema = z.object({
   name: z.string().trim().min(1),
@@ -140,17 +142,34 @@ export const EvaluatorIdsSchema = z.object({
 });
 
 export const ActivationCostEstimatesSchema = EvaluatorIdsSchema.extend({
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   sampling: z.number().min(0).max(1),
   shouldRunMissingTest: z.boolean().optional().default(true),
   knownTestRunCostUsd: z.number().nonnegative().optional(),
+  timeRange: z
+    .object({
+      from: z.date(),
+      to: z.date(),
+    })
+    .refine(({ from, to }) => from <= to, {
+      message: "The start of the time range must be before its end.",
+      path: ["from"],
+    })
+    .refine(({ from }) => from >= startOfDay(subMonths(new Date(), 6)), {
+      message: "The time range cannot start more than six months ago.",
+      path: ["from"],
+    })
+    .refine(({ to }) => to <= endOfDay(new Date()), {
+      message: "The time range cannot end in the future.",
+      path: ["to"],
+    })
+    .optional(),
 }).refine(
   ({ evaluatorIds }) => new Set(evaluatorIds).size === evaluatorIds.length,
   { message: "Evaluator IDs must be unique", path: ["evaluatorIds"] },
 );
 
-const EvaluatorListFilterSchema = z
-  .array(singleFilter)
+const EvaluatorListFilterSchema = singleFilterList
   .superRefine((filters, ctx) => {
     for (const [index, filter] of filters.entries()) {
       const valid =

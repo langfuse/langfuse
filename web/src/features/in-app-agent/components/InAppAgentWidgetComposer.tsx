@@ -1,10 +1,9 @@
-/* eslint-disable @repo/no-null-render */
 import { type KeyboardEvent, type SyntheticEvent, useState } from "react";
 import { SendHorizontal, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { Textarea } from "@/src/components/ui/textarea";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import type { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 const MAX_TEXTAREA_HEIGHT_PX = 160;
 
@@ -24,15 +23,12 @@ const getWidgetCreationPrompt = (request: string) =>
 
 export function InAppAgentWidgetComposer({
   onSubmitted,
+  openAssistant,
+  submit,
 }: {
   onSubmitted: () => void;
-}) {
-  const { isAvailable, openAssistant, submit } = useInAppAiAgent();
+} & Pick<ReturnType<typeof useInAppAiAgent>, "openAssistant" | "submit">) {
   const [request, setRequest] = useState("");
-
-  if (!isAvailable) {
-    return null;
-  }
 
   const handleSubmit = async (event: SyntheticEvent<HTMLFormElement>) => {
     event.preventDefault();

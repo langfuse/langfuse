@@ -1,4 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+/* eslint-disable no-nested-ternary */
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,

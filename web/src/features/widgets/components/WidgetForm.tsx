@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -50,7 +51,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 
 import { type z } from "zod";
 
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
@@ -67,19 +68,8 @@ import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { showErrorToast } from "@/src/features/notifications";
 import { type FilterState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import {
-  BarChart,
-  PieChart,
-  LineChart,
-  BarChartHorizontal,
-  Hash,
-  BarChart3,
-  Table,
-  Plus,
-  X,
-  AlertCircle,
-  Sparkles,
-} from "lucide-react";
+import { Plus, X, AlertCircle, Sparkles } from "lucide-react";
+import { dashboardWidgetChartTypeIcons } from "@/src/features/widgets/chart-library/chartTypeIcons";
 import {
   Popover,
   PopoverContent,
@@ -141,49 +131,49 @@ const chartTypes: ChartType[] = [
     group: "total-value",
     name: "Big Number",
     value: "NUMBER",
-    icon: Hash,
+    icon: dashboardWidgetChartTypeIcons.NUMBER,
   },
   {
     group: "time-series",
     name: "Line Chart",
     value: "LINE_TIME_SERIES",
-    icon: LineChart,
+    icon: dashboardWidgetChartTypeIcons.LINE_TIME_SERIES,
   },
   {
     group: "time-series",
     name: "Vertical Bar Chart",
     value: "BAR_TIME_SERIES",
-    icon: BarChart,
+    icon: dashboardWidgetChartTypeIcons.BAR_TIME_SERIES,
   },
   {
     group: "total-value",
     name: "Horizontal Bar Chart",
     value: "HORIZONTAL_BAR",
-    icon: BarChartHorizontal,
+    icon: dashboardWidgetChartTypeIcons.HORIZONTAL_BAR,
   },
   {
     group: "total-value",
     name: "Vertical Bar Chart",
     value: "VERTICAL_BAR",
-    icon: BarChart,
+    icon: dashboardWidgetChartTypeIcons.VERTICAL_BAR,
   },
   {
     group: "total-value",
     name: "Histogram",
     value: "HISTOGRAM",
-    icon: BarChart3,
+    icon: dashboardWidgetChartTypeIcons.HISTOGRAM,
   },
   {
     group: "total-value",
     name: "Pie Chart",
     value: "PIE",
-    icon: PieChart,
+    icon: dashboardWidgetChartTypeIcons.PIE,
   },
   {
     group: "total-value",
     name: "Pivot Table",
     value: "PIVOT_TABLE",
-    icon: Table,
+    icon: dashboardWidgetChartTypeIcons.PIVOT_TABLE,
   },
 ];
 
