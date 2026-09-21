@@ -10,9 +10,16 @@ own the opened panel or its lifetime.
 - `TraceReviewPanel` mounts the comment thread and annotation form once per target
   session, hides inactive content, and gates keyboard/mention behavior. Closing
   the panel preserves the draft while this trace remains mounted.
-- `TraceLayoutDesktop` owns resizing. Its resizable-panel integration temporarily
-  hides navigation during review and restores the user's normal layout without
-  persisting the temporary split. Detail content stays mounted in the same panel.
+- `TraceReviewLayout` owns the responsive review split. Automatic navigation is
+  visible when the available display can fit three comfortable columns. An explicit
+  tree toggle overrides that default and is remembered. The review pane stacks below
+  the trace when minimum column widths cannot fit; both editors stay mounted.
+- `TraceLayoutDesktop` owns the tree/detail split. Its temporary review sizes do
+  not overwrite the normal saved layout. Closing review restores that layout after
+  the outer panel and its resize observer settle. Navigation stays mounted while
+  collapsed, preserving tree scroll and timeline zoom.
+- Peek content advertises its temporary minimum width with `data-peek-layout`.
+  The shell caps it at the sidebar edge and restores its saved width on close.
 - Comment and annotation controllers use the workspace when present. Other
   surfaces, including the queue workspace with its own score pane, retain their
   existing overlay presentation and permission checks.

@@ -389,3 +389,9 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 - Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)
 - Order by hook: [`web/src/features/orderBy/hooks/useOrderByState.ts`](../../../features/orderBy/hooks/useOrderByState.ts)
+
+Content may request a temporary review width with `data-peek-layout="review"`
+(two columns) or `"review-navigation"` (three columns). The shell's CSS minimum
+width is capped at the sidebar edge; it does not write the stored widget width
+or expanded URL state. Nested content owns its responsive fallback when the
+available width is smaller than its preferred columns.

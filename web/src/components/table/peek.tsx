@@ -355,6 +355,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
                 // would flip to a white glow).
                 "shadow-[-12px_0_32px_-16px_hsl(var(--foreground)/0.3)] dark:shadow-[-12px_0_32px_-16px_hsl(var(--background)/0.3)]",
                 "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
+                "has-[[data-peek-layout=review-navigation]]:min-w-[min(1120px,var(--peek-max-width))] has-[[data-peek-layout=review]]:min-w-[min(800px,var(--peek-max-width))]",
                 panel.isResizing && "select-none",
               )}
             >
