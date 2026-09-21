@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mutateAsyncMock,
@@ -79,14 +85,6 @@ vi.mock(
 
 import { ResetPasswordPage } from "@/src/features/auth-credentials/components/ResetPasswordPage";
 
-const runTimeoutsImmediately = () =>
-  vi
-    .spyOn(global, "setTimeout")
-    .mockImplementation((callback: TimerHandler) => {
-      if (typeof callback === "function") callback();
-      return 0 as unknown as ReturnType<typeof setTimeout>;
-    });
-
 const submitPasswordForm = ({
   code,
   passwordLabel,
@@ -110,6 +108,13 @@ const submitPasswordForm = ({
   fireEvent.click(screen.getByRole("button", { name: submitLabel }));
 };
 
+const flushPasswordSubmit = async () => {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
 describe("ResetPasswordPage re-authentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -121,6 +126,10 @@ describe("ResetPasswordPage re-authentication", () => {
       isLangfuseCloud: false,
       region: undefined,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("re-authenticates after password update while already signed in", async () => {
@@ -217,7 +226,7 @@ describe("ResetPasswordPage re-authentication", () => {
   });
 
   it("redirects password setup to the demo target path", async () => {
-    const setTimeoutSpy = runTimeoutsImmediately();
+    vi.useFakeTimers();
     routerState.query = {
       targetPath: "/demo/datasets/dataset-1/items?foo=bar",
     };
@@ -257,17 +266,19 @@ describe("ResetPasswordPage re-authentication", () => {
       submitLabel: "Set password",
     });
 
-    await waitFor(() => {
-      expect(routerPushMock).toHaveBeenCalledWith(
-        "/demo/datasets/dataset-1/items?foo=bar",
-      );
+    await flushPasswordSubmit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
     });
 
-    setTimeoutSpy.mockRestore();
+    expect(routerPushMock).toHaveBeenCalledWith(
+      "/demo/datasets/dataset-1/items?foo=bar",
+    );
+    vi.useRealTimers();
   });
 
   it("ignores targetPath for ordinary password reset", async () => {
-    const setTimeoutSpy = runTimeoutsImmediately();
+    vi.useFakeTimers();
     routerState.query = {
       targetPath: "/demo",
     };
@@ -295,10 +306,6 @@ describe("ResetPasswordPage re-authentication", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Send email" }));
 
-    await waitFor(() => {
-      expect(screen.getByLabelText("Verification code")).toBeTruthy();
-    });
-
     submitPasswordForm({
       code: "123456",
       passwordLabel: "New Password",
@@ -306,10 +313,12 @@ describe("ResetPasswordPage re-authentication", () => {
       submitLabel: "Update Password",
     });
 
-    await waitFor(() => {
-      expect(routerPushMock).toHaveBeenCalledWith("/");
+    await flushPasswordSubmit();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
     });
 
-    setTimeoutSpy.mockRestore();
+    expect(routerPushMock).toHaveBeenCalledWith("/");
+    vi.useRealTimers();
   });
 });
