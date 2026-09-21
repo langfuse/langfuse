@@ -42,7 +42,7 @@ import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
 import { usePlan } from "@/src/features/entitlements";

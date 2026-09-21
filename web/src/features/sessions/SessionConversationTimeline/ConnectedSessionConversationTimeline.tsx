@@ -10,7 +10,7 @@ import { type SessionObservation } from "@/src/features/sessions/SessionConversa
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
 import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";

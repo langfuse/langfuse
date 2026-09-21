@@ -14,7 +14,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { Button } from "@/src/components/ui/button";
 import {
   HoverCard,

@@ -62,7 +62,7 @@ import { TraceDetailViewHeader } from "./components/TraceDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { getMostRecentCorrection } from "@/src/features/corrections";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
