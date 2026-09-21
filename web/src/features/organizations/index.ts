@@ -11,6 +11,11 @@
 // this door. The barrel is already imported by CommandMenu for the
 // settings-pages hook; adding those forms would pull organizationNameSchema
 // and the new-org form graph into every hook consumer.
+//
+// filter-builder (re-exported from the filters door) keeps importing
+// useLangfuseCloudRegion and openAIFeaturesSettings by file path. This
+// barrel also loads OrganizationSettingsPage, which pulls ai-gateway and
+// search-bar, and ComposerTokens already imports the filters door.
 export {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
@@ -18,10 +23,7 @@ export {
   type CloudRegion,
   type CloudRegionName,
 } from "@/src/features/organizations/cloudRegions";
-export {
-  AIFeaturesDisabledNotice,
-  openAIFeaturesSettings,
-} from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
+export { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 export {
   useLangfuseCloudRegion,
   useLangfuseV4WriteMode,

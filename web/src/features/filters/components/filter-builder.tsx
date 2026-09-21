@@ -68,10 +68,8 @@ import {
   InputCommandList,
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import {
-  useLangfuseCloudRegion,
-  openAIFeaturesSettings,
-} from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.

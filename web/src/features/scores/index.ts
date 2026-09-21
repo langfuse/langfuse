@@ -24,7 +24,6 @@ export { ScoreRow } from "@/src/features/scores/components/ScoreRow";
 export { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 export {
   ScoreCacheProvider,
-  useScoreCache,
   type CachedScore,
 } from "@/src/features/scores/contexts/ScoreCacheContext";
 export { useEmptyScoreConfigs } from "@/src/features/scores/hooks/useEmptyConfigs";
