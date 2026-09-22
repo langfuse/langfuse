@@ -1,11 +1,11 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
