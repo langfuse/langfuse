@@ -130,17 +130,40 @@ export const MultipleSelected = meta.story({
   },
 });
 
-export const ScoreFields = meta.story({
+export const SecondaryLabels = meta.story({
   args: {
-    value: ["feedback", "manual-score"],
+    value: ["legacy-rating", "quality"],
     options: [
-      { value: "feedback", label: "Feedback" },
-      { value: "manual-score", label: "manual-score" },
+      {
+        value: "legacy-rating",
+        label: "Legacy rating",
+        secondaryLabel: "Archived",
+        showSecondaryLabelInTag: true,
+        disabled: true,
+      },
+      { value: "quality", label: "Quality", secondaryLabel: "(current)" },
+      { value: "accuracy", label: "Accuracy" },
     ],
     onValueChange: fn(),
-    placeholder: "Choose score fields",
-    searchPlaceholder: "Search score fields...",
-    emptyMessage: "No score fields found.",
+    placeholder: "Choose scores",
+    searchPlaceholder: "Search scores...",
+    emptyMessage: "No scores found.",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
   },
 });
 

@@ -15,8 +15,8 @@ type MultiSelectTagOption<V> = {
   value: V;
   label: string;
   disabled?: boolean;
-  optionSuffix?: React.ReactNode;
-  selectedSuffix?: React.ReactNode;
+  secondaryLabel?: string;
+  showSecondaryLabelInTag?: boolean;
 };
 
 type MultiSelectTagInputProps<V> = {
@@ -67,7 +67,9 @@ export function MultiSelectTagInput<V extends string>({
           value: selectedValue,
           label: option?.label ?? selectedValue,
           disabled: option?.disabled,
-          selectedSuffix: option?.selectedSuffix,
+          secondaryLabel: option?.showSecondaryLabelInTag
+            ? option.secondaryLabel
+            : undefined,
         };
       }),
     [options, value],
@@ -230,7 +232,9 @@ export function MultiSelectTagInput<V extends string>({
                         tagRefs.current.delete(option.value);
                       }}
                       data-value={option.value}
-                      title={option.label}
+                      title={[option.label, option.secondaryLabel]
+                        .filter(Boolean)
+                        .join(" ")}
                       className={cn(
                         "bg-muted flex h-6 max-w-48 min-w-10 shrink-0 items-center gap-1 rounded px-2",
                         !fullyVisibleValues.has(option.value) && "invisible",
@@ -239,9 +243,9 @@ export function MultiSelectTagInput<V extends string>({
                       <span className="min-w-0 truncate" title={option.label}>
                         {option.label}
                       </span>
-                      {option.selectedSuffix ? (
-                        <span className="shrink-0">
-                          {option.selectedSuffix}
+                      {option.secondaryLabel ? (
+                        <span className="text-muted-foreground shrink-0">
+                          {option.secondaryLabel}
                         </span>
                       ) : null}
                       <button
@@ -356,6 +360,12 @@ export function MultiSelectTagInput<V extends string>({
                       )}
                       {options.map((option) => {
                         const isSelected = value.includes(option.value);
+                        const visibleLabel = [
+                          option.label,
+                          option.secondaryLabel,
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
 
                         return (
                           <InputDropdown.Option
@@ -365,8 +375,8 @@ export function MultiSelectTagInput<V extends string>({
                           >
                             <CommandPrimitive.Item
                               value={option.value || option.label}
-                              keywords={[option.label]}
-                              aria-label={option.label}
+                              keywords={[visibleLabel]}
+                              aria-label={visibleLabel}
                               aria-checked={isSelected}
                               disabled={option.disabled}
                               onSelect={() => {
@@ -379,22 +389,9 @@ export function MultiSelectTagInput<V extends string>({
                               }}
                             >
                               <InputDropdown.OptionContent
-                                label={
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span
-                                      className="truncate"
-                                      title={option.label}
-                                    >
-                                      {option.label}
-                                    </span>
-                                    {option.optionSuffix ? (
-                                      <span className="shrink-0">
-                                        {option.optionSuffix}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                }
-                                title={option.label}
+                                label={option.label}
+                                secondaryLabel={option.secondaryLabel}
+                                title={visibleLabel}
                                 type="checkbox"
                                 checked={isSelected}
                               />
