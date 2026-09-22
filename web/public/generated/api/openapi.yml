@@ -71,27 +71,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: &ref_0
         - BasicAuth: []
     post:
@@ -111,27 +116,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -163,27 +173,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/annotation-queues/{queueId}/items:
     get:
@@ -230,27 +245,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: Add an item to an annotation queue
@@ -275,27 +295,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -333,27 +358,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     patch:
       description: Update an annotation queue item
@@ -384,27 +414,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -441,27 +476,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/annotation-queues/{queueId}/assignments:
     post:
@@ -487,27 +527,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -538,27 +583,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -586,27 +636,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     put:
       description: >-
@@ -628,27 +683,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -681,27 +741,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     delete:
       description: >-
@@ -727,27 +792,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/comments:
     post:
@@ -769,27 +839,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -854,27 +929,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/comments/{commentId}:
     get:
@@ -900,27 +980,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/dataset-items:
     post:
@@ -940,27 +1025,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -1037,27 +1127,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/dataset-items/{id}:
     get:
@@ -1082,27 +1177,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     delete:
       description: >-
@@ -1127,27 +1227,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/dataset-run-items:
     post:
@@ -1177,27 +1282,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -1258,27 +1368,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/v2/datasets:
@@ -1313,27 +1428,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: Create a dataset
@@ -1352,27 +1472,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -1403,27 +1528,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
@@ -1463,27 +1593,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
     delete:
@@ -1522,27 +1657,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/datasets/{datasetName}/runs:
@@ -1592,27 +1732,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/v2/evaluation-rules:
@@ -1654,27 +1799,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
           content:
@@ -1738,27 +1888,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -1800,27 +1955,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -1872,27 +2032,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
           content:
@@ -1952,27 +2117,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -2015,27 +2185,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '412':
           description: ''
           content:
@@ -2100,27 +2275,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -2165,27 +2345,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -2242,27 +2427,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
           content:
@@ -2322,27 +2512,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -2402,27 +2597,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -2537,27 +2737,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/experiment-items:
     get:
@@ -2674,27 +2879,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/feedback:
     post:
@@ -2720,27 +2930,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
       security: *ref_0
@@ -2768,27 +2983,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '503':
           description: ''
   /api/public/ingestion:
@@ -2891,27 +3111,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -3025,27 +3250,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/observations/{observationId}:
@@ -3097,27 +3327,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/observations:
@@ -3395,27 +3630,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/scores/{scoreId}:
@@ -3438,27 +3678,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/llm-connections:
     get:
@@ -3492,27 +3737,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     put:
       description: >-
@@ -3533,27 +3783,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -3586,27 +3841,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/media/{mediaId}:
     get:
@@ -3632,27 +3892,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     patch:
       description: Patch a media record
@@ -3673,27 +3938,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -3719,27 +3989,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -4069,27 +4344,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/models:
     post:
@@ -4109,27 +4389,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -4168,27 +4453,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/models/{id}:
     put:
@@ -4215,27 +4505,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -4265,27 +4560,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     delete:
       description: >-
@@ -4308,27 +4608,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/v2/observations:
     get:
@@ -4754,27 +5059,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/otel/v1/traces:
     post:
@@ -4831,27 +5141,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -4889,27 +5204,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     put:
       description: >-
@@ -4930,27 +5250,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -4977,27 +5302,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5030,27 +5360,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     put:
       description: >-
@@ -5077,27 +5412,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5130,27 +5470,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5178,27 +5523,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/organizations/apiKeys:
     get:
@@ -5220,27 +5570,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/projects:
     get:
@@ -5263,27 +5618,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: Create a new project (requires organization-scoped API key)
@@ -5302,27 +5662,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5370,27 +5735,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5440,27 +5810,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/projects/{projectId}/apiKeys:
     get:
@@ -5485,27 +5860,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: >-
@@ -5530,27 +5910,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5603,27 +5988,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/v2/prompts/{name}/versions/{version}:
     patch:
@@ -5659,27 +6049,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5753,27 +6148,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     delete:
       description: >-
@@ -5814,27 +6214,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/v2/prompts:
     get:
@@ -5906,27 +6311,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: Create a new version for the prompt with the given `name`
@@ -5945,27 +6355,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -5993,27 +6408,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/scim/ResourceTypes:
     get:
@@ -6033,27 +6453,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/scim/Schemas:
     get:
@@ -6073,27 +6498,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/scim/Users:
     get:
@@ -6134,27 +6564,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     post:
       description: >-
@@ -6175,27 +6610,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -6256,27 +6696,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     delete:
       description: >-
@@ -6303,27 +6748,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/score-configs:
     post:
@@ -6345,27 +6795,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -6406,27 +6861,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/score-configs/{configId}:
     get:
@@ -6452,27 +6912,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
     patch:
       description: Update a score config
@@ -6497,27 +6962,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -6747,27 +7217,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/scores:
     post:
@@ -6789,27 +7264,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -7027,27 +7507,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/v2/scores/{scoreId}:
@@ -7084,27 +7569,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/sessions:
@@ -7194,27 +7684,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/sessions/{sessionId}:
@@ -7263,27 +7758,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
   /api/public/traces/{traceId}:
@@ -7334,27 +7834,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
     delete:
@@ -7380,27 +7885,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
   /api/public/traces:
     get:
@@ -7718,27 +8228,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       deprecated: true
     delete:
@@ -7758,27 +8273,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
       security: *ref_0
       requestBody:
         required: true
@@ -7831,27 +8351,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -7911,27 +8436,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -7977,27 +8507,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8042,27 +8577,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8108,27 +8648,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
           content:
@@ -8182,27 +8727,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8233,27 +8783,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8296,27 +8851,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8352,27 +8912,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8414,27 +8979,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8481,27 +9051,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '409':
           description: ''
           content:
@@ -8559,27 +9134,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -8628,27 +9208,32 @@ paths:
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '401':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '403':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '405':
           description: ''
           content:
             application/json:
-              schema: {}
+              schema:
+                $ref: '#/components/schemas/ApiError'
         '429':
           description: ''
           content:
@@ -11285,6 +11870,25 @@ components:
         - CATEGORICAL
         - CORRECTION
         - TEXT
+    ApiError:
+      title: ApiError
+      type: object
+      description: |-
+        Error body returned by the public API for common HTTP errors
+        (400/401/403/404/405). Matches the existing runtime payload shape;
+        not the structured PublicApiError contract used by evaluators and
+        unstable endpoints.
+      properties:
+        message:
+          type: string
+          description: Human-readable description of the failure.
+        error:
+          description: >-
+            Error name (for example LangfuseNotFoundError) or validation issues
+            for malformed requests.
+      required:
+        - message
+        - error
     DeleteDatasetItemResponse:
       title: DeleteDatasetItemResponse
       type: object
