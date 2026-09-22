@@ -2106,6 +2106,14 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
+      // Nothing matched, so there is nothing to delete, queue or audit. Returning
+      // early also keeps the `datasetRuns[0]` fallback below from reading a property
+      // off `undefined` when the caller omitted datasetId and every run id was
+      // already gone (deleted twice, or belonging to another project).
+      if (datasetRuns.length === 0) {
+        return datasetRuns;
+      }
+
       // Delete all dataset runs
       await ctx.prisma.datasetRuns.deleteMany({
         where: {
