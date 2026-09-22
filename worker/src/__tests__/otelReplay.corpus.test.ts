@@ -148,7 +148,8 @@ function persistedRowText(row: Record<string, unknown>, key: string): string {
   return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-describe("OTEL replay provider corpus", () => {
+// The writer owns retries; a Vitest retry could overlap an in-flight ClickHouse replay.
+describe("OTEL replay provider corpus", { retry: 0, timeout: 120_000 }, () => {
   it.each(providerCases)(
     "$name keeps provider content and identity through ClickHouse",
     async ({ fixture, inputNeedle, name, numericRepairs, outputNeedle }) => {
