@@ -6,7 +6,9 @@ import {
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  STALE_CHUNK_LOAD_FINGERPRINT,
   STALE_CHUNK_PARSE_FINGERPRINT,
 } from "@/src/utils/sentryFilters";
 import { applyCachedV4BetaEnabledSentryTag } from "@/src/utils/sentryV4BetaTag";
@@ -80,6 +82,14 @@ Sentry.init({
     // isStaleChunkParseErrorEvent for the rationale.
     if (isStaleChunkParseErrorEvent(event)) {
       event.fingerprint = [STALE_CHUNK_PARSE_FINGERPRINT];
+    }
+
+    // Stale-deploy / CDN chunk LOAD failures (script.onerror, dynamic
+    // import()): collapse into ONE issue instead of one per content-hashed
+    // filename. Grouped, not dropped — same posture as parse errors. See
+    // isStaleChunkLoadErrorEvent.
+    if (isStaleChunkLoadErrorEvent(event)) {
+      event.fingerprint = [STALE_CHUNK_LOAD_FINGERPRINT];
     }
 
     return event;

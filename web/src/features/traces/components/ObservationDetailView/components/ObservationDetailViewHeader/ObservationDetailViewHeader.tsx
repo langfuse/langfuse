@@ -30,9 +30,11 @@ import {
   AnnotateDrawerController,
   DualAnnotationContent,
 } from "@/src/features/scores";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
-import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import {
+  AnnotationQueueItemDropdownMenuController,
+  AnnotationQueueItemCountBadge,
+} from "@/src/features/annotation-queues";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,

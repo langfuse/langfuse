@@ -5,7 +5,7 @@ import { ClipboardPen, Lock } from "lucide-react";
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
+import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Page from "@/src/components/layouts/page";
 import {

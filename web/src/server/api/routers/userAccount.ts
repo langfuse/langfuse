@@ -10,8 +10,10 @@ import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
-import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  featurePreviewFlags,
+  setUserFeaturePreview,
+} from "@/src/features/feature-flags/server";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 
 const updateDisplayNameSchema = z.object({

@@ -14,7 +14,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";

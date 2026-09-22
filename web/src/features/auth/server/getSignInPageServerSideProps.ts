@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { type GetServerSideProps } from "next";
 import { env } from "@/src/env.mjs";
-import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
+import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { type PageProps } from "@/src/features/auth/SignInPage";
 

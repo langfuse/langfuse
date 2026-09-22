@@ -72,6 +72,9 @@ allowBuilds:
   ssh2: true
   vue-demi: true
 overrides:
+  # React Email requires html-to-text ^9, which pulls in vulnerable deepmerge
+  # (CVE-2026-93753). Version 10.0.1 replaces it with patched deepmerge-ts.
+  "@react-email/render>html-to-text": 10.0.1
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"

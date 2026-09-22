@@ -8,9 +8,7 @@ import { type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeScimError } from "@/src/features/public-api/server/writeError";
-
+import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

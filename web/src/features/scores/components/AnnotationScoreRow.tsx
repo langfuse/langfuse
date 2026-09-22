@@ -144,6 +144,7 @@ export function AnnotationScoreRow({
   formRootRef,
   commentSaving,
   targetOptions,
+  onRemove,
 }: {
   form: UseFormReturn<AnnotateFormSchemaType>;
   actions: AnnotationFormActions;
@@ -155,6 +156,7 @@ export function AnnotationScoreRow({
   formRootRef: React.RefObject<HTMLDivElement | null>;
   commentSaving: boolean;
   targetOptions: { target: PreparedAnnotationTarget; hasField: boolean }[];
+  onRemove: () => void;
 }) {
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
@@ -162,6 +164,10 @@ export function AnnotationScoreRow({
     name: `scoreData.${index}`,
   });
   const saving = useStore(actions.saveStore, (state) => state.pending > 0);
+  const fieldSaving = useStore(
+    actions.saveStore,
+    (state) => state.pending > 0 && actions.isSaving(fieldKey),
+  );
   const categories = enrichCategoryOptionsWithStaleScoreValue(
     config.categories ?? [],
     score.stringValue,
@@ -177,6 +183,11 @@ export function AnnotationScoreRow({
   const invalid =
     form.getFieldState(`scoreData.${index}.value`, fieldState).invalid ||
     form.getFieldState(`scoreData.${index}.stringValue`, fieldState).invalid;
+  const canRemove =
+    target.configControl.allowManualSelection &&
+    !config.isArchived &&
+    !hasScoreValue &&
+    !invalid;
   const isMovingToScoreActions = (
     event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
@@ -426,7 +437,7 @@ export function AnnotationScoreRow({
               />
             ) : null}
           </div>
-          {hasScoreValue || invalid || targetOptions.length > 0 ? (
+          {hasScoreValue || invalid || canRemove || targetOptions.length > 0 ? (
             <DropdownMenuController
               align="end"
               onCloseAutoFocus={(event) => {
@@ -434,11 +445,15 @@ export function AnnotationScoreRow({
                 const nextFocus = focusFieldKey.current;
                 focusFieldKey.current = fieldKey;
                 commitDeferredScore();
-                formRootRef.current
-                  ?.querySelector<HTMLElement>(
-                    `[data-score-row="${actions.indexOf(nextFocus)}"]`,
-                  )
-                  ?.focus();
+                const nextRow = formRootRef.current?.querySelector<HTMLElement>(
+                  `[data-score-row="${actions.indexOf(nextFocus)}"]`,
+                );
+                const focusTarget =
+                  nextRow ??
+                  formRootRef.current?.querySelector<HTMLElement>(
+                    "[data-add-score]",
+                  );
+                focusTarget?.focus();
               }}
               renderMenu={() => (
                 <>
@@ -501,8 +516,20 @@ export function AnnotationScoreRow({
                       )}
                     </>
                   ) : null}
-                  {(hasScoreValue || invalid) && targetOptions.length > 0 ? (
+                  {(hasScoreValue || invalid || canRemove) &&
+                  targetOptions.length > 0 ? (
                     <DropdownMenuSeparator />
+                  ) : null}
+                  {canRemove ? (
+                    <DropdownMenuItem
+                      disabled={fieldSaving}
+                      onSelect={() => {
+                        deferredInput.current = null;
+                        onRemove();
+                      }}
+                    >
+                      Remove score
+                    </DropdownMenuItem>
                   ) : null}
                   {hasScoreValue || invalid ? (
                     <DropdownMenuItem
