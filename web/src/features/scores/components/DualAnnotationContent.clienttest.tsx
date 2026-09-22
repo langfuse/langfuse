@@ -821,7 +821,7 @@ describe("unified annotation targets", () => {
       1,
     );
     expect(
-      screen.queryByText(/Score data saved|^Saved$/),
+      screen.queryByRole("status", { name: "Score save status" }),
     ).not.toBeInTheDocument();
     const observationRow = screen.getByRole("group", {
       name: "Quality (Observation)",
@@ -1144,7 +1144,9 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
     fireEvent.blur(input);
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Score save status" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not delete a saved score for Firefox badInput and recovers from number and range errors", async () => {

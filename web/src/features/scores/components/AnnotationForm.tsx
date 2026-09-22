@@ -56,26 +56,24 @@ function AnnotateHeader({
   description?: string;
 }) {
   return (
-    <Header
-      title="Annotate"
-      help={
-        description
-          ? {
-              description,
-              href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
-              className: "leading-relaxed",
-            }
-          : undefined
-      }
-      actionButtons={[
-        <React.Fragment key="annotation-save-status">
-          {saveStatus}
-        </React.Fragment>,
-        <React.Fragment key="annotation-actions">
-          {actionButtons}
-        </React.Fragment>,
-      ]}
-    />
+    <div>
+      <Header
+        title="Annotate"
+        help={
+          description
+            ? {
+                description,
+                href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
+                className: "leading-relaxed",
+              }
+            : undefined
+        }
+        actionButtons={actionButtons}
+      />
+      <div className="-mt-1 flex h-4 items-center justify-end overflow-hidden pr-1">
+        {saveStatus}
+      </div>
+    </div>
   );
 }
 
