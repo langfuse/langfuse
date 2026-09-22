@@ -212,7 +212,7 @@ describe("runDecisionModelEvaluation", () => {
         dataType: "CATEGORICAL",
         value: "ready",
         metadata: {
-          decisionModel: expect.objectContaining({
+          typesafe: expect.objectContaining({
             questionId: "readiness",
             type: "choice",
             choice: "ready",
