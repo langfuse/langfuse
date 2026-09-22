@@ -269,7 +269,7 @@ export const ShareLinkMenuItem = forwardRef<
       ) : (
         <Share2 className="mr-2 h-4 w-4" />
       )}
-      Share link
+      Share (make public)
     </DropdownMenuItem>
   );
 });

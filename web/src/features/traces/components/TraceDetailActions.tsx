@@ -116,7 +116,7 @@ export function TraceDetailActions({
           timestamp={timestamp}
           isPublic={trace.public}
           shareUrl={shareUrl}
-          label="Share link"
+          label="Share (make public)"
         />
         <Button
           variant="ghost"
