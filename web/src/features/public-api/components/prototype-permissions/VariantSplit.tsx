@@ -34,7 +34,7 @@ export const VariantSplit = ({
 }) => {
   const [preview, setPreview] = useState<PresetKey>(draft.preset);
   const SelectedIcon = presetIcons[draft.preset];
-  const selectedLabel = presets.find((p) => p.key === draft.preset)?.label;
+  const selected = presets.find((p) => p.key === draft.preset);
 
   return (
     <KeyFormShell projects={projects} draft={draft} setDraft={setDraft}>
@@ -94,11 +94,16 @@ export const VariantSplit = ({
           <Trigger asChild>
             <div
               tabIndex={0}
-              className="border-input bg-background flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+              className="border-input bg-background flex min-h-9 w-full cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm"
             >
-              <SelectedIcon className="h-4 w-4 shrink-0" />
-              <span className="flex-1 font-bold">{selectedLabel}</span>
-              <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+              <SelectedIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="font-bold">{selected?.label}</span>
+                <span className="text-muted-foreground text-xs">
+                  {selected?.description}
+                </span>
+              </span>
+              <ChevronsUpDown className="mt-0.5 h-4 w-4 shrink-0 opacity-50" />
             </div>
           </Trigger>
         )}

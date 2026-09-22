@@ -3,30 +3,15 @@
 
 import { Badge } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
+import { type PresetKey } from "../prototype/permissionCatalog";
 import {
-  type PermissionDomain,
-  type PresetKey,
-  describeResource,
-  groupByKind,
+  type RolePermissionGroup,
   permissionDomains,
-  resolvePreset,
-} from "../prototype/permissionCatalog";
+  rolePermissionCount,
+  rolePermissionGroups,
+} from "./permissions";
 
-/** rolePermissionGroups returns every resource + action a role grants, grouped by resource. */
-export const rolePermissionGroups = (
-  preset: PresetKey,
-): RolePermissionGroup[] =>
-  groupByKind(resolvePreset(preset, [])).map(({ kind, actions }) => ({
-    domain: kind.domain,
-    resource: kind.resource,
-    label: kind.label,
-    description: describeResource(kind.resource),
-    actions,
-  }));
-
-/** rolePermissionCount returns how many individual permissions a role grants. */
-export const rolePermissionCount = (preset: PresetKey): number =>
-  rolePermissionGroups(preset).reduce((n, g) => n + g.actions.length, 0);
+export { rolePermissionCount };
 
 /** RolePermissionList renders a role's full permission set, grouped by domain then resource. */
 export const RolePermissionList = ({
@@ -114,12 +99,3 @@ const ResourceRow = ({
     </div>
   </div>
 );
-
-/** RolePermissionGroup is one resource's granted actions within a role. */
-export type RolePermissionGroup = {
-  domain: PermissionDomain;
-  resource: string;
-  label: string;
-  description: string;
-  actions: string[];
-};
