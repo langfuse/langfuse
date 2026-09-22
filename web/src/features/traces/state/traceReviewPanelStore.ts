@@ -103,7 +103,10 @@ export function createTraceReviewPanelStore({
           Boolean(data.companionTrace),
         ]);
         const current = get().annotation;
-        if (current?.key === key) annotationFormRef.current?.refresh(data);
+        if (current?.key === key) {
+          annotationFormRef.current?.refresh(data);
+          if (get().active === "annotate") annotationFormRef.current?.focus();
+        }
         set({
           active: "annotate",
           annotation: { key, data },

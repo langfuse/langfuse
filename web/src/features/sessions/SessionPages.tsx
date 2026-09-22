@@ -700,7 +700,7 @@ export const SessionPage: React.FC<{
             // Mobile compact header: the same session actions as full-width
             // labeled menu rows for the `⋯` overflow popover, instead of the
             // inline icon toolbar. Session-to-session nav stays desktop-only.
-            actionButtonsMenu: (
+            actionButtonsMenu: ({ closeMenu }) => (
               <>
                 <PublishSessionSwitch
                   projectId={projectId}
@@ -719,13 +719,14 @@ export const SessionPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      onClick={() =>
+                      onClick={() => {
+                        closeMenu({ handoffFocus: true });
                         openDrawer({
                           type: "comments",
                           objectId: sessionId,
                           objectType: "SESSION",
-                        })
-                      }
+                        });
+                      }}
                       className="w-full justify-start gap-2 font-normal"
                     >
                       {disabled ? (
@@ -755,7 +756,8 @@ export const SessionPage: React.FC<{
                       size="sm"
                       disabled={disabled}
                       className="w-full justify-start gap-2 font-normal"
-                      onClick={() =>
+                      onClick={() => {
+                        closeMenu({ handoffFocus: true });
                         openDrawer({
                           scoreTarget: { type: "session", sessionId },
                           scores: session.data?.scores ?? [],
@@ -768,8 +770,8 @@ export const SessionPage: React.FC<{
                             projectId,
                             environment: session.data?.environment,
                           },
-                        })
-                      }
+                        });
+                      }}
                     >
                       {disabled ? (
                         <LockIcon className="h-3 w-3" />
@@ -1790,7 +1792,7 @@ const LoadedSessionEventsPage: React.FC<{
             // Mobile compact header: the same session actions as full-width
             // labeled menu rows for the `⋯` overflow popover, instead of the
             // inline icon toolbar. Session-to-session nav stays desktop-only.
-            actionButtonsMenu: (
+            actionButtonsMenu: ({ closeMenu }) => (
               <>
                 <PublishSessionSwitch
                   projectId={projectId}
@@ -1809,13 +1811,14 @@ const LoadedSessionEventsPage: React.FC<{
                       variant="ghost"
                       size="sm"
                       disabled={disabled}
-                      onClick={() =>
+                      onClick={() => {
+                        closeMenu({ handoffFocus: true });
                         openDrawer({
                           type: "comments",
                           objectId: sessionId,
                           objectType: "SESSION",
-                        })
-                      }
+                        });
+                      }}
                       className="w-full justify-start gap-2 font-normal"
                     >
                       {disabled ? (
@@ -1845,7 +1848,8 @@ const LoadedSessionEventsPage: React.FC<{
                       size="sm"
                       disabled={disabled}
                       className="w-full justify-start gap-2 font-normal"
-                      onClick={() =>
+                      onClick={() => {
+                        closeMenu({ handoffFocus: true });
                         openDrawer({
                           scoreTarget: { type: "session", sessionId },
                           scores: session.scores,
@@ -1858,8 +1862,8 @@ const LoadedSessionEventsPage: React.FC<{
                             projectId,
                             environment: session.environment,
                           },
-                        })
-                      }
+                        });
+                      }}
                     >
                       {disabled ? (
                         <LockIcon className="h-3 w-3" />

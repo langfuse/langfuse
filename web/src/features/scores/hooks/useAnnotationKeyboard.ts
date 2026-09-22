@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import type {
   AnnotateFormSchemaType,
@@ -29,6 +29,40 @@ export function useAnnotationKeyboard({
   targets: PreparedAnnotationTarget[];
   isActive: boolean;
 }) {
+  const focusFrame = useRef<number | null>(null);
+  const focus = useCallback(() => {
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    // Focus after panel layout, once the opening menu has released focus.
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      const root = formRootRef.current;
+      if (
+        !root?.isConnected ||
+        root.closest('[hidden], [inert], [data-state="closed"]') ||
+        hasBlockingOverlay(root)
+      )
+        return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        root.contains(active) &&
+        active.closest("[data-score-row], [data-add-score]")
+      )
+        return;
+      const entry = root.querySelector<HTMLElement>(
+        "[data-score-row], [data-add-score]:not(:disabled)",
+      );
+      (entry ?? root).focus();
+    });
+  }, [formRootRef]);
+
+  useEffect(() => {
+    if (isActive) focus();
+    return () => {
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    };
+  }, [isActive, focus]);
+
   // Keyboard navigation uses real DOM focus with a
   // spreadsheet-style navigate-vs-edit split (single source of truth, one
   // outline, never trapped):
@@ -267,4 +301,6 @@ export function useAnnotationKeyboard({
     window.addEventListener("keydown", onEscapeCapture, true);
     return () => window.removeEventListener("keydown", onEscapeCapture, true);
   }, [formRootRef, isActive]);
+
+  return focus;
 }

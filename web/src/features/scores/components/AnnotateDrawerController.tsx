@@ -5,7 +5,7 @@ import {
   type ScoreTarget,
   type AnnotationPanelData,
 } from "@/src/features/scores/types";
-import { type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAnalytics";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -39,6 +39,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
 }: AnnotateDrawerControllerProps<Target>) {
   const capture = usePostHogClientCapture();
   const reviewPanel = useTraceReviewPanelOptional();
+  const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
@@ -48,7 +49,14 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   return (
     <DrawerController<AnnotateDrawerState>
       renderContent={({ state }) => (
-        <DrawerContent className="[--annotation-surface:var(--modal)]">
+        <DrawerContent
+          className="[--annotation-surface:var(--modal)]"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (triggerRef.current?.isConnected)
+              triggerRef.current.focus({ preventScroll: true });
+          }}
+        >
           <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
             <AnnotationPanelContent
               data={state}
@@ -70,14 +78,14 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
               targetType: getAnnotationTargetType(payload.scoreTarget),
               entryPoint: "annotate_button",
             });
+            triggerRef.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
             if (reviewPanel) {
               reviewPanel
                 .getState()
-                .actions.rememberTrigger(
-                  document.activeElement instanceof HTMLElement
-                    ? document.activeElement
-                    : null,
-                );
+                .actions.rememberTrigger(triggerRef.current);
               reviewPanel.getState().actions.openAnnotation(payload);
             } else openDrawer(payload);
           },
