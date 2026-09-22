@@ -23,6 +23,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import { api } from "@/src/utils/api";
@@ -161,7 +166,7 @@ export function TraceDetailActions({
         invalidateFunc={onDeleteInvalidate}
         deleteConfirmation={trace.name ?? ""}
       >
-        {({ openDialog, disabled }) => (
+        {({ openDialog, disabled, disabledReason }) => (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <HeaderActionButton
@@ -198,14 +203,30 @@ export function TraceDetailActions({
                 Copy trace name
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={disabled}
-                onSelect={openDialog}
-                className="text-destructive focus:text-destructive"
-              >
-                <TrashIcon className="mr-2 h-4 w-4" />
-                Delete
-              </DropdownMenuItem>
+              {disabledReason ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuItem
+                      disabled
+                      allowPointerEventsWhenDisabled
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <TrashIcon className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </TooltipTrigger>
+                  <TooltipContent>{disabledReason}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <DropdownMenuItem
+                  disabled={disabled}
+                  onSelect={openDialog}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

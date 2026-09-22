@@ -205,7 +205,7 @@ export function DeleteButton({
                 setOpen(true);
                 onPopoverOpenChange?.(true);
               },
-              disabled: !enabled,
+              disabled: !hasAccess || !enabled,
               disabledReason,
             })}
           </span>
