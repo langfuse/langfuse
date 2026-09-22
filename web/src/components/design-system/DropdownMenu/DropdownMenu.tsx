@@ -100,6 +100,7 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
+  tooltip?: string;
   icon?: LucideIcon;
   type: "item";
   variant?: "default" | "destructive";
@@ -554,7 +555,7 @@ function DropdownMenuNode({
                       role="menuitem"
                       tabIndex={activeIndex === index ? 0 : -1}
                       aria-disabled={item.disabled ? "true" : undefined}
-                      title={item.disabled?.reason}
+                      title={item.disabled?.reason ?? item.tooltip}
                       ref={(element) => {
                         listRef.current[index] = element;
                       }}
