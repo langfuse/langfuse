@@ -1,7 +1,7 @@
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

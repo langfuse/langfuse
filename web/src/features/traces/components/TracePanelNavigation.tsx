@@ -25,7 +25,7 @@ import { TraceSearchList } from "./TraceSearchList";
 import { TraceTimelineCompact } from "./TraceTimelineDense/TraceTimelineCompact";
 import { TraceGraphView } from "./TraceGraphView/TraceGraphView";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { useMemo } from "react";
 

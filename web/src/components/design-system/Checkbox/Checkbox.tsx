@@ -32,8 +32,8 @@ type CheckboxProps = Pick<
     React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
     "className"
   >,
-  | "aria-label"
   | "aria-hidden"
+  | "aria-label"
   | "checked"
   | "disabled"
   | "id"
