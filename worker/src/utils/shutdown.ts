@@ -20,6 +20,7 @@ import {
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
+  inAppAgentScriptExecutionController,
   deletedMaskCleaner,
   queueMetricsRunner,
   monitorRunners,
@@ -81,6 +82,7 @@ const runDrainAndClose = async () => {
   traceDeleteBatchActionRunner?.stop();
 
   inAppAgentIntegrityRunner?.stop();
+  inAppAgentScriptExecutionController?.stop();
 
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();

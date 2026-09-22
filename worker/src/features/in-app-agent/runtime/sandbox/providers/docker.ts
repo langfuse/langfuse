@@ -208,6 +208,45 @@ export async function createDockerSandboxProvider(params: {
         sandbox: createSessionSandbox(conversationId),
       };
     },
+    async startExecution(params) {
+      const container = await ensureContainer({
+        conversationId: params.sessionId,
+      });
+      return (await callSandboxPath(container, "/executions/start", {
+        method: "POST",
+        body: {
+          id: params.id,
+          script: params.script,
+          digest: params.digest,
+          deadlineAt: params.deadlineAt,
+          env: params.env,
+        },
+      })) as {
+        id: string;
+        state: string;
+        output: string;
+        exitCode: number | null;
+      };
+    },
+    async getExecution(params) {
+      const container = await ensureContainer({
+        conversationId: params.sessionId,
+      });
+      try {
+        return (await callSandboxPath(
+          container,
+          `/executions/${encodeURIComponent(params.id)}`,
+          { method: "GET" },
+        )) as {
+          id: string;
+          state: string;
+          output: string;
+          exitCode: number | null;
+        };
+      } catch {
+        return null;
+      }
+    },
     async suspendSession({ sessionId }) {
       sessions.delete(sessionId);
       logger.debug(
@@ -317,6 +356,43 @@ async function createSandboxServerNotReadyError(params: {
   }
 
   return new Error(details.join(" "));
+}
+
+async function callSandboxPath(
+  container: DockerContainer,
+  path: string,
+  params: { method: "GET" | "POST"; body?: unknown },
+) {
+  return execJsonInContainer(
+    container,
+    [
+      "node",
+      "-e",
+      `
+      (async () => {
+        const chunks = [];
+        for await (const chunk of process.stdin) chunks.push(chunk);
+        const raw = Buffer.concat(chunks).toString("utf8");
+        const payload = raw ? JSON.parse(raw) : undefined;
+        const response = await fetch("http://127.0.0.1:${DOCKER_SANDBOX_SERVER_PORT}${path}", {
+          method: ${JSON.stringify(params.method)},
+          headers: { "Content-Type": "application/json" },
+          body: payload === undefined ? undefined : JSON.stringify(payload),
+        });
+        const text = await response.text();
+        if (!response.ok) {
+          process.stderr.write(text);
+          process.exit(1);
+        }
+        process.stdout.write(text);
+      })().catch((error) => {
+        process.stderr.write(error instanceof Error ? error.message : String(error));
+        process.exit(1);
+      });
+    `,
+    ],
+    { stdin: params.body === undefined ? "" : JSON.stringify(params.body) },
+  );
 }
 
 async function callSandboxServer(

@@ -555,6 +555,10 @@ async function cancelRunInTransaction(params: {
         errorCode: immediateCancel.errorCode,
       };
     }
+  } else if (params.runStatus === InAppAgentRunStatus.WAITING_EXECUTION) {
+    throw new LangfuseConflictError(
+      "A script is still running. Wait for it to finish before this action.",
+    );
   } else if (params.runStatus !== InAppAgentRunStatus.RUNNING) {
     return {
       cancelledImmediately: false,
@@ -748,6 +752,10 @@ export function classifyStaleRun(
           errorMessage: "The approval request expired",
         }
       : null;
+  }
+
+  if (run.status === InAppAgentRunStatus.WAITING_EXECUTION) {
+    return null;
   }
 
   return null;

@@ -17,6 +17,59 @@ const MANUAL_TOOL_APPROVAL_REJECTION_ERROR = JSON.stringify({
 
 type DeveloperGuidanceMessage = Extract<AgUiMessage, { role: "developer" }>;
 
+export function createScriptExecutionCompletedRunInput(params: {
+  input: AgUiRunAgentInput;
+  approvalRequest: InAppAgentToolApprovalRequest;
+  result: {
+    executionId: string;
+    state: string;
+    exitCode?: number | null;
+    output?: string;
+    errorMessage?: string | null;
+  };
+}): ManualToolApprovalRunInput {
+  const toolResult = {
+    executionId: params.result.executionId,
+    state: params.result.state,
+    exitCode: params.result.exitCode ?? null,
+    output: params.result.output ?? "",
+  };
+  const toolError = params.result.errorMessage ?? undefined;
+  const toolResultContent = serializeToolResultContent(toolResult);
+  const assistantMessage = createManualToolCallAssistantMessage(
+    params.approvalRequest,
+  );
+  const toolMessage: AgUiMessage = {
+    id: createManualToolResultMessageId(params.approvalRequest),
+    role: "tool",
+    content: toAgUiToolResultContent(toolResult),
+    toolCallId: params.approvalRequest.toolCallId,
+    ...(toolError ? { error: toolError } : {}),
+  };
+  const guidanceMessage = toolError
+    ? createToolExecutionErrorGuidanceMessage(params.approvalRequest, toolError)
+    : undefined;
+
+  return {
+    input: {
+      ...params.input,
+      messages: [
+        ...params.input.messages,
+        assistantMessage,
+        toolMessage,
+        ...(guidanceMessage ? [guidanceMessage] : []),
+      ],
+      forwardedProps: {},
+    },
+    syntheticEvents: createManualToolApprovalEvents({
+      approvalRequest: params.approvalRequest,
+      toolResultContent,
+      toolError,
+    }),
+    developerGuidance: guidanceMessage?.content,
+  };
+}
+
 export type ManualToolApprovalRunInput = {
   input: AgUiRunAgentInput;
   syntheticEvents: AgUiEvent[];

@@ -384,7 +384,8 @@ export function hasInFlightInAppAgentActivity(
     const status = conversation.latestRun?.status;
     return (
       status === InAppAgentRunStatus.QUEUED ||
-      status === InAppAgentRunStatus.RUNNING
+      status === InAppAgentRunStatus.RUNNING ||
+      status === InAppAgentRunStatus.WAITING_EXECUTION
     );
   });
 }

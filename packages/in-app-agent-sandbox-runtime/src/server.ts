@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
@@ -10,9 +11,11 @@ import path from "node:path";
 import {
   SandboxFileSchema,
   SandboxOperationSchema,
+  StartSandboxExecutionSchema,
   type BashSandboxOperation,
   type EditSandboxOperation,
   type ReadSandboxOperation,
+  type SandboxExecutionStatus,
   type SandboxFile,
   type WriteSandboxOperation,
 } from "./contracts.js";
@@ -28,8 +31,19 @@ const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 const COMMAND_TERMINATION_GRACE_MS = 1_000;
+const EXECUTION_OUTPUT_LIMIT_BYTES = 128 * 1024;
+const executions = new Map<string, TrackedExecution>();
 let requestCounter = 0;
 let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+
+type TrackedExecution = {
+  id: string;
+  digest: string;
+  output: string;
+  exitCode: number | null;
+  state: SandboxExecutionStatus["state"];
+  childPid: number | null;
+};
 
 function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
   const result = sandboxOperationTail.then(task, task);
@@ -176,6 +190,18 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
     });
   }
 
+  if (request.method === "POST" && request.url === "/executions/start") {
+    const body = StartSandboxExecutionSchema.parse(await readJsonBody(request));
+    return startExecution(body, requestId);
+  }
+
+  if (request.method === "GET" && request.url?.startsWith("/executions/")) {
+    const executionId = decodeURIComponent(
+      request.url.slice("/executions/".length).split("?")[0] ?? "",
+    );
+    return getExecution(executionId);
+  }
+
   return { statusCode: 404, body: { error: "Not found" } };
 }
 
@@ -255,6 +281,131 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
     result,
   });
   return { result };
+}
+
+async function startExecution(
+  body: ReturnType<typeof StartSandboxExecutionSchema.parse>,
+  requestId: string,
+) {
+  const digest = createHash("sha256").update(body.script, "utf8").digest("hex");
+  if (digest !== body.digest) {
+    return { statusCode: 409, body: { error: "Script digest mismatch" } };
+  }
+
+  const existing = executions.get(body.id);
+  if (existing) {
+    if (existing.digest !== body.digest) {
+      return { statusCode: 409, body: { error: "Execution already started" } };
+    }
+    return {
+      statusCode: 200,
+      body: toExecutionStatus(existing),
+    };
+  }
+
+  const scriptPath = path.join(WORKSPACE_ROOT, `.executions/${body.id}.py`);
+  await mkdir(path.dirname(scriptPath), { recursive: true });
+  await writeFile(scriptPath, body.script, "utf8");
+
+  const remainingMs = Date.parse(body.deadlineAt) - Date.now();
+  if (!Number.isFinite(remainingMs) || remainingMs <= 0) {
+    const timedOut: TrackedExecution = {
+      id: body.id,
+      digest,
+      output: "",
+      exitCode: 124,
+      state: "TIMED_OUT",
+      childPid: null,
+    };
+    executions.set(body.id, timedOut);
+    return { statusCode: 200, body: toExecutionStatus(timedOut) };
+  }
+
+  const child = spawn("python3", ["-u", scriptPath], {
+    cwd: WORKSPACE_ROOT,
+    env: {
+      ...process.env,
+      ...body.env,
+    },
+    detached: true,
+  });
+
+  const tracked: TrackedExecution = {
+    id: body.id,
+    digest,
+    output: "",
+    exitCode: null,
+    state: "RUNNING",
+    childPid: child.pid ?? null,
+  };
+  executions.set(body.id, tracked);
+
+  const appendOutput = (chunk: Buffer | string) => {
+    const next = tracked.output + chunk.toString("utf8");
+    tracked.output =
+      Buffer.byteLength(next, "utf8") > EXECUTION_OUTPUT_LIMIT_BYTES
+        ? `${next.slice(0, EXECUTION_OUTPUT_LIMIT_BYTES)}\n[truncated]`
+        : next;
+  };
+
+  child.stdout.on("data", appendOutput);
+  child.stderr.on("data", appendOutput);
+  child.on("close", (code) => {
+    if (tracked.state !== "RUNNING") {
+      return;
+    }
+    tracked.exitCode = code ?? 1;
+    tracked.state = (code ?? 1) === 0 ? "SUCCEEDED" : "FAILED";
+  });
+  child.on("error", () => {
+    if (tracked.state !== "RUNNING") {
+      return;
+    }
+    tracked.state = "UNKNOWN";
+  });
+
+  setTimeout(() => {
+    if (tracked.state !== "RUNNING") {
+      return;
+    }
+    tracked.state = "TIMED_OUT";
+    tracked.exitCode = 124;
+    if (tracked.childPid) {
+      try {
+        process.kill(-tracked.childPid, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
+    }
+  }, remainingMs).unref();
+
+  logSandboxServer("execution.start", {
+    requestId,
+    executionId: body.id,
+    pid: child.pid ?? null,
+  });
+
+  return { statusCode: 200, body: toExecutionStatus(tracked) };
+}
+
+function getExecution(executionId: string) {
+  const execution = executions.get(executionId);
+  if (!execution) {
+    return { statusCode: 404, body: { error: "Execution not found" } };
+  }
+
+  return { statusCode: 200, body: toExecutionStatus(execution) };
+}
+
+function toExecutionStatus(
+  execution: TrackedExecution,
+): SandboxExecutionStatus {
+  return {
+    id: execution.id,
+    state: execution.state,
+    output: execution.output,
+    exitCode: execution.exitCode,
+  };
 }
 
 async function bashOperation(body: BashSandboxOperation, requestId: string) {

@@ -33,6 +33,7 @@ export type InAppAgentWatchFrame = z.infer<typeof InAppAgentWatchFrameSchema>;
 const IN_APP_AGENT_ACTIVE_RUN_STATUSES: readonly InAppAgentRunStatus[] = [
   InAppAgentRunStatus.QUEUED,
   InAppAgentRunStatus.RUNNING,
+  InAppAgentRunStatus.WAITING_EXECUTION,
 ];
 
 export function isActiveInAppAgentRunStatus(

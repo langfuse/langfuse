@@ -107,6 +107,7 @@ import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-action-runner";
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
+import { InAppAgentScriptExecutionController } from "./features/in-app-agent-script-execution-controller";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 
 const app = express();
@@ -821,6 +822,19 @@ if (
 ) {
   inAppAgentIntegrityRunner = new InAppAgentIntegrityRunner();
   inAppAgentIntegrityRunner.start();
+}
+
+export let inAppAgentScriptExecutionController: InAppAgentScriptExecutionController | null =
+  null;
+
+if (
+  isInAppAgentWorkerSurfaceEnabled(
+    env.LANGFUSE_IN_APP_AGENT_SCRIPT_EXECUTION_CONTROLLER_ENABLED,
+  )
+) {
+  inAppAgentScriptExecutionController =
+    new InAppAgentScriptExecutionController();
+  inAppAgentScriptExecutionController.start();
 }
 
 // ClickHouse deleted-mask cleaner for physically applying lightweight delete masks

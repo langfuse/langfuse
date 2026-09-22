@@ -81,6 +81,25 @@ export type SandboxProvider = {
    * Permanently tears down the backing runtime session without saving state.
    */
   terminateSession?(params: { sessionId: string }): Promise<void> | void;
+  startExecution?(params: {
+    sessionId: string;
+    id: string;
+    script: string;
+    digest: string;
+    deadlineAt: string;
+    env?: Record<string, string>;
+  }): Promise<{
+    id: string;
+    state: string;
+    output: string;
+    exitCode: number | null;
+  }>;
+  getExecution?(params: { sessionId: string; id: string }): Promise<{
+    id: string;
+    state: string;
+    output: string;
+    exitCode: number | null;
+  } | null>;
 };
 
 /**

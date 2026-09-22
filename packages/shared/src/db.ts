@@ -40,6 +40,9 @@ const createPrismaInstance = () => {
       gatewayAiConnection: {
         encryptedCredential: true,
       },
+      inAppAgentScriptExecution: {
+        tokenDigest: true,
+      },
     },
   });
 

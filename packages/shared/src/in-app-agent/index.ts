@@ -7,3 +7,4 @@ export * from "./constants";
 export * from "./interrupts";
 export * from "./messages";
 export * from "../features/inAppAgent/types";
+export * from "./scriptExecution";

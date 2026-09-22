@@ -13,6 +13,7 @@ export enum InAppAgentRunStatus {
   QUEUED = "QUEUED",
   RUNNING = "RUNNING",
   AWAITING_APPROVAL = "AWAITING_APPROVAL",
+  WAITING_EXECUTION = "WAITING_EXECUTION",
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
   CANCELLED = "CANCELLED",
@@ -61,6 +62,12 @@ export enum InAppAgentRunErrorCode {
   APPROVAL_SUPERSEDED = "approval_superseded",
   /** Pending approval cancelled by the user (recorded on CANCELLED). */
   APPROVAL_CANCELLED = "approval_cancelled",
+  /** Background script exceeded its server-enforced deadline. */
+  SCRIPT_EXECUTION_TIMEOUT = "script_execution_timeout",
+  /** Background script finished with a non-zero exit or launch failure. */
+  SCRIPT_EXECUTION_FAILED = "script_execution_failed",
+  /** Script start acknowledgement was lost; do not launch again. */
+  SCRIPT_EXECUTION_UNKNOWN = "script_execution_unknown",
   /**
    * Loop hit maxSteps without a `stop` finish — the run completed the
    * configured wall but did not produce a final answer.
@@ -104,6 +111,26 @@ export const InAppAgentRunRequestSchema = z.discriminatedUnion("kind", [
     /** Inherited sanitized context; defaults for legacy continuation rows. */
     context: z.array(AgUiContextSchema).default([]),
   }),
+  z.object({
+    kind: z.literal("scriptExecution"),
+    parentRunId: z.string(),
+    rootRunId: z.string().optional(),
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    continuationNumber: z.number().int().positive().optional(),
+    toolCallId: z.string(),
+    executionId: z.string(),
+    context: z.array(AgUiContextSchema).default([]),
+  }),
+  z.object({
+    kind: z.literal("scriptExecutionCompleted"),
+    parentRunId: z.string(),
+    rootRunId: z.string().optional(),
+    traceStartedAt: z.iso.datetime({ offset: true }).optional(),
+    continuationNumber: z.number().int().positive().optional(),
+    toolCallId: z.string(),
+    executionId: z.string(),
+    context: z.array(AgUiContextSchema).default([]),
+  }),
 ]);
 
 export type InAppAgentRunRequest = z.infer<typeof InAppAgentRunRequestSchema>;
@@ -115,7 +142,7 @@ export const resolveInAppAgentRootRunId = (
   runId: string,
 ): string => {
   const parsed = InAppAgentRunRequestSchema.safeParse(request);
-  return parsed.success && parsed.data.kind === "approvalDecision"
+  return parsed.success && parsed.data.kind !== "userMessage"
     ? (parsed.data.rootRunId ?? parsed.data.parentRunId)
     : runId;
 };

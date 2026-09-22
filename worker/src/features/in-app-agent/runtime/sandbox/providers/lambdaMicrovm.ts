@@ -339,6 +339,54 @@ export function createLambdaMicrovmSandboxProvider(params: {
     return result;
   };
 
+  const requestMicrovmJson = async (params: {
+    sessionId: string;
+    path: string;
+    method: "GET" | "POST";
+    body?: unknown;
+  }) => {
+    const session = getSession(sessions, params.sessionId);
+    if (
+      !session.authToken ||
+      session.authToken.expiresAtMs - AUTH_TOKEN_REFRESH_BUFFER_MS <= Date.now()
+    ) {
+      session.authToken = await createMicrovmAuthToken({
+        client,
+        microvmId: params.sessionId,
+        endpoint: session.endpoint,
+      });
+    }
+
+    const response = await fetch(
+      `${normalizeEndpoint(session.endpoint)}${params.path}`,
+      {
+        method: params.method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-aws-proxy-port": String(DEFAULT_SANDBOX_SERVER_PORT),
+          "X-aws-proxy-auth": session.authToken.value,
+        },
+        ...(params.body !== undefined
+          ? { body: JSON.stringify(params.body) }
+          : {}),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(
+        (await response.text()) ||
+          `Lambda MicroVM execution request failed: ${response.status}`,
+      );
+    }
+
+    return (await response.json()) as {
+      id: string;
+      state: string;
+      output: string;
+      exitCode: number | null;
+    };
+  };
+
   const createSessionSandbox = (sessionId: string): SandboxSession => ({
     async syncReadonlyFiles({ files }) {
       getSession(sessions, sessionId).toolCallFiles = files;
@@ -422,6 +470,31 @@ export function createLambdaMicrovmSandboxProvider(params: {
         );
       } finally {
         sessions.delete(sessionId);
+      }
+    },
+    async startExecution(params) {
+      return requestMicrovmJson({
+        sessionId: params.sessionId,
+        path: "/executions/start",
+        method: "POST",
+        body: {
+          id: params.id,
+          script: params.script,
+          digest: params.digest,
+          deadlineAt: params.deadlineAt,
+          env: params.env,
+        },
+      });
+    },
+    async getExecution(params) {
+      try {
+        return await requestMicrovmJson({
+          sessionId: params.sessionId,
+          path: `/executions/${encodeURIComponent(params.id)}`,
+          method: "GET",
+        });
+      } catch {
+        return null;
       }
     },
     async terminateSession({ sessionId }) {
@@ -533,7 +606,7 @@ async function createMicrovmAuthToken(params: {
     new CreateMicrovmAuthTokenCommand({
       microvmIdentifier: params.microvmId,
       expirationInMinutes: DEFAULT_AUTH_TOKEN_EXPIRATION_MINUTES,
-      allowedPorts: [{ allPorts: {} }],
+      allowedPorts: [{ port: DEFAULT_SANDBOX_SERVER_PORT }],
     }),
   );
 

@@ -256,6 +256,17 @@ describe("in-app agent activity receipts", () => {
     expect(
       hasInFlightInAppAgentActivity([
         conversation(
+          "waiting",
+          latestRun({
+            id: "waiting-run",
+            status: InAppAgentRunStatus.WAITING_EXECUTION,
+          }),
+        ),
+      ]),
+    ).toBe(true);
+    expect(
+      hasInFlightInAppAgentActivity([
+        conversation(
           "live",
           latestRun({ id: "live-run", status: InAppAgentRunStatus.RUNNING }),
         ),

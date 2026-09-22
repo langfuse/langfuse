@@ -13,6 +13,7 @@ export const IN_APP_AGENT_UNSETTLED_RUN_STATUSES = [
   InAppAgentRunStatus.QUEUED,
   InAppAgentRunStatus.RUNNING,
   InAppAgentRunStatus.AWAITING_APPROVAL,
+  InAppAgentRunStatus.WAITING_EXECUTION,
 ] as const;
 
 export type UnsettledInAppAgentRunStatus =

@@ -277,15 +277,49 @@ export async function executeInAppAgentRun(params: {
       projectId,
       conversationId: conversation.id,
     });
-    const approvalRequest =
-      request.kind === "approvalDecision"
-        ? findPersistedApprovalRequest(conversationEvents, request)
-        : undefined;
+    let approvalRequest: ReturnType<typeof findPersistedApprovalRequest> =
+      undefined;
+    if (request.kind === "approvalDecision") {
+      approvalRequest = findPersistedApprovalRequest(
+        conversationEvents,
+        request,
+      );
+    } else if (request.kind === "scriptExecutionCompleted") {
+      approvalRequest = findPersistedApprovalRequestByToolCallId(
+        conversationEvents,
+        request.toolCallId,
+      );
+    }
 
-    if (request.kind === "approvalDecision" && !approvalRequest) {
+    if (
+      (request.kind === "approvalDecision" ||
+        request.kind === "scriptExecutionCompleted") &&
+      !approvalRequest
+    ) {
       throw new InAppAgentRunInitError(
         "Approval request not found in conversation history",
       );
+    }
+
+    const scriptExecution =
+      request.kind === "scriptExecutionCompleted"
+        ? await prisma.inAppAgentScriptExecution.findFirst({
+            where: {
+              id: request.executionId,
+              projectId,
+            },
+            select: {
+              id: true,
+              state: true,
+              exitCode: true,
+              output: true,
+              errorMessage: true,
+            },
+          })
+        : null;
+
+    if (request.kind === "scriptExecutionCompleted" && !scriptExecution) {
+      throw new InAppAgentRunInitError("Script execution was not found");
     }
 
     // The submitter persisted the RUN_STARTED event (carrying the user
@@ -620,6 +654,22 @@ export async function executeInAppAgentRun(params: {
         sandbox: sandboxState?.sandbox,
         // History still shows this agent's own earlier writes, so it needs telling.
         sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
+        ...(request.kind === "scriptExecutionCompleted" &&
+        approvalRequest &&
+        scriptExecution
+          ? {
+              scriptExecutionCompletion: {
+                approvalRequest,
+                result: {
+                  executionId: scriptExecution.id,
+                  state: scriptExecution.state,
+                  exitCode: scriptExecution.exitCode,
+                  output: scriptExecution.output ?? undefined,
+                  errorMessage: scriptExecution.errorMessage,
+                },
+              },
+            }
+          : {}),
       },
     });
 
@@ -733,6 +783,20 @@ function resolveCompletedRunFinish(outcome?: {
     };
   }
   return { status: InAppAgentRunStatus.SUCCEEDED };
+}
+
+function findPersistedApprovalRequestByToolCallId(
+  events: readonly PersistedConversationEvent[],
+  toolCallId: string,
+): InAppAgentToolApprovalRequest | undefined {
+  for (const { event } of events) {
+    const approvalRequest = parseInAppAgentInterruptEvent(event);
+    if (approvalRequest?.toolCallId === toolCallId) {
+      return approvalRequest;
+    }
+  }
+
+  return undefined;
 }
 
 function findPersistedApprovalRequest(

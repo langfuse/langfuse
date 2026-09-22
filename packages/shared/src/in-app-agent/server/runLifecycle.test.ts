@@ -8,6 +8,7 @@ import {
 import { Prisma, type PrismaClient } from "../../db";
 import { logger } from "../../server";
 import {
+  classifyStaleRun,
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   reconcileConversationRuns,
@@ -379,5 +380,22 @@ describe("cleanupTerminalRunMcpApiKeys", () => {
       data: { mcpApiKeyId: null },
     });
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("classifyStaleRun", () => {
+  it("does not heartbeat-fail a waiting script execution", () => {
+    expect(
+      classifyStaleRun(
+        {
+          status: InAppAgentRunStatus.WAITING_EXECUTION,
+          createdAt: new Date(Date.now() - 60 * 60_000),
+          claimedAt: null,
+          heartbeatAt: null,
+          finishedAt: null,
+        },
+        Date.now(),
+      ),
+    ).toBeNull();
   });
 });

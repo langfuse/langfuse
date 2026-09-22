@@ -1,7 +1,12 @@
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
-import { BaseError, LangfuseNotFoundError, type Plan } from "@langfuse/shared";
+import {
+  BaseError,
+  LangfuseConflictError,
+  LangfuseNotFoundError,
+  type Plan,
+} from "@langfuse/shared";
 import { Prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
   InAppAgentRunQueue,
@@ -11,6 +16,8 @@ import {
 } from "@langfuse/shared/src/server";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
+  IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME,
+  InAppAgentRunApprovedScriptArgsSchema,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
   InAppAgentRunStatusSchema,
@@ -19,6 +26,10 @@ import {
   type AgUiContext,
 } from "@langfuse/shared/in-app-agent";
 import { getInAppAgentPrefixedToolName } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import {
+  admitApprovedScriptExecution,
+  assertNoActiveScriptExecution,
+} from "@langfuse/shared/in-app-agent/server/scriptExecution";
 import { createInAppAgentMessageId, createInAppAgentRunId } from "../ids";
 import {
   ensureOwnedConversation,
@@ -291,6 +302,12 @@ export async function deleteBackgroundConversation(params: {
     userId: params.userId,
   });
 
+  await assertNoActiveScriptExecution({
+    prisma: params.prisma,
+    projectId: params.projectId,
+    conversationId: params.conversationId,
+  });
+
   const cancelledRuns = await params.prisma.$transaction(async (tx) => {
     const cancelledImmediately = await cancelConversationRunsInTransaction({
       tx,
@@ -391,6 +408,70 @@ export async function decideBackgroundApproval(params: {
 
   if (!approvalRequest) {
     throw new LangfuseNotFoundError("Approval request not found");
+  }
+
+  if (
+    approvalRequest.toolName === IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME &&
+    params.approvalScope === "conversation"
+  ) {
+    throw new LangfuseConflictError(
+      "This script cannot be always-approved. Approve this exact run only.",
+    );
+  }
+
+  if (
+    params.approved &&
+    approvalRequest.toolName === IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME
+  ) {
+    const scriptArgs = InAppAgentRunApprovedScriptArgsSchema.safeParse(
+      approvalRequest.args,
+    );
+    if (!scriptArgs.success) {
+      throw new LangfuseNotFoundError("Approved script payload is invalid");
+    }
+
+    const conversation = await params.prisma.inAppAgentConversation.findUnique({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      select: { providerSessionId: true },
+    });
+    const llmKey = await params.prisma.llmApiKeys.findFirst({
+      where: { projectId: params.projectId },
+      select: {
+        id: true,
+        adapter: true,
+        provider: true,
+        customModels: true,
+      },
+    });
+    await admitApprovedScriptExecution({
+      prisma: params.prisma,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      parentRunId: params.runId,
+      waitingRunId: createInAppAgentRunId(),
+      executionId: randomUUID(),
+      toolCallId: params.toolCallId,
+      decidedByUserId: params.userId,
+      script: scriptArgs.data.script,
+      summary: scriptArgs.data.summary,
+      providerSessionId: conversation?.providerSessionId,
+      model: params.model,
+      modelBinding: llmKey
+        ? {
+            llmApiKeyId: llmKey.id,
+            adapter: llmKey.adapter,
+            provider: llmKey.provider,
+            model: llmKey.customModels[0] ?? params.model,
+          }
+        : undefined,
+    });
+
+    return { runId: params.runId, executionPending: true };
   }
 
   // Resolve the granted tool from the persisted interrupt, never client input.

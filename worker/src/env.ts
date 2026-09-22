@@ -310,6 +310,10 @@ const EnvSchema = z.object({
   LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED: z
     .enum(["true", "false"])
     .optional(),
+  LANGFUSE_IN_APP_AGENT_SCRIPT_EXECUTION_CONTROLLER_ENABLED: z
+    .enum(["true", "false"])
+    .optional(),
+  LANGFUSE_IN_APP_AGENT_SDK_GATEWAY_PUBLIC_URL: z.string().optional(),
   // The ambient host profile takes precedence over the agent-specific default
   // so local developer credentials win when both are configured.
   AWS_PROFILE: z.string().optional(),
@@ -747,6 +751,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(15 * 60_000),
+  LANGFUSE_IN_APP_AGENT_SCRIPT_EXECUTION_CONTROLLER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(2_000),
   LANGFUSE_IN_APP_AGENT_DLQ_RETRY_INTERVAL_MS: z.coerce
     .number()
     .positive()

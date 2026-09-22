@@ -35,7 +35,9 @@ import {
   InAppAgentSandboxEditArgsSchema,
   InAppAgentSandboxReadArgsSchema,
   InAppAgentSandboxWriteArgsSchema,
+  InAppAgentRunApprovedScriptArgsSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME,
   IN_APP_AGENT_SILENT_MCP_OUTPUT_TYPE,
 } from "@langfuse/shared/in-app-agent";
 import {
@@ -71,6 +73,16 @@ export function createSandboxTools(sandbox: InAppAgentSandbox) {
       inputSchema: InAppAgentSandboxBashArgsSchema,
       execute: async ({ command, timeoutMs }) =>
         sandbox.bash({ command, timeoutMs }),
+    }),
+    [IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME]: createTool({
+      id: IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME,
+      description:
+        "Propose a Python script that runs after explicit user approval. The script may use the Langfuse Python SDK against the internal gateway. Bash cannot reach the gateway. Always include the exact script and a short impact summary. Do not put credentials in the script.",
+      inputSchema: InAppAgentRunApprovedScriptArgsSchema,
+      execute: async () => ({
+        error:
+          "This script runs in the background after approval. Wait for the execution result.",
+      }),
     }),
   };
 }

@@ -1220,6 +1220,7 @@ describe("createAgUiStream", () => {
     expect(agentTools?.write?.requireApproval).not.toBe(true);
     expect(agentTools?.edit?.requireApproval).not.toBe(true);
     expect(agentTools?.bash?.requireApproval).not.toBe(true);
+    expect(agentTools?.run_approved_script?.requireApproval).toBe(true);
     expect(
       agentTools?.[IN_APP_AGENT_REDIRECT_TOOL_NAME]?.requireApproval,
     ).not.toBe(true);
@@ -2703,6 +2704,7 @@ describe("createAgUiStream", () => {
     expect(agentConfig?.tools).not.toHaveProperty("write");
     expect(agentConfig?.tools).not.toHaveProperty("edit");
     expect(agentConfig?.tools).not.toHaveProperty("bash");
+    expect(agentConfig?.tools).not.toHaveProperty("run_approved_script");
     expect(promptMocks.compile).toHaveBeenCalledWith(
       expect.objectContaining({
         sandboxFilesystem: "",

@@ -76,6 +76,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  run_approved_script: "Running approved script",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   updateDashboardPlacement: "Moving widget",

@@ -48,6 +48,7 @@ export const InAppAgentSandboxToolNameSchema = z.enum([
   "write",
   "edit",
   "bash",
+  "run_approved_script",
 ]);
 
 export const InAppAgentSandboxReadArgsSchema = z.object({
@@ -68,6 +69,21 @@ export const InAppAgentSandboxEditArgsSchema = z.object({
 export const InAppAgentSandboxBashArgsSchema = z.object({
   command: z.string().min(1),
   timeoutMs: z.number().int().positive().max(120_000).default(120_000),
+});
+
+export const InAppAgentRunApprovedScriptArgsSchema = z.object({
+  script: z
+    .string()
+    .min(1)
+    .max(256 * 1024),
+  summary: z.string().min(1).max(4_000),
+});
+
+export const InAppAgentRunApprovedScriptResultSchema = z.object({
+  executionId: z.string(),
+  state: z.string(),
+  exitCode: z.number().int().nullable().optional(),
+  output: z.string().optional(),
 });
 
 export const InAppAgentSandboxReadResultSchema = z.object({
@@ -98,6 +114,7 @@ export const InAppAgentSandboxToolArgsSchemas = {
   write: InAppAgentSandboxWriteArgsSchema,
   edit: InAppAgentSandboxEditArgsSchema,
   bash: InAppAgentSandboxBashArgsSchema,
+  run_approved_script: InAppAgentRunApprovedScriptArgsSchema,
 } as const;
 
 export const InAppAgentSandboxToolResultSchemas = {
@@ -105,6 +122,7 @@ export const InAppAgentSandboxToolResultSchemas = {
   write: InAppAgentSandboxWriteResultSchema,
   edit: InAppAgentSandboxEditResultSchema,
   bash: InAppAgentSandboxBashResultSchema,
+  run_approved_script: InAppAgentRunApprovedScriptResultSchema,
 } as const;
 
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [

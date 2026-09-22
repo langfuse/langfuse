@@ -18,7 +18,10 @@ import {
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import type { AgUiRunAgentInput, ResumeForwardedProps } from "./types";
-import { createManualToolApprovalRunInput } from "./human-in-the-loop";
+import {
+  createManualToolApprovalRunInput,
+  createScriptExecutionCompletedRunInput,
+} from "./human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
@@ -150,8 +153,9 @@ function formatSandboxContext(sandbox?: InAppAgentSandbox): string {
   }
 
   return `<sandbox_filesystem>
-The sandbox provides read, write, edit, and bash tools for the current task.
-The sandbox has no egress network connection, so the Langfuse CLI, Langfuse SDKs, and other application-specific CLIs or SDKs cannot act on the user's project or environment from there.
+The sandbox provides read, write, edit, bash, and run_approved_script tools for the current task.
+The sandbox has no egress network connection, so the Langfuse CLI, Langfuse SDKs, and other application-specific CLIs or SDKs cannot act on the user's project or environment from bash.
+Use run_approved_script when the user must persist dataset, experiment, score, or model-judge work through the Langfuse Python SDK. That tool requires one exact-script approval and then runs in the background.
 Use the sandbox to inspect and edit files supplied for this task, write ad-hoc scripts, and efficiently process or prepare data locally.
 You may also process or transform data fetched through MCP tools in the sandbox;
 When working in the sandbox, assume this layout:
@@ -315,6 +319,16 @@ type CreateAgUiStreamOptions = {
   sandbox?: InAppAgentSandbox;
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
   sandboxWorkspaceWasReset?: boolean;
+  scriptExecutionCompletion?: {
+    approvalRequest: InAppAgentToolApprovalRequest;
+    result: {
+      executionId: string;
+      state: string;
+      exitCode?: number | null;
+      output?: string;
+      errorMessage?: string | null;
+    };
+  };
 };
 
 export async function createAgUiStream(params: {
@@ -706,12 +720,19 @@ export async function createAgUiStream(params: {
           cleanupAdapter = currentAdapter.cleanup;
           interruptAdapter = currentAdapter.interrupt;
 
-          const runInput = await createManualToolApprovalRunInput({
-            input: params.input,
-            executeToolCall: currentAdapter.executeToolCall,
-            onApprovedToolCallExecuted:
-              params.options.onApprovedToolCallExecuted,
-          });
+          const runInput = params.options.scriptExecutionCompletion
+            ? createScriptExecutionCompletedRunInput({
+                input: params.input,
+                approvalRequest:
+                  params.options.scriptExecutionCompletion.approvalRequest,
+                result: params.options.scriptExecutionCompletion.result,
+              })
+            : await createManualToolApprovalRunInput({
+                input: params.input,
+                executeToolCall: currentAdapter.executeToolCall,
+                onApprovedToolCallExecuted:
+                  params.options.onApprovedToolCallExecuted,
+              });
           const humanApprovedToolCallId =
             runInput.toolCallApproval?.status === "approved"
               ? runInput.toolCallApproval.toolCallId

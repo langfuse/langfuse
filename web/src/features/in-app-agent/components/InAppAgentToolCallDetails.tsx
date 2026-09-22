@@ -12,6 +12,8 @@ import {
   InAppAgentSandboxToolNameSchema,
   InAppAgentSandboxToolResultSchemas,
   InAppAgentSandboxWriteArgsSchema,
+  InAppAgentRunApprovedScriptArgsSchema,
+  InAppAgentRunApprovedScriptResultSchema,
 } from "@langfuse/shared/in-app-agent";
 import { type z } from "zod";
 import { assertUnreachable } from "@/src/utils/types";
@@ -89,6 +91,21 @@ export function InAppAgentToolCallDetails({
           result={
             result.data
               ? InAppAgentSandboxBashResultSchema.parse(result.data)
+              : undefined
+          }
+        />
+      </SandboxToolCallDetails>
+    );
+  }
+
+  if (toolName.data === "run_approved_script") {
+    return (
+      <SandboxToolCallDetails tool={tool}>
+        <ApprovedScriptToolCallDetails
+          args={InAppAgentRunApprovedScriptArgsSchema.parse(args)}
+          result={
+            result.data
+              ? InAppAgentRunApprovedScriptResultSchema.parse(result.data)
               : undefined
           }
         />
@@ -203,6 +220,29 @@ function BashToolCallDetails({
           {!result.stdout && !result.stderr ? (
             <span className="text-muted-foreground italic">No output</span>
           ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ApprovedScriptToolCallDetails({
+  args,
+  result,
+}: {
+  args: z.infer<typeof InAppAgentRunApprovedScriptArgsSchema>;
+  result: z.infer<typeof InAppAgentRunApprovedScriptResultSchema> | undefined;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-muted-foreground text-xs">{args.summary}</p>
+      <pre className="border-border bg-muted max-h-64 overflow-auto rounded-md border p-2.5 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap">
+        {args.script}
+      </pre>
+      {result ? (
+        <div className="text-muted-foreground font-mono text-xs">
+          {result.state}
+          {result.exitCode != null ? ` · exit ${result.exitCode}` : ""}
         </div>
       ) : null}
     </div>

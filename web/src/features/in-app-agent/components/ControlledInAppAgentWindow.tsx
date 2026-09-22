@@ -107,10 +107,13 @@ export function ControlledInAppAgentWindow(
   // submission but leaves the draft editable. Hydration is the only case that
   // disables the composer outright so a stale snapshot cannot be submitted.
   const isConversationInteractionDisabled = isSelectedConversationHydrating;
+  const isWaitingExecution =
+    execution.run?.status === InAppAgentRunStatus.WAITING_EXECUTION;
   const isAssistantTurnInProgress =
     isRunning ||
     isAnimating ||
     isSubmitting ||
+    isWaitingExecution ||
     pendingToolApprovals.length > 0 ||
     displayedPendingToolApprovals.length > 0;
   // Settle from the durable run, not from attach/animation. A finished

@@ -54,7 +54,10 @@ import type {
   InAppAgentMessageFeedbackValue,
   InAppAgentMessageSource,
 } from "../schema";
-import { IN_APP_AGENT_GENERIC_ERROR_MESSAGE } from "@langfuse/shared/in-app-agent";
+import {
+  IN_APP_AGENT_GENERIC_ERROR_MESSAGE,
+  IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME,
+} from "@langfuse/shared/in-app-agent";
 import type { InAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
 import type { InAppAgentActivityByConversationId } from "@/src/features/in-app-agent/lib/inAppAgentActivity";
 import type { SettledActivityOutcome } from "@/src/features/in-app-agent/lib/backgroundExecutionSession";
@@ -1510,7 +1513,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                   isCompact={!isExpanded}
                   isDisabled={isRateLimited}
                   onApproveToolCall={onApproveToolCall}
-                  onAlwaysAllowToolCall={onAlwaysAllowToolCall}
+                  onAlwaysAllowToolCall={
+                    tool.name === IN_APP_AGENT_SCRIPT_EXECUTION_TOOL_NAME
+                      ? undefined
+                      : onAlwaysAllowToolCall
+                  }
                   onRejectToolCall={onRejectToolCall}
                 />
               ))}

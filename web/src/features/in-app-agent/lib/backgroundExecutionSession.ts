@@ -587,6 +587,12 @@ const BACKGROUND_RUN_FAILURE_MESSAGES: Readonly<Record<string, string>> = {
   [InAppAgentRunErrorCode.APPROVAL_SUPERSEDED]: "Replaced by a newer message.",
   [InAppAgentRunErrorCode.APPROVAL_CANCELLED]: "Approval cancelled.",
   [InAppAgentRunErrorCode.CANCELLED]: "You stopped this run.",
+  [InAppAgentRunErrorCode.SCRIPT_EXECUTION_TIMEOUT]:
+    "The approved script hit its time limit. Send another message to continue.",
+  [InAppAgentRunErrorCode.SCRIPT_EXECUTION_FAILED]:
+    "The approved script failed. Send another message to continue.",
+  [InAppAgentRunErrorCode.SCRIPT_EXECUTION_UNKNOWN]:
+    "The approved script did not report a clear result. Send another message to continue.",
 };
 
 function getBackgroundRunFailureMessage(errorCode: string | null): string {
@@ -634,6 +640,10 @@ export function getBackgroundRunNotice(
     return { text: "Stopping the run…", tone: "info" };
   }
 
+  if (run.status === InAppAgentRunStatus.WAITING_EXECUTION) {
+    return { text: "Running the approved script…", tone: "info" };
+  }
+
   if (run.status === InAppAgentRunStatus.FAILED) {
     return {
       text: getBackgroundRunFailureMessage(run.errorCode ?? null),
@@ -676,6 +686,7 @@ function isExecutingRun(
 ): run is BackgroundExecutionRunView {
   return (
     run?.status === InAppAgentRunStatus.QUEUED ||
-    run?.status === InAppAgentRunStatus.RUNNING
+    run?.status === InAppAgentRunStatus.RUNNING ||
+    run?.status === InAppAgentRunStatus.WAITING_EXECUTION
   );
 }

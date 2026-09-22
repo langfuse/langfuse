@@ -11,7 +11,7 @@ import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Plan } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -343,6 +343,8 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: Record<string, unknown>;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -374,8 +376,10 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: (params.args ?? {
+              name: "from-persisted-event",
+            }) as Prisma.InputJsonValue,
             runId,
           },
         },
@@ -1496,5 +1500,70 @@ describe("in-app agent background runs", () => {
     });
     expect(stored.status).toBe(InAppAgentRunStatus.RUNNING);
     expect(stored.finishedAt).toBeNull();
+  });
+
+  it("admits an approved script as WAITING_EXECUTION and rejects always-allow", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "script-call-1",
+      toolName: "run_approved_script",
+      args: {
+        script: "print('ok')",
+        summary: "Create a tiny labeled dataset",
+      },
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "script-call-1",
+        approved: true,
+        approvalScope: "conversation",
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("cannot be always-approved"),
+    });
+
+    const { executionPending } = await caller.decideToolApproval({
+      projectId,
+      conversationId: conversation.id,
+      runId: parkedRunId,
+      toolCallId: "script-call-1",
+      approved: true,
+    });
+
+    expect(executionPending).toBe(true);
+    expect(enqueuedJobs).toHaveLength(0);
+
+    const waitingRun = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: {
+        projectId,
+        conversationId: conversation.id,
+        status: InAppAgentRunStatus.WAITING_EXECUTION,
+      },
+    });
+    expect(waitingRun.finishedAt).toBeNull();
+
+    const execution = await prisma.inAppAgentScriptExecution.findFirstOrThrow({
+      where: { projectId, conversationId: conversation.id },
+    });
+    expect(execution.state).toBe("PENDING");
+    expect(execution.script).toBe("print('ok')");
+    expect(execution.tokenRevokedAt).not.toBeNull();
+
+    await expect(
+      caller.deleteConversation({
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("script is still running"),
+    });
   });
 });

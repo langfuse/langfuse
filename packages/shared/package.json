@@ -126,6 +126,14 @@
     "./in-app-agent/server/openaiCompatibility": {
       "import": "./dist/src/in-app-agent/server/openaiCompatibility.js",
       "require": "./dist/src/in-app-agent/server/openaiCompatibility.js"
+    },
+    "./in-app-agent/server/userProjectAccess": {
+      "import": "./dist/src/in-app-agent/server/userProjectAccess.js",
+      "require": "./dist/src/in-app-agent/server/userProjectAccess.js"
+    },
+    "./in-app-agent/server/scriptExecution": {
+      "import": "./dist/src/in-app-agent/server/scriptExecution.js",
+      "require": "./dist/src/in-app-agent/server/scriptExecution.js"
     }
   },
   "scripts": {

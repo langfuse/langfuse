@@ -1430,6 +1430,17 @@ describe("getBackgroundRunNotice", () => {
     expect(getSettledActivityOutcome(run)).toBe("stopped");
   });
 
+  it("shows waiting status while an approved script is running", () => {
+    expect(
+      getBackgroundRunNotice({
+        id: "run-1",
+        status: InAppAgentRunStatus.WAITING_EXECUTION,
+        errorCode: null,
+        cancelRequested: false,
+      }),
+    ).toEqual({ text: "Running the approved script…", tone: "info" });
+  });
+
   it("shows no notice and marks a plain SUCCEEDED run as worked", () => {
     const run = {
       id: "run-1",
