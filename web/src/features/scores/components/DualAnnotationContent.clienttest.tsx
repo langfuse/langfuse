@@ -166,16 +166,44 @@ describe("unified annotation targets", () => {
     vi.unstubAllGlobals();
   });
 
+  it("adds scores once and removes only the chosen empty row", async () => {
+    configs.push({ ...defaultConfig, id: "accuracy", name: "Accuracy" });
+    const rendered = renderContent();
+    fireEvent.click(screen.getByRole("button", { name: "Add score" }));
+    expect(
+      screen.queryByRole("option", { name: /Quality/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("option", { name: /Accuracy/ }));
+    expect(screen.getAllByRole("group", { name: "Accuracy" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Score actions for Accuracy" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove score" }),
+    );
+    expect(
+      screen.queryByRole("group", { name: "Accuracy" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Quality" })).toBeInTheDocument();
+    expect(mocks.remove).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add score" })).toHaveFocus(),
+    );
+    rendered.unmount();
+    renderContent();
+    expect(
+      screen.queryByRole("group", { name: "Accuracy" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("chooses a target before the first save and cannot change it during or after saving", async () => {
     const pending = deferred();
     mocks.create.mockReturnValue(pending.promise);
     renderContent();
     expect(screen.getAllByRole("group", { name: "Quality" })).toHaveLength(1);
-    fireEvent.click(screen.getByRole("combobox", { name: "Scores" }));
-    expect(screen.getAllByRole("option", { name: /Quality/ })).toHaveLength(1);
-    fireEvent.keyDown(screen.getByPlaceholderText("Search scores..."), {
-      key: "Escape",
-    });
+    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
     fireEvent.keyDown(
       screen.getByRole("button", { name: "Score actions for Quality" }),
       { key: "ArrowDown" },
@@ -355,7 +383,9 @@ describe("unified annotation targets", () => {
     mocks.create.mockResolvedValue({});
     await renderBothTargets();
 
-    expect(screen.getAllByRole("combobox", { name: "Scores" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Add score" })).toHaveLength(
+      1,
+    );
     expect(
       screen.queryByText(/Score data saved|^Saved$/),
     ).not.toBeInTheDocument();
@@ -395,17 +425,7 @@ describe("unified annotation targets", () => {
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
-    const scoreSelector = screen.getByRole("combobox", { name: "Scores" });
-    expect(
-      within(scoreSelector).getAllByRole("button", { name: /Remove.*Quality/ }),
-    ).toHaveLength(1);
-    fireEvent.click(scoreSelector);
-    const qualityOptions = screen.getAllByRole("option", { name: /Quality/ });
-    expect(qualityOptions).toHaveLength(1);
-    expect(qualityOptions[0]).toHaveAttribute("aria-checked", "true");
-    fireEvent.keyDown(screen.getByPlaceholderText("Search scores..."), {
-      key: "Escape",
-    });
+    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
     const cached = JSON.parse(
       screen.getByLabelText("Cached scores").textContent!,
     );
@@ -435,9 +455,8 @@ describe("unified annotation targets", () => {
 
   it("restores a categorical score after a failed clear and keeps its field after retry", async () => {
     mocks.create.mockResolvedValue({});
-    mocks.remove
-      .mockRejectedValueOnce(new Error("Could not clear score"))
-      .mockResolvedValue({});
+    const firstClear = deferred();
+    mocks.remove.mockReturnValueOnce(firstClear.promise).mockResolvedValue({});
     await renderBothTargets();
     const observationRow = screen.getByRole("group", {
       name: "Quality (Observation)",
@@ -458,8 +477,29 @@ describe("unified annotation targets", () => {
       }),
       { key: "ArrowDown" },
     );
+    expect(
+      screen.queryByRole("menuitem", { name: "Remove score" }),
+    ).not.toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Clear score" }),
+    );
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: "Score actions for Quality (Observation)",
+      }),
+      { key: "ArrowDown" },
+    );
+    const pendingRemoval = await screen.findByRole("menuitem", {
+      name: "Remove score",
+    });
+    expect(pendingRemoval).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(pendingRemoval);
+    fireEvent.keyDown(pendingRemoval, { key: "Escape" });
+    expect(
+      screen.getByRole("group", { name: "Quality (Observation)" }),
+    ).toBeInTheDocument();
+    await act(async () =>
+      firstClear.reject(new Error("Could not clear score")),
     );
     expect(await screen.findByText("Failed to clear score")).toBeVisible();
     const restored = screen.getByRole("group", {
@@ -494,6 +534,17 @@ describe("unified annotation targets", () => {
     expect(
       within(traceRow).getByRole("radio", { name: /True/ }),
     ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: "Score actions for Quality (Observation)",
+      }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove score" }),
+    );
+    expect(screen.getAllByRole("group", { name: "Quality" })).toHaveLength(1);
+    expect(mocks.remove).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the latest saved status when an older edit of the same field fails", async () => {
@@ -589,7 +640,15 @@ describe("unified annotation targets", () => {
       ),
     );
     await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole("button", { name: /Remove .*Quality/ }));
+    fireEvent.keyDown(
+      screen.getByRole("button", {
+        name: "Score actions for Quality (Observation)",
+      }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove score" }),
+    );
     await act(async () => pending.reject(new Error("Trace save failed")));
     const remaining = screen.getByRole("group", { name: "Quality" });
     expect(

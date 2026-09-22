@@ -82,7 +82,14 @@ export function createAnnotationFormActions({
   );
   let sequence = 0;
   const latestSaves = new Map<string, number>();
+  const pendingFields = new Map<string, number>();
   const failedFields = new Set<string>();
+
+  const finishPendingField = (key: string) => {
+    const remaining = (pendingFields.get(key) ?? 1) - 1;
+    if (remaining) pendingFields.set(key, remaining);
+    else pendingFields.delete(key);
+  };
 
   const beginSave = (
     kind: Parameters<
@@ -117,6 +124,7 @@ export function createAnnotationFormActions({
       (field.id ?? null) !== (confirmed?.id ?? null) ||
       hasChangedAnnotationValue(field, confirmed);
     latestSaves.set(key, operationSequence);
+    pendingFields.set(key, (pendingFields.get(key) ?? 0) + 1);
     failedFields.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
@@ -125,6 +133,7 @@ export function createAnnotationFormActions({
     // Promise-owned completion survives overlapping mutation observers.
     operation.then(
       () => {
+        finishPendingField(key);
         saveStore.setState((state) => {
           const confirmedFields = new Map(state.confirmedFields);
           if ((confirmedFields.get(key)?.sequence ?? 0) <= operationSequence)
@@ -141,6 +150,7 @@ export function createAnnotationFormActions({
         tracked?.success();
       },
       () => {
+        finishPendingField(key);
         const isLatest = latestSaves.get(key) === operationSequence;
         if (isLatest) {
           failedFields.add(key);
@@ -311,6 +321,7 @@ export function createAnnotationFormActions({
   return {
     saveStore,
     indexOf,
+    isSaving: (key: string) => pendingFields.has(key),
     clear,
     validateNumericInput,
     addDraftTarget(key: string, destination: PreparedAnnotationTarget) {

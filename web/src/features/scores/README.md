@@ -12,7 +12,7 @@ refetches of the same target preserve its draft.
 
 | Owner                                                          | Responsibility                                                                                                                                                                                                 |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `components/AnnotationForm.tsx`                                | Loaded-data boundary, form lifetime, selected row structure, header and picker composition.                                                                                                                    |
+| `components/AnnotationForm.tsx`                                | Loaded-data boundary, form lifetime, selected row structure, header and add-score composition.                                                                                                                 |
 | `lib/prepareAnnotationFormData.ts`                             | Pure construction of initial scored and remembered empty fields.                                                                                                                                               |
 | React Hook Form                                                | The mounted form's draft values and validation. Each `AnnotationScoreRow` subscribes to its own row and provides that scoped form state to input primitives.                                                   |
 | `actions/annotationFormActions.ts`                             | Create/update/clear/comment workflows, current draft reads, target-specific analytics, optimistic form updates, and operation-owned rollback.                                                                  |
@@ -29,15 +29,17 @@ callbacks. Each form owns one action instance and one save store; unrelated form
 cannot share drafts or save status. Existing score cache scope and API payloads
 remain owned by the mutation bridge.
 
-The combined trace/observation picker lists each config once. Initial preparation
+The Add score picker lists each available config once and excludes fields already in the form. Initial preparation
 keeps every saved score and places remembered empty fields on the observation by
 default. Draft-only level changes and adding a blank field for the other level
 belong to the form actions; neither changes an existing score's attachment.
 Saved scores, pending writes, invalid drafts, and occupied destinations prevent a
 level change. Single-target and fixed queue forms retain their supplied targets.
-Config deselection clears remembered empty choices across both levels so hidden
-preferences cannot restore a removed field on the next open. The selector shows
-configs without level badges. Mixed-level forms show badges beside score fields;
+The row menu removes only empty fields and clears their remembered choices so
+hidden preferences cannot restore them on the next open. Saved and nonempty
+fields keep Clear score; pending clears cannot remove their row before rollback
+is settled. Fixed queue fields cannot be removed. The picker shows configs
+without level badges. Mixed-level forms show badges beside score fields;
 each row's menu always identifies its current level.
 
 Typing updates the owning row and save-status subscriber. It must not rebuild the
