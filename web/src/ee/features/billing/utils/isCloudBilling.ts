@@ -1,5 +1,5 @@
 import { env } from "@/src/env.mjs";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 
 /**
  * Server-side check to determine if cloud billing is enabled.

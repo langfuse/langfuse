@@ -568,17 +568,32 @@ async fn example(web_base_url: &str, service_key: &str, gateway_key: &str)
 
 Each call sends `POST <base path>/api/internal/ai-gateway/v1/resolve` with
 `Authorization: Bearer <gateway key>`, the Web v1 HMAC header, and exactly
-`{"apiFormat":"openai.responses"}`. The client neither receives nor parses an
-inference request body. Reuse the resolver across requests: its connection pool is
-shared, while credentials and execution contexts stay request-local.
+`{"apiFormat":"<format>"}`, where the format is the one the public route serves
+(`openai.responses` for every `/openai/v1` route). The client neither receives nor
+parses an inference request body. Reuse the resolver across requests: its connection
+pool is shared, while credentials and execution contexts stay request-local.
 
 The whole HTTP exchange has a five-second deadline and a 256 KiB response limit,
 including chunked responses. Redirects, automatic retries, ambient proxy settings
 and transparent decompression are disabled. Errors expose fixed categories;
-upstream error bodies and transport details are discarded. Successful responses
-must match the strict v1 schema, the official OpenAI Responses connection, and an
-unexpired project ingestion grant. Ingestion tokens remain opaque. Resolution
-caching, provider execution and telemetry are separate slices.
+upstream error bodies and transport details are discarded. A successful response
+must match the strict v1 schema and carry an unexpired project ingestion grant.
+Its connection must also be one of the known official pairings: the `provider`
+serves the requested `api_format`, `base_url` is that provider's official origin,
+and `auth` uses that provider's credential scheme. Any other combination is an
+invalid response, even if Web selected it.
+
+| Provider | API format | Official origin | Credential |
+| --- | --- | --- | --- |
+| `openai` | `openai.responses` | `https://api.openai.com/v1` | `{"type":"Bearer","token":…}` → `Authorization: Bearer` |
+| `anthropic` | `anthropic.messages` | `https://api.anthropic.com/v1` | `{"type":"x-api-key","header":"x-api-key","value":…}` → `x-api-key` |
+
+`ProviderConnection::credential()` exposes the secret in its header position
+(`ProviderCredential::Bearer` or `ProviderCredential::XApiKey`) and has no `Debug`
+output. The Anthropic pairing is accepted by the contract ahead of its routes: no
+`/anthropic/v1` endpoint, transport or capture exists yet, so a resolver caller
+requesting `anthropic.messages` today is only the test suite. Ingestion tokens remain
+opaque. Resolution caching, provider execution and telemetry are separate slices.
 
 ### Verification
 

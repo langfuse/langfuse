@@ -50,7 +50,10 @@ import {
 } from "@langfuse/shared";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
@@ -59,7 +62,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -71,7 +74,6 @@ import {
   type TableDateRange,
 } from "@/src/utils/date-range-utils";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
@@ -79,7 +81,7 @@ import {
   calculateAggregatedUsage,
 } from "@/src/features/traces";
 import { InfoIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
@@ -95,7 +97,7 @@ import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavi
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import {
@@ -105,15 +107,16 @@ import {
 } from "@/src/features/search-bar";
 
 import { useRouter } from "next/router";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import {
+  TableSelectionManager,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
+import { showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
+import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import {

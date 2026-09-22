@@ -16,7 +16,7 @@ import { type ObservationType } from "@langfuse/shared";
 import {
   useWebCalloutAction,
   WebCalloutMenuItem,
-} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+} from "@/src/features/web-callouts";
 
 type IdItem = {
   name: string;

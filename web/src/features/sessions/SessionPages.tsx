@@ -4,11 +4,13 @@ import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { ErrorPage } from "@/src/components/error-page";
 import { PublishSessionSwitch } from "@/src/components/publish-object-switch";
-import { IOPreview } from "@/src/features/traces/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/features/traces";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Badge } from "@/src/components/ui/badge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  DetailPageNav,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { usdFormatter } from "@/src/utils/numbers";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -16,13 +18,13 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
 import { Button } from "@/src/components/ui/button";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+} from "@/src/features/comments";
 import { useSession } from "next-auth/react";
 import {
   CheckIcon,
@@ -39,7 +41,7 @@ import {
   SquarePen,
 } from "lucide-react";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import {
   Popover,
@@ -55,12 +57,14 @@ import {
   TableViewPresetTableName,
   normalizeLegacySessionPositionInTraceFilters,
 } from "@langfuse/shared";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues/components/AnnotationQueueItemDropdownMenuController";
-import { AnnotationQueueItemCountBadge } from "@/src/features/annotation-queues/components/AnnotationQueueItemCountBadge";
+import {
+  AnnotationQueueItemDropdownMenuController,
+  AnnotationQueueItemCountBadge,
+} from "@/src/features/annotation-queues";
 import {
   useWebCalloutAction,
   WebCalloutButton,
-} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+} from "@/src/features/web-callouts";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -69,8 +73,10 @@ import { useParsedTrace } from "@/src/hooks/useParsedTrace";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import {
+  observationEventsFilterConfig,
+  useEventsFilterOptions,
+} from "@/src/features/events";
 import {
   decodeAndNormalizeFilters,
   useSidebarFilterState,
@@ -103,7 +109,7 @@ import { createSessionDetailStore } from "@/src/features/sessions/sessionDetailS
 import { ModernSession } from "@/src/features/sessions/ModernSession";
 import { DropdownMenuTrigger } from "@/src/components/ui/dropdown-menu";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useStore } from "zustand";
 import { useHistoryEntryRevisit } from "@/src/features/sessions/useHistoryEntryRevisit";
