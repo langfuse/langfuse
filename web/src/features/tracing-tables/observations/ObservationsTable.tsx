@@ -1669,6 +1669,7 @@ function ObservationsAddToDatasetDialog({
 
   return (
     <AddObservationsToDatasetDialog
+      isV4={false}
       projectId={projectId}
       selectedObservationIds={selectedObservationIds}
       query={{
@@ -1681,8 +1682,8 @@ function ObservationsAddToDatasetDialog({
       totalCount={totalCount ?? 0}
       onClose={() => {
         actions.setShowAddToDatasetDialog(false);
-        actions.clearSelection();
       }}
+      onSuccess={actions.clearSelection}
       exampleObservation={{
         id: firstRow?.id ?? "",
         traceId: firstRow?.traceId ?? "",

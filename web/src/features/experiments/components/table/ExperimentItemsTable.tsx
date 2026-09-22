@@ -2270,6 +2270,8 @@ export default function ExperimentItemsTable({
             }
             onClose={() => {
               setShowRunEvaluationDialog(false);
+            }}
+            onSuccess={() => {
               setSelectedRows({});
               setSelectAll(false);
             }}
