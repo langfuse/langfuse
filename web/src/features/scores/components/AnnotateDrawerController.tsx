@@ -5,7 +5,8 @@ import {
   type AnalyticsData,
   type ScoreTarget,
 } from "@/src/features/scores/types";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useMemo } from "react";
+import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAnalytics";
 import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
 import {
   filterAndValidateDbScoreList,
@@ -52,10 +53,8 @@ type AnnotateDrawerPayload<Target extends ScoreTarget> =
 
 function ConnectedAnnotateDrawerContent({
   state,
-  capture,
 }: {
   state: AnnotateDrawerState;
-  capture: ReturnType<typeof usePostHogClientCapture>;
 }) {
   const shouldFetchScores =
     state.scores === undefined && state.scoreTarget.type === "trace";
@@ -89,18 +88,6 @@ function ConnectedAnnotateDrawerContent({
     return toDomainArrayWithStringifiedMetadata(scores);
   }, [scoresQuery.data, state.scoreTarget]);
   const scores = state.scores ?? fetchedScores;
-  const capturedState = useRef<typeof state>(null);
-
-  useEffect(() => {
-    if (state.scores !== undefined || scores === undefined) return;
-    if (capturedState.current === state) return;
-
-    capturedState.current = state;
-    capture(
-      scores.length ? "score:update_form_open" : "score:create_form_open",
-      state.analyticsData,
-    );
-  }, [capture, scores, state]);
 
   if (scoresQuery.isError && scores === undefined) {
     return (
@@ -150,7 +137,7 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   return (
     <DrawerController<AnnotateDrawerState>
       renderContent={({ state }) => (
-        <ConnectedAnnotateDrawerContent state={state} capture={capture} />
+        <ConnectedAnnotateDrawerContent state={state} />
       )}
     >
       {({ openDrawer }) =>
@@ -159,14 +146,11 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
           openDrawer: (payload) => {
             if (disabled) return;
 
-            if (payload.scores !== undefined) {
-              capture(
-                payload.scores.length
-                  ? "score:update_form_open"
-                  : "score:create_form_open",
-                payload.analyticsData,
-              );
-            }
+            capture("annotation:entry_click", {
+              ...payload.analyticsData,
+              targetType: getAnnotationTargetType(payload.scoreTarget),
+              entryPoint: "annotate_button",
+            });
             openDrawer(payload);
           },
         })

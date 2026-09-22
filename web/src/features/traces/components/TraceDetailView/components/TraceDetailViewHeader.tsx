@@ -3,7 +3,7 @@
  *
  * Contains:
  * - Title row with ItemBadge, trace name, options menu
- * - Action buttons (Add to, Score, Comment)
+ * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, environment, release, version, target trace)
  * - Trace-level score chips
  *
@@ -11,6 +11,7 @@
  */
 
 import { memo } from "react";
+import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -76,6 +77,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
@@ -145,6 +147,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                 className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
               >
                 <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4 }}
                   projectId={projectId}
                   traceId={trace.id}
                   variant="trace"
@@ -184,6 +187,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                               analyticsData: {
                                 type: "trace",
                                 source: "TraceDetail",
+                                isV4,
                               },
                               scoreMetadata: {
                                 projectId,
@@ -197,7 +201,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           ) : (
                             <SquarePen className="h-4 w-4" />
                           )}
-                          <span className="text-sm">Score</span>
+                          <span className="text-sm">Annotate</span>
                         </Button>
                       )}
                     </AnnotateDrawerController>
@@ -229,6 +233,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <ConnectedTraceObservationAddToDropdownMenuController
+              analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}
               traceId={trace.id}
               variant="trace"
@@ -267,6 +272,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4,
                         },
                         scoreMetadata: {
                           projectId,
@@ -280,7 +286,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     ) : (
                       <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                     )}
-                    <span>Score</span>
+                    <span>Annotate</span>
                   </Button>
                 )}
               </AnnotateDrawerController>

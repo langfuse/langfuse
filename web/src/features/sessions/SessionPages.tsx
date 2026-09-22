@@ -634,6 +634,7 @@ export const SessionPage: React.FC<{
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4: false,
                           },
                           scoreMetadata: {
                             projectId,
@@ -655,6 +656,7 @@ export const SessionPage: React.FC<{
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
+                  analyticsData={{ source: "SessionDetail", isV4: false }}
                 >
                   {({ disabled, totalCount, Trigger }) => (
                     <Trigger asChild>
@@ -756,6 +758,7 @@ export const SessionPage: React.FC<{
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4: false,
                         },
                         scoreMetadata: {
                           projectId,
@@ -777,6 +780,7 @@ export const SessionPage: React.FC<{
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
+                analyticsData={{ source: "SessionDetail", isV4: false }}
               >
                 {({ disabled, totalCount, Trigger }) => (
                   <Trigger asChild>
@@ -787,7 +791,9 @@ export const SessionPage: React.FC<{
                       className="w-full justify-start gap-2 font-normal"
                     >
                       <ListPlus className="h-4 w-4" />
-                      <span className="text-sm">Add to queue</span>
+                      <span className="text-sm">
+                        Add to human annotation queue
+                      </span>
                       {totalCount > 0 && (
                         <AnnotationQueueItemCountBadge
                           totalCount={totalCount}
@@ -1679,6 +1685,7 @@ const LoadedSessionEventsPage: React.FC<{
                           analyticsData: {
                             type: "trace",
                             source: "TraceDetail",
+                            isV4: true,
                           },
                           scoreMetadata: {
                             projectId,
@@ -1705,6 +1712,7 @@ const LoadedSessionEventsPage: React.FC<{
                   projectId={projectId}
                   objectId={sessionId}
                   objectType="SESSION"
+                  analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
                   {({ disabled, totalCount, Trigger }) => (
                     <Trigger asChild>
@@ -1833,6 +1841,7 @@ const LoadedSessionEventsPage: React.FC<{
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4: true,
                         },
                         scoreMetadata: {
                           projectId,
@@ -1859,6 +1868,7 @@ const LoadedSessionEventsPage: React.FC<{
                 projectId={projectId}
                 objectId={sessionId}
                 objectType="SESSION"
+                analyticsData={{ source: "SessionDetail", isV4: true }}
               >
                 {({ disabled, totalCount, Trigger }) => (
                   <Trigger asChild>
@@ -1869,7 +1879,9 @@ const LoadedSessionEventsPage: React.FC<{
                       className="w-full justify-start gap-2 font-normal"
                     >
                       <ListPlus className="h-4 w-4" />
-                      <span className="text-sm">Add to queue</span>
+                      <span className="text-sm">
+                        Add to human annotation queue
+                      </span>
                       {totalCount > 0 && (
                         <AnnotationQueueItemCountBadge
                           totalCount={totalCount}

@@ -11,13 +11,11 @@ import {
   NewDatasetItemFromExistingObjectDialogController,
   useDatasetItemFromTraceOrObservation,
 } from "@/src/features/datasets";
-import {
-  AnnotationQueueItemDropdownMenuController,
-  AnnotationQueueItemCountBadge,
-} from "@/src/features/annotation-queues";
+import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues";
 import { cn } from "@/src/utils/tailwind";
 import {
   ChevronDown,
+  ListPlus,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
@@ -35,6 +33,7 @@ export function SessionTraceActionButtons({
   environment,
   scores,
   traceCommentCounts,
+  isV4,
   density = "default",
   className,
 }: {
@@ -44,6 +43,7 @@ export function SessionTraceActionButtons({
   environment?: string | null;
   scores: TraceScores;
   traceCommentCounts: Map<string, number> | undefined;
+  isV4: boolean;
   density?: "default" | "compact";
   className?: string;
 }) {
@@ -138,14 +138,13 @@ export function SessionTraceActionButtons({
           )}
         </NewDatasetItemFromExistingObjectDialogController>
       ) : null}
-      <div className="flex items-start">
+      <div className="flex flex-wrap items-start gap-2">
         <AnnotateDrawerController projectId={projectId}>
           {({ disabled, openDrawer }) => (
             <Button
               variant="outline"
               size={size}
               disabled={disabled}
-              className="rounded-r-none"
               onClick={() =>
                 openDrawer({
                   scoreTarget: { type: "trace", traceId },
@@ -153,6 +152,7 @@ export function SessionTraceActionButtons({
                   analyticsData: {
                     type: "trace",
                     source: "SessionDetail",
+                    isV4,
                   },
                   scoreMetadata: {
                     projectId,
@@ -174,6 +174,7 @@ export function SessionTraceActionButtons({
           projectId={projectId}
           objectId={traceId}
           objectType="TRACE"
+          analyticsData={{ source: "SessionDetail", isV4 }}
         >
           {({ disabled, totalCount, Trigger }) => (
             <Trigger asChild>
@@ -181,17 +182,14 @@ export function SessionTraceActionButtons({
                 variant="outline"
                 size={size}
                 disabled={disabled !== undefined}
-                className="rounded-l-none rounded-r-md border-l-2"
+                className="gap-1.5"
               >
-                <span className="relative mr-1 text-xs">
-                  <ChevronDown className="h-3 w-3" />
-                  {totalCount > 0 && (
-                    <AnnotationQueueItemCountBadge
-                      totalCount={totalCount}
-                      layout="toolbar"
-                    />
-                  )}
-                </span>
+                <ListPlus className="h-4 w-4" />
+                <span>Add to human annotation queue</span>
+                {totalCount > 0 && (
+                  <ActionButtonCountBadge count={totalCount} />
+                )}
+                <ChevronDown className="h-3 w-3" />
               </Button>
             </Trigger>
           )}

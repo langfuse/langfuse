@@ -3,13 +3,14 @@
  *
  * Contains:
  * - Title row with ItemBadge, observation name, options menu
- * - Action buttons (Add to, Score, Comment)
+ * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
 import { memo, useMemo } from "react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   type ObservationType,
   isGenerationLike,
@@ -115,6 +116,15 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const { isV4: isV4Enabled } = useReadPath();
+    const capture = usePostHogClientCapture();
+    const captureAnnotationEntry = () =>
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "TraceDetail",
+        targetType: "observation",
+        isV4: isV4Enabled,
+      });
     const { trace, serverScores } = useTraceData();
 
     // Get trace-level scores for V4 dual annotation
@@ -224,6 +234,10 @@ export const ObservationDetailViewHeader = memo(
                 >
                   {observationWithIO && (
                     <ConnectedTraceObservationAddToDropdownMenuController
+                      analyticsData={{
+                        source: "TraceDetail",
+                        isV4: isV4Enabled,
+                      }}
                       projectId={projectId}
                       traceId={traceId}
                       variant="observation"
@@ -262,6 +276,7 @@ export const ObservationDetailViewHeader = memo(
                               variant="ghost"
                               size="sm"
                               disabled={!hasAnnotationAccess}
+                              onClick={captureAnnotationEntry}
                               className="w-full justify-start gap-2 font-normal"
                             >
                               {!hasAnnotationAccess ? (
@@ -269,11 +284,12 @@ export const ObservationDetailViewHeader = memo(
                               ) : (
                                 <SquarePen className="h-4 w-4" />
                               )}
-                              <span className="text-sm">Score</span>
+                              <span className="text-sm">Annotate</span>
                             </Button>
                           </DrawerTrigger>
                           <DrawerContent className="p-3">
                             <DualAnnotationContent
+                              isV4={isV4Enabled}
                               projectId={projectId}
                               traceId={traceId}
                               observationId={observation.id}
@@ -303,6 +319,7 @@ export const ObservationDetailViewHeader = memo(
                                   analyticsData: {
                                     type: "trace",
                                     source: "TraceDetail",
+                                    isV4: isV4Enabled,
                                   },
                                   scoreMetadata: {
                                     projectId,
@@ -316,7 +333,7 @@ export const ObservationDetailViewHeader = memo(
                               ) : (
                                 <SquarePen className="h-4 w-4" />
                               )}
-                              <span className="text-sm">Score</span>
+                              <span className="text-sm">Annotate</span>
                             </Button>
                           )}
                         </AnnotateDrawerController>
@@ -388,6 +405,7 @@ export const ObservationDetailViewHeader = memo(
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
                 <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
                   key={observation.id}
                   traceId={traceId}
@@ -431,11 +449,12 @@ export const ObservationDetailViewHeader = memo(
                         ) : (
                           <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        <span>Score</span>
+                        <span>Annotate</span>
                       </Button>
                     </DrawerTrigger>
                     <DrawerContent className="p-3">
                       <DualAnnotationContent
+                        isV4={isV4Enabled}
                         projectId={projectId}
                         traceId={traceId}
                         observationId={observation.id}
@@ -464,6 +483,7 @@ export const ObservationDetailViewHeader = memo(
                             analyticsData: {
                               type: "trace",
                               source: "TraceDetail",
+                              isV4: isV4Enabled,
                             },
                             scoreMetadata: {
                               projectId,
@@ -477,7 +497,7 @@ export const ObservationDetailViewHeader = memo(
                         ) : (
                           <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                         )}
-                        <span>Score</span>
+                        <span>Annotate</span>
                       </Button>
                     )}
                   </AnnotateDrawerController>

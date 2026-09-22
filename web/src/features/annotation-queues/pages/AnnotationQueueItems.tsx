@@ -1,9 +1,7 @@
 import { api } from "@/src/utils/api";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
-import { CardDescription } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { ClipboardPen, Lock } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
 import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
@@ -16,8 +14,7 @@ import {
   SidePanelHeader,
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
-import { SubHeaderLabel } from "@/src/components/layouts/header";
-import { getScoreDataTypeIcon } from "@/src/features/scores";
+import { AnnotationQueueDetails } from "@/src/features/annotation-queues/components/AnnotationQueueDetails";
 
 export default function QueueItems({
   projectId,
@@ -77,42 +74,37 @@ export default function QueueItems({
         <div className="flex h-full flex-col overflow-hidden">
           <AnnotationQueueItemsTable projectId={projectId} queueId={queueId} />
         </div>
-        <SidePanel
-          mobileTitle={queue.data?.name ?? "Queue details"}
-          id="queue-details"
-        >
+        <SidePanel mobileTitle="Queue details" id="queue-details">
           <SidePanelHeader>
-            <SidePanelTitle>
-              {queue.data?.name ?? "Queue details"}
-            </SidePanelTitle>
+            <SidePanelTitle>Details</SidePanelTitle>
             <CreateOrEditAnnotationQueueButton
               projectId={projectId}
               queueId={queueId}
+              variant="ghost"
+              size="sm"
             />
           </SidePanelHeader>
           <SidePanelContent>
-            {queue.isLoading ? (
-              <Skeleton className="h-full w-full" />
-            ) : (
-              <>
-                {queue.data?.description && (
-                  <CardDescription className="text-sm">
-                    {queue.data?.description}
-                  </CardDescription>
-                )}
-                <div className="flex flex-col gap-2">
-                  <SubHeaderLabel title="Score Configs" />
-                  <div className="flex flex-wrap gap-2">
-                    {queue.data?.scoreConfigs.map((scoreConfig) => (
-                      <Badge key={scoreConfig.id} variant="outline">
-                        {getScoreDataTypeIcon(scoreConfig.dataType)}
-                        <span className="ml-0.5">{scoreConfig.name}</span>
-                      </Badge>
-                    ))}
-                  </div>
+            <div className="w-full min-w-0">
+              <div className="flex justify-end px-4 md:hidden">
+                <CreateOrEditAnnotationQueueButton
+                  projectId={projectId}
+                  queueId={queueId}
+                  variant="ghost"
+                  size="sm"
+                />
+              </div>
+              {queue.isLoading ? (
+                <div className="p-4">
+                  <Skeleton className="h-40 w-full" />
                 </div>
-              </>
-            )}
+              ) : (
+                <AnnotationQueueDetails
+                  description={queue.data?.description ?? null}
+                  scoreConfigs={queue.data?.scoreConfigs ?? []}
+                />
+              )}
+            </div>
           </SidePanelContent>
         </SidePanel>
       </div>

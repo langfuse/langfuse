@@ -6,7 +6,36 @@ import {
   nextCategoryValue,
   resolveCategoricalNumericValue,
   validateNewCategoryLabel,
+  validateNumericScore,
 } from "@/src/features/scores/lib/annotationFormHelpers";
+
+describe("numeric score validation", () => {
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+    "rejects non-finite values (%s) as invalid numbers",
+    (value) => {
+      expect(validateNumericScore({ value, minValue: 1, maxValue: 5 })).toBe(
+        "Enter a number",
+      );
+    },
+  );
+  it("keeps empty values distinct from zero and explains bounded and one-sided ranges", () => {
+    expect(
+      validateNumericScore({ value: null, minValue: 1, maxValue: 5 }),
+    ).toBeNull();
+    expect(validateNumericScore({ value: 0, minValue: 1, maxValue: 5 })).toBe(
+      "Enter a value between 1 and 5",
+    );
+    expect(validateNumericScore({ value: 0, minValue: 1 })).toBe(
+      "Enter a value of at least 1",
+    );
+    expect(validateNumericScore({ value: 6, maxValue: 5 })).toBe(
+      "Enter a value of at most 5",
+    );
+    expect(
+      validateNumericScore({ value: 2.5, minValue: 1, maxValue: 5 }),
+    ).toBeNull();
+  });
+});
 
 describe("nextCategoryValue", () => {
   it("starts at 0 when there are no categories", () => {

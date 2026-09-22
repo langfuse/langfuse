@@ -16,20 +16,20 @@ import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { validateNewCategoryLabel } from "@/src/features/scores/lib/annotationFormHelpers";
-import { type AnalyticsData } from "@/src/features/scores/types";
+import { type AnnotationAnalyticsContext } from "@/src/features/scores/lib/annotationAnalytics";
 
 export function AddScoreCategoryDialog({
   projectId,
   config,
   initialLabel,
-  source,
+  analyticsData,
   onClose,
   onCategoryAdded,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
   initialLabel: string;
-  source: AnalyticsData["source"] | undefined;
+  analyticsData: AnnotationAnalyticsContext;
   onClose: () => void;
   onCategoryAdded: (label: string, numericValue: number) => void;
 }) {
@@ -41,10 +41,7 @@ export function AddScoreCategoryDialog({
 
   const appendCategory = api.scoreConfigs.appendCategory.useMutation({
     onSuccess: async (data, variables) => {
-      capture(
-        "score_configs:add_category_inline",
-        source ? { source } : undefined,
-      );
+      capture("score_configs:add_category_inline", analyticsData);
       await Promise.all([
         utils.scoreConfigs.invalidate(),
         utils.annotationQueues.invalidate(),

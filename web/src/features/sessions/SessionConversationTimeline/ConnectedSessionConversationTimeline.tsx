@@ -241,6 +241,7 @@ export function ConnectedSessionConversationTimeline({
                           analyticsData: {
                             type: "trace",
                             source: "SessionDetail",
+                            isV4: true,
                           },
                           scoreMetadata: {
                             projectId,
