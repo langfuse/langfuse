@@ -186,10 +186,7 @@ export function EvaluatorGalleryView({
                     }
                   >
                     <Scale className="h-3.5 w-3.5" aria-hidden="true" />
-                    New decision model
-                    <span className="bg-primary-accent text-primary-foreground rounded-full px-1.5 py-px text-[10px] leading-none font-bold">
-                      New
-                    </span>
+                    New decision model evaluator
                   </Button>
                 ) : null}
               </div>
