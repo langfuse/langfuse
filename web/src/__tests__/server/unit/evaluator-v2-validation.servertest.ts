@@ -8,6 +8,12 @@ const mocks = vi.hoisted(() => ({
   getEvaluatorDefinitionConfigurationError: vi.fn(),
   isCodeEvalEnabled: vi.fn(),
   isCodeEvalSourceCodeLanguageSupported: vi.fn(),
+  env: {
+    LANGFUSE_ENABLE_DECISION_MODEL_CONSTANTS: "true" as
+      | "true"
+      | "false"
+      | undefined,
+  },
 }));
 
 vi.mock("@/src/features/evals/server/evaluator-preflight", () => ({
@@ -21,7 +27,12 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
+
+import {
+  assertCompleteDecisionModelVariableMapping,
+  assertEvaluatorConfigurationValid,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
@@ -33,6 +44,7 @@ describe("evaluator configuration validation", () => {
     mocks.isCodeEvalEnabled.mockReturnValue(true);
     mocks.isCodeEvalSourceCodeLanguageSupported.mockReturnValue(true);
     mocks.getEvaluatorDefinitionConfigurationError.mockResolvedValue(null);
+    mocks.env.LANGFUSE_ENABLE_DECISION_MODEL_CONSTANTS = "true";
   });
 
   it("accepts evaluator names longer than 200 characters", () => {
@@ -97,6 +109,21 @@ describe("evaluator configuration validation", () => {
         },
       ]).success,
     ).toBe(false);
+  });
+
+  it("gates constant state until compatible workers are deployed", () => {
+    mocks.env.LANGFUSE_ENABLE_DECISION_MODEL_CONSTANTS = "false";
+
+    expect(() =>
+      assertCompleteDecisionModelVariableMapping({
+        stateKeys: ["policy"],
+        variableMapping: [
+          { templateVariable: "policy", constantValue: "strict" },
+        ],
+      }),
+    ).toThrow(
+      "Decision-model constant state values are not enabled for this deployment.",
+    );
   });
 
   it("accepts text filters for evaluator models", () => {

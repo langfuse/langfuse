@@ -240,12 +240,14 @@ export function DecisionModelStateEditor({
                 type="button"
                 variant={isConstant ? "ghost" : "secondary"}
                 size="xs"
+                disabled={!isConstant}
                 onClick={() => {
                   const inferred = inferDefaultMapping(field.key);
                   onChangeField(field.key, {
                     selectedColumnId: inferred.selectedColumnId ?? null,
                     jsonSelector: null,
                     valueSource: "observation",
+                    constantValue: field.fieldState.constantValue,
                   });
                 }}
               >
@@ -255,6 +257,7 @@ export function DecisionModelStateEditor({
                 type="button"
                 variant={isConstant ? "secondary" : "ghost"}
                 size="xs"
+                disabled={isConstant}
                 onClick={() => {
                   onChangeField(field.key, {
                     selectedColumnId: null,

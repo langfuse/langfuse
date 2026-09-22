@@ -21,6 +21,7 @@ import {
   EvaluatorModelConfigurationError,
 } from "./evaluatorErrors";
 import type { EvaluatorDefinition } from "./evaluatorTypes";
+import { env } from "@/src/env.mjs";
 
 export function extractEvaluatorPromptVariables(
   promptMessages: Array<{ content: string }>,
@@ -74,6 +75,14 @@ export function assertCompleteDecisionModelVariableMapping(params: {
   );
   if (!parsed.success) {
     throw new InvalidRequestError("Decision-model state mapping is invalid");
+  }
+  if (
+    parsed.data.some((mapping) => "constantValue" in mapping) &&
+    env.LANGFUSE_ENABLE_DECISION_MODEL_CONSTANTS !== "true"
+  ) {
+    throw new InvalidRequestError(
+      "Decision-model constant state values are not enabled for this deployment.",
+    );
   }
 
   assertCompleteParsedVariableMapping({

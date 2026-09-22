@@ -334,16 +334,17 @@ export function createEvaluatorSetupStore({
             selectedColumnId: null,
             jsonSelector: null,
           };
-          const fieldState = current.selectedColumnId
-            ? current
-            : {
-                selectedColumnId: experimentTargetEvalVariableColumns.some(
-                  (column) => column.id === next,
-                )
-                  ? next
-                  : null,
-                jsonSelector: null,
-              };
+          const fieldState =
+            current.valueSource === "constant" || current.selectedColumnId
+              ? current
+              : {
+                  selectedColumnId: experimentTargetEvalVariableColumns.some(
+                    (column) => column.id === next,
+                  )
+                    ? next
+                    : null,
+                  jsonSelector: null,
+                };
           // Plain string replacement: the token is a literal, so no regex is
           // built from user input.
           const oldReference = `\`${key}\``;
