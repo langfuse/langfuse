@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-null-render */
 import { useHasProjectAccess } from "@/src/features/rbac";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Form } from "@/src/components/ui/form";
 import {
@@ -225,6 +225,15 @@ export const MultiStepExperimentForm = ({
     form,
   });
 
+  const promptConfigModel = useMemo(() => {
+    if (selectedPromptModelConfig.status !== "valid") return null;
+
+    const { provider, model, ...modelParams } =
+      selectedPromptModelConfig.modelConfig;
+
+    return { selectionKey: promptIdFromHook, provider, model, modelParams };
+  }, [promptIdFromHook, selectedPromptModelConfig]);
+
   const {
     modelParams,
     updateModelParamValue,
@@ -232,17 +241,7 @@ export const MultiStepExperimentForm = ({
     availableModels,
     providerModelCombinations,
     availableProviders,
-  } = useModelParams(undefined, {
-    promptConfigModel: selectedPromptModelConfig
-      ? {
-          selectionKey: promptIdFromHook,
-          ...(selectedPromptModelConfig.provider
-            ? { provider: selectedPromptModelConfig.provider }
-            : {}),
-          model: selectedPromptModelConfig.model,
-        }
-      : null,
-  });
+  } = useModelParams(undefined, { promptConfigModel });
 
   // Watch model config changes and update form
   useEffect(() => {
@@ -508,6 +507,7 @@ export const MultiStepExperimentForm = ({
     selectedPromptVersion,
     setSelectedPromptVersion,
     promptsByName,
+    selectedPromptModelConfig,
     selectedPromptToolConfig,
   };
   const modelState = {
