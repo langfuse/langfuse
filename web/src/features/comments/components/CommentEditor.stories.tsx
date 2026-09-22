@@ -1,5 +1,5 @@
 import { useRef, useState, type ComponentProps } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { Button } from "@/src/components/ui/button";
 import { CommentEditor, type CommentEditorHandle } from "./CommentEditor";
@@ -23,6 +23,31 @@ function ControlledEditor(args: ComponentProps<typeof CommentEditor>) {
 export const Empty = meta.story({
   args: { value: "", onChange: fn() },
   render: (args) => <ControlledEditor {...args} />,
+});
+
+export const TestEmptyCaret = meta.story({
+  name: "(Test) Keeps The Empty Caret Inside The Scrollport",
+  args: { value: "", onChange: fn() },
+  render: (args) => <ControlledEditor {...args} />,
+  play: async ({ canvasElement }) => {
+    const textbox = within(canvasElement).getByRole("textbox", {
+      name: "New comment",
+    });
+    await userEvent.click(textbox);
+    await expect(textbox).toHaveFocus();
+    await waitFor(() => {
+      const editor = textbox.closest(".cm-editor");
+      const cursor = editor?.querySelector(".cm-cursor-primary");
+      const scroller = editor?.querySelector(".cm-scroller");
+      expect(cursor).not.toBeNull();
+      expect(scroller).not.toBeNull();
+      if (!cursor || !scroller) return;
+      const caretBounds = cursor.getBoundingClientRect();
+      const scrollBounds = scroller.getBoundingClientRect();
+      expect(caretBounds.left).toBeGreaterThanOrEqual(scrollBounds.left);
+      expect(caretBounds.right).toBeLessThanOrEqual(scrollBounds.right);
+    });
+  },
 });
 
 export const WithMentions = meta.story({
