@@ -1,4 +1,5 @@
 import { Button } from "@/src/components/ui/button";
+import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { Label } from "@/src/components/ui/label";
 import {
   Popover,
@@ -20,7 +21,7 @@ import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
-import { useState } from "react";
+import { forwardRef, type ReactNode, useState } from "react";
 
 export function usePublishTrace(props: {
   traceId: string;
@@ -148,14 +149,10 @@ export const PublishTraceSwitch = (props: {
   );
 };
 
-export const PublishSessionSwitch = (props: {
+export function usePublishSession(props: {
   sessionId: string;
   projectId: string;
-  isPublic: boolean;
-  size?: "icon" | "icon-xs";
-  /** When set, render as a full-width labeled menu item instead of an icon. */
-  label?: string;
-}) => {
+}) {
   const capture = usePostHogClientCapture();
   const hasAccess = useHasProjectAccess({
     projectId: props.projectId,
@@ -171,25 +168,111 @@ export const PublishSessionSwitch = (props: {
     },
   });
 
+  const toggle = (isPublic: boolean) => {
+    capture("session_detail:publish_button_click");
+    return mut.mutateAsync({
+      projectId: props.projectId,
+      sessionId: props.sessionId,
+      public: isPublic,
+    });
+  };
+
+  return { hasAccess, isPending: mut.isPending, toggle };
+}
+
+export const PublishSessionSwitch = (props: {
+  sessionId: string;
+  projectId: string;
+  isPublic: boolean;
+  size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
+}) => {
+  const publish = usePublishSession({
+    sessionId: props.sessionId,
+    projectId: props.projectId,
+  });
+
   return (
     <Base
       itemName="session"
       isPublic={props.isPublic}
       size={props.size}
       label={props.label}
-      onChange={(val) => {
-        capture("session_detail:publish_button_click");
-        return mut.mutateAsync({
-          projectId: props.projectId,
-          sessionId: props.sessionId,
-          public: val,
-        });
-      }}
-      isLoading={mut.isPending}
-      disabled={!hasAccess}
+      onChange={publish.toggle}
+      isLoading={publish.isPending}
+      disabled={!publish.hasAccess}
     />
   );
 };
+
+export function ShareLinkPopoverController({
+  itemName,
+  isPublic,
+  shareUrl,
+  isLoading,
+  onToggle,
+  children,
+}: {
+  itemName: string;
+  isPublic: boolean;
+  shareUrl?: string;
+  isLoading: boolean;
+  onToggle: (isPublic: boolean) => void;
+  children: (control: { Trigger: typeof PopoverTrigger }) => ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <Popover
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!isLoading) setIsOpen(open);
+      }}
+    >
+      {children({ Trigger: PopoverTrigger })}
+      <PopoverContent>
+        <ShareObjectPanel
+          itemName={itemName}
+          isPublic={isPublic}
+          shareUrl={shareUrl}
+          isLoading={isLoading}
+          onToggle={() => {
+            setIsOpen(false);
+            onToggle(!isPublic);
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export const ShareLinkMenuItem = forwardRef<
+  React.ComponentRef<typeof DropdownMenuItem>,
+  Omit<React.ComponentProps<typeof DropdownMenuItem>, "children"> & {
+    isPublic: boolean;
+  }
+>(function ShareLinkMenuItem({ isPublic, ...props }, ref) {
+  return (
+    <DropdownMenuItem
+      ref={ref}
+      onSelect={(event) => event.preventDefault()}
+      {...props}
+    >
+      {isPublic ? (
+        <Globe
+          className="mr-2 h-4 w-4"
+          fill="#b3d9ff"
+          stroke="#4d94ff"
+          strokeWidth={2}
+        />
+      ) : (
+        <Share2 className="mr-2 h-4 w-4" />
+      )}
+      Share link
+    </DropdownMenuItem>
+  );
+});
 
 const getShareUrlWithBasePath = (shareUrl: string) => {
   const basePath = (env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
@@ -290,7 +373,7 @@ const Base = (props: {
   );
 };
 
-export function ShareObjectPanel({
+function ShareObjectPanel({
   itemName,
   isPublic,
   shareUrl,

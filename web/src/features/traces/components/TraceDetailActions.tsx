@@ -1,20 +1,18 @@
 import {
   CopyIcon,
   Download,
-  Globe,
   Loader2,
   MoreVertical,
-  Share2,
   TrashIcon,
 } from "lucide-react";
-import { useState } from "react";
 import { toast } from "sonner";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
 import {
   PublishTraceSwitch,
-  ShareObjectPanel,
+  ShareLinkMenuItem,
+  ShareLinkPopoverController,
   usePublishTrace,
 } from "@/src/components/publish-object-switch";
 import { Button } from "@/src/components/ui/button";
@@ -25,11 +23,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import { api } from "@/src/utils/api";
@@ -72,7 +65,6 @@ export function TraceDetailActions({
   layout?: "toolbar" | "menu";
 }) {
   const utils = api.useUtils();
-  const [isShareOpen, setIsShareOpen] = useState(false);
   const publish = usePublishTrace({
     traceId: trace.id,
     projectId: trace.projectId,
@@ -178,43 +170,22 @@ export function TraceDetailActions({
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <Popover
-                open={isShareOpen}
-                onOpenChange={(open) => {
-                  if (!publish.isPending) setIsShareOpen(open);
-                }}
+              <ShareLinkPopoverController
+                itemName="trace"
+                isPublic={trace.public}
+                shareUrl={shareUrl}
+                isLoading={publish.isPending}
+                onToggle={publish.toggle}
               >
-                <PopoverTrigger asChild>
-                  <DropdownMenuItem
-                    disabled={!publish.hasAccess || publish.isPending}
-                    onSelect={(event) => event.preventDefault()}
-                  >
-                    {trace.public ? (
-                      <Globe
-                        className="mr-2 h-4 w-4"
-                        fill="#b3d9ff"
-                        stroke="#4d94ff"
-                        strokeWidth={2}
-                      />
-                    ) : (
-                      <Share2 className="mr-2 h-4 w-4" />
-                    )}
-                    Share link
-                  </DropdownMenuItem>
-                </PopoverTrigger>
-                <PopoverContent>
-                  <ShareObjectPanel
-                    itemName="trace"
-                    isPublic={trace.public}
-                    shareUrl={shareUrl}
-                    isLoading={publish.isPending}
-                    onToggle={() => {
-                      setIsShareOpen(false);
-                      publish.toggle(!trace.public);
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
+                {({ Trigger }) => (
+                  <Trigger asChild>
+                    <ShareLinkMenuItem
+                      isPublic={trace.public}
+                      disabled={!publish.hasAccess || publish.isPending}
+                    />
+                  </Trigger>
+                )}
+              </ShareLinkPopoverController>
               <DropdownMenuItem onClick={() => copyToClipboard(trace.id)}>
                 <CopyIcon className="mr-2 h-4 w-4" />
                 Copy trace ID
