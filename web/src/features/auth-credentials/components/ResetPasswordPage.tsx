@@ -120,11 +120,12 @@ export function ResetPasswordPage({
         sessionStorage.removeItem(PASSWORD_SETUP_EMAIL_STORAGE_KEY);
       }
 
-      let target =
-        setupTargetPath ??
-        (isSetMode && isLangfuseCloud && region !== "DEV"
-          ? "/onboarding"
-          : "/");
+      let target = setupTargetPath ?? "/";
+      if (isSetMode && isLangfuseCloud && region !== "DEV") {
+        target = setupTargetPath
+          ? `/onboarding?targetPath=${encodeURIComponent(setupTargetPath)}`
+          : "/onboarding";
+      }
       // A password update revokes every existing JWT, including this
       // browser's, so the current session always has to be re-established.
       const signInResult = await signIn("credentials", {

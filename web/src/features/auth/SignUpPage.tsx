@@ -213,14 +213,20 @@ function StandardSignupFlow({
         return;
       }
 
+      let callbackUrl =
+        targetPath ??
+        (isLangfuseCloud
+          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
+      const demoTargetPath = getDemoTargetPath(targetPath);
+      if (isLangfuseCloud && demoTargetPath) {
+        callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
+      }
+
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl:
-          targetPath ??
-          (isLangfuseCloud
-            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
+        callbackUrl,
       });
     } catch {
       setFormError("An error occurred. Please try again.");

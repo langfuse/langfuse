@@ -12,6 +12,7 @@ const {
   signInMock,
   routerPushMock,
   routerState,
+  useLangfuseCloudRegionMock,
   useSessionMock,
 } = vi.hoisted(() => ({
   mutateAsyncMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
     isReady: true,
     query: {} as Record<string, string>,
   },
+  useLangfuseCloudRegionMock: vi.fn(),
   useSessionMock: vi.fn(),
 }));
 
@@ -55,10 +57,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 }));
 
 vi.mock("@/src/features/organizations/hooks", () => ({
-  useLangfuseCloudRegion: () => ({
-    isLangfuseCloud: false,
-    region: undefined,
-  }),
+  useLangfuseCloudRegion: () => useLangfuseCloudRegionMock(),
 }));
 
 vi.mock(
@@ -115,6 +114,10 @@ describe("ResetPasswordPage re-authentication", () => {
     vi.clearAllMocks();
     routerState.isReady = true;
     routerState.query = {};
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: false,
+      region: undefined,
+    });
     mutateAsyncMock.mockResolvedValue({ success: true });
     signInMock.mockResolvedValue({ ok: true });
   });
@@ -208,19 +211,18 @@ describe("ResetPasswordPage re-authentication", () => {
     });
   });
 
-  it("redirects password setup to the demo target path", async () => {
+  it("routes initial Cloud password setup through onboarding with the demo target", async () => {
     vi.useFakeTimers();
     routerState.query = {
       targetPath: "/demo/datasets/dataset-1/items?foo=bar",
     };
+    useLangfuseCloudRegionMock.mockReturnValue({
+      isLangfuseCloud: true,
+      region: "EU",
+    });
     useSessionMock.mockReturnValue({
-      status: "authenticated",
-      data: {
-        user: {
-          email: "oauth@example.com",
-          hasPassword: false,
-        },
-      },
+      status: "unauthenticated",
+      data: null,
     });
 
     render(
@@ -244,7 +246,7 @@ describe("ResetPasswordPage re-authentication", () => {
     });
 
     expect(routerPushMock).toHaveBeenCalledWith(
-      "/demo/datasets/dataset-1/items?foo=bar",
+      "/onboarding?targetPath=%2Fdemo%2Fdatasets%2Fdataset-1%2Fitems%3Ffoo%3Dbar",
     );
   });
 });
