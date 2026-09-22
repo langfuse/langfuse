@@ -619,6 +619,14 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    it("drops the MetaMask RPC Error console prefix (same session as LANGFUSE-626)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          messageEvent("MetaMask - RPC Error: Internal JSON-RPC error."),
+        ),
+      ).toBe(true);
+    });
+
     it("does not treat [kitesurf] wraps as denylist prefixes (dedicated predicate)", () => {
       expect(
         isDenylistedNoiseEvent(
@@ -677,6 +685,11 @@ describe("isDenylistedNoiseEvent", () => {
       expect(
         isDenylistedNoiseEvent(
           nonErrorRejectionEvent("user rejected the request"),
+        ),
+      ).toBe(true);
+      expect(
+        isDenylistedNoiseEvent(
+          nonErrorRejectionEvent("User rejected the request"),
         ),
       ).toBe(true);
     });

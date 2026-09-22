@@ -258,8 +258,10 @@ const NOISE_MESSAGE_PREFIXES: readonly string[] = [
   // MetaMask's inpage provider `console.error`s its own init failures into
   // the host page (`MetaMask: Failed to get initial state…`). Langfuse has
   // no wallet integration; `denyUrls` cannot match — these are stackless
-  // console captures (LANGFUSE-627).
+  // console captures (LANGFUSE-627). The dash form covers
+  // `MetaMask - RPC Error: …` from the same session.
   "MetaMask:",
+  "MetaMask -",
   // `Response.json()` on a non-JSON body (a 5xx / HTML proxy page returned where
   // JSON was expected). This is the response not being ours-as-JSON, i.e. a
   // transport/infra artifact, not app logic.
@@ -297,6 +299,8 @@ const BENIGN_NON_ERROR_REJECTION_VALUES: readonly string[] = [
   // Same session as the `MetaMask:` console prefix (LANGFUSE-626 / 627).
   // Exact value only — a longer app rejection is KEPT.
   "user rejected the request",
+  // Canonical EIP-1193 / MetaMask casing of the same cancellation.
+  "User rejected the request",
   // `Promise.reject()` / `reject(undefined)`: zero diagnostic content — no
   // stack, no message, no value. Nobody can act on it (LANGFUSE-5TA).
   "undefined",
