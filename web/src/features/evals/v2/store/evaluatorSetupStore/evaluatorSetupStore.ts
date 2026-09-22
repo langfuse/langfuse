@@ -1,5 +1,6 @@
 import {
   EvalTemplateTypeEnum,
+  experimentTargetEvalVariableColumns,
   observationVariableMappingList,
   type FilterState,
   type ModelConfig,
@@ -332,13 +333,17 @@ export function createEvaluatorSetupStore({
             selectedColumnId: null,
             jsonSelector: null,
           };
-          // A still-unbound field takes the default binding its new name
-          // implies (e.g. `output`), the same way prompt variables do.
+          // A still-unbound field named exactly like an observation field
+          // (`output`, `metadata`, …) binds to it; anything else stays open
+          // for the picker rather than silently defaulting to the input.
           const fieldState = current.selectedColumnId
             ? current
             : {
-                selectedColumnId:
-                  inferDefaultMapping(next).selectedColumnId ?? null,
+                selectedColumnId: experimentTargetEvalVariableColumns.some(
+                  (column) => column.id === next,
+                )
+                  ? next
+                  : null,
                 jsonSelector: null,
               };
           const reference = new RegExp(`\`${key}\``, "g");
