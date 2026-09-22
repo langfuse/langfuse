@@ -10,7 +10,7 @@ import { type ApiAccessScope } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 import { authorize } from "@/src/features/auth/policy/authorize";
-import { authenticator } from "@/src/features/apiKey/authenticator";
+import { authenticator } from "@/src/features/apiKey/server";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,

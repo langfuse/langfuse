@@ -7,4 +7,5 @@ export {
   emitChbProjectEvent,
   sendChbProjectEvent,
 } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+export { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 export { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
