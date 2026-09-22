@@ -43,7 +43,7 @@ types:
         type: optional<string>
         docs: Description of the run. If run exists, description will be updated.
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Metadata of the dataset run, updates run if run already exists
       datasetItemId: string
       observationId: optional<string>

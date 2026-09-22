@@ -44,7 +44,7 @@ service:
               type: list<IngestionEvent>
               docs: "Batch of events to be ingested, discriminated by attribute `type`. From November 16, 2026 on Langfuse Cloud, only `score-create` events are accepted; all other event types are rejected."
             metadata:
-              type: optional<unknown>
+              type: optional<map<string, unknown>>
               docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
       response:
         type: IngestionResponse
@@ -67,7 +67,8 @@ service:
                   sessionId: "1234-5678-90ab-cdef"
                   release: "1.0.0"
                   version: "1.0.0"
-                  metadata: "My metadata"
+                  metadata:
+                    key: "value"
                   tags: ["tag1", "tag2"]
                   public: true
           response:
@@ -179,7 +180,7 @@ types:
       traceId: optional<string>
       name: optional<string>
       startTime: optional<datetime>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       input: optional<unknown>
       output: optional<unknown>
       level: optional<commons.ObservationLevel>
@@ -245,7 +246,7 @@ types:
       modelParameters: optional<map<string, commons.MapValue>>
       input: optional<unknown>
       version: optional<string>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       output: optional<unknown>
       usage: optional<commons.Usage>
       level: optional<commons.ObservationLevel>
@@ -264,7 +265,7 @@ types:
       sessionId: optional<string>
       release: optional<string>
       version: optional<string>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       tags: optional<list<string>>
       environment: optional<string>
       public:
@@ -289,7 +290,7 @@ types:
         type: commons.CreateScoreValue
         docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores. Boolean score values must equal either 1 or 0 (true or false). Text score values must be between 1 and 500 characters.
       comment: optional<string>
-      metadata: optional<unknown>
+      metadata: optional<map<string, unknown>>
       dataType:
         type: optional<commons.ScoreDataType>
         docs: When set, must match the score value's type. If not set, will be inferred from the score value or config
@@ -351,7 +352,7 @@ types:
         type: string
         docs: "Datetime (ISO 8601) of event creation in client. Should be as close to actual event creation in client as possible, this timestamp will be used for ordering of events in future release. Resolution: milliseconds (required), microseconds (optimal)."
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Optional. Metadata field used by the Langfuse SDKs for debugging.
 
   TraceEvent:

@@ -2930,6 +2930,8 @@ paths:
                     `score-create` events are accepted; all other event types
                     are rejected.
                 metadata:
+                  type: object
+                  additionalProperties: true
                   nullable: true
                   description: >-
                     Optional. Metadata field used by the Langfuse SDKs for
@@ -9389,6 +9391,8 @@ components:
           nullable: true
           description: The user identifier associated with the trace
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: The metadata associated with the trace. Can be any JSON.
         tags:
@@ -9556,6 +9560,8 @@ components:
           nullable: true
           description: The model used for the observation
         modelParameters:
+          type: object
+          additionalProperties: true
           description: The parameters of the model used for the observation
         input:
           description: The input data of the observation
@@ -9564,6 +9570,8 @@ components:
           nullable: true
           description: The version of the observation
         metadata:
+          type: object
+          additionalProperties: true
           description: Additional metadata of the observation
         output:
           description: The output data of the observation
@@ -9822,6 +9830,8 @@ components:
           nullable: true
           description: The output data of the observation
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Additional metadata of the observation
         model:
@@ -9833,6 +9843,8 @@ components:
           nullable: true
           description: The internal model ID matched by Langfuse
         modelParameters:
+          type: object
+          additionalProperties: true
           nullable: true
           description: The parameters of the model used for the observation
         usageDetails:
@@ -10078,6 +10090,8 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10269,6 +10283,8 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10503,6 +10519,8 @@ components:
           nullable: true
           description: Description of the dataset
         metadata:
+          type: object
+          additionalProperties: true
           description: Metadata associated with the dataset
         inputSchema:
           nullable: true
@@ -10541,6 +10559,8 @@ components:
         expectedOutput:
           description: Expected output for the dataset item
         metadata:
+          type: object
+          additionalProperties: true
           description: Metadata associated with the dataset item
         sourceTraceId:
           type: string
@@ -10685,6 +10705,8 @@ components:
           nullable: true
           description: Description of the run
         metadata:
+          type: object
+          additionalProperties: true
           description: Metadata of the dataset run
         datasetId:
           type: string
@@ -11305,6 +11327,8 @@ components:
         expectedOutput:
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         sourceTraceId:
           type: string
@@ -11349,6 +11373,8 @@ components:
           nullable: true
           description: Description of the run. If run exists, description will be updated.
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Metadata of the dataset run, updates run if run already exists
         datasetItemId:
@@ -11425,6 +11451,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         inputSchema:
           nullable: true
@@ -13699,6 +13727,8 @@ components:
           format: date-time
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         input:
           nullable: true
@@ -13871,6 +13901,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         output:
           nullable: true
@@ -13922,6 +13954,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         tags:
           type: array
@@ -13979,6 +14013,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
@@ -14013,6 +14049,8 @@ components:
             be used for ordering of events in future release. Resolution:
             milliseconds (required), microseconds (optimal).
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Optional. Metadata field used by the Langfuse SDKs for debugging.
       required:
@@ -15393,6 +15431,8 @@ components:
           items:
             $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
+          type: object
+          additionalProperties: true
           nullable: true
         type:
           $ref: '#/components/schemas/CreateChatPromptType'
@@ -15425,6 +15465,8 @@ components:
         prompt:
           type: string
         config:
+          type: object
+          additionalProperties: true
           nullable: true
         type:
           $ref: '#/components/schemas/CreateTextPromptType'
@@ -15489,7 +15531,9 @@ components:
           type: string
         version:
           type: integer
-        config: {}
+        config:
+          type: object
+          additionalProperties: true
         labels:
           type: array
           items:
