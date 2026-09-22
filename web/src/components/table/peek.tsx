@@ -91,6 +91,7 @@ type TablePeekViewProps = Pick<
    * overflow "…" menu when the peek is too narrow for the inline icon row.
    */
   actionsMenu?: React.ReactNode;
+  hideExpandToggle?: boolean;
   // Content
   /**
    * The content to display in the peek view.
@@ -273,7 +274,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isHandheld || props.itemType === "TRACE"
+        isHandheld || props.hideExpandToggle
           ? undefined
           : {
               isExpanded: panel.isExpanded,

@@ -63,6 +63,7 @@ export const TablePeekViewTraceDetail = (
     <TablePeekView
       {...tablePeekViewProps}
       title={traceId}
+      hideExpandToggle
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
