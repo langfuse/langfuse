@@ -92,6 +92,7 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
           side="right"
           align="start"
           sideOffset={12}
+          avoidCollisions={false}
           className="w-80 p-0"
         >
           <div className="flex items-center gap-2 border-b px-4 py-3">
