@@ -56,7 +56,7 @@ vi.mock("@/src/features/entitlements/hooks", () => ({
   usePlan: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/sso-settings/components/SSOSettings", () => ({
+vi.mock("@/src/ee/features/sso-settings", () => ({
   SSOSettings: () => null,
 }));
 
@@ -80,7 +80,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
+vi.mock("@/src/ee/features/audit-log-viewer", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 

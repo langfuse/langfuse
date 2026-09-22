@@ -20,10 +20,16 @@ import {
 
 // organizations.delete cancels Stripe before deleting; the test env has a cloud
 // region but no Stripe, so force the self-hosted path to reach the eviction.
-vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
-  useIsCloudBillingAvailable: () => false,
 }));
+vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    isCloudBillingEnabled: () => false,
+  };
+});
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";

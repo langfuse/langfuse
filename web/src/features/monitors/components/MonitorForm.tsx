@@ -42,7 +42,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
 import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { resolveMonitorNameForSave } from "@/src/features/monitors/fns/resolveMonitorNameForSave";

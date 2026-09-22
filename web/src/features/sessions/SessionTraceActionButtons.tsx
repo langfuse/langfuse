@@ -176,18 +176,22 @@ export function SessionTraceActionButtons({
           objectType="TRACE"
           analyticsData={{ source: "SessionDetail", isV4 }}
         >
-          {({ disabled, totalCount }) => (
-            <Button
-              variant="outline"
-              size={size}
-              disabled={disabled !== undefined}
-              className="gap-1.5"
-            >
-              <ListPlus className="h-4 w-4" />
-              <span>Add to human annotation queue</span>
-              {totalCount > 0 && <ActionButtonCountBadge count={totalCount} />}
-              <ChevronDown className="h-3 w-3" />
-            </Button>
+          {({ disabled, totalCount, Trigger }) => (
+            <Trigger asChild>
+              <Button
+                variant="outline"
+                size={size}
+                disabled={disabled !== undefined}
+                className="gap-1.5"
+              >
+                <ListPlus className="h-4 w-4" />
+                <span>Add to human annotation queue</span>
+                {totalCount > 0 && (
+                  <ActionButtonCountBadge count={totalCount} />
+                )}
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </Trigger>
           )}
         </AnnotationQueueItemDropdownMenuController>
       </div>

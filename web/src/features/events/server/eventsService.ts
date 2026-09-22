@@ -29,8 +29,7 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-
+import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
