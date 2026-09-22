@@ -1,4 +1,7 @@
-import { EvalTemplateType } from "@langfuse/shared";
+import {
+  decisionModelVariableMappingList,
+  EvalTemplateType,
+} from "@langfuse/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -71,6 +74,28 @@ describe("evaluator configuration validation", () => {
           },
         },
       }).success,
+    ).toBe(false);
+  });
+
+  it("accepts exactly one source for each decision-model state field", () => {
+    expect(
+      decisionModelVariableMappingList.safeParse([
+        { templateVariable: "output", selectedColumnId: "output" },
+        {
+          templateVariable: "policy",
+          constantValue: { tone: "friendly", maxWords: 100 },
+        },
+      ]).success,
+    ).toBe(true);
+
+    expect(
+      decisionModelVariableMappingList.safeParse([
+        {
+          templateVariable: "policy",
+          selectedColumnId: "metadata",
+          constantValue: "friendly",
+        },
+      ]).success,
     ).toBe(false);
   });
 

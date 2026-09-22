@@ -1,4 +1,5 @@
 import {
+  decisionModelVariableMappingList,
   EvalTemplateType,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -29,9 +30,13 @@ export function prepareRuleCloneDraft(
           assignment.evaluator.type === EvalTemplateType.CODE ||
           assignment.variableMapping == null
             ? preparedDefault.initialVariableMapping
-            : observationVariableMappingList
-                .catch([])
-                .parse(assignment.variableMapping),
+            : assignment.evaluator.type === EvalTemplateType.DECISION_MODEL
+              ? decisionModelVariableMappingList
+                  .catch([])
+                  .parse(assignment.variableMapping)
+              : observationVariableMappingList
+                  .catch([])
+                  .parse(assignment.variableMapping),
       };
     }),
   };

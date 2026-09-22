@@ -9,6 +9,7 @@ import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
+  decisionModelVariableMappingList,
   EvalTemplateType,
   EvalTargetObject,
   isExperimentEvaluationRule,
@@ -129,9 +130,13 @@ export function useExperimentV2EvaluatorSelection({
             assignment.evaluator.type === EvalTemplateType.CODE ||
             assignment.variableMapping == null
               ? prepared.initialVariableMapping
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
+              : assignment.evaluator.type === EvalTemplateType.DECISION_MODEL
+                ? decisionModelVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping)
+                : observationVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping),
         });
       }
     }

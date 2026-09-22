@@ -1,5 +1,6 @@
 import { showSuccessToast } from "@/src/features/notifications";
 import {
+  decisionModelVariableMappingList,
   EvalTemplateType,
   observationVariableMappingList,
   singleFilterList,
@@ -56,9 +57,13 @@ export function EditRuleDialogContent({
             assignment.evaluator.type === EvalTemplateType.CODE ||
             assignment.variableMapping == null
               ? preparedDefault.initialVariableMapping
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
+              : assignment.evaluator.type === EvalTemplateType.DECISION_MODEL
+                ? decisionModelVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping)
+                : observationVariableMappingList
+                    .catch([])
+                    .parse(assignment.variableMapping),
         };
       }),
     }),

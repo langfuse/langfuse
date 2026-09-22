@@ -10,6 +10,7 @@ import {
   InvalidRequestError,
   PersistedEvalOutputDefinitionSchema,
   ZodModelConfig,
+  decisionModelVariableMappingList,
   jsonSchema,
   observationVariableMappingList,
   paginationLimitZod,
@@ -111,7 +112,7 @@ const DecisionModelEvaluatorDefinitionInputSchema = z.object({
   questions: DecisionModelQuestionsSchema,
   modelConfig: EvaluatorModelConfigSchema.pick({ provider: true, model: true }),
   /** The state: one entry per key. Required, unlike LLM judges. */
-  variableMapping: observationVariableMappingList.min(1),
+  variableMapping: decisionModelVariableMappingList.min(1),
 });
 
 export const EvaluatorDefinitionInputSchema = z

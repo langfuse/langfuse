@@ -7,8 +7,8 @@ import {
   LangfuseNotFoundError,
   normalizeEvaluationRuleTarget,
   validateEvaluatorFiltersForTarget,
+  type DecisionModelVariableMapping,
   type FilterState,
-  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import {
   JobConfigState,
@@ -44,6 +44,7 @@ import * as repository from "./ruleRepository";
 import { isLegacyEvalTarget } from "@/src/features/evals/utils/typeHelpers";
 import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import {
+  assertCompleteDecisionModelVariableMapping,
   assertCompleteEvaluatorVariableMapping,
   extractEvaluatorPromptVariables,
 } from "../evaluators/evaluatorValidation";
@@ -803,11 +804,19 @@ export class RuleService {
                 promptMessages: latestVersion.promptMessages,
               }),
             );
-      assertCompleteEvaluatorVariableMapping({
-        promptVariables: requiredVariables,
-        variableMapping:
-          storedVariableMapping ?? prepared.defaultVariableMapping,
-      });
+      const variableMapping =
+        storedVariableMapping ?? prepared.defaultVariableMapping;
+      if (evaluator.type === EvalTemplateType.DECISION_MODEL) {
+        assertCompleteDecisionModelVariableMapping({
+          stateKeys: requiredVariables,
+          variableMapping,
+        });
+      } else {
+        assertCompleteEvaluatorVariableMapping({
+          promptVariables: requiredVariables,
+          variableMapping,
+        });
+      }
       return {
         ...assignment,
         variableMapping: storedVariableMapping,
@@ -837,7 +846,7 @@ function toRuleResponse(rule: StoredRule) {
         return {
           ...assignment,
           variableMapping: variableMapping as
-            | ObservationVariableMapping[]
+            | DecisionModelVariableMapping[]
             | null,
           evaluator: {
             ...evaluatorMetadata,
@@ -845,7 +854,7 @@ function toRuleResponse(rule: StoredRule) {
               ? {
                   ...latestVersion,
                   variableMapping: latestVersion.variableMapping as
-                    | ObservationVariableMapping[]
+                    | DecisionModelVariableMapping[]
                     | null,
                 }
               : null,

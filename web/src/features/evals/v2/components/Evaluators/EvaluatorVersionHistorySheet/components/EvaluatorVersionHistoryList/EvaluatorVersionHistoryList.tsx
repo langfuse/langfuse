@@ -1,4 +1,5 @@
 import {
+  decisionModelVariableMappingList,
   EvalTemplateTypeEnum,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -29,7 +30,7 @@ function toEvaluatorDefinition(
   }
 
   if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
-    const variableMapping = observationVariableMappingList.safeParse(
+    const variableMapping = decisionModelVariableMappingList.safeParse(
       version.variableMapping,
     );
     return {

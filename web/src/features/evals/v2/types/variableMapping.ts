@@ -5,6 +5,10 @@ export type VariableFieldState = {
     VariableMapping[Key],
     undefined
   >;
+} & {
+  valueSource?: "observation" | "constant";
+  /** JSON text kept in the form so invalid drafts remain editable. */
+  constantValue?: string;
 };
 
 export type ActiveVariableMapping = {

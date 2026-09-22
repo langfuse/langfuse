@@ -15,6 +15,7 @@ import type {
 import { JsonPathEditor } from "../JsonPathEditor/JsonPathEditor";
 import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTreeSelector";
 import {
+  ReadOnlyVariableMappingCardShell,
   VariableMappingCardShell,
   type VariableDisplay,
   type VariableRenameControls,
@@ -469,60 +470,78 @@ export function EditableVariableMapping({
 }: EditableVariableMappingProps) {
   return (
     <div data-variable-mapping-root="" className="flex flex-col gap-4">
-      {mappings.map((item) => (
-        <VariableMappingRow
-          key={item.variable}
-          variable={item.variable}
-          variableDisplay={variableDisplay}
-          unmapped={!item.fieldState.selectedColumnId}
-          expanded={
-            activeMapping?.variable === item.variable &&
-            activeMapping.state === "preview"
-          }
-          editing={
-            activeMapping?.variable === item.variable &&
-            activeMapping.state === "editing"
-          }
-          rename={
-            onRenameVariable && validateVariableName
-              ? {
-                  isRenaming:
-                    activeMapping?.variable === item.variable &&
-                    activeMapping.state === "renaming",
-                  onRenamingChange: (renaming) =>
-                    onActiveMappingChange(
-                      renaming
-                        ? { variable: item.variable, state: "renaming" }
-                        : null,
-                    ),
-                  onRename: (next) => onRenameVariable(item.variable, next),
-                  validateName: (next) =>
-                    validateVariableName(item.variable, next),
-                }
-              : undefined
-          }
-          onExpandedChange={(expanded) =>
-            onActiveMappingChange(
-              expanded ? { variable: item.variable, state: "preview" } : null,
-            )
-          }
-          onEditingChange={(editing) =>
-            onActiveMappingChange({
-              variable: item.variable,
-              state: editing ? "editing" : "preview",
-            })
-          }
-          fieldState={item.fieldState}
-          sourceObject={sourceObject}
-          hasMatchingObservations={hasMatchingObservations}
-          unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
-          sourceUnavailableMessage={sourceUnavailableMessage}
-          onChange={(next) => onChangeField(item.variable, next)}
-          onDelete={
-            onDeleteVariable ? () => onDeleteVariable(item.variable) : undefined
-          }
-        />
-      ))}
+      {mappings.map((item) =>
+        item.fieldState.valueSource === "constant" ? (
+          <ReadOnlyVariableMappingCardShell
+            key={item.variable}
+            variable={item.variable}
+            variableDisplay={variableDisplay}
+            mapping={
+              <span
+                className="block max-w-full truncate font-mono text-xs"
+                title={item.fieldState.constantValue}
+              >
+                constant · {item.fieldState.constantValue}
+              </span>
+            }
+          />
+        ) : (
+          <VariableMappingRow
+            key={item.variable}
+            variable={item.variable}
+            variableDisplay={variableDisplay}
+            unmapped={!item.fieldState.selectedColumnId}
+            expanded={
+              activeMapping?.variable === item.variable &&
+              activeMapping.state === "preview"
+            }
+            editing={
+              activeMapping?.variable === item.variable &&
+              activeMapping.state === "editing"
+            }
+            rename={
+              onRenameVariable && validateVariableName
+                ? {
+                    isRenaming:
+                      activeMapping?.variable === item.variable &&
+                      activeMapping.state === "renaming",
+                    onRenamingChange: (renaming) =>
+                      onActiveMappingChange(
+                        renaming
+                          ? { variable: item.variable, state: "renaming" }
+                          : null,
+                      ),
+                    onRename: (next) => onRenameVariable(item.variable, next),
+                    validateName: (next) =>
+                      validateVariableName(item.variable, next),
+                  }
+                : undefined
+            }
+            onExpandedChange={(expanded) =>
+              onActiveMappingChange(
+                expanded ? { variable: item.variable, state: "preview" } : null,
+              )
+            }
+            onEditingChange={(editing) =>
+              onActiveMappingChange({
+                variable: item.variable,
+                state: editing ? "editing" : "preview",
+              })
+            }
+            fieldState={item.fieldState}
+            sourceObject={sourceObject}
+            hasMatchingObservations={hasMatchingObservations}
+            unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
+            sourceUnavailableMessage={sourceUnavailableMessage}
+            onChange={(next) => onChangeField(item.variable, next)}
+            onDelete={
+              onDeleteVariable
+                ? () => onDeleteVariable(item.variable)
+                : undefined
+            }
+          />
+        ),
+      )}
     </div>
   );
 }

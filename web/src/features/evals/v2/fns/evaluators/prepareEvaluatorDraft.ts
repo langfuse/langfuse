@@ -5,6 +5,10 @@ import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/vari
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
+import {
+  jsonSchema,
+  type DecisionModelVariableMapping,
+} from "@langfuse/shared";
 
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
@@ -44,16 +48,28 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
     const questions = draftsToQuestions(params.questions);
     // Every state key has to resolve to data, or the state the model sees
     // would silently miss a field the questions refer to.
-    const variableMapping = mappings.flatMap(({ variable, fieldState }) =>
-      fieldState.selectedColumnId
-        ? [
-            {
-              templateVariable: variable,
-              selectedColumnId: fieldState.selectedColumnId,
-              jsonSelector: fieldState.jsonSelector,
-            },
-          ]
-        : [],
+    const variableMapping = mappings.flatMap<DecisionModelVariableMapping>(
+      ({ variable, fieldState }) => {
+        if (fieldState.valueSource === "constant") {
+          try {
+            const constantValue = jsonSchema.parse(
+              JSON.parse(fieldState.constantValue ?? ""),
+            );
+            return [{ templateVariable: variable, constantValue }];
+          } catch {
+            return [];
+          }
+        }
+        return fieldState.selectedColumnId
+          ? [
+              {
+                templateVariable: variable,
+                selectedColumnId: fieldState.selectedColumnId,
+                jsonSelector: fieldState.jsonSelector,
+              },
+            ]
+          : [];
+      },
     );
     const stateComplete =
       mappings.length > 0 && variableMapping.length === mappings.length;
