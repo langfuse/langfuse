@@ -202,6 +202,62 @@ export const Default = meta.story({
   render: StatefulEvaluatorGalleryView,
 });
 
+const topicDecisionModel = {
+  source: "managed",
+  key: "topic-decision-model",
+  name: "Assign Input Topic",
+  categories: ["classifier", "recommended"],
+  icon: "tags",
+  description:
+    "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
+  maintainer: "langfuse",
+  evaluator: {
+    type: EvalTemplateTypeEnum.DECISION_MODEL,
+    questions: [
+      {
+        id: "topic",
+        type: "choice",
+        scoreName: "topic",
+        instructions: "Which topic does `input` belong to?",
+        options: [
+          { value: "support", description: "Product help or troubleshooting." },
+          { value: "billing", description: "Invoices, pricing, payments." },
+          { value: "sales", description: "Purchase, trial, demo, enterprise." },
+          { value: "other", description: "None of the above." },
+        ],
+      },
+    ],
+    state: [{ key: "input", defaultMapping: { field: "input" } }],
+  },
+} satisfies GalleryTemplate;
+
+const sectionsWithDecisionModelCard = sections.map((section) =>
+  section.key === "recommended"
+    ? {
+        ...section,
+        templates: [topicDecisionModel, ...section.templates.slice(0, 2)],
+      }
+    : section,
+);
+
+export const DecisionModels = meta.story({
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+    decisionModel: { bannerDismissed: false, onDismissBanner: fn() },
+  },
+  render: StatefulEvaluatorGalleryView,
+});
+
+export const DecisionModelsBannerDismissed = meta.story({
+  args: {
+    ...defaultArgs,
+    sections: sectionsWithDecisionModelCard,
+    decisionModel: { bannerDismissed: true, onDismissBanner: fn() },
+  },
+  render: StatefulEvaluatorGalleryView,
+});
+
 export const YourTemplates = meta.story({
   args: {
     ...defaultArgs,
