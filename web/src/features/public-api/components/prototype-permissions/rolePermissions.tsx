@@ -46,16 +46,24 @@ export const RolePermissionList = ({
     );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className={cn("flex flex-col", dense ? "gap-2.5" : "gap-4")}>
       {permissionDomains.map((domain) => {
         const domainGroups = groups.filter((g) => g.domain === domain.key);
         if (domainGroups.length === 0) return null;
         return (
-          <div key={domain.key} className="flex flex-col gap-2">
-            <span className="text-muted-foreground text-[0.65rem] font-bold tracking-wider uppercase">
+          <div
+            key={domain.key}
+            className={cn("flex flex-col", dense ? "gap-1" : "gap-2")}
+          >
+            <span
+              className={cn(
+                "text-muted-foreground font-bold tracking-wider uppercase",
+                dense ? "text-[0.6rem]" : "text-[0.65rem]",
+              )}
+            >
               {domain.label}
             </span>
-            <div className="flex flex-col gap-2">
+            <div className={cn("flex flex-col", dense ? "gap-0.5" : "gap-2")}>
               {domainGroups.map((g) => (
                 <ResourceRow key={g.resource} group={g} dense={dense} />
               ))}
@@ -85,7 +93,11 @@ const ResourceRow = ({
 }) => (
   <div className={cn("flex gap-3", dense ? "items-center" : "items-start")}>
     <div className="flex min-w-0 flex-1 flex-col">
-      <span className="text-sm leading-tight font-bold">{group.label}</span>
+      <span
+        className={cn("leading-tight font-bold", dense ? "text-xs" : "text-sm")}
+      >
+        {group.label}
+      </span>
       {!dense && group.description && (
         <span className="text-muted-foreground text-xs leading-tight">
           {group.description}
@@ -97,7 +109,10 @@ const ResourceRow = ({
         <Badge
           key={a}
           variant="outline"
-          className="px-1.5 py-0 font-mono text-[0.65rem] font-normal"
+          className={cn(
+            "font-mono font-normal",
+            dense ? "px-1 py-0 text-[0.55rem]" : "px-1.5 py-0 text-[0.65rem]",
+          )}
         >
           {a}
         </Badge>

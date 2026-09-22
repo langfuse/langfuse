@@ -7,7 +7,6 @@ import {
   HoverCardPortal,
   HoverCardTrigger,
 } from "@/src/components/ui/hover-card";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -22,11 +21,7 @@ import {
   presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import {
-  RolePermissionList,
-  SystemRolesFooter,
-  rolePermissionCount,
-} from "./rolePermissions";
+import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
 
 /** variantHoverMeta labels the hover-card variant in the switcher. */
 export const variantHoverMeta = { key: "A", name: "Hover card per role" };
@@ -90,24 +85,26 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
       <HoverCardPortal>
         <HoverCardContent
           side="right"
-          align="start"
+          align="center"
           sideOffset={12}
-          avoidCollisions={false}
-          className="w-80 p-0"
+          collisionPadding={12}
+          className="max-h-[90vh] w-72 overflow-y-auto p-0"
         >
-          <div className="flex items-center gap-2 border-b px-4 py-3">
+          <div className="bg-background sticky top-0 flex items-center gap-2 border-b px-3 py-2">
             <Icon className="h-4 w-4 shrink-0" />
-            <span className="text-sm font-bold">{meta.label}</span>
-            <span className="text-muted-foreground ml-auto text-xs">
+            <span className="text-xs font-bold">{meta.label}</span>
+            <span className="text-muted-foreground ml-auto text-[0.65rem]">
               {rolePermissionCount(preset)} permissions
             </span>
           </div>
-          <ScrollArea className="max-h-80">
-            <div className="px-4 py-3">
-              <RolePermissionList preset={preset} dense />
+          <div className="px-3 py-2">
+            <RolePermissionList preset={preset} dense />
+            <div className="mt-2.5 border-t pt-2">
+              <p className="text-muted-foreground text-[0.65rem] leading-relaxed">
+                * Permissions are managed by Langfuse and subject to change
+              </p>
             </div>
-          </ScrollArea>
-          <SystemRolesFooter />
+          </div>
         </HoverCardContent>
       </HoverCardPortal>
     </HoverCard>
