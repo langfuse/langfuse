@@ -252,7 +252,7 @@ function TracePanelNavigationHeaderExpanded({
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
       <div className="@container/navheader">
-        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center pr-2 pl-1 @max-[439px]/navheader:min-h-0 @max-[439px]/navheader:gap-y-1 @max-[439px]/navheader:py-1">
+        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center pr-2 pl-1 @max-[439px]/navheader:min-h-0 @max-[439px]/navheader:gap-y-1 @max-[439px]/navheader:pt-1 @max-[439px]/navheader:pb-1.5">
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
