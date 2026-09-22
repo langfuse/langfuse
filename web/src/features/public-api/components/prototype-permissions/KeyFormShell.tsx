@@ -21,7 +21,6 @@ import {
   type ApiKeyDraft,
   type ProjectOption,
 } from "../prototype/permissionCatalog";
-import { SystemRolesFootnote } from "./rolePermissions";
 
 /** KeyFormShell renders the standard create-key fields and slots a variant's permissions control. */
 export const KeyFormShell = ({
@@ -90,9 +89,6 @@ export const KeyFormShell = ({
         <div className="flex flex-col gap-1.5">
           <Label>Permissions</Label>
           {children}
-          <div className="mt-1">
-            <SystemRolesFootnote />
-          </div>
         </div>
       </CardContent>
       <CardFooter className="justify-end gap-2">

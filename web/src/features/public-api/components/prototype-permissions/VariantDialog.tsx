@@ -28,7 +28,7 @@ import {
 import { KeyFormShell } from "./KeyFormShell";
 import {
   RolePermissionList,
-  SystemRolesFootnote,
+  SystemRolesFooter,
   rolePermissionCount,
 } from "./rolePermissions";
 
@@ -132,11 +132,9 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
               <ScrollArea className="max-h-96 pr-3">
                 <RolePermissionList preset={active} />
               </ScrollArea>
-              <div className="mt-4 border-t pt-3">
-                <SystemRolesFootnote />
-              </div>
             </div>
           </DialogBody>
+          <SystemRolesFooter />
         </>
       )}
     >

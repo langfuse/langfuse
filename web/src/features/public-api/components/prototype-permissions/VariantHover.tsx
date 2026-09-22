@@ -22,7 +22,11 @@ import {
   presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+import {
+  RolePermissionList,
+  SystemRolesFooter,
+  rolePermissionCount,
+} from "./rolePermissions";
 
 /** variantHoverMeta labels the hover-card variant in the switcher. */
 export const variantHoverMeta = { key: "A", name: "Hover card per role" };
@@ -102,6 +106,7 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
               <RolePermissionList preset={preset} dense />
             </div>
           </ScrollArea>
+          <SystemRolesFooter />
         </HoverCardContent>
       </HoverCardPortal>
     </HoverCard>
