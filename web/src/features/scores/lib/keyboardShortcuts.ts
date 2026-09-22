@@ -95,7 +95,7 @@ export function isOpenDialogPresent(): boolean {
 export function hasBlockingOverlay(root: HTMLElement | null): boolean {
   if (typeof document === "undefined") return false;
   const overlays = document.querySelectorAll(
-    '[role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]), [role="menu"][data-state="open"]',
+    '[role="dialog"]:not([aria-hidden="true"]):not([data-state="closed"]), [role="menu"]:not([data-state="closed"])',
   );
   for (const overlay of overlays) {
     if (!root || !overlay.contains(root)) return true;

@@ -303,6 +303,26 @@ describe("unified annotation targets", () => {
     expect(outside).toHaveFocus();
   });
 
+  it("suspends score shortcuts while a shared action menu is open", async () => {
+    mocks.create.mockResolvedValue({});
+    const view = (menuOpen: boolean) => (
+      <>
+        {content}
+        {menuOpen && <div role="menu" aria-label="More actions" />}
+      </>
+    );
+    const rendered = renderContent(view(false));
+    const row = screen.getByRole("group", { name: "Quality" });
+    await waitFor(() => expect(row).toHaveFocus());
+    rendered.rerenderContent(view(true));
+    await act(async () => fireEvent.keyDown(row, { key: "2" }));
+    expect(mocks.create).not.toHaveBeenCalled();
+    rendered.rerenderContent(view(false));
+    row.focus();
+    fireEvent.keyDown(row, { key: "2" });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  });
+
   it("preserves inactive drafts without handling keyboard navigation until reopened", () => {
     configs.push({
       ...defaultConfig,

@@ -19,7 +19,7 @@ type IdItem = {
   id: string;
 };
 
-type DetailHeaderActionsMenuControllerProps = {
+type DetailHeaderActionsProps = {
   idItems: IdItem[];
   isAdmin: boolean;
   observationType?: ObservationType;
@@ -31,19 +31,32 @@ type DetailHeaderActionsMenuControllerProps = {
   };
   spanName?: string;
   webCalloutAction?: ReturnType<typeof useWebCalloutAction>;
-  children: ComponentProps<typeof DropdownMenu>["children"];
 };
 
+type MenuPresentation =
+  | {
+      children: ComponentProps<typeof DropdownMenu>["children"];
+      renderMenu?: never;
+    }
+  | {
+      children?: never;
+      renderMenu: (items: DropdownMenuItemDefinition[]) => ReactNode;
+    };
+
+type DetailHeaderActionsMenuControllerProps = DetailHeaderActionsProps &
+  MenuPresentation;
+
 type ConnectedDetailHeaderActionsMenuControllerProps = Omit<
-  DetailHeaderActionsMenuControllerProps,
+  DetailHeaderActionsProps,
   "isAdmin" | "webCalloutAction"
-> & {
-  webCallout?: {
-    traceId: string | null;
-    observationId?: string | null;
-    sessionId?: string | null;
+> &
+  MenuPresentation & {
+    webCallout?: {
+      traceId: string | null;
+      observationId?: string | null;
+      sessionId?: string | null;
+    };
   };
-};
 
 function buildObservationClickHouseQuery(
   projectId: string,
@@ -131,6 +144,7 @@ export function DetailHeaderActionsMenuController({
   observation,
   spanName,
   children,
+  renderMenu,
   webCalloutAction,
 }: DetailHeaderActionsMenuControllerProps) {
   const router = useRouter();
@@ -231,6 +245,8 @@ export function DetailHeaderActionsMenuController({
         ]
       : []),
   ];
+
+  if (renderMenu) return renderMenu(items);
 
   return (
     <DropdownMenu items={items} placement="bottom-end">

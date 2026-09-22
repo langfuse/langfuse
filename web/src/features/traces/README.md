@@ -33,3 +33,10 @@ and config, updating clean fields in place while preserving pending writes,
 invalid inputs, and row-local comment drafts. An unchanged pre-save snapshot
 cannot undo a confirmed local save. This refresh belongs to the open action;
 query updates do not reset mounted editors.
+
+Mobile detail headers compose review, Add to, and utility actions into one
+design-system dropdown. The feature controllers expose prepared items through
+`renderMenu` while retaining ownership of permissions, queries, and dialogs.
+Dialog controllers stay outside the menu's mount lifetime; selecting an action
+closes the menu without unmounting its destination. Review actions remember the
+stable More actions trigger for keyboard focus return.
