@@ -254,14 +254,28 @@ function evaluatorVersionData(
   const common = {
     createdByUserId,
   };
-  return definition.type === EvalTemplateType.CODE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.CODE:
+      return {
         ...common,
         variableMapping: getCodeEvalVariableMapping() as Prisma.InputJsonValue,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        ...common,
+        variableMapping:
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
+        provider: definition.provider,
+        model: definition.model,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
         ...common,
         variableMapping:
           definition.variableMapping === null
@@ -278,6 +292,7 @@ function evaluatorVersionData(
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
       };
+  }
 }
 
 /**
@@ -290,6 +305,17 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     return (
       a.sourceCode === b.sourceCode &&
       a.sourceCodeLanguage === b.sourceCodeLanguage
+    );
+  }
+  if (
+    a.type === EvalTemplateType.DECISION_MODEL &&
+    b.type === EvalTemplateType.DECISION_MODEL
+  ) {
+    return (
+      isEqual(a.questions, b.questions) &&
+      a.provider === b.provider &&
+      a.model === b.model &&
+      isEqual([...a.vars].sort(), [...b.vars].sort())
     );
   }
   if (

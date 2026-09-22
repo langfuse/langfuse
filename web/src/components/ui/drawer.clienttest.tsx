@@ -1,4 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { vi } from "vitest";
 import {
   Drawer,
   DrawerContent,
@@ -8,6 +15,20 @@ import {
 import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("Drawer", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(async () => {
+    try {
+      cleanup();
+      // Radix restores focus in a timer after the drawer unmounts.
+      await act(() => vi.runOnlyPendingTimersAsync());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("sizes compact bottom drawers to their content instead of a third of the viewport", () => {
     render(
       <Drawer open forceDirection="bottom" shouldScaleBackground={false}>

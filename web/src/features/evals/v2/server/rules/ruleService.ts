@@ -1,6 +1,6 @@
 import {
-  EvalTemplateType,
   EvalTargetObject,
+  EvalTemplateType,
   InvalidRequestError,
   isExperimentEvaluationRule,
   LangfuseConflictError,
@@ -794,12 +794,17 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      const promptMessages = reconcileEvaluatorPromptMessages({
-        prompt: latestVersion.prompt,
-        promptMessages: latestVersion.promptMessages,
-      });
+      const requiredVariables =
+        evaluator.type === EvalTemplateType.DECISION_MODEL
+          ? latestVersion.vars
+          : extractEvaluatorPromptVariables(
+              reconcileEvaluatorPromptMessages({
+                prompt: latestVersion.prompt,
+                promptMessages: latestVersion.promptMessages,
+              }),
+            );
       assertCompleteEvaluatorVariableMapping({
-        promptVariables: extractEvaluatorPromptVariables(promptMessages),
+        promptVariables: requiredVariables,
         variableMapping:
           storedVariableMapping ?? prepared.defaultVariableMapping,
       });
