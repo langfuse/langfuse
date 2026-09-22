@@ -12,7 +12,6 @@ import {
   ZodModelConfig,
   decisionModelVariableMappingList,
   jsonSchema,
-  observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
   type ObservationVariableMapping,

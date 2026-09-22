@@ -4,16 +4,17 @@ import type {
   RuleDraft,
   RuleEvaluatorOption,
 } from "@/src/features/evals/v2/types/rules";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+import {
+  parseModernRuleVariableMapping,
+  prepareModernRuleVariableMapping,
+} from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import {
-  decisionModelVariableMappingList,
   EvalTemplateType,
   EvalTargetObject,
   isExperimentEvaluationRule,
-  observationVariableMappingList,
   stripExperimentRootFilter,
 } from "@langfuse/shared";
 
@@ -121,22 +122,20 @@ export function useExperimentV2EvaluatorSelection({
           assignment.evaluator.latestVersion?.variableMapping,
           assignment.evaluator.type,
         );
+        const variableMapping =
+          assignment.evaluator.type === EvalTemplateType.CODE ||
+          assignment.variableMapping == null
+            ? prepared.initialVariableMapping
+            : parseModernRuleVariableMapping(
+                assignment.variableMapping,
+                assignment.evaluator.type,
+              );
         assignments.set(assignment.evaluatorId, {
           evaluatorId: assignment.evaluatorId,
           evaluatorName: assignment.evaluator.name,
           evaluatorType: assignment.evaluator.type,
           defaultVariableMapping: prepared.defaultVariableMapping,
-          variableMapping:
-            assignment.evaluator.type === EvalTemplateType.CODE ||
-            assignment.variableMapping == null
-              ? prepared.initialVariableMapping
-              : assignment.evaluator.type === EvalTemplateType.DECISION_MODEL
-                ? decisionModelVariableMappingList
-                    .catch([])
-                    .parse(assignment.variableMapping)
-                : observationVariableMappingList
-                    .catch([])
-                    .parse(assignment.variableMapping),
+          variableMapping,
         });
       }
     }

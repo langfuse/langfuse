@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   DecisionModelStateKeySchema,
   deepParseJsonIterative,
@@ -105,6 +105,50 @@ function ConstantStateFieldCard({
   const active = activeMapping?.variable === field.key;
   const editing = active && activeMapping.state === "editing";
   const expanded = active && activeMapping.state === "preview";
+  let body: ReactNode = null;
+  if (editing) {
+    body = (
+      <div className="flex flex-col gap-1.5 p-3">
+        <Textarea
+          value={field.fieldState.constantValue ?? ""}
+          className="min-h-24 font-mono"
+          aria-label={`Constant JSON value for ${field.key}`}
+          placeholder='"production" or {"policy":"strict"}'
+          onChange={(event) =>
+            onChangeField(field.key, {
+              selectedColumnId: null,
+              jsonSelector: null,
+              valueSource: "constant",
+              constantValue: event.target.value,
+            })
+          }
+        />
+        <p
+          className={cn(
+            "text-muted-foreground text-xs",
+            !parsed.success && "text-destructive",
+          )}
+        >
+          {parsed.success
+            ? "This JSON value is sent unchanged on every evaluation."
+            : "Enter valid JSON. Strings need double quotes; null is not supported."}
+        </p>
+      </div>
+    );
+  } else if (expanded && parsed.success) {
+    body = (
+      <PrettyJsonView
+        json={parsed.value}
+        currentView="pretty"
+        isLoading={false}
+        showNullValues={true}
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+        scrollable={true}
+        className="max-h-80 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
+      />
+    );
+  }
 
   return (
     <VariableMappingCardShell
@@ -139,45 +183,7 @@ function ConstantStateFieldCard({
         validateName,
       }}
     >
-      {editing ? (
-        <div className="flex flex-col gap-1.5 p-3">
-          <Textarea
-            value={field.fieldState.constantValue ?? ""}
-            className="min-h-24 font-mono"
-            aria-label={`Constant JSON value for ${field.key}`}
-            placeholder={'"production" or {"policy":"strict"}'}
-            onChange={(event) =>
-              onChangeField(field.key, {
-                selectedColumnId: null,
-                jsonSelector: null,
-                valueSource: "constant",
-                constantValue: event.target.value,
-              })
-            }
-          />
-          <p
-            className={cn(
-              "text-muted-foreground text-xs",
-              !parsed.success && "text-destructive",
-            )}
-          >
-            {parsed.success
-              ? "This JSON value is sent unchanged on every evaluation."
-              : "Enter valid JSON. Strings need double quotes; null is not supported."}
-          </p>
-        </div>
-      ) : expanded && parsed.success ? (
-        <PrettyJsonView
-          json={parsed.value}
-          currentView="pretty"
-          isLoading={false}
-          showNullValues={true}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={false}
-          scrollable={true}
-          className="max-h-80 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-        />
-      ) : null}
+      {body}
     </VariableMappingCardShell>
   );
 }

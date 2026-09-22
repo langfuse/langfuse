@@ -1,7 +1,6 @@
 import {
   decisionModelVariableMappingList,
   EvalTemplateTypeEnum,
-  observationVariableMappingList,
 } from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
 import { RotateCcw } from "lucide-react";

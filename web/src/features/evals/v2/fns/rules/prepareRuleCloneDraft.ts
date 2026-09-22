@@ -1,9 +1,8 @@
+import { EvalTemplateType } from "@langfuse/shared";
 import {
-  decisionModelVariableMappingList,
-  EvalTemplateType,
-  observationVariableMappingList,
-} from "@langfuse/shared";
-import { prepareModernRuleVariableMapping } from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
+  parseModernRuleVariableMapping,
+  prepareModernRuleVariableMapping,
+} from "@/src/features/evals/v2/fns/variableMapping/prepareModernRuleVariableMapping";
 import type {
   RuleDraft,
   RuleTableRow,
@@ -21,22 +20,20 @@ export function prepareRuleCloneDraft(
         assignment.evaluator.latestVersion?.variableMapping,
         assignment.evaluator.type,
       );
+      const variableMapping =
+        assignment.evaluator.type === EvalTemplateType.CODE ||
+        assignment.variableMapping == null
+          ? preparedDefault.initialVariableMapping
+          : parseModernRuleVariableMapping(
+              assignment.variableMapping,
+              assignment.evaluator.type,
+            );
       return {
         evaluatorId: assignment.evaluator.id,
         evaluatorName: assignment.evaluator.name,
         evaluatorType: assignment.evaluator.type,
         defaultVariableMapping: preparedDefault.defaultVariableMapping,
-        variableMapping:
-          assignment.evaluator.type === EvalTemplateType.CODE ||
-          assignment.variableMapping == null
-            ? preparedDefault.initialVariableMapping
-            : assignment.evaluator.type === EvalTemplateType.DECISION_MODEL
-              ? decisionModelVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping)
-              : observationVariableMappingList
-                  .catch([])
-                  .parse(assignment.variableMapping),
+        variableMapping,
       };
     }),
   };
