@@ -251,6 +251,15 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  TypeSafe = "typesafe",
+}
+
+export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
+  LLMAdapter.TypeSafe,
+];
+
+export function isDecisionModelAdapter(adapter: string): boolean {
+  return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -460,6 +469,8 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
+export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -469,6 +480,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.TypeSafe]: typeSafeModels,
 } as const;
 
 export type LLMFunctionCall = {

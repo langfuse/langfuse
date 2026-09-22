@@ -164,6 +164,7 @@ export {
 } from "../types/unstable-dashboards";
 export { __dangerouslySkipAuthz, type ApiAction } from "./enforceAuth";
 export {
+  isPublicApiEvaluatorType,
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,

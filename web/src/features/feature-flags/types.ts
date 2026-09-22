@@ -9,6 +9,7 @@ export type Flags = {
     | "aiGateway"
     | "sessionTimeline"
     | "traceMessages"
+    | "decisionModelEvaluators"
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
@@ -17,4 +18,5 @@ export type Flags = {
   aiGateway?: boolean;
   sessionTimeline?: boolean;
   traceMessages?: boolean;
+  decisionModelEvaluators?: boolean;
 };

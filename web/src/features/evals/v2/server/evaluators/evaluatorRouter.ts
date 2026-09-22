@@ -20,6 +20,7 @@ import {
   SuggestEvaluatorTextSchema,
   UpdateEvaluatorSchema,
 } from "./evaluatorTypes";
+import { assertDecisionModelEvaluatorAllowed } from "./decisionModelAccess";
 import { EvaluatorService } from "./evaluatorService";
 import { ruleRouter } from "../rules/ruleRouter";
 import { getActivationCostEstimates } from "./activationCostService";
@@ -198,6 +199,11 @@ export const evaluatorRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
       });
+      assertDecisionModelEvaluatorAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        definition: input.definition,
+      });
       const service = serviceForContext(ctx);
       return service.create(
         { ...input, projectId: ctx.session.projectId },
@@ -212,6 +218,11 @@ export const evaluatorRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
+      });
+      assertDecisionModelEvaluatorAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        definition: input.definition,
       });
       const service = serviceForContext(ctx);
       return service.update(
@@ -270,6 +281,11 @@ export const evaluatorRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "evaluator:CUD",
+      });
+      assertDecisionModelEvaluatorAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        definition: input.definition,
       });
       return serviceForContext(ctx).testEvaluator({
         orgId: ctx.session.orgId,
