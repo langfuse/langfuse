@@ -12,7 +12,6 @@ import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/Evaluat
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
 import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
@@ -41,9 +40,6 @@ export function EvaluatorGalleryDialog({
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const decisionModelsEnabled = useIsFeatureEnabled("decisionModelEvaluators", {
-    projectId,
-  });
   const [bannerDismissed, setBannerDismissed] = useLocalStorage(
     "evaluatorGallery:decisionModelBannerDismissed:v1",
     false,
@@ -84,7 +80,6 @@ export function EvaluatorGalleryDialog({
     customTemplateCount:
       projectEvaluators.data?.pages[0]?.totalItems ?? customTemplates.length,
     search,
-    includeDecisionModels: decisionModelsEnabled,
   });
   const selectSection = (key: string) => {
     setActiveSection(key);
@@ -164,14 +159,8 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
-          decisionModel={
-            decisionModelsEnabled
-              ? {
-                  bannerDismissed,
-                  onDismissBanner: () => setBannerDismissed(true),
-                }
-              : undefined
-          }
+          decisionModelBannerDismissed={bannerDismissed}
+          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
         />
       </DialogContent>
     </Dialog>

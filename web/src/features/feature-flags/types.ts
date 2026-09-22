@@ -4,11 +4,7 @@ export type Flag = (typeof availableFlags)[number];
 export type Flags = {
   [key in Exclude<
     Flag,
-    | "modernSession"
-    | "aiGateway"
-    | "sessionTimeline"
-    | "traceMessages"
-    | "decisionModelEvaluators"
+    "modernSession" | "aiGateway" | "sessionTimeline" | "traceMessages"
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
@@ -16,5 +12,4 @@ export type Flags = {
   aiGateway?: boolean;
   sessionTimeline?: boolean;
   traceMessages?: boolean;
-  decisionModelEvaluators?: boolean;
 };

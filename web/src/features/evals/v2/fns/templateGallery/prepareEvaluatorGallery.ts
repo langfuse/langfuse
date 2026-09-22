@@ -26,12 +26,10 @@ export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
   search,
-  includeDecisionModels = false,
 }: {
   customTemplates: CustomEvaluatorTemplate[];
   customTemplateCount: number;
   search: string;
-  includeDecisionModels?: boolean;
 }): {
   navigationItems: GalleryNavigationItem[];
   sections: GallerySection[];
@@ -44,10 +42,7 @@ export function prepareEvaluatorGallery({
   const filteredCustom = customTemplates.filter((template) =>
     matches(template.name, template.description),
   );
-  const managedCatalog = managedEvaluatorTemplateService.list({
-    search,
-    includeDecisionModels,
-  });
+  const managedCatalog = managedEvaluatorTemplateService.list({ search });
   const managedByCategory = new Map(
     managedCatalog.categories.map((category) => {
       const templatesInCategory = managedCatalog.templates.filter((template) =>

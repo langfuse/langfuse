@@ -7,7 +7,7 @@ import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 const ListManagedEvaluatorTemplatesInput = z.object({
   search: z.string().trim().max(200).optional(),
   category: z.string().trim().min(1).optional(),
-  type: z.enum(["LLM_AS_JUDGE", "CODE"]).optional(),
+  type: z.enum(["LLM_AS_JUDGE", "CODE", "DECISION_MODEL"]).optional(),
 });
 
 export const [
