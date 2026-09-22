@@ -34,7 +34,7 @@ import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErro
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
 import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;

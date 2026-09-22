@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { useReadPath } from "@/src/features/events";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import {

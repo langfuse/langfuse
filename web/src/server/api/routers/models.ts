@@ -2,7 +2,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,

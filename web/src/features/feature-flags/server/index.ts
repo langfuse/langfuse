@@ -13,6 +13,7 @@ export {
 } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 export {
   getFeaturePreviewOptOutFlag,
+  hasInternalAccess,
   parseFlags,
   parseFlagsWithOrganizationDefaults,
 } from "@/src/features/feature-flags/utils";

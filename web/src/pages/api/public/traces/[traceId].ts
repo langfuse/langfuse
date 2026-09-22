@@ -27,7 +27,7 @@ import {
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 
