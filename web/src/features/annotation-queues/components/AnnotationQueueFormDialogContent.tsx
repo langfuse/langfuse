@@ -26,7 +26,6 @@ import { ChevronDown, ChevronRight, Settings2 } from "lucide-react";
 import Link from "next/link";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
-import { Badge } from "@/src/components/ui/badge";
 import {
   CreateQueueWithAssignmentsData,
   type CreateQueueWithAssignments,
@@ -196,16 +195,10 @@ export function AnnotationQueueFormDialogContent({
                         .map((config) => ({
                           value: config.id,
                           label: `${getScoreDataTypeIcon(config.dataType)} ${config.name}`,
-                          optionSuffix: config.isArchived ? (
-                            <Badge variant="outline-solid" size="sm">
-                              Archived
-                            </Badge>
-                          ) : undefined,
-                          selectedSuffix: config.isArchived ? (
-                            <Badge variant="outline-solid" size="sm">
-                              Archived
-                            </Badge>
-                          ) : undefined,
+                          secondaryLabel: config.isArchived
+                            ? "Archived"
+                            : undefined,
+                          showSecondaryLabelInTag: true,
                         }))}
                       value={field.value}
                     />

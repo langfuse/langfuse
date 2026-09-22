@@ -3,7 +3,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
 import { MultiSelectTagInput } from "./MultiSelectTagInput";
-import { Badge } from "@/src/components/ui/badge";
 
 const options = [
   { value: "option-1", label: "Option 1" },
@@ -103,116 +102,67 @@ export const ManySelected = meta.story({
   ),
 });
 
-export const ScoreFields = meta.story({
+export const MultipleSelected = meta.story({
   args: {
-    value: ["feedback", "manual-score"],
-    options: [
-      { value: "feedback", label: "Feedback" },
-      { value: "manual-score", label: "manual-score" },
-    ],
+    value: ["option-1", "option-3"],
+    options,
     onValueChange: fn(),
-    placeholder: "Choose score fields",
-    searchPlaceholder: "Search score fields...",
-    emptyMessage: "No score fields found.",
-  },
-});
-
-export const ScopedScoreFields = meta.story({
-  name: "(Test) Scoped Score Fields",
-  args: {
-    value: ["trace-quality", "observation-quality"],
-    options: [
-      {
-        value: "trace-quality",
-        label: "Quality",
-        accessibleLabel: "Quality (Trace)",
-        keywords: ["Trace"],
-        optionSuffix: (
-          <Badge variant="outline" size="sm">
-            Trace
-          </Badge>
-        ),
-      },
-      {
-        value: "observation-quality",
-        label: "Quality",
-        accessibleLabel: "Quality (Observation)",
-        keywords: ["Observation"],
-        optionSuffix: (
-          <Badge variant="outline" size="sm">
-            Observation
-          </Badge>
-        ),
-      },
-    ],
-    onValueChange: fn(),
-    placeholder: "Choose score fields",
-    searchPlaceholder: "Search score fields...",
-    emptyMessage: "No score fields found.",
-    "aria-label": "Score fields",
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+    selectAllLabel: "Select All",
   },
   render: (args) => {
     const [value, setValue] = useState(args.value);
+
     return (
-      <MultiSelectTagInput
-        {...args}
-        value={value}
-        onValueChange={setValue}
-        options={args.options.map((option) => ({
-          ...option,
-          selectedSuffix: value.length > 1 ? option.optionSuffix : undefined,
-        }))}
-      />
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
     );
   },
-  play: async ({ canvasElement, step }) => {
-    const canvas = within(canvasElement);
-    await step(
-      "Remove only the named scope and hide the remaining selected suffix",
-      async () => {
-        await userEvent.click(
-          canvas.getByRole("button", { name: "Remove Quality (Trace)" }),
-        );
-        await expect(
-          canvas.getByRole("button", { name: "Remove Quality (Observation)" }),
-        ).toBeVisible();
-        await expect(
-          within(
-            canvas.getByRole("combobox", { name: "Score fields" }),
-          ).queryByText("Observation"),
-        ).not.toBeInTheDocument();
+});
+
+export const SecondaryLabels = meta.story({
+  args: {
+    value: ["legacy-rating", "quality"],
+    options: [
+      {
+        value: "legacy-rating",
+        label: "Legacy rating",
+        secondaryLabel: "Archived",
+        showSecondaryLabelInTag: true,
+        disabled: true,
       },
-    );
-    await step(
-      "Search the available scope without changing the score label",
-      async () => {
-        await userEvent.click(
-          canvas.getByRole("combobox", { name: "Score fields" }),
-        );
-        const page = within(document.body);
-        await userEvent.type(
-          page.getByPlaceholderText("Search score fields..."),
-          "Trace",
-        );
-        await expect(
-          page.getByRole("option", { name: "Quality (Trace)" }),
-        ).toBeVisible();
-        await expect(
-          page.queryByRole("option", { name: "Quality (Observation)" }),
-        ).not.toBeInTheDocument();
-        await userEvent.click(
-          page.getByRole("option", { name: "Quality (Trace)" }),
-        );
-        await userEvent.keyboard("{Escape}");
-        await expect(
-          canvas.getByRole("button", { name: "Remove Quality (Trace)" }),
-        ).toBeVisible();
-        await expect(
-          within(
-            canvas.getByRole("combobox", { name: "Score fields" }),
-          ).getByText("Observation"),
-        ).toBeVisible();
-      },
+      { value: "quality", label: "Quality", secondaryLabel: "(current)" },
+      { value: "accuracy", label: "Accuracy" },
+    ],
+    onValueChange: fn(),
+    placeholder: "Choose scores",
+    searchPlaceholder: "Search scores...",
+    emptyMessage: "No scores found.",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
     );
   },
 });
