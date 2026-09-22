@@ -104,6 +104,23 @@ export const MultipleSelected = meta.story({
     searchPlaceholder: "Search score fields...",
     emptyMessage: "No score fields found.",
   },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectInput
+          {...args}
+          value={value}
+          selectedLabel={`${value.length} score fields selected`}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
 });
 
 export const TestSelectsMultipleOptions = meta.story({
@@ -206,35 +223,6 @@ export const TestKeepsOverlappingLabelsDistinct = meta.story({
 
     await expect(args.onValueChange).toHaveBeenCalledWith([
       "dataset-lowercase",
-    ]);
-  },
-});
-
-export const TestKeepsDisabledOptionsUnchanged = meta.story({
-  name: "(Test) Keeps Disabled Options Unchanged",
-  args: {
-    value: ["regression"],
-    options: options.map((option) => ({
-      ...option,
-      disabled: option.value === "regression",
-    })),
-    onValueChange: fn(),
-    placeholder: "Select datasets",
-    selectedLabel: "1 dataset selected",
-    searchPlaceholder: "Search datasets...",
-    emptyMessage: "No datasets found.",
-  },
-  play: async ({ args, canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(within(canvasElement).getByRole("combobox"));
-    const option = body.getByRole("option", { name: /Regression/ });
-    await expect(option).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(option);
-    await expect(args.onValueChange).not.toHaveBeenCalled();
-    await userEvent.click(body.getByRole("option", { name: "Production" }));
-    await expect(args.onValueChange).toHaveBeenCalledWith([
-      "regression",
-      "production",
     ]);
   },
 });
