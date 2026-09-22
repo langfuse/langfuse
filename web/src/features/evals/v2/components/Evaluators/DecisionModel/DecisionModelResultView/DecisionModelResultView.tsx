@@ -1,7 +1,12 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
+import { InfoIcon } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -42,6 +47,27 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     >
       confidence {confidence.toFixed(2)}
     </span>
+  );
+}
+
+function LevelDescriptionTooltip({
+  index,
+  description,
+}: {
+  index: number;
+  description: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+        aria-label={`Level ${index} description`}
+      >
+        <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{description}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -143,9 +169,10 @@ function ScoreDistribution({
             <span className="flex items-center gap-0.5 font-mono">
               {index}
               {!showDescriptions ? (
-                <InfoTooltip label={`Level ${index} description`}>
-                  {description}
-                </InfoTooltip>
+                <LevelDescriptionTooltip
+                  index={index}
+                  description={description}
+                />
               ) : null}
               · {percent(probabilities[String(index)] ?? 0)}
             </span>

@@ -24,6 +24,7 @@ import { EvaluatorVersionHistorySheet } from "../components/Evaluators/Evaluator
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
@@ -453,7 +454,7 @@ export function EvaluatorSetupPage(
   const setStepOpen = (step: number, open: boolean) => {
     const state = evaluatorSetupStore.getState();
     state.actions.setStepOpen(step, open);
-    const isNameStep = step === (state.type === "LLM_AS_JUDGE" ? 3 : 2);
+    const isNameStep = step === getEvaluatorNameStep(state.type);
     if (
       nameAIAssistanceAvailable &&
       open &&

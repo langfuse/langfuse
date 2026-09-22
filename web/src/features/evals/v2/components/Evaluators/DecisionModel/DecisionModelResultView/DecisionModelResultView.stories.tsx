@@ -1,3 +1,5 @@
+import { expect, within } from "storybook/test";
+
 import preview from "../../../../../../../../.storybook/preview";
 import { DecisionModelResultView } from "./DecisionModelResultView";
 
@@ -132,5 +134,18 @@ export const TenLevels = meta.story({
         confidence: 0.72,
       },
     ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const levelDescription = canvas.getByRole("button", {
+      name: "Level 0 description",
+    });
+
+    levelDescription.focus();
+
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(
+      "No technical detail",
+    );
   },
 });

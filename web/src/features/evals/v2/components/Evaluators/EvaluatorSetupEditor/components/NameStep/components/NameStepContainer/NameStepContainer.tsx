@@ -4,6 +4,7 @@ import { useShallow } from "zustand/react/shallow";
 
 import type { AIAssistedInput } from "@/src/components/ui/ai-assisted-input";
 import { NameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/NameStep/NameStep";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 
 export function NameStepContainer({
@@ -22,9 +23,7 @@ export function NameStepContainer({
   const state = useStore(
     store,
     useShallow((state) => {
-      const hasMappingStep =
-        state.type === "LLM_AS_JUDGE" || state.type === "DECISION_MODEL";
-      const step = hasMappingStep ? 3 : 2;
+      const step = getEvaluatorNameStep(state.type);
       return {
         step,
         variant:
