@@ -32,6 +32,7 @@ const resourceLabels: Record<string, string> = {
   projectMembers: "Project members",
   apiKeys: "API keys",
   traces: "Traces",
+  media: "Media",
   sessions: "Sessions",
   scores: "Scores",
   scoreConfigs: "Score configs",
@@ -70,6 +71,7 @@ const resourceDescriptions: Record<string, string> = {
   projectMembers: "Invite and manage project members",
   apiKeys: "Manage API keys",
   traces: "Ingest and manage traces",
+  media: "Upload and read media attachments",
   sessions: "View and share sessions",
   scores: "Submit and manage scores",
   scoreConfigs: "Manage score configurations",
@@ -133,6 +135,8 @@ const projectScopeList = [
   "traces:publish",
   "traces:bookmark",
   "traces:tag",
+  "media:read",
+  "media:create",
   "sessions:read",
   "sessions:publish",
   "sessions:bookmark",
@@ -280,7 +284,12 @@ export const resolvePreset = (
         "project:llmGatewayConfig:write",
       ];
     case "otel":
-      return ["project:traces:create", "project:scores:create"];
+      return [
+        "project:traces:create",
+        "project:media:read",
+        "project:media:create",
+        "project:scores:create",
+      ];
     case "scores":
       return ["project:scores:create"];
     case "custom":
