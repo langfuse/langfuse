@@ -29,7 +29,10 @@ export function ConnectedLLMApiKeySettingsTable({
     scope: "llmApiKeys:update",
   });
 
-  const apiKeys = api.llmApiKey.all.useQuery({ projectId });
+  const apiKeys = api.llmApiKey.all.useQuery({
+    projectId,
+    includeDecisionModels: true,
+  });
   const deleteApiKey = api.llmApiKey.delete.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
   });

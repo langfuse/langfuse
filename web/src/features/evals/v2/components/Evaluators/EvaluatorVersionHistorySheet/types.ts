@@ -19,5 +19,6 @@ export type EvaluatorVersion = {
   vars: string[];
   variableMapping: unknown;
   outputDefinition: unknown;
+  questions?: unknown;
   createdByUser: { name: string | null; email: string | null } | null;
 };

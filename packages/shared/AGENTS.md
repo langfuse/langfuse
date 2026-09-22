@@ -100,10 +100,10 @@
   `@langfuse/shared/src/server/ee/ingestionMasking`,
   `@langfuse/shared/src/server/llm/llmText`, and
   `@langfuse/shared/src/utils/chatml`. The
-  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and powers
-  the web "Improved Message Rendering" feature preview (the normalized Formatted
-  trace/observation view). Its public contract is still settling, so treat other
-  consumers as experimental until it stabilizes.
+  `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the
+  only parser behind the web Formatted trace/observation view; the legacy
+  ChatML helpers remain for the session feed and the playground (for now). Its result
+  type is not frozen yet, so a new consumer should expect to move with it.
 
 When changing export surfaces, keep `package.json#exports`, the relevant barrel
 file (`src/index.ts`, `src/server/index.ts`, etc.), and this guide aligned in

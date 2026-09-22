@@ -7407,5 +7407,25 @@
         }
       }
     ]
+  },
+  {
+    "id": "7f3c9a2e-5b1d-4e8f-9a6c-2d4b8e1f0a3c",
+    "modelName": "jev",
+    "matchPattern": "(?i)^(typesafe(-ai)?\\/)?jev(-[0-9]+(\\.[0-9]+)*|-latest|-preview)?$",
+    "createdAt": "2026-09-22T00:00:00.000Z",
+    "updatedAt": "2026-09-22T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "7f3c9a2e-5b1d-4e8f-9a6c-2d4b8e1f0a3c_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 4.2e-8,
+          "output": 0
+        }
+      }
+    ]
   }
 ]

@@ -1,7 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useEffect } from "react";
 import { type ScoreDomain, type Prisma } from "@langfuse/shared";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
@@ -18,7 +17,6 @@ import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
-import type { IOPreviewParserComparisonOutcome } from "../../hooks/useIOPreviewParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BookOpen, X } from "lucide-react";
@@ -158,12 +156,6 @@ export function IOPreview({
   showCorrections = true,
 }: IOPreviewProps) {
   const capture = usePostHogClientCapture();
-  // "Improved Message Rendering" feature preview: when enabled, the Formatted
-  // view is powered by the normalized parser instead of the legacy one.
-  const improvedRenderingEnabled = useIsFeatureEnabled("normalizedIoPreview", {
-    enableForAdmins: false,
-    projectId,
-  });
   const [dismissedTraceViewNotifications, setDismissedTraceViewNotifications] =
     useLocalStorage<string[]>(STORAGE_KEY, []);
 
@@ -314,17 +306,6 @@ export function IOPreview({
       ) : (
         <IOPreviewPretty
           {...sharedProps}
-          parser={
-            // Precomputed legacy parses win inside the parser hook, so the
-            // Formatted view must never claim them as normalized output.
-            improvedRenderingEnabled && chatMLParserResult === undefined
-              ? "normalized"
-              : "legacy"
-          }
-          onParserComparison={(outcome: IOPreviewParserComparisonOutcome) =>
-            capture("trace_detail:io_parser_comparison", { outcome })
-          }
-          observationName={observationName}
           showMetadata={showMetadata}
           contentMode={contentMode}
           showSystemPrompt={showSystemPrompt}

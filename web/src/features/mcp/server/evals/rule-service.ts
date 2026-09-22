@@ -1,11 +1,13 @@
 import { auditLog } from "@/src/features/audit-logs/server";
 import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
+  isPublicApiEvaluatorType,
   toApiReadMappings,
   toPublicEvaluatorType,
   toStoredMappingList,
 } from "@/src/features/public-api/server";
 import { RuleService } from "@/src/features/evals/v2/server/rules/ruleService";
+import { InvalidRequestError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import type { z } from "zod";
 import type { ServerContext } from "../../types";
@@ -42,6 +44,22 @@ export function toStoredAssignments(
 
 type StoredRule = Awaited<ReturnType<RuleService["get"]>>;
 
+export async function assertRuleAssignmentsReplaceableViaMcp(
+  service: RuleService,
+  projectId: string,
+  ruleId: string,
+) {
+  const rule = await service.get(projectId, ruleId);
+  const hidden = rule.assignments.filter(
+    (assignment) => !isPublicApiEvaluatorType(assignment.evaluator.type),
+  );
+  if (hidden.length > 0) {
+    throw new InvalidRequestError(
+      "This rule uses experimental evaluators that are not visible through MCP. Update its evaluator assignments in the Langfuse UI.",
+    );
+  }
+}
+
 export function toMcpEvaluationRule(
   rule: StoredRule,
 ): z.infer<typeof EvaluationRuleResponseSchema> {
@@ -51,15 +69,19 @@ export function toMcpEvaluationRule(
     enabled: rule.enabled,
     sampling: rule.sampling,
     filter: rule.filter,
-    evaluators: rule.assignments.map((assignment) => ({
-      evaluatorId: assignment.evaluator.id,
-      evaluatorName: assignment.evaluator.name,
-      evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
-      variableMapping:
-        assignment.variableMapping === null
-          ? null
-          : toApiReadMappings(assignment.variableMapping),
-    })),
+    evaluators: rule.assignments
+      .filter((assignment) =>
+        isPublicApiEvaluatorType(assignment.evaluator.type),
+      )
+      .map((assignment) => ({
+        evaluatorId: assignment.evaluator.id,
+        evaluatorName: assignment.evaluator.name,
+        evaluatorType: toPublicEvaluatorType(assignment.evaluator.type),
+        variableMapping:
+          assignment.variableMapping === null
+            ? null
+            : toApiReadMappings(assignment.variableMapping),
+      })),
     createdAt: rule.createdAt,
     updatedAt: rule.updatedAt,
   });
