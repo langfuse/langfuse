@@ -13,7 +13,6 @@ import {
 import type { EvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
-/** Store-connected question list of a decision-model evaluator. */
 export function DecisionModelQuestionsEditor({
   store,
 }: {
@@ -28,8 +27,6 @@ export function DecisionModelQuestionsEditor({
       actions: state.actions,
     })),
   );
-  // A freshly added blank card is not an error yet; problems surface once the
-  // user has started filling the question in.
   const errorsById = useMemo(() => {
     const errors = getQuestionDraftErrors(state.questions);
     for (const question of state.questions) {

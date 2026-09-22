@@ -206,7 +206,7 @@ export function EvaluatorSetupPage(
       : initialEvaluator?.definition.type === "LLM_AS_JUDGE"
         ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
             .dataType
-        : // Decision models write several differently typed scores.
+        :
           undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
@@ -314,7 +314,6 @@ export function EvaluatorSetupPage(
     type: initialEvaluator?.type ?? "LLM_AS_JUDGE",
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
-    // Decision-model instructions travel as normalized prompt messages too.
     promptMessages:
       initialEvaluator?.type === "CODE" ? null : version.promptMessages,
     provider: version.provider,

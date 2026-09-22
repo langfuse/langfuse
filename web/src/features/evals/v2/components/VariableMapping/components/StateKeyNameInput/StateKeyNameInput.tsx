@@ -14,7 +14,6 @@ export function StateKeyNameInput({
   onCancel,
 }: {
   value: string;
-  /** Returns a problem with the candidate name, or null when it is usable. */
   validate: (next: string) => string | null;
   onCommit: (next: string) => void;
   onCancel: () => void;

@@ -24,10 +24,6 @@ export function CollapsibleCard({
   disabled: boolean;
   triggerTitle: string;
   header: ReactNode;
-  /**
-   * False renders the header as a plain row instead of the collapse trigger,
-   * for headers that contain their own controls such as an inline name input.
-   */
   headerInteractive?: boolean;
   actions: ReactNode;
   children: ReactNode;

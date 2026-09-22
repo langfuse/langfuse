@@ -84,7 +84,6 @@ const DecisionModelEvaluatorDefinitionSchema =
     questions: DecisionModelQuestionsSchema,
     provider: z.string().min(1),
     model: z.string().min(1),
-    /** State keys, derived from the variable mapping. */
     vars: z.array(DecisionModelStateKeySchema),
   });
 

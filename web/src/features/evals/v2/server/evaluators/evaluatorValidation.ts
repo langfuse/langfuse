@@ -151,8 +151,6 @@ export async function assertEvaluatorConfigurationValid(params: {
     });
   }
 
-  // A decision-model connection cannot generate text, so it is never a valid
-  // judge model even though it resolves like any other connection.
   if (params.definition.provider !== null) {
     const connection = await DefaultEvalModelService.fetchValidModelConfig(
       params.projectId,
@@ -183,12 +181,6 @@ export async function assertEvaluatorConfigurationValid(params: {
   if (error) throw new EvaluatorModelConfigurationError(error);
 }
 
-/**
- * Returns why a decision-model evaluator cannot run, or `null` when its
- * connection resolves to a decision-model adapter. Shared by creation and
- * reactivation so a paused evaluator can be resumed once the connection is
- * restored.
- */
 export async function getDecisionModelConfigurationError(params: {
   projectId: string;
   name: string;
@@ -216,9 +208,6 @@ async function assertDecisionModelDefinitionValid(params: {
   name: string;
   definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
 }) {
-  // The state must have at least one key and every key must be mapped; the
-  // mapping doubles as the state definition, so this reuses the prompt-variable
-  // completeness check with the state keys in place of prompt variables.
   if (params.definition.vars.length === 0) {
     throw new InvalidRequestError(
       "Decision-model evaluators need at least one state field",

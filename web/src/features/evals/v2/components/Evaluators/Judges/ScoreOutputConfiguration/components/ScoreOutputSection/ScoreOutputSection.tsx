@@ -70,9 +70,7 @@ function LabelWithTooltip({
 }
 
 export type ScoreOutputConstraints = {
-  /** Data types the evaluator can produce. Defaults to all three. */
   dataTypes?: ScoreOutputDataType[];
-  /** Whether a categorical score may return several categories. Defaults to true. */
   allowMultipleMatches?: boolean;
 };
 

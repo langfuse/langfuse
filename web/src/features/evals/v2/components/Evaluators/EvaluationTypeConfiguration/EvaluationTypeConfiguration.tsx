@@ -17,7 +17,6 @@ export function EvaluationTypeConfiguration({
   mode: EvalTemplateType;
   onModeChange: (mode: EvalTemplateType) => void;
   disabled: boolean;
-  /** Offers the experimental decision-model type; the container owns the flag. */
   showDecisionModel?: boolean;
   children: ReactNode;
 }) {

@@ -32,7 +32,6 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 Input: {{input}}
 Response: {{output}}`;
 
-/** The state a new decision-model evaluator starts from. */
 const DEFAULT_STATE_KEYS = ["input", "output"];
 
 function buildInitialStateKeys(
@@ -98,7 +97,6 @@ type EvaluatorSetupStoreActions = {
   removeQuestion: (id: string) => void;
   reorderQuestion: (fromIndex: number, toIndex: number) => void;
   setExpandedQuestionId: (id: string | null) => void;
-  /** Adds a placeholder-named key and opens it for renaming. */
   addStateKey: () => void;
   renameStateKey: (key: string, next: string) => void;
   removeStateKey: (key: string) => void;
@@ -136,10 +134,8 @@ export type EvaluatorSetupStoreState = {
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
-  /** Decision-model questions, one score each. */
   questions: DecisionModelQuestionDraft[];
   expandedQuestionId: string | null;
-  /** Ordered keys of the decision-model state; each maps through `variableFields`. */
   stateKeys: string[];
   sourceCode: string;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
@@ -170,7 +166,6 @@ export const selectHasValidModel = (state: EvaluatorSetupStoreState) => {
       state.modelMode === "custom" ? state.selectedModel : state.defaultModel,
     );
   }
-  // Decision models have no project default; a connection must be picked.
   if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
     return Boolean(state.selectedModel);
   }
@@ -261,8 +256,6 @@ export function createEvaluatorSetupStore({
       setType: (type) =>
         set((state) => {
           if (type === state.type) return state;
-          // Decision models have no project default, so a connection must be
-          // picked explicitly.
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               type,
@@ -271,8 +264,6 @@ export function createEvaluatorSetupStore({
               modelParams: null,
             };
           }
-          // A decision-model connection cannot serve as an LLM judge, so the
-          // model selection never survives leaving the decision-model type.
           if (state.type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               type,
@@ -333,9 +324,6 @@ export function createEvaluatorSetupStore({
             selectedColumnId: null,
             jsonSelector: null,
           };
-          // A still-unbound field named exactly like an observation field
-          // (`output`, `metadata`, …) binds to it; anything else stays open
-          // for the picker rather than silently defaulting to the input.
           const fieldState = current.selectedColumnId
             ? current
             : {
@@ -356,7 +344,6 @@ export function createEvaluatorSetupStore({
                 variable === key ? [next, fieldState] : [variable, value],
               ),
             ),
-            // Questions refer to keys by name, so they follow the rename.
             questions: state.questions.map((question) => ({
               ...question,
               instructions: question.instructions.replace(
@@ -364,7 +351,6 @@ export function createEvaluatorSetupStore({
                 `\`${next}\``,
               ),
             })),
-            // Naming is done; an unbound field goes straight to the picker.
             activeMapping: {
               variable: next,
               state: fieldState.selectedColumnId ? "preview" : "editing",

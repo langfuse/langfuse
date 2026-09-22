@@ -44,11 +44,6 @@ export function toStoredAssignments(
 
 type StoredRule = Awaited<ReturnType<RuleService["get"]>>;
 
-/**
- * Rules whose assignments include experimental evaluator types are read back
- * without them, so a replace-all update from that view would silently detach
- * the hidden evaluators. Such rules must be edited in the Langfuse UI instead.
- */
 export async function assertRuleAssignmentsReplaceableViaMcp(
   service: RuleService,
   projectId: string,

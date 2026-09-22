@@ -728,7 +728,7 @@ export function CreateLLMApiKeyForm({
                     {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
                         {isDecisionModelAdapter(provider)
-                          ? `${provider} (experimental, decision models only)`
+                          ? `${provider} (experimental)`
                           : provider}
                       </SelectItem>
                     ))}

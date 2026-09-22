@@ -107,11 +107,6 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
-/**
- * Decision-model connections are only an API key: the endpoint is fixed and
- * the model answers typed questions, so base URLs and extra headers have no
- * meaning and are rejected rather than silently ignored.
- */
 function assertDecisionModelConnectionInput(input: {
   adapter: LLMAdapter;
   baseURL?: string | null;
@@ -445,11 +440,6 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        /**
-         * Decision-model connections cannot generate text, so the playground,
-         * prompt experiments, and LLM-as-a-judge pickers never see them. Only
-         * the connections settings and decision-model evaluators opt in.
-         */
         includeDecisionModels: z.boolean().optional().default(false),
       }),
     )

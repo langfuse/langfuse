@@ -67,10 +67,6 @@ const INTERNAL_MAPPING_COLUMN_TO_PUBLIC_SOURCE: Record<
   experiment_item_metadata: "experiment_item_metadata",
 };
 
-/**
- * Decision-model evaluators (experimental) are not part of the public API
- * contract yet; callers must skip them before mapping.
- */
 export const PUBLIC_API_EVALUATOR_TYPES: EvalTemplateType[] = [
   EvalTemplateType.LLM_AS_JUDGE,
   EvalTemplateType.CODE,

@@ -392,8 +392,6 @@ function getDefaultAdapterParams(
         providerOptions: { value: {}, enabled: false },
       };
 
-    // Decision models take no sampling parameters. Their connections are
-    // filtered out of the playground; this branch only keeps the switch total.
     case LLMAdapter.TypeSafe:
       return {
         adapter: {

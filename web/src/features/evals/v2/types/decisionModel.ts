@@ -1,9 +1,5 @@
 import type { DecisionModelQuestionType } from "@langfuse/shared";
 
-/**
- * Editor state for one decision-model question. Every type's configuration is
- * kept so switching the type back and forth never loses what was typed.
- */
 export type DecisionModelQuestionDraft = {
   id: string;
   type: DecisionModelQuestionType;

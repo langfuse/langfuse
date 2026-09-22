@@ -337,10 +337,6 @@ export async function listEvaluators(params: {
   };
 }
 
-/**
- * Mirrors the `effectiveModel` SQL expression used by the model filter: LLM
- * judges fall back to the project default, decision models always pin one.
- */
 function getEffectiveModel(
   evaluator: {
     type: EvalTemplateType;
@@ -364,7 +360,6 @@ export async function listEvaluatorsCursor(params: {
   limit: number;
   cursor?: { createdAt: Date; id: string };
   search?: string;
-  /** Restricts the collection so limit and cursor apply to these types only. */
   types?: EvalTemplateType[];
 }) {
   const baseWhere: Prisma.EvaluatorWhereInput = {

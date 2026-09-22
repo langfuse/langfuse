@@ -29,8 +29,6 @@ export function ConnectedLLMApiKeySettingsTable({
     scope: "llmApiKeys:update",
   });
 
-  // Settings is the one place decision-model connections are managed, so
-  // include the adapters the model pickers filter out.
   const apiKeys = api.llmApiKey.all.useQuery({
     projectId,
     includeDecisionModels: true,

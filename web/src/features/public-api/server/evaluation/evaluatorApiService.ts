@@ -24,10 +24,6 @@ import {
   toPublicEvaluatorVersion,
 } from "./evaluationAdapters";
 
-/**
- * Experimental evaluator types are hidden from the public API. Mutations check
- * the stored type before touching anything so a rejected request never commits.
- */
 async function assertPublicApiEvaluator(
   service: EvaluatorService,
   projectId: string,

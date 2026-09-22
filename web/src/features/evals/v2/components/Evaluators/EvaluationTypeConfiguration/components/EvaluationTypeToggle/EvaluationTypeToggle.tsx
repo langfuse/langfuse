@@ -13,7 +13,6 @@ export function EvaluationTypeToggle({
   value: EvalTemplateType;
   onValueChange: (value: EvalTemplateType) => void;
   disabled?: boolean;
-  /** Experimental decision models are only offered behind a feature flag. */
   showDecisionModel?: boolean;
 }) {
   return (

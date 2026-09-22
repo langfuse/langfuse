@@ -794,8 +794,6 @@ export class RuleService {
       );
       const storedVariableMapping =
         assignment.variableMapping ?? prepared.initialVariableMapping;
-      // Decision models declare their state keys directly; LLM judges derive
-      // the variables from the prompt.
       const requiredVariables =
         evaluator.type === EvalTemplateType.DECISION_MODEL
           ? latestVersion.vars

@@ -117,10 +117,6 @@ async function runEvaluatorTest(params: {
   }
 }
 
-/**
- * Decision models return no rationale, so the "prompt" shown to the user is
- * the exact request: the state built from the observation and the question.
- */
 async function testDecisionModelEvaluator(params: {
   projectId: string;
   definition: Extract<
@@ -163,8 +159,6 @@ async function testDecisionModelEvaluator(params: {
     });
 
     const usage = execution.evaluation.usage;
-    // Decision models return no rationale, so the exact request is the
-    // debugging aid: the state built from the observation plus the questions.
     return {
       success: true as const,
       scores: execution.scores,
@@ -172,8 +166,6 @@ async function testDecisionModelEvaluator(params: {
       model: execution.evaluation.model,
       provider: modelConfig.config.provider,
       executionTraceId,
-      // Priced against the resolved model version the provider reported, so an
-      // alias such as jev-latest still matches the version's price definition.
       estimatedCostUsd: usage
         ? await calculateTestRunCost({
             projectId: params.projectId,
