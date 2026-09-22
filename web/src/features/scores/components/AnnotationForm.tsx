@@ -59,7 +59,7 @@ function AnnotateHeader({
     <div className="relative">
       <Header
         title="Annotate"
-        titleClassName="text-foreground ml-5"
+        titleClassName="text-foreground ml-5 text-[16px] leading-6"
         help={
           description
             ? {
