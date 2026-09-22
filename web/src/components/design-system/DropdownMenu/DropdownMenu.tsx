@@ -33,7 +33,7 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
-  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 overflow-y-auto rounded-md border shadow-md outline-hidden",
+  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
 );
 
 const menuBodyVariants = cva(
@@ -207,7 +207,7 @@ function DropdownMenuNode({
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },
     placement,
-    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    middleware: [offset(4), flip(), shift({ padding: 8, crossAxis: true })],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
