@@ -3,7 +3,7 @@ import { Download } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { LARGE_STRING_PREVIEW_CHARS } from "@/src/components/ui/largeStringGate";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { decodeUnicodeInJson } from "@/src/utils/decodeUnicodeInJson";
 
 /**

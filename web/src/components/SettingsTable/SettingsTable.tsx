@@ -39,7 +39,7 @@ export type SettingsTableProps<TData extends object> = Omit<
     onChange: (value: string) => void;
   };
   toolbarActions?: SettingsTableToolbarAction[];
-  pagination: PaginationBarProps;
+  pagination?: PaginationBarProps;
 };
 
 export function SettingsTable<TData extends object>({
@@ -123,7 +123,7 @@ export function SettingsTable<TData extends object>({
           onColumnOrderChange={setColumnOrder}
           {...tableProps}
         />
-        <PaginationBar {...pagination} />
+        {pagination && <PaginationBar {...pagination} />}
       </SettingsTableCard>
     </div>
   );

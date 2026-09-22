@@ -31,7 +31,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
-import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Copy, TrashIcon } from "lucide-react";

@@ -1,12 +1,20 @@
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import Link from "next/link";
-import { Settings2 } from "lucide-react";
+import { Plus, Settings2 } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Header from "@/src/components/layouts/header";
-import { MultiSelectTagInput } from "@/src/components/design-system/MultiSelectTagInput/MultiSelectTagInput";
+import { PopoverController } from "@/src/components/ui/popover";
+import {
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/components/ui/input-command";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -167,7 +175,6 @@ export function AnnotationFormContent({
     targetFor(field).configControl.configs.find(
       (config) => config.id === field.configId,
     );
-  const selectedConfigIds = [...new Set(fields.map((field) => field.configId))];
   const showSelectedTargets =
     new Set(
       fields.map((field) =>
@@ -184,6 +191,11 @@ export function AnnotationFormContent({
     insert,
     remove,
   });
+  const addableOptions = selectionOptions.filter(
+    (option) =>
+      !option.disabled &&
+      !fields.some((field) => field.configId === option.value),
+  );
   const visibleFields = fields.filter((field) => configFor(field));
   const rowCount = visibleFields.length;
   const optionRowCount = visibleFields.filter((field) => {
@@ -246,28 +258,6 @@ export function AnnotationFormContent({
           }
           description={description}
         />
-        {allowManualSelection ? (
-          <div className="flex flex-col gap-2">
-            <span className="text-sm font-bold">Scores</span>
-            <MultiSelectTagInput
-              disabled={!isActive}
-              aria-label="Scores"
-              placeholder="Choose scores"
-              searchPlaceholder="Search scores..."
-              emptyMessage="No scores found."
-              options={selectionOptions}
-              onValueChange={(values) =>
-                getScoreConfigSelection({
-                  targets,
-                  controlledFields: form.getValues("scoreData"),
-                  insert,
-                  remove,
-                }).handleSelectionChange(values)
-              }
-              value={selectedConfigIds}
-            />
-          </div>
-        ) : null}
       </div>
       {/* No real submit: scores save per-field. Prevent the browser's implicit
             form submission (Enter in a single-line input would otherwise reload
@@ -284,6 +274,15 @@ export function AnnotationFormContent({
               <AnnotationScoreRow
                 key={field.id}
                 isActive={isActive}
+                onRemove={() => {
+                  if (actions.isSaving(annotationFieldKey(field))) return;
+                  getScoreConfigSelection({
+                    targets,
+                    controlledFields: form.getValues("scoreData"),
+                    insert,
+                    remove,
+                  }).removeEmptyField(annotationFieldKey(field));
+                }}
                 form={form}
                 actions={actions}
                 index={index}
@@ -319,6 +318,66 @@ export function AnnotationFormContent({
             ) : null;
           })}
         </div>
+        {allowManualSelection && isActive ? (
+          <div>
+            <PopoverController
+              align="start"
+              contentClassName="w-64 p-0"
+              disabled={addableOptions.length === 0}
+              modal={false}
+              renderContent={({ closePopover }) => (
+                <InputCommand>
+                  <InputCommandInput
+                    placeholder="Search scores..."
+                    variant="bottom"
+                  />
+                  <InputCommandList className="max-h-72">
+                    <InputCommandEmpty>No scores found.</InputCommandEmpty>
+                    <InputCommandGroup>
+                      {addableOptions.map((option) => (
+                        <InputCommandItem
+                          key={option.value}
+                          value={option.value}
+                          keywords={[option.label]}
+                          className="cursor-pointer"
+                          onSelect={() => {
+                            closePopover();
+                            const controlledFields =
+                              form.getValues("scoreData");
+                            getScoreConfigSelection({
+                              targets,
+                              controlledFields,
+                              insert,
+                              remove,
+                            }).addScore(option.value);
+                          }}
+                        >
+                          {option.label}
+                        </InputCommandItem>
+                      ))}
+                    </InputCommandGroup>
+                  </InputCommandList>
+                </InputCommand>
+              )}
+            >
+              {({ Trigger, disabled }) => (
+                <Trigger asChild>
+                  <Button
+                    data-add-score
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    disabled={disabled}
+                  >
+                    <Plus className="size-3.5" aria-hidden="true" />
+                    Add score
+                  </Button>
+                </Trigger>
+              )}
+            </PopoverController>
+          </div>
+        ) : null}
         {rowCount > 0 && (
           // This legend only exists to advertise keyboard shortcuts, so hide
           // the whole strip on touch viewports rather than just the kbd

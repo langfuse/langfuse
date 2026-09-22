@@ -48,7 +48,7 @@ const editorTheme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-scroller": { fontFamily: "inherit", maxHeight: "12rem" },
   ".cm-content": { padding: "0", minHeight: "5rem" },
-  ".cm-line": { padding: "0" },
+  ".cm-line": { padding: "0 1px" },
   ".cm-cursor, .cm-dropCursor": { borderLeftColor: "currentColor" },
   ".cm-placeholder": { color: "hsl(var(--muted-foreground))" },
   ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {

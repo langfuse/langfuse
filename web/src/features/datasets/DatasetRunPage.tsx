@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical, Trash } from "lucide-react";
 import Link from "next/link";
@@ -23,8 +23,10 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import {
+  useExperimentAccess,
+  singleRunToExperimentsUrl,
+} from "@/src/features/experiments";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 function DatasetRunLegacy() {

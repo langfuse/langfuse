@@ -8,12 +8,12 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
+  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { MediaContentType } from "@/src/features/media/validation";
+  MediaContentType,
+} from "@/src/features/media/server";
 import {
   paginationZod,
   singleFilterList,
@@ -108,7 +108,7 @@ import {
   RemoteExperimentHeadersSchema,
 } from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;

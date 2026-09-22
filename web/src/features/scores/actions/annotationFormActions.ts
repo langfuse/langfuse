@@ -329,6 +329,7 @@ export function createAnnotationFormActions({
   return {
     saveStore,
     indexOf,
+    isSaving: (key: string) => pendingFields.has(key),
     clear,
     validateNumericInput,
     reconcileServerFields(incoming: AnnotationScoreFormData[]) {
@@ -339,6 +340,18 @@ export function createAnnotationFormActions({
         if (pendingFields.has(key) || failedFields.has(key)) continue;
         const current = find(key);
         const confirmed = confirmedFields.get(key);
+        // A repeated pre-save snapshot is not an external edit, including
+        // after a cleared row is removed. Once the server acknowledges the
+        // local value, later changes can replace it.
+        const previousServer = serverFields.get(key);
+        if (
+          confirmed &&
+          confirmed.sequence > 0 &&
+          !sameScore(confirmed.field, previousServer) &&
+          sameScore(next, previousServer) &&
+          !sameScore(next, confirmed.field)
+        )
+          continue;
         if (current) {
           const index = indexOf(key);
           if (
@@ -346,17 +359,6 @@ export function createAnnotationFormActions({
             form.getFieldState(`scoreData.${index}.value`).invalid ||
             form.getFieldState(`scoreData.${index}.stringValue`).invalid ||
             form.getFieldState(`scoreData.${index}.comment`).invalid
-          )
-            continue;
-          // A repeated pre-save snapshot is not an external edit. Once the
-          // server acknowledges the local value, later changes can replace it.
-          const previousServer = serverFields.get(key);
-          if (
-            confirmed &&
-            confirmed.sequence > 0 &&
-            !sameScore(confirmed.field, previousServer) &&
-            sameScore(next, previousServer) &&
-            !sameScore(next, confirmed.field)
           )
             continue;
           const properties = [

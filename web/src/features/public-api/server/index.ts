@@ -162,3 +162,25 @@ export {
   PostDashboardPlacementBody,
   PostUnstableDashboardBody,
 } from "../types/unstable-dashboards";
+export { __dangerouslySkipAuthz, type ApiAction } from "./enforceAuth";
+export {
+  toApiReadMappings,
+  toPublicEvaluatorType,
+  toStoredMappingList,
+} from "./evaluation/evaluationAdapters";
+export {
+  shadowAuth,
+  shadowAuthorize,
+  type ShadowAuthParams,
+} from "./shadowAuth";
+export {
+  ErrorOrgApiKeyRequired,
+  writeOrgError,
+  writeProjectError,
+  writeScimError,
+} from "./writeError";
+export {
+  ObservationPromptVariableMappingInput,
+  PromptVariableMappingRead,
+  PublicEvaluatorType,
+} from "../types/evaluation/publicEvalsContract";

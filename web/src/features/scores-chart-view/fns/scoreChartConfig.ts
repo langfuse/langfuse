@@ -6,7 +6,7 @@ import {
   GRANULARITIES,
   isTimeSeriesChartType,
 } from "@/src/features/chart-view/vocab";
-import { type ChartWidgetInput } from "@/src/features/chart-view/lib/chartConfigToWidget";
+import { type ChartWidgetInput } from "@/src/features/chart-view";
 import {
   type DataPoint,
   getWidgetMissingBucketValue,
