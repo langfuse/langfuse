@@ -24,11 +24,7 @@ import {
   presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import {
-  RolePermissionList,
-  SystemRolesFooter,
-  rolePermissionCount,
-} from "./rolePermissions";
+import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
 
 /** variantDisclosureMeta labels the inline-disclosure variant in the switcher. */
 export const variantDisclosureMeta = { key: "B", name: "Inline disclosure" };
@@ -96,7 +92,6 @@ export const VariantDisclosure = ({
           <div className="max-h-80 overflow-y-auto p-4">
             <RolePermissionList preset={draft.preset} />
           </div>
-          <SystemRolesFooter />
         </CollapsibleContent>
       </Collapsible>
     </KeyFormShell>

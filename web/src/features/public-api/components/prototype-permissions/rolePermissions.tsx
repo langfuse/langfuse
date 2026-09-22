@@ -75,15 +75,6 @@ export const RolePermissionList = ({
   );
 };
 
-/** SystemRolesFooter is the pinned fine print shown at the bottom of a permission disclosure. */
-export const SystemRolesFooter = () => (
-  <div className="bg-background border-t px-4 py-2">
-    <p className="text-muted-foreground text-xs leading-relaxed">
-      * Permissions are managed by Langfuse and subject to change
-    </p>
-  </div>
-);
-
 const ResourceRow = ({
   group,
   dense,

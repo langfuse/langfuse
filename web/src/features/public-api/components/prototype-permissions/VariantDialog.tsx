@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 
+import { Badge } from "@/src/components/ui/badge";
 import {
   DialogBody,
   DialogController,
@@ -26,11 +27,7 @@ import {
   presets,
 } from "../prototype/permissionCatalog";
 import { KeyFormShell } from "./KeyFormShell";
-import {
-  RolePermissionList,
-  SystemRolesFooter,
-  rolePermissionCount,
-} from "./rolePermissions";
+import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
 
 /** variantDialogMeta labels the dialog variant in the switcher. */
 export const variantDialogMeta = { key: "D", name: "Compare in dialog" };
@@ -86,7 +83,6 @@ export const VariantDialog = ({
 
 const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
   const [active, setActive] = useState<PresetKey>(initial);
-  const ActiveIcon = presetIcons[active];
 
   return (
     <DialogController
@@ -99,21 +95,7 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
           </DialogHeader>
           <DialogBody>
             <div className="flex min-h-0 flex-1 gap-4">
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="mb-3 flex items-center gap-2">
-                  <ActiveIcon className="h-4 w-4" />
-                  <span className="text-sm font-bold">
-                    {presets.find((p) => p.key === active)?.label}
-                  </span>
-                  <span className="text-muted-foreground ml-auto text-xs">
-                    {rolePermissionCount(active)} permissions
-                  </span>
-                </div>
-                <ScrollArea className="min-h-0 flex-1 pr-3">
-                  <RolePermissionList preset={active} />
-                </ScrollArea>
-              </div>
-              <div className="flex w-44 shrink-0 flex-col gap-1 border-l pl-4">
+              <div className="flex w-56 shrink-0 flex-col gap-1 border-r pr-4">
                 {roles.map((p) => {
                   const Icon = presetIcons[p.key];
                   return (
@@ -129,14 +111,24 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      {p.label}
+                      <span className="min-w-0 flex-1 truncate" title={p.label}>
+                        {p.label}
+                      </span>
+                      <Badge
+                        variant="secondary"
+                        className="shrink-0 px-1.5 py-0 font-normal tabular-nums"
+                      >
+                        {rolePermissionCount(p.key)}
+                      </Badge>
                     </button>
                   );
                 })}
               </div>
+              <ScrollArea className="min-h-0 min-w-0 flex-1 pr-3">
+                <RolePermissionList preset={active} />
+              </ScrollArea>
             </div>
           </DialogBody>
-          <SystemRolesFooter />
         </>
       )}
     >

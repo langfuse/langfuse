@@ -99,11 +99,6 @@ const RoleOption = ({ preset }: { preset: ApiKeyDraft["preset"] }) => {
           </div>
           <div className="px-3 py-2">
             <RolePermissionList preset={preset} dense />
-            <div className="mt-2.5 border-t pt-2">
-              <p className="text-muted-foreground text-[0.65rem] leading-relaxed">
-                * Permissions are managed by Langfuse and subject to change
-              </p>
-            </div>
           </div>
         </HoverCardContent>
       </HoverCardPortal>
