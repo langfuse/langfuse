@@ -339,7 +339,11 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
                 type: "item" as const,
                 id: dataset.id,
                 title: dataset.name,
-                onClick: () =>
+                onClick: () => {
+                  capture("dataset_item:new_from_trace_form_open", {
+                    object: variant,
+                    ...analyticsData,
+                  });
                   openDatasetItemDialog({
                     traceId,
                     observationId,
@@ -347,7 +351,8 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
                     output,
                     metadata,
                     datasetId: dataset.id,
-                  }),
+                  });
+                },
               })),
               ...((datasets.data?.length ?? 0) === 0
                 ? [
@@ -417,6 +422,9 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
 
     return items;
   }, [
+    analyticsData,
+    capture,
+    variant,
     createDatasetDisabled,
     createQueueDisabled,
     datasets.data,

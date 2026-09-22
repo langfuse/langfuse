@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -6,16 +5,10 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import { Button } from "@/src/components/ui/button";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments";
-import {
-  ExistingDatasetItemsDropdownMenuController,
-  NewDatasetItemFromExistingObjectDialogController,
-  useDatasetItemFromTraceOrObservation,
-} from "@/src/features/datasets";
-import { AnnotationQueueItemDropdownMenuController } from "@/src/features/annotation-queues";
+import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { cn } from "@/src/utils/tailwind";
 import {
   ChevronDown,
-  ListPlus,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
@@ -66,77 +59,32 @@ export function SessionTraceActionButtons({
       refetchOnMount: false,
     },
   );
-  const {
-    existingDatasetItems,
-    hasAccess: hasDatasetAccess,
-    captureNewDatasetItemFormOpen,
-  } = useDatasetItemFromTraceOrObservation({
-    projectId,
-    traceId,
-    enabled: Boolean(trace.data),
-  });
-  const datasetCount = existingDatasetItems.length;
-  const hasExistingDatasetItems = datasetCount > 0;
 
   return (
     <div className={cn("flex flex-wrap items-start gap-2", className)}>
       {trace.data ? (
-        <NewDatasetItemFromExistingObjectDialogController projectId={projectId}>
-          {({ openDialog }) => (
-            <ExistingDatasetItemsDropdownMenuController
-              projectId={projectId}
-              datasetItems={existingDatasetItems}
-              disabled={!hasDatasetAccess}
-              onOpenDialog={() =>
-                openDialog({
-                  traceId,
-                  input: trace.data.input ?? null,
-                  output: trace.data.output ?? null,
-                  metadata: trace.data.metadata ?? null,
-                })
-              }
+        <ConnectedTraceObservationAddToDropdownMenuController
+          projectId={projectId}
+          traceId={traceId}
+          variant="trace"
+          input={trace.data.input}
+          output={trace.data.output}
+          metadata={trace.data.metadata ?? null}
+          analyticsData={{ source: "SessionDetail", isV4 }}
+        >
+          {({ getTriggerProps }) => (
+            <Button
+              variant="outline"
+              size={size}
+              className="gap-1.5"
+              {...getTriggerProps()}
             >
-              {({ Anchor, openDropdown }) => (
-                <Anchor>
-                  <Button
-                    onClick={() => {
-                      if (hasExistingDatasetItems) {
-                        openDropdown();
-                        return;
-                      }
-
-                      captureNewDatasetItemFormOpen();
-                      openDialog({
-                        traceId,
-                        input: trace.data.input ?? null,
-                        output: trace.data.output ?? null,
-                        metadata: trace.data.metadata ?? null,
-                      });
-                    }}
-                    variant={hasExistingDatasetItems ? "secondary" : "outline"}
-                    size={size}
-                    disabled={!hasDatasetAccess}
-                  >
-                    {!hasExistingDatasetItems && hasDatasetAccess ? (
-                      <PlusIcon
-                        className="mr-1.5 -ml-0.5 h-4 w-4"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                    {hasExistingDatasetItems
-                      ? `In ${datasetCount} dataset(s)`
-                      : "Add to datasets"}
-                    {hasExistingDatasetItems ? (
-                      <ChevronDown className="ml-2 h-3 w-3" />
-                    ) : !hasDatasetAccess ? (
-                      <LockIcon className="ml-1.5 h-3 w-3" aria-hidden="true" />
-                    ) : null}
-                  </Button>
-                </Anchor>
-              )}
-            </ExistingDatasetItemsDropdownMenuController>
+              <PlusIcon className="h-4 w-4" />
+              <span>Add to</span>
+              <ChevronDown className="h-3 w-3" />
+            </Button>
           )}
-        </NewDatasetItemFromExistingObjectDialogController>
+        </ConnectedTraceObservationAddToDropdownMenuController>
       ) : null}
       <div className="flex flex-wrap items-start gap-2">
         <AnnotateDrawerController projectId={projectId}>
@@ -170,30 +118,6 @@ export function SessionTraceActionButtons({
             </Button>
           )}
         </AnnotateDrawerController>
-        <AnnotationQueueItemDropdownMenuController
-          projectId={projectId}
-          objectId={traceId}
-          objectType="TRACE"
-          analyticsData={{ source: "SessionDetail", isV4 }}
-        >
-          {({ disabled, totalCount, Trigger }) => (
-            <Trigger asChild>
-              <Button
-                variant="outline"
-                size={size}
-                disabled={disabled !== undefined}
-                className="gap-1.5"
-              >
-                <ListPlus className="h-4 w-4" />
-                <span>Queue</span>
-                {totalCount > 0 && (
-                  <ActionButtonCountBadge count={totalCount} />
-                )}
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </Trigger>
-          )}
-        </AnnotationQueueItemDropdownMenuController>
       </div>
       <CommentDrawerController projectId={projectId} count={commentCount}>
         {({ disabled, openDrawer }) => (
@@ -216,7 +140,7 @@ export function SessionTraceActionButtons({
             ) : (
               <>
                 <MessageSquare className="h-4 w-4" />
-                <span>Add comment</span>
+                <span>Comments</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />
                 ) : null}

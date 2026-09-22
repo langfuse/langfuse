@@ -297,7 +297,7 @@ export const ObservationDetailViewHeader = memo(
                             ) : (
                               <MessageSquare className="h-4 w-4" />
                             )}
-                            <span className="text-sm">Add comment</span>
+                            <span className="text-sm">Comments</span>
                             {!commentDrawerControl.disabled && commentCount ? (
                               <ActionButtonCountBadge count={commentCount} />
                             ) : null}
@@ -439,7 +439,7 @@ export const ObservationDetailViewHeader = memo(
                 ) : (
                   <>
                     <MessageSquare className="h-3.5 w-3.5" />
-                    <span>Add comment</span>
+                    <span>Comments</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}
