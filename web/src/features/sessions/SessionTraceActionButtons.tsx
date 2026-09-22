@@ -175,23 +175,25 @@ export function SessionTraceActionButtons({
           objectId={traceId}
           objectType="TRACE"
         >
-          {({ disabled, totalCount }) => (
-            <Button
-              variant="outline"
-              size={size}
-              disabled={disabled !== undefined}
-              className="rounded-l-none rounded-r-md border-l-2"
-            >
-              <span className="relative mr-1 text-xs">
-                <ChevronDown className="h-3 w-3" />
-                {totalCount > 0 && (
-                  <AnnotationQueueItemCountBadge
-                    totalCount={totalCount}
-                    layout="toolbar"
-                  />
-                )}
-              </span>
-            </Button>
+          {({ disabled, totalCount, Trigger }) => (
+            <Trigger asChild>
+              <Button
+                variant="outline"
+                size={size}
+                disabled={disabled !== undefined}
+                className="rounded-l-none rounded-r-md border-l-2"
+              >
+                <span className="relative mr-1 text-xs">
+                  <ChevronDown className="h-3 w-3" />
+                  {totalCount > 0 && (
+                    <AnnotationQueueItemCountBadge
+                      totalCount={totalCount}
+                      layout="toolbar"
+                    />
+                  )}
+                </span>
+              </Button>
+            </Trigger>
           )}
         </AnnotationQueueItemDropdownMenuController>
       </div>
