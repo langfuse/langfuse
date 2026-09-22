@@ -208,6 +208,26 @@ describe("CommentDrawerController", () => {
     expect(renderView).toHaveBeenCalledTimes(initialRenders);
   });
 
+  it("returns focus to the opening action when the fallback discussion closes", async () => {
+    fetchComments.mockResolvedValue([{ id: "existing" }]);
+    render(
+      <CommentDrawerController projectId="project-id">
+        {({ openDrawer }) => (
+          <button onClick={() => openDrawer(target)}>More actions</button>
+        )}
+      </CommentDrawerController>,
+      { wrapper: LayerProvider },
+    );
+    const trigger = screen.getByRole("button", { name: "More actions" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = await screen.findByRole("dialog", { name: "Comments" });
+    dialog.style.animationName = "none";
+    screen.getByRole("button", { name: "Close comments" }).focus();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("ignores an obsolete lookup instead of opening a second overlay", async () => {
     let resolveFirst!: (comments: { id: string }[]) => void;
     fetchComments.mockImplementation(({ objectId }) =>
