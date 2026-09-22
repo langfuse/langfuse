@@ -97,41 +97,43 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
           <DialogHeader>
             <DialogTitle>Permissions</DialogTitle>
           </DialogHeader>
-          <DialogBody className="flex gap-4">
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="mb-3 flex items-center gap-2">
-                <ActiveIcon className="h-4 w-4" />
-                <span className="text-sm font-bold">
-                  {presets.find((p) => p.key === active)?.label}
-                </span>
-                <span className="text-muted-foreground ml-auto text-xs">
-                  {rolePermissionCount(active)} permissions
-                </span>
+          <DialogBody>
+            <div className="flex min-h-0 flex-1 gap-4">
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="mb-3 flex items-center gap-2">
+                  <ActiveIcon className="h-4 w-4" />
+                  <span className="text-sm font-bold">
+                    {presets.find((p) => p.key === active)?.label}
+                  </span>
+                  <span className="text-muted-foreground ml-auto text-xs">
+                    {rolePermissionCount(active)} permissions
+                  </span>
+                </div>
+                <ScrollArea className="min-h-0 flex-1 pr-3">
+                  <RolePermissionList preset={active} />
+                </ScrollArea>
               </div>
-              <ScrollArea className="max-h-96 pr-3">
-                <RolePermissionList preset={active} />
-              </ScrollArea>
-            </div>
-            <div className="flex w-44 shrink-0 flex-col gap-1 border-l pl-4">
-              {roles.map((p) => {
-                const Icon = presetIcons[p.key];
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => setActive(p.key)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
-                      active === p.key
-                        ? "bg-accent font-bold"
-                        : "hover:bg-accent/50",
-                    )}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {p.label}
-                  </button>
-                );
-              })}
+              <div className="flex w-44 shrink-0 flex-col gap-1 border-l pl-4">
+                {roles.map((p) => {
+                  const Icon = presetIcons[p.key];
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setActive(p.key)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                        active === p.key
+                          ? "bg-accent font-bold"
+                          : "hover:bg-accent/50",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </DialogBody>
           <SystemRolesFooter />
@@ -142,9 +144,13 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
         <Trigger asChild>
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground w-fit text-xs underline"
+            onClick={() => setActive(initial)}
+            className="text-muted-foreground w-fit text-xs"
           >
-            View permissions for each role
+            See the{" "}
+            <span className="hover:text-foreground underline">
+              full list of permissions
+            </span>
           </button>
         </Trigger>
       )}
