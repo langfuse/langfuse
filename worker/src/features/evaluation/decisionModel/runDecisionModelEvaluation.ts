@@ -31,13 +31,6 @@ import {
   buildEvaluatorLlmErrorSpanAttributes,
 } from "../evalSpanAttributes";
 
-/**
- * Executes a decision-model evaluator (experimental): resolves the TypeSafe
- * connection, sends the state and every question in one call, and returns
- * one score per question. Definition and answer problems are unrecoverable.
- * Provider failures are AI SDK errors and follow the LLM-as-a-judge policy:
- * the queue retries rate limits, and credential failures pause the evaluator.
- */
 export async function runDecisionModelEvaluation({
   projectId,
   jobExecutionId,
@@ -121,8 +114,6 @@ export async function runDecisionModelEvaluation({
       if (!modelConfig.valid) {
         modelConfigError = modelConfig.error;
       } else if (
-        // The connection's adapter is authoritative; the resolved config only
-        // carries provider/model plus the stored connection.
         !isDecisionModelAdapter(modelConfig.config.apiKey.adapter)
       ) {
         modelConfigError = `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
@@ -210,7 +201,6 @@ export async function runDecisionModelEvaluation({
         `Job ${jobExecutionId} received ${execution.scores.length} decision-model answer(s) from ${execution.evaluation.model}`,
       );
 
-      // The trace is a debugging aid; a write failure must not fail the scores.
       try {
         await deps.writeInternalTrace(
           buildDecisionModelTraceInput({

@@ -76,11 +76,6 @@ type ObservationEvalExecutionType =
   | typeof EvalTemplateType.LLM_AS_JUDGE
   | typeof EvalTemplateType.CODE;
 
-/**
- * Evaluator types each queue executes. Decision models share the LLM-as-judge
- * queue: both are remote model calls with the same retry semantics, and only
- * code evaluators need the sandbox dispatcher.
- */
 const EVALUATOR_TYPES_BY_EXECUTION_TYPE: Record<
   ObservationEvalExecutionType,
   EvalTemplateType[]

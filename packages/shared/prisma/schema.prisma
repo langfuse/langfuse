@@ -1011,8 +1011,6 @@ model EvaluatorVersion {
   outputDefinition   Json?                        @map("output_definition")
   sourceCode         String?                      @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
-  // Decision-model evaluators: ordered typed questions asked about the state
-  // built from variableMapping. Each question writes its own score.
   questions          Json?
 
   @@unique([evaluatorId, version(sort: Desc)])

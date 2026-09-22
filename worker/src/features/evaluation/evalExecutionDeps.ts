@@ -160,7 +160,6 @@ export interface EvalExecutionDeps {
   callDecisionModel: (
     params: DecisionModelCallParams,
   ) => Promise<DecisionModelEvaluation>;
-  /** Writes an execution trace for evaluators that do not go through the AI SDK trace hook. */
   writeInternalTrace: InternalTraceWriter;
 }
 
@@ -350,8 +349,6 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         );
       }
 
-      // A secret that cannot be decrypted is a stored-connection problem, not
-      // a transient one; retrying the job would fail identically.
       let decryptedSecretKey: string;
       try {
         decryptedSecretKey = decrypt(secretKey);

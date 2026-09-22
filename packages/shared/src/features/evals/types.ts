@@ -98,19 +98,12 @@ export type EvalTemplateCodeBased = EvalTemplate & {
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
 };
 
-/**
- * Decision-model evaluators (experimental) call a System One model such as
- * TypeSafe Jev. The state is built from the variable mapping (key → extractor)
- * and `questions` holds the typed questions asked about it; each question
- * writes its own score. There is no prompt and no single output definition.
- */
 export type EvalTemplateDecisionModel = EvalTemplate & {
   type: typeof EvalTemplateType.DECISION_MODEL;
   prompt: null;
   outputDefinition: null;
   sourceCode: null;
   sourceCodeLanguage: null;
-  /** Persisted `DecisionModelQuestions`; parsed at execution time. */
   questions: unknown;
 };
 

@@ -18,13 +18,6 @@ import {
 import type { CodeEvalScoreWithName } from "./codeEvalDispatcherTypes";
 import type { ExtractedVariable } from "./extractObservationVariables";
 
-/**
- * Decision-model evaluators (experimental) send one state and N typed
- * questions to a System One model such as TypeSafe Jev in a single call and
- * turn every answer into a score. The request and answer shapes mirror the AI
- * SDK's experimental `EvaluationModel` contract.
- */
-
 export type DecisionModelRequestQuestion =
   | {
       type: "choice";
@@ -55,24 +48,20 @@ export type DecisionModelAnswer =
       type: "choice";
       choice: string;
       probabilities: Record<string, number>;
-      /** How peaked the distribution is (0–1); derived, not the winner's probability. */
       confidence: number | null;
     }
   | {
       type: "score";
-      /** Probability-weighted level, a float in [0, levels − 1]. */
       score: number;
       probabilities: Record<string, number>;
       confidence: number | null;
     }
   | {
       type: "boolean";
-      /** P(true). Noul answers carry no separate confidence. */
       probability: number;
     };
 
 export type DecisionModelEvaluation = {
-  /** Resolved model version, e.g. `jev-1.13.0` when `jev-latest` was requested. */
   model: string;
   answers: Record<string, DecisionModelAnswer>;
   usage: { inputTokens: number | null; outputTokens: number | null } | null;
@@ -82,10 +71,6 @@ export type DecisionModelClient = {
   evaluate: (request: DecisionModelRequest) => Promise<DecisionModelEvaluation>;
 };
 
-/**
- * Thrown when the definition or an answer cannot be turned into scores.
- * Callers treat this as a permanent failure of the job.
- */
 export class DecisionModelEvaluatorError extends Error {
   constructor(message: string) {
     super(message);
@@ -93,10 +78,6 @@ export class DecisionModelEvaluatorError extends Error {
   }
 }
 
-/**
- * The state is a JSON object keyed by the mapped variable names. Fields the
- * observation does not have are dropped; empty strings are real values.
- */
 export function buildDecisionModelState(
   variables: ExtractedVariable[],
 ): Record<string, unknown> {
@@ -174,11 +155,6 @@ function rankedEntries(probabilities: Record<string, number>) {
   return Object.entries(probabilities).sort(([, a], [, b]) => b - a);
 }
 
-/**
- * Decision models return no rationale, so the comment carries the numbers a
- * reviewer needs to judge the verdict from the trace view. Provenance such as
- * the model version lives in `metadata.typesafe`, not here.
- */
 export function formatDecisionModelComment(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
@@ -226,10 +202,6 @@ export function formatDecisionModelComment(params: {
   return parts.join("; ");
 }
 
-/**
- * Everything the provider returned beyond the score value, namespaced under
- * `typesafe` so users can read it the same way on every decision-model score.
- */
 function toScoreMetadata(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
@@ -277,11 +249,6 @@ function expectedAnswerType(
     : question.type;
 }
 
-/**
- * Maps every answer to the score its question declares. Choice → categorical
- * label; score → numeric expected level; noul → numeric P(true). Certainty
- * never changes the value: probabilities and confidence go into metadata.
- */
 export function mapDecisionModelAnswersToScores(params: {
   questions: DecisionModelQuestions;
   evaluation: DecisionModelEvaluation;
@@ -353,10 +320,6 @@ export async function executeDecisionModelEvaluator(params: {
   return { request, evaluation, scores };
 }
 
-/**
- * One-span execution trace so the "view execution trace" link on every score
- * of the run shows exactly what was sent and what came back.
- */
 export function buildDecisionModelTraceInput(params: {
   projectId: string;
   executionTraceId: string;

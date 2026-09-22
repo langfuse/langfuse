@@ -1,14 +1,6 @@
 import { z } from "zod";
 import { jsonSchema } from "../../utils/zod";
 
-/**
- * Decision-model evaluators (experimental) ask a System One model such as
- * TypeSafe Jev a list of typed questions about one state. The state is a JSON
- * object assembled from the evaluator's variable mapping (key → extractor);
- * each question writes its own score. Instructions are plain text and refer to
- * state keys by name, as in TypeSafe's own examples.
- */
-
 export const DecisionModelQuestionType = {
   CHOICE: "choice",
   SCORE: "score",
@@ -27,7 +19,6 @@ export const DECISION_MODEL_LIMITS = {
   maxScoreNameLength: 100,
 } as const;
 
-/** TypeSafe accepts plain text or JSON structure for instructions and criteria. */
 export const DecisionModelEntrySchema = z.union([
   z.string().trim().min(1).max(DECISION_MODEL_LIMITS.maxInstructionLength),
   jsonSchema,
@@ -36,7 +27,6 @@ export type DecisionModelEntry = z.infer<typeof DecisionModelEntrySchema>;
 
 const STATE_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** State keys are referenced from instructions by name, so they must be identifiers. */
 export const DecisionModelStateKeySchema = z
   .string()
   .regex(
@@ -45,7 +35,6 @@ export const DecisionModelStateKeySchema = z
   );
 
 const DecisionModelQuestionBaseSchema = z.object({
-  /** Stable id chosen by the client; also the question id sent to the model. */
   id: z.string().trim().min(1).max(64),
   scoreName: z
     .string()
@@ -78,7 +67,6 @@ export const DecisionModelChoiceQuestionSchema =
 export const DecisionModelScoreQuestionSchema =
   DecisionModelQuestionBaseSchema.extend({
     type: z.literal(DecisionModelQuestionType.SCORE),
-    /** Ordered from the low end of the scale to the high end; index = level. */
     levels: z
       .array(z.object({ description: DecisionModelEntrySchema }))
       .min(DECISION_MODEL_LIMITS.minScoreLevels)
@@ -133,10 +121,6 @@ export type DecisionModelQuestions = z.infer<
   typeof DecisionModelQuestionsSchema
 >;
 
-/**
- * Parses persisted questions, returning a readable error instead of throwing
- * so callers can surface it on the evaluator.
- */
 export function parseDecisionModelQuestions(
   value: unknown,
 ):

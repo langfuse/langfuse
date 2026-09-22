@@ -251,15 +251,9 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
-  /** TypeSafe System One decision models (experimental). Not a chat provider. */
   TypeSafe = "typesafe",
 }
 
-/**
- * Adapters that answer typed questions instead of generating text. Their
- * connections can only power decision-model evaluators, never the playground,
- * prompt experiments, or LLM-as-a-judge.
- */
 export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
   LLMAdapter.TypeSafe,
 ];
@@ -475,8 +469,6 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-// Pinned versions first: a categorical verdict still drifts when `jev-latest`
-// moves to a new release, so evaluators default to the pinned model.
 export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 
 export type AnthropicModel = (typeof anthropicModels)[number];
