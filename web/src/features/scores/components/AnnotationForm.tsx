@@ -137,7 +137,16 @@ export function AnnotationFormContent({
       deleteScore: deleteMutation.mutateAsync,
     }),
   );
+  const formRootRef = useRef<HTMLDivElement | null>(null);
+  const focus = useAnnotationKeyboard({
+    formRootRef,
+    form,
+    actions,
+    targets,
+    isActive,
+  });
   useImperativeHandle(refreshRef, () => ({
+    focus,
     refresh(data) {
       const refreshed = targets.flatMap((target) => {
         const primary =
@@ -166,8 +175,6 @@ export function AnnotationFormContent({
     actions.open();
     return () => actions.close();
   }, [actions]);
-  const formRootRef = useRef<HTMLDivElement | null>(null);
-  useAnnotationKeyboard({ formRootRef, form, actions, targets, isActive });
 
   const targetFor = (field: AnnotationScoreSchemaType) =>
     targets.find((target) => target.key === field.targetKey)!;
@@ -216,6 +223,7 @@ export function AnnotationFormContent({
     <div
       ref={formRootRef}
       data-annotation-form
+      tabIndex={-1}
       className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
     >
       <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">

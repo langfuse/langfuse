@@ -9,7 +9,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   type ObservationType,
   isGenerationLike,
@@ -106,6 +106,8 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const [isMobileActionsOpen, setMobileActionsOpen] = useState(false);
+    const restoreMobileActionsFocus = useRef(true);
+    const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
     const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
 
@@ -208,12 +210,16 @@ export const ObservationDetailViewHeader = memo(
                     {({ disabled: annotationDisabled, openDrawer }) => (
                       <Popover
                         open={isMobileActionsOpen}
-                        onOpenChange={setMobileActionsOpen}
+                        onOpenChange={(open) => {
+                          if (open) restoreMobileActionsFocus.current = true;
+                          setMobileActionsOpen(open);
+                        }}
                       >
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             size="icon"
+                            ref={mobileActionsTriggerRef}
                             aria-label="More actions"
                             className="ml-auto shrink-0"
                           >
@@ -222,6 +228,11 @@ export const ObservationDetailViewHeader = memo(
                         </PopoverTrigger>
                         <PopoverContent
                           align="end"
+                          onCloseAutoFocus={(event) => {
+                            if (!restoreMobileActionsFocus.current)
+                              event.preventDefault();
+                            restoreMobileActionsFocus.current = true;
+                          }}
                           onFocusOutside={(event) => {
                             // Keep the anchor mounted while a portaled action menu takes focus.
                             event.preventDefault();
@@ -247,7 +258,11 @@ export const ObservationDetailViewHeader = memo(
                               disabled={annotationDisabled}
                               className="w-full justify-start gap-2 font-normal"
                               onClick={() => {
+                                restoreMobileActionsFocus.current = false;
                                 setMobileActionsOpen(false);
+                                mobileActionsTriggerRef.current?.focus({
+                                  preventScroll: true,
+                                });
                                 openDrawer({
                                   scoreTarget: {
                                     type: "trace",
@@ -287,7 +302,11 @@ export const ObservationDetailViewHeader = memo(
                             size="sm"
                             disabled={commentDrawerControl.disabled}
                             onClick={() => {
+                              restoreMobileActionsFocus.current = false;
                               setMobileActionsOpen(false);
+                              mobileActionsTriggerRef.current?.focus({
+                                preventScroll: true,
+                              });
                               commentDrawerControl.openDrawer();
                             }}
                             className="w-full justify-start gap-2 font-normal"

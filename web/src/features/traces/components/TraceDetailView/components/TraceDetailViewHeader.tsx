@@ -10,7 +10,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
@@ -80,6 +80,8 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const [isMobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const restoreMobileActionsFocus = useRef(true);
+  const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
@@ -140,12 +142,16 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                   {({ disabled: annotationDisabled, openDrawer }) => (
                     <Popover
                       open={isMobileActionsOpen}
-                      onOpenChange={setMobileActionsOpen}
+                      onOpenChange={(open) => {
+                        if (open) restoreMobileActionsFocus.current = true;
+                        setMobileActionsOpen(open);
+                      }}
                     >
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           size="icon"
+                          ref={mobileActionsTriggerRef}
                           aria-label="More actions"
                           className="ml-auto shrink-0"
                         >
@@ -154,6 +160,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                       </PopoverTrigger>
                       <PopoverContent
                         align="end"
+                        onCloseAutoFocus={(event) => {
+                          if (!restoreMobileActionsFocus.current)
+                            event.preventDefault();
+                          restoreMobileActionsFocus.current = true;
+                        }}
                         onFocusOutside={(event) => {
                           // Keep the anchor mounted while a portaled action menu takes focus.
                           event.preventDefault();
@@ -177,7 +188,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                             disabled={annotationDisabled}
                             className="w-full justify-start gap-2 font-normal"
                             onClick={() => {
+                              restoreMobileActionsFocus.current = false;
                               setMobileActionsOpen(false);
+                              mobileActionsTriggerRef.current?.focus({
+                                preventScroll: true,
+                              });
                               openDrawer({
                                 scoreTarget: {
                                   type: "trace",
@@ -210,7 +225,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                           size="sm"
                           disabled={commentDrawerControl.disabled}
                           onClick={() => {
+                            restoreMobileActionsFocus.current = false;
                             setMobileActionsOpen(false);
+                            mobileActionsTriggerRef.current?.focus({
+                              preventScroll: true,
+                            });
                             commentDrawerControl.openDrawer();
                           }}
                           className="w-full justify-start gap-2 font-normal"

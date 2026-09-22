@@ -90,6 +90,7 @@ export type AnnotationPanelData = {
 };
 
 export type AnnotationRefreshHandle = {
+  focus: () => void;
   refresh: (data: AnnotationPanelData) => void;
 };
 

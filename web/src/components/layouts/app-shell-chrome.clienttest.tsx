@@ -1,7 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { Home, Settings } from "lucide-react";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
+import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
@@ -156,5 +163,60 @@ describe("app shell chrome row", () => {
     const inner = row.firstElementChild;
     expect(inner).toBeInstanceOf(HTMLElement);
     expect((inner as HTMLElement).className).toContain("lg:mx-auto");
+  });
+});
+
+describe("mobile page action focus handoff", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("closes before panel focus and restores the trigger only on ordinary dismissals", async () => {
+    vi.useFakeTimers();
+    const openReview = vi.fn();
+    render(
+      <>
+        <MobilePageTitle
+          headerProps={{
+            title: "Session",
+            actionButtonsMenu: ({
+              closeMenu,
+            }: {
+              closeMenu: (options?: { handoffFocus?: boolean }) => void;
+            }) => (
+              <>
+                <button
+                  onClick={() => {
+                    closeMenu({ handoffFocus: true });
+                    openReview(document.activeElement);
+                  }}
+                >
+                  Open review
+                </button>
+                <button onClick={() => closeMenu()}>Close menu</button>
+              </>
+            ),
+          }}
+        />
+        <input aria-label="Review field" />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: "More actions" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Open review" }));
+    expect(openReview).toHaveBeenCalledWith(trigger);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const field = screen.getByRole("textbox", { name: "Review field" });
+    field.focus();
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(field).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(trigger).toHaveFocus();
   });
 });

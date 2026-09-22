@@ -52,7 +52,8 @@ describe("trace review panel sessions", () => {
     actions.openAnnotation(annotation);
     const annotationSession = store.getState().annotation;
     const refresh = vi.fn();
-    store.annotationFormRef.current = { refresh };
+    const focus = vi.fn();
+    store.annotationFormRef.current = { refresh, focus };
     actions.openComments({ target, confirmDiscard: () => false });
     const refreshed = { ...annotation, scores: [] };
     actions.openAnnotation(refreshed);
@@ -65,6 +66,9 @@ describe("trace review panel sessions", () => {
     expect(store.getState().annotation?.key).toBe(annotationSession?.key);
     expect(store.getState().annotation?.data).toBe(refreshed);
     expect(refresh).toHaveBeenCalledExactlyOnceWith(refreshed);
+    expect(focus).not.toHaveBeenCalled();
+    actions.openAnnotation(refreshed);
+    expect(focus).toHaveBeenCalledOnce();
   });
 
   it("returns focus to a connected trigger on close and ignores a removed trigger", () => {

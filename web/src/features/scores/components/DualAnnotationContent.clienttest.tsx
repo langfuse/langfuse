@@ -34,6 +34,7 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   headerRender: vi.fn(),
   hasConfigAccess: false,
+  configsLoading: false,
 }));
 const defaultConfig = {
   id: "quality",
@@ -77,7 +78,12 @@ vi.mock("@/src/utils/api", async () => {
   return {
     api: {
       scoreConfigs: {
-        all: { useQuery: () => ({ isLoading: false, data: { configs } }) },
+        all: {
+          useQuery: () => ({
+            isLoading: mocks.configsLoading,
+            data: { configs },
+          }),
+        },
         appendCategory: {
           useMutation: () => ({ mutate: vi.fn(), isPending: false }),
         },
@@ -181,6 +187,7 @@ describe("unified annotation targets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hasConfigAccess = false;
+    mocks.configsLoading = false;
     Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
@@ -236,6 +243,64 @@ describe("unified annotation targets", () => {
     expect(
       screen.queryByRole("group", { name: "Accuracy" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("focuses the first score on activation without taking focus on rerenders", async () => {
+    mocks.create.mockResolvedValue({});
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    const view = (isActive: boolean) => (
+      <>
+        <button>Outside annotation</button>
+        {cloneElement(content, { isActive, refreshRef })}
+      </>
+    );
+    const rendered = renderContent(view(false));
+    const outside = screen.getByRole("button", { name: "Outside annotation" });
+    outside.focus();
+    rendered.rerenderContent(view(true));
+    const row = screen.getByRole("group", { name: "Quality" });
+    await waitFor(() => expect(row).toHaveFocus());
+    fireEvent.keyDown(row, { key: "2" });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+    expect(row).toHaveFocus();
+
+    outside.focus();
+    rendered.rerenderContent(view(true));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(outside).toHaveFocus();
+    act(() => refreshRef.current?.focus());
+    await waitFor(() => expect(row).toHaveFocus());
+    outside.focus();
+    rendered.rerenderContent(view(false));
+    rendered.rerenderContent(view(true));
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it("focuses a loaded empty form unless its drawer is closing", async () => {
+    localStorage.clear();
+    mocks.configsLoading = true;
+    const view = (state: "open" | "closed") => (
+      <>
+        <button>Outside annotation</button>
+        <div data-state={state}>{content}</div>
+      </>
+    );
+    const rendered = renderContent(view("open"));
+    expect(screen.queryByRole("button", { name: "Add score" })).toBeNull();
+    mocks.configsLoading = false;
+    rendered.rerenderContent(view("open"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add score" })).toHaveFocus(),
+    );
+
+    mocks.configsLoading = true;
+    rendered.rerenderContent(view("closed"));
+    const outside = screen.getByRole("button", { name: "Outside annotation" });
+    outside.focus();
+    mocks.configsLoading = false;
+    rendered.rerenderContent(view("closed"));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(outside).toHaveFocus();
   });
 
   it("preserves inactive drafts without handling keyboard navigation until reopened", () => {

@@ -49,6 +49,10 @@ discards that local draft. Clear cancels deferred autosave, while dismissing the
 clear menu commits the deferred edit. Numeric validation reads native `badInput`
 on every input event before interpreting an empty value as a deliberate clear.
 
+Opening annotation focuses the first score row, or Add score when no rows exist.
+The ready form owns that focus handoff; reopening an active panel requests it
+explicitly. Autosave and query refreshes never request focus.
+
 ## Effect inventory
 
 | Location                                 | External system / lifecycle                                                         | Status                                                                       |
@@ -56,6 +60,7 @@ on every input event before interpreting an empty value as a deliberate clear.
 | `AnnotationFormContent`                  | Analytics session opens on mount and closes on unmount, using current field counts. | Retained; stable action-owner dependency.                                    |
 | `useAnnotationKeyboard` keydown listener | Window keyboard events for row navigation and score selection.                      | Retained; symmetric registration/cleanup, current values read at event time. |
 | `useAnnotationKeyboard` capture listener | Escape focus handling before the parent drawer's capture listener.                  | Retained; symmetric registration/cleanup.                                    |
+| `useAnnotationKeyboard` activation focus | DOM focus when the ready form becomes active, after the opening menu closes.        | Retained; scheduled frame cancelled on inactivity or unmount.                |
 | Score-comment editor                     | No external system: draft was mirrored from `savedComment`.                         | Removed; popover mount seeds the editor.                                     |
 
 No other direct effects exist in this feature. Query, cache, and local-storage
