@@ -583,6 +583,15 @@ export const createAnnotationQueueAssignmentForApi = async ({
     userId: input.userId,
   };
 
+  // Read the assignment first so the audit log below can tell whether this call
+  // actually created it. The upsert itself stays, so concurrent calls remain safe:
+  // only one of them can insert, the others are no-ops.
+  const existingAssignment = await prisma.annotationQueueAssignment.findUnique({
+    where: {
+      projectId_queueId_userId: assignmentWhere,
+    },
+  });
+
   // Create the assignment (upsert to handle duplicates gracefully)
   const assignment = await prisma.annotationQueueAssignment.upsert({
     where: {
@@ -592,8 +601,10 @@ export const createAnnotationQueueAssignmentForApi = async ({
     update: {},
   });
 
-  // TODO: only create audit log if upsert actually creates a new record
-  if (auditScope) {
+  // Only audit an actual state change. `update` above is empty, so re-posting an
+  // assignment that already exists changes nothing and must not be recorded as a
+  // "create".
+  if (auditScope && !existingAssignment) {
     await auditLog({
       action: "create",
       resourceType: "annotationQueueAssignment",
