@@ -95,6 +95,7 @@ function prepare({
   v4BetaEnabled = false,
   foundEvaluatorIds = [evaluatorId],
   missingPromptVariable = false,
+  decisionModel = false,
 } = {}) {
   const batchActionCreate = vi
     .fn()
@@ -115,26 +116,42 @@ function prepare({
         return foundEvaluatorIds.map((id) => ({
           id,
           name: "Quality",
-          type: "LLM_AS_JUDGE",
+          type: decisionModel ? "DECISION_MODEL" : "LLM_AS_JUDGE",
           versions: [
             {
-              prompt: missingPromptVariable
-                ? "Evaluate {{output}} {{input}}"
-                : "Evaluate {{output}}",
-              promptMessages: [
-                {
-                  role: "user",
-                  content: missingPromptVariable
-                    ? "Evaluate {{output}} {{input}}"
-                    : "Evaluate {{output}}",
-                },
-              ],
-              variableMapping: [
-                {
-                  templateVariable: "output",
-                  selectedColumnId: "output",
-                },
-              ],
+              prompt: decisionModel
+                ? null
+                : missingPromptVariable
+                  ? "Evaluate {{output}} {{input}}"
+                  : "Evaluate {{output}}",
+              promptMessages: decisionModel
+                ? null
+                : [
+                    {
+                      role: "user",
+                      content: missingPromptVariable
+                        ? "Evaluate {{output}} {{input}}"
+                        : "Evaluate {{output}}",
+                    },
+                  ],
+              vars: decisionModel ? ["input", "output"] : ["output"],
+              variableMapping: decisionModel
+                ? [
+                    {
+                      templateVariable: "input",
+                      selectedColumnId: "input",
+                    },
+                    {
+                      templateVariable: "output",
+                      selectedColumnId: "output",
+                    },
+                  ]
+                : [
+                    {
+                      templateVariable: "output",
+                      selectedColumnId: "output",
+                    },
+                  ],
             },
           ],
         }));
@@ -433,6 +450,39 @@ describe("batched evaluation version selection", () => {
           sampling: 0.25,
           rowLimit: 5_000,
         }),
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("queues decision-model mappings using evaluator state variables", async () => {
+    const context = prepare({
+      v4BetaEnabled: true,
+      decisionModel: true,
+    });
+    const evaluatorMappings = [
+      {
+        evaluatorId,
+        variableMapping: [
+          { templateVariable: "input", selectedColumnId: "input" },
+          { templateVariable: "output", selectedColumnId: "output" },
+        ],
+      },
+    ];
+
+    await context.runEvaluation.create({
+      projectId,
+      query,
+      evaluatorIds: [evaluatorId],
+      sourceTable: BatchEvalSourceTable.EVENTS,
+      evalVersion: "v2",
+      evaluatorMappings,
+    });
+
+    expect(mocks.queueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({ evaluatorMappings }),
       }),
       expect.anything(),
     );
