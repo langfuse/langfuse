@@ -334,7 +334,10 @@ export function createEvaluatorSetupStore({
                   : null,
                 jsonSelector: null,
               };
-          const reference = new RegExp(`\`${key}\``, "g");
+          // Plain string replacement: the token is a literal, so no regex is
+          // built from user input.
+          const oldReference = `\`${key}\``;
+          const nextReference = `\`${next}\``;
           return {
             stateKeys: state.stateKeys.map((current) =>
               current === key ? next : current,
@@ -346,9 +349,9 @@ export function createEvaluatorSetupStore({
             ),
             questions: state.questions.map((question) => ({
               ...question,
-              instructions: question.instructions.replace(
-                reference,
-                `\`${next}\``,
+              instructions: question.instructions.replaceAll(
+                oldReference,
+                nextReference,
               ),
             })),
             activeMapping: {
