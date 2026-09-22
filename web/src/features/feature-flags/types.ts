@@ -8,6 +8,7 @@ export type Flags = {
     | "normalizedIoPreview"
     | "aiGateway"
     | "sessionTimeline"
+    | "traceMessages"
     | "decisionModelEvaluators"
   >]: boolean;
 } & {
@@ -16,5 +17,6 @@ export type Flags = {
   normalizedIoPreview?: boolean;
   aiGateway?: boolean;
   sessionTimeline?: boolean;
+  traceMessages?: boolean;
   decisionModelEvaluators?: boolean;
 };

@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";

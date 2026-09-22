@@ -20,7 +20,7 @@ import {
 } from "@/src/features/filters";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   demoteViewOnUserFilterEdit,
   type ViewDemotionControllers,

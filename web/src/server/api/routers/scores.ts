@@ -63,7 +63,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import {

@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Role, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 

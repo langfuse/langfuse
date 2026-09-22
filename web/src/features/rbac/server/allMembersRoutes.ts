@@ -16,7 +16,7 @@ import {
   EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES,
   getOrganizationFeaturePreviewStatesByUserId,
   getUserFeaturePreviewManagementCapabilities,
-} from "@/src/features/feature-flags/server/organizationFeatureFlags";
+} from "@/src/features/feature-flags/server";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),

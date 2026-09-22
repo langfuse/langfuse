@@ -1,5 +1,4 @@
-import { getMedia } from "@/src/features/media/server/mediaService";
-import { GetMediaQuerySchema } from "@/src/features/media/validation";
+import { getMedia, GetMediaQuerySchema } from "@/src/features/media/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

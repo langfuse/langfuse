@@ -1,5 +1,5 @@
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 
 // SectionMedia props
 export interface SectionMediaProps {

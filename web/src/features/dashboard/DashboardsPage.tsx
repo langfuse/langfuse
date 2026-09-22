@@ -4,10 +4,7 @@ import { ConnectedDashboardTable } from "@/src/features/dashboard/components/Das
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  getDashboardTabs,
-  DASHBOARD_TABS,
-} from "@/src/features/navigation/utils/dashboard-tabs";
+import { getDashboardTabs, DASHBOARD_TABS } from "@/src/features/navigation";
 
 export default function DashboardsPage() {
   const router = useRouter();

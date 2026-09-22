@@ -3,7 +3,7 @@ import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useSession } from "next-auth/react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { featurePreviewLabels } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
 
 import {

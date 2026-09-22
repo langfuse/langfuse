@@ -32,8 +32,7 @@ import ContainerPage from "@/src/components/layouts/container-page";
 import { useRouter } from "next/router";
 import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 

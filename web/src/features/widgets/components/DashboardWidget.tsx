@@ -32,7 +32,7 @@ import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
   buildViewAsTableHint,
-} from "@/src/features/dashboard/lib/buildTableFilterHref";
+} from "@/src/features/dashboard";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {

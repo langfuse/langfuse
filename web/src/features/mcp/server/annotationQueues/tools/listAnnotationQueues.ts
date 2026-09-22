@@ -2,7 +2,7 @@ import {
   GetAnnotationQueuesQuery,
   GetAnnotationQueuesResponse,
 } from "@/src/features/public-api/server";
-import { listAnnotationQueuesForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
+import { listAnnotationQueuesForApi } from "@/src/features/annotation-queues/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildAnnotationQueueUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

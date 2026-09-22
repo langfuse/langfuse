@@ -26,8 +26,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { AutomationForm } from "@/src/features/automations/components/automationForm";
-import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
+import {
+  AutomationForm,
+  WebhookSecretRender,
+} from "@/src/features/automations";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,

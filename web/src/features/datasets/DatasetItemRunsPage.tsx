@@ -1,9 +1,9 @@
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import { DatasetRunItemsByItemTable } from "@/src/features/datasets/components/DatasetRunItemsByItemTable";
-import { DATASET_ITEM_TABS } from "@/src/features/navigation/utils/dataset-item-tabs";
+import { DATASET_ITEM_TABS } from "@/src/features/navigation";
 import { DatasetItemDetailPage } from "@/src/features/datasets/components/DatasetItemDetailPage";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { useExperimentAccess } from "@/src/features/experiments";
 import {
   RouteParamsPendingFallback,
   useReadyRouteParams,

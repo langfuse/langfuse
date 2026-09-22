@@ -12,7 +12,7 @@ import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-head
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {

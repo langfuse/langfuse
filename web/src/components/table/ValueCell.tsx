@@ -22,7 +22,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   buildEventsTablePathForMetadataFilter,
   type MetadataFilterOperator,
-} from "@/src/features/events/lib/eventsTablePaths";
+} from "@/src/features/events";
 import { Copy, Check, EllipsisVertical, Filter, FilterX } from "lucide-react";
 
 /**
