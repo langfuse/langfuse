@@ -76,6 +76,11 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
   const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const commentActionLabel = commentCount ? "Comments" : "Comment";
+  const mobileCommentActionLabel =
+    commentCount && !commentDrawerControl.disabled
+      ? `${commentActionLabel} (${commentCount})`
+      : commentActionLabel;
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
@@ -187,10 +192,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                             {
                               type: "item",
                               id: "comments",
-                              title:
-                                !commentDrawerControl.disabled && commentCount
-                                  ? `Comments (${commentCount})`
-                                  : "Comments",
+                              title: mobileCommentActionLabel,
                               icon: commentDrawerControl.disabled
                                 ? MessageSquareOff
                                 : MessageSquare,
@@ -318,7 +320,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               ) : (
                 <>
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Comments</span>
+                  <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
                   ) : null}

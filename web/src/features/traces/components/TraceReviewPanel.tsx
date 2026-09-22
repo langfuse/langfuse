@@ -25,7 +25,7 @@ function CloseReviewPanelButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-xs"
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >

@@ -53,25 +53,27 @@ function AnnotateHeader({
 }: {
   saveStatus: React.ReactNode;
   actionButtons: React.ReactNode;
-  description: string;
+  description?: string;
 }) {
   return (
-    <Header
-      title="Annotate"
-      help={{
-        description,
-        href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
-        className: "leading-relaxed",
-      }}
-      actionButtons={[
-        <React.Fragment key="annotation-save-status">
-          {saveStatus}
-        </React.Fragment>,
-        <React.Fragment key="annotation-actions">
-          {actionButtons}
-        </React.Fragment>,
-      ]}
-    />
+    <div>
+      <Header
+        title="Annotate"
+        help={
+          description
+            ? {
+                description,
+                href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
+                className: "leading-relaxed",
+              }
+            : undefined
+        }
+        actionButtons={actionButtons}
+      />
+      <div className="-mt-1 flex h-4 items-center justify-end overflow-hidden pr-1">
+        {saveStatus}
+      </div>
+    </div>
   );
 }
 
@@ -264,7 +266,7 @@ export function AnnotationFormContent({
               {actionButtons}
             </>
           }
-          description={description}
+          description={rowCount > 0 ? description : undefined}
         />
       </div>
       {/* No real submit: scores save per-field. Prevent the browser's implicit
@@ -274,6 +276,11 @@ export function AnnotationFormContent({
         className="flex flex-col gap-4"
         onSubmit={(e) => e.preventDefault()}
       >
+        {rowCount === 0 ? (
+          <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
+            {description}
+          </p>
+        ) : null}
         <div className="grid grid-flow-row gap-2.5">
           {fields.map((field, index) => {
             const target = targetFor(field);

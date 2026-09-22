@@ -1,3 +1,5 @@
+import { expect, within } from "storybook/test";
+
 import preview from "../../../../../../../../.storybook/preview";
 import { DecisionModelResultView } from "./DecisionModelResultView";
 
@@ -92,5 +94,59 @@ export const ScoreAtEdges = meta.story({
         confidence: 1,
       },
     ],
+  },
+});
+
+/** Maximum-length scales keep descriptions available without rendering them inline. */
+export const TenLevels = meta.story({
+  name: "(Test) Ten Levels",
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "score",
+        scoreName: "technical_depth",
+        instructions: "How technical is the answer in `output`?",
+        score: 6.4,
+        levels: [
+          "No technical detail",
+          "Uses basic terminology",
+          "Explains one simple concept",
+          "Connects multiple concepts",
+          "Includes implementation detail",
+          "Discusses tradeoffs",
+          "Explains system behavior",
+          "Covers architecture and constraints",
+          "Provides deep technical analysis",
+          "Expert-level treatment with edge cases",
+        ],
+        probabilities: {
+          "0": 0,
+          "1": 0,
+          "2": 0.01,
+          "3": 0.03,
+          "4": 0.08,
+          "5": 0.16,
+          "6": 0.3,
+          "7": 0.25,
+          "8": 0.12,
+          "9": 0.05,
+        },
+        confidence: 0.72,
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const levelDescription = canvas.getByRole("button", {
+      name: "Level 0 description",
+    });
+
+    levelDescription.focus();
+
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(
+      "No technical detail",
+    );
   },
 });
