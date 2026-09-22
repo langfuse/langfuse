@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import dd from "dd-trace";
 import {
   processOtelIngestion,
@@ -14,19 +16,27 @@ export type OtelIngestionWorkerRequest =
   | (Omit<OtelIngestionRequest, "body"> & {
       body: Uint8Array<ArrayBuffer>;
     })
-  | { type: "warmup" };
+  | { type: "warmup" }
+  | { type: "shadow"; durationMs: number };
 
 export type OtelIngestionWorkerResult =
   | OtelIngestionResult
   | {
       kind: "warmup";
+    }
+  | {
+      kind: "shadow";
     };
 
 export default function processOtelIngestionInWorker(
   request: OtelIngestionWorkerRequest,
 ): Promise<OtelIngestionWorkerResult> {
   if (!("body" in request)) {
-    return Promise.resolve({ kind: "warmup" });
+    if (request.type === "warmup") {
+      return Promise.resolve({ kind: "warmup" });
+    }
+
+    return sleep(request.durationMs).then(() => ({ kind: "shadow" }));
   }
 
   const body = Buffer.from(

@@ -266,8 +266,10 @@ async function dispatchOtelIngestion(
       transferList: [body.buffer],
       signal,
     });
-    if (result.kind === "warmup") {
-      throw new Error("OTel ingestion worker returned a warm-up result");
+    if (result.kind === "warmup" || result.kind === "shadow") {
+      throw new Error(
+        `OTel ingestion worker returned an invalid ${result.kind} result`,
+      );
     }
     const durationMs = Math.round(performance.now() - startedAt);
 
