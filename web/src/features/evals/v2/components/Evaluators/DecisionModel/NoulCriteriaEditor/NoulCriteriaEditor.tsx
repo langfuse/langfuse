@@ -24,7 +24,7 @@ export function NoulCriteriaEditor({
   const [open, setOpen] = useState(hasContent);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="@container flex flex-col gap-2">
       <Button
         type="button"
         variant="link"
@@ -45,7 +45,7 @@ export function NoulCriteriaEditor({
         />
       </Button>
       {open ? (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 @md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={`${id}-true`}>Yes means</Label>
             <Textarea

@@ -64,11 +64,11 @@ export function QuestionTypeSelector({
 }) {
   const active = QUESTION_TYPE_COPY[value];
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="@container flex flex-col gap-1.5">
       <div
         role="radiogroup"
         aria-label="Question type"
-        className="grid gap-2 sm:grid-cols-3"
+        className="grid gap-2 @lg:grid-cols-3"
       >
         {ORDER.map((type) => {
           const copy = QUESTION_TYPE_COPY[type];
