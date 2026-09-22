@@ -201,7 +201,7 @@ jobs:
       - name: Run Rust tests
         run: cargo test --locked
       - name: Build runtime image
-        run: docker build --target runtime -t langfuse-ai-gateway:test .
+        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
