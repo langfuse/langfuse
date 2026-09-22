@@ -1004,3 +1004,48 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
   }
   return sawKitesurfVendorFrame;
 }
+
+/**
+ * WitnessAI (`wtns.ai`) corporate DLP injects a page-world JS logger.
+ * `JSLoggerClient.checkStatus` throws `HTTP error! status: N` as an
+ * unhandled rejection when its `POST …/v1/jslogger/log` flush is not
+ * 2xx. Stack frames are document-attributed (`app:///…`), so `denyUrls`
+ * cannot match. Observed: LANGFUSE-624 (sign-in) / LANGFUSE-625
+ * (onboarding), same session — Langfuse session/tRPC/PostHog fetches
+ * all succeeded.
+ *
+ * Requires the vendor wording AND a `JSLoggerClient` / `LogBeacon`
+ * frame function AND a browser global handler, so:
+ *  - a first-party throw of the same message is KEPT;
+ *  - an app-captured exception (`generic` / `captureException`) is KEPT;
+ *  - a JSLoggerClient TypeError with a different message is KEPT.
+ */
+const WITNESS_AI_HTTP_STATUS_RE = /^HTTP error! status: \d+$/;
+const WITNESS_AI_LOGGER_FUNCTION_RE = /(?:JSLoggerClient|LogBeacon)\b/;
+
+export function isWitnessAiLoggerEvent(event: ErrorEvent): boolean {
+  const exception = event.exception?.values?.[0];
+  const exceptionValue = exception?.value;
+  if (typeof exceptionValue !== "string" || exceptionValue.length === 0) {
+    return false;
+  }
+  if (!WITNESS_AI_HTTP_STATUS_RE.test(coreMessage(exceptionValue))) {
+    return false;
+  }
+
+  const mechanismType = exception.mechanism?.type;
+  if (
+    typeof mechanismType !== "string" ||
+    !mechanismType.startsWith("auto.browser.global_handlers")
+  ) {
+    return false;
+  }
+
+  const frames = exception.stacktrace?.frames;
+  if (!frames || frames.length === 0) return false;
+
+  return frames.some((stackFrame) => {
+    const fn = stackFrame?.function;
+    return typeof fn === "string" && WITNESS_AI_LOGGER_FUNCTION_RE.test(fn);
+  });
+}
