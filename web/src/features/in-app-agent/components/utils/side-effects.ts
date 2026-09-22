@@ -106,7 +106,6 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listPrompts: [],
   langfuse_listSkills: [],
   langfuse_getSkill: [],
-  langfuse_getSkillFile: [],
   langfuse_createTextPrompt: ["prompts"],
   langfuse_createChatPrompt: ["prompts"],
   langfuse_updatePromptLabels: ["prompts"],

@@ -45,7 +45,8 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Agent Management",
+  PromptManagement = "Prompt Management",
+  AgentManagement = "Agent Management",
   Evaluation = "Evaluation",
 }
 
@@ -157,6 +158,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
+    featureFlag: "skills",
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

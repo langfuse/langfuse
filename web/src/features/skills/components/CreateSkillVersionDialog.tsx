@@ -1,5 +1,6 @@
 import { useStore } from "zustand";
-import { Save } from "lucide-react";
+import { Save, TriangleAlert } from "lucide-react";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import {
   DialogBody,
@@ -17,6 +18,7 @@ export function CreateSkillVersionDialog({
   name,
   isFirstVersion,
   isSaving,
+  disabled,
   onCancel,
   onConfirm,
 }: {
@@ -24,9 +26,13 @@ export function CreateSkillVersionDialog({
   name: string;
   isFirstVersion: boolean;
   isSaving: boolean;
+  disabled: boolean;
   onCancel: () => void;
   onConfirm: () => Promise<void>;
 }) {
+  const originalName = useStore(store, (state) =>
+    state.baseVersion === null ? null : state.name,
+  );
   const commitMessage = useStore(store, (state) => state.commitMessage);
   const setCommitMessage = useStore(
     store,
@@ -41,7 +47,10 @@ export function CreateSkillVersionDialog({
         </DialogTitle>
         <DialogDescription>
           {isFirstVersion ? (
-            <>The skill name and description are read from SKILL.md.</>
+            <>
+              Create <strong>{name}</strong> as a new skill using the current
+              files.
+            </>
           ) : (
             <>
               Commit the current draft of <strong>{name}</strong> as an
@@ -51,6 +60,15 @@ export function CreateSkillVersionDialog({
         </DialogDescription>
       </DialogHeader>
       <DialogBody className="ph-no-capture">
+        {isFirstVersion && originalName ? (
+          <Alert variant="warning" icon={TriangleAlert}>
+            <Alert.Title>You are duplicating this skill</Alert.Title>
+            <Alert.Description>
+              This creates <strong>{name}</strong> as a separate skill, starting
+              at version 1. <strong>{originalName}</strong> stays unchanged.
+            </Alert.Description>
+          </Alert>
+        ) : null}
         <div className="grid gap-2">
           <Label htmlFor="skill-version-note">Version note</Label>
           <p className="text-muted-foreground text-sm">
@@ -71,7 +89,12 @@ export function CreateSkillVersionDialog({
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="button" loading={isSaving} onClick={onConfirm}>
+        <Button
+          type="button"
+          loading={isSaving}
+          disabled={disabled}
+          onClick={onConfirm}
+        >
           <Save className="mr-1.5 h-4 w-4" />
           {isFirstVersion ? "Create skill" : "Create version"}
         </Button>

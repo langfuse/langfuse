@@ -3,7 +3,7 @@ import { type SkillEditorStore } from "@/src/features/skills/components/skillEdi
 export async function saveSkillTags(params: {
   projectId: string;
   name: string;
-  version: number | null;
+  version: number;
   tags: string[];
   store: SkillEditorStore;
   setTags: (input: {
@@ -14,11 +14,6 @@ export async function saveSkillTags(params: {
   }) => Promise<unknown>;
   invalidate: () => Promise<unknown>;
 }) {
-  if (params.version === null) {
-    params.store.getState().actions.setTags(params.tags);
-    return;
-  }
-
   await params.setTags({
     projectId: params.projectId,
     name: params.name,

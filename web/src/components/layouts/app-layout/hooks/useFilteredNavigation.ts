@@ -22,6 +22,7 @@ import type { NavigationFilterContext } from "../utils/navigationFilters.types";
 import { isPathActive } from "../utils/pathClassification";
 import { resolveRoutePathname } from "../utils/routePathname";
 import { api } from "@/src/utils/api";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 
 /** Organization type from user session (can be null when not in project/org context) */
 type Organization =
@@ -57,6 +58,7 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
     ? [
         ...(grouped[RouteGroup.Observability] || []),
         ...(grouped[RouteGroup.PromptManagement] || []),
+        ...(grouped[RouteGroup.AgentManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]
     : [];
@@ -103,6 +105,9 @@ export function useFilteredNavigation(
     cloudStatus?.status === "degraded" || cloudStatus?.status === "downtime";
 
   const routerProjectId = router.query.projectId as string | undefined;
+  const skillsEnabled = useIsFeatureEnabled("skills", {
+    projectId: routerProjectId,
+  });
   const forceV3Experience = useForceV3Experience(routerProjectId);
   const routerOrganizationId = router.query.organizationId as
     | string
@@ -122,6 +127,7 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
+      skillsEnabled,
       currentPath: router.asPath,
     }),
     [
@@ -134,6 +140,7 @@ export function useFilteredNavigation(
       isLangfuseCloud,
       hasActiveCloudIncident,
       forceV3Experience,
+      skillsEnabled,
     ],
   );
 

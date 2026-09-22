@@ -10,7 +10,7 @@ export const [listSkillsTool, handleListSkills] = defineTool({
     "List skills in the current project, including descriptions, versions, labels and tags.",
     "Filter by exact name, label, tag or update timestamps (fromUpdatedAt inclusive, toUpdatedAt exclusive).",
     "Pagination: page defaults to 1, limit defaults to 10 (maximum 100).",
-    "Use getSkill to retrieve a version's metadata and file manifest, then getSkillFile to download an individual file.",
+    "Use getSkill to retrieve a version's metadata and file manifest.",
   ].join("\n"),
   action: "skills:read",
   baseSchema: ListSkillsQuerySchema,

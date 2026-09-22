@@ -1,10 +1,14 @@
 import { SkillDescriptionSchema, SkillNameSchema } from "@langfuse/shared";
-import { parseDocument } from "yaml";
+import { isMap, isScalar, parseDocument } from "yaml";
 
 export type SkillFrontmatterMetadata = {
   name: string;
-  description: string;
+  description?: string;
+  nameError: string | null;
 };
+
+export const SKILL_NAME_RULES =
+  "Use 1–64 characters: lowercase letters, numbers, and single hyphens between words. Names cannot start or end with a hyphen.";
 
 export function parseSkillFrontmatterMetadata(
   markdown: string,
@@ -13,7 +17,21 @@ export function parseSkillFrontmatterMetadata(
   if (!match) return null;
 
   const document = parseDocument(match[1] ?? "");
-  if (document.errors.length > 0) return null;
+  const nameNode = isMap(document.contents)
+    ? document.get("name", true)
+    : undefined;
+  let displayName = "";
+  if (isScalar(nameNode)) {
+    displayName =
+      typeof nameNode.value === "string"
+        ? nameNode.value
+        : (nameNode.source ?? "");
+  }
+  const invalidFrontmatter = {
+    name: displayName,
+    nameError: `Fix the YAML frontmatter in SKILL.md. ${SKILL_NAME_RULES}`,
+  };
+  if (document.errors.length > 0) return invalidFrontmatter;
 
   try {
     const value: unknown = document.toJS({ maxAliasCount: 50 });
@@ -27,10 +45,13 @@ export function parseSkillFrontmatterMetadata(
       frontmatter.description,
     );
 
-    return name.success && description.success
-      ? { name: name.data, description: description.data }
-      : null;
+    return {
+      name:
+        typeof frontmatter.name === "string" ? frontmatter.name : displayName,
+      description: description.success ? description.data : undefined,
+      nameError: name.success ? null : SKILL_NAME_RULES,
+    };
   } catch {
-    return null;
+    return invalidFrontmatter;
   }
 }

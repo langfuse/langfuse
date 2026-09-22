@@ -82,11 +82,9 @@ export const SkillTagsSchema = z
 export const CreateSkillVersionBodySchema = z
   .object({
     files: z.array(SkillVersionFileInputSchema).min(1).max(MAX_SKILL_FILES),
-    labels: z.array(PromptLabelSchema).default([]),
-    tags: SkillTagsSchema.optional(),
     commitMessage: z.string().max(COMMIT_MESSAGE_MAX_LENGTH).nullish(),
   })
-  .superRefine(({ files, labels }, ctx) => {
+  .superRefine(({ files }, ctx) => {
     const paths = files.map((file) => file.path);
     if (new Set(paths).size !== paths.length) {
       ctx.addIssue({
@@ -100,13 +98,6 @@ export const CreateSkillVersionBodySchema = z
         code: "custom",
         path: ["files"],
         message: "Every skill version must contain a root SKILL.md file",
-      });
-    }
-    if (labels.includes(SKILL_LATEST_LABEL)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["labels"],
-        message: `The '${SKILL_LATEST_LABEL}' label is managed by Langfuse`,
       });
     }
   });

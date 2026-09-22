@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { getParentFolderPaths } from "./skillFileTree";
+import { resetSkillName } from "../utils/resetSkillName";
 
 export type SkillDraftFile = {
   path: string;
@@ -30,13 +31,12 @@ type SkillEditorState = {
   actions: {
     selectFile: (path: string) => void;
     updateActiveFile: (content: string) => void;
+    resetName: () => void;
     addFile: (file: SkillDraftFile) => boolean;
     addFolder: (path: string) => boolean;
     deleteFile: (path: string) => void;
     deleteFolder: (path: string) => boolean;
-    setLabels: (labels: string[]) => void;
     syncLabels: (labels: string[]) => void;
-    setTags: (tags: string[]) => void;
     syncTags: (tags: string[]) => void;
     setCommitMessage: (message: string) => void;
   };
@@ -65,6 +65,22 @@ export function createSkillEditorStore(
     commitMessage: "",
     dirty: false,
     actions: {
+      resetName: () => {
+        const state = get();
+        const file = state.files["SKILL.md"];
+        if (!file || file.content === undefined) return;
+        set({
+          files: {
+            ...state.files,
+            "SKILL.md": {
+              path: file.path,
+              contentType: file.contentType,
+              content: resetSkillName(file.content, state.name),
+            },
+          },
+          dirty: true,
+        });
+      },
       selectFile: (path) => {
         if (get().files[path]) set({ activePath: path });
       },
@@ -146,9 +162,7 @@ export function createSkillEditorStore(
         });
         return true;
       },
-      setLabels: (labels) => set({ labels: [...new Set(labels)], dirty: true }),
       syncLabels: (labels) => set({ labels: [...new Set(labels)] }),
-      setTags: (tags) => set({ tags: [...new Set(tags)], dirty: true }),
       syncTags: (tags) => set({ tags: [...new Set(tags)] }),
       setCommitMessage: (commitMessage) => set({ commitMessage, dirty: true }),
     },

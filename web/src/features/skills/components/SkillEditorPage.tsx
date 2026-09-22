@@ -41,14 +41,15 @@ export function NewSkillPage() {
   return (
     <Page
       headerProps={{
-        title: metadata?.name ?? "Create skill",
+        title: metadata?.name.trim() ? metadata.name : "Create skill",
         subtitle: metadata?.description,
-        help: metadata
-          ? {
-              description:
-                "The skill name and description are parsed from the frontmatter in SKILL.md.",
-            }
-          : undefined,
+        help:
+          metadata && !metadata.nameError
+            ? {
+                description:
+                  "The skill name and description are parsed from the frontmatter in SKILL.md.",
+              }
+            : undefined,
         breadcrumb: [
           { name: "Skills", href: `/project/${projectId}/skills` },
           { name: "New skill" },
@@ -166,7 +167,11 @@ export function ExistingSkillPage() {
           ]);
           await router.push({
             pathname: router.pathname,
-            query: { projectId, skillName, version: created.version },
+            query: {
+              projectId,
+              skillName: created.name,
+              version: created.version,
+            },
           });
         }}
       />

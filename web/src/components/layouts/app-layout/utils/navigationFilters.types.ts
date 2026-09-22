@@ -30,6 +30,7 @@ export type NavigationFilterContext = {
   hasActiveCloudIncident: boolean;
   /** Whether the current project must remain on the v3 experience */
   forceV3Experience: boolean;
+  skillsEnabled: boolean;
   /** Current router path for active state detection */
   currentPath: string;
 };

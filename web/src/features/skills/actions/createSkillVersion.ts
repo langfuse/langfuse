@@ -1,5 +1,6 @@
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
+import { type RouterInputs } from "@/src/utils/api";
 
 type PreparedUpload = {
   sha256Hash: string;
@@ -18,13 +19,9 @@ type PrepareUploads = (input: {
   }>;
 }) => Promise<{ data: PreparedUpload[] }>;
 
-type CreateVersion = (input: {
-  projectId: string;
-  files: Array<{ path: string; blobId: string }>;
-  labels: string[];
-  tags: string[];
-  commitMessage: string | null;
-}) => Promise<{ id: string; name: string; version: number }>;
+type CreateVersion = (
+  input: RouterInputs["skills"]["createVersion"],
+) => Promise<{ id: string; name: string; version: number }>;
 
 async function sha256Base64(bytes: Uint8Array): Promise<string> {
   const hash = new Sha256();
@@ -56,6 +53,7 @@ function uploadHeaders(upload: PreparedUpload): Headers {
 export async function createSkillVersionFromDraft(params: {
   projectId: string;
   store: SkillEditorStore;
+  target: RouterInputs["skills"]["createVersion"]["target"];
   prepareUploads: PrepareUploads;
   createVersion: CreateVersion;
 }) {
@@ -120,12 +118,11 @@ export async function createSkillVersionFromDraft(params: {
   );
   return params.createVersion({
     projectId: params.projectId,
+    target: params.target,
     files: files.map((file) => ({
       path: file.path,
       blobId: file.source?.blobId ?? uploadedBlobByPath.get(file.path)!,
     })),
-    labels: draft.labels,
-    tags: draft.tags,
     commitMessage: draft.commitMessage.trim() || null,
   });
 }

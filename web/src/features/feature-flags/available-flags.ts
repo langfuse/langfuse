@@ -65,4 +65,5 @@ export const availableFlags = [
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
+  "skills",
 ] as const;

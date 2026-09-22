@@ -24,7 +24,7 @@ service:
     prepareUploads:
       docs: Prepare content-addressed file uploads for a skill version.
       method: POST
-      path: /skills/uploads
+      path: /skills/blobs
       request: PrepareSkillUploadsRequest
       response:
         status-code: 201
@@ -130,8 +130,6 @@ types:
   CreateSkillVersionRequest:
     properties:
       files: list<SkillVersionFileInput>
-      labels: optional<list<string>>
-      tags: optional<list<string>>
       commitMessage: optional<nullable<string>>
 
   SkillFile:

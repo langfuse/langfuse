@@ -85,17 +85,6 @@ type Caller = ReturnType<typeof createCaller>;
 const version = { projectId: "project", name: "my-skill", version: 1 };
 const mutations = [
   {
-    name: "create a version",
-    existingLabels: [],
-    mutate: (caller: Caller, label: string) =>
-      caller.createVersion({
-        projectId: version.projectId,
-        files: [{ path: "SKILL.md", blobId: "blob" }],
-        labels: [label],
-      }),
-    write: mocks.createVersion,
-  },
-  {
     name: "add a label",
     existingLabels: [],
     mutate: (caller: Caller, label: string) =>
@@ -187,18 +176,37 @@ describe("skill mutations sharing prompt protected labels", () => {
   });
 
   it("does not apply another project's protected labels", async () => {
-    await createCaller("MEMBER", "other-project").createVersion({
+    await createCaller("MEMBER", "other-project").setLabels({
+      ...version,
       projectId: "other-project",
-      files: [{ path: "SKILL.md", blobId: "blob" }],
       labels: ["production"],
     });
 
     expect(mocks.protectedLabels).toHaveBeenCalledWith({
       where: { projectId: "other-project" },
     });
-    expect(mocks.createVersion).toHaveBeenCalledWith(
+    expect(mocks.setLabels).toHaveBeenCalledWith(
       expect.objectContaining({ projectId: "other-project" }),
     );
+  });
+
+  it("creates without accepting client labels or tags", async () => {
+    const input = {
+      projectId: "project",
+      target: { kind: "new" as const },
+      files: [{ path: "SKILL.md", blobId: "blob" }],
+      labels: ["production"],
+      tags: ["stale-client-tag"],
+    };
+    await createCaller("MEMBER").createVersion(input);
+
+    expect(mocks.createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({ target: { kind: "new" } }),
+    );
+    const creation = mocks.createVersion.mock.calls[0]?.[0].input;
+    expect(creation).not.toHaveProperty("labels");
+    expect(creation).not.toHaveProperty("tags");
+    expect(mocks.protectedLabels).not.toHaveBeenCalled();
   });
 
   it("rejects access to another project before looking up protected labels", async () => {

@@ -126,21 +126,26 @@ export const skillRouter = createTRPCRouter({
     }),
 
   createVersion: protectedProjectProcedure
-    .input(projectInput.and(CreateSkillVersionBodySchema))
+    .input(
+      projectInput
+        .extend({
+          target: z.discriminatedUnion("kind", [
+            z.object({ kind: z.literal("new") }),
+            z.object({ kind: z.literal("version"), name: SkillNameSchema }),
+          ]),
+        })
+        .and(CreateSkillVersionBodySchema),
+    )
     .mutation(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "skills:CUD",
       });
-      await requireProtectedLabelAccess({
-        labels: input.labels,
-        projectId: input.projectId,
-        session: ctx.session,
-      });
       return new SkillService(prisma).createVersion({
         projectId: input.projectId,
         createdBy: ctx.session.user.id,
+        target: input.target,
         input,
         auditActor: { session: ctx.session },
       });

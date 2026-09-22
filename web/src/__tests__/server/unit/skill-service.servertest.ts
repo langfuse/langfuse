@@ -76,7 +76,7 @@ describe("SkillService storage configuration", () => {
   );
 });
 
-describe("SkillService upload verification", () => {
+describe("SkillService versions", () => {
   function setup() {
     const markdown = Buffer.from(
       "---\nname: test-skill\ndescription: A test skill\n---\nInstructions",
@@ -122,8 +122,8 @@ describe("SkillService upload verification", () => {
       description: "A test skill",
       frontmatter: { name: "test-skill", description: "A test skill" },
       version: 1,
-      tags: [],
-      labels: [],
+      tags: [] as string[],
+      labels: [] as string[],
       commitMessage: null,
       files: files.map((file, index) => ({
         ...file,
@@ -153,7 +153,16 @@ describe("SkillService upload verification", () => {
       },
     );
     const tx = {
-      skill: { findFirst: vi.fn().mockResolvedValue(null), create },
+      $executeRaw: vi.fn(),
+      skill: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
+        findMany: vi.fn().mockResolvedValue([]),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+        delete: vi.fn(),
+        create,
+      },
     };
     const transaction = vi.fn(
       async (callback: (tx: unknown) => Promise<string>) => {
@@ -162,22 +171,25 @@ describe("SkillService upload verification", () => {
       },
     );
     const findMany = vi.fn().mockResolvedValue(blobs);
-    const prisma = {
+    const db = {
       skillBlob: { findMany, updateMany },
       $transaction: transaction,
       skill: {
+        findFirst: vi.fn().mockResolvedValue(skill),
+        findMany: vi.fn().mockResolvedValue([skill]),
+        groupBy: vi.fn().mockResolvedValue([{ name: skill.name }]),
         findUnique: vi.fn().mockResolvedValue(skill),
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
       },
-    } as unknown as PrismaClient;
-    const service = new SkillService(prisma, {
+    };
+    const service = new SkillService(db as unknown as PrismaClient, {
       bucketName: "bucket",
       client: { getObjectSize, downloadBytes } as unknown as StorageService,
     });
     const params = {
       projectId: "project",
       createdBy: "user",
-      input: { files, labels: [] },
+      input: { files },
       auditActor: { projectId: "project", orgId: "org", apiKeyId: "api-key" },
     };
     return {
@@ -191,8 +203,343 @@ describe("SkillService upload verification", () => {
       create,
       updateMany,
       findMany,
+      skill,
+      tx,
+      db,
     };
   }
+
+  it.each(["create", "setLabels", "setTags", "delete"] as const)(
+    "waits for the skill mutation lock before reading versions during %s",
+    async (operation) => {
+      const test = setup();
+      const lock = Promise.withResolvers<void>();
+      test.tx.$executeRaw.mockReturnValue(lock.promise);
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      const selector = {
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        auditActor: test.params.auditActor,
+      };
+      const mutations = {
+        create: () => test.service.createVersion(test.params),
+        setLabels: () => test.service.setLabels({ ...selector, labels: [] }),
+        setTags: () => test.service.setTags({ ...selector, tags: [] }),
+        delete: () => test.service.deleteVersion(selector),
+      };
+      const mutation = mutations[operation]();
+
+      try {
+        await vi.waitFor(() => {
+          expect(test.tx.$executeRaw).toHaveBeenCalledOnce();
+        });
+        expect(test.tx.skill.findFirst).not.toHaveBeenCalled();
+      } finally {
+        lock.resolve();
+        await mutation;
+      }
+    },
+  );
+
+  it("rejects creating a new skill when its name already exists", async () => {
+    const test = setup();
+    test.tx.skill.findFirst.mockResolvedValue(test.skill);
+    const params = { ...test.params, target: { kind: "new" as const } };
+
+    await expect(test.service.createVersion(params)).rejects.toThrow(
+      "already exists",
+    );
+    expect(test.create).not.toHaveBeenCalled();
+    expect(test.tx.skill.update).not.toHaveBeenCalled();
+    expect(test.tx.skill.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: "project", name: "test-skill" },
+      }),
+    );
+  });
+
+  it("creates a new skill with all supplied files and without inherited metadata", async () => {
+    const test = setup();
+    await test.service.createVersion({
+      ...test.params,
+      target: { kind: "new" },
+    });
+    expect(test.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        name: "test-skill",
+        version: 1,
+        tags: [],
+        labels: ["latest"],
+        files: {
+          create: expect.arrayContaining(
+            test.params.input.files.map((file) =>
+              expect.objectContaining({ path: file.path }),
+            ),
+          ),
+        },
+      }),
+    });
+  });
+
+  it("rejects renaming an existing skill through version creation", async () => {
+    const test = setup();
+    const params = {
+      ...test.params,
+      target: { kind: "version" as const, name: "original-skill" },
+    };
+    await expect(test.service.createVersion(params)).rejects.toThrow(
+      "must remain",
+    );
+    expect(test.create).not.toHaveBeenCalled();
+  });
+
+  it("does not recreate a deleted skill through version creation", async () => {
+    const test = setup();
+    const params = {
+      ...test.params,
+      target: { kind: "version" as const, name: "test-skill" },
+    };
+    await expect(test.service.createVersion(params)).rejects.toThrow(
+      "Skill not found",
+    );
+    expect(test.create).not.toHaveBeenCalled();
+  });
+
+  it("creates with only latest and leaves deployment labels on the previous version", async () => {
+    const test = setup();
+    const previous = {
+      id: "previous",
+      version: 1,
+      labels: ["latest", "production", "stable"],
+    };
+    test.tx.skill.findFirst.mockResolvedValue(previous);
+    test.tx.skill.findMany.mockResolvedValue([previous]);
+    const params = {
+      ...test.params,
+      target: { kind: "version" as const, name: "test-skill" },
+      input: { ...test.params.input, labels: ["production"] },
+    };
+
+    await test.service.createVersion(params);
+
+    expect(test.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        version: 2,
+        labels: ["latest"],
+      }),
+    });
+    expect(test.tx.skill.update).toHaveBeenCalledWith({
+      where: { projectId_id: { projectId: "project", id: "previous" } },
+      data: { labels: { set: ["production", "stable"] } },
+    });
+  });
+
+  it("resolves latest through the stored label without synthesizing labels on reads", async () => {
+    const test = setup();
+    test.skill.labels = ["latest"];
+    const result = await test.service.get({
+      projectId: "project",
+      name: "test-skill",
+      selector: { label: "latest" },
+    });
+
+    expect(test.db.skill.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          projectId: "project",
+          name: "test-skill",
+          labels: { has: "latest" },
+        },
+      }),
+    );
+    expect(result.labels).toEqual(["latest"]);
+    expect(test.db.skill.findFirstOrThrow).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    "creates with database tags instead of supplied tags (existing skill: %s)",
+    async (hasPrevious) => {
+      const test = setup();
+      const tags = hasPrevious ? ["shared-tag"] : [];
+      if (hasPrevious) {
+        test.tx.skill.findFirst.mockResolvedValue({
+          id: "previous",
+          version: 1,
+          labels: ["latest"],
+          tags,
+        });
+      }
+      const params = {
+        ...test.params,
+        input: { ...test.params.input, tags: ["stale-client-tag"] },
+      };
+
+      await test.service.createVersion(params);
+
+      expect(test.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ tags }),
+      });
+    },
+  );
+
+  it.each([{ tags: ["shared-tag"] }, { tags: [] }])(
+    "sets tags on all versions while isolating other skills and projects: $tags",
+    async ({ tags }) => {
+      const test = setup();
+      test.skill.tags = tags;
+      const versions = [
+        test.skill,
+        { ...test.skill, id: "newer", version: 2, tags: ["old-tag"] },
+        {
+          ...test.skill,
+          id: "other-project",
+          projectId: "other",
+          tags: ["keep"],
+        },
+        {
+          ...test.skill,
+          id: "other-skill",
+          name: "other-skill",
+          tags: ["keep"],
+        },
+      ];
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      test.tx.skill.updateMany.mockImplementation(
+        async ({
+          where,
+          data,
+        }: {
+          where: { projectId: string; name: string };
+          data: { tags: { set: string[] } };
+        }) => {
+          const matches = versions.filter(
+            (version) =>
+              version.projectId === where.projectId &&
+              version.name === where.name,
+          );
+          for (const version of matches) version.tags = [...data.tags.set];
+          return { count: matches.length };
+        },
+      );
+
+      await test.service.setTags({
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        tags,
+        auditActor: test.params.auditActor,
+      });
+
+      expect(versions.map((version) => version.tags)).toEqual([
+        tags,
+        tags,
+        ["keep"],
+        ["keep"],
+      ]);
+    },
+  );
+
+  it("filters skill lists by the persisted latest label and returns it only once", async () => {
+    const test = setup();
+    test.skill.labels = ["production", "latest"];
+
+    const result = await test.service.list({
+      projectId: "project",
+      input: { label: "latest", page: 1, limit: 10 },
+    });
+
+    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { projectId: "project", labels: { has: "latest" } },
+      }),
+    );
+    expect(result.data[0]?.labels).toEqual(["production", "latest"]);
+  });
+
+  it("preserves latest when replacing user-managed labels", async () => {
+    const test = setup();
+    test.skill.labels = ["latest", "production"];
+    test.tx.skill.findFirst.mockResolvedValue(test.skill);
+    test.tx.skill.findMany.mockResolvedValue([
+      test.skill,
+      { id: "previous", labels: ["stable"] },
+    ]);
+
+    await test.service.setLabels({
+      projectId: "project",
+      name: "test-skill",
+      version: 1,
+      labels: ["stable"],
+      auditActor: test.params.auditActor,
+    });
+
+    expect(test.tx.skill.update).toHaveBeenCalledWith({
+      where: { projectId_id: { projectId: "project", id: "skill" } },
+      data: { labels: { set: ["stable", "latest"] } },
+    });
+    expect(test.tx.skill.update).toHaveBeenCalledWith({
+      where: { projectId_id: { projectId: "project", id: "previous" } },
+      data: { labels: { set: [] } },
+    });
+  });
+
+  it.each([true, false])(
+    "handles deleting the latest version with remaining versions: %s",
+    async (hasRemaining) => {
+      const test = setup();
+      test.skill.labels = ["latest"];
+      test.skill.version = 3;
+      const remaining = hasRemaining
+        ? { id: "previous", version: 2, labels: ["production"] }
+        : null;
+      test.tx.skill.findFirst
+        .mockResolvedValueOnce(test.skill)
+        .mockResolvedValueOnce(remaining);
+
+      await test.service.deleteVersion({
+        projectId: "project",
+        name: "test-skill",
+        version: 3,
+        auditActor: test.params.auditActor,
+      });
+
+      expect(test.tx.skill.findFirst).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: { projectId: "project", name: "test-skill" },
+          orderBy: { version: "desc" },
+        }),
+      );
+      if (hasRemaining) {
+        expect(test.tx.skill.update).toHaveBeenCalledWith({
+          where: { projectId_id: { projectId: "project", id: "previous" } },
+          data: { labels: { set: ["production", "latest"] } },
+        });
+      } else {
+        expect(test.tx.skill.update).not.toHaveBeenCalled();
+      }
+      expect(test.tx.skill.delete).toHaveBeenCalledWith({
+        where: { projectId_id: { projectId: "project", id: "skill" } },
+      });
+    },
+  );
+
+  it("does not move latest when deleting an older version", async () => {
+    const test = setup();
+    test.tx.skill.findFirst.mockResolvedValue(test.skill);
+
+    await test.service.deleteVersion({
+      projectId: "project",
+      name: "test-skill",
+      version: 1,
+      auditActor: test.params.auditActor,
+    });
+
+    expect(test.tx.skill.delete).toHaveBeenCalledOnce();
+    expect(test.tx.skill.findFirst).toHaveBeenCalledOnce();
+    expect(test.tx.skill.update).not.toHaveBeenCalled();
+  });
 
   it("verifies every distinct upload before downloading only SKILL.md and publishing its frontmatter", async () => {
     const test = setup();
