@@ -352,8 +352,9 @@ export function MultiSelectTagInput<V extends string>({
                             <InputDropdown.OptionContent
                               label={selectAllLabel}
                               title={selectAllLabel}
+                              indicatorPosition="start"
                               indicator={
-                                <InputDropdown.CheckIndicator
+                                <InputDropdown.CheckboxIndicator
                                   checked={allSelected}
                                 />
                               }
@@ -412,8 +413,9 @@ export function MultiSelectTagInput<V extends string>({
                                   </span>
                                 }
                                 title={option.accessibleLabel ?? option.label}
+                                indicatorPosition="start"
                                 indicator={
-                                  <InputDropdown.CheckIndicator
+                                  <InputDropdown.CheckboxIndicator
                                     checked={isSelected}
                                   />
                                 }

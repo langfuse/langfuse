@@ -98,6 +98,7 @@ function SelectInputInner<V extends string>(
               disabled={node.disabled}
             >
               <InputDropdown.OptionContent
+                indicatorPosition="end"
                 label={
                   <SelectPrimitive.ItemText>
                     {node.label}

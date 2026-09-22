@@ -103,6 +103,34 @@ export const ManySelected = meta.story({
   ),
 });
 
+export const MultipleSelected = meta.story({
+  args: {
+    value: ["option-1", "option-3"],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+    selectAllLabel: "Select All",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
 export const ScoreFields = meta.story({
   args: {
     value: ["feedback", "manual-score"],

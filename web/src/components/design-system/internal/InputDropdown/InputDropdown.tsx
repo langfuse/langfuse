@@ -4,6 +4,7 @@ import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
+import { Checkbox } from "../../Checkbox/Checkbox";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
@@ -91,7 +92,7 @@ function Option({
     <Slot
       data-checked={checked}
       className={cn(
-        "data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground relative flex w-full cursor-pointer items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50 data-[checked=true]:font-bold",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
         highlight === "aria-selected"
           ? "aria-selected:bg-accent aria-selected:text-accent-foreground"
           : "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
@@ -106,23 +107,28 @@ function OptionContent({
   secondaryLabel,
   title,
   indicator,
+  indicatorPosition,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
   title: string;
   indicator: ReactNode;
+  indicatorPosition: "start" | "end";
 }) {
   return (
     <>
+      {indicatorPosition === "start" && indicator}
       <span className="min-w-0 flex-1 truncate" title={title}>
         {label}
         {secondaryLabel && (
           <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
         )}
       </span>
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
-        {indicator}
-      </span>
+      {indicatorPosition === "end" && (
+        <span className="flex size-3.5 shrink-0 items-center justify-center">
+          {indicator}
+        </span>
+      )}
     </>
   );
 }
@@ -133,7 +139,16 @@ function CheckIndicator({ checked }: { checked: boolean }) {
   );
 }
 
+function CheckboxIndicator({ checked }: { checked: boolean }) {
+  return (
+    <span className="pointer-events-none flex shrink-0 items-center">
+      <Checkbox checked={checked} size="sm" tabIndex={-1} aria-hidden="true" />
+    </span>
+  );
+}
+
 export const InputDropdown = {
+  CheckboxIndicator,
   CheckIndicator,
   Content,
   Empty,
