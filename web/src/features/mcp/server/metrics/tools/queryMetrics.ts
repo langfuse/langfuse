@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
@@ -90,11 +89,15 @@ const normalizeMetricOrderByFields = (
       const matchingMetrics = isDimensionField
         ? []
         : input.metrics.filter((metric) => metric.measure === orderBy.field);
-      const normalizedField = isDimensionField
-        ? orderBy.field
-        : matchingMetrics.length === 1
-          ? `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`
-          : (reversedMetricAliases.get(orderBy.field) ?? orderBy.field);
+      const normalizedField = (() => {
+        if (isDimensionField) {
+          return orderBy.field;
+        }
+        if (matchingMetrics.length === 1) {
+          return `${matchingMetrics[0].aggregation}_${matchingMetrics[0].measure}`;
+        }
+        return reversedMetricAliases.get(orderBy.field) ?? orderBy.field;
+      })();
 
       if (!allowedOrderByFields.has(normalizedField)) {
         throw new InvalidRequestError(

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/container-page";
@@ -74,12 +73,15 @@ export default function MixpanelIntegrationPage() {
 
   const { project } = useQueryProject();
 
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.config?.enabled
-        ? "active"
-        : "inactive";
+  const status = (() => {
+    if (state.isLoading || !hasAccess) {
+      return undefined;
+    }
+    if (state.data?.config?.enabled) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   return (
     <ContainerPage

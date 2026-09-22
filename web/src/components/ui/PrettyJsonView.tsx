@@ -889,14 +889,18 @@ export function PrettyJsonView(props: {
   // MarkdownView would show when it has a title. Skip gated large strings:
   // they render through LargeStringFallback, and splitting them for a
   // preview would undo the main-thread guard that gate exists for.
-  const systemPromptCollapsibleContent =
-    largeStringValue !== null
-      ? ""
-      : typeof markdownContent === "string"
-        ? markdownContent
-        : typeof parsedJson === "string"
-          ? parsedJson
-          : "";
+  const systemPromptCollapsibleContent = (() => {
+    if (largeStringValue !== null) {
+      return "";
+    }
+    if (typeof markdownContent === "string") {
+      return markdownContent;
+    }
+    if (typeof parsedJson === "string") {
+      return parsedJson;
+    }
+    return "";
+  })();
   const {
     shouldBeCollapsible: shouldCollapseSystemPrompt,
     isCollapsed: isSystemPromptCollapsed,

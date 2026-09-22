@@ -382,11 +382,15 @@ export function TimeRangePicker({
 
     if (typeof disabled === "boolean") return disabled;
 
-    const disabledArray = disabled
-      ? Array.isArray(disabled)
-        ? disabled
-        : [disabled]
-      : [];
+    const disabledArray = (() => {
+      if (disabled) {
+        if (Array.isArray(disabled)) {
+          return disabled;
+        }
+        return [disabled];
+      }
+      return [];
+    })();
     const maxRangeDisabled =
       maxRangeMs !== undefined &&
       internalDateRange?.from &&

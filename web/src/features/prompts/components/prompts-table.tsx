@@ -194,12 +194,15 @@ export function PromptTable() {
       const fullPath = prompt.id; // id now contains the full path (used for metrics join)
       // Extract just the name portion (last segment) for display
       const itemName = fullPath.split("/").pop() ?? fullPath;
-      const type =
-        isFolder || prompt.type === "folder"
-          ? "folder"
-          : prompt.type === "chat"
-            ? "chat"
-            : "text";
+      const type = (() => {
+        if (isFolder || prompt.type === "folder") {
+          return "folder";
+        }
+        if (prompt.type === "chat") {
+          return "chat";
+        }
+        return "text";
+      })();
 
       combinedRows.push(
         createRow({

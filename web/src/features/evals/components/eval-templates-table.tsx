@@ -75,12 +75,15 @@ const getMaintainerLabel = (maintainer: string) =>
 
 const getCodeEvalLanguageLabel = (
   sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
-) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+) => {
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+    return "Python";
+  }
+  if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+    return "TypeScript";
+  }
+  return "Code";
+};
 
 const TemplateTypeBadge = ({
   type,
@@ -91,12 +94,15 @@ const TemplateTypeBadge = ({
 }) => {
   if (type === EvalTemplateType.CODE) {
     const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
-    const Icon =
-      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? SiPython
-        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-          ? SiTypescript
-          : null;
+    const Icon = (() => {
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+        return SiPython;
+      }
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+        return SiTypescript;
+      }
+      return null;
+    })();
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">

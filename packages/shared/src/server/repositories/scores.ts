@@ -514,12 +514,15 @@ const getScoresForTracesInternal = async <
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-  const levelFilter =
-    level === "trace"
-      ? "AND s.observation_id IS NULL"
-      : level === "observation"
-        ? "AND s.observation_id IS NOT NULL"
-        : "";
+  const levelFilter = (() => {
+    if (level === "trace") {
+      return "AND s.observation_id IS NULL";
+    }
+    if (level === "observation") {
+      return "AND s.observation_id IS NOT NULL";
+    }
+    return "";
+  })();
 
   const query = `
       select
@@ -1597,11 +1600,15 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // Inner join when trace filters are active (exclude scores without matching traces)
   // Left join when only sorting (keep all scores)
-  const eventsJoin = needsTracesCTE
-    ? traceFilterState.length > 0
-      ? `ANY JOIN traces e ON s.trace_id = e.id`
-      : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
-    : "";
+  const eventsJoin = (() => {
+    if (needsTracesCTE) {
+      if (traceFilterState.length > 0) {
+        return `ANY JOIN traces e ON s.trace_id = e.id`;
+      }
+      return `LEFT ANY JOIN traces e ON s.trace_id = e.id`;
+    }
+    return "";
+  })();
 
   const rowSelect = `
         s.id,

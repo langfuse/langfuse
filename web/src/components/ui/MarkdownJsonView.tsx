@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import {
   OpenAIContentSchema,
@@ -48,11 +47,15 @@ export function MarkdownJsonViewHeader({
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
   const collapseSubject = collapseControl?.subject ?? "system prompt";
-  const collapseLabel = collapseControl
-    ? collapseControl.isCollapsed
-      ? `Expand ${collapseSubject}`
-      : `Collapse ${collapseSubject}`
-    : undefined;
+  const collapseLabel = (() => {
+    if (collapseControl) {
+      if (collapseControl.isCollapsed) {
+        return `Expand ${collapseSubject}`;
+      }
+      return `Collapse ${collapseSubject}`;
+    }
+    return undefined;
+  })();
   // Keep the visible title in the title-button name (WCAG 2.5.3). A generic
   // aria-label would hide message `name`s from assistive tech.
   const titleButtonLabel =

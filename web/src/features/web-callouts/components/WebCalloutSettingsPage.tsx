@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
@@ -129,13 +128,18 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
 
   const configuredEndpoint = endpoints.data?.[0];
   const canCreateEndpoint = !configuredEndpoint;
-  const addEndpointDisabledReason = endpoints.isLoading
-    ? "Loading callout endpoint configuration."
-    : endpoints.isError
-      ? "Could not load the callout endpoint configuration."
-      : !canCreateEndpoint
-        ? "Currently you can only create one callout per project."
-        : undefined;
+  const addEndpointDisabledReason = (() => {
+    if (endpoints.isLoading) {
+      return "Loading callout endpoint configuration.";
+    }
+    if (endpoints.isError) {
+      return "Could not load the callout endpoint configuration.";
+    }
+    if (!canCreateEndpoint) {
+      return "Currently you can only create one callout per project.";
+    }
+    return undefined;
+  })();
 
   const openCreateDialog = () => {
     setEditingEndpoint(null);

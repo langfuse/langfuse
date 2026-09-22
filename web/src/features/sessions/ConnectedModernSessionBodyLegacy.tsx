@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { type FilterState } from "@langfuse/shared";
@@ -239,14 +238,18 @@ export function ConnectedModernSessionBodyLegacy({
     const mayHaveMoreObservations = Boolean(
       lastRelevantQuery?.isPending || lastRelevantQuery?.data?.hasMore,
     );
-    const observations =
-      isPending && !hasLoadedObservations
-        ? undefined
-        : isError
-          ? null
-          : mayHaveMoreObservations && !hasLoadedObservations
-            ? undefined
-            : (observationsByTraceId.get(trace.id) ?? []);
+    const observations = (() => {
+      if (isPending && !hasLoadedObservations) {
+        return undefined;
+      }
+      if (isError) {
+        return null;
+      }
+      if (mayHaveMoreObservations && !hasLoadedObservations) {
+        return undefined;
+      }
+      return observationsByTraceId.get(trace.id) ?? [];
+    })();
 
     if (
       searchQuery &&

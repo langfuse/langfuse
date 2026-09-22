@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { Slider } from "@/src/components/ui/slider";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
@@ -34,11 +33,15 @@ export function ActivationCostEstimateDetails({
     estimatedCostUsd:
       estimate.matchingObservations * sampling * estimate.testRunCostUsd,
   }));
-  const description = hasNoMatchingObservations
-    ? "No observations matched this rule in the last 7 days, so there is nothing to estimate yet. It will evaluate matching observations as they arrive."
-    : hasOnlyUnavailableEstimates
-      ? "Activating this rule may incur costs. Are you sure you want to continue?"
-      : `${compactNumberFormatter(matchingObservations, 1)} observations matched this rule in the last 7 days.`;
+  const description = (() => {
+    if (hasNoMatchingObservations) {
+      return "No observations matched this rule in the last 7 days, so there is nothing to estimate yet. It will evaluate matching observations as they arrive.";
+    }
+    if (hasOnlyUnavailableEstimates) {
+      return "Activating this rule may incur costs. Are you sure you want to continue?";
+    }
+    return `${compactNumberFormatter(matchingObservations, 1)} observations matched this rule in the last 7 days.`;
+  })();
 
   return (
     <div className="flex flex-col gap-4">

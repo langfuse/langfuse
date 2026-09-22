@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * TruncatedString - String value with truncation and popover
  *
@@ -76,12 +75,15 @@ export function TruncatedString({
       >
         &quot;
         {segments.map((segment, index) => {
-          const backgroundColor =
-            segment.type === "search"
-              ? theme.searchMatchBackground
-              : segment.type === "comment"
-                ? COMMENT_HIGHLIGHT_COLOR
-                : "transparent";
+          const backgroundColor = (() => {
+            if (segment.type === "search") {
+              return theme.searchMatchBackground;
+            }
+            if (segment.type === "comment") {
+              return COMMENT_HIGHLIGHT_COLOR;
+            }
+            return "transparent";
+          })();
 
           const highlightedSpan = (
             <span key={index} style={{ backgroundColor }}>
@@ -131,12 +133,15 @@ export function TruncatedString({
         >
           <span>&quot;</span>
           {segments.map((segment, index) => {
-            const backgroundColor =
-              segment.type === "search"
-                ? theme.searchMatchBackground
-                : segment.type === "comment"
-                  ? COMMENT_HIGHLIGHT_COLOR
-                  : "transparent";
+            const backgroundColor = (() => {
+              if (segment.type === "search") {
+                return theme.searchMatchBackground;
+              }
+              if (segment.type === "comment") {
+                return COMMENT_HIGHLIGHT_COLOR;
+              }
+              return "transparent";
+            })();
 
             return (
               <span key={index} style={{ backgroundColor }}>

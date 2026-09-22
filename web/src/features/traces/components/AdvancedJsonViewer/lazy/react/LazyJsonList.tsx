@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * LazyJsonList — the virtualized body of the lazy JSON viewer. It positions row
@@ -33,12 +32,15 @@ async function copyFullValue(store: RowModelStore, nodeId: number) {
   if (truncated) return;
   // Out-of-double integers come back as bigint, which JSON.stringify can't
   // serialize — handle strings and bigint before the object path.
-  const text =
-    typeof value === "string"
-      ? value
-      : typeof value === "bigint"
-        ? value.toString()
-        : safeStringify(value);
+  const text = (() => {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "bigint") {
+      return value.toString();
+    }
+    return safeStringify(value);
+  })();
   try {
     await navigator.clipboard.writeText(text);
   } catch {

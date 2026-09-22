@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
 import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
@@ -314,23 +313,27 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
-  const instance = env.REDIS_CONNECTION_STRING
-    ? new Redis(env.REDIS_CONNECTION_STRING, {
+  const instance = (() => {
+    if (env.REDIS_CONNECTION_STRING) {
+      return new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
-      })
-    : env.REDIS_HOST
-      ? new Redis({
-          host: String(env.REDIS_HOST),
-          port: Number(env.REDIS_PORT),
-          username: env.REDIS_USERNAME || undefined,
-          password: env.REDIS_AUTH || undefined,
-          ...defaultRedisOptions,
-          ...additionalOptions,
-          ...tlsOptions,
-        })
-      : null;
+      });
+    }
+    if (env.REDIS_HOST) {
+      return new Redis({
+        host: String(env.REDIS_HOST),
+        port: Number(env.REDIS_PORT),
+        username: env.REDIS_USERNAME || undefined,
+        password: env.REDIS_AUTH || undefined,
+        ...defaultRedisOptions,
+        ...additionalOptions,
+        ...tlsOptions,
+      });
+    }
+    return null;
+  })();
 
   instance?.on("error", (error) => {
     logRedisError("Redis error", error);

@@ -1723,12 +1723,15 @@ const GenerationsDynamicCell = ({
     },
   );
 
-  const data =
-    col === "output"
-      ? observation.data?.output
-      : col === "input"
-        ? observation.data?.input
-        : observation.data?.metadata;
+  const data = (() => {
+    if (col === "output") {
+      return observation.data?.output;
+    }
+    if (col === "input") {
+      return observation.data?.input;
+    }
+    return observation.data?.metadata;
+  })();
 
   if (observation.isPending) {
     return <ConnectedIOTableCell isLoading singleLine={singleLine} />;

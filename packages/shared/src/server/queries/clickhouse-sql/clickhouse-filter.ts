@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
@@ -320,12 +319,15 @@ export class StringOptionsFilter implements Filter {
       ngramConjunct = `lower(${fieldWithPrefix}) IN ({${loweredVar}: Array(String)}) AND `;
     }
 
-    let query =
-      this.operator === "any of"
-        ? ngramConjunct
-          ? `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`
-          : `${fieldWithPrefix} IN ({${varName}: Array(String)})`
-        : `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
+    let query = (() => {
+      if (this.operator === "any of") {
+        if (ngramConjunct) {
+          return `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`;
+        }
+        return `${fieldWithPrefix} IN ({${varName}: Array(String)})`;
+      }
+      return `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
+    })();
 
     if (hasEmpty && this.operator === "any of") {
       // '' ≡ NULL: also match NULL when '' is in the list

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { Processor } from "bullmq";
 import { Readable } from "node:stream";
 import pLimit from "p-limit";
@@ -103,12 +102,15 @@ const KNOWN_WIDGET_DIMENSIONS = new Set(
 const KNOWN_WIDGET_AGGREGATIONS = new Set<string>(metricAggregations.options);
 const INVALID_SENTINEL = "__invalid__";
 
-const allowlisted = (value: unknown, allowlist: Set<string>): string | null =>
-  value == null
-    ? null
-    : typeof value === "string" && allowlist.has(value)
-      ? value
-      : INVALID_SENTINEL;
+const allowlisted = (value: unknown, allowlist: Set<string>): string | null => {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === "string" && allowlist.has(value)) {
+    return value;
+  }
+  return INVALID_SENTINEL;
+};
 
 type DashboardWidgetCoreDataInput = {
   dimensions: unknown;

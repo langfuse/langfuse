@@ -99,12 +99,15 @@ function SessionTimelineStatusIndicator({
 }: {
   observation: SessionObservation;
 }) {
-  const Icon =
-    observation.level === "ERROR"
-      ? CircleAlert
-      : observation.level === "WARNING"
-        ? TriangleAlert
-        : Info;
+  const Icon = (() => {
+    if (observation.level === "ERROR") {
+      return CircleAlert;
+    }
+    if (observation.level === "WARNING") {
+      return TriangleAlert;
+    }
+    return Info;
+  })();
   const colors = getLevelColors(observation.level);
 
   return (
@@ -250,12 +253,15 @@ function getNestedObservationSummary(
       }
 
       const names = count <= 3 ? Array.from(toolNames) : [];
-      const namesSummary =
-        names.length < 2
-          ? (names[0] ?? "")
-          : names.length === 2
-            ? `${names[0]} and ${names[1]}`
-            : `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      const namesSummary = (() => {
+        if (names.length < 2) {
+          return names[0] ?? "";
+        }
+        if (names.length === 2) {
+          return `${names[0]} and ${names[1]}`;
+        }
+        return `${names.slice(0, -1).join(", ")}, and ${names.at(-1)}`;
+      })();
       if (names.length === count) return `tools: ${namesSummary}`;
 
       return `${count} tool${count === 1 ? "" : "s"}${namesSummary ? ` using ${namesSummary}` : ""}`;

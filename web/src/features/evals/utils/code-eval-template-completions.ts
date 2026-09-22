@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   autocompletion,
   type Completion,
@@ -876,12 +875,15 @@ function getPythonDataTypeValueCompletion(
     return null;
   }
 
-  const operator =
-    argument.name === "AssignOp"
-      ? argument
-      : argument.prevSibling?.name === "AssignOp"
-        ? argument.prevSibling
-        : null;
+  const operator = (() => {
+    if (argument.name === "AssignOp") {
+      return argument;
+    }
+    if (argument.prevSibling?.name === "AssignOp") {
+      return argument.prevSibling;
+    }
+    return null;
+  })();
   const parameter = operator?.prevSibling;
   if (
     parameter?.name !== "VariableName" ||

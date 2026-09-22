@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
@@ -34,15 +33,20 @@ export function useEvaluatorTestAvailability({
       : null,
   );
 
-  return scoreOutputReason
-    ? scoreOutputReason
-    : modelReason
-      ? modelReason
-      : !definitionAvailable
-        ? "Complete the evaluator before running a test."
-        : !selectedObservation
-          ? "Select a sample observation first."
-          : !sampleObject
-            ? "Loading the selected sample."
-            : null;
+  if (scoreOutputReason) {
+    return scoreOutputReason;
+  }
+  if (modelReason) {
+    return modelReason;
+  }
+  if (!definitionAvailable) {
+    return "Complete the evaluator before running a test.";
+  }
+  if (!selectedObservation) {
+    return "Select a sample observation first.";
+  }
+  if (!sampleObject) {
+    return "Loading the selected sample.";
+  }
+  return null;
 }

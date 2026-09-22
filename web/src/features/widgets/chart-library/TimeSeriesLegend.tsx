@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import {
@@ -197,14 +196,18 @@ export function TimeSeriesLegend({
           // - highlight: clicking the focused series clears focus ("Show all
           //   series"); clicking any other focuses it ("Show only X"). (Getting
           //   this from `dimmed` alone inverts it once a series is focused.)
-          const ariaLabel =
-            interaction === "toggle"
-              ? item.dimmed
-                ? `Show ${labelText}`
-                : `Hide ${labelText}`
-              : item.focused
-                ? "Show all series"
-                : `Show only ${labelText}`;
+          const ariaLabel = (() => {
+            if (interaction === "toggle") {
+              if (item.dimmed) {
+                return `Show ${labelText}`;
+              }
+              return `Hide ${labelText}`;
+            }
+            if (item.focused) {
+              return "Show all series";
+            }
+            return `Show only ${labelText}`;
+          })();
           // aria-pressed reflects state: visible (toggle) / focused (highlight).
           const ariaPressed =
             interaction === "toggle" ? !item.dimmed : item.focused;

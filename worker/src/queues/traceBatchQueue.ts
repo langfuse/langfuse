@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { type Processor } from "bullmq";
 import { randomUUID } from "node:crypto";
 import { type Observation } from "@langfuse/shared";
@@ -55,11 +54,15 @@ export const traceBatchQueueProcessor: Processor<
       "langfuse.trace_batch.job_id": job.id,
       "langfuse.trace_batch.attempt": job.attemptsMade + 1,
     });
-    const disabledReason = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-      ? "not_cloud"
-      : env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true"
-        ? "reads_disabled"
-        : undefined;
+    const disabledReason = (() => {
+      if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+        return "not_cloud";
+      }
+      if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true") {
+        return "reads_disabled";
+      }
+      return undefined;
+    })();
     if (disabledReason) {
       outcome = "discard";
       // BullMQ reads these options after the processor returns, then removes atomically.

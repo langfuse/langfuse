@@ -80,13 +80,13 @@ function MigrationActionCell({ state }: { state: MigrationActionState }) {
   if (state.status === "error") {
     return <span className="text-foreground-tertiary">Unavailable</span>;
   }
-  return state.result === "required" ? (
-    <span>Update required</span>
-  ) : state.result === "sdk_usage_inconclusive" ? (
-    <span>Needs review</span>
-  ) : (
-    <span className="text-foreground-tertiary">Up to date</span>
-  );
+  if (state.result === "required") {
+    return <span>Update required</span>;
+  }
+  if (state.result === "sdk_usage_inconclusive") {
+    return <span>Needs review</span>;
+  }
+  return <span className="text-foreground-tertiary">Up to date</span>;
 }
 
 function StatusPill({ readiness }: { readiness: ProjectMigrationReadiness }) {
@@ -250,29 +250,38 @@ function OrgStatusSection({
           "partner-managed": 4,
         }[row.readiness];
       case "sdk":
-        return row.status.sdk.status === "latest"
-          ? 5
-          : row.status.sdk.status === "otel_realtime"
-            ? 5
-            : row.status.sdk.status === "no_data"
-              ? 5
-              : row.status.sdk.status === "legacy"
-                ? 4
-                : row.status.sdk.status === "otel_header_required"
-                  ? 3
-                  : row.status.sdk.status === "unknown"
-                    ? 2
-                    : row.status.sdk.status === "checking"
-                      ? 1
-                      : 0;
+        if (row.status.sdk.status === "latest") {
+          return 5;
+        }
+        if (row.status.sdk.status === "otel_realtime") {
+          return 5;
+        }
+        if (row.status.sdk.status === "no_data") {
+          return 5;
+        }
+        if (row.status.sdk.status === "legacy") {
+          return 4;
+        }
+        if (row.status.sdk.status === "otel_header_required") {
+          return 3;
+        }
+        if (row.status.sdk.status === "unknown") {
+          return 2;
+        }
+        if (row.status.sdk.status === "checking") {
+          return 1;
+        }
+        return 0;
       case "evals":
         return row.status.evals.count;
       case "experiments":
-        return row.status.experiments.result === "required"
-          ? 2
-          : row.status.experiments.result === "sdk_usage_inconclusive"
-            ? 1
-            : 0;
+        if (row.status.experiments.result === "required") {
+          return 2;
+        }
+        if (row.status.experiments.result === "sdk_usage_inconclusive") {
+          return 1;
+        }
+        return 0;
       case "apis":
         return row.status.apis.count;
       case "exports":
@@ -339,29 +348,43 @@ function OrgStatusSection({
       ...columnOptions,
       accessorKey: "sdk",
       header: () => sortableHeader("SDK", "sdk"),
-      cell: ({ row }) =>
-        row.original.status.sdk.status === "latest" ? (
-          <span className="text-foreground-tertiary">Latest</span>
-        ) : row.original.status.sdk.status === "otel_realtime" ? (
-          <span className="text-foreground-tertiary">OTel real-time</span>
-        ) : row.original.status.sdk.status === "no_data" ? (
-          <span className="text-foreground-tertiary">No data detected</span>
-        ) : row.original.status.sdk.status === "checking" ? (
-          <span className="text-foreground-tertiary">Checking…</span>
-        ) : row.original.status.sdk.status === "unknown" ? (
-          <span className="text-foreground-tertiary">Unknown</span>
-        ) : row.original.status.sdk.status === "otel_header_required" ? (
-          <span>
-            {row.original.status.sdk.delayedOtelIngestionCount} OTel header{" "}
-            {row.original.status.sdk.delayedOtelIngestionCount === 1
-              ? "required"
-              : "issues"}
-          </span>
-        ) : row.original.status.sdk.status === "error" ? (
-          <span className="text-foreground-tertiary">Unavailable</span>
-        ) : (
+      cell: ({ row }) => {
+        if (row.original.status.sdk.status === "latest") {
+          return <span className="text-foreground-tertiary">Latest</span>;
+        }
+        if (row.original.status.sdk.status === "otel_realtime") {
+          return (
+            <span className="text-foreground-tertiary">OTel real-time</span>
+          );
+        }
+        if (row.original.status.sdk.status === "no_data") {
+          return (
+            <span className="text-foreground-tertiary">No data detected</span>
+          );
+        }
+        if (row.original.status.sdk.status === "checking") {
+          return <span className="text-foreground-tertiary">Checking…</span>;
+        }
+        if (row.original.status.sdk.status === "unknown") {
+          return <span className="text-foreground-tertiary">Unknown</span>;
+        }
+        if (row.original.status.sdk.status === "otel_header_required") {
+          return (
+            <span>
+              {row.original.status.sdk.delayedOtelIngestionCount} OTel header{" "}
+              {row.original.status.sdk.delayedOtelIngestionCount === 1
+                ? "required"
+                : "issues"}
+            </span>
+          );
+        }
+        if (row.original.status.sdk.status === "error") {
+          return <span className="text-foreground-tertiary">Unavailable</span>;
+        }
+        return (
           <span>{row.original.status.sdk.upgradeRequiredCount} outdated</span>
-        ),
+        );
+      },
     },
     {
       ...columnOptions,

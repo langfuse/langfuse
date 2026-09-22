@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 
 import {
@@ -373,11 +372,15 @@ export function createLambdaMicrovmSandboxProvider(params: {
   return {
     async probeSession({ sessionId }) {
       const existing = await getMicrovm(client, sessionId);
-      const lostReason = !existing
-        ? "not_found"
-        : isTerminalMicrovmState(existing.state)
-          ? "terminal_state"
-          : null;
+      const lostReason = (() => {
+        if (!existing) {
+          return "not_found";
+        }
+        if (isTerminalMicrovmState(existing.state)) {
+          return "terminal_state";
+        }
+        return null;
+      })();
       logger.debug("[Lambda MicroVM Sandbox] probed session", {
         sessionId,
         state: existing?.state,

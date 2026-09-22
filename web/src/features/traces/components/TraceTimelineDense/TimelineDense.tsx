@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-null-render */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
@@ -509,11 +508,15 @@ export function TimelineDense({
   // An explicit "Show labels" pin wins over a leftover rail-collapse
   // override; otherwise the names stay a peek overlay and never take
   // the gutter the user just asked for.
-  const wantsOpen = labelsPinned
-    ? true
-    : override === "collapsed"
-      ? false
-      : asked || gutterMode === "auto";
+  const wantsOpen = (() => {
+    if (labelsPinned) {
+      return true;
+    }
+    if (override === "collapsed") {
+      return false;
+    }
+    return asked || gutterMode === "auto";
+  })();
   const gutterFits =
     contentWidth - wantedGutter >=
     (asked ? MIN_LANE_WIDTH : AUTO_OPEN_MIN_LANE_WIDTH);
@@ -522,11 +525,15 @@ export function TimelineDense({
   // not: it floats over the timeline instead, so hovering the edge never shoves
   // the bars sideways while you are reading them.
   const committedOpen = canShowNames && gutterFits && wantsOpen;
-  const railWidth = canShowNames
-    ? committedOpen
-      ? wantedGutter
-      : RAIL_WIDTH
-    : 0;
+  const railWidth = (() => {
+    if (canShowNames) {
+      if (committedOpen) {
+        return wantedGutter;
+      }
+      return RAIL_WIDTH;
+    }
+    return 0;
+  })();
   const laneWidth = Math.max(contentWidth - railWidth, 0);
 
   const chartBox = useMemo(
@@ -981,12 +988,15 @@ export function TimelineDense({
         // Deltas arrive in pixels, lines or pages depending on the browser and
         // the device, so normalize before anything reads them: a line-mode wheel
         // reports 3, and panning 3px per notch reads as stuck.
-        const unit =
-          event.deltaMode === 1
-            ? WHEEL_LINE_PX
-            : event.deltaMode === 2
-              ? Math.max(rect.height, 1)
-              : 1;
+        const unit = (() => {
+          if (event.deltaMode === 1) {
+            return WHEEL_LINE_PX;
+          }
+          if (event.deltaMode === 2) {
+            return Math.max(rect.height, 1);
+          }
+          return 1;
+        })();
         const deltaX = event.deltaX * unit;
         const deltaY = event.deltaY * unit;
         // A macOS pinch is the ONLY wheel event that carries ctrlKey. Holding

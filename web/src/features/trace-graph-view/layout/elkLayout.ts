@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { ELK, ElkNode } from "elkjs";
 
 import {
@@ -219,14 +218,21 @@ function buildElkGraph(request: GraphLayoutRequest): ElkNode {
     // the first/last layer so edge shape can't strand them mid-graph (e.g.
     // a root span's `root→__end__` edge would otherwise place __end__ in
     // the second column while the run continues to the right of it).
-    const constraint =
-      node.id === LANGFUSE_START_NODE_NAME ||
-      node.id === LANGGRAPH_START_NODE_NAME
-        ? "FIRST"
-        : node.id === LANGFUSE_END_NODE_NAME ||
-            node.id === LANGGRAPH_END_NODE_NAME
-          ? "LAST"
-          : null;
+    const constraint = (() => {
+      if (
+        node.id === LANGFUSE_START_NODE_NAME ||
+        node.id === LANGGRAPH_START_NODE_NAME
+      ) {
+        return "FIRST";
+      }
+      if (
+        node.id === LANGFUSE_END_NODE_NAME ||
+        node.id === LANGGRAPH_END_NODE_NAME
+      ) {
+        return "LAST";
+      }
+      return null;
+    })();
     return {
       id: node.id,
       width,
