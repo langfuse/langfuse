@@ -5,7 +5,6 @@ use serde::{
 };
 use std::{collections::BTreeMap, fmt};
 
-/// Granular native API contract requested by the client and selected by Web.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum ApiFormat {
     #[serde(rename = "openai.responses")]
@@ -14,8 +13,6 @@ pub enum ApiFormat {
     AnthropicMessages,
 }
 
-/// Provider behind a resolved connection. Each provider has one official origin
-/// and one credential scheme; Web's registry is the source of truth for both.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
@@ -63,8 +60,6 @@ pub enum MetadataValue {
     Bool(bool),
 }
 
-/// The provider credential in the header position the provider expects.
-/// Intentionally has no `Debug` implementation so it cannot reach logs.
 #[derive(Clone, Copy)]
 pub enum ProviderCredential<'a> {
     /// `Authorization: Bearer <token>`
@@ -110,8 +105,6 @@ struct XApiKeyAuth {
     value: String,
 }
 
-// Both shapes carry a `type` discriminator, but each is a plain struct so
-// `deny_unknown_fields` still applies to every variant.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum Auth {
@@ -257,8 +250,6 @@ pub(super) fn decode(
     let connection = &response.connection;
     let attribution = &response.attribution;
     let provider = connection.provider;
-    // Web selects the connection; Rust still refuses any pairing that is not an
-    // official origin serving its own native format with its own credential scheme.
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)

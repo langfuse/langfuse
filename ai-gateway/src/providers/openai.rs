@@ -52,8 +52,6 @@ impl OpenAiRoute {
         !matches!(self, Self::Models)
     }
 
-    /// The API format Web resolves for this route; all current routes use the
-    /// Responses connection.
     pub(crate) fn api_format(self) -> ApiFormat {
         match self {
             Self::Responses | Self::ResponsesCompact | Self::Models => ApiFormat::OpenAiResponses,
@@ -179,7 +177,6 @@ impl OpenAiProvider {
         body: Bytes,
         route: OpenAiRoute,
     ) -> Result<Response<Body>, ProviderError> {
-        // Resolution already rejected any non-Bearer credential for OpenAI connections.
         let ProviderCredential::Bearer(token) = context.connection().credential() else {
             return Err(ProviderError::Configuration);
         };

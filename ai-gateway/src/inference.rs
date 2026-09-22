@@ -54,7 +54,6 @@ impl InferenceService {
     }
 
     /// Authenticate with a separate bounded budget before reserving execution capacity.
-    /// The API format comes from the public route, so Web selects a compatible connection.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
