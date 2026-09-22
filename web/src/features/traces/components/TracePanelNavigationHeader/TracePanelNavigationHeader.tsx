@@ -268,14 +268,14 @@ function TracePanelNavigationHeaderExpanded({
           {/* Search Input */}
           <div
             className={cn(
-              "relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2",
+              "@max-[439px]/navheader:bg-background @max-[439px]/navheader:focus-within:border-ring @max-[439px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2 @max-[439px]/navheader:mx-1 @max-[439px]/navheader:rounded-md @max-[439px]/navheader:border @max-[439px]/navheader:shadow-xs @max-[439px]/navheader:focus-within:ring-2",
               isDetailPanelCollapsed && "pl-1",
             )}
           >
             <CommandInput
               showBorder={false}
               placeholder="Search"
-              className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
+              className="@max-[439px]/navheader:placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 focus:ring-0"
               value={searchInputValue}
               onValueChange={setSearchInputValue}
               onKeyDown={handleSearchKeyDown}

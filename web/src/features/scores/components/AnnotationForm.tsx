@@ -56,7 +56,7 @@ function AnnotateHeader({
   description?: string;
 }) {
   return (
-    <div>
+    <div className="relative">
       <Header
         title="Annotate"
         titleClassName="text-foreground ml-5"
@@ -71,7 +71,7 @@ function AnnotateHeader({
         }
         actionButtons={actionButtons}
       />
-      <div className="-mt-1 flex h-4 items-center justify-end overflow-hidden pr-1">
+      <div className="pointer-events-none absolute top-full right-1 flex h-4 items-center overflow-hidden">
         {saveStatus}
       </div>
     </div>
@@ -229,7 +229,7 @@ export function AnnotationFormContent({
       tabIndex={-1}
       className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="sticky top-0 z-10 flex flex-col rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-1">
+      <div className="sticky top-0 z-10 flex flex-col rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
         <AnnotateHeader
           saveStatus={<AnnotationSaveStatus form={form} actions={actions} />}
           actionButtons={
