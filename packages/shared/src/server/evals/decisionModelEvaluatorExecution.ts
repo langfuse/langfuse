@@ -227,6 +227,10 @@ export function formatDecisionModelComment(params: {
   return parts.join(" · ");
 }
 
+/**
+ * Everything the provider returned beyond the score value, namespaced under
+ * `typesafe` so users can read it the same way on every decision-model score.
+ */
 function toScoreMetadata(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
@@ -237,7 +241,7 @@ function toScoreMetadata(params: {
   switch (answer.type) {
     case "choice":
       return {
-        decisionModel: {
+        typesafe: {
           ...base,
           choice: answer.choice,
           confidence: answer.confidence,
@@ -246,7 +250,7 @@ function toScoreMetadata(params: {
       };
     case "score":
       return {
-        decisionModel: {
+        typesafe: {
           ...base,
           confidence: answer.confidence,
           probabilities: answer.probabilities,
@@ -262,7 +266,7 @@ function toScoreMetadata(params: {
         },
       };
     case "boolean":
-      return { decisionModel: base };
+      return { typesafe: base };
   }
 }
 

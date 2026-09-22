@@ -126,7 +126,7 @@ describe("executeDecisionModelEvaluator", () => {
         comment:
           "ready (p=0.91) · confidence 0.82 · runner-up needs_revision (0.09) · jev-1.13.0",
         metadata: {
-          decisionModel: {
+          typesafe: {
             questionId: "readiness",
             type: "choice",
             model: "jev-1.13.0",
@@ -143,7 +143,7 @@ describe("executeDecisionModelEvaluator", () => {
         comment:
           '1.26 ≈ level 1 "Frustrated but civil" · confidence 0.61 · jev-1.13.0',
         metadata: {
-          decisionModel: {
+          typesafe: {
             questionId: "frustration",
             type: "score",
             model: "jev-1.13.0",
@@ -163,7 +163,7 @@ describe("executeDecisionModelEvaluator", () => {
         value: 0.97,
         comment: "P(true)=0.97 · jev-1.13.0",
         metadata: {
-          decisionModel: {
+          typesafe: {
             questionId: "refund",
             type: "noul",
             model: "jev-1.13.0",
