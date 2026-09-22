@@ -101,7 +101,7 @@ function CurrentFacet({
       return (
         row.outcome === "not_applicable" || row.outcome === "insufficient_input"
       );
-    if (selected === "awaiting_map") return row.awaitingUpdate;
+    if (selected === "awaiting_map") return row.outcome === "awaiting_map";
     return row.topicId === selected;
   });
   function selectTrace(traceId: string | null, syncTable = split) {
@@ -154,8 +154,7 @@ function CurrentFacet({
           <div className="flex min-w-0 flex-col gap-3">
             <TopicEmbeddingMap
               projectId={projectId}
-              executionId={facet.map.executionId}
-              facetVersionId={facet.map.facetVersionId}
+              runId={facet.map.runId}
               topics={facet.map.topics}
               selectedTopic={selected}
               onSelectTopic={selectTopic}
@@ -326,18 +325,9 @@ function CurrentTraceTable({
       header: "Topic",
       size: 260,
       cell: ({ row }) => (
-        <div className="flex flex-wrap gap-1">
-          <Badge variant="outline" className="whitespace-normal">
-            {row.original.topicName ??
-              row.original.outcome.replaceAll("_", " ")}
-          </Badge>
-          {row.original.awaitingUpdate &&
-            row.original.outcome !== "awaiting_map" && (
-              <Badge variant="outline" className="whitespace-normal">
-                Previous result · update pending
-              </Badge>
-            )}
-        </div>
+        <Badge variant="outline" className="whitespace-normal">
+          {row.original.topicName ?? row.original.outcome.replaceAll("_", " ")}
+        </Badge>
       ),
     },
     {

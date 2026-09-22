@@ -13,8 +13,7 @@ vi.mock("@/src/utils/api", () => ({
 
 const props = {
   projectId: "project",
-  executionId: "execution",
-  facetVersionId: "facet",
+  runId: "run",
   topics: [
     {
       id: "billing",
@@ -194,12 +193,12 @@ describe("embedding map", () => {
     }
   });
 
-  it("explains unpositioned later-batch summaries and never invents dots", () => {
+  it("explains unpositioned current summaries and never invents dots", () => {
     query.data = { ...ready, unpositionedCount: 1 };
     const view = render(<TopicEmbeddingMap {...props} />);
     expect(view.container.querySelectorAll("circle")).toHaveLength(2);
     expect(
-      screen.getByText(/1 summaries in this execution have no coordinates/),
+      screen.getByText(/1 current summaries have no coordinates/),
     ).toBeTruthy();
     query.data = {
       ...ready,

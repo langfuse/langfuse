@@ -180,15 +180,11 @@ export class TopicExecutionStore {
         checkRequest(current.state, input);
         return;
       }
-      const [sequence] = await tx.$queryRaw<
-        { revision: bigint }[]
-      >`SELECT nextval('topic_processing_revision_seq') AS revision`;
       const now = new Date().toISOString();
       const state: ExecutionMetadata = {
         header: {
           id,
           projectId,
-          revision: sequence.revision.toString(),
           status: "queued",
           phase: "queued",
           createdAt: now,
@@ -240,7 +236,6 @@ export class TopicExecutionStore {
             executionId: id,
             facetVersionId: facet.facetVersionId,
             status: "pending",
-            phase: "queued",
             executionMetadata: json({ ...state, facet } satisfies RunMetadata),
           })),
         });
@@ -350,8 +345,6 @@ export class TopicExecutionStore {
         progressVersion <= (current.state.progressVersion ?? 0)
       )
         return;
-      if (current.state.header.revision !== execution.revision)
-        throw new Error("Topics execution revision cannot change.");
       if (
         current.facets.length !== execution.facets.length ||
         current.facets.some(
@@ -365,7 +358,6 @@ export class TopicExecutionStore {
       const {
         id: executionId,
         projectId: owner,
-        revision,
         status: executionStatus,
         phase: executionPhase,
         createdAt,
@@ -374,7 +366,6 @@ export class TopicExecutionStore {
       const header: ExecutionMetadata["header"] = {
         id: executionId,
         projectId: owner,
-        revision,
         status: executionStatus,
         phase: executionPhase,
         createdAt,
@@ -437,13 +428,10 @@ export class TopicExecutionStore {
           (facet.outcome === "failed" || execution.status === "failed");
         const terminal = completed || failed;
         let status = execution.status === "queued" ? "pending" : "running";
-        let phase = execution.phase;
         if (completed) {
           status = "completed";
-          phase = facet.outcome;
         } else if (failed) {
           status = "failed";
-          phase = "failed";
         }
         await tx.topicClusteringRun.update({
           where: { projectId_id: { projectId, id: row.id } },
@@ -457,7 +445,6 @@ export class TopicExecutionStore {
             ...(!row.publishedAt
               ? {
                   status,
-                  phase,
                   error: completed ? null : (facet.error ?? execution.error),
                   ...(execution.status === "running" && !row.startedAt
                     ? { startedAt: new Date() }

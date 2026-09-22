@@ -57,10 +57,49 @@ describe("Topics naming boundary", () => {
       summary: "A billing request.",
       status: "applicable",
     });
+    expect(result.providedUsageDetails).toEqual({
+      summary_input: 100,
+      summary_output: 30,
+    });
+    expect(result.usageDetails).toEqual({
+      summary_input: 100,
+      summary_output: 30,
+      total: 130,
+    });
+    expect(result.providedCostDetails).toEqual({});
+    expect(result.costDetails.summary_input).toBeCloseTo(0.00001, 10);
+    expect(result.costDetails.summary_output).toBeCloseTo(0.000012, 10);
+    expect(result.costDetails.total).toBeCloseTo(0.000022, 10);
     const request = state.call.mock.calls[0][0];
     expect(request.model.id).toBe("gpt-4.1-nano");
     expect(request.messages[0].content).toContain(facet.prompt);
     expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+  });
+
+  it("keeps fallback token counts out of provider-reported usage", async () => {
+    state.call.mockResolvedValue({
+      output: { summary: "A billing request.", status: "applicable" },
+      usage: { inputTokens: 100 },
+    });
+    const config = topicProcessingConfigSchema.parse({});
+    const result = await summarizeTopicTrace(
+      {
+        id: "facet-version",
+        projectId: "project",
+        facetId: "facet",
+        version: 1,
+        prompt: "Describe the user's request.",
+        createdAt: "2026-09-16T00:00:00Z",
+      },
+      "A request for an invoice.",
+      config,
+    );
+    expect(result.providedUsageDetails).toEqual({ summary_input: 100 });
+    expect(result.usageDetails).toEqual({
+      summary_input: 100,
+      summary_output: config.maxOutputTokens,
+      total: 100 + config.maxOutputTokens,
+    });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
     const facet = {
@@ -97,7 +136,7 @@ describe("Topics naming boundary", () => {
     });
     expect(state.call).toHaveBeenCalledTimes(1);
     expect(state.call.mock.calls[0][0].model.id).toBe("gpt-5.6-luna");
-    expect(result.costUsd).toBeCloseTo(0.000056, 10);
+    expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
   });
 
   it("names the complete cohort without shortening member summaries", async () => {

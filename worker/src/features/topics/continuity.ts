@@ -3,39 +3,22 @@ import { normalizeVector } from "./classifier";
 
 type Membership = {
   traceId: string;
-  inputHash: string;
   topicVersionId: string | null;
 };
-
-const evidenceKey = (row: Pick<Membership, "traceId" | "inputHash">) =>
-  JSON.stringify([row.traceId, row.inputHash]);
-
-function uniqueEvidence<T extends Pick<Membership, "traceId" | "inputHash">>(
-  rows: readonly T[],
-): Map<string, T> {
-  const traces = new Map<string, string>();
-  const result = new Map<string, T>();
-  for (const row of rows) {
-    const previous = traces.get(row.traceId);
-    if (previous !== undefined && previous !== row.inputHash)
-      throw new Error("Topic cohort contains conflicting inputs for a trace");
-    traces.set(row.traceId, row.inputHash);
-    result.set(evidenceKey(row), row);
-  }
-  return result;
-}
 
 function membershipIndex(
   rows: readonly Membership[],
   topics: readonly TopicDefinition[],
 ) {
   const ids = new Set(topics.map((topic) => topic.topicVersionId));
-  const result = uniqueEvidence(rows);
+  const result = new Map<string, Membership>();
   for (const row of rows) {
     if (row.topicVersionId !== null && !ids.has(row.topicVersionId))
       throw new Error("Topic membership references an unknown version");
-    if (result.get(evidenceKey(row))!.topicVersionId !== row.topicVersionId)
+    const previous = result.get(row.traceId);
+    if (previous && previous.topicVersionId !== row.topicVersionId)
       throw new Error("Topic cohort contains conflicting memberships");
+    result.set(row.traceId, row);
   }
   return result;
 }

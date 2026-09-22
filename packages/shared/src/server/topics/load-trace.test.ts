@@ -9,6 +9,7 @@ vi.mock("../repositories/clickhouse", () => ({
 const row = {
   project_id: "project",
   trace_id: "trace",
+  session_id: "session",
   span_id: "span",
   parent_span_id: null,
   start_time: "2026-09-15 10:00:00.000",
@@ -28,6 +29,11 @@ describe("Topics snapshot loader", () => {
   it("loads complete I/O through a project-scoped latest-version query", async () => {
     vi.mocked(queryClickhouseStream).mockImplementation(async function* () {
       yield row;
+      yield {
+        ...row,
+        span_id: "earlier",
+        start_time: "2026-09-15 09:00:00.000",
+      };
     });
     const result = await loadTraceSnapshot({
       projectId: "project",
@@ -44,7 +50,8 @@ describe("Topics snapshot loader", () => {
       traceId: "trace",
     });
     expect(result.observations[0].output).toBe("false");
-    expect(result.timestamp).toBe("2026-09-15T10:00:00.000Z");
+    expect(result.timestamp).toBe("2026-09-15T09:00:00.000Z");
+    expect(result.sessionId).toBe("session");
   });
 
   it("rejects cross-project rows and refuses oversized snapshots", async () => {
@@ -60,5 +67,23 @@ describe("Topics snapshot loader", () => {
     await expect(
       loadTraceSnapshot({ projectId: "project", traceId: "trace" }),
     ).rejects.toThrow("limit");
+  });
+
+  it("keeps all observations and uses the latest non-empty session context", async () => {
+    vi.mocked(queryClickhouseStream).mockImplementation(async function* () {
+      yield { ...row, span_id: "newest", session_id: "" };
+      yield { ...row, span_id: "current", session_id: "current-session" };
+      yield { ...row, span_id: "older", session_id: "previous-session" };
+    });
+    const result = await loadTraceSnapshot({
+      projectId: "project",
+      traceId: "trace",
+    });
+    expect(result.sessionId).toBe("current-session");
+    expect(result.observations.map((observation) => observation.id)).toEqual([
+      "newest",
+      "current",
+      "older",
+    ]);
   });
 });

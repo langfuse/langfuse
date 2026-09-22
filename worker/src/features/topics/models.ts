@@ -13,6 +13,7 @@ import {
   TOPICS_EMBEDDING_MODEL,
   type TopicFacetVersion,
   type TopicProcessingConfig,
+  type TopicSummary,
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import {
@@ -20,19 +21,20 @@ import {
   topicProviderError,
 } from "./provider-error";
 
-export const TOPICS_SUMMARY_PROMPT_VERSION = "10";
 export const TOPICS_NAMING_MODEL = "gpt-5.6-luna";
 
 const summarySchema = z.object({
   summary: z.string(),
   status: z.enum(["applicable", "not_applicable", "insufficient_input"]),
 });
-type ModelResult<T> = {
-  output: T;
-  inputTokens: number;
-  outputTokens: number;
-  costUsd: number;
-};
+type ModelUsage = Pick<
+  TopicSummary,
+  | "providedUsageDetails"
+  | "usageDetails"
+  | "providedCostDetails"
+  | "costDetails"
+>;
+type ModelResult<T> = ModelUsage & { output: T };
 
 async function structuredCall<T>(
   system: string,
@@ -93,14 +95,34 @@ async function structuredCall<T>(
     throw topicProviderError(error);
   });
   const actualRates = rates(result.usage.inputTokens ?? inputLimit);
+  const stage = isNaming ? "naming" : "summary";
+  const inputKey = `${stage}_input`;
+  const outputKey = `${stage}_output`;
+  const inputTokens = result.usage.inputTokens ?? inputLimit;
+  const outputTokens = result.usage.outputTokens ?? outputLimit;
+  const inputCost = (inputTokens * actualRates.input) / 1_000_000;
+  const outputCost = (outputTokens * actualRates.output) / 1_000_000;
+  const providedUsageDetails: Record<string, number> = {};
+  if (result.usage.inputTokens != null)
+    providedUsageDetails[inputKey] = result.usage.inputTokens;
+  if (result.usage.outputTokens != null)
+    providedUsageDetails[outputKey] = result.usage.outputTokens;
+  if (result.usage.totalTokens != null)
+    providedUsageDetails.total = result.usage.totalTokens;
   const accepted: ModelResult<T> = {
     output: schema.parse(result.output),
-    inputTokens: result.usage.inputTokens ?? inputLimit,
-    outputTokens: result.usage.outputTokens ?? outputLimit,
-    costUsd:
-      ((result.usage.inputTokens ?? inputLimit) * actualRates.input +
-        (result.usage.outputTokens ?? outputLimit) * actualRates.output) /
-      1_000_000,
+    providedUsageDetails,
+    usageDetails: {
+      [inputKey]: inputTokens,
+      [outputKey]: outputTokens,
+      total: result.usage.totalTokens ?? inputTokens + outputTokens,
+    },
+    providedCostDetails: {},
+    costDetails: {
+      [inputKey]: inputCost,
+      [outputKey]: outputCost,
+      total: inputCost + outputCost,
+    },
   };
   return accepted;
 }
@@ -180,7 +202,7 @@ export async function nameTopicGroup(group: {
 export async function embedTopicSummary(
   summary: string,
   dimensions: number,
-): Promise<{ embedding: number[]; inputTokens: number; costUsd: number }> {
+): Promise<ModelUsage & { embedding: number[] }> {
   if (!env.OPENAI_API_KEY)
     throw new TopicsProviderUnavailable(
       "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
@@ -229,10 +251,17 @@ export async function embedTopicSummary(
     })
     .parse(await response.json());
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
+  const usageDetails = {
+    embedding_input: parsed.usage.total_tokens,
+    total: parsed.usage.total_tokens,
+  };
+  const cost = (parsed.usage.total_tokens * 0.02) / 1_000_000;
   const accepted = {
     embedding: Array.from(new Float32Array(parsed.data[0].embedding)),
-    inputTokens: parsed.usage.total_tokens,
-    costUsd: (parsed.usage.total_tokens * 0.02) / 1_000_000,
+    providedUsageDetails: usageDetails,
+    usageDetails,
+    providedCostDetails: {},
+    costDetails: { embedding_input: cost, total: cost },
   };
   return accepted;
 }

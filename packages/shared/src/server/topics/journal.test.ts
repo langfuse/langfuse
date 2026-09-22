@@ -5,7 +5,6 @@ import { type TopicExecutionInput } from "../../topics";
 const state = vi.hoisted(() => ({
   rows: new Map<string, Record<string, unknown>>(),
   batches: new Map<string, Record<string, unknown>>(),
-  revision: 0,
   writes: vi.fn(),
 }));
 vi.mock("./postgres", () => ({
@@ -102,10 +101,7 @@ vi.mock("../../db", () => {
     topicClusteringRun,
     batchAction,
     $executeRaw: async () => 1,
-    $queryRaw: async (query: TemplateStringsArray) =>
-      query.join("").includes("nextval")
-        ? [{ revision: BigInt(++state.revision) }]
-        : [],
+    $queryRaw: async () => [],
   };
   return {
     prisma: {
@@ -126,6 +122,7 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   operation: "process",
   facetVersionIds: ["facet-v1", "facet-v2"],
   traceIds: ["trace-a", "trace-b"],
+  reuseExistingSummaries: false,
   processingConfig: {
     summaryModel: "gpt-4.1-nano",
     maxInputTokens: 8000,
@@ -147,7 +144,6 @@ const updateInput: TopicExecutionInput = {
 beforeEach(() => {
   state.rows.clear();
   state.batches.clear();
-  state.revision = 0;
   state.writes.mockClear();
 });
 
@@ -249,7 +245,7 @@ describe("compact Topics execution storage", () => {
       store.create(input, "request-hash", "user-a"),
       store.create(input, "request-hash", "user-a"),
     ]);
-    expect(a.revision).toBe(b.revision);
+    expect(a.id).toBe(b.id);
     expect(state.batches.size).toBe(1);
     expect(await store.list(input.projectId)).toHaveLength(1);
     const summary = (await store.readSummary(input.projectId, a.id))!;
@@ -324,9 +320,6 @@ describe("compact Topics execution storage", () => {
       phase: "embedding",
       facets: newer.facets,
     });
-    await expect(store.write({ ...newer, revision: "999" }, 3)).rejects.toThrow(
-      "revision cannot change",
-    );
     await expect(
       store.write(
         {
@@ -355,13 +348,11 @@ describe("compact Topics execution storage", () => {
     state.rows.set(String(row.id), {
       ...row,
       status: "completed",
-      phase: "published",
       publishedAt: new Date(),
     });
     await store.write({ ...progress, status: "running", phase: "processing" });
     expect(state.rows.get(String(row.id))).toMatchObject({
       status: "completed",
-      phase: "published",
     });
   });
 
@@ -381,7 +372,6 @@ describe("compact Topics execution storage", () => {
     await store.write(progress);
     expect(state.rows.get(String(completed.id))).toMatchObject({
       status: "completed",
-      phase: "no_applicable_summaries",
       finishedAt: completed.finishedAt,
       error: null,
     });
@@ -391,7 +381,6 @@ describe("compact Topics execution storage", () => {
       ),
     ).toMatchObject({
       status: "failed",
-      phase: "failed",
       error: "Provider unavailable",
     });
   });

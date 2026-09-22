@@ -647,32 +647,26 @@ function TopicResults({
   const [inspecting, setInspecting] = useState<string | null>(null);
   if (result.error) return <ErrorMessage message={result.error.message} />;
   if (!result.data) return <p className="text-sm">Loading summaries…</p>;
-  const { summaries, assignments, run } = result.data;
-  const summaryIds = new Set(summaries.map((summary) => summary.id));
-  const availableAssignments = assignments.filter((assignment) =>
-    summaryIds.has(assignment.summaryId),
-  );
-  const assignmentBySummary = new Map(
-    availableAssignments.map((a) => [a.summaryId, a]),
-  );
+  const { rows, run } = result.data;
   const count = (topicId: string | null) =>
-    availableAssignments.filter((a) => a.topicId === topicId).length;
+    rows.filter((row) =>
+      topicId === null ? row.outcome === "outlier" : row.topicId === topicId,
+    ).length;
   const visible =
     selected === null
-      ? summaries
-      : summaries.filter((summary) => {
-          const assignment = assignmentBySummary.get(summary.id);
-          if (selected === "outliers") return assignment?.outcome === "outlier";
-          if (selected === "unassigned") return !assignment;
-          return assignment?.topicId === selected;
+      ? rows
+      : rows.filter((row) => {
+          if (selected === "outliers") return row.outcome === "outlier";
+          if (selected === "unassigned")
+            return row.outcome !== "assigned" && row.outcome !== "outlier";
+          return row.topicId === selected;
         });
   return (
     <div className="flex flex-col gap-4">
       {run?.publishedAt && (
         <TopicEmbeddingMap
           projectId={projectId}
-          executionId={executionId}
-          facetVersionId={facetVersionId}
+          runId={run.id}
           topics={run.topics}
           selectedTopic={selected}
           onSelectTopic={setSelected}
@@ -705,9 +699,11 @@ function TopicResults({
           variant={selected === null ? "secondary" : "ghost"}
           onClick={() => setSelected(null)}
         >
-          All summaries ({summaries.length})
+          All summaries ({rows.length})
         </Button>
-        {assignments.length > 0 && (
+        {rows.some(
+          (row) => row.outcome === "assigned" || row.outcome === "outlier",
+        ) && (
           <Button
             size="sm"
             variant={selected === "outliers" ? "secondary" : "ghost"}
@@ -717,62 +713,56 @@ function TopicResults({
           </Button>
         )}
         <span className="text-muted-foreground text-xs">
-          Counts refer to this execution’s batch.
+          Current summaries for this facet version. Counts may change after
+          processing.
         </span>
       </div>
       <div className="flex max-h-[36rem] flex-col gap-2 overflow-y-auto">
-        {visible.map((summary) => {
-          const assignment = assignmentBySummary.get(summary.id);
-          return (
-            <article
-              key={summary.id}
-              className="flex flex-col gap-2 rounded-md border p-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link
-                  href={`/project/${projectId}/traces/${encodeURIComponent(summary.traceId)}`}
-                  title={summary.traceId}
-                  className="truncate font-mono text-xs underline"
-                >
-                  {summary.traceId}
-                </Link>
-                <Badge variant="outline">
-                  {assignment?.outcome ?? summary.state}
-                </Badge>
-              </div>
-              <p className="text-sm whitespace-pre-wrap">
-                {summary.summary || "No applicable summary."}
-              </p>
-              {assignment && (
-                <p className="text-muted-foreground text-xs">
-                  Distance: {assignment.distance?.toFixed(3) ?? "—"}
-                  {assignment.rejectionReason
-                    ? ` · ${assignment.rejectionReason}`
-                    : ""}
-                </p>
-              )}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="self-start"
-                onClick={() =>
-                  setInspecting(inspecting === summary.id ? null : summary.id)
-                }
+        {visible.map((summary) => (
+          <article
+            key={summary.id}
+            className="flex flex-col gap-2 rounded-md border p-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Link
+                href={`/project/${projectId}/traces/${encodeURIComponent(summary.traceId)}`}
+                title={summary.traceId}
+                className="truncate font-mono text-xs underline"
               >
-                {inspecting === summary.id
-                  ? "Hide transcript"
-                  : "Inspect transcript"}
-              </Button>
-              {inspecting === summary.id && (
-                <SummaryInspector
-                  projectId={projectId}
-                  executionId={executionId}
-                  summaryId={summary.id}
-                />
-              )}
-            </article>
-          );
-        })}
+                {summary.traceId}
+              </Link>
+              <Badge variant="outline">{summary.outcome}</Badge>
+            </div>
+            <p className="text-sm whitespace-pre-wrap">
+              {summary.summary || "No applicable summary."}
+            </p>
+            {(summary.outcome === "assigned" ||
+              summary.outcome === "outlier") && (
+              <p className="text-muted-foreground text-xs">
+                Distance: {summary.distance?.toFixed(3) ?? "—"}
+              </p>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="self-start"
+              onClick={() =>
+                setInspecting(inspecting === summary.id ? null : summary.id)
+              }
+            >
+              {inspecting === summary.id
+                ? "Hide transcript"
+                : "Inspect transcript"}
+            </Button>
+            {inspecting === summary.id && (
+              <SummaryInspector
+                projectId={projectId}
+                executionId={executionId}
+                summaryId={summary.id}
+              />
+            )}
+          </article>
+        ))}
       </div>
       {visible.length === 0 && (
         <p className="text-muted-foreground text-sm">
@@ -782,7 +772,6 @@ function TopicResults({
       {run?.publishedAt && (
         <TopicComparison
           projectId={projectId}
-          executionId={executionId}
           facetVersionId={facetVersionId}
           runId={run.id}
         />
@@ -793,12 +782,10 @@ function TopicResults({
 
 function TopicComparison({
   projectId,
-  executionId,
   facetVersionId,
   runId,
 }: {
   projectId: string;
-  executionId: string;
   facetVersionId: string;
   runId: string;
 }) {
@@ -807,8 +794,7 @@ function TopicComparison({
   const comparison = api.topics.compare.useQuery(
     {
       projectId,
-      executionId,
-      facetVersionId,
+      runId,
       otherRunId: otherRunId ?? "none",
     },
     { enabled: otherRunId !== null },
@@ -829,7 +815,7 @@ function TopicComparison({
   return (
     <details className="rounded-md border p-3">
       <summary className="cursor-pointer text-sm">
-        Compare this batch across maps
+        Compare current summaries across maps
       </summary>
       <div className="mt-3 flex flex-col gap-3">
         <Select value={otherRunId ?? undefined} onValueChange={setOtherRunId}>
@@ -885,18 +871,13 @@ function SummaryInspector({
   if (query.error) return <ErrorMessage message={query.error.message} />;
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
   const transcript = query.data.projection;
-  const projectionDescription = {
-    matching:
-      "Transcript regenerated from trace data; matches the summarized input.",
-    changed:
-      "Trace data or transcript processing has changed. Showing the current transcript, which differs from the summarized input.",
-    unavailable:
-      "Source transcript unavailable. The stored summary is still retained.",
-  }[query.data.projectionStatus];
+  const projectionDescription = transcript
+    ? "Current transcript regenerated from trace data. It may differ from the summarized input."
+    : "Source transcript unavailable. The stored summary is still retained.";
   return (
     <div className="flex flex-col gap-2">
       <p className="text-muted-foreground text-xs break-all">
-        {query.data.model} · input hash {query.data.inputHash}
+        {query.data.model}
       </p>
       <p className="text-muted-foreground text-xs">{projectionDescription}</p>
       {transcript && (

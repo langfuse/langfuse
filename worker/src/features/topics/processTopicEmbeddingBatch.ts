@@ -1,14 +1,11 @@
 import { UnrecoverableError } from "bullmq";
 import type { TopicSummary } from "@langfuse/shared/topics";
 import {
-  deleteStagedTopicSummary,
   readStagedTopicSummary,
-  readTopicSummaries,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   updateStagedTopicSummary,
   writeTopicSummaries,
   type TopicEmbeddingBatch,
-  type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import { embedTopicSummary } from "./models";
 import { TopicMetrics } from "./metrics";
@@ -17,18 +14,18 @@ import {
   TopicsProviderUnavailable,
 } from "./provider-error";
 
-function validateSummary(
-  batch: TopicEmbeddingBatch,
-  ref: TopicEmbeddingRef,
-  summary: TopicSummary,
-): void {
-  if (
-    summary.projectId !== batch.projectId ||
-    summary.id !== ref.summaryId ||
-    summary.facetVersionId !== ref.facetVersionId ||
-    summary.traceId !== ref.traceId
-  )
-    throw new UnrecoverableError("Topics embedding summary identity mismatch.");
+function mergeDetails(
+  summary: Record<string, number>,
+  embedding: Record<string, number>,
+): Record<string, number> {
+  const details = { ...summary, ...embedding };
+  if (Object.keys(details).length)
+    details.total =
+      (summary.total ??
+        Object.values(summary).reduce((sum, value) => sum + value, 0)) +
+      (embedding.total ??
+        Object.values(embedding).reduce((sum, value) => sum + value, 0));
+  return details;
 }
 
 /** Acknowledging a batch means every result is durably stored in ClickHouse. */
@@ -36,29 +33,9 @@ export async function processTopicEmbeddingBatch(
   batch: TopicEmbeddingBatch,
 ): Promise<void> {
   const metrics = new TopicMetrics();
-  const stored = new Map(
-    (
-      await metrics.measure(
-        "storage",
-        () =>
-          readTopicSummaries(
-            batch.projectId,
-            batch.summaries.map((ref) => ref.summaryId),
-          ),
-        "storage",
-      )
-    ).map((summary) => [summary.id, summary]),
-  );
   const pending: TopicSummary[] = [];
-  const acknowledged: TopicEmbeddingRef[] = [];
   try {
     for (const ref of batch.summaries) {
-      const durable = stored.get(ref.summaryId);
-      if (durable) {
-        validateSummary(batch, ref, durable);
-        acknowledged.push(ref);
-        continue;
-      }
       const staged = await readStagedTopicSummary(batch, ref);
       if (!staged) throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
       let { summary } = staged;
@@ -78,23 +55,29 @@ export async function processTopicEmbeddingBatch(
         summary = {
           ...summary,
           state: "complete",
-          resultVersion: 2,
           embedding: result.embedding,
-          embeddingTokens: result.inputTokens,
-          embeddingCostUsd: result.costUsd,
+          providedUsageDetails: mergeDetails(
+            summary.providedUsageDetails,
+            result.providedUsageDetails,
+          ),
+          usageDetails: mergeDetails(summary.usageDetails, result.usageDetails),
+          providedCostDetails: mergeDetails(
+            summary.providedCostDetails,
+            result.providedCostDetails,
+          ),
+          costDetails: mergeDetails(summary.costDetails, result.costDetails),
           processedAt: new Date().toISOString(),
         };
         metrics.embeddingResult(summary.id, "generated");
-        pending.push(summary);
-        acknowledged.push(ref);
-        // Keep paid work reusable after a failed ClickHouse write. Expiry does
-        // not discard the in-memory result or extend the original Redis TTL.
-        await updateStagedTopicSummary(batch, ref, summary);
+        // All overlapping attempts must persist the same accepted result.
+        const accepted = await updateStagedTopicSummary(batch, ref, summary);
+        if (!accepted)
+          throw new UnrecoverableError(TOPIC_EMBEDDING_EXPIRED_ERROR);
+        pending.push(accepted);
       } else {
         if (summary.state === "complete")
           metrics.embeddingResult(summary.id, "cached");
         pending.push(summary);
-        acknowledged.push(ref);
       }
     }
   } catch (error) {
@@ -113,9 +96,7 @@ export async function processTopicEmbeddingBatch(
         () => writeTopicSummaries(pending),
         "storage",
       );
-    // Even a partially successful batch is persisted before its queue retry.
-    await Promise.all(
-      acknowledged.map((ref) => deleteStagedTopicSummary(batch, ref)),
-    );
+    // The processing job retains Redis results until assignment is acknowledged.
+    // Retrying a partial insert reuses these vectors and their processing time.
   }
 }

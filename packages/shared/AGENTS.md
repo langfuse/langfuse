@@ -68,12 +68,17 @@
   Processing jobs carry at most 100 trace IDs and accepted summary references.
   Cluster retries create fresh unpublished attempts; Topics does not use object storage.
   Summaries, embeddings, assignments and map coordinates live in ClickHouse.
-  Summary/assignment identity is XOR: exactly one of `traceId` or `sessionId`;
-  the other is `null` (`''` in ClickHouse). Processing remains trace-only.
+  Summary/assignment identity uses `traceId` when present; `sessionId` may carry
+  parent context. An empty trace ID identifies a session result. Processing remains
+  trace-only. Summary application IDs are derived from natural keys,
+  not stored columns. Assignments use the source, map and origin directly. Timestamp-versioned replacement keeps current results;
+  unit start time is not part of replacement identity or partitioning.
   `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
   enqueues reference-only embedding batches. Consumers persist completed results
-  to ClickHouse before deleting staged payloads; queue job retention is separate
-  from the payload TTL. The Topics coordinator job tracks pending embedding batch
+  to ClickHouse and retain staged payloads through assignment. The coordinator saves
+  terminal BullMQ state before cleanup; job retention is separate from payload TTL.
+  Normal processing uses Redis results and the PG-only `getTopicRun`;
+  historical summary reads require explicit `reuseExistingSummaries`. The Topics coordinator job tracks pending embedding batch
   IDs so its queue-state polling does not read or rewrite domain storage.
   Pipeline enablement uses `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` on web and worker;
   unset/empty defaults to the seeded demo project. Explicit lists replace the default.
@@ -82,8 +87,10 @@
   in memory for the worker and transcript inspector; transcript/source I/O is
   not part of the execution journal. Facet versions own prompts; rules own filters,
   sampling and facet assignments; executions freeze trace selection, prompt versions
-  and summary/embedding settings. Current membership resolves latest published assignments
-  and explicit no-topic outcomes; historical readers remain scoped to a map.
+  and summary/embedding settings. Assignments store classification attempts only;
+  `summaryProcessedAt` detects stale classification. Missing assignments and summary
+  state determine pending/unusable results. Execution pages read current summaries;
+  initial map coordinates remain scoped to the map and separate from online rows.
 
 - `@langfuse/shared` via `src/index.ts`: default shared surface for
   cross-runtime types, zod schemas, table definitions, domain models, prompt

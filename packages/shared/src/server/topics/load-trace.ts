@@ -8,6 +8,7 @@ const MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024;
 type SnapshotRow = {
   project_id: string;
   trace_id: string;
+  session_id: string;
   span_id: string;
   parent_span_id: string | null;
   start_time: string;
@@ -34,6 +35,7 @@ export async function loadTraceSnapshot(params: {
     .selectRaw(
       "e.project_id",
       "e.trace_id",
+      "e.session_id",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -61,6 +63,7 @@ export async function loadTraceSnapshot(params: {
     .limit(MAX_OBSERVATIONS + 1);
   const { query, params: queryParams } = builder.buildWithParams();
   const observations: TopicsObservation[] = [];
+  let sessionId: string | null = null;
   let bytes = 0;
   for await (const row of queryClickhouseStream<SnapshotRow>({
     query,
@@ -77,6 +80,8 @@ export async function loadTraceSnapshot(params: {
   })) {
     if (row.project_id !== projectId || row.trace_id !== traceId)
       throw new Error("Trace snapshot scope mismatch");
+    // Rows arrive newest first; session context can change between observations.
+    if (!sessionId && row.session_id) sessionId = row.session_id;
     bytes += Buffer.byteLength(JSON.stringify(row));
     if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS) {
       throw new Error(
@@ -106,6 +111,7 @@ export async function loadTraceSnapshot(params: {
   return {
     projectId,
     traceId,
+    sessionId,
     observations,
     timestamp: observations.reduce(
       (earliest, row) => (row.startTime < earliest ? row.startTime : earliest),

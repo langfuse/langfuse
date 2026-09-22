@@ -34,6 +34,7 @@ const observations: TopicsObservation[] = [
 const snapshot = (rows = observations) => ({
   projectId: "project-a",
   traceId: "trace-a",
+  sessionId: "session-a",
   observations: rows,
   timestamp: rows[0].startTime,
 });
@@ -297,7 +298,7 @@ describe("shared in-memory Topics input", () => {
     ).toBe(true);
   });
 
-  it("reloads current evidence and changes fingerprints after source updates", async () => {
+  it("reloads current transcript evidence after source updates", async () => {
     const first = await loadTopicTranscript({
       projectId: "project-a",
       traceId: "trace-a",
@@ -311,7 +312,7 @@ describe("shared in-memory Topics input", () => {
     });
     expect(loadTraceSnapshot).toHaveBeenCalledTimes(2);
     expect(second.transcript.text).toContain("Cancellation failed.");
-    expect(second.transcript.inputHash).not.toBe(first.transcript.inputHash);
+    expect(second.transcript.text).not.toBe(first.transcript.text);
   });
 
   it("rejects a snapshot from another project", async () => {

@@ -8,7 +8,6 @@ import {
   type TopicDefinition,
   type TopicEmbeddingConfig,
 } from "../../topics";
-import { readTopicRunSummaryIds } from "./clickhouse";
 import { chunk, isEqual } from "lodash";
 import { InvalidRequestError } from "../../errors";
 
@@ -243,22 +242,18 @@ export async function saveTopicRule(
   });
 }
 
-async function runResult(row: RunRow): Promise<TopicRun> {
+function runResult(row: RunRow): TopicRun {
   return {
     id: row.id,
     projectId: row.projectId,
     facetVersionId: row.facetVersionId,
     runSequence: row.runSequence.toString(),
     status: row.status as TopicRun["status"],
-    phase: row.phase,
     publishedAt: row.publishedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
-    summaryIds: row.publishedAt
-      ? await readTopicRunSummaryIds(row.projectId, row.id, row.executionId)
-      : [],
     metrics: row.metrics as Record<string, unknown>,
     error: row.error,
     topics: row.topics.map((topic) => ({
@@ -386,7 +381,7 @@ export async function listTopicRuns(projectId: string): Promise<TopicRun[]> {
     orderBy: { runSequence: "desc" },
     take: 100,
   });
-  return Promise.all(rows.map(runResult));
+  return rows.map(runResult);
 }
 
 export async function createTopicRun(input: {
@@ -479,7 +474,6 @@ export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
       where: { projectId_id: { projectId: run.projectId, id: run.id } },
       data: {
         status: run.status,
-        phase: run.phase,
         config: run.config as Prisma.InputJsonValue,
         metrics: run.metrics as Prisma.InputJsonValue,
         error: run.error,

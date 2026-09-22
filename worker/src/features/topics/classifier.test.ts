@@ -27,11 +27,9 @@ describe("Topics original-space classifier", () => {
     const prototypes = buildTopicPrototypes(summaries, [0, 0, 0, 1, 1, 1]);
     expect(classifyTopic(embedding, prototypes)).toMatchObject({
       topicId: "cluster_0",
-      rejectionReason: "",
     });
     expect(classifyTopic([0.7, 0.3, 0.11], prototypes)).toMatchObject({
       topicId: null,
-      rejectionReason: "outside_radius",
     });
   });
 
@@ -70,7 +68,6 @@ describe("Topics original-space classifier", () => {
     }
     expect(classifyTopic([0, 0, 1], prototypes)).toMatchObject({
       topicId: null,
-      rejectionReason: "outside_radius",
     });
     expect(
       classifyTopic(summaries[0].embedding, prototypes).topicId,

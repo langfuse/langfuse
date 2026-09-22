@@ -81,8 +81,7 @@ function fitMapPoints(
 
 export function TopicEmbeddingMap({
   projectId,
-  executionId,
-  facetVersionId,
+  runId,
   topics,
   selectedTopic,
   onSelectTopic,
@@ -92,8 +91,7 @@ export function TopicEmbeddingMap({
   selectedTraceId,
 }: {
   projectId: string;
-  executionId: string;
-  facetVersionId: string;
+  runId: string;
   topics: Topic[];
   selectedTopic: string | null;
   onSelectTopic: (id: string | null) => void;
@@ -104,8 +102,7 @@ export function TopicEmbeddingMap({
 }) {
   const query = api.topics.map.useQuery({
     projectId,
-    executionId,
-    facetVersionId,
+    runId,
   });
   if (query.error)
     return (
@@ -343,7 +340,7 @@ function EmbeddingMapView({
       {(data.unpositionedCount > 0 || data.missingSummaryCount > 0) && (
         <p className="text-muted-foreground border-t px-4 py-3 text-xs">
           {data.unpositionedCount > 0
-            ? ` ${data.unpositionedCount} summaries in this execution have no coordinates in this map; they remain in the list below.`
+            ? ` ${data.unpositionedCount} current summaries have no coordinates in this map; they remain in the list below.`
             : ""}
           {data.missingSummaryCount > 0
             ? ` ${data.missingSummaryCount} original summaries are no longer available.`

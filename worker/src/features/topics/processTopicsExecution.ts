@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logger } from "@langfuse/shared/src/server";
 import {
   isTopicsEnabled,
   readTopicExecutionSummary,
@@ -7,25 +8,27 @@ import {
   listTopicSummaries,
   writeTopicAssignments,
   readTopicAssignments,
+  readTopicRunSummaryIds,
   readTopicSummaries,
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
   getPublishedTopicRunForExecution,
-  getTopicClusteringSummaryIds,
+  getTopicClusteringSummaries,
   saveTopicRun,
   loadTopicTranscript,
   stageTopicSummary,
+  deleteStagedTopicSummary,
   readStagedTopicSummaries,
   readStagedTopicSummary,
   enqueueTopicEmbeddingBatch,
+  topicSummaryId,
   TOPIC_EMBEDDING_EXPIRED_ERROR,
   type TopicEmbeddingRef,
 } from "@langfuse/shared/topics/server";
 import {
   type TopicExecution,
   type TopicFacetVersion,
-  type TopicProcessingConfig,
   type TopicSummary,
   type TopicRun,
   type TopicAssignment,
@@ -38,7 +41,6 @@ import {
 import {
   summarizeTopicTrace,
   nameTopicGroup,
-  TOPICS_SUMMARY_PROMPT_VERSION,
   TOPICS_NAMING_MODEL,
 } from "./models";
 import { TopicsProviderUnavailable } from "./provider-error";
@@ -65,11 +67,6 @@ type UpdateExecution = TopicExecution & {
 
 class PendingTopicEmbeddings extends Error {}
 class TopicEmbeddingFailure extends Error {}
-
-type SummaryBatch = {
-  summaries: TopicEmbeddingRef[];
-  failedCounts: Record<string, number>;
-};
 
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Topics processing failed.";
@@ -100,20 +97,6 @@ async function saveProgress(
   );
 }
 
-const summaryInvocationHash = (
-  inputHash: string,
-  facet: TopicFacetVersion,
-  config: TopicProcessingConfig,
-) =>
-  topicHash({
-    inputHash,
-    prompt: facet.prompt,
-    summaryModel: config.summaryModel,
-    maxInputTokens: config.maxInputTokens,
-    maxOutputTokens: config.maxOutputTokens,
-    summaryPromptVersion: TOPICS_SUMMARY_PROMPT_VERSION,
-  });
-
 async function loadCachedSummaries(
   execution: ProcessExecution,
   facet: TopicFacetVersion,
@@ -126,22 +109,18 @@ async function loadCachedSummaries(
       facet.id,
       traceIds,
     ),
-    listTopicSummaries(execution.projectId, {
-      facetId: facet.facetId,
-      traceIds,
-    }),
+    execution.input.reuseExistingSummaries
+      ? listTopicSummaries(execution.projectId, {
+          facetId: facet.facetId,
+          traceIds,
+        })
+      : Promise.resolve([]),
   ]);
   const rows = [...staged, ...stored];
   return rows.filter(
     (row) =>
-      row.facetId === facet.facetId &&
-      row.summaryModel === execution.input.processingConfig.summaryModel &&
-      row.invocationHash ===
-        summaryInvocationHash(
-          row.inputHash,
-          facet,
-          execution.input.processingConfig,
-        ),
+      row.facetVersionId === facet.id &&
+      row.summaryModel === execution.input.processingConfig.summaryModel,
   );
 }
 
@@ -163,36 +142,24 @@ async function summarizeTrace(
   if (accepted) {
     metrics.result("summary", "cached");
     // An accepted payload may expire after the cache read; never renew its TTL.
-    if (accepted.state === "summarized") return accepted;
-    return ensureEmbedding(metrics, execution, accepted);
+    return accepted;
   }
-  const id = topicHash([execution.id, traceId, facet.id]).slice(0, 48);
+  const id = topicSummaryId({
+    projectId: execution.projectId,
+    facetVersionId: facet.id,
+    traceId,
+    sessionId: null,
+  });
   if (acceptedSummaryIds.has(id))
     throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
   const summary = await (async (): Promise<TopicSummary> => {
-    const { traceTimestamp, transcript } = await getTranscript();
-    const invocationHash = summaryInvocationHash(
-      transcript.inputHash,
-      facet,
-      execution.input.processingConfig,
-    );
-    const candidates = cached.filter(
-      (row) =>
-        row.traceId === traceId && row.inputHash === transcript.inputHash,
-    );
+    const { unitStartTime, sessionId, transcript } = await getTranscript();
+    const reusable = cached.find((row) => row.traceId === traceId);
     const embeddingMatches = (row: TopicSummary) =>
       row.state === "complete" &&
       row.embeddingModel === TOPICS_EMBEDDING_MODEL &&
       row.embedding.length ===
         execution.input.embeddingConfig.embeddingDimensions;
-    const reusable =
-      candidates.find(
-        (row) =>
-          row.facetVersionId === facet.id &&
-          (row.state !== "complete" || embeddingMatches(row)),
-      ) ??
-      candidates.find(embeddingMatches) ??
-      candidates[0];
     const base = {
       id,
       projectId: execution.projectId,
@@ -200,15 +167,18 @@ async function summarizeTrace(
       facetVersionId: facet.id,
       facetVersion: facet.version,
       traceId,
-      sessionId: null,
+      sessionId,
       triggerType: "manual_poc" as const,
-      traceTimestamp,
-      revision: execution.revision,
+      unitStartTime,
       executionId: execution.id,
-      inputHash: transcript.inputHash,
-      invocationHash,
+      transcriptId: "poc",
+      transcriptVersion: "poc",
       summaryModel: TOPICS_SUMMARY_MODEL,
       embeddingModel: TOPICS_EMBEDDING_MODEL,
+      providedUsageDetails: {},
+      usageDetails: {},
+      providedCostDetails: {},
+      costDetails: {},
       processedAt: new Date().toISOString(),
       metadata: {
         coverage: transcript.coverage,
@@ -216,19 +186,6 @@ async function summarizeTrace(
     };
     if (reusable) {
       metrics.result("summary", "cached");
-      const superseded = cached.some(
-        (row) =>
-          row.traceId === traceId &&
-          row.facetVersionId === facet.id &&
-          row.inputHash !== reusable.inputHash &&
-          BigInt(row.revision) > BigInt(reusable.revision),
-      );
-      if (
-        !superseded &&
-        reusable.facetVersionId === facet.id &&
-        (reusable.state !== "complete" || embeddingMatches(reusable))
-      )
-        return reusable;
       const reuseEmbedding = embeddingMatches(reusable);
       const state =
         reusable.state === "complete" && !reuseEmbedding
@@ -237,18 +194,14 @@ async function summarizeTrace(
       return {
         ...base,
         state,
-        resultVersion: state === "summarized" ? 1 : 2,
         summary: reusable.summary,
         embedding: reuseEmbedding ? reusable.embedding : [],
-        inputTokens: 0,
-        outputTokens: 0,
-        embeddingTokens: 0,
-        summaryCostUsd: 0,
-        embeddingCostUsd: 0,
         metadata: {
           ...base.metadata,
-          summaryReusedFromId: reusable.id,
-          ...(reuseEmbedding ? { embeddingReusedFromId: reusable.id } : {}),
+          summaryReusedFromProcessedAt: reusable.processedAt,
+          ...(reuseEmbedding
+            ? { embeddingReusedFromProcessedAt: reusable.processedAt }
+            : {}),
         },
       };
     }
@@ -256,15 +209,9 @@ async function summarizeTrace(
       metrics.result("summary", "insufficient_input");
       return {
         ...base,
-        resultVersion: 2,
         state: "insufficient_input",
         summary: "",
         embedding: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        embeddingTokens: 0,
-        summaryCostUsd: 0,
-        embeddingCostUsd: 0,
       };
     }
     const result = await metrics.measure("summary", async () => {
@@ -291,7 +238,6 @@ async function summarizeTrace(
         );
       return result;
     });
-    const applicable = result.output.status === "applicable";
     metrics.result(
       "summary",
       result.output.status === "applicable"
@@ -300,71 +246,18 @@ async function summarizeTrace(
     );
     return {
       ...base,
-      resultVersion: applicable ? 1 : 2,
       state:
         result.output.status === "applicable"
           ? "summarized"
           : result.output.status,
       summary: result.output.summary.trim(),
       embedding: [],
-      inputTokens: result.inputTokens,
-      outputTokens: result.outputTokens,
-      embeddingTokens: 0,
-      summaryCostUsd: result.costUsd,
-      embeddingCostUsd: 0,
+      providedUsageDetails: result.providedUsageDetails,
+      usageDetails: result.usageDetails,
+      providedCostDetails: result.providedCostDetails,
+      costDetails: result.costDetails,
     };
   })();
-  if (
-    summary.state !== "summarized" &&
-    !cached.some((row) => row.id === summary.id)
-  )
-    return stageSummary(metrics, execution, summary);
-  return ensureEmbedding(metrics, execution, summary);
-}
-
-/** Re-embedding stored summaries never reloads traces or repeats summarization. */
-async function ensureEmbedding(
-  metrics: TopicMetrics,
-  execution: TopicExecution,
-  source: TopicSummary,
-): Promise<TopicSummary> {
-  const { embeddingModel, embeddingDimensions } =
-    execution.input.embeddingConfig;
-  if (
-    source.state === "not_applicable" ||
-    source.state === "insufficient_input" ||
-    (source.state === "complete" &&
-      source.embeddingModel === embeddingModel &&
-      source.embedding.length === embeddingDimensions)
-  ) {
-    if (source.state === "complete")
-      metrics.embeddingResult(source.id, "cached");
-    return source;
-  }
-  const summary: TopicSummary =
-    source.state === "summarized" && source.executionId === execution.id
-      ? source
-      : {
-          ...source,
-          id: topicHash([
-            execution.id,
-            source.id,
-            execution.input.embeddingConfig,
-          ]).slice(0, 48),
-          revision: execution.revision,
-          executionId: execution.id,
-          state: "summarized",
-          resultVersion: 1,
-          embedding: [],
-          embeddingModel,
-          inputTokens: 0,
-          outputTokens: 0,
-          summaryCostUsd: 0,
-          embeddingTokens: 0,
-          embeddingCostUsd: 0,
-          processedAt: new Date().toISOString(),
-          metadata: { ...source.metadata, summaryReusedFromId: source.id },
-        };
   return stageSummary(metrics, execution, summary);
 }
 
@@ -385,72 +278,56 @@ async function stageSummary(
 }
 
 /** Frozen references survive payload expiry without silently regenerating paid work. */
-async function resumeSummaryBatch(
-  metrics: TopicMetrics,
+async function awaitEmbeddingBatch(
   execution: TopicExecution,
   batchId: string,
-  batch: SummaryBatch,
+  summaries: TopicEmbeddingRef[],
   retryFailed: boolean,
   pendingEmbeddingBatchIds: Set<string>,
-): Promise<TopicSummary[]> {
-  if (!batch.summaries.length) return [];
+): Promise<void> {
+  if (!summaries.length) return;
   const scope = { projectId: execution.projectId, executionId: execution.id };
-  const stored = await metrics.measure(
-    "storage",
-    () =>
-      readTopicSummaries(
-        execution.projectId,
-        batch.summaries.map((ref) => ref.summaryId),
-      ),
-    "storage",
-  );
-  const byId = new Map(stored.map((row) => [row.id, row]));
-  if (!batch.summaries.every((ref) => byId.has(ref.summaryId))) {
-    try {
+  try {
+    const status = await enqueueTopicEmbeddingBatch(
+      { ...scope, batchId, summaries },
+      { retryFailed },
+    );
+    if (status === "pending") {
       pendingEmbeddingBatchIds.add(batchId);
-      await enqueueTopicEmbeddingBatch(
-        { ...scope, batchId, summaries: batch.summaries },
-        { retryFailed },
-      );
-    } catch (error) {
-      throw new TopicEmbeddingFailure(errorMessage(error));
+      throw new PendingTopicEmbeddings();
     }
+  } catch (error) {
+    if (error instanceof PendingTopicEmbeddings) throw error;
+    throw new TopicEmbeddingFailure(errorMessage(error));
   }
-  const rows = await Promise.all(
-    batch.summaries.map(async (ref) => {
-      const row =
-        byId.get(ref.summaryId) ??
-        (await readStagedTopicSummary(scope, ref))?.summary;
-      if (
-        row &&
-        (row.projectId !== scope.projectId ||
-          row.facetVersionId !== ref.facetVersionId ||
-          row.traceId !== ref.traceId)
-      )
-        throw new TopicEmbeddingFailure("Topics summary batch scope mismatch.");
-      return row;
-    }),
-  );
-  // A worker can acknowledge the insert and remove its payload between these reads.
-  // The next attempt reads ClickHouse again, or surfaces the embedding job's failure.
-  if (rows.some((row) => !row)) throw new PendingTopicEmbeddings();
-  return rows as TopicSummary[];
 }
 
-async function completedSummaries(
-  execution: TopicExecution,
-  summaries: TopicSummary[],
-) {
-  const visible = summaries.length
-    ? await readTopicSummaries(
-        execution.projectId,
-        summaries.map((summary) => summary.id),
-      )
-    : [];
-  const byId = new Map(visible.map((row) => [row.id, row]));
-  if (summaries.some((summary) => !byId.has(summary.id)))
-    throw new PendingTopicEmbeddings();
-  return summaries.map((summary) => byId.get(summary.id)!);
+/** Terminal BullMQ state is the completion receipt; Redis payload cleanup is best effort. */
+async function releaseCompletedSummaries(state: TopicProcessBatchState) {
+  if (
+    state.execution.facets.some(
+      (facet) => facet.outcome === "pending" || facet.outcome === "failed",
+    )
+  )
+    return;
+  try {
+    await Promise.all(
+      state.summaries.map((ref) =>
+        deleteStagedTopicSummary(
+          {
+            projectId: state.execution.projectId,
+            executionId: state.execution.id,
+          },
+          ref,
+        ),
+      ),
+    );
+  } catch (error) {
+    logger.warn(
+      "Topics completed payload cleanup failed; Redis TTL will expire it.",
+      { error },
+    );
+  }
 }
 
 function countSummaries(
@@ -477,13 +354,13 @@ function assignmentRows(
   summaries: TopicSummary[],
   run: TopicRun,
   coordinates: Map<string, [number, number]> = new Map(),
+  assignedAt = new Date().toISOString(),
 ): Extract<TopicAssignment, { traceId: string }>[] {
   const prototypes = run.topics.map((topic) => ({
     id: topic.topicVersionId,
     centroid: topic.centroid,
     radius: topic.radius,
   }));
-  const time = new Date().toISOString();
   return summaries.map((summary) => {
     if (summary.traceId === null)
       throw new Error("Topics processing requires a trace summary.");
@@ -491,9 +368,9 @@ function assignmentRows(
     const topic = run.topics.find(
       (candidate) => candidate.topicVersionId === assigned.topicId,
     );
+    const origin =
+      execution.input.operation === "process" ? "online" : "initial";
     return {
-      id: topicHash([execution.id, run.id, summary.id]).slice(0, 48),
-      executionId: execution.id,
       coordinates: coordinates.get(summary.id) ?? null,
       projectId: execution.projectId,
       facetId: facet.facetId,
@@ -501,19 +378,16 @@ function assignmentRows(
       facetVersion: facet.version,
       sessionId: summary.sessionId,
       traceId: summary.traceId,
-      traceTimestamp: summary.traceTimestamp,
+      unitStartTime: summary.unitStartTime,
       summaryId: summary.id,
-      summaryRevision: summary.revision,
+      summaryProcessedAt: summary.processedAt,
       runId: run.id,
-      runSequence: run.runSequence,
       topicId: topic?.topicId ?? null,
       topicVersionId: topic?.topicVersionId ?? null,
-      outcome: topic ? "assigned" : "outlier",
       distance: assigned.distance,
       runnerUpDistance: assigned.runnerUpDistance,
-      rejectionReason: assigned.rejectionReason,
-      origin: execution.input.operation === "process" ? "online" : "initial",
-      assignedAt: time,
+      origin,
+      assignedAt,
     };
   });
 }
@@ -526,6 +400,7 @@ async function assignSummaries(
   summaries: TopicSummary[],
   run: TopicRun,
   coordinates: Map<string, [number, number]> = new Map(),
+  assignedAt = new Date().toISOString(),
 ) {
   return metrics.measure("assignment", async () => {
     if (
@@ -540,45 +415,39 @@ async function assignSummaries(
         execution.input.embeddingConfig.embeddingModel
     )
       throw new Error("Target map is incompatible with this facet version.");
-    const existing = summaries.length
-      ? await readTopicAssignments(
-          execution.projectId,
-          summaries.map((summary) => summary.id),
-          run.id,
-        )
-      : [];
-    const byId = new Map(existing.map((row) => [row.id, row]));
     const rows = assignmentRows(
       execution,
       facet,
       summaries,
       run,
       coordinates,
-    ).map((row) => byId.get(row.id) ?? row);
+      assignedAt,
+    );
     await metrics.measure(
       "storage",
       () => writeTopicAssignments(rows),
       "storage",
     );
-    const visible = rows.length
-      ? await readTopicAssignments(
-          execution.projectId,
-          summaries.map((summary) => summary.id),
-          run.id,
-        )
-      : [];
+    const visible =
+      execution.input.operation === "update" && rows.length
+        ? await readTopicAssignments(
+            execution.projectId,
+            summaries.map((summary) => summary.id),
+            run.id,
+          )
+        : [];
     const visibleBySummary = new Map(
       visible.map((row) => [row.summaryId, row]),
     );
-    // A retry can read a later equivalent assignment to the same immutable map.
     if (
+      execution.input.operation === "update" &&
       rows.some((row) => {
         const persisted = visibleBySummary.get(row.summaryId);
         return (
           !persisted ||
           persisted.topicId !== row.topicId ||
           persisted.topicVersionId !== row.topicVersionId ||
-          persisted.outcome !== row.outcome
+          persisted.summaryProcessedAt !== row.summaryProcessedAt
         );
       })
     )
@@ -586,7 +455,7 @@ async function assignSummaries(
         "Topic assignments are not fully visible; map publication is deferred.",
       );
     progress.counts.assigned = rows.filter(
-      (row) => row.outcome === "assigned",
+      (row) => row.topicId !== null,
     ).length;
     progress.counts.outlier = rows.length - progress.counts.assigned;
     metrics.result("assignment", "assigned", progress.counts.assigned);
@@ -630,7 +499,6 @@ async function clusterFacet(
     await saveTopicRun({
       ...run,
       status: "completed",
-      phase: progress.outcome,
       finishedAt: new Date().toISOString(),
     });
     metrics.result("clustering", "no_applicable_summaries");
@@ -641,7 +509,6 @@ async function clusterFacet(
     await saveTopicRun({
       ...run,
       status: "completed",
-      phase: progress.outcome,
       finishedAt: new Date().toISOString(),
     });
     metrics.result("clustering", "insufficient_data");
@@ -650,7 +517,6 @@ async function clusterFacet(
   run = await saveTopicRun({
     ...run,
     status: "running",
-    phase: "clustering",
     startedAt: run.startedAt ?? new Date().toISOString(),
     finishedAt: null,
     error: null,
@@ -689,7 +555,6 @@ async function clusterFacet(
       await saveTopicRun({
         ...run,
         status: "completed",
-        phase: numeric.status,
         publishedAt:
           numeric.status === "no_topics" ? new Date().toISOString() : null,
         finishedAt: new Date().toISOString(),
@@ -739,7 +604,6 @@ async function clusterFacet(
       await saveTopicRun({
         ...run,
         status: "completed",
-        phase: "no_topics",
         publishedAt: new Date().toISOString(),
         finishedAt: new Date().toISOString(),
         metrics: { applicable: summaries.length },
@@ -787,25 +651,25 @@ async function clusterFacet(
           namingModel: TOPICS_NAMING_MODEL,
         },
       });
-      run = await saveTopicRun({ ...run, topics, phase: "naming" });
+      run = await saveTopicRun({ ...run, topics });
       metrics.result("naming", "generated");
     }
     if (previous) {
       topics = await (async () => {
-        const previousSummaries = await readTopicSummaries(
+        const previousSummaryIds = await readTopicRunSummaryIds(
           execution.projectId,
-          previous.summaryIds,
-        );
-        const previousAssignments = await readTopicAssignments(
-          execution.projectId,
-          previous.summaryIds,
           previous.id,
         );
+        const [previousSummaries, previousAssignments] = await Promise.all([
+          readTopicSummaries(execution.projectId, previousSummaryIds),
+          readTopicAssignments(
+            execution.projectId,
+            previousSummaryIds,
+            previous.id,
+          ),
+        ]);
         const bySummary = new Map(
           previousSummaries.map((row) => [row.id, row]),
-        );
-        const candidateBySummary = new Map(
-          summaries.map((row) => [row.id, row]),
         );
         return matchTopicContinuity({
           previousTopics: previous.topics,
@@ -816,7 +680,6 @@ async function clusterFacet(
               ? [
                   {
                     traceId: summary.traceId,
-                    inputHash: summary.inputHash,
                     topicVersionId: row.topicVersionId,
                   },
                 ]
@@ -827,7 +690,6 @@ async function clusterFacet(
             topics,
           }).map((row) => ({
             traceId: row.traceId,
-            inputHash: candidateBySummary.get(row.summaryId)!.inputHash,
             topicVersionId: row.topicVersionId,
           })),
           exploratory: execution.input.exploratory,
@@ -846,7 +708,6 @@ async function clusterFacet(
     run = await saveTopicRun({
       ...run,
       topics,
-      phase: "assigning",
       metrics: {
         applicable: summaries.length,
         densityClusters: new Set(numeric.labels.filter((label) => label >= 0))
@@ -869,7 +730,6 @@ async function clusterFacet(
     run = await saveTopicRun({
       ...run,
       status: "completed",
-      phase: "published",
       publishedAt: new Date().toISOString(),
       finishedAt: new Date().toISOString(),
       metrics: {
@@ -883,7 +743,6 @@ async function clusterFacet(
     await saveTopicRun({
       ...run,
       status: "failed",
-      phase: "failed",
       error: errorMessage(error),
       finishedAt: new Date().toISOString(),
     });
@@ -903,53 +762,6 @@ function compatibleMap(
     run.config.dimensions ===
       execution.input.embeddingConfig.embeddingDimensions
   );
-}
-
-async function writeUnassignedSummaries(
-  metrics: TopicMetrics,
-  execution: TopicExecution,
-  facet: TopicFacetVersion,
-  summaries: TopicSummary[],
-) {
-  const rows: TopicAssignment[] = summaries.flatMap((summary) => {
-    if (summary.traceId === null)
-      throw new Error("Topics processing requires a trace summary.");
-    if (summary.state === "summarized") return [];
-    const outcome =
-      summary.state === "complete" ? "awaiting_topics" : summary.state;
-    return [
-      {
-        id: topicHash([execution.id, summary.id, "no-topic"]).slice(0, 48),
-        executionId: execution.id,
-        coordinates: null,
-        projectId: execution.projectId,
-        facetId: facet.facetId,
-        facetVersionId: facet.id,
-        facetVersion: facet.version,
-        sessionId: summary.sessionId,
-        traceId: summary.traceId,
-        traceTimestamp: summary.traceTimestamp,
-        summaryId: summary.id,
-        summaryRevision: summary.revision,
-        runId: null,
-        runSequence: null,
-        topicId: null,
-        topicVersionId: null,
-        outcome,
-        distance: null,
-        runnerUpDistance: null,
-        rejectionReason: outcome,
-        origin: "online" as const,
-        assignedAt: new Date().toISOString(),
-      },
-    ];
-  });
-  if (rows.length)
-    await metrics.measure(
-      "storage",
-      () => writeTopicAssignments(rows),
-      "storage",
-    );
 }
 
 type PendingFacet = {
@@ -984,7 +796,9 @@ async function processTraces(
   pendingEmbeddingBatchIds: Set<string>,
   save: (phase: string) => Promise<void>,
 ) {
-  const facets: (PendingFacet & { run: TopicRun | null })[] = [];
+  const facets: (PendingFacet & {
+    run: TopicRun | null;
+  })[] = [];
   for (const { facet, progress } of await pendingFacets(execution)) {
     progress.counts.failed = state.failedTraceIds[facet.id]?.length ?? 0;
     const runId = progress.runId;
@@ -993,6 +807,7 @@ async function processTraces(
       throw new Error("The selected topic map is unavailable or incompatible.");
     facets.push({ facet, progress, run });
   }
+  if (!facets.length) return;
   if (!state.summarized) {
     const cached = new Map<string, TopicSummary[]>();
     for (const { facet } of facets)
@@ -1012,34 +827,14 @@ async function processTraces(
     }
     for (const traceId of execution.input.traceIds) {
       let input: ReturnType<typeof loadTopicTranscript> | undefined;
-      const acceptedIds = new Set(state.summaries.map((ref) => ref.summaryId));
-      const prior = [...cached.values()]
-        .flat()
-        .filter(
-          (row) =>
-            row.traceId === traceId &&
-            (row.executionId === execution.id || acceptedIds.has(row.id)),
-        );
       const getTranscript = () => {
         if (!input)
-          input = (async () => {
-            const loaded = await metrics.measure(
-              "transcript",
-              () =>
-                loadTopicTranscript({
-                  projectId: execution.projectId,
-                  traceId,
-                }),
-              "trace_load",
-            );
-            if (
-              prior.some((row) => row.inputHash !== loaded.transcript.inputHash)
-            )
-              throw new Error(
-                "Trace input changed after a summary was accepted. Start a new execution.",
-              );
-            return loaded;
-          })();
+          input = metrics.measure(
+            "transcript",
+            () =>
+              loadTopicTranscript({ projectId: execution.projectId, traceId }),
+            "trace_load",
+          );
         return input;
       };
       for (const { facet, progress } of facets) {
@@ -1088,27 +883,43 @@ async function processTraces(
     state.summarized = true;
     await save("embedding");
   }
-  const rows = await resumeSummaryBatch(
-    metrics,
-    execution,
-    batchId,
-    { summaries: state.summaries, failedCounts: {} },
-    retryFailed,
-    pendingEmbeddingBatchIds,
+  if (!state.assignedAt) {
+    await awaitEmbeddingBatch(
+      execution,
+      batchId,
+      state.summaries,
+      retryFailed,
+      pendingEmbeddingBatchIds,
+    );
+    // This saved timestamp acknowledges the summary insert and fixes assignment
+    // ordering across retries, even if the completed embedding job is removed.
+    state.assignedAt = new Date().toISOString();
+    await save("assigning");
+  }
+  const pendingFacetIds = new Set(facets.map(({ facet }) => facet.id));
+  const summaries = await Promise.all(
+    state.summaries
+      .filter((ref) => pendingFacetIds.has(ref.facetVersionId))
+      .map(async (ref) => {
+        const staged = await readStagedTopicSummary(
+          { projectId: execution.projectId, executionId: execution.id },
+          ref,
+        );
+        if (!staged)
+          throw new TopicEmbeddingFailure(TOPIC_EMBEDDING_EXPIRED_ERROR);
+        if (staged.summary.state === "summarized")
+          throw new TopicEmbeddingFailure(
+            "Topics embedding batch has an unfinished result.",
+          );
+        return staged.summary;
+      }),
   );
-  const summaries = await completedSummaries(execution, rows);
   for (const { facet, progress, run } of facets) {
     try {
       const selected = summaries.filter(
         (row) => row.facetVersionId === facet.id,
       );
       countSummaries(progress, selected);
-      await writeUnassignedSummaries(
-        metrics,
-        execution,
-        facet,
-        run ? selected.filter((row) => row.state !== "complete") : selected,
-      );
       const complete = selected.filter((row) => row.state === "complete");
       if (!complete.length) progress.outcome = "no_applicable_summaries";
       else if (!run) {
@@ -1124,6 +935,8 @@ async function processTraces(
           progress,
           complete,
           run,
+          undefined,
+          state.assignedAt,
         );
         progress.outcome = "assigned";
       }
@@ -1147,13 +960,17 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
         facet.id,
       );
       if (accepted?.publishedAt) {
+        const summaryIds = await readTopicRunSummaryIds(
+          execution.projectId,
+          accepted.id,
+        );
         progress.runId = accepted.id;
-        progress.summaryIds = accepted.summaryIds;
-        progress.counts.requested = accepted.summaryIds.length;
-        progress.counts.complete = accepted.summaryIds.length;
+        progress.summaryIds = summaryIds;
+        progress.counts.requested = summaryIds.length;
+        progress.counts.complete = summaryIds.length;
         progress.counts.assigned = Number(accepted.metrics.assigned ?? 0);
         progress.counts.outlier = Number(
-          accepted.metrics.outlier ?? accepted.summaryIds.length,
+          accepted.metrics.outlier ?? summaryIds.length,
         );
         progress.outcome = accepted.topics.length ? "published" : "no_topics";
         await saveProgress(metrics, execution, "processing");
@@ -1164,34 +981,12 @@ async function updateTopics(metrics: TopicMetrics, execution: UpdateExecution) {
         facet.facetId,
       );
       const previous = current?.facetVersionId === facet.id ? current : null;
-      const summaryIds = await getTopicClusteringSummaryIds(
+      const summaries = await getTopicClusteringSummaries(
         execution.projectId,
         facet.facetId,
         facet.id,
         execution.input.embeddingConfig,
       );
-      const stored = summaryIds.length
-        ? await readTopicSummaries(execution.projectId, summaryIds)
-        : [];
-      const summariesById = new Map(stored.map((row) => [row.id, row]));
-      const summaries = summaryIds.map((id) => summariesById.get(id)!);
-      if (
-        summariesById.size !== summaryIds.length ||
-        summaries.some(
-          (row) =>
-            !row ||
-            row.projectId !== execution.projectId ||
-            row.facetVersionId !== facet.id ||
-            row.state !== "complete" ||
-            row.embeddingModel !==
-              execution.input.embeddingConfig.embeddingModel ||
-            row.embedding.length !==
-              execution.input.embeddingConfig.embeddingDimensions,
-        )
-      )
-        throw new Error(
-          "The clustering summaries are unavailable or incompatible.",
-        );
       countSummaries(progress, summaries);
       progress.counts.requested = summaries.length;
       await clusterFacet(
@@ -1283,8 +1078,10 @@ export async function processTopicsExecution({
     !execution.facets.some(
       (facet) => facet.outcome === "pending" || facet.outcome === "failed",
     )
-  )
+  ) {
+    if (batchState) await releaseCompletedSummaries(batchState);
     return;
+  }
   const state: TopicProcessBatchState = batchState ?? {
     execution,
     summaries: [],
@@ -1334,6 +1131,7 @@ export async function processTopicsExecution({
       ? "completed_with_errors"
       : "completed";
     await save("completed");
+    if (processing) await releaseCompletedSummaries(state);
     metrics.execution(execution.status);
   } catch (error) {
     if (error instanceof PendingTopicEmbeddings) {

@@ -48,6 +48,7 @@ export function TopicPipelineForm({
 }) {
   const [configurationOpen, setConfigurationOpen] = useState(false);
   const [operation, setOperation] = useState<TopicOperation>("process");
+  const [reuseExistingSummaries, setReuseExistingSummaries] = useState(false);
   const rules = api.topics.rules.useQuery({ projectId });
   const [ruleId, setRuleId] = useState<string | null>(null);
   const selectedRule = rules.data?.find((rule) => rule.id === ruleId);
@@ -178,6 +179,7 @@ export function TopicPipelineForm({
         return {
           ...base,
           operation,
+          reuseExistingSummaries,
           ...traceInput,
           ...(selectedRule && matchesRule(criteria)
             ? { ruleId: selectedRule.id }
@@ -352,9 +354,7 @@ export function TopicPipelineForm({
                 </div>
                 <p className="text-muted-foreground text-xs">
                   Rules save filters, sampling and selected facets. Choose the
-                  time range for each run. Changing a rule reuses existing
-                  summaries and embeddings when the trace and facet prompt
-                  match.
+                  time range and summary reuse for each run.
                   {selectedRule && !matchesRule(criteria)
                     ? " Unsaved changes apply only to this run until you update the rule."
                     : ""}
@@ -407,12 +407,31 @@ export function TopicPipelineForm({
                 </label>
               )}
             </div>
+            {operation === "process" && (
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={reuseExistingSummaries}
+                    onCheckedChange={(value) =>
+                      setReuseExistingSummaries(value === true)
+                    }
+                  />
+                  Reuse stored summaries
+                </label>
+                <p className="text-muted-foreground text-xs">
+                  Reuse saved summaries and embeddings for each trace and facet
+                  version. Source changes are not checked. Leave unchecked to
+                  generate fresh results.
+                </p>
+              </div>
+            )}
             {operation === "process" && selection?.count ? (
               <p className="text-muted-foreground text-sm">
                 Process {selection.count.toLocaleString()} traces across{" "}
-                {facetVersionIds.length} facets. Existing summaries are reused
-                when their inputs match. Uncached inputs and outputs are sent to
-                OpenAI.
+                {facetVersionIds.length} facets.{" "}
+                {reuseExistingSummaries
+                  ? "Matching stored summaries and embeddings are reused. Missing results are generated with OpenAI."
+                  : "Generate fresh summaries and embeddings with OpenAI."}
               </p>
             ) : null}
             {operation === "process" && (

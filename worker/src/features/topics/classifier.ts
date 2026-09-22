@@ -120,14 +120,10 @@ export function classifyTopic(
   const nearest = ranked[0];
   // Normalization and centroid averaging can differ by floating-point roundoff.
   const accepted = nearest && nearest.distance <= nearest.radius + 1e-12;
-  let rejectionReason = "";
-  if (!nearest) rejectionReason = "no_topics";
-  else if (!accepted) rejectionReason = "outside_radius";
   return {
     topicId: accepted ? nearest.id : null,
     distance: nearest?.distance ?? null,
     runnerUpDistance: ranked[1]?.distance ?? null,
-    rejectionReason,
   };
 }
 

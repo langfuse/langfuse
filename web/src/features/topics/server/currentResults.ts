@@ -4,9 +4,7 @@ import {
   getTopicDefinitions,
   listTopicFacets,
   readLatestTopicAssignments,
-  readTopicSummaries,
 } from "@langfuse/shared/topics/server";
-import { topicIdSchema } from "@langfuse/shared/topics";
 
 /** Current state is resolved per trace and facet, independently of execution batches. */
 export async function currentTopicResults(projectId: string) {
@@ -16,9 +14,7 @@ export async function currentTopicResults(projectId: string) {
       const version = facet.versions[0];
       const [storedAssignments, storedSummaries, run] = await Promise.all([
         readLatestTopicAssignments(projectId, facet.id),
-        version
-          ? getLatestFacetSummaries(projectId, facet.id, version.id)
-          : Promise.resolve([]),
+        getLatestFacetSummaries(projectId, facet.id),
         getPublishedTopicRun(projectId, facet.id),
       ]);
       const assignments = storedAssignments.filter(
@@ -34,72 +30,42 @@ export async function currentTopicResults(projectId: string) {
           ),
         ),
       ];
-      const [definitions, assignedSummaries] = await Promise.all([
-        getTopicDefinitions(projectId, topicVersionIds),
-        readTopicSummaries(projectId, [
-          ...new Set(assignments.map((row) => row.summaryId)),
-        ]),
-      ]);
-      const summaries = new Map(
-        [...latestSummaries, ...assignedSummaries].map((row) => [row.id, row]),
-      );
-      const latestByTrace = new Map(
-        latestSummaries.map((row) => [row.traceId, row]),
-      );
+      const definitions = await getTopicDefinitions(projectId, topicVersionIds);
       const assignmentByTrace = new Map(
         assignments.map((row) => [row.traceId, row]),
       );
       const topicByVersion = new Map(
         definitions.map((topic) => [topic.topicVersionId, topic]),
       );
-      const traces = new Set([
-        ...assignmentByTrace.keys(),
-        ...latestByTrace.keys(),
-      ]);
-      const rows = [...traces]
-        .map((traceId) => {
-          const assignment = assignmentByTrace.get(traceId);
-          const latest = latestByTrace.get(traceId);
-          const summary = assignment
-            ? summaries.get(assignment.summaryId)
-            : latest;
-          const awaitingMap = assignment?.outcome === "awaiting_topics";
-          const awaitingUpdate =
-            awaitingMap ||
-            Boolean(
-              latest &&
-              latest.id !== assignment?.summaryId &&
-              latest.state === "complete",
-            );
+      const rows = latestSummaries
+        .map((summary) => {
+          const storedAssignment = assignmentByTrace.get(summary.traceId);
+          const assignment =
+            summary.state === "complete" &&
+            storedAssignment?.summaryId === summary.id &&
+            storedAssignment.summaryProcessedAt === summary.processedAt
+              ? storedAssignment
+              : undefined;
           const topic = assignment?.topicVersionId
             ? topicByVersion.get(assignment.topicVersionId)
             : undefined;
+          let outcome: string = summary.state;
+          if (summary.state === "complete") outcome = "awaiting_map";
+          if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
           return {
-            traceId,
-            summaryId: summary?.id ?? assignment?.summaryId ?? null,
-            summary: summary?.summary ?? "",
-            facetVersion:
-              summary?.facetVersion ?? assignment?.facetVersion ?? null,
-            outcome: awaitingMap
-              ? "awaiting_map"
-              : (assignment?.outcome ??
-                (latest?.state === "complete"
-                  ? "awaiting_map"
-                  : (latest?.state ?? "unavailable"))),
-            topicId:
-              assignment?.outcome === "assigned" ? assignment.topicId : null,
-            topicVersionId: assignment?.topicVersionId ?? null,
+            traceId: summary.traceId,
+            summary: summary.summary,
+            outcome,
+            topicId: assignment?.topicId ?? null,
             topicName: topic?.name ?? null,
             topicDescription: topic?.description ?? null,
             assignedAt: assignment?.assignedAt ?? null,
-            traceTimestamp:
-              assignment?.traceTimestamp ?? summary?.traceTimestamp ?? null,
-            awaitingUpdate,
+            unitStartTime: summary.unitStartTime,
           };
         })
         .sort(
           (a, b) =>
-            (b.traceTimestamp ?? "").localeCompare(a.traceTimestamp ?? "") ||
+            (b.unitStartTime ?? "").localeCompare(a.unitStartTime ?? "") ||
             a.traceId.localeCompare(b.traceId),
         );
       // Current map names take precedence; retired IDs keep their latest referenced name.
@@ -128,30 +94,27 @@ export async function currentTopicResults(projectId: string) {
         topic.count++;
         topics.set(topic.id, topic);
       }
-      const discoveryId = topicIdSchema.safeParse(run?.config.executionId);
       return {
         facetId: facet.id,
         name: facet.name,
-        facetVersionId: version?.id ?? null,
         facetVersion: version?.version ?? null,
-        usableCount: latestSummaries.filter((row) => row.state === "complete")
+        usableCount: latestSummaries.filter(
+          (row) =>
+            row.facetVersionId === version?.id && row.state === "complete",
+        ).length,
+        awaitingCount: rows.filter((row) => row.outcome === "awaiting_map")
           .length,
-        awaitingCount: rows.filter((row) => row.awaitingUpdate).length,
         topics: [...topics.values()].sort((a, b) => b.count - a.count),
         rows,
-        map:
-          run?.publishedAt && discoveryId.success
-            ? {
-                executionId: discoveryId.data,
-                facetVersionId: run.facetVersionId,
-                publishedAt: run.publishedAt,
-                exploratory: run.config.exploratory === true,
-                topics: run.topics.map((topic) => ({
-                  id: topic.topicId,
-                  name: topic.name,
-                })),
-              }
-            : null,
+        map: run?.publishedAt
+          ? {
+              runId: run.id,
+              topics: run.topics.map((topic) => ({
+                id: topic.topicId,
+                name: topic.name,
+              })),
+            }
+          : null,
       };
     }),
   );

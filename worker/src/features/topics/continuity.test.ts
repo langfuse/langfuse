@@ -18,7 +18,6 @@ const topic = (id: string, centroid = [1, 0]): TopicDefinition => ({
 const members = (id: string | null, count: number, start = 0) =>
   Array.from({ length: count }, (_, index) => ({
     traceId: `trace-${index + start}`,
-    inputHash: `input-${index + start}`,
     topicVersionId: id,
   }));
 
@@ -104,13 +103,6 @@ describe("Topics identity continuity", () => {
     expect(
       match(members("old", 100), members("candidate", 10))[0].topicId,
     ).toBe("stable-candidate");
-    const changed = members("candidate", 20).map((row) => ({
-      ...row,
-      inputHash: `changed-${row.inputHash}`,
-    }));
-    expect(match(members("old", 20), changed)[0].topicId).toBe(
-      "stable-candidate",
-    );
   });
 
   it("keeps outliers in overlap denominators and refuses symmetric split/merge matches", () => {
@@ -199,7 +191,7 @@ describe("Topics identity continuity", () => {
         ...input,
         candidateMemberships: [
           ...candidateMemberships,
-          { ...candidateMemberships[0], inputHash: "other" },
+          { ...candidateMemberships[0], topicVersionId: null },
         ],
       }),
     ).toThrow("conflicting");

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   normalizeSpanIO,
   type NormalizedMessage,
@@ -61,8 +60,6 @@ const canonical = (value: unknown): unknown => {
   return value ?? null;
 };
 const serialize = (value: unknown): string => JSON.stringify(canonical(value));
-const hash = (value: unknown) =>
-  createHash("sha256").update(serialize(value)).digest("hex");
 
 const boundText = (text: string, limit: number): string => {
   if (text.length <= limit) return text;
@@ -528,6 +525,5 @@ export function serializeTraceTranscript(prepared: PreparedTrace) {
   return {
     ...result,
     hasContent: blocks.some((block) => block.source !== "structure"),
-    inputHash: hash(result.text),
   };
 }

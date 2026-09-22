@@ -12,7 +12,8 @@ existing local-development and project-access checks still apply.
   Process traces or Update topics submits the retained configuration. Overlay owners stay outside the
   responsive header menu, which closes before configuration or history opens.
   Without an execution URL parameter, `CurrentTopics.tsx` displays current per-trace
-  assignments across runs and facets; explicit execution links remain historical.
+  assignments across runs and facets. Explicit execution links retain run history
+  and map selection while their result lists show current summaries.
   A single run-status label sits alongside the heading; stage and operation
   live in Run details. Facet outcomes use result-oriented labels and
   omit zero-valued exception counts. Facet versions contain only prompts;
@@ -62,12 +63,12 @@ existing local-development and project-access checks still apply.
   loader as the worker. The JSON viewer displays the compact transcript as an
   expandable array, preserving strings inside each record. Saved summaries load
   separately from ClickHouse: latest
-  result per facet version, with historical-input provenance. Viewing them never
+  result per facet version, with its processing time. Viewing them never
   triggers inference, even when the original trace is unavailable.
   It regenerates current data, not a historical copy. The read endpoint retains
   the local-development and project-access gates. Content is marked `ph-no-capture`;
   this local diagnostic control intentionally adds no product analytics event.
-- `TopicEmbeddingMap.tsx` loads the published map and renders its saved 2D UMAP
+- `TopicEmbeddingMap.tsx` loads the published map by run ID and renders its saved 2D UMAP
   coordinates. Clicking a point pins its summary until another selection; only
   split view synchronizes selection and pagination with the trace list. Trace IDs
   in the map summary open the shared trace peek. The summary area collapses when
@@ -82,19 +83,25 @@ existing local-development and project-access checks still apply.
   geometry is derived during render. Saved coordinates and clustering are unchanged.
   Missing-coordinate warnings remain visible below the map.
 - `server/currentResults.ts` joins latest per-trace/facet assignments to their
-  exact topic versions, including assignments from older maps. Terminal no-topic
-  assignments clear previous topic membership. A newer usable summary without an
-  assignment shows as pending while preserving the previous assignment. Latest
-  facet summaries provide accumulated-cohort/readiness counts. This view exports
+  exact topic versions, including assignments from older maps. Summary states
+  identify terminal no-topic results. An assignment applies only when its stored
+  summary processing time matches the current summary; a newer usable summary
+  waits for classification and clears the previous displayed membership. Each trace
+  uses its latest processed facet version, even when a newer version has not been
+  processed. Readiness counts include only the current facet version. This view exports
   no embedding vectors; the scatter remains the latest map's discovery snapshot.
 - `server/topicsRouter.ts` owns project authorization and the public result
   contract. The map joins persisted assignment coordinates and summaries by ID
   in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Results, inspection, and comparison resolve processing membership from persisted
-  ClickHouse outcomes; updates use their selected run's original cohort so failed
-  attempts cannot leak into a later map. Both survive transient job state expiry.
+  Results return summary rows already joined to their current assignments;
+  inspection accepts summaries from the execution's facet versions. Map and
+  comparison reads use run IDs independently of execution metadata. Comparison
+  includes only complete summaries with current assignments in both maps of the
+  same facet version. Exact execution membership is not retained. Maps explicitly
+  read their original discovery cohort and coordinates while summary
+  text reflects the latest stored result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
   Facet prompt edits create versions independently of saved selection rules.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.

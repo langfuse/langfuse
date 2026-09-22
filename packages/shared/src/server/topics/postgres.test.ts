@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   runUpdate: vi.fn(),
   runUpdateMany: vi.fn(),
   upsertTopic: vi.fn(),
-  readRunSummaryIds: vi.fn(async () => [] as string[]),
   facetFind: vi.fn(),
   facetFindUnique: vi.fn(),
   facetFindMany: vi.fn(),
@@ -67,10 +66,6 @@ vi.mock("../../db", () => ({
       }),
   },
 }));
-vi.mock("./clickhouse", () => ({
-  readTopicRunSummaryIds: mocks.readRunSummaryIds,
-}));
-
 describe("Topics default facets", () => {
   it("creates missing defaults without replacing existing facet prompts on repeated initialization", async () => {
     vi.resetAllMocks();
@@ -166,7 +161,7 @@ describe("Topics facet prompt versions", () => {
 });
 
 describe("Topics clustering attempts", () => {
-  it("creates fresh attempts and derives only published cohorts from assignments", async () => {
+  it("creates fresh attempts and reads published run metadata", async () => {
     vi.resetAllMocks();
     const row = {
       id: "run-a",
@@ -175,7 +170,6 @@ describe("Topics clustering attempts", () => {
       facetVersionId: "facet-v1",
       runSequence: 1n,
       status: "pending",
-      phase: "queued",
       config: {},
       metrics: {},
       error: null,
@@ -191,7 +185,6 @@ describe("Topics clustering attempts", () => {
       ...row,
       ...data,
     }));
-    mocks.readRunSummaryIds.mockResolvedValue(["summary-a"]);
     const run = await createTopicRun({
       id: row.id,
       projectId: row.projectId,
@@ -199,8 +192,7 @@ describe("Topics clustering attempts", () => {
       facetVersionId: row.facetVersionId,
       config: { executionId: row.executionId, dimensions: 256 },
     });
-    expect(run.summaryIds).toEqual([]);
-    expect(mocks.readRunSummaryIds).not.toHaveBeenCalled();
+    expect(run.id).toBe(row.id);
     expect(mocks.runCreate).toHaveBeenCalledWith({
       data: {
         id: row.id,
@@ -221,12 +213,7 @@ describe("Topics clustering attempts", () => {
       row.executionId,
       row.facetVersionId,
     );
-    expect(published?.summaryIds).toEqual(["summary-a"]);
-    expect(mocks.readRunSummaryIds).toHaveBeenCalledWith(
-      row.projectId,
-      row.id,
-      row.executionId,
-    );
+    expect(published?.status).toBe("completed");
     expect(mocks.runFind).toHaveBeenLastCalledWith({
       where: {
         projectId: row.projectId,
@@ -256,7 +243,6 @@ describe("Topics clustering attempts", () => {
       facetVersionId: "facet-v1",
       runSequence: 1n,
       status: "pending",
-      phase: "snapshot",
       config: {},
       metrics: {},
       error: null,
@@ -349,7 +335,44 @@ describe("Topics published results", () => {
       },
       select: { id: true, facetVersionId: true, config: true },
     });
-    expect(mocks.readRunSummaryIds).not.toHaveBeenCalled();
+  });
+
+  it("loads a project's serving map without reading its ClickHouse cohort", async () => {
+    const row = {
+      id: "run-a",
+      projectId: "project-a",
+      executionId: "execution-a",
+      facetVersionId: "facet-v1",
+      runSequence: 1n,
+      status: "completed",
+      config: { dimensions: 256 },
+      metrics: {},
+      error: null,
+      topics: [{ id: "topic-a", centroid: [1, 0], metadata: {} }],
+      createdAt: new Date("2026-09-16T00:00:00Z"),
+      startedAt: null,
+      finishedAt: null,
+      publishedAt: new Date("2026-09-16T00:01:00Z"),
+    };
+    mocks.runFind.mockImplementation(async ({ where }) =>
+      where.projectId === row.projectId && where.id === row.id ? row : null,
+    );
+
+    const map = await getTopicRun(row.projectId, row.id);
+    expect(map).toMatchObject({
+      id: row.id,
+      projectId: row.projectId,
+      runSequence: "1",
+      config: row.config,
+      publishedAt: "2026-09-16T00:01:00.000Z",
+      topics: row.topics,
+    });
+    expect(map).not.toHaveProperty("summaryIds");
+    expect(mocks.runFind).toHaveBeenLastCalledWith({
+      where: { projectId: row.projectId, id: row.id },
+      include: { topics: true },
+    });
+    expect(await getTopicRun("other-project", row.id)).toBeNull();
   });
 
   it("keeps accepted labels and only upserts the next completed topic", async () => {
@@ -372,7 +395,6 @@ describe("Topics published results", () => {
       facetVersionId: "facet-v1",
       runSequence: 1n,
       status: "running",
-      phase: "naming",
       config: {},
       metrics: {},
       error: null,
@@ -453,7 +475,6 @@ describe("Topics published results", () => {
       facetVersion: { facetId: "facet-a", version: 1 },
       runSequence: 1n,
       status: "pending",
-      phase: "snapshot",
       config: {},
       metrics: {},
       error: null,
@@ -477,7 +498,6 @@ describe("Topics published results", () => {
     const published = await saveTopicRun({
       ...pending,
       status: "completed",
-      phase: "published",
       publishedAt,
     });
     expect(published.topics).toEqual([]);

@@ -25,13 +25,20 @@
   have one slot so a fit does not block trace processing. Summary results are staged in Redis
   with a three-hour TTL; `src/queues/topicsEmbeddingQueue.ts` delegates to
   `src/features/topics/processTopicEmbeddingBatch.ts` to embed and persist combined
-  results in ClickHouse before deleting the payload. The coordinator delays its
-  queue job while waiting for embeddings. Pending batch IDs stay in that BullMQ
+  results in ClickHouse. The coordinator reads terminal results from Redis, writes
+  assignments, saves terminal BullMQ state, then deletes payloads. Normal processing
+  uses Redis and insert acknowledgements; historical result reads require explicit
+  stored-summary reuse. The coordinator delays its queue job while waiting for embeddings. Pending batch IDs stay in that BullMQ
   job; unchanged polls read Redis queue states without loading execution storage.
   Read `src/features/topics/README.md`
   for native numerical setup, database results, bounded queue retries, and model configuration.
   Canonical transcript assembly is shared with the web transcript inspector through
   `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
+  Summary storage keeps the latest unit/facet-version result, using the earliest
+  observation start time as `unitStartTime`. Trace rows may also carry a parent
+  session ID. Assignments contain classification attempts only; empty topic IDs
+  mean outliers. Summary timestamps identify stale assignments. Historical
+  execution pages show current results; transcript hashes are not used for reuse.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

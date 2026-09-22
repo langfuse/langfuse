@@ -32,7 +32,6 @@ CREATE TABLE "topic_clustering_runs" (
     "facet_version_id" TEXT NOT NULL,
     "run_sequence" BIGSERIAL NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "phase" TEXT NOT NULL DEFAULT 'snapshot',
     "config" JSONB NOT NULL DEFAULT '{}',
     "metrics" JSONB NOT NULL DEFAULT '{}',
     "error" TEXT,
@@ -97,8 +96,6 @@ ALTER TABLE "topic_clustering_runs" ADD CONSTRAINT "topic_clustering_runs_projec
 ALTER TABLE "topics" ADD CONSTRAINT "topics_project_id_run_id_fkey" FOREIGN KEY ("project_id", "run_id") REFERENCES "topic_clustering_runs"("project_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 
--- One durable order token per execution, shared by its trace revisions.
-CREATE SEQUENCE "topic_processing_revision_seq";
 
 -- CreateTable
 CREATE TABLE "topic_rules" (

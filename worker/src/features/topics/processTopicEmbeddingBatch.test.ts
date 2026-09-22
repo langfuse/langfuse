@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UnrecoverableError } from "bullmq";
 import type {
   TopicEmbeddingConfig,
@@ -21,7 +21,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   updateStagedTopicSummary: mocks.update,
   deleteStagedTopicSummary: mocks.remove,
   TOPIC_EMBEDDING_EXPIRED_ERROR:
-    "Topics summaries expired before embedding completed. Start a new execution to regenerate them.",
+    "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
   recordIncrement: vi.fn(),
@@ -46,22 +46,23 @@ const summary = (id = "summary"): TopicSummary => ({
   traceId: `trace-${id}`,
   sessionId: null,
   triggerType: "manual_poc",
-  traceTimestamp: "2026-09-18T00:00:00.000Z",
+  unitStartTime: "2026-09-18T00:00:00.000Z",
   processedAt: "2026-09-18T00:00:00.000Z",
-  revision: "1",
-  resultVersion: 1,
   state: "summarized",
   summary: `A summary of ${id}.`,
   embedding: [],
-  inputHash: "input",
-  invocationHash: "invocation",
+  transcriptId: "poc",
+  transcriptVersion: "poc",
   summaryModel: "gpt-4.1-nano",
   embeddingModel: embeddingConfig.embeddingModel,
-  inputTokens: 20,
-  outputTokens: 10,
-  embeddingTokens: 0,
-  summaryCostUsd: 0.0001,
-  embeddingCostUsd: 0,
+  providedUsageDetails: { summary_input: 20, summary_output: 10 },
+  usageDetails: { summary_input: 20, summary_output: 10, total: 30 },
+  providedCostDetails: {},
+  costDetails: {
+    summary_input: 0.00006,
+    summary_output: 0.00004,
+    total: 0.0001,
+  },
   metadata: {},
 });
 const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
@@ -74,36 +75,43 @@ const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
     traceId: row.traceId,
   })),
 });
+const embeddingResult = {
+  embedding: Array(16).fill(0.25),
+  providedUsageDetails: { embedding_input: 8, total: 8 },
+  usageDetails: { embedding_input: 8, total: 8 },
+  providedCostDetails: {},
+  costDetails: { embedding_input: 0.000001, total: 0.000001 },
+};
 let staged: Map<string, TopicSummary>;
 beforeEach(() => {
   vi.resetAllMocks();
   staged = new Map();
-  mocks.read.mockResolvedValue([]);
+  mocks.read.mockRejectedValue(new Error("Unexpected ClickHouse result read"));
   mocks.write.mockResolvedValue(undefined);
   mocks.staged.mockImplementation(async (_batch, ref) => {
     const row = staged.get(ref.summaryId);
     return row ? { summary: row, embeddingConfig } : null;
   });
   mocks.update.mockImplementation(async (_batch, ref, row) => {
-    if (staged.has(ref.summaryId)) staged.set(ref.summaryId, row);
+    const existing = staged.get(ref.summaryId);
+    if (!existing) return null;
+    if (existing.state !== "summarized") return existing;
+    staged.set(ref.summaryId, row);
+    return row;
   });
   mocks.remove.mockImplementation(async (_batch, ref) => {
     staged.delete(ref.summaryId);
   });
-  mocks.embed.mockResolvedValue({
-    embedding: Array(16).fill(0.25),
-    inputTokens: 8,
-    costUsd: 0.000001,
-  });
+  mocks.embed.mockResolvedValue(embeddingResult);
 });
+afterEach(() => vi.useRealTimers());
 
 describe("Topics embedding handoff", () => {
-  it("writes combined results once and waits for storage before releasing staged data", async () => {
+  it("acknowledges combined results while retaining Redis data for assignment", async () => {
     const applicable = summary();
     const nonApplicable: TopicSummary = {
       ...summary("empty"),
       state: "not_applicable",
-      resultVersion: 2,
       summary: "",
     };
     for (const row of [applicable, nonApplicable]) staged.set(row.id, row);
@@ -122,8 +130,25 @@ describe("Topics embedding handoff", () => {
       {
         id: applicable.id,
         state: "complete",
-        embeddingTokens: 8,
-        resultVersion: 2,
+        providedUsageDetails: {
+          summary_input: 20,
+          summary_output: 10,
+          embedding_input: 8,
+          total: 38,
+        },
+        usageDetails: {
+          summary_input: 20,
+          summary_output: 10,
+          embedding_input: 8,
+          total: 38,
+        },
+        providedCostDetails: {},
+        costDetails: {
+          summary_input: 0.00006,
+          summary_output: 0.00004,
+          embedding_input: 0.000001,
+          total: 0.000101,
+        },
       },
       { id: nonApplicable.id, state: "not_applicable", embedding: [] },
     ]);
@@ -131,7 +156,7 @@ describe("Topics embedding handoff", () => {
     expect(mocks.embed).toHaveBeenCalledOnce();
     acknowledge();
     await processing;
-    expect(staged.size).toBe(0);
+    expect(staged.size).toBe(2);
   });
 
   it("reuses an embedding after a failed ClickHouse write", async () => {
@@ -142,11 +167,48 @@ describe("Topics embedding handoff", () => {
       "ClickHouse unavailable",
     );
     expect(staged.get(row.id)?.state).toBe("complete");
+    const completed = staged.get(row.id);
     expect(mocks.remove).not.toHaveBeenCalled();
     await processTopicEmbeddingBatch(batch(row));
     expect(mocks.embed).toHaveBeenCalledOnce();
     expect(mocks.write).toHaveBeenCalledTimes(2);
-    expect(staged.size).toBe(0);
+    expect(mocks.write.mock.calls[1][0]).toEqual([completed]);
+    expect(staged.size).toBe(1);
+  });
+
+  it("persists the canonical Redis result when embedding attempts overlap", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime("2026-09-18T00:01:00.000Z");
+    const row = summary();
+    staged.set(row.id, row);
+    let finishFirst!: (value: typeof embeddingResult) => void;
+    let finishSecond!: (value: typeof embeddingResult) => void;
+    mocks.embed
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishSecond = resolve;
+          }),
+      );
+    const first = processTopicEmbeddingBatch(batch(row));
+    const second = processTopicEmbeddingBatch(batch(row));
+    await vi.waitFor(() => expect(mocks.embed).toHaveBeenCalledTimes(2));
+    finishFirst(embeddingResult);
+    await first;
+    const accepted = staged.get(row.id);
+    vi.setSystemTime("2026-09-18T00:02:00.000Z");
+    finishSecond({ ...embeddingResult, embedding: Array(16).fill(0.5) });
+    await second;
+    expect(mocks.write.mock.calls.map(([rows]) => rows)).toEqual([
+      [accepted],
+      [accepted],
+    ]);
   });
 
   it("reports expired payloads as unrecoverable instead of regenerating summaries", async () => {
@@ -160,29 +222,10 @@ describe("Topics embedding handoff", () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it("accepts already durable results even after Redis expires", async () => {
-    const row: TopicSummary = {
-      ...summary(),
-      executionId: "earlier-execution",
-      state: "complete",
-      resultVersion: 2,
-      embedding: Array(16).fill(0.25),
-    };
-    mocks.read.mockResolvedValue([row]);
-    await processTopicEmbeddingBatch(batch(row));
-    expect(mocks.staged).not.toHaveBeenCalled();
-    expect(mocks.embed).not.toHaveBeenCalled();
-    expect(mocks.write).not.toHaveBeenCalled();
-  });
-
   it("persists completed rows before retrying a later provider failure", async () => {
     const rows = [summary("first"), summary("second")];
     for (const row of rows) staged.set(row.id, row);
-    mocks.embed.mockResolvedValueOnce({
-      embedding: Array(16).fill(0.25),
-      inputTokens: 8,
-      costUsd: 0.000001,
-    });
+    mocks.embed.mockResolvedValueOnce(embeddingResult);
     const failure = new TopicsProviderUnavailable(
       "Topics provider call failed (HTTP 429).",
       "rate_limit",
@@ -194,8 +237,12 @@ describe("Topics embedding handoff", () => {
     expect(mocks.write.mock.calls[0][0]).toMatchObject([
       { id: "first", state: "complete" },
     ]);
-    expect(staged.has("first")).toBe(false);
+    expect(staged.get("first")?.state).toBe("complete");
     expect(staged.get("second")?.state).toBe("summarized");
+    await processTopicEmbeddingBatch(batch(...rows));
+    expect(mocks.embed).toHaveBeenCalledTimes(3);
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(staged.get("second")?.state).toBe("complete");
   });
 
   it("does not retry provider authentication failures", async () => {
@@ -214,21 +261,17 @@ describe("Topics embedding handoff", () => {
     expect(staged.get(row.id)?.state).toBe("summarized");
   });
 
-  it("persists an in-memory embedding when its Redis payload expires during the call", async () => {
+  it("fences an embedding when its Redis payload disappears during the call", async () => {
     const row = summary();
     staged.set(row.id, row);
     mocks.embed.mockImplementation(async () => {
       staged.delete(row.id);
-      return {
-        embedding: Array(16).fill(0.25),
-        inputTokens: 8,
-        costUsd: 0.000001,
-      };
+      return embeddingResult;
     });
-    await processTopicEmbeddingBatch(batch(row));
-    expect(mocks.write.mock.calls[0][0]).toMatchObject([
-      { id: row.id, state: "complete" },
-    ]);
+    await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
+      UnrecoverableError,
+    );
+    expect(mocks.write).not.toHaveBeenCalled();
     expect(staged.size).toBe(0);
   });
 });

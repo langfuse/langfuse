@@ -26,7 +26,7 @@ type StagedSummary = {
 };
 
 export const TOPIC_EMBEDDING_EXPIRED_ERROR =
-  "Topics summaries expired before embedding completed. Start a new execution to regenerate them.";
+  "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.";
 
 const hash = (value: unknown) =>
   createHash("sha256").update(JSON.stringify(value)).digest("hex");
@@ -130,30 +130,35 @@ export async function readStagedTopicSummary(
   return value ? decodeStagedSummary(value, scope, ref) : null;
 }
 
-/** Cache completed embeddings without extending or resurrecting the payload. */
+/** Return the accepted result without extending or resurrecting its payload. */
 export async function updateStagedTopicSummary(
   scope: BatchScope,
   ref: TopicEmbeddingRef,
   summary: TopicSummary,
-): Promise<void> {
+): Promise<TopicSummary | null> {
   const client = getRedis();
   const key = summaryKey(scope, ref);
   const value = await client.get(key);
-  if (!value) return;
+  if (!value) return null;
   const existing = decodeStagedSummary(value, scope, ref);
-  if (existing.summary.state !== "summarized") return;
+  if (existing.summary.state !== "summarized") return existing.summary;
   const replacement = JSON.stringify({ ...existing, summary });
   decodeStagedSummary(replacement, scope, ref);
-  await client.eval(
-    `if redis.call('GET', KEYS[1]) == ARGV[1] then
-       return redis.call('SET', KEYS[1], ARGV[2], 'XX', 'KEEPTTL')
+  const accepted = await client.eval(
+    `local current = redis.call('GET', KEYS[1])
+     if current == ARGV[1] then
+       redis.call('SET', KEYS[1], ARGV[2], 'XX', 'KEEPTTL')
+       return ARGV[2]
      end
-     return nil`,
+     return current`,
     1,
     key,
     value,
     replacement,
   );
+  return typeof accepted === "string"
+    ? decodeStagedSummary(accepted, scope, ref).summary
+    : null;
 }
 
 export async function deleteStagedTopicSummary(

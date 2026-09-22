@@ -6,6 +6,7 @@ import {
   topicExecutionInputSchema,
   type TopicExecution,
   type TopicProcessBatchState,
+  type TopicSummary,
 } from "../../topics";
 import {
   TopicsQueue,
@@ -19,6 +20,7 @@ import {
   TopicsEmbeddingQueue,
   enqueueTopicEmbeddingBatch,
   readStagedTopicSummary,
+  updateStagedTopicSummary,
 } from "./embedding-queue";
 
 const mocks = vi.hoisted(() => ({
@@ -51,7 +53,6 @@ const execution = (
 ): TopicExecution => ({
   id: "run",
   projectId: "project-a",
-  revision: "1",
   input: topicExecutionInputSchema.parse({
     projectId: "project-a",
     requestId: "request",
@@ -462,6 +463,46 @@ describe("Topics embedding queue handoff", () => {
     await expect(
       readStagedTopicSummary(batch, batch.summaries[0]!),
     ).rejects.toThrow("scope mismatch");
+  });
+
+  it.each(["summarized", "complete"])(
+    "returns the accepted terminal result when a competing attempt reads %s",
+    async (state) => {
+      const accepted = {
+        projectId: batch.projectId,
+        executionId: batch.executionId,
+        id: "summary",
+        facetVersionId: "facet",
+        traceId: "trace",
+        state: "complete",
+        processedAt: "2026-09-22T10:00:00.000Z",
+      } as TopicSummary;
+      const payload = {
+        summary: accepted,
+        embeddingConfig: {
+          embeddingModel: "text-embedding-3-small",
+          embeddingDimensions: 16,
+        },
+      };
+      mocks.get.mockResolvedValue(
+        JSON.stringify({ ...payload, summary: { ...accepted, state } }),
+      );
+      mocks.eval.mockResolvedValue(JSON.stringify(payload));
+      await expect(
+        updateStagedTopicSummary(batch, batch.summaries[0]!, {
+          ...accepted,
+          processedAt: "2026-09-22T10:01:00.000Z",
+        }),
+      ).resolves.toEqual(accepted);
+    },
+  );
+
+  it("returns no accepted result when the staged payload has expired", async () => {
+    mocks.get.mockResolvedValue(null);
+    await expect(
+      updateStagedTopicSummary(batch, batch.summaries[0]!, {} as TopicSummary),
+    ).resolves.toBeNull();
+    expect(mocks.eval).not.toHaveBeenCalled();
   });
 
   it("only retries failed batches on explicit resume and preserves expiry errors", async () => {

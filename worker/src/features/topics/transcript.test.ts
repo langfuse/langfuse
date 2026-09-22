@@ -80,8 +80,8 @@ describe("Topics trace input", () => {
       rows[0],
       { ...rows[1], level: "ERROR", statusMessage: "Permission denied" },
     ]);
-    expect(serializeTraceTranscript(changed).inputHash).not.toBe(
-      serializeTraceTranscript(first).inputHash,
+    expect(serializeTraceTranscript(changed).text).not.toBe(
+      serializeTraceTranscript(first).text,
     );
   });
 

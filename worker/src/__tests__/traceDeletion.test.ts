@@ -132,7 +132,6 @@ describe("trace deletion", () => {
     ].map((row) => ({
       session_id: "",
       ...row,
-      id: randomUUID(),
       unit_start_time: timestamp,
     }));
 
@@ -152,8 +151,8 @@ describe("trace deletion", () => {
         format: "JSONEachRow",
         values: rows.map((row) => ({
           ...row,
-          facet_summary_id: row.id,
-          outcome: "assigned",
+          topic_id: "topic",
+          topic_version_id: "topic-version",
           coordinates: [0.1, 0.2],
         })),
       }),

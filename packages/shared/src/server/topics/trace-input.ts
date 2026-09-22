@@ -23,7 +23,8 @@ export async function loadTopicTranscript({
   if (snapshot.projectId !== projectId || snapshot.traceId !== traceId)
     throw new Error("Topics trace scope mismatch.");
   return {
-    traceTimestamp: snapshot.timestamp,
+    unitStartTime: snapshot.timestamp,
+    sessionId: snapshot.sessionId,
     transcript: serializeTraceTranscript(prepareTrace(snapshot.observations)),
   };
 }

@@ -104,12 +104,6 @@ function TraceTranscriptDialog({
                     ? "This facet does not apply to this trace."
                     : "Not enough evidence to summarize this facet.")}
               </p>
-              {transcript.data &&
-                summary.inputHash !== transcript.data.inputHash && (
-                  <p className="text-muted-foreground text-xs">
-                    Trace content has changed since this summary was saved.
-                  </p>
-                )}
             </article>
           ))}
         </section>

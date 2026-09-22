@@ -54,7 +54,6 @@ describe("Current Topics", () => {
       outcome: i === 20 ? "not_applicable" : "assigned",
       topicId: i === 20 ? null : "billing",
       topicName: i === 20 ? null : "Billing",
-      awaitingUpdate: i === 0,
     }));
     state.data = [
       {
@@ -98,9 +97,6 @@ describe("Current Topics", () => {
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
       21,
     );
-    expect(
-      screen.getByText("Previous result · update pending"),
-    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "trace-0" }));
     expect(state.push).toHaveBeenLastCalledWith(
       { pathname: "/project/project/topics", query: { peek: "trace-0" } },
@@ -184,10 +180,9 @@ describe("Current Topics", () => {
           outcome: i < 25 ? "assigned" : "outlier",
           topicId: i < 25 ? "billing" : null,
           topicName: i < 25 ? "Billing" : null,
-          awaitingUpdate: false,
         })),
         topics,
-        map: { executionId: "execution", facetVersionId: "version", topics },
+        map: { runId: "run", topics },
         awaitingCount: 0,
         usableCount: 41,
       },

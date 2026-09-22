@@ -138,6 +138,7 @@ describe("Topics pipeline selection handoff", () => {
     expect(trigger).toHaveBeenCalledWith(
       expect.objectContaining({
         operation: "process",
+        reuseExistingSummaries: false,
         projectId: "project",
         traceIds: ["trace-with/custom-id", "second-trace"],
         facetVersionIds: ["intent-v1", "issues-v1"],
@@ -164,6 +165,11 @@ describe("Topics pipeline selection handoff", () => {
     expect(
       screen.getByText(/Process 10,000 traces across/),
     ).toBeInTheDocument();
+    const reuse = screen.getByRole("checkbox", {
+      name: "Reuse stored summaries",
+    });
+    expect(reuse).not.toBeChecked();
+    fireEvent.click(reuse);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(
       screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
@@ -171,6 +177,7 @@ describe("Topics pipeline selection handoff", () => {
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(2));
     expect(trigger.mock.calls[1][0]).toMatchObject({
       selection: selection.value.selection,
+      reuseExistingSummaries: true,
     });
     expect(trigger.mock.calls[1][0]).not.toHaveProperty("traceIds");
     expect(trigger.mock.calls[1][0]).not.toHaveProperty("minimumTraceCount");
@@ -266,6 +273,9 @@ describe("Topics pipeline selection handoff", () => {
     );
     expect(screen.queryByLabelText("Saved configuration")).toBeNull();
     expect(
+      screen.queryByRole("checkbox", { name: "Reuse stored summaries" }),
+    ).toBeNull();
+    expect(
       screen.getByText("120 compatible summaries ready"),
     ).toBeInTheDocument();
     expect(
@@ -287,5 +297,8 @@ describe("Topics pipeline selection handoff", () => {
     expect(trigger.mock.calls[4][0]).not.toHaveProperty("traceIds");
     expect(trigger.mock.calls[4][0]).not.toHaveProperty("selection");
     expect(trigger.mock.calls[4][0]).not.toHaveProperty("ruleId");
+    expect(trigger.mock.calls[4][0]).not.toHaveProperty(
+      "reuseExistingSummaries",
+    );
   });
 });
