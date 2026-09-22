@@ -90,48 +90,34 @@ const ResourceRow = ({
 }: {
   group: RolePermissionGroup;
   dense?: boolean;
-}) =>
-  dense ? (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs leading-tight font-bold">{group.label}</span>
-      <ActionBadges actions={group.actions} dense />
-    </div>
-  ) : (
-    <div className="flex items-start gap-3">
-      <div className="flex w-40 shrink-0 flex-col">
-        <span className="text-sm leading-tight font-bold">{group.label}</span>
-        {group.description && (
-          <span className="text-muted-foreground text-xs leading-tight">
-            {group.description}
-          </span>
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <ActionBadges actions={group.actions} />
-      </div>
-    </div>
-  );
-
-const ActionBadges = ({
-  actions,
-  dense,
-}: {
-  actions: string[];
-  dense?: boolean;
 }) => (
-  <div className="flex flex-wrap gap-1">
-    {actions.map((a) => (
-      <Badge
-        key={a}
-        variant="outline"
-        className={cn(
-          "font-mono font-normal",
-          dense ? "px-1 py-0 text-[0.55rem]" : "px-1.5 py-0 text-[0.65rem]",
-        )}
+  <div className="flex items-start gap-3">
+    <div className={cn("shrink-0", dense ? "max-w-[40%]" : "w-40")}>
+      <span
+        className={cn("leading-tight font-bold", dense ? "text-xs" : "text-sm")}
       >
-        {a}
-      </Badge>
-    ))}
+        {group.label}
+      </span>
+      {!dense && group.description && (
+        <span className="text-muted-foreground block text-xs leading-tight">
+          {group.description}
+        </span>
+      )}
+    </div>
+    <div className="flex min-w-0 flex-1 flex-wrap justify-end gap-1">
+      {group.actions.map((a) => (
+        <Badge
+          key={a}
+          variant="outline"
+          className={cn(
+            "font-mono font-normal",
+            dense ? "px-1 py-0 text-[0.55rem]" : "px-1.5 py-0 text-[0.65rem]",
+          )}
+        >
+          {a}
+        </Badge>
+      ))}
+    </div>
   </div>
 );
 
