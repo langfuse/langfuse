@@ -15,10 +15,8 @@ type MultiSelectTagOption<V> = {
   value: V;
   label: string;
   disabled?: boolean;
-  optionSuffix?: React.ReactNode;
-  selectedSuffix?: React.ReactNode;
-  accessibleLabel?: string;
-  keywords?: string[];
+  secondaryLabel?: string;
+  showSecondaryLabelInTag?: boolean;
 };
 
 type MultiSelectTagInputProps<V> = {
@@ -69,9 +67,9 @@ export function MultiSelectTagInput<V extends string>({
           value: selectedValue,
           label: option?.label ?? selectedValue,
           disabled: option?.disabled,
-          selectedSuffix: option?.selectedSuffix,
-          accessibleLabel:
-            option?.accessibleLabel ?? option?.label ?? selectedValue,
+          secondaryLabel: option?.showSecondaryLabelInTag
+            ? option.secondaryLabel
+            : undefined,
         };
       }),
     [options, value],
@@ -234,27 +232,26 @@ export function MultiSelectTagInput<V extends string>({
                         tagRefs.current.delete(option.value);
                       }}
                       data-value={option.value}
-                      title={option.accessibleLabel}
+                      title={[option.label, option.secondaryLabel]
+                        .filter(Boolean)
+                        .join(" ")}
                       className={cn(
                         "bg-muted flex h-6 max-w-48 min-w-10 shrink-0 items-center gap-1 rounded px-2",
                         !fullyVisibleValues.has(option.value) && "invisible",
                       )}
                     >
-                      <span
-                        className="min-w-0 truncate"
-                        title={option.accessibleLabel}
-                      >
+                      <span className="min-w-0 truncate" title={option.label}>
                         {option.label}
                       </span>
-                      {option.selectedSuffix ? (
-                        <span className="shrink-0">
-                          {option.selectedSuffix}
+                      {option.secondaryLabel ? (
+                        <span className="text-muted-foreground shrink-0">
+                          {option.secondaryLabel}
                         </span>
                       ) : null}
                       <button
                         type="button"
                         disabled={disabled || option.disabled}
-                        aria-label={`Remove ${option.accessibleLabel}`}
+                        aria-label={`Remove ${option.label}`}
                         className="text-muted-foreground hover:text-foreground -mr-1 flex shrink-0 items-center rounded-sm disabled:cursor-not-allowed"
                         onClick={(event) => {
                           event.stopPropagation();
@@ -352,11 +349,8 @@ export function MultiSelectTagInput<V extends string>({
                             <InputDropdown.OptionContent
                               label={selectAllLabel}
                               title={selectAllLabel}
-                              indicator={
-                                <InputDropdown.CheckIndicator
-                                  checked={allSelected}
-                                />
-                              }
+                              type="checkbox"
+                              checked={allSelected}
                             />
                           </CommandPrimitive.Item>
                         </InputDropdown.Option>
@@ -366,6 +360,12 @@ export function MultiSelectTagInput<V extends string>({
                       )}
                       {options.map((option) => {
                         const isSelected = value.includes(option.value);
+                        const visibleLabel = [
+                          option.label,
+                          option.secondaryLabel,
+                        ]
+                          .filter(Boolean)
+                          .join(" ");
 
                         return (
                           <InputDropdown.Option
@@ -375,13 +375,8 @@ export function MultiSelectTagInput<V extends string>({
                           >
                             <CommandPrimitive.Item
                               value={option.value || option.label}
-                              keywords={[
-                                option.label,
-                                ...(option.keywords ?? []),
-                              ]}
-                              aria-label={
-                                option.accessibleLabel ?? option.label
-                              }
+                              keywords={[visibleLabel]}
+                              aria-label={visibleLabel}
                               aria-checked={isSelected}
                               disabled={option.disabled}
                               onSelect={() => {
@@ -394,29 +389,11 @@ export function MultiSelectTagInput<V extends string>({
                               }}
                             >
                               <InputDropdown.OptionContent
-                                label={
-                                  <span className="flex min-w-0 items-center gap-2">
-                                    <span
-                                      className="truncate"
-                                      title={
-                                        option.accessibleLabel ?? option.label
-                                      }
-                                    >
-                                      {option.label}
-                                    </span>
-                                    {option.optionSuffix ? (
-                                      <span className="shrink-0">
-                                        {option.optionSuffix}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                }
-                                title={option.accessibleLabel ?? option.label}
-                                indicator={
-                                  <InputDropdown.CheckIndicator
-                                    checked={isSelected}
-                                  />
-                                }
+                                label={option.label}
+                                secondaryLabel={option.secondaryLabel}
+                                title={visibleLabel}
+                                type="checkbox"
+                                checked={isSelected}
                               />
                             </CommandPrimitive.Item>
                           </InputDropdown.Option>

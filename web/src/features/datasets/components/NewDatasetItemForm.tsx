@@ -448,12 +448,10 @@ function InitializedNewDatasetItemForm({
                           options={datasets.map((dataset) => ({
                             value: dataset.id,
                             label: dataset.name,
-                            optionSuffix:
-                              dataset.id === props.currentDatasetId ? (
-                                <span className="text-muted-foreground">
-                                  (current)
-                                </span>
-                              ) : undefined,
+                            secondaryLabel:
+                              dataset.id === props.currentDatasetId
+                                ? "(current)"
+                                : undefined,
                           }))}
                           onValueChange={(datasetIds) => {
                             field.onChange(datasetIds);
