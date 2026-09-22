@@ -15,6 +15,7 @@ import {
 } from "@langfuse/shared/query";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -81,6 +82,7 @@ export interface WidgetPlacement {
 export function DashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
   readPath,
   placement,
   dateRange,
@@ -94,6 +96,7 @@ export function DashboardWidget({
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: ChartProps["sync"];
   /** Resolved by the page controller — the widget must not guess the version. */
   readPath: ResolvedReadPath;
   placement: WidgetPlacement;
@@ -777,9 +780,8 @@ export function DashboardWidget({
               <Chart
                 chartType={widget.data.chartType}
                 data={transformedData}
-                // Sync the hover crosshair across all time-series widgets on this
-                // dashboard (non-time-series chart types ignore it). (LFE-10549)
                 syncId={dashboardId}
+                sync={chartSync}
                 config={chartMetricConfig}
                 rowLimit={
                   widget.data.chartConfig.type === "LINE_TIME_SERIES" ||

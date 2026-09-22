@@ -16,7 +16,10 @@ import {
   toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { useChartTickBudget } from "@/src/features/widgets/chart-library/useChartTickBudget";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import {
+  parseChartTimestamp,
+  prepareTimeAxis,
+} from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
   seriesColor,
@@ -49,6 +52,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
   legendInteraction = "highlight",
   maxVisibleSeries,
   syncId,
+  sync,
   subtleFill = false,
   hideXAxisLabels = false,
 }) => {
@@ -87,6 +91,13 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const renderedDimensions = dimensions.filter(isRendered);
+  const syncedIndex = groupedData.findIndex(
+    (item) =>
+      String(
+        parseChartTimestamp(item.time_dimension)?.getTime() ??
+          item.time_dimension,
+      ) === sync?.activeKey,
+  );
 
   return (
     <div
@@ -96,14 +107,19 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
       // cursor is already over the chart at mount/refresh (enter never fires). (LFE-10549)
       onMouseEnter={() => setSelfHovered(true)}
       onMouseMove={() => setSelfHovered(true)}
-      onMouseLeave={() => setSelfHovered(false)}
+      onMouseLeave={() => {
+        setSelfHovered(false);
+        sync?.onActiveKeyChange(undefined);
+      }}
       // Keyboard parity: recharts' accessibilityLayer lets Tab/arrow users move
       // the crosshair, but that fires no mouse event — un-gate the tooltip on
       // focus too, and re-gate only when focus leaves the chart. (LFE-10549)
       onFocus={() => setSelfHovered(true)}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           setSelfHovered(false);
+          sync?.onActiveKeyChange(undefined);
+        }
       }}
     >
       {series.total > dimensions.length && (
@@ -122,6 +138,15 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           data={groupedData}
           syncId={syncId}
           syncMethod="value"
+          onMouseMove={(state) => {
+            if (state.activeLabel === undefined) return;
+            sync?.onActiveKeyChange(
+              String(
+                parseChartTimestamp(state.activeLabel)?.getTime() ??
+                  state.activeLabel,
+              ),
+            );
+          }}
         >
           {/* Horizontal only: y-gridlines make bar heights gaugeable like the
               line/area charts; the bars themselves already mark the x-rhythm,
@@ -172,6 +197,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartActiveReferenceLine />
           <ChartTooltip
+            active={syncedIndex >= 0 ? true : undefined}
+            defaultIndex={syncedIndex >= 0 ? syncedIndex : undefined}
             cursor={false}
             content={({ active, payload, label, coordinate }) =>
               // Synced siblings show only the crosshair; the tooltip is the

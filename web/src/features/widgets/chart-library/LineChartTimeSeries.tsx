@@ -75,7 +75,7 @@ export function LineChartTimeSeries({
   legendSummary = "none",
   legendInteraction = "highlight",
   maxVisibleSeries,
-  syncId,
+  sync,
   showDataPointDots = false,
   thresholds,
   missingValue = "gap",
@@ -152,7 +152,7 @@ export function LineChartTimeSeries({
         showDataPointDots={showDataPointDots}
         connectNulls={connectNulls}
         thresholds={thresholds?.map(toDesignSystemThreshold)}
-        syncId={syncId}
+        sync={sync}
         legend={chartLegend}
         xAxis={{
           type: "category",
@@ -172,7 +172,7 @@ export function LineChartTimeSeries({
         showDataPointDots={showDataPointDots}
         connectNulls={connectNulls}
         thresholds={thresholds?.map(toDesignSystemThreshold)}
-        syncId={syncId}
+        sync={sync}
         legend={chartLegend}
         xAxis={{
           type: "time",

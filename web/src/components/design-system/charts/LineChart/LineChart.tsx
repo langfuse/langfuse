@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useState,
-  type PointerEvent,
-} from "react";
+import { useId, useMemo, useState, type PointerEvent } from "react";
 import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { line } from "d3-shape";
 
@@ -58,7 +51,10 @@ type CommonLineChartProps = {
   connectNulls?: boolean;
   thresholds?: LineChartThreshold[];
   ariaLabel?: string;
-  syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   legend?: LineChartLegend;
 };
 
@@ -254,43 +250,6 @@ const normalizeLineChartData = (
   }));
 };
 
-function useLineChartSync(syncId: string | undefined) {
-  const [syncedKey, setSyncedKey] = useState<string>();
-  const instanceId = useId();
-
-  useEffect(() => {
-    if (!syncId) return;
-    const handleSync = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{
-          syncId: string;
-          source: string;
-          key?: string;
-        }>
-      ).detail;
-      if (detail.syncId !== syncId || detail.source === instanceId) return;
-      setSyncedKey(detail.key);
-    };
-    window.addEventListener("langfuse-line-chart-sync", handleSync);
-    return () =>
-      window.removeEventListener("langfuse-line-chart-sync", handleSync);
-  }, [instanceId, syncId]);
-
-  const broadcastHover = useCallback(
-    (key?: string) => {
-      if (!syncId) return;
-      window.dispatchEvent(
-        new CustomEvent("langfuse-line-chart-sync", {
-          detail: { syncId, source: instanceId, key },
-        }),
-      );
-    },
-    [instanceId, syncId],
-  );
-
-  return { broadcastHover, syncedKey };
-}
-
 const getThresholdRegions = (
   threshold: LineChartThreshold,
   y: number,
@@ -417,7 +376,7 @@ function LineChartContent(
     connectNulls = false,
     thresholds = [],
     ariaLabel = "Line chart",
-    syncId,
+    sync,
     onActiveSeriesChange,
     width,
     height,
@@ -426,7 +385,6 @@ function LineChartContent(
   const [hoveredIndex, setHoveredIndex] = useState<number>();
   const [hoveredSeriesId, setHoveredSeriesId] = useState<string>();
   const activeLabelGradientId = useId();
-  const { broadcastHover, syncedKey } = useLineChartSync(syncId);
   const bottomMargin =
     xAxis.type === "category" && xAxis.labels === "hidden" ? 12 : 32;
   const plotWidth = Math.max(0, width - LEFT_MARGIN - RIGHT_MARGIN);
@@ -550,7 +508,7 @@ function LineChartContent(
           };
         });
   const activeKey =
-    hoveredIndex === undefined ? syncedKey : data[hoveredIndex]?.key;
+    hoveredIndex === undefined ? sync?.activeKey : data[hoveredIndex]?.key;
   const activeDatum = data.find((datum) => datum.key === activeKey);
   const formatXAxisTick = (datum: NormalizedDatum) => {
     if (xAxis.type === "time" && datum.x instanceof Date) {
@@ -617,7 +575,7 @@ function LineChartContent(
         ? nearest[0]
         : undefined;
     setHoveredSeriesId(nearestSeriesId);
-    onActiveSeriesChange(nearestSeriesId);
+    if (!hasConfiguredEmphasis) onActiveSeriesChange(nearestSeriesId);
   };
   const hasConfiguredEmphasis = series.some(
     (item) => item.emphasis && item.emphasis !== "default",
@@ -950,13 +908,13 @@ function LineChartContent(
                   {...referenceProps}
                   onPointerEnter={(event) => {
                     setHoveredIndex(index);
-                    broadcastHover(datum.key);
+                    sync?.onActiveKeyChange(datum.key);
                     referenceProps.onPointerEnter(event);
                     findNearestSeries(event, index);
                   }}
                   onPointerMove={(event) => {
                     setHoveredIndex(index);
-                    broadcastHover(datum.key);
+                    sync?.onActiveKeyChange(datum.key);
                     referenceProps.onPointerMove(event);
                     findNearestSeries(event, index);
                   }}
@@ -964,7 +922,7 @@ function LineChartContent(
                     setHoveredIndex(undefined);
                     setHoveredSeriesId(undefined);
                     onActiveSeriesChange(undefined);
-                    broadcastHover();
+                    sync?.onActiveKeyChange(undefined);
                     referenceProps.onPointerLeave();
                   }}
                 />
@@ -992,13 +950,15 @@ function LineChartContent(
                       onFocus={(event) => {
                         setHoveredIndex(index);
                         setHoveredSeriesId(item.id);
-                        onActiveSeriesChange(item.id);
+                        if (!hasConfiguredEmphasis)
+                          onActiveSeriesChange(item.id);
                         focusReferenceProps.onFocus(event);
                       }}
                       onBlur={() => {
                         setHoveredIndex(undefined);
                         setHoveredSeriesId(undefined);
-                        onActiveSeriesChange(undefined);
+                        if (!hasConfiguredEmphasis)
+                          onActiveSeriesChange(undefined);
                         focusReferenceProps.onBlur();
                       }}
                     />
