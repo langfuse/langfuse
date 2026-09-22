@@ -11,6 +11,7 @@ import { DashboardWidget } from "@/src/features/widgets";
 import type { ResolvedReadPath } from "@/src/features/events";
 import { type FilterState } from "@langfuse/shared";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 
 export type DashboardPlacement = WidgetPlacement | PresetPlacement;
 
@@ -112,6 +113,11 @@ export function DashboardGrid({
   /** Duplicate a preset card next to it (editable dashboards only). */
   onDuplicatePreset?: (anchor: PresetPlacement) => void;
 }) {
+  const [activeChartKey, setActiveChartKey] = useState<string>();
+  const chartSync: ChartProps["sync"] = {
+    activeKey: activeChartKey,
+    onActiveKeyChange: setActiveChartKey,
+  };
   const { containerRef, width } = useDebouncedContainerWidth(200);
   const [contentHeights, setContentHeights] = useState<Record<string, number>>(
     {},
@@ -216,6 +222,7 @@ export function DashboardGrid({
     ) : (
       <DashboardWidget
         dashboardId={dashboardId}
+        chartSync={chartSync}
         projectId={projectId}
         readPath={readPath}
         placement={widget}

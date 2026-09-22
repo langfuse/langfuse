@@ -187,6 +187,7 @@ function PieChartContent({
                     tabIndex={0}
                     aria-label={`${slice.data.label}: ${valueFormatter(slice.data.value)}`}
                     {...getReferenceProps({
+                      type: "primary",
                       index,
                       label: slice.data.label,
                       value: `${valueFormatter(slice.data.value)} (${percentageFormatter.format(slice.data.value / totalValue)})`,
