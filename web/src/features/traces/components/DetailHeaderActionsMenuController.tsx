@@ -1,22 +1,18 @@
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { CheckIcon, CopyIcon } from "lucide-react";
+import { CheckIcon, CopyIcon, Webhook } from "lucide-react";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import {
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuController,
-} from "@/src/components/ui/dropdown-menu";
+  DropdownMenu,
+  type DropdownMenuItemDefinition,
+} from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
 } from "@/src/features/events";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import {
-  useWebCalloutAction,
-  WebCalloutMenuItem,
-} from "@/src/features/web-callouts";
+import { useWebCalloutAction } from "@/src/features/web-callouts";
 
 type IdItem = {
   name: string;
@@ -25,6 +21,7 @@ type IdItem = {
 
 type DetailHeaderActionsMenuControllerProps = {
   idItems: IdItem[];
+  isAdmin: boolean;
   observationType?: ObservationType;
   projectId: string;
   observation?: {
@@ -33,12 +30,19 @@ type DetailHeaderActionsMenuControllerProps = {
     startTime: Date;
   };
   spanName?: string;
+  webCalloutAction?: ReturnType<typeof useWebCalloutAction>;
+  children: ComponentProps<typeof DropdownMenu>["children"];
+};
+
+type ConnectedDetailHeaderActionsMenuControllerProps = Omit<
+  DetailHeaderActionsMenuControllerProps,
+  "isAdmin" | "webCalloutAction"
+> & {
   webCallout?: {
     traceId: string | null;
     observationId?: string | null;
     sessionId?: string | null;
   };
-  children: ComponentProps<typeof DropdownMenuController>["children"];
 };
 
 function buildObservationClickHouseQuery(
@@ -68,16 +72,45 @@ ORDER BY event_ts DESC
 LIMIT 1;`;
 }
 
+export function ConnectedDetailHeaderActionsMenuController({
+  webCallout,
+  ...props
+}: ConnectedDetailHeaderActionsMenuControllerProps) {
+  const session = useSession();
+  const isAdmin = session.data?.user?.admin === true;
+
+  if (!webCallout) {
+    return <DetailHeaderActionsMenuController {...props} isAdmin={isAdmin} />;
+  }
+
+  return (
+    <WebCalloutActionController
+      projectId={props.projectId}
+      webCallout={webCallout}
+    >
+      {(webCalloutAction) => (
+        <DetailHeaderActionsMenuController
+          {...props}
+          isAdmin={isAdmin}
+          webCalloutAction={webCalloutAction}
+        />
+      )}
+    </WebCalloutActionController>
+  );
+}
+
 function WebCalloutActionController({
   projectId,
   webCallout,
   children,
 }: {
   projectId: string;
-  webCallout: NonNullable<DetailHeaderActionsMenuControllerProps["webCallout"]>;
+  webCallout: NonNullable<
+    ConnectedDetailHeaderActionsMenuControllerProps["webCallout"]
+  >;
   children: (action: ReturnType<typeof useWebCalloutAction>) => ReactNode;
 }) {
-  const webCalloutAction = useWebCalloutAction(
+  const action = useWebCalloutAction(
     {
       projectId,
       traceId: webCallout.traceId,
@@ -87,24 +120,24 @@ function WebCalloutActionController({
     true,
   );
 
-  return children(webCalloutAction);
+  return children(action);
 }
 
 export function DetailHeaderActionsMenuController({
   idItems,
+  isAdmin,
   observationType,
   projectId,
   observation,
   spanName,
-  webCallout,
   children,
+  webCalloutAction,
 }: DetailHeaderActionsMenuControllerProps) {
   const router = useRouter();
-  const session = useSession();
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const clickHouseQuery =
-    session.data?.user?.admin === true && observation
+    isAdmin && observation
       ? buildObservationClickHouseQuery(projectId, observation)
       : null;
 
@@ -134,85 +167,74 @@ export function DetailHeaderActionsMenuController({
 
   const filterTypeLabel = observationType ? `type:${observationType}` : null;
 
+  const items: DropdownMenuItemDefinition[] = [
+    ...(webCalloutAction
+      ? [
+          {
+            type: "item" as const,
+            id: "web-callout",
+            title: `Call ${webCalloutAction.endpointName}`,
+            icon: Webhook,
+            disabled: webCalloutAction.isLoading
+              ? { reason: "Web callout is running" }
+              : undefined,
+            onClick: () => {
+              webCalloutAction.invokeCallout().catch(() => undefined);
+            },
+          },
+          { id: "web-callout-separator", type: "separator" as const },
+        ]
+      : []),
+    ...(href
+      ? [
+          {
+            type: "item" as const,
+            id: "filter-by-name",
+            title: `Filter by name:${spanName}`,
+            onClick: () => {
+              router.push(href).catch(() => undefined);
+            },
+          },
+        ]
+      : []),
+    ...(typeHref && filterTypeLabel
+      ? [
+          {
+            type: "item" as const,
+            id: "filter-by-type",
+            title: `Filter by ${filterTypeLabel}`,
+            onClick: () => {
+              router.push(typeHref).catch(() => undefined);
+            },
+          },
+        ]
+      : []),
+    ...(href || typeHref
+      ? [{ id: "filter-separator", type: "separator" as const }]
+      : []),
+    ...idItems.map((item) => ({
+      type: "item" as const,
+      id: `copy-${item.name}`,
+      title: `Copy ${item.name}`,
+      icon: copiedId === item.id ? CheckIcon : CopyIcon,
+      onClick: () => handleCopy(item.id),
+    })),
+    ...(clickHouseQuery
+      ? [
+          {
+            type: "item" as const,
+            id: "copy-clickhouse-query",
+            title: "Copy ClickHouse query",
+            icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
+            onClick: () => handleCopy(clickHouseQuery),
+          },
+        ]
+      : []),
+  ];
+
   return (
-    <DropdownMenuController
-      align="start"
-      renderMenu={() => (
-        <>
-          {webCallout && (
-            <WebCalloutActionController
-              projectId={projectId}
-              webCallout={webCallout}
-            >
-              {(webCalloutAction) =>
-                webCalloutAction ? (
-                  <WebCalloutMenuItem action={webCalloutAction} withSeparator />
-                ) : null
-              }
-            </WebCalloutActionController>
-          )}
-          {(href || typeHref) && (
-            <>
-              {href && (
-                <DropdownMenuItem
-                  className="text-xs"
-                  onSelect={() => router.push(href)}
-                >
-                  <span className="max-w-[260px] truncate" title={spanName}>
-                    filter by <span className="font-bold">name:{spanName}</span>
-                  </span>
-                </DropdownMenuItem>
-              )}
-              {typeHref && filterTypeLabel && (
-                <DropdownMenuItem
-                  className="text-xs"
-                  onSelect={() => router.push(typeHref)}
-                >
-                  <span
-                    className="max-w-[260px] truncate"
-                    title={filterTypeLabel}
-                  >
-                    filter by{" "}
-                    <span className="font-bold">{filterTypeLabel}</span>
-                  </span>
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {idItems.map((item) => (
-            <DropdownMenuItem
-              key={item.id}
-              className="text-xs"
-              onSelect={() => handleCopy(item.id)}
-            >
-              {copiedId === item.id ? (
-                <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
-              ) : (
-                <CopyIcon className="mr-2 h-4 w-4" />
-              )}
-              <span className="max-w-[260px] truncate" title={item.id}>
-                Copy {item.name}
-              </span>
-            </DropdownMenuItem>
-          ))}
-          {clickHouseQuery && (
-            <DropdownMenuItem
-              className="text-xs"
-              onSelect={() => handleCopy(clickHouseQuery)}
-            >
-              {copiedId === clickHouseQuery ? (
-                <CheckIcon className="text-muted-green mr-2 h-4 w-4" />
-              ) : (
-                <CopyIcon className="mr-2 h-4 w-4" />
-              )}
-              Copy ClickHouse query
-            </DropdownMenuItem>
-          )}
-        </>
-      )}
-    >
+    <DropdownMenu items={items} placement="bottom-end">
       {children}
-    </DropdownMenuController>
+    </DropdownMenu>
   );
 }

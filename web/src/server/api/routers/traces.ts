@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   applyCommentFilters,
   traceException,
@@ -58,7 +58,7 @@ import {
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
 import {
   type AgentGraphDataResponse,

@@ -658,22 +658,24 @@ export const SessionPage: React.FC<{
                   objectType="SESSION"
                   analyticsData={{ source: "SessionDetail", isV4: false }}
                 >
-                  {({ disabled, totalCount }) => (
-                    <Button
-                      variant="outline"
-                      disabled={disabled !== undefined}
-                      className="rounded-l-none rounded-r-md border-l-2"
-                    >
-                      <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="toolbar"
-                          />
-                        )}
-                      </span>
-                    </Button>
+                  {({ disabled, totalCount, Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          {totalCount > 0 && (
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="toolbar"
+                            />
+                          )}
+                        </span>
+                      </Button>
+                    </Trigger>
                   )}
                 </AnnotationQueueItemDropdownMenuController>
               </div>
@@ -780,22 +782,26 @@ export const SessionPage: React.FC<{
                 objectType="SESSION"
                 analyticsData={{ source: "SessionDetail", isV4: false }}
               >
-                {({ disabled, totalCount }) => (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled !== undefined}
-                    className="w-full justify-start gap-2 font-normal"
-                  >
-                    <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Queue</span>
-                    {totalCount > 0 && (
-                      <AnnotationQueueItemCountBadge
-                        totalCount={totalCount}
-                        layout="menu"
-                      />
-                    )}
-                  </Button>
+                {({ disabled, totalCount, Trigger }) => (
+                  <Trigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled !== undefined}
+                      className="w-full justify-start gap-2 font-normal"
+                    >
+                      <ListPlus className="h-4 w-4" />
+                      <span className="text-sm">
+                        Queue
+                      </span>
+                      {totalCount > 0 && (
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="menu"
+                        />
+                      )}
+                    </Button>
+                  </Trigger>
                 )}
               </AnnotationQueueItemDropdownMenuController>
               {webCalloutAction && (
@@ -1708,22 +1714,24 @@ const LoadedSessionEventsPage: React.FC<{
                   objectType="SESSION"
                   analyticsData={{ source: "SessionDetail", isV4: true }}
                 >
-                  {({ disabled, totalCount }) => (
-                    <Button
-                      variant="outline"
-                      disabled={disabled !== undefined}
-                      className="rounded-l-none rounded-r-md border-l-2"
-                    >
-                      <span className="relative mr-1 text-xs">
-                        <ChevronDown className="h-3 w-3" />
-                        {totalCount > 0 && (
-                          <AnnotationQueueItemCountBadge
-                            totalCount={totalCount}
-                            layout="toolbar"
-                          />
-                        )}
-                      </span>
-                    </Button>
+                  {({ disabled, totalCount, Trigger }) => (
+                    <Trigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={disabled !== undefined}
+                        className="rounded-l-none rounded-r-md border-l-2"
+                      >
+                        <span className="relative mr-1 text-xs">
+                          <ChevronDown className="h-3 w-3" />
+                          {totalCount > 0 && (
+                            <AnnotationQueueItemCountBadge
+                              totalCount={totalCount}
+                              layout="toolbar"
+                            />
+                          )}
+                        </span>
+                      </Button>
+                    </Trigger>
                   )}
                 </AnnotationQueueItemDropdownMenuController>
               </div>
@@ -1862,22 +1870,26 @@ const LoadedSessionEventsPage: React.FC<{
                 objectType="SESSION"
                 analyticsData={{ source: "SessionDetail", isV4: true }}
               >
-                {({ disabled, totalCount }) => (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled !== undefined}
-                    className="w-full justify-start gap-2 font-normal"
-                  >
-                    <ListPlus className="h-4 w-4" />
-                    <span className="text-sm">Queue</span>
-                    {totalCount > 0 && (
-                      <AnnotationQueueItemCountBadge
-                        totalCount={totalCount}
-                        layout="menu"
-                      />
-                    )}
-                  </Button>
+                {({ disabled, totalCount, Trigger }) => (
+                  <Trigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={disabled !== undefined}
+                      className="w-full justify-start gap-2 font-normal"
+                    >
+                      <ListPlus className="h-4 w-4" />
+                      <span className="text-sm">
+                        Queue
+                      </span>
+                      {totalCount > 0 && (
+                        <AnnotationQueueItemCountBadge
+                          totalCount={totalCount}
+                          layout="menu"
+                        />
+                      )}
+                    </Button>
+                  </Trigger>
                 )}
               </AnnotationQueueItemDropdownMenuController>
               {webCalloutAction && (

@@ -13,7 +13,7 @@ vi.mock("@/src/features/rbac", () => ({
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
-vi.mock("@/src/ee/features/ui-customization/useUiCustomization", () => ({
+vi.mock("@/src/ee/features/ui-customization", () => ({
   useUiCustomization: () => undefined,
 }));
 vi.mock("./CreateLLMApiKeyDialog", () => ({

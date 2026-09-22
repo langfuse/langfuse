@@ -50,7 +50,12 @@ import {
 
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
-import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
+import {
+  getScoreChartTimeRange,
+  ScoresChartView,
+  ScoresOutlierStrip,
+  useScoresChartViewState,
+} from "@/src/features/scores-chart-view";
 import { useOrderByState } from "@/src/features/orderBy";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -89,11 +94,6 @@ import {
   type ScoreLevel,
 } from "@/src/components/score-tag";
 import { ViewModeToggle } from "@/src/features/chart-view";
-import {
-  ScoresChartView,
-  ScoresOutlierStrip,
-  useScoresChartViewState,
-} from "@/src/features/scores-chart-view";
 
 export type ScoresTableRow = {
   id: string;

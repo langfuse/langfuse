@@ -22,6 +22,7 @@ type AnnotationQueueItemDropdownMenuControllerProps = {
   children: (control: {
     disabled: { reason: string } | undefined;
     totalCount: number;
+    Trigger: typeof DropdownMenuTrigger;
   }) => ReactNode;
 };
 
@@ -152,9 +153,11 @@ export function AnnotationQueueItemDropdownMenuController({
         }
       }}
     >
-      <DropdownMenuTrigger asChild>
-        {children({ disabled, totalCount })}
-      </DropdownMenuTrigger>
+      {children({
+        disabled,
+        totalCount,
+        Trigger: DropdownMenuTrigger,
+      })}
       {!isLoading ? (
         <AnnotationQueueItemMenuContent
           projectId={projectId}

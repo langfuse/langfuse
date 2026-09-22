@@ -2,7 +2,7 @@
 import { type GetServerSideProps } from "next";
 import { env } from "@/src/env.mjs";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/server";
-import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { isEmailVerificationRequired } from "@/src/features/auth-credentials";
 import { type PageProps } from "@/src/features/auth/SignInPage";
 
 // Also used in src/pages/auth/sign-up.tsx via the pages/auth/sign-in shim.

@@ -1,6 +1,10 @@
 // The dashboard feature's server surface (RFC rule 9, amended): the
 // public dashboard services MCP tools already imported by file path.
 export {
+  getWidgetImportFilterConfig,
+  partitionStoredUiTableFiltersToView,
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+export {
   addPublicDashboardPlacement,
   createPublicDashboard,
   deletePublicDashboard,

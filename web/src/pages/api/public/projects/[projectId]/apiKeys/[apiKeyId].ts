@@ -7,7 +7,7 @@ import {
   validateQueryParams,
   handleDeleteApiKey,
 } from "@/src/ee/features/admin-api/server/projects/projectById/apiKeys/apiKeyById";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import {
   shadowAuth,
   writeProjectError,
