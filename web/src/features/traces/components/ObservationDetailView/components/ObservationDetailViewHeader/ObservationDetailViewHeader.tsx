@@ -454,6 +454,7 @@ export const ObservationDetailViewHeader = memo(
                     </DrawerTrigger>
                     <DrawerContent className="p-3">
                       <DualAnnotationContent
+                        isV4={isV4Enabled}
                         projectId={projectId}
                         traceId={traceId}
                         observationId={observation.id}
