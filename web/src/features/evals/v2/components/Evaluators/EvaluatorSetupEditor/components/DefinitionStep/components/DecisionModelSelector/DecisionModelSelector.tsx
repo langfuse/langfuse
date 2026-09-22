@@ -1,4 +1,7 @@
-import { isDecisionModelAdapter, supportedModels } from "@langfuse/shared";
+import {
+  getDecisionModelDefaultModels,
+  isDecisionModelAdapter,
+} from "@langfuse/shared";
 import { useStore } from "zustand";
 
 import { Button } from "@/src/components/ui/button";
@@ -33,7 +36,10 @@ export function DecisionModelSelector({
     .filter((connection) => isDecisionModelAdapter(connection.adapter))
     .flatMap((connection) => {
       const models = connection.withDefaultModels
-        ? [...connection.customModels, ...supportedModels[connection.adapter]]
+        ? [
+            ...connection.customModels,
+            ...getDecisionModelDefaultModels(connection),
+          ]
         : connection.customModels;
       return models.map((model) => ({
         value: `${connection.provider}${SEPARATOR}${model}`,

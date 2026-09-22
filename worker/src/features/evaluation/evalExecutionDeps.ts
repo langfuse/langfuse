@@ -15,6 +15,7 @@ import {
   LLMAdapter,
   mapLegacyLLMCompletionParams,
   QueueJobs,
+  resolveTypeSafeUpstream,
   ScoreEventType,
   UNKNOWN_INGESTION_SDK_VALUE,
   type ChatMessage,
@@ -361,6 +362,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       const client = createTypeSafeDecisionModelClient({
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
+        upstream: resolveTypeSafeUpstream(apiKey.config),
       });
 
       return client.evaluate(params.request);

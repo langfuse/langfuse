@@ -9,18 +9,29 @@ import type {
   DecisionModelClient,
   DecisionModelEvaluation,
 } from "../../evals/decisionModelEvaluatorExecution";
+import type { TypeSafeUpstream } from "../../../interfaces/customLLMProviderConfigSchemas";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+import {
+  DEFAULT_TYPESAFE_UPSTREAM,
+  TYPESAFE_UPSTREAM_DEFINITIONS,
+} from "../types";
 
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
+  upstream?: TypeSafeUpstream;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
+  const upstream =
+    TYPESAFE_UPSTREAM_DEFINITIONS[params.upstream ?? DEFAULT_TYPESAFE_UPSTREAM];
   const provider = createTypeSafeAi({
     apiKey: params.apiKey,
+    baseURL: upstream.baseURL,
     fetch:
       params.fetchImpl ??
-      createSecureLlmFetch({ logContext: "TypeSafe decision model" }),
+      createSecureLlmFetch({
+        logContext: `${upstream.label} decision model`,
+      }),
   });
   const model = provider.evaluationModel(params.model);
 

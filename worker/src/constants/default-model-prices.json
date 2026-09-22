@@ -7411,7 +7411,7 @@
   {
     "id": "7f3c9a2e-5b1d-4e8f-9a6c-2d4b8e1f0a3c",
     "modelName": "jev",
-    "matchPattern": "(?i)^(typesafe(-ai)?\\/)?jev(-[0-9]+(\\.[0-9]+)*|-latest|-preview)?$",
+    "matchPattern": "(?i)^(~?typesafe(-ai)?\\/)?jev(-[0-9]+(\\.[0-9]+)*(-[0-9]{8})?|-latest|-preview)?$",
     "createdAt": "2026-09-22T00:00:00.000Z",
     "updatedAt": "2026-09-22T00:00:00.000Z",
     "pricingTiers": [

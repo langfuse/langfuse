@@ -22,11 +22,15 @@ import {
   BedrockConfigSchema,
   BedrockCredentialSchema,
   OpenAIConfigSchema,
+  TypeSafeConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  getDecisionModelDefaultModels,
+  resolveTypeSafeUpstream,
   type LLMConnectionConfig,
+  type TypeSafeUpstream,
 } from "@langfuse/shared";
 
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
@@ -111,12 +115,15 @@ function assertDecisionModelConnectionInput(input: {
   adapter: LLMAdapter;
   baseURL?: string | null;
   extraHeaders?: Record<string, string | null | undefined> | null;
+  config?: unknown;
 }) {
   if (!isDecisionModelAdapter(input.adapter)) return;
+  // The upstream preset owns the base URL; a free-form URL would bypass it.
   if (input.baseURL) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Decision-model connections do not support a custom base URL.",
+      message:
+        "Decision-model connections do not support a custom base URL. Choose an upstream instead.",
     });
   }
   if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
@@ -125,16 +132,53 @@ function assertDecisionModelConnectionInput(input: {
       message: "Decision-model connections do not support extra headers.",
     });
   }
+  if (
+    input.config !== undefined &&
+    input.config !== null &&
+    !TypeSafeConfigSchema.safeParse(input.config).success
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "Decision-model connections only accept an upstream in their config.",
+    });
+  }
+}
+
+/**
+ * A stored key only works against the upstream it was issued for, so moving
+ * a decision-model connection to another upstream needs a fresh key, just like
+ * changing the base URL of a text connection does.
+ */
+function assertDecisionModelUpstreamChangeHasSecretKey(params: {
+  adapter: string;
+  existingConfig: unknown;
+  inputConfig: unknown;
+  hasNewSecretKey: boolean;
+}) {
+  if (!isDecisionModelAdapter(params.adapter)) return;
+  if (params.inputConfig === undefined || params.hasNewSecretKey) return;
+  if (
+    resolveTypeSafeUpstream(params.inputConfig) !==
+    resolveTypeSafeUpstream(params.existingConfig)
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Secret key is required when changing the upstream.",
+    });
+  }
 }
 
 async function testDecisionModelConnection(params: {
   secretKey: string;
   model: string;
+  upstream: TypeSafeUpstream;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const client = createTypeSafeDecisionModelClient({
       apiKey: params.secretKey,
       model: params.model,
+      upstream: params.upstream,
     });
     await client.evaluate({
       state: { message: "Hello, is anyone there?" },
@@ -160,18 +204,27 @@ async function testLLMConnection(
   params: TestLLMConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (isDecisionModelAdapter(params.adapter)) {
+      const model =
+        params.customModels?.[0] ??
+        getDecisionModelDefaultModels({
+          adapter: params.adapter,
+          config: params.config,
+        })[0];
+      if (!model) throw Error("No model found");
+
+      return await testDecisionModelConnection({
+        secretKey: params.secretKey,
+        model,
+        upstream: resolveTypeSafeUpstream(params.config),
+      });
+    }
+
     const model = params.customModels?.length
       ? params.customModels[0]
       : supportedModels[params.adapter][0];
 
     if (!model) throw Error("No model found");
-
-    if (isDecisionModelAdapter(params.adapter)) {
-      return await testDecisionModelConnection({
-        secretKey: params.secretKey,
-        model,
-      });
-    }
 
     if (params.adapter === LLMAdapter.VertexAI) {
       // Skip validation if using ADC (Application Default Credentials)
@@ -567,6 +620,13 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
+        assertDecisionModelUpstreamChangeHasSecretKey({
+          adapter: existingKey.adapter,
+          existingConfig: existingKey.config,
+          inputConfig: input.config,
+          hasNewSecretKey,
+        });
+
         if (input.baseURL && isBaseURLChanged) {
           await validateLlmConnectionBaseURL(input.baseURL);
         }
@@ -661,6 +721,13 @@ export const llmApiKeyRouter = createTRPCRouter({
             message: "Secret key is required when changing the base URL",
           });
         }
+
+        assertDecisionModelUpstreamChangeHasSecretKey({
+          adapter: existingKey.adapter,
+          existingConfig: existingKey.config,
+          inputConfig: input.config,
+          hasNewSecretKey: Boolean(input.secretKey),
+        });
 
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({

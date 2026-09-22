@@ -7,11 +7,18 @@ import {
   type BedrockAccessKeys,
   type BedrockConfig,
   type OpenAIConfig,
+  type TypeSafeConfig,
+  type TypeSafeUpstream,
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  DEFAULT_TYPESAFE_UPSTREAM,
+  TYPESAFE_UPSTREAM_DEFINITIONS,
+  TYPESAFE_UPSTREAMS,
+  TypeSafeUpstreamSchema,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   isDecisionModelAdapter,
+  resolveTypeSafeUpstream,
 } from "@langfuse/shared";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
@@ -34,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
@@ -93,6 +101,7 @@ const getInitialBedrockAuthMethod = (params: {
 const createFormSchema = (params: {
   mode: "create" | "update";
   existingAuthMethod?: BedrockAuthMethod;
+  existingTypeSafeUpstream?: TypeSafeUpstream;
 }) =>
   z
     .object({
@@ -115,6 +124,7 @@ const createFormSchema = (params: {
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
       openAIUseResponsesApi: z.boolean(),
+      typeSafeUpstream: TypeSafeUpstreamSchema,
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -249,6 +259,18 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
+    )
+    // A key only works against the upstream that issued it.
+    .refine(
+      (data) =>
+        params.mode !== "update" ||
+        data.adapter !== LLMAdapter.TypeSafe ||
+        data.typeSafeUpstream === params.existingTypeSafeUpstream ||
+        hasText(data.secretKey),
+      {
+        message: "Enter the API key for the new upstream.",
+        path: ["secretKey"],
+      },
     );
 
 interface CreateLLMApiKeyFormProps {
@@ -320,9 +342,15 @@ export function CreateLLMApiKeyForm({
     }
   };
 
+  const existingTypeSafeUpstream =
+    existingKey?.adapter === LLMAdapter.TypeSafe
+      ? resolveTypeSafeUpstream(existingKey.config)
+      : undefined;
+
   const formSchema = createFormSchema({
     mode,
     existingAuthMethod: existingKey?.authMethod,
+    existingTypeSafeUpstream,
   });
 
   const form = useForm({
@@ -358,6 +386,8 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
                 : "",
+            typeSafeUpstream:
+              existingTypeSafeUpstream ?? DEFAULT_TYPESAFE_UPSTREAM,
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
@@ -376,6 +406,7 @@ export function CreateLLMApiKeyForm({
             extraHeaders: [],
             vertexAILocation: "global",
             openAIUseResponsesApi: false,
+            typeSafeUpstream: DEFAULT_TYPESAFE_UPSTREAM,
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -388,6 +419,9 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const currentTypeSafeUpstream = form.watch("typeSafeUpstream");
+  const typeSafeUpstreamDefinition =
+    TYPESAFE_UPSTREAM_DEFINITIONS[currentTypeSafeUpstream];
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -555,7 +589,12 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
+    let config:
+      | BedrockConfig
+      | OpenAIConfig
+      | VertexAIConfig
+      | TypeSafeConfig
+      | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       const shouldPreserveExistingBedrockCredentials =
@@ -615,6 +654,8 @@ export function CreateLLMApiKeyForm({
         values.openAIUseResponsesApi || mode === "update"
           ? { useResponsesApi: values.openAIUseResponsesApi }
           : undefined;
+    } else if (currentAdapter === LLMAdapter.TypeSafe) {
+      config = { upstream: values.typeSafeUpstream };
     }
 
     const extraHeaders =
@@ -790,6 +831,54 @@ export function CreateLLMApiKeyForm({
                   </FormItem>
                 )}
               />
+
+              {/* Decision-model upstream: which gateway serves Jev */}
+              {currentAdapter === LLMAdapter.TypeSafe && (
+                <FormField
+                  control={form.control}
+                  name="typeSafeUpstream"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Upstream</FormLabel>
+                      <FormDescription>
+                        Provider that serves the Jev decision model. OpenRouter
+                        and Vercel AI Gateway expose TypeSafe&apos;s API, so the
+                        request format stays the same and only the API key and
+                        model names change.
+                      </FormDescription>
+                      <FormControl>
+                        <SelectInput
+                          aria-label="Upstream"
+                          placeholder="Select an upstream"
+                          value={field.value}
+                          options={TYPESAFE_UPSTREAMS.map((upstream) => ({
+                            value: upstream,
+                            label:
+                              TYPESAFE_UPSTREAM_DEFINITIONS[upstream].label,
+                          }))}
+                          onValueChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Default models:{" "}
+                        <code className="bg-muted rounded px-1 py-0.5">
+                          {typeSafeUpstreamDefinition.models.join(", ")}
+                        </code>
+                        .{" "}
+                        <a
+                          href={typeSafeUpstreamDefinition.docsUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 underline hover:text-blue-800"
+                        >
+                          {typeSafeUpstreamDefinition.label} docs
+                        </a>
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
               {currentAdapter === LLMAdapter.Bedrock ? (
@@ -1172,7 +1261,11 @@ export function CreateLLMApiKeyForm({
                   name="secretKey"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>API Key</FormLabel>
+                      <FormLabel>
+                        {currentAdapter === LLMAdapter.TypeSafe
+                          ? typeSafeUpstreamDefinition.apiKeyLabel
+                          : "API Key"}
+                      </FormLabel>
                       <FormDescription>
                         {isLangfuseCloud
                           ? "Your API keys are stored encrypted on our servers."

@@ -3,6 +3,8 @@ import z from "zod";
 import {
   BedrockConfigSchema,
   OpenAIConfigSchema,
+  TypeSafeConfigSchema,
+  type TypeSafeUpstream,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
@@ -469,7 +471,71 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
+export type TypeSafeUpstreamDefinition = {
+  label: string;
+  /** Base URL the `@ai-sdk/typesafe-ai` provider appends `/systemone` to. */
+  baseURL: string;
+  /** Model IDs the upstream resolves for Jev, most generic alias first. */
+  models: readonly string[];
+  apiKeyLabel: string;
+  docsUrl: string;
+};
+
+export const TYPESAFE_UPSTREAM_DEFINITIONS: Record<
+  TypeSafeUpstream,
+  TypeSafeUpstreamDefinition
+> = {
+  typesafe: {
+    label: "TypeSafe",
+    baseURL: "https://api.typesafe.ai/v1",
+    models: ["jev-1.13.0", "jev-latest"],
+    apiKeyLabel: "TypeSafe API key",
+    docsUrl: "https://docs.typesafe.ai/api",
+  },
+  "vercel-ai-gateway": {
+    label: "Vercel AI Gateway",
+    baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    models: ["typesafe-ai/jev", "typesafe-ai/jev-latest"],
+    apiKeyLabel: "Vercel AI Gateway API key",
+    docsUrl: "https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe",
+  },
+  openrouter: {
+    label: "OpenRouter",
+    baseURL: "https://openrouter.ai/api/v1",
+    models: ["jev-1.13", "jev-latest"],
+    apiKeyLabel: "OpenRouter API key",
+    docsUrl: "https://openrouter.ai/docs/guides/community/typesafe-sdk",
+  },
+};
+
+export const DEFAULT_TYPESAFE_UPSTREAM: TypeSafeUpstream = "typesafe";
+
+/**
+ * Reads the upstream from a stored TypeSafe connection config. Connections
+ * created before upstreams existed have no config and talk to TypeSafe
+ * directly.
+ */
+export function resolveTypeSafeUpstream(config: unknown): TypeSafeUpstream {
+  const parsed = TypeSafeConfigSchema.safeParse(config);
+  return parsed.success ? parsed.data.upstream : DEFAULT_TYPESAFE_UPSTREAM;
+}
+
+export const typeSafeModels = TYPESAFE_UPSTREAM_DEFINITIONS.typesafe.models;
+
+/**
+ * Default model IDs offered by a decision-model connection. Unlike text
+ * adapters, the list depends on the connection's upstream because each gateway
+ * names Jev differently.
+ */
+export function getDecisionModelDefaultModels(connection: {
+  adapter: string;
+  config?: unknown;
+}): readonly string[] {
+  if (connection.adapter !== LLMAdapter.TypeSafe) return [];
+  return TYPESAFE_UPSTREAM_DEFINITIONS[
+    resolveTypeSafeUpstream(connection.config)
+  ].models;
+}
 
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
@@ -505,7 +571,12 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z
-      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
+      .union([
+        BedrockConfigSchema,
+        VertexAIConfigSchema,
+        OpenAIConfigSchema,
+        TypeSafeConfigSchema,
+      ])
       .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise

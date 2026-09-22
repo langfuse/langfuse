@@ -99,6 +99,70 @@ describe("createTypeSafeDecisionModelClient", () => {
     });
   });
 
+  it.each([
+    ["typesafe", "https://api.typesafe.ai/v1/systemone"],
+    ["openrouter", "https://openrouter.ai/api/v1/systemone"],
+    ["vercel-ai-gateway", "https://ai-gateway.vercel.sh/typesafe/v1/systemone"],
+  ] as const)(
+    "routes the %s upstream to its TypeSafe-compatible endpoint",
+    async (upstream, expectedUrl) => {
+      const fetchImpl = vi.fn().mockResolvedValue(
+        jsonResponse({
+          model: "jev",
+          answers: { refund: { type: "noul", noul: 0.5 } },
+        }),
+      );
+
+      const client = createTypeSafeDecisionModelClient({
+        apiKey: "sk-test",
+        model: "jev-latest",
+        upstream,
+        fetchImpl,
+      });
+      await client.evaluate({
+        state: request.state,
+        questions: { refund: request.questions.refund },
+      });
+
+      const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe(expectedUrl);
+      expect(new Headers(init.headers).get("authorization")).toBe(
+        "Bearer sk-test",
+      );
+    },
+  );
+
+  it("tolerates the extra routing fields gateways add to the TypeSafe response", async () => {
+    // OpenRouter returns its own id/provider and a cost inside usage; the model
+    // is the resolved OpenRouter slug rather than the requested alias.
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: "gen-dec-1789738314-X5e5eKGQdvR9rblyX250",
+        model: "typesafe/jev-1.13-20260917",
+        provider: "TypeSafe",
+        answers: { refund: { type: "noul", noul: 0.98 } },
+        usage: { input_tokens: 275, output_tokens: 20, cost: 0.00003 },
+      }),
+    );
+
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      upstream: "openrouter",
+      fetchImpl,
+    });
+    const evaluation = await client.evaluate({
+      state: request.state,
+      questions: { refund: request.questions.refund },
+    });
+
+    expect(evaluation).toEqual({
+      model: "typesafe/jev-1.13-20260917",
+      answers: { refund: { type: "boolean", probability: 0.98 } },
+      usage: { inputTokens: 275, outputTokens: 20 },
+    });
+  });
+
   it("surfaces API failures as AI SDK call errors with the status code", async () => {
     const fetchImpl = vi
       .fn()

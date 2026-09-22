@@ -57,6 +57,27 @@ export const VertexAIConfigSchema = z
 
 export type VertexAIConfig = z.infer<typeof VertexAIConfigSchema>;
 
+/**
+ * Where a TypeSafe decision-model connection sends its System One requests.
+ * OpenRouter and Vercel AI Gateway both expose a TypeSafe-compatible
+ * `/v1/systemone` endpoint, so the same adapter talks to all three; the
+ * upstream only decides the base URL, the accepted API key, and the model IDs.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  "typesafe",
+  "vercel-ai-gateway",
+  "openrouter",
+] as const;
+export const TypeSafeUpstreamSchema = z.enum(TYPESAFE_UPSTREAMS);
+export type TypeSafeUpstream = z.infer<typeof TypeSafeUpstreamSchema>;
+
+export const TypeSafeConfigSchema = z
+  .object({
+    upstream: TypeSafeUpstreamSchema,
+  })
+  .strict();
+export type TypeSafeConfig = z.infer<typeof TypeSafeConfigSchema>;
+
 export const GCPServiceAccountKeySchema = z.object({
   type: z.literal("service_account"),
   project_id: z.string(),
