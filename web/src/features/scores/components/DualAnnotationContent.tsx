@@ -6,6 +6,7 @@ import {
 } from "@/src/features/scores/components/AnnotationForm";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { prepareCombinedAnnotationTargets } from "@/src/features/scores/lib/prepareAnnotationFormData";
+import { type AnnotationRefreshHandle } from "../types";
 
 interface DualAnnotationContentProps {
   projectId: string;
@@ -16,6 +17,9 @@ interface DualAnnotationContentProps {
   observationEnvironment: string;
   observationScores: WithStringifiedMetadata<ScoreDomain>[];
   traceScores: WithStringifiedMetadata<ScoreDomain>[];
+  actionButtons?: React.ReactNode;
+  isActive?: boolean;
+  refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }
 
 export function DualAnnotationContent({
@@ -27,6 +31,9 @@ export function DualAnnotationContent({
   observationEnvironment,
   observationScores,
   traceScores,
+  actionButtons,
+  isActive = true,
+  refreshRef,
 }: DualAnnotationContentProps) {
   const observation = usePreparedAnnotationFormTarget({
     serverScores: observationScores,
@@ -51,6 +58,9 @@ export function DualAnnotationContent({
             observation.target,
             trace.target,
           ])}
+          actionButtons={actionButtons}
+          isActive={isActive}
+          refreshRef={refreshRef}
         />
       )}
     </div>

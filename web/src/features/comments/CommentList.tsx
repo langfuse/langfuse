@@ -21,6 +21,7 @@ type CommentListProps = {
   onDraftChange?: (hasDraft: boolean) => void;
   onMentionDropdownChange?: (isOpen: boolean) => void;
   isDrawerOpen?: boolean;
+  isActive?: boolean;
   pendingSelection?: SelectionData | null;
   onSelectionUsed?: () => void;
   onCommentChange?: () => void | Promise<void>;
@@ -44,6 +45,7 @@ function CommentThread({
   onDraftChange,
   onMentionDropdownChange,
   isDrawerOpen = false,
+  isActive = true,
   pendingSelection,
   onSelectionUsed,
   onCommentChange,
@@ -91,7 +93,7 @@ function CommentThread({
   return (
     <div
       className={cn(
-        "flex h-full min-h-0 flex-col overflow-hidden",
+        "flex h-full min-h-0 flex-col overflow-y-auto",
         cardView && "rounded-md",
       )}
     >
@@ -114,6 +116,7 @@ function CommentThread({
       {hasWriteAccess && (
         <div className="shrink-0 border-t p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <CommentComposer
+            isActive={isActive}
             projectId={projectId}
             objectId={objectId}
             objectType={objectType}

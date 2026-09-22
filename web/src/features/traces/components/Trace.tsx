@@ -1,7 +1,10 @@
 import { type TraceDomain, type ScoreDomain } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
-import { TraceDataProvider } from "@/src/features/traces/contexts/TraceDataContext";
+import {
+  TraceDataProvider,
+  useTraceData,
+} from "@/src/features/traces/contexts/TraceDataContext";
 import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
   SelectionProvider,
@@ -27,7 +30,15 @@ import { useIsMobile } from "@/src/hooks/use-mobile";
 import { useTraceComments } from "@/src/features/traces/hooks/useTraceComments";
 import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/TraceGraphView";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useStore } from "zustand";
+import { useRouter } from "next/router";
+import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
+import {
+  TraceReviewPanelProvider,
+  useTraceReviewPanel,
+} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanel } from "./TraceReviewPanel";
 
 export type TraceProps = {
   observations: Array<ObservationReturnTypeWithMetadata>;
@@ -222,18 +233,71 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
+  const { trace } = useTraceData();
+  const router = useRouter();
+  if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
+    return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
+  }
   return (
-    <TraceLayoutDesktop key={desktopLayout.groupId} {...desktopLayout}>
-      <TraceLayoutDesktop.NavigationPanel>
-        <TracePanelNavigationLayoutDesktop>
-          <TracePanelNavigation />
-        </TracePanelNavigationLayoutDesktop>
-      </TraceLayoutDesktop.NavigationPanel>
-      <TraceLayoutDesktop.ResizeHandle />
-      <TraceLayoutDesktop.DetailPanel>
-        <TracePanelDetail />
-      </TraceLayoutDesktop.DetailPanel>
-    </TraceLayoutDesktop>
+    <TraceReviewPanelProvider
+      key={`${trace.projectId}:${trace.id}`}
+      projectId={trace.projectId}
+      initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+    >
+      <DesktopTraceReviewWorkspace
+        desktopLayout={desktopLayout}
+        projectId={trace.projectId}
+      />
+    </TraceReviewPanelProvider>
+  );
+}
+
+function DesktopTraceReviewWorkspace({
+  desktopLayout,
+  projectId,
+}: {
+  desktopLayout: DesktopLayout;
+  projectId: string;
+}) {
+  const store = useTraceReviewPanel();
+  const reviewOpen = useStore(store, (state) => state.active !== null);
+  return (
+    <DesktopTraceWorkspace
+      desktopLayout={desktopLayout}
+      reviewOpen={reviewOpen}
+      reviewPanel={<TraceReviewPanel projectId={projectId} />}
+    />
+  );
+}
+
+function DesktopTraceWorkspace({
+  desktopLayout,
+  reviewOpen = false,
+  reviewPanel,
+}: {
+  desktopLayout: DesktopLayout;
+  reviewOpen?: boolean;
+  reviewPanel?: ReactNode;
+}) {
+  return (
+    <div className="h-full" data-trace-review-open={reviewOpen || undefined}>
+      <TraceLayoutDesktop
+        key={desktopLayout.groupId}
+        {...desktopLayout}
+        reviewOpen={reviewOpen}
+        reviewPanel={reviewPanel}
+      >
+        <TraceLayoutDesktop.NavigationPanel>
+          <TracePanelNavigationLayoutDesktop>
+            <TracePanelNavigation />
+          </TracePanelNavigationLayoutDesktop>
+        </TraceLayoutDesktop.NavigationPanel>
+        <TraceLayoutDesktop.ResizeHandle />
+        <TraceLayoutDesktop.DetailPanel>
+          <TracePanelDetail />
+        </TraceLayoutDesktop.DetailPanel>
+      </TraceLayoutDesktop>
+    </div>
   );
 }
 
