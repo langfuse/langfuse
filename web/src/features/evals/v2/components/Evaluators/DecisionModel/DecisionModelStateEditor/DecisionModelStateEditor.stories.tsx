@@ -47,6 +47,7 @@ const callbacks = {
   onActiveMappingChange: fn(),
   onChangeField: fn(),
   onAddField: fn(),
+  onRenameField: fn(),
   onRemoveField: fn(),
 };
 
@@ -81,13 +82,23 @@ export const Default = meta.story({
           );
           args.onChangeField(key, fieldState);
         }}
-        onAddField={(key) => {
+        onAddField={() => {
+          const key = `field_${fields.length + 1}`;
           setFields((current) => [
             ...current,
             { key, fieldState: { selectedColumnId: "", jsonSelector: "" } },
           ]);
-          setActiveMapping({ variable: key, state: "editing" });
-          args.onAddField(key);
+          setActiveMapping({ variable: key, state: "renaming" });
+          args.onAddField();
+        }}
+        onRenameField={(key, next) => {
+          setFields((current) =>
+            current.map((field) =>
+              field.key === key ? { ...field, key: next } : field,
+            ),
+          );
+          setActiveMapping({ variable: next, state: "editing" });
+          args.onRenameField(key, next);
         }}
         onRemoveField={(key) => {
           setFields((current) => current.filter((field) => field.key !== key));

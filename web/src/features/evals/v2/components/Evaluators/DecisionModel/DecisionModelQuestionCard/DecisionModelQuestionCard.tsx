@@ -1,6 +1,6 @@
 import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
-import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -31,7 +31,6 @@ export type DecisionModelQuestionCardProps = {
   onExpandedChange: (expanded: boolean) => void;
   onChange: (question: DecisionModelQuestionDraft) => void;
   onRemove: (() => void) | null;
-  onMove: ((direction: -1 | 1) => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
 };
 
@@ -95,7 +94,6 @@ export function DecisionModelQuestionCard({
   onExpandedChange,
   onChange,
   onRemove,
-  onMove,
   errors = {},
 }: DecisionModelQuestionCardProps) {
   const id = useId();
@@ -142,26 +140,6 @@ export function DecisionModelQuestionCard({
       }
       actions={
         <span className="flex shrink-0 items-center pr-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={!onMove || index === 0}
-            onClick={() => onMove?.(-1)}
-            title="Move up"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            disabled={!onMove}
-            onClick={() => onMove?.(1)}
-            title="Move down"
-          >
-            <ChevronDown className="h-3.5 w-3.5" />
-          </Button>
           <Button
             type="button"
             variant="ghost"

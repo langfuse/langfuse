@@ -1,8 +1,15 @@
 /* eslint-disable no-nested-ternary */
-import { Pencil, Trash2, TriangleAlert, X } from "lucide-react";
+import {
+  Pencil,
+  TextCursorInput,
+  Trash2,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
+import { StateKeyNameInput } from "./StateKeyNameInput/StateKeyNameInput";
 
 /**
  * How the mapped name is rendered: as a prompt template `{{variable}}`, or as
@@ -54,6 +61,14 @@ function VariableMappingCardHeaderContent({
   );
 }
 
+/** Renaming a state key: the header swaps the name for an input. */
+export type VariableRenameControls = {
+  isRenaming: boolean;
+  onRenamingChange: (renaming: boolean) => void;
+  onRename: (next: string) => void;
+  validateName: (next: string) => string | null;
+};
+
 /** Presentational shell for one editable prompt-variable mapping. */
 function VariableMappingCardShell({
   variable,
@@ -66,6 +81,7 @@ function VariableMappingCardShell({
   onExpandedChange,
   onEditingChange,
   onDelete,
+  rename,
   children,
 }: {
   variable: string;
@@ -78,9 +94,11 @@ function VariableMappingCardShell({
   onExpandedChange: (expanded: boolean) => void;
   onEditingChange: (editing: boolean) => void;
   onDelete?: () => void;
+  rename?: VariableRenameControls;
   children?: React.ReactNode;
 }) {
-  const canToggle = !isEditing;
+  const isRenaming = rename?.isRenaming ?? false;
+  const canToggle = !isEditing && !isRenaming;
   const bodyVisible = isExpanded || isEditing;
 
   return (
@@ -88,6 +106,7 @@ function VariableMappingCardShell({
       open={bodyVisible}
       onOpenChange={onExpandedChange}
       disabled={!canToggle}
+      headerInteractive={!isRenaming}
       triggerTitle={
         isEditing
           ? "Finish editing before collapsing this mapping"
@@ -96,16 +115,37 @@ function VariableMappingCardShell({
             : `Expand {{${variable}}} mapping`
       }
       header={
-        <VariableMappingCardHeaderContent
-          variable={variable}
-          variableDisplay={variableDisplay}
-          mapping={mapping}
-          isUnmapped={isUnmapped}
-          warningMessage={warningMessage}
-        />
+        isRenaming && rename ? (
+          <StateKeyNameInput
+            key={variable}
+            value={variable}
+            validate={rename.validateName}
+            onCommit={rename.onRename}
+            onCancel={() => rename.onRenamingChange(false)}
+          />
+        ) : (
+          <VariableMappingCardHeaderContent
+            variable={variable}
+            variableDisplay={variableDisplay}
+            mapping={mapping}
+            isUnmapped={isUnmapped}
+            warningMessage={warningMessage}
+          />
+        )
       }
       actions={
         <span className="flex shrink-0 items-center pr-1">
+          {rename && !isRenaming ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              title={`Rename ${variable}`}
+              onClick={() => rename.onRenamingChange(true)}
+            >
+              <TextCursorInput className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -116,6 +156,7 @@ function VariableMappingCardShell({
                 : "Change the mapping"
             }
             aria-expanded={isEditing}
+            disabled={isRenaming}
             onClick={() => onEditingChange(!isEditing)}
           >
             {isEditing ? (

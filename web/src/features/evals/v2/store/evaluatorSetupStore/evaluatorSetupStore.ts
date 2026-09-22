@@ -23,6 +23,7 @@ import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/serv
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
 import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
+import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
@@ -94,9 +95,11 @@ type EvaluatorSetupStoreActions = {
   setQuestion: (question: DecisionModelQuestionDraft) => void;
   addQuestion: (question: DecisionModelQuestionDraft) => void;
   removeQuestion: (id: string) => void;
-  moveQuestion: (id: string, direction: -1 | 1) => void;
+  reorderQuestion: (fromIndex: number, toIndex: number) => void;
   setExpandedQuestionId: (id: string | null) => void;
-  addStateKey: (key: string) => void;
+  /** Adds a placeholder-named key and opens it for renaming. */
+  addStateKey: () => void;
+  renameStateKey: (key: string, next: string) => void;
   removeStateKey: (key: string) => void;
   setPromptMessage: (index: number, message: EvaluatorPromptMessage) => void;
   addPromptMessage: () => void;
@@ -296,37 +299,70 @@ export function createEvaluatorSetupStore({
           expandedQuestionId:
             state.expandedQuestionId === id ? null : state.expandedQuestionId,
         })),
-      moveQuestion: (id, direction) =>
-        set((state) => {
-          const index = state.questions.findIndex(
-            (question) => question.id === id,
-          );
-          const target = index + direction;
-          if (index < 0 || target < 0 || target >= state.questions.length) {
-            return state;
-          }
-          const questions = [...state.questions];
-          const [question] = questions.splice(index, 1);
-          questions.splice(target, 0, question!);
-          return { questions };
-        }),
+      reorderQuestion: (fromIndex, toIndex) =>
+        set((state) => ({
+          questions: moveItem(state.questions, fromIndex, toIndex),
+        })),
       setExpandedQuestionId: (expandedQuestionId) =>
         set({ expandedQuestionId }),
-      addStateKey: (key) =>
+      addStateKey: () =>
         set((state) => {
-          if (state.stateKeys.includes(key)) return state;
-          const selectedColumnId =
-            inferDefaultMapping(key).selectedColumnId ?? null;
+          let index = state.stateKeys.length + 1;
+          while (state.stateKeys.includes(`field_${index}`)) index += 1;
+          const key = `field_${index}`;
           return {
             stateKeys: [...state.stateKeys, key],
             variableFields: {
               ...state.variableFields,
-              [key]: { selectedColumnId, jsonSelector: null },
+              [key]: { selectedColumnId: null, jsonSelector: null },
             },
-            // Known names come pre-bound; anything else opens the field picker.
+            activeMapping: { variable: key, state: "renaming" },
+          };
+        }),
+      renameStateKey: (key, next) =>
+        set((state) => {
+          if (
+            key === next ||
+            !state.stateKeys.includes(key) ||
+            state.stateKeys.includes(next)
+          ) {
+            return state;
+          }
+          const current = state.variableFields[key] ?? {
+            selectedColumnId: null,
+            jsonSelector: null,
+          };
+          // A still-unbound field takes the default binding its new name
+          // implies (e.g. `output`), the same way prompt variables do.
+          const fieldState = current.selectedColumnId
+            ? current
+            : {
+                selectedColumnId:
+                  inferDefaultMapping(next).selectedColumnId ?? null,
+                jsonSelector: null,
+              };
+          const reference = new RegExp(`\`${key}\``, "g");
+          return {
+            stateKeys: state.stateKeys.map((current) =>
+              current === key ? next : current,
+            ),
+            variableFields: Object.fromEntries(
+              Object.entries(state.variableFields).map(([variable, value]) =>
+                variable === key ? [next, fieldState] : [variable, value],
+              ),
+            ),
+            // Questions refer to keys by name, so they follow the rename.
+            questions: state.questions.map((question) => ({
+              ...question,
+              instructions: question.instructions.replace(
+                reference,
+                `\`${next}\``,
+              ),
+            })),
+            // Naming is done; an unbound field goes straight to the picker.
             activeMapping: {
-              variable: key,
-              state: selectedColumnId ? "preview" : "editing",
+              variable: next,
+              state: fieldState.selectedColumnId ? "preview" : "editing",
             },
           };
         }),

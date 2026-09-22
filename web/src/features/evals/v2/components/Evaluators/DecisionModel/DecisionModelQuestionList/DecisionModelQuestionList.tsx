@@ -7,6 +7,7 @@ import { Plus, Sparkles } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
+import { SortableList } from "@/src/features/evals/v2/components/SortableList/SortableList";
 import { DecisionModelQuestionCard } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionCard/DecisionModelQuestionCard";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import type {
@@ -76,7 +77,7 @@ export function DecisionModelQuestionList({
   onAdd,
   onAddExample,
   onRemove,
-  onMove,
+  onReorder,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -87,7 +88,7 @@ export function DecisionModelQuestionList({
   onAdd: () => void;
   onAddExample: (type: DecisionModelQuestionType) => void;
   onRemove: (id: string) => void;
-  onMove: (id: string, direction: -1 | 1) => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
 }) {
   return (
     <div className="flex flex-col gap-3">
@@ -129,10 +130,16 @@ export function DecisionModelQuestionList({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {questions.map((question, index) => (
+        <SortableList
+          items={questions}
+          getId={(question) => question.id}
+          getLabel={(question, index) =>
+            question.scoreName || `question ${index + 1}`
+          }
+          onReorder={onReorder}
+          gap="md"
+          renderItem={(question, index) => (
             <DecisionModelQuestionCard
-              key={question.id}
               question={question}
               index={index}
               stateKeys={stateKeys}
@@ -144,15 +151,10 @@ export function DecisionModelQuestionList({
               onRemove={
                 questions.length > 1 ? () => onRemove(question.id) : null
               }
-              onMove={
-                questions.length > 1
-                  ? (direction) => onMove(question.id, direction)
-                  : null
-              }
               errors={errorsById[question.id]}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
 
       <div className="flex flex-wrap items-center gap-3">

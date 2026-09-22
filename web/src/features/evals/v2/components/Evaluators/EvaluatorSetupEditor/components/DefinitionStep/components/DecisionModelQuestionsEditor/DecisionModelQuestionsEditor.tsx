@@ -56,7 +56,7 @@ export function DecisionModelQuestionsEditor({
         })
       }
       onRemove={state.actions.removeQuestion}
-      onMove={state.actions.moveQuestion}
+      onReorder={state.actions.reorderQuestion}
     />
   );
 }

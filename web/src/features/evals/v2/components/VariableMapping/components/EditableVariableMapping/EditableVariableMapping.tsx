@@ -17,6 +17,7 @@ import { SampleDataTreeSelector } from "../SampleDataTreeSelector/SampleDataTree
 import {
   VariableMappingCardShell,
   type VariableDisplay,
+  type VariableRenameControls,
 } from "../VariableMappingCardShell";
 import { VariableMappingBinding } from "../VariableMappingBinding/VariableMappingBinding";
 import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMapping/buildJsonPathSuggestions";
@@ -264,6 +265,7 @@ function VariableMappingRow({
   unmapped,
   expanded,
   editing,
+  rename,
   onExpandedChange,
   onEditingChange,
   fieldState,
@@ -279,6 +281,7 @@ function VariableMappingRow({
   unmapped: boolean;
   expanded: boolean;
   editing: boolean;
+  rename?: VariableRenameControls;
   onExpandedChange: (expanded: boolean) => void;
   onEditingChange: (editing: boolean) => void;
   fieldState: VariableFieldState;
@@ -400,6 +403,7 @@ function VariableMappingRow({
     <VariableMappingCardShell
       variable={variable}
       variableDisplay={variableDisplay}
+      rename={rename}
       mapping={
         !unmapped && columnLabel ? (
           <VariableMappingBinding
@@ -444,6 +448,9 @@ export type EditableVariableMappingProps = {
   sourceUnavailableMessage?: string;
   /** Renders names as prompt templates (default) or as state keys. */
   variableDisplay?: VariableDisplay;
+  /** Enables renaming in the card header; the name must pass `validateVariableName`. */
+  onRenameVariable?: (variable: string, next: string) => void;
+  validateVariableName?: (variable: string, next: string) => string | null;
 };
 
 export function EditableVariableMapping({
@@ -457,6 +464,8 @@ export function EditableVariableMapping({
   unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage,
   variableDisplay,
+  onRenameVariable,
+  validateVariableName,
 }: EditableVariableMappingProps) {
   return (
     <div data-variable-mapping-root="" className="flex flex-col gap-4">
@@ -473,6 +482,24 @@ export function EditableVariableMapping({
           editing={
             activeMapping?.variable === item.variable &&
             activeMapping.state === "editing"
+          }
+          rename={
+            onRenameVariable && validateVariableName
+              ? {
+                  isRenaming:
+                    activeMapping?.variable === item.variable &&
+                    activeMapping.state === "renaming",
+                  onRenamingChange: (renaming) =>
+                    onActiveMappingChange(
+                      renaming
+                        ? { variable: item.variable, state: "renaming" }
+                        : null,
+                    ),
+                  onRename: (next) => onRenameVariable(item.variable, next),
+                  validateName: (next) =>
+                    validateVariableName(item.variable, next),
+                }
+              : undefined
           }
           onExpandedChange={(expanded) =>
             onActiveMappingChange(

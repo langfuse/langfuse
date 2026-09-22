@@ -4,6 +4,7 @@ import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
 import { createEmptyQuestion } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import { moveItem } from "@/src/features/evals/v2/fns/moveItem";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 import {
   DecisionModelQuestionList,
@@ -26,7 +27,7 @@ const callbacks = {
   onAdd: fn(),
   onAddExample: fn(),
   onRemove: fn(),
-  onMove: fn(),
+  onReorder: fn(),
 };
 
 type StoryArgs = React.ComponentProps<typeof DecisionModelQuestionList>;
@@ -71,18 +72,9 @@ function InteractiveQuestionList(args: StoryArgs) {
         );
         args.onRemove(id);
       }}
-      onMove={(id, direction) => {
-        setQuestions((current) => {
-          const index = current.findIndex((question) => question.id === id);
-          const target = index + direction;
-          if (index < 0 || target < 0 || target >= current.length)
-            return current;
-          const next = [...current];
-          const [item] = next.splice(index, 1);
-          next.splice(target, 0, item!);
-          return next;
-        });
-        args.onMove(id, direction);
+      onReorder={(from, to) => {
+        setQuestions((current) => moveItem(current, from, to));
+        args.onReorder(from, to);
       }}
     />
   );

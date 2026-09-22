@@ -50,23 +50,25 @@ export function DecisionModelSelector({
   }
 
   return (
-    <SelectInput
-      aria-label="Decision model"
-      placeholder="Select a decision model"
-      value={
-        selectedModel
-          ? `${selectedModel.provider}${SEPARATOR}${selectedModel.model}`
-          : ""
-      }
-      options={options}
-      onValueChange={(value) => {
-        const separatorIndex = value.indexOf(SEPARATOR);
-        if (separatorIndex === -1) return;
-        selectModel({
-          provider: value.slice(0, separatorIndex),
-          model: value.slice(separatorIndex + SEPARATOR.length),
-        });
-      }}
-    />
+    <div className="max-w-xs min-w-56">
+      <SelectInput
+        aria-label="Decision model"
+        placeholder="Select a decision model"
+        value={
+          selectedModel
+            ? `${selectedModel.provider}${SEPARATOR}${selectedModel.model}`
+            : ""
+        }
+        options={options}
+        onValueChange={(value) => {
+          const separatorIndex = value.indexOf(SEPARATOR);
+          if (separatorIndex === -1) return;
+          selectModel({
+            provider: value.slice(0, separatorIndex),
+            model: value.slice(separatorIndex + SEPARATOR.length),
+          });
+        }}
+      />
+    </div>
   );
 }

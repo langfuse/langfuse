@@ -65,6 +65,7 @@ export function VariableMappingEditorContainer({
         onActiveMappingChange={state.actions.setActiveMapping}
         onChangeField={state.actions.setVariableField}
         onAddField={state.actions.addStateKey}
+        onRenameField={state.actions.renameStateKey}
         onRemoveField={state.actions.removeStateKey}
         sourceObject={displayedSample}
         hasMatchingObservations={Boolean(displayedSample)}

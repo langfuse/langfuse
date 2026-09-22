@@ -102,18 +102,22 @@ function ScoreDistribution({
 }) {
   const top = Math.max(levels.length - 1, 1);
   const nearest = Math.min(Math.max(Math.round(score), 0), levels.length - 1);
+  const position = Math.min(Math.max(score / top, 0), 1) * 100;
   return (
     <div className="flex flex-col gap-2">
       <div className="relative pt-4">
         <div className="bg-muted h-2 rounded-full" />
         <span
           className="bg-primary-accent absolute top-3 h-4 w-0.5 -translate-x-1/2 rounded"
-          style={{ left: `${(score / top) * 100}%` }}
+          style={{ left: `${position}%` }}
           aria-hidden="true"
         />
         <span
-          className="text-primary-accent absolute top-0 -translate-x-1/2 font-mono text-xs font-bold"
-          style={{ left: `${(score / top) * 100}%` }}
+          className="text-primary-accent absolute top-0 font-mono text-xs font-bold"
+          style={{
+            left: `${position}%`,
+            transform: `translateX(-${position}%)`,
+          }}
         >
           {score.toFixed(2)}
         </span>

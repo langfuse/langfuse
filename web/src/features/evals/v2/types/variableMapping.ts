@@ -9,5 +9,6 @@ export type VariableFieldState = {
 
 export type ActiveVariableMapping = {
   variable: string;
-  state: "preview" | "editing";
+  /** `renaming` edits the name itself; only state keys of decision models allow it. */
+  state: "preview" | "editing" | "renaming";
 } | null;

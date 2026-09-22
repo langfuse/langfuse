@@ -1,8 +1,11 @@
-import { useId, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import {
+  DecisionModelStateKeySchema,
+  deepParseJsonIterative,
+} from "@langfuse/shared";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { Input } from "@/src/components/ui/input";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { EditableVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/components/EditableVariableMapping/EditableVariableMapping";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
@@ -10,7 +13,6 @@ import type {
   ActiveVariableMapping,
   VariableFieldState,
 } from "@/src/features/evals/v2/types/variableMapping";
-import { deepParseJsonIterative } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 
 export type DecisionModelStateField = {
@@ -18,7 +20,6 @@ export type DecisionModelStateField = {
   fieldState: VariableFieldState;
 };
 
-const STATE_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /** TypeSafe accepts ~32k for state plus the longest question; warn well below. */
 const STATE_SIZE_WARNING_CHARS = 24_000;
 
@@ -46,12 +47,15 @@ function buildStatePreview(
   return state;
 }
 
-function getKeyError(key: string, fields: DecisionModelStateField[]) {
-  if (key === "") return null;
-  if (!STATE_KEY_PATTERN.test(key)) {
+/** Mirrors the shared state-key rule plus uniqueness within this evaluator. */
+function validateStateKey(
+  next: string,
+  fields: DecisionModelStateField[],
+): string | null {
+  if (!DecisionModelStateKeySchema.safeParse(next).success) {
     return "Use letters, digits, and underscores; start with a letter.";
   }
-  if (fields.some((field) => field.key === key)) {
+  if (fields.some((field) => field.key === next)) {
     return "A field with this name already exists.";
   }
   return null;
@@ -70,6 +74,7 @@ export function DecisionModelStateEditor({
   onActiveMappingChange,
   onChangeField,
   onAddField,
+  onRenameField,
   onRemoveField,
   sourceObject,
   hasMatchingObservations,
@@ -79,31 +84,21 @@ export function DecisionModelStateEditor({
   activeMapping: ActiveVariableMapping;
   onActiveMappingChange: (activeMapping: ActiveVariableMapping) => void;
   onChangeField: (key: string, fieldState: VariableFieldState) => void;
-  onAddField: (key: string) => void;
+  /** Appends a placeholder-named field that opens in rename mode. */
+  onAddField: () => void;
+  onRenameField: (key: string, next: string) => void;
   onRemoveField: (key: string) => void;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
 }) {
-  const id = useId();
-  const [newKey, setNewKey] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
-
-  const trimmedKey = newKey.trim();
-  const keyError = getKeyError(trimmedKey, fields);
-
   const statePreview = useMemo(
     () => buildStatePreview(fields, sourceObject),
     [fields, sourceObject],
   );
   const stateSize = statePreview ? JSON.stringify(statePreview).length : 0;
   const tooLarge = stateSize > STATE_SIZE_WARNING_CHARS;
-
-  const submitNewKey = () => {
-    if (!trimmedKey || keyError) return;
-    onAddField(trimmedKey);
-    setNewKey("");
-  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -117,43 +112,21 @@ export function DecisionModelStateEditor({
         onActiveMappingChange={onActiveMappingChange}
         onChangeField={onChangeField}
         onDeleteVariable={fields.length > 1 ? onRemoveField : undefined}
+        onRenameVariable={onRenameField}
+        validateVariableName={(_variable, next) =>
+          validateStateKey(next, fields)
+        }
         sourceObject={sourceObject}
         hasMatchingObservations={hasMatchingObservations}
         sourceUnavailableMessage={sourceUnavailableMessage}
       />
 
-      <form
-        className="flex flex-wrap items-start gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submitNewKey();
-        }}
-      >
-        <div className="flex flex-col gap-1">
-          <Input
-            id={`${id}-new-key`}
-            value={newKey}
-            onChange={(event) => setNewKey(event.target.value)}
-            placeholder="new field name, e.g. expected_answer"
-            aria-label="New state field name"
-            aria-invalid={Boolean(keyError)}
-            className={cn("w-72 font-mono", keyError && "border-destructive")}
-          />
-          {keyError ? (
-            <p className="text-destructive text-xs">{keyError}</p>
-          ) : null}
-        </div>
-        <Button
-          type="submit"
-          variant="outline"
-          size="sm"
-          className="h-9"
-          disabled={!trimmedKey || Boolean(keyError)}
-        >
+      <div>
+        <Button type="button" variant="outline" size="sm" onClick={onAddField}>
           <Plus className="mr-1 h-3.5 w-3.5" />
           Add field
         </Button>
-      </form>
+      </div>
 
       <div className="rounded-md border">
         <button

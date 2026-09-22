@@ -17,7 +17,6 @@ const base = {
   onExpandedChange: fn(),
   onChange: fn(),
   onRemove: fn(),
-  onMove: fn(),
 };
 
 export const Choice = meta.story({
@@ -73,7 +72,6 @@ export const Blank = meta.story({
   args: {
     ...base,
     onRemove: null,
-    onMove: null,
     question: {
       id: "q4",
       type: DecisionModelQuestionType.CHOICE,
