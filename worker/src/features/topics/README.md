@@ -1,8 +1,8 @@
-# Local Topics PoC
+# Topics PoC
 
 Turn selected v4 traces into facet summaries, embeddings, discovered topic maps,
 and assignments to an existing map. Open `/project/<projectId>/topics` on the
-current local Langfuse instance (normally `http://localhost:3000`).
+current Langfuse instance (locally, normally `http://localhost:3000`).
 
 ## Facets and selection rules
 
@@ -30,8 +30,15 @@ topics, rather than owning separate maps.
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
-worker. Topics is enabled only when `NODE_ENV=development` and `NEXTAUTH_URL` has a
-loopback hostname. Web and worker use the same databases and Redis. Topics does
+worker. Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both web
+and worker to allow processing for those project IDs. An unset or empty environment
+variable defaults to demo project `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
+An explicit list replaces this default. IDs are comma-separated and whitespace
+is trimmed. UI visibility and read/configuration access use the `langfuseTopics`
+feature flag and project permissions. Trigger/retry and both worker processors
+check the allowlist; rejected queue jobs fail without retrying or running pipeline
+work. Apply changes by restarting web and worker; this does not cancel work that
+is already running. Web and worker use the same databases and Redis. Topics does
 not write to object storage or require a shared filesystem; ingestion storage is unchanged.
 
 Build the numerical addon from the repository root (the normal worker build and

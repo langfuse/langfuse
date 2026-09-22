@@ -21,10 +21,12 @@
 - Public REST API routes: `src/pages/api/public/*`
 - Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
-- Local Topics PoC: `src/features/topics/TopicsPage.tsx` and
+- Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`; project-scoped triggers, facets,
   execution results and transcripts. `Process traces` accepts filters/IDs;
   `Update topics` clusters stored compatible summaries without a trace selection.
+  Trigger/retry require `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
+  remain controlled by the `langfuseTopics` feature flag and project permissions.
   Runtime/setup: `../worker/src/features/topics/README.md`.
 - Reusable UI components: `src/components/*`
 - Tests:

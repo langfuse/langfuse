@@ -1,4 +1,4 @@
-import { DelayedError, type Processor } from "bullmq";
+import { DelayedError, UnrecoverableError, type Processor } from "bullmq";
 import {
   QueueJobs,
   QueueName,
@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared/src/server";
 import {
   getTopicEmbeddingBatchState,
+  isTopicsProjectEnabled,
   recordTopicProcessBatchProgress,
 } from "@langfuse/shared/topics/server";
 import type { TopicProcessBatchState } from "@langfuse/shared/topics";
@@ -15,6 +16,10 @@ export const topicsQueueProcessor: Processor<
   TQueueJobTypes[QueueName.Topics]
 > = async (job) => {
   if (job.name !== QueueJobs.Topics) return;
+  if (!isTopicsProjectEnabled(job.data.payload.projectId))
+    throw new UnrecoverableError(
+      "Topics processing is not enabled for this project.",
+    );
   const delay = async () => {
     await job.moveToDelayed(Date.now() + 5000, job.token);
     throw new DelayedError();

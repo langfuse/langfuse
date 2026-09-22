@@ -37,7 +37,7 @@ const mocks = vi.hoisted(() => ({
   readTopicAssignments: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   loadTopicTranscript: vi.fn(),
-  isTopicsEnabled: vi.fn(),
+  isTopicsProjectEnabled: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
   queryClickhouse: vi.fn(),
@@ -164,7 +164,7 @@ const summary = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.queryClickhouse.mockResolvedValue([]);
-  mocks.isTopicsEnabled.mockReturnValue(true);
+  mocks.isTopicsProjectEnabled.mockReturnValue(true);
   mocks.getTopicFacetVersion.mockResolvedValue({
     id: facetVersionId,
     facetId: "facet-a",
@@ -202,6 +202,48 @@ describe("Topics feature access", () => {
     expect(mocks.loadTopicTranscript).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+});
+
+describe("Topics project allowlist", () => {
+  it("rejects triggers before reading or creating execution state", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    await expect(caller().trigger(input)).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Topics processing is not enabled for this project.",
+    });
+    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
+    expect(mocks.readTopicExecutionForRequest).not.toHaveBeenCalled();
+    expect(mocks.getTopicFacetVersion).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("rejects retries before reading or changing execution state", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    await expect(
+      caller().retry({ projectId, executionId: "execution-a" }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Topics processing is not enabled for this project.",
+    });
+    expect(mocks.isTopicsProjectEnabled).toHaveBeenCalledWith(projectId);
+    expect(mocks.readTopicExecutionSummary).not.toHaveBeenCalled();
+    expect(mocks.getTopicExecutionQueueState).not.toHaveBeenCalled();
+    expect(mocks.writeTopicExecution).not.toHaveBeenCalled();
+    expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
+  });
+
+  it("keeps reads and facet configuration available when processing is disabled", async () => {
+    mocks.isTopicsProjectEnabled.mockReturnValue(false);
+    mocks.listTopicFacets.mockResolvedValue([]);
+    mocks.ensureDefaultTopicFacets.mockResolvedValue([]);
+
+    await expect(caller().facets({ projectId })).resolves.toEqual([]);
+    await expect(caller().initialize({ projectId })).resolves.toEqual([]);
+    expect(mocks.listTopicFacets).toHaveBeenCalledWith(projectId);
+    expect(mocks.ensureDefaultTopicFacets).toHaveBeenCalledWith(projectId);
   });
 });
 
@@ -477,8 +519,9 @@ describe("Topics filtered trace preview", () => {
       { ...selection, projectId: "foreign-project" },
     ])
       await expect(caller().previewTraces(invalid)).rejects.toBeDefined();
-    mocks.isTopicsEnabled.mockReturnValue(false);
-    await expect(caller().previewTraces(selection)).rejects.toMatchObject({
+    await expect(
+      caller("ADMIN", false).previewTraces(selection),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
@@ -977,12 +1020,13 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.enqueueTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("rejects a different project and a non-local deployment before storage access", async () => {
+  it("rejects a different project and a disabled feature flag before storage access", async () => {
     await expect(
       caller().executions({ projectId: "foreign-project" }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    mocks.isTopicsEnabled.mockReturnValue(false);
-    await expect(caller().executions({ projectId })).rejects.toMatchObject({
+    await expect(
+      caller("ADMIN", false).executions({ projectId }),
+    ).rejects.toMatchObject({
       code: "NOT_FOUND",
     });
     expect(mocks.listTopicExecutions).not.toHaveBeenCalled();

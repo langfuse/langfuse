@@ -1228,8 +1228,7 @@ export async function processTopicsExecution({
   batchState?: TopicProcessBatchState;
   saveBatchState?: (state: TopicProcessBatchState) => Promise<void>;
 }): Promise<{ pendingEmbeddingBatchIds: string[] } | void> {
-  if (!isTopicsEnabled())
-    throw new Error("Topics PoC runs only in local development.");
+  if (!isTopicsEnabled()) throw new Error("Topics processing is not enabled.");
   const metadata = await readTopicExecutionSummary(projectId, executionId);
   if (!metadata) throw new Error("Topics execution not found.");
   const processing = metadata.input.operation === "process";

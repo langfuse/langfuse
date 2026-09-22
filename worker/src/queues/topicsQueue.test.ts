@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DelayedError } from "bullmq";
+import { DelayedError, UnrecoverableError } from "bullmq";
 
 import {
   topicExecutionInputSchema,
@@ -10,19 +10,26 @@ const mocks = vi.hoisted(() => ({
   state: vi.fn(),
   process: vi.fn(),
   progress: vi.fn(),
+  enabled: vi.fn(),
+  embed: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
-  QueueJobs: { Topics: "topics" },
+  QueueJobs: { Topics: "topics", TopicsEmbedding: "topics-embedding" },
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   getTopicEmbeddingBatchState: mocks.state,
   recordTopicProcessBatchProgress: mocks.progress,
+  isTopicsProjectEnabled: mocks.enabled,
 }));
 vi.mock("../features/topics/processTopicsExecution", () => ({
   processTopicsExecution: mocks.process,
 }));
+vi.mock("../features/topics/processTopicEmbeddingBatch", () => ({
+  processTopicEmbeddingBatch: mocks.embed,
+}));
 
 import { topicsQueueProcessor } from "./topicsQueue";
+import { topicsEmbeddingQueueProcessor } from "./topicsEmbeddingQueue";
 
 function waitingJob() {
   const data: Parameters<typeof topicsQueueProcessor>[0]["data"] = {
@@ -96,7 +103,51 @@ function acceptedState(): TopicProcessBatchState {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.enabled.mockReturnValue(true);
   mocks.state.mockResolvedValue("pending");
+});
+
+describe("Topics project allowlist", () => {
+  it("rejects processing and update jobs before polling or processing", async () => {
+    mocks.enabled.mockReturnValue(false);
+    const job = waitingJob();
+    await expect(
+      topicsQueueProcessor(
+        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
+      ),
+    ).rejects.toBeInstanceOf(UnrecoverableError);
+    expect(mocks.enabled).toHaveBeenCalledWith("project");
+    expect(mocks.state).not.toHaveBeenCalled();
+    expect(mocks.process).not.toHaveBeenCalled();
+    expect(mocks.progress).not.toHaveBeenCalled();
+    expect(job.updateData).not.toHaveBeenCalled();
+    expect(job.moveToDelayed).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])(
+    "runs embedding only when allowed: %s",
+    async (allowed) => {
+      mocks.enabled.mockReturnValue(allowed);
+      const payload = {
+        projectId: "project",
+        executionId: "execution",
+        batchId: "batch",
+        summaries: [],
+      };
+      const result = topicsEmbeddingQueueProcessor({
+        name: "topics-embedding",
+        data: { payload },
+      } as unknown as Parameters<typeof topicsEmbeddingQueueProcessor>[0]);
+      if (allowed) {
+        await result;
+        expect(mocks.embed).toHaveBeenCalledExactlyOnceWith(payload);
+      } else {
+        await expect(result).rejects.toBeInstanceOf(UnrecoverableError);
+        expect(mocks.embed).not.toHaveBeenCalled();
+      }
+      expect(mocks.enabled).toHaveBeenCalledWith("project");
+    },
+  );
 });
 
 describe("Topics coordinator waiting", () => {

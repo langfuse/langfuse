@@ -42,6 +42,15 @@ const EnvSchema = z.object({
     .enum(["development", "test", "production"])
     .default("development"),
   NEXTAUTH_URL: z.url().optional(),
+  LANGFUSE_TOPICS_ENABLED_PROJECT_IDS: z
+    .string()
+    .default("7a88fb47-b4e2-43b8-a06c-a5ce950dc53a")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    ),
   LANGFUSE_TOPICS_REDIS_TTL_SECONDS: z.coerce
     .number()
     .int()

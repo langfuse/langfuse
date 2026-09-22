@@ -151,7 +151,6 @@ export const ROUTES: Route[] = [
     icon: Grid2X2,
     featureFlag: "langfuseTopics",
     projectRbacScopes: ["topics:read"],
-    show: () => process.env.NODE_ENV === "development",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },

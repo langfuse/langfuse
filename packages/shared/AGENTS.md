@@ -75,7 +75,9 @@
   to ClickHouse before deleting staged payloads; queue job retention is separate
   from the payload TTL. The Topics coordinator job tracks pending embedding batch
   IDs so its queue-state polling does not read or rewrite domain storage.
-  Available only on a loopback development server.
+  Pipeline enablement uses `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` on web and worker;
+  unset/empty defaults to the seeded demo project. Explicit lists replace the default.
+  Read/configuration access stays feature-flag gated.
   `loadTopicTranscript` assembles the same canonical transcript for every facet
   in memory for the worker and transcript inspector; transcript/source I/O is
   not part of the execution journal. Facet versions own prompts; rules own filters,

@@ -16,9 +16,10 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Local Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
-  registered by `src/queues/topicsQueue.ts`. Processing summarizes/embeds supplied
-  traces and assigns to a compatible map, or leaves them awaiting topics. Updating
+- Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
+  registered by `src/queues/topicsQueue.ts`. Both queue processors require
+  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` before pipeline work. Processing summarizes/
+  embeds supplied traces and assigns to a compatible map, or leaves them awaiting topics. Updating
   topics clusters stored compatible summaries and publishes a new map without
   summarizing or embedding. Separate `topics` and `topics-update` consumers each
   have one slot so a fit does not block trace processing. Summary results are staged in Redis

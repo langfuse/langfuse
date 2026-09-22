@@ -33,7 +33,7 @@ import {
   readTopicAssignments,
   readTopicMapAssignments,
   loadTopicTranscript,
-  isTopicsEnabled,
+  isTopicsProjectEnabled,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -58,7 +58,6 @@ const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
     if (
-      !isTopicsEnabled() ||
       getContextualFeatureFlags(ctx.session.user, {
         projectId: input.projectId,
       })?.langfuseTopics !== true
@@ -413,6 +412,10 @@ export const topicsRouter = createTRPCRouter({
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)
     .mutation(async ({ input, ctx }) => {
+      if (!isTopicsProjectEnabled(input.projectId))
+        throw new InvalidRequestError(
+          "Topics processing is not enabled for this project.",
+        );
       const requestHash = createHash("sha256")
         .update(JSON.stringify(input))
         .digest("hex");
@@ -484,6 +487,10 @@ export const topicsRouter = createTRPCRouter({
   retry: topicsWriteProcedure
     .input(executionInput)
     .mutation(async ({ input }) => {
+      if (!isTopicsProjectEnabled(input.projectId))
+        throw new InvalidRequestError(
+          "Topics processing is not enabled for this project.",
+        );
       const execution = await executionWithRecovery(
         input.projectId,
         input.executionId,
