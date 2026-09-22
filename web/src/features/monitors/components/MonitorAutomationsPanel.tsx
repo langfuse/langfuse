@@ -20,12 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   AutomationForm,
   WebhookSecretRender,
@@ -44,6 +39,14 @@ const actionLabel: Record<ActionTypes, string> = {
   SLACK: "Slack",
   GITHUB_DISPATCH: "GitHub Dispatch",
 };
+
+const actionIcon = {
+  WEBHOOK: WebhookIcon,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
+  SLACK: Slack,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
+  GITHUB_DISPATCH: Github,
+} satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
 export const MonitorAutomationsPanel = ({
@@ -283,33 +286,38 @@ const AddAutomationDropdown = ({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu
+        disabled={isDisabled}
+        placement="bottom-end"
+        items={[
+          {
+            type: "item",
+            id: "new",
+            title: "New automation",
+            icon: Plus,
+            onClick: () => setDraft({}),
+          },
+          ...ActionTypeSchema.options.map((actionType) => ({
+            type: "item" as const,
+            id: actionType,
+            title: actionLabel[actionType],
+            icon: actionIcon[actionType],
+            onClick: () => setDraft({ actionType }),
+          })),
+        ]}
+      >
+        {({ getTriggerProps }) => (
           <Button
             variant="outline"
             size="lg"
             disabled={isDisabled}
             className={fullWidth ? "w-full" : undefined}
+            {...getTriggerProps()}
           >
             <Plus className="mr-2 h-4 w-4" />
             Automation
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onSelect={() => setDraft({})}>
-            <Plus className="mr-2 h-3.5 w-3.5" />
-            New automation
-          </DropdownMenuItem>
-          {ActionTypeSchema.options.map((t) => (
-            <DropdownMenuItem
-              key={t}
-              onSelect={() => setDraft({ actionType: t })}
-            >
-              <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
-              {actionLabel[t]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
+        )}
       </DropdownMenu>
       <Dialog
         open={draft !== null}
