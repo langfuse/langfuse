@@ -1,13 +1,14 @@
 /* eslint-disable no-nested-ternary */
 /**
- * NavigationHeader - Fixed-height search bar for navigation panel
+ * NavigationHeader - Responsive search and controls for the navigation panel
  *
  * Responsibilities:
  * - Render search input
  * - Render toolbar buttons (expand/collapse, settings, download, timeline)
  * - Manage search input state via SearchContext
  *
- * This component has a fixed height and uses shrink-0 to maintain size.
+ * Search moves to a second row when space is tight, while keeping the same DOM
+ * input so focus and the current query survive panel resizing.
  */
 
 import { useSearch } from "@/src/features/traces/contexts/SearchContext";
@@ -31,8 +32,6 @@ import {
   Download,
   Loader2,
   MoreHorizontal,
-  Search,
-  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -46,7 +45,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import {
   TraceSettingsDropdown,
   TraceViewOptionsMenuItems,
@@ -114,10 +113,6 @@ function TracePanelNavigationHeaderExpanded({
   // transcript to offer.
   const messagesEnabled = useIsFeatureEnabled("traceMessages") && isV4;
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
-  const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
-  const compactSearchInputRef = useRef<HTMLInputElement>(null);
-  const compactSearchTriggerRef = useRef<HTMLButtonElement>(null);
-  const shouldFocusCompactSearchRef = useRef(false);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
@@ -128,26 +123,11 @@ function TracePanelNavigationHeaderExpanded({
   const layout = useDesktopLayoutContextOptional();
   const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
 
-  const closeCompactSearch = () => {
-    setIsCompactSearchOpen(false);
-    requestAnimationFrame(() => compactSearchTriggerRef.current?.focus());
-  };
-
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // Skip debouncing and search immediately
       setSearchQueryImmediate(searchInputValue);
     }
-  };
-
-  const handleCompactSearchKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-  ) => {
-    if (e.key === "Escape") {
-      closeCompactSearch();
-      return;
-    }
-    handleSearchKeyDown(e);
   };
 
   // Check if everything is collapsed (all roots collapsed)
@@ -243,22 +223,8 @@ function TracePanelNavigationHeaderExpanded({
     if (view === "messages") layout?.detailPanelRef.current?.collapse();
   };
 
-  const renderOverflowMenuItems = (includeSearch: boolean) => (
+  const renderOverflowMenuItems = () => (
     <>
-      {includeSearch && (
-        <>
-          <DropdownMenuItem
-            onSelect={() => {
-              shouldFocusCompactSearchRef.current = true;
-              setIsCompactSearchOpen(true);
-            }}
-          >
-            <Search className="mr-2 h-3.5 w-3.5" />
-            Search
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-        </>
-      )}
       <DropdownMenuItem onSelect={handleToggleTreeNodes}>
         {isEverythingCollapsed ? (
           <UnfoldVertical className="mr-2 h-3.5 w-3.5" />
@@ -281,55 +247,17 @@ function TracePanelNavigationHeaderExpanded({
   );
 
   return (
-    <Command className="flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      {/* Responsive toolbar via container queries on this row's own width — no JS
-          measurement. The breakpoints are tuned to the row's actual content
-          minimums. Measured states:
-
-            ≥ 510px   search, labelled views, tools and transport inline
-            440-510   tools and transport folded into the "…" menu
-            360-440   labelled views collapse to a current-view dropdown
-            < 360px   search moves into "…" and opens a full-row search mode
-
-          If you add anything to this row, re-measure and retune all three
-          thresholds. */}
-      <div className="@container/navheader flex min-h-8 flex-row items-center pr-2 pl-1">
-        {isCompactSearchOpen && (
-          <div className="hidden min-w-0 flex-1 items-center @max-[359px]/navheader:flex">
-            <div className="min-w-0 flex-1">
-              <CommandInput
-                ref={compactSearchInputRef}
-                showBorder={false}
-                placeholder="Search"
-                className="h-7 min-w-0 border-0 pr-0 focus:ring-0"
-                value={searchInputValue}
-                onValueChange={setSearchInputValue}
-                onKeyDown={handleCompactSearchKeyDown}
-              />
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Close search"
-              aria-label="Close search"
-              className="h-7 w-7 shrink-0"
-              onClick={closeCompactSearch}
-            >
-              <X className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
-        <div
-          className={cn(
-            "flex min-w-0 flex-1 flex-row items-center justify-between",
-            isCompactSearchOpen && "@max-[359px]/navheader:hidden",
-          )}
-        >
+    <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b">
+      {/* Container queries keep the primary view switch visible for as long as
+          it fits. Search moves below the controls before that switch collapses,
+          and remains the same input across every layout. */}
+      <div className="@container/navheader">
+        <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center pr-2 pl-1 @max-[439px]/navheader:pb-1">
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
           {!isDetailPanelCollapsed && (
-            <div className="flex flex-row items-center p-0.5">
+            <div className="col-start-1 row-start-1 flex flex-row items-center p-0.5">
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
@@ -340,7 +268,7 @@ function TracePanelNavigationHeaderExpanded({
           {/* Search Input */}
           <div
             className={cn(
-              "relative min-w-0 flex-1 @max-[359px]/navheader:hidden",
+              "relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2",
               isDetailPanelCollapsed && "pl-1",
             )}
           >
@@ -353,7 +281,7 @@ function TracePanelNavigationHeaderExpanded({
               onKeyDown={handleSearchKeyDown}
             />
           </div>
-          <div className="flex shrink-0 flex-row items-center gap-0.5">
+          <div className="col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5">
             {/* Minor tools — inline when the panel is wide enough. */}
             <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
               <Button
@@ -388,9 +316,7 @@ function TracePanelNavigationHeaderExpanded({
               </Button>
             </div>
 
-            {/* Search remains inline at the intermediate width, so this menu
-                contains only the folded tools. */}
-            <div className="hidden @min-[360px]/navheader:block @min-[510px]/navheader:hidden">
+            <div className="@min-[510px]/navheader:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -404,39 +330,7 @@ function TracePanelNavigationHeaderExpanded({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="center" className="w-64">
-                  {renderOverflowMenuItems(false)}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* At the narrowest width Search joins the folded tools. */}
-            <div className="@min-[360px]/navheader:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    ref={compactSearchTriggerRef}
-                    variant="ghost"
-                    size="icon"
-                    title="More"
-                    aria-label="More options"
-                    className="h-7 w-7"
-                  >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="center"
-                  className="w-64"
-                  onCloseAutoFocus={(event) => {
-                    if (!shouldFocusCompactSearchRef.current) return;
-                    event.preventDefault();
-                    shouldFocusCompactSearchRef.current = false;
-                    requestAnimationFrame(() =>
-                      compactSearchInputRef.current?.focus(),
-                    );
-                  }}
-                >
-                  {renderOverflowMenuItems(true)}
+                  {renderOverflowMenuItems()}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -448,7 +342,7 @@ function TracePanelNavigationHeaderExpanded({
               <PlaybackControls />
             </div>
 
-            <div className="ml-2 hidden @min-[440px]/navheader:block">
+            <div className="ml-2 hidden @min-[330px]/navheader:block">
               <ViewModeSwitch
                 activeView={activeView}
                 graphDisabledReason={graphDisabledReason}
@@ -456,7 +350,7 @@ function TracePanelNavigationHeaderExpanded({
                 onSelect={handleSelectView}
               />
             </div>
-            <div className="ml-2 @min-[440px]/navheader:hidden">
+            <div className="ml-2 @min-[330px]/navheader:hidden">
               <DropdownMenuController
                 align="end"
                 renderMenu={() => (

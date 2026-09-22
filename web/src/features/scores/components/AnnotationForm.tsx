@@ -59,6 +59,7 @@ function AnnotateHeader({
     <div>
       <Header
         title="Annotate"
+        titleClassName="text-foreground ml-5"
         help={
           description
             ? {
@@ -226,9 +227,9 @@ export function AnnotationFormContent({
       ref={formRootRef}
       data-annotation-form
       tabIndex={-1}
-      className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
+      className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
+      <div className="sticky top-0 z-10 flex flex-col rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-1">
         <AnnotateHeader
           saveStatus={<AnnotationSaveStatus form={form} actions={actions} />}
           actionButtons={
