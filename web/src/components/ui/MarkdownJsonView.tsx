@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import {
   OpenAIContentSchema,
@@ -6,7 +7,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
@@ -78,7 +79,7 @@ export function MarkdownJsonViewHeader({
   return (
     <div
       className={cn(
-        "io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between py-1 text-sm font-bold capitalize transition-colors",
+        "io-message-header flex flex-row items-center justify-between py-1 text-sm font-bold capitalize",
         inset ? "px-2" : "px-1",
       )}
     >
@@ -132,7 +133,7 @@ export function MarkdownJsonViewHeader({
               handleOnCopy(event);
               setTimeout(() => setIsCopied(false), 1000);
             }}
-            className="hover:bg-border -mr-2"
+            className="text-muted-foreground hover:text-foreground hover:bg-transparent"
           >
             {isCopied ? (
               <Check className="h-3 w-3" />
@@ -220,7 +221,6 @@ export function MarkdownJsonView({
           title={title}
           titleIcon={titleIcon}
           className={className}
-          hoverControls
           media={media}
           currentView="pretty"
           controlButtons={controlButtons}

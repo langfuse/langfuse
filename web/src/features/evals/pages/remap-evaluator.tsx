@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useState, useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
@@ -25,7 +26,7 @@ import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilit
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
@@ -183,29 +184,19 @@ export default function RemapEvaluatorPage() {
               <Callout
                 variant="info"
                 align="top"
-                actions={
-                  <>
-                    {isInAppAgentLauncherVisible ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={handleUseAssistant}
-                      >
-                        <BotMessageSquare className="mr-1.5 h-4 w-4" />
-                        Use Assistant to help with upgrade
-                      </Button>
-                    ) : null}
-                    <Button asChild size="sm" variant="secondary">
-                      <a
-                        href={V4_DOCS_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Docs
-                      </a>
-                    </Button>
-                  </>
-                }
+                actions={[
+                  ...(isInAppAgentLauncherVisible
+                    ? [
+                        {
+                          type: "button" as const,
+                          label: "Use Assistant to help with upgrade",
+                          icon: BotMessageSquare,
+                          onClick: handleUseAssistant,
+                        },
+                      ]
+                    : []),
+                  { type: "link", label: "Docs", href: V4_DOCS_URL },
+                ]}
                 onDismiss={onDismiss}
               >
                 <div className="flex items-start gap-2">

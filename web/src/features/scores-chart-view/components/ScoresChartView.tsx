@@ -1,8 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import React, { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { api } from "@/src/utils/api";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
 import { VIEW_BY_DATASET } from "@/src/features/scores-chart-view/constants/viewByDataset";
 import {
   buildScoresChartQuery,
@@ -11,10 +12,11 @@ import {
 } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
 import { type ScoreChartViewConfig } from "@/src/features/scores-chart-view/types";
 import { ScoreChartViewPanel } from "@/src/features/scores-chart-view/components/ScoreChartViewPanel/ScoreChartViewPanel";
+
 // Shared with the observations chart view; only the widget-input mapper
 // passed to it (`scoreChartConfigToWidgetInput`) is scores-specific.
-import { AddToDashboardButton } from "@/src/features/chart-view/components/AddToDashboardButton";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { AddToDashboardButton } from "@/src/features/chart-view";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 /**
  * Production chart view for the scores table. Mirrors `EventsChartView` (the

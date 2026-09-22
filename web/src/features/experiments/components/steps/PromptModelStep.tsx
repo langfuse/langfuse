@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -27,7 +28,7 @@ import {
   EyeIcon,
   TriangleAlert,
 } from "lucide-react";
-import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
   hasPromptToolStructuredOutputConflict,
   PROMPT_MODEL_CONFIG_INVALID_MESSAGE,

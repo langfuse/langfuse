@@ -1,7 +1,7 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
@@ -11,13 +11,11 @@ import { SimpleDataTable } from "@/src/components/table/simple-data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
-  Dialog,
   DialogBody,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -32,12 +30,12 @@ import { Input } from "@/src/components/ui/input";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
-import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso/types";
+import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains";
+import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Copy, TrashIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -191,6 +189,13 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
     return map;
   }, [ssoConfigsQuery.data]);
 
+  const data: SsoConfigTableRow[] = verifiedDomains.map(
+    (domain: { domain: string }) => ({
+      domain: domain.domain,
+      config: configByDomain.get(domain.domain) ?? null,
+    }),
+  );
+
   if (verifiedDomains.length === 0) {
     return (
       <Card className="overflow-hidden">
@@ -201,83 +206,124 @@ function SsoConfigsTable({ orgId }: { orgId: string }) {
     );
   }
 
-  const data: SsoConfigTableRow[] = verifiedDomains.map(
-    (domain: { domain: string }) => ({
-      domain: domain.domain,
-      config: configByDomain.get(domain.domain) ?? null,
-    }),
-  );
-
-  const columns: LangfuseColumnDef<SsoConfigTableRow>[] = [
-    createTextTableColumn<SsoConfigTableRow>({
-      accessorKey: "domain",
-      header: "Domain",
-    }),
-    {
-      accessorKey: "config",
-      header: "Provider",
-      cell: ({ row }) =>
-        row.original.config ? (
-          <Badge variant="default">
-            {providerLabel(row.original.config.authProvider)}
-          </Badge>
-        ) : (
-          <Badge variant="secondary">Not configured</Badge>
-        ),
-    },
-    {
-      accessorKey: "config",
-      id: "updatedAt",
-      header: "Updated",
-      hideBelowMd: true,
-      cell: ({ row }) =>
-        row.original.config
-          ? row.original.config.updatedAt.toLocaleDateString()
-          : "—",
-    },
-    {
-      accessorKey: "domain",
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-2">
-          <SsoConfigDialog
-            orgId={orgId}
-            domain={row.original.domain}
-            existing={row.original.config}
-          />
-          {row.original.config ? (
-            <DeleteSsoConfigButton orgId={orgId} domain={row.original.domain} />
-          ) : null}
-        </div>
-      ),
-    },
-  ];
-
   return (
-    <Card className="mb-4 overflow-hidden">
-      <SimpleDataTable
-        columns={columns}
-        data={data}
-        isLoading={false}
-        noResults={null}
-        bodyTone="muted"
-        rowVariant="primary-hover"
-      />
-    </Card>
+    <SsoConfigDialogController orgId={orgId}>
+      {({ openDialog: openConfigDialog }) => (
+        <DeleteSsoConfigDialogController orgId={orgId}>
+          {({ openDialog: openDeleteDialog }) => {
+            const columns: LangfuseColumnDef<SsoConfigTableRow>[] = [
+              createTextTableColumn<SsoConfigTableRow>({
+                accessorKey: "domain",
+                header: "Domain",
+              }),
+              {
+                accessorKey: "config",
+                header: "Provider",
+                cell: ({ row }) =>
+                  row.original.config ? (
+                    <Badge variant="default">
+                      {providerLabel(row.original.config.authProvider)}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Not configured</Badge>
+                  ),
+              },
+              {
+                accessorKey: "config",
+                id: "updatedAt",
+                header: "Updated",
+                hideBelowMd: true,
+                cell: ({ row }) =>
+                  row.original.config
+                    ? row.original.config.updatedAt.toLocaleDateString()
+                    : "—",
+              },
+              {
+                accessorKey: "domain",
+                id: "actions",
+                header: "",
+                cell: ({ row }) => (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant={row.original.config ? "outline" : "default"}
+                      onClick={() => openConfigDialog(row.original)}
+                    >
+                      {row.original.config ? "Update" : "Configure SSO"}
+                    </Button>
+                    {row.original.config ? (
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        aria-label={`Delete SSO for ${row.original.domain}`}
+                        onClick={() => openDeleteDialog(row.original.domain)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ),
+              },
+            ];
+
+            return (
+              <Card className="mb-4 overflow-hidden">
+                <SimpleDataTable
+                  columns={columns}
+                  data={data}
+                  isLoading={false}
+                  noResults={null}
+                  bodyTone="muted"
+                  rowVariant="primary-hover"
+                />
+              </Card>
+            );
+          }}
+        </DeleteSsoConfigDialogController>
+      )}
+    </SsoConfigDialogController>
   );
 }
 
-function SsoConfigDialog({
+function SsoConfigDialogController({
+  orgId,
+  children,
+}: {
+  orgId: string;
+  children: (control: {
+    openDialog: (config: SsoConfigTableRow) => void;
+  }) => React.ReactNode;
+}) {
+  return (
+    <DialogController<SsoConfigTableRow>
+      renderDialog={({ state, closeDialog }) => (
+        <DialogContent className="sm:max-w-xl">
+          <SsoConfigDialogContent
+            key={state.domain}
+            orgId={orgId}
+            domain={state.domain}
+            existing={state.config}
+            closeDialog={closeDialog}
+          />
+        </DialogContent>
+      )}
+    >
+      {({ openDialog }) => children({ openDialog })}
+    </DialogController>
+  );
+}
+
+function SsoConfigDialogContent({
   orgId,
   domain,
   existing,
+  closeDialog,
 }: {
   orgId: string;
   domain: string;
   existing: SsoConfigRow | null;
+  closeDialog: () => void;
 }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingValues, setPendingValues] = useState<FormValues | null>(null);
   const utils = api.useUtils();
 
@@ -303,12 +349,6 @@ function SsoConfigDialog({
     resolver: zodResolver(formSchema),
     defaultValues,
   });
-  // Reset the form when the dialog reopens against new defaults (e.g. user
-  // toggled between Configure and Update without remounting the component).
-  useEffect(() => {
-    if (dialogOpen) form.reset(defaultValues);
-  }, [dialogOpen, defaultValues, form]);
-
   const selectedProvider = form.watch("authProvider");
   const providerSpec = useMemo(
     () =>
@@ -328,7 +368,7 @@ function SsoConfigDialog({
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
       });
-      setDialogOpen(false);
+      closeDialog();
       setPendingValues(null);
       form.reset();
     },
@@ -397,95 +437,107 @@ function SsoConfigDialog({
       onConfirm={handleConfirm}
     >
       {({ openDialog }) => (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant={existing ? "outline" : "default"}>
-              {existing ? "Update" : "Configure SSO"}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-xl">
-            <DialogHeader>
-              <DialogTitle>
-                {existing
-                  ? `Update SSO for ${domain}`
-                  : `Configure SSO for ${domain}`}
-              </DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit((values) => {
-                  setPendingValues(values);
-                  openDialog();
-                })}
-              >
-                <DialogBody className="space-y-4">
+        <>
+          <DialogHeader>
+            <DialogTitle>
+              {existing
+                ? `Update SSO for ${domain}`
+                : `Configure SSO for ${domain}`}
+            </DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form
+              onSubmit={form.handleSubmit((values) => {
+                setPendingValues(values);
+                openDialog();
+              })}
+            >
+              <DialogBody className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="authProvider"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Provider</FormLabel>
+                      <FormControl>
+                        <SelectInput
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          placeholder="Select an SSO provider"
+                          options={SSO_PROVIDERS.map((provider) => ({
+                            value: provider.id,
+                            label: provider.label,
+                          }))}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <CallbackUrlPanel callbackUrl={callbackUrl} />
+
+                {providerSpec.fields.includes("name") ? (
                   <FormField
                     control={form.control}
-                    name="authProvider"
+                    name="authConfig.name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Provider</FormLabel>
+                        <FormLabel>Display Name</FormLabel>
                         <FormControl>
-                          <SelectInput
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            placeholder="Select an SSO provider"
-                            options={SSO_PROVIDERS.map((provider) => ({
-                              value: provider.id,
-                              label: provider.label,
-                            }))}
-                          />
+                          <Input placeholder="Acme SSO" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+                ) : null}
 
-                  <CallbackUrlPanel callbackUrl={callbackUrl} />
+                <FormField
+                  control={form.control}
+                  name="authConfig.clientId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-                  {providerSpec.fields.includes("name") ? (
-                    <FormField
-                      control={form.control}
-                      name="authConfig.name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Display Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Acme SSO" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : null}
+                <FormField
+                  control={form.control}
+                  name="authConfig.clientSecret"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Client Secret</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          autoComplete="off"
+                          placeholder={
+                            existing ? "Re-enter to update" : undefined
+                          }
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
+                {providerSpec.fields.includes("issuer") ? (
                   <FormField
                     control={form.control}
-                    name="authConfig.clientId"
+                    name="authConfig.issuer"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Client ID</FormLabel>
-                        <FormControl>
-                          <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="authConfig.clientSecret"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Client Secret</FormLabel>
+                        <FormLabel>Issuer URL</FormLabel>
                         <FormControl>
                           <Input
-                            type="password"
-                            autoComplete="off"
-                            placeholder={
-                              existing ? "Re-enter to update" : undefined
-                            }
+                            placeholder="https://example.okta.com"
                             {...field}
                           />
                         </FormControl>
@@ -493,107 +545,84 @@ function SsoConfigDialog({
                       </FormItem>
                     )}
                   />
+                ) : null}
 
-                  {providerSpec.fields.includes("issuer") ? (
+                {providerSpec.fields.includes("tenantId") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.tenantId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tenant ID</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {providerSpec.fields.includes("baseUrl") ? (
+                  <FormField
+                    control={form.control}
+                    name="authConfig.baseUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Base URL</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="https://github.acme.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
+                {selectedProvider === "custom" ? (
+                  <>
                     <FormField
                       control={form.control}
-                      name="authConfig.issuer"
+                      name="authConfig.idToken"
                       render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Issuer URL</FormLabel>
+                        <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
                           <FormControl>
-                            <Input
-                              placeholder="https://example.okta.com"
-                              {...field}
+                            <Checkbox
+                              checked={field.value ?? false}
+                              onCheckedChange={(checked) =>
+                                field.onChange(checked === true)
+                              }
                             />
                           </FormControl>
-                          <FormMessage />
+                          <div className="space-y-1 leading-none">
+                            <FormLabel>
+                              Use id_token claims only (skip userinfo)
+                            </FormLabel>
+                            <FormDescription>
+                              Leave off for IdPs that release email only via the
+                              userinfo endpoint.
+                            </FormDescription>
+                          </div>
                         </FormItem>
                       )}
                     />
-                  ) : null}
-
-                  {providerSpec.fields.includes("tenantId") ? (
-                    <FormField
-                      control={form.control}
-                      name="authConfig.tenantId"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Tenant ID</FormLabel>
-                          <FormControl>
-                            <Input {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : null}
-
-                  {providerSpec.fields.includes("baseUrl") ? (
-                    <FormField
-                      control={form.control}
-                      name="authConfig.baseUrl"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Base URL</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="https://github.acme.com"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ) : null}
-
-                  {selectedProvider === "custom" ? (
-                    <>
-                      <FormField
-                        control={form.control}
-                        name="authConfig.idToken"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-start space-y-0 space-x-3 rounded-md border p-4">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value ?? false}
-                                onCheckedChange={(checked) =>
-                                  field.onChange(checked === true)
-                                }
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel>
-                                Use id_token claims only (skip userinfo)
-                              </FormLabel>
-                              <FormDescription>
-                                Leave off for IdPs that release email only via
-                                the userinfo endpoint.
-                              </FormDescription>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  ) : null}
-                </DialogBody>
-                <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button type="submit" loading={saveMutation.isPending}>
-                    Save
-                  </Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+                  </>
+                ) : null}
+              </DialogBody>
+              <DialogFooter>
+                <Button type="button" variant="ghost" onClick={closeDialog}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={saveMutation.isPending}>
+                  Save
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </>
       )}
     </ConfirmationDialogController>
   );
@@ -657,13 +686,16 @@ function CopyableCallbackUrl({ value }: { value: string }) {
   );
 }
 
-function DeleteSsoConfigButton({
+function DeleteSsoConfigDialogController({
   orgId,
-  domain,
+  children,
 }: {
   orgId: string;
-  domain: string;
+  children: (control: {
+    openDialog: (domain: string) => void;
+  }) => React.ReactNode;
 }) {
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const utils = api.useUtils();
 
   const deleteMutation = api.ssoConfig.delete.useMutation({
@@ -671,7 +703,7 @@ function DeleteSsoConfigButton({
       utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: "SSO disabled",
-        description: `SSO for @${domain} has been removed.`,
+        description: `SSO for @${selectedDomain} has been removed.`,
       });
     },
     onError: (err) => {
@@ -681,25 +713,24 @@ function DeleteSsoConfigButton({
 
   return (
     <ConfirmationDialogController
-      title={`Remove SSO for @${domain}?`}
+      title={`Remove SSO for @${selectedDomain ?? "this domain"}?`}
       text="Users at this domain will be able to sign in with any enabled method again. Active sessions are not invalidated."
       confirmLabel="Remove"
       variant="destructive"
       loading={deleteMutation.isPending}
       onConfirm={async () => {
-        await deleteMutation.mutateAsync({ orgId, domain });
+        if (!selectedDomain) return;
+        await deleteMutation.mutateAsync({ orgId, domain: selectedDomain });
       }}
     >
-      {({ openDialog }) => (
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Delete SSO for ${domain}`}
-          onClick={openDialog}
-        >
-          <TrashIcon className="h-4 w-4" />
-        </Button>
-      )}
+      {({ openDialog }) =>
+        children({
+          openDialog: (domain) => {
+            setSelectedDomain(domain);
+            openDialog();
+          },
+        })
+      }
     </ConfirmationDialogController>
   );
 }

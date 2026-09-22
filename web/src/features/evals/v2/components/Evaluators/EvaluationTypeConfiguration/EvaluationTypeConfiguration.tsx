@@ -11,11 +11,13 @@ export function EvaluationTypeConfiguration({
   mode,
   onModeChange,
   disabled,
+  showDecisionModel = false,
   children,
 }: {
   mode: EvalTemplateType;
   onModeChange: (mode: EvalTemplateType) => void;
   disabled: boolean;
+  showDecisionModel?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -27,6 +29,9 @@ export function EvaluationTypeConfiguration({
             Use custom code for deterministic checks like exact matches, regex,
             or schema validation. Use an LLM when the check needs judgment, such
             as rating helpfulness, tone, or answer quality.
+            {showDecisionModel
+              ? " Use a decision model (experimental) for a fast, cheap label with calibrated probabilities when the possible answers are known upfront."
+              : null}
           </InfoTooltip>
         </span>
       </Label>
@@ -36,6 +41,7 @@ export function EvaluationTypeConfiguration({
           value={mode}
           onValueChange={onModeChange}
           disabled={disabled}
+          showDecisionModel={showDecisionModel}
         />
         <span>{mode === "CODE" ? "written in" : "with"}</span>
         {children}

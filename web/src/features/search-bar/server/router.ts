@@ -54,9 +54,13 @@ import {
   RULE_SAMPLE_FIELD_REGISTRY,
 } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
 import { DATASET_NAME_COLUMN } from "@/src/features/evals/v2/utils/datasetNameFilter";
-import { SESSIONS_FIELD_REGISTRY } from "@/src/features/filters/config/sessionsSearchRegistry";
+import {
+  SESSIONS_FIELD_REGISTRY,
+  USERS_FIELD_REGISTRY,
+} from "@/src/features/filters";
+
 import { SCORES_FIELD_REGISTRY } from "@/src/features/scores/constants/scoresSearchRegistry";
-import { USERS_FIELD_REGISTRY } from "@/src/features/filters/config/usersSearchRegistry";
+
 import { EXPERIMENTS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentsSearchRegistry";
 import {
   EVENTS_FIELD_REGISTRY,

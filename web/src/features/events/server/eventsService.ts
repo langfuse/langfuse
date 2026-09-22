@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { type z } from "zod";
 import {
@@ -28,8 +29,7 @@ import {
   type EventBatchIOResult,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-
+import { aggregateScores } from "@/src/features/scores/server";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { type ReactNode, useCallback, useId, useLayoutEffect } from "react";
 import {

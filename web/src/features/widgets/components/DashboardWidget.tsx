@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
@@ -31,7 +32,7 @@ import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
   buildViewAsTableHint,
-} from "@/src/features/dashboard/lib/buildTableFilterHref";
+} from "@/src/features/dashboard";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {

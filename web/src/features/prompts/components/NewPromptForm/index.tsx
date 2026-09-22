@@ -42,8 +42,10 @@ import { PromptVariableListPreview } from "@/src/features/prompts/components/Pro
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
-import { type PlaygroundCache } from "@/src/features/playground/page/types";
+import {
+  usePlaygroundCache,
+  type PlaygroundCache,
+} from "@/src/features/playground";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";

@@ -2479,7 +2479,11 @@ paths:
             nullable: true
         - name: fromStartTime
           in: query
-          description: Retrieve only experiments on or after this datetime.
+          description: |-
+            Required. Retrieve only experiments with events on or after this
+            datetime. A lower bound is required so the query stays fast on
+            large projects; pair it with `toStartTime` to select a specific
+            window.
           required: true
           schema:
             type: string
@@ -2604,7 +2608,11 @@ paths:
             nullable: true
         - name: fromStartTime
           in: query
-          description: Retrieve only experiment items started on or after this datetime.
+          description: |-
+            Required. Retrieve only experiment items started on or after this
+            datetime. A lower bound is required so the query stays fast on
+            large projects; pair it with `toStartTime` to select a specific
+            window.
           required: true
           schema:
             type: string

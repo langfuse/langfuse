@@ -42,24 +42,28 @@ import {
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+  useCommentedPaths,
+} from "@/src/features/comments";
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/components/table/use-cases/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { ScoresTable } from "@/src/features/scores";
+import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import {
+  jsonViewToggleTab,
+  normalizeJsonViewPreference,
+} from "@/src/components/ui/jsonViewPreference";
 
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components
@@ -150,8 +154,8 @@ export function ConnectedObservationDetailView({
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
 
-  // Without a TRACE row (v4) this span stands in for the trace, so its badge and
-  // its Scores tab both cover the trace-level scores.
+  // Without a TRACE row (v4) this span stands in for the trace, so its Scores
+  // tab covers the trace-level scores.
   const ownsTraceLevelScores = traceLevelScoreOwnerIds.has(observation.id);
 
   // For root observations, compute subtree metrics for badge tooltips.
@@ -206,7 +210,7 @@ export function ConnectedObservationDetailView({
 
   // Map jsonViewPreference to currentView format expected by child components
   const currentView = jsonViewPreference;
-  const selectedViewTab = currentView === "pretty" ? "pretty" : "json";
+  const selectedViewTab = jsonViewToggleTab(currentView);
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
 
   const handleViewTabChange = useCallback(
@@ -219,11 +223,11 @@ export function ConnectedObservationDetailView({
           ...analyticsDimensions,
         });
       }
-      if (tab === "pretty") {
-        setJsonViewPreference(tab);
-      } else {
+      if (tab === "json") {
         // When switching to JSON, use beta preference
         setJsonViewPreference(jsonBetaEnabled ? "json-beta" : "json");
+      } else {
+        setJsonViewPreference(normalizeJsonViewPreference(tab));
       }
     },
     [
@@ -482,7 +486,6 @@ export function ConnectedObservationDetailView({
             >
               <ObservationPreview
                 currentView={currentView}
-                tags={isRoot ? observation.traceTags : undefined}
                 previewKey={observation.id}
                 onPrettyViewAvailabilityChange={setIsPrettyViewAvailable}
                 previewProps={{

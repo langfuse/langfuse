@@ -20,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import React from "react";
 import { api } from "@/src/utils/api";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 
 export type BatchExportTableButtonProps = {
   projectId: string;

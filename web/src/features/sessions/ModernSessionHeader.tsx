@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { percentile, type ScoreDomain } from "@langfuse/shared";
 import { ArrowUpRight, Eye, EyeOff, Plus, Search, X } from "lucide-react";
 import { type ReactNode, type SyntheticEvent, useRef, useState } from "react";
@@ -37,7 +38,7 @@ import {
   usdFormatter,
 } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 type ModernSessionHeaderProps = {
   projectId: string;

@@ -27,15 +27,15 @@ enum ProtocolCapture {
 }
 
 impl ProtocolCapture {
-    fn response(&mut self, headers: &HeaderMap) {
+    fn record_response(&mut self, headers: &HeaderMap) {
         match self {
-            Self::OpenAiResponses(capture) => capture.response(headers),
+            Self::OpenAiResponses(capture) => capture.record_response(headers),
         }
     }
 
-    fn bytes(&mut self, bytes: &[u8]) -> bool {
+    fn push_bytes(&mut self, bytes: &[u8]) -> bool {
         match self {
-            Self::OpenAiResponses(capture) => capture.bytes(bytes),
+            Self::OpenAiResponses(capture) => capture.push_bytes(bytes),
         }
     }
 
@@ -48,6 +48,12 @@ impl ProtocolCapture {
     fn into_facts(self) -> (&'static str, ProviderFacts) {
         match self {
             Self::OpenAiResponses(capture) => ("openai.responses", capture.into_facts()),
+        }
+    }
+
+    fn client_metadata(&self) -> Option<&Map<String, Value>> {
+        match self {
+            Self::OpenAiResponses(capture) => capture.client_metadata(),
         }
     }
 }
@@ -67,7 +73,24 @@ pub(crate) struct ExecutionCapture {
 }
 
 impl ExecutionCapture {
-    pub fn openai_responses(
+    pub fn unobserved() -> Self {
+        Self {
+            span: tracing::Span::current(),
+            protocol: None,
+            started: Instant::now(),
+            start_time_unix_ms: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis(),
+            first_byte_ms: None,
+            completion_start_ms: None,
+            http_status: None,
+            metadata: json!({}),
+            delivery: None,
+        }
+    }
+
+    pub fn for_openai_responses(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         body: &[u8],
@@ -93,11 +116,17 @@ impl ExecutionCapture {
             })
             .collect();
         let full = context.ingestion_mode() == IngestionMode::Full;
+        let span = tracing::Span::current();
+        // Parsing the whole request is CPU-bound and scales with the body.
+        let protocol = tracing::info_span!(
+            "request.capture",
+            otel.kind = "internal",
+            http.request.body.size = i64::try_from(body.len()).unwrap_or(i64::MAX)
+        )
+        .in_scope(|| OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()));
         Self {
-            span: tracing::Span::current(),
-            protocol: Some(ProtocolCapture::OpenAiResponses(
-                OpenAiResponsesCapture::new(headers, body, context.ingestion_mode()),
-            )),
+            span,
+            protocol: Some(ProtocolCapture::OpenAiResponses(protocol)),
             started,
             start_time_unix_ms,
             first_byte_ms: None,
@@ -121,26 +150,30 @@ impl ExecutionCapture {
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
     ) {
+        let client_metadata = self
+            .protocol
+            .as_ref()
+            .and_then(ProtocolCapture::client_metadata);
         self.delivery = Some((
             telemetry,
-            telemetry::DeliveryContext::from_resolved(context, headers),
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata),
         ));
     }
 
-    pub fn response(&mut self, status: u16, headers: &HeaderMap) {
+    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
-            protocol.response(headers);
+            protocol.record_response(headers);
         }
     }
 
-    pub fn bytes(&mut self, bytes: &[u8]) {
+    pub fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
             if !bytes.is_empty() {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }
-            if protocol.bytes(bytes) {
+            if protocol.push_bytes(bytes) {
                 self.completion_start_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
             }

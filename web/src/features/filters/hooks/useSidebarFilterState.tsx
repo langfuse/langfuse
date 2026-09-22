@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   type default as React,
   useCallback,

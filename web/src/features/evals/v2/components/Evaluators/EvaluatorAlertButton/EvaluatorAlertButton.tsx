@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import {
   ArrowUpRight,
@@ -8,6 +9,7 @@ import {
   LoaderCircle,
   Plus,
 } from "lucide-react";
+import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -44,7 +46,7 @@ type EvaluatorAlertButtonProps = {
   | {
       scope: "evaluator";
       evaluatorId: string;
-      evaluatorType: "LLM_AS_JUDGE" | "CODE";
+      evaluatorType: EvalTemplateType;
       scoreDataType?: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
     }
   | { scope: "allEvaluators" }

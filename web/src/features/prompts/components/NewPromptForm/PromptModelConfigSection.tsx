@@ -3,11 +3,11 @@ import { useMemo, useRef } from "react";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { Label } from "@/src/components/ui/label";
-import { getDefaultAdapterParams } from "@/src/features/playground/page/hooks/useModelParams";
 import {
+  getDefaultAdapterParams,
   getLlmConnectionOptions,
   resolveConnectionProvider,
-} from "@/src/features/playground/page/hooks/llmConnectionOptions";
+} from "@/src/features/playground";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getEnabledModelParamState } from "@/src/utils/getFinalModelParams";
