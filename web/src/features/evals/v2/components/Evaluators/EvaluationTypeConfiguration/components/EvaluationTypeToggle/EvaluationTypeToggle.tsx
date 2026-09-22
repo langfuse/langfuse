@@ -8,12 +8,10 @@ export function EvaluationTypeToggle({
   value,
   onValueChange,
   disabled = false,
-  showDecisionModel = false,
 }: {
   value: EvalTemplateType;
   onValueChange: (value: EvalTemplateType) => void;
   disabled?: boolean;
-  showDecisionModel?: boolean;
 }) {
   return (
     <Tabs
@@ -37,8 +35,7 @@ export function EvaluationTypeToggle({
             label="Code evaluator"
           />
         ) : null}
-        {(showDecisionModel && !disabled) ||
-        value === EvalTemplateTypeEnum.DECISION_MODEL ? (
+        {!disabled || value === EvalTemplateTypeEnum.DECISION_MODEL ? (
           <Tabs.Trigger
             value={EvalTemplateTypeEnum.DECISION_MODEL}
             disabled={disabled}

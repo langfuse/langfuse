@@ -11,9 +11,7 @@ describe("prepareEvaluatorEmptyState", () => {
 
     expect(emptyState.docsHref).toBe(EVALUATOR_EMPTY_STATE_DOCS_HREF);
     expect(emptyState.templateCount).toBe(
-      MANAGED_TEMPLATES_CATALOG.templates.filter(
-        (template) => template.evaluator.type !== "DECISION_MODEL",
-      ).length,
+      MANAGED_TEMPLATES_CATALOG.templates.length,
     );
     expect(
       emptyState.startingPoints.map(({ template, action }) => ({
