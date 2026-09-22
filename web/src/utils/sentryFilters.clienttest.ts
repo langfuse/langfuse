@@ -2725,6 +2725,23 @@ describe("isWitnessAiLoggerEvent", () => {
       ).toBe(false);
     });
 
+    it("keeps a LogBeacon stack that also has a first-party /_next/ frame", () => {
+      expect(
+        isWitnessAiLoggerEvent(
+          witnessAiLoggerEvent(HTTP_401, undefined, [
+            {
+              filename: ONBOARDING,
+              function: "t.JSLoggerClient.checkStatus",
+            },
+            {
+              filename: "app:///_next/static/chunks/app.js",
+              function: "handleSubmit",
+            },
+          ]),
+        ),
+      ).toBe(false);
+    });
+
     it("keeps an app-captured exception with the same message", () => {
       expect(
         isWitnessAiLoggerEvent(

@@ -1018,7 +1018,8 @@ export function isKitesurfInternalEvent(event: ErrorEvent): boolean {
  * frame function AND a browser global handler, so:
  *  - a first-party throw of the same message is KEPT;
  *  - an app-captured exception (`generic` / `captureException`) is KEPT;
- *  - a JSLoggerClient TypeError with a different message is KEPT.
+ *  - a JSLoggerClient TypeError with a different message is KEPT;
+ *  - a stack that also has a `/_next/` chunk is KEPT.
  */
 const WITNESS_AI_HTTP_STATUS_RE = /^HTTP error! status: \d+$/;
 const WITNESS_AI_LOGGER_FUNCTION_RE = /(?:JSLoggerClient|LogBeacon)\b/;
@@ -1040,6 +1041,8 @@ export function isWitnessAiLoggerEvent(event: ErrorEvent): boolean {
   ) {
     return false;
   }
+
+  if (hasFirstPartyChunkFrame(event)) return false;
 
   const frames = exception.stacktrace?.frames;
   if (!frames || frames.length === 0) return false;
