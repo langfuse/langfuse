@@ -5,6 +5,7 @@ import {
   UpdateEvaluationRuleInputSchema,
 } from "../rule-schema";
 import {
+  assertRuleAssignmentsReplaceableViaMcp,
   createMcpRuleService,
   toMcpEvaluationRule,
   toStoredAssignments,
@@ -25,7 +26,15 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
         attributes: { "mcp.evaluation_rule_id": input.evaluationRuleId },
         fn: async () => {
           const { evaluationRuleId, evaluatorAssignments, ...patch } = input;
-          const rule = await createMcpRuleService(context).update({
+          const service = createMcpRuleService(context);
+          if (evaluatorAssignments !== undefined) {
+            await assertRuleAssignmentsReplaceableViaMcp(
+              service,
+              context.projectId,
+              evaluationRuleId,
+            );
+          }
+          const rule = await service.update({
             projectId: context.projectId,
             ruleId: evaluationRuleId,
             ...patch,

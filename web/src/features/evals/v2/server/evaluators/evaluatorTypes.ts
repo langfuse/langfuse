@@ -1,5 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import {
+  DecisionModelQuestionsSchema,
+  DecisionModelStateKeySchema,
   EvalOutputDefinitionSchema,
   EvalTemplateType,
   EvaluatorPromptMessagesSchema,
@@ -9,6 +11,7 @@ import {
   PersistedEvalOutputDefinitionSchema,
   ZodModelConfig,
   jsonSchema,
+  observationVariableMappingList,
   paginationLimitZod,
   singleFilterList,
   type ObservationVariableMapping,
@@ -69,9 +72,25 @@ export const CodeEvaluatorDefinitionSchema = z.object({
   variableMapping: z.never().optional(),
 });
 
+/**
+ * Decision-model evaluators (experimental): the state is the JSON object
+ * built from the variable mapping (key → extractor), `questions` are the
+ * typed questions asked about it, and each question writes its own score.
+ * The model connection is always explicit; there is no project default.
+ */
+const DecisionModelEvaluatorDefinitionSchema =
+  EvaluatorVersionBaseSchema.extend({
+    type: z.literal(EvalTemplateType.DECISION_MODEL),
+    questions: DecisionModelQuestionsSchema,
+    provider: z.string().min(1),
+    model: z.string().min(1),
+    vars: z.array(DecisionModelStateKeySchema),
+  });
+
 export const EvaluatorDefinitionSchema = z.discriminatedUnion("type", [
   LlmEvaluatorDefinitionSchema,
   CodeEvaluatorDefinitionSchema,
+  DecisionModelEvaluatorDefinitionSchema,
 ]);
 
 export const EvaluatorModelConfigSchema = z.object({
@@ -87,32 +106,54 @@ const LlmEvaluatorDefinitionInputSchema = EvaluatorVersionBaseSchema.extend({
   outputDefinition: EvalOutputDefinitionSchema,
 });
 
+const DecisionModelEvaluatorDefinitionInputSchema = z.object({
+  type: z.literal(EvalTemplateType.DECISION_MODEL),
+  questions: DecisionModelQuestionsSchema,
+  modelConfig: EvaluatorModelConfigSchema.pick({ provider: true, model: true }),
+  /** The state: one entry per key. Required, unlike LLM judges. */
+  variableMapping: observationVariableMappingList.min(1),
+});
+
 export const EvaluatorDefinitionInputSchema = z
   .discriminatedUnion("type", [
     LlmEvaluatorDefinitionInputSchema,
     CodeEvaluatorDefinitionSchema,
+    DecisionModelEvaluatorDefinitionInputSchema,
   ])
-  .transform(
-    (definition): z.infer<typeof EvaluatorDefinitionSchema> =>
-      definition.type === EvalTemplateType.CODE
-        ? definition
-        : {
-            type: EvalTemplateType.LLM_AS_JUDGE,
-            promptMessages: definition.promptMessages,
-            provider: definition.modelConfig?.provider ?? null,
-            model: definition.modelConfig?.model ?? null,
-            modelParams: definition.modelConfig?.modelParams ?? null,
-            vars: [
-              ...new Set(
-                definition.promptMessages.flatMap(({ content }) =>
-                  extractVariables(content),
-                ),
+  .transform((definition): z.infer<typeof EvaluatorDefinitionSchema> => {
+    switch (definition.type) {
+      case EvalTemplateType.CODE:
+        return definition;
+      case EvalTemplateType.DECISION_MODEL:
+        return {
+          type: EvalTemplateType.DECISION_MODEL,
+          questions: definition.questions,
+          provider: definition.modelConfig.provider,
+          model: definition.modelConfig.model,
+          vars: definition.variableMapping.map(
+            ({ templateVariable }) => templateVariable,
+          ),
+          variableMapping: definition.variableMapping,
+        };
+      case EvalTemplateType.LLM_AS_JUDGE:
+        return {
+          type: EvalTemplateType.LLM_AS_JUDGE,
+          promptMessages: definition.promptMessages,
+          provider: definition.modelConfig?.provider ?? null,
+          model: definition.modelConfig?.model ?? null,
+          modelParams: definition.modelConfig?.modelParams ?? null,
+          vars: [
+            ...new Set(
+              definition.promptMessages.flatMap(({ content }) =>
+                extractVariables(content),
               ),
-            ],
-            variableMapping: definition.variableMapping,
-            outputDefinition: definition.outputDefinition,
-          },
-  );
+            ),
+          ],
+          variableMapping: definition.variableMapping,
+          outputDefinition: definition.outputDefinition,
+        };
+    }
+  });
 
 export const CreateEvaluatorSchema = EvaluatorMetadataSchema.extend({
   projectId: z.string(),
@@ -258,6 +299,10 @@ export const SuggestEvaluatorTextSchema = z.object({
       type: z.literal(EvalTemplateType.CODE),
       sourceCode: z.string().min(1),
     }),
+    z.object({
+      type: z.literal(EvalTemplateType.DECISION_MODEL),
+      questions: DecisionModelQuestionsSchema,
+    }),
   ]),
 });
 
@@ -270,7 +315,8 @@ export type EvaluatorDefinitionForPersistence =
     })
   | (Omit<Extract<EvaluatorDefinition, { type: "CODE" }>, "variableMapping"> & {
       variableMapping: ObservationVariableMapping[];
-    });
+    })
+  | Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
 export type CreateEvaluatorInput = z.infer<typeof CreateEvaluatorSchema>;
 export type UpdateEvaluatorInput = z.infer<typeof UpdateEvaluatorSchema>;
 export type PatchEvaluatorInput = Pick<

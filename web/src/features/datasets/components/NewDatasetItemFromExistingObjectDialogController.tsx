@@ -14,6 +14,7 @@ type DatasetItemDialogState = {
   traceId?: string;
   observationId?: string;
   fromDatasetId?: string;
+  datasetId?: string;
   input: Prisma.JsonValue | null;
   output: Prisma.JsonValue | null;
   metadata: MetadataDomainClient;
@@ -53,6 +54,7 @@ export function NewDatasetItemFromExistingObjectDialogController(props: {
             traceId={state.traceId}
             observationId={state.observationId}
             projectId={props.projectId}
+            datasetId={state.datasetId}
             input={normalizePrefillValue(state.input)}
             output={normalizePrefillValue(state.output)}
             metadata={state.metadata}

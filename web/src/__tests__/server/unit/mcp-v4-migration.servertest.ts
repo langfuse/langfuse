@@ -4,7 +4,7 @@ const { getProjectV4MigrationData } = vi.hoisted(() => ({
   getProjectV4MigrationData: vi.fn(),
 }));
 
-vi.mock("@/src/features/v4/server/v4TransitionService", () => ({
+vi.mock("@/src/features/v4/server", () => ({
   getProjectV4MigrationData,
 }));
 

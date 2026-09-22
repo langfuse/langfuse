@@ -5,8 +5,7 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-
+import { auditLog } from "@/src/features/audit-logs/server";
 // Use enums from Prisma types to stay in sync with DB schema
 const NotificationChannelEnum = z.enum(NotificationChannel);
 const NotificationTypeEnum = z.enum(NotificationType);

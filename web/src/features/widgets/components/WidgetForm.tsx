@@ -55,7 +55,7 @@ import { useReadPath } from "@/src/features/events";
 import { Input } from "@/src/components/ui/input";
 import startCase from "lodash/startCase";
 import { DatePickerWithRange } from "@/src/components/date-picker";
-import { MetricsFilterBuilder } from "@/src/features/metrics/components/MetricsFilterBuilder";
+import { MetricsFilterBuilder } from "@/src/features/metrics";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   toAbsoluteTimeRange,

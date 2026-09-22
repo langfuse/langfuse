@@ -30,7 +30,7 @@ import { Input } from "@/src/components/ui/input";
 import Header from "@/src/components/layouts/header";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
+import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains";
 import { SsoProviderSchema } from "@/src/ee/features/multi-tenant-sso";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";

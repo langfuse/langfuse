@@ -28,6 +28,7 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -109,6 +110,22 @@ export function getEvaluatorVersionDefinition(
     { type: "LLM_AS_JUDGE" }
   >;
 
+  if (version.type === "DECISION_MODEL") {
+    type DecisionModelDefinition = Extract<
+      NormalizedEvaluatorDefinition,
+      { type: "DECISION_MODEL" }
+    >;
+    return {
+      type: version.type,
+      questions: version.questions as DecisionModelDefinition["questions"],
+      provider: version.provider ?? "",
+      model: version.model ?? "",
+      vars: version.vars,
+      variableMapping:
+        version.variableMapping as DecisionModelDefinition["variableMapping"],
+    };
+  }
+
   return {
     type: version.type,
     promptMessages: version.promptMessages!,
@@ -181,14 +198,15 @@ export function EvaluatorSetupPage(
     projectId,
     evaluatorId: initialEvaluator?.id ?? null,
   });
-  const scoreDataType = initialEvaluator
-    ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
-      ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
-          .dataType
-      : getFirstCodeEvaluatorScoreDataType(
+  const scoreDataType =
+    initialEvaluator?.definition.type === "CODE"
+      ? getFirstCodeEvaluatorScoreDataType(
           initialEvaluator.definition.sourceCode,
         )
-    : undefined;
+      : initialEvaluator?.definition.type === "LLM_AS_JUDGE"
+        ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+            .dataType
+        : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -296,13 +314,14 @@ export function EvaluatorSetupPage(
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
     promptMessages:
-      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
+      initialEvaluator?.type === "CODE" ? null : version.promptMessages,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
     vars: version.vars,
     variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
+    questions: version.questions,
     createdByUser: version.createdByUser,
   }));
 
@@ -362,9 +381,17 @@ export function EvaluatorSetupPage(
 
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
-    return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, promptMessages: state.promptMessages }
-      : { type: state.type, sourceCode: state.sourceCode };
+    switch (state.type) {
+      case "LLM_AS_JUDGE":
+        return { type: state.type, promptMessages: state.promptMessages };
+      case "CODE":
+        return { type: state.type, sourceCode: state.sourceCode };
+      case "DECISION_MODEL":
+        return {
+          type: state.type,
+          questions: draftsToQuestions(state.questions) ?? [],
+        };
+    }
   };
 
   const generateNameSuggestion = async () => {
@@ -574,7 +601,11 @@ export function EvaluatorSetupPage(
         type: state.type,
         defaultVariableMapping: observationVariableMappingList
           .catch([])
-          .parse(definition.variableMapping),
+          .parse(
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.variableMapping
+              : undefined,
+          ),
         sampleFilter: state.sampleFilter,
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,

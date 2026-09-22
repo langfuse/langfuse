@@ -15,6 +15,7 @@ type MultiSelectOption<V> = {
   value: V;
   label: string;
   secondaryLabel?: string;
+  disabled?: boolean;
 };
 
 type MultiSelectInputProps<V> = {
@@ -28,7 +29,7 @@ type MultiSelectInputProps<V> = {
   error?: boolean;
 } & Pick<
   React.ComponentPropsWithoutRef<"button">,
-  "id" | "aria-describedby" | "aria-invalid"
+  "id" | "aria-describedby" | "aria-invalid" | "aria-label"
 >;
 
 function MultiSelectInputInner<V extends string>(
@@ -100,10 +101,13 @@ function MultiSelectInputInner<V extends string>(
                           <InputDropdown.Option
                             key={option.value}
                             highlight="aria-selected"
+                            checked={isSelected}
                           >
                             <CommandPrimitive.Item
                               value={option.value}
                               keywords={[option.label]}
+                              disabled={option.disabled}
+                              aria-checked={isSelected}
                               onSelect={() => {
                                 if (isSelected) {
                                   onValueChange(
@@ -122,11 +126,8 @@ function MultiSelectInputInner<V extends string>(
                                 label={option.label}
                                 title={option.label}
                                 secondaryLabel={option.secondaryLabel}
-                                indicator={
-                                  <InputDropdown.CheckIndicator
-                                    checked={isSelected}
-                                  />
-                                }
+                                type="checkbox"
+                                checked={isSelected}
                               />
                             </CommandPrimitive.Item>
                           </InputDropdown.Option>

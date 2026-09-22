@@ -1,4 +1,4 @@
-import { Code2, Sparkles } from "lucide-react";
+import { Code2, Scale, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -8,10 +8,12 @@ export function EvaluationTypeToggle({
   value,
   onValueChange,
   disabled = false,
+  showDecisionModel = false,
 }: {
   value: EvalTemplateType;
   onValueChange: (value: EvalTemplateType) => void;
   disabled?: boolean;
+  showDecisionModel?: boolean;
 }) {
   return (
     <Tabs
@@ -33,6 +35,15 @@ export function EvaluationTypeToggle({
             disabled={disabled}
             icon={Code2}
             label="Code evaluator"
+          />
+        ) : null}
+        {(showDecisionModel && !disabled) ||
+        value === EvalTemplateTypeEnum.DECISION_MODEL ? (
+          <Tabs.Trigger
+            value={EvalTemplateTypeEnum.DECISION_MODEL}
+            disabled={disabled}
+            icon={Scale}
+            label="Decision model (experimental)"
           />
         ) : null}
       </Tabs.List>

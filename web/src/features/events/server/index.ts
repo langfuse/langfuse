@@ -6,3 +6,10 @@ export {
   getEventFilterNumericRange,
   getEventFilterValuePage,
 } from "@/src/features/events/server/eventsService";
+export { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+export {
+  canToggleV4,
+  isV4UpgradeUiAvailable,
+  shouldAutoEnableV4,
+  V4_DEFAULT_ENABLED_FROM_AT,
+} from "@/src/features/events/lib/v4Rollout";
