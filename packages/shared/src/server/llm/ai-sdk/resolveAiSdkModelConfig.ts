@@ -97,6 +97,7 @@ export function resolveAiSdkModelConfig(params: {
 
       case LLMAdapter.Anthropic:
       case LLMAdapter.GoogleAIStudio:
+      case LLMAdapter.OrcaRouter:
         return { adapter: model.adapter };
 
       default: {
