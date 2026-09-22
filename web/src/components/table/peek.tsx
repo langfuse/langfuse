@@ -273,7 +273,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       actions={props.actions}
       actionsMenu={props.actionsMenu}
       expand={
-        isHandheld
+        isHandheld || props.itemType === "TRACE"
           ? undefined
           : {
               isExpanded: panel.isExpanded,
