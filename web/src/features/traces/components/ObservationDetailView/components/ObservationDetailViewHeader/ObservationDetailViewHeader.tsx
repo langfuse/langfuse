@@ -9,7 +9,7 @@
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef } from "react";
 import {
   type ObservationType,
   isGenerationLike,
@@ -55,11 +55,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -105,8 +101,6 @@ export const ObservationDetailViewHeader = memo(
   }: ObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
-    const [isMobileActionsOpen, setMobileActionsOpen] = useState(false);
-    const restoreMobileActionsFocus = useRef(true);
     const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
     const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
@@ -187,8 +181,6 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
-                full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile && (
               <ConnectedTraceObservationAddToDropdownMenuController
                 analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
@@ -204,167 +196,144 @@ export const ObservationDetailViewHeader = memo(
                     ? observationWithIO
                     : undefined
                 }
-              >
-                {({ getTriggerProps }) => (
+                renderMenu={(addToItems) => (
                   <AnnotateDrawerController projectId={projectId}>
                     {({ disabled: annotationDisabled, openDrawer }) => (
-                      <Popover
-                        open={isMobileActionsOpen}
-                        onOpenChange={(open) => {
-                          if (open) restoreMobileActionsFocus.current = true;
-                          setMobileActionsOpen(open);
+                      <ConnectedDetailHeaderActionsMenuController
+                        idItems={[
+                          { id: traceId, name: "Trace ID" },
+                          { id: observation.id, name: "Observation ID" },
+                        ]}
+                        observationType={observation.type}
+                        projectId={projectId}
+                        observation={
+                          isV4Enabled
+                            ? {
+                                id: observation.id,
+                                traceId,
+                                startTime: observation.startTime,
+                              }
+                            : undefined
+                        }
+                        spanName={observation.name ?? ""}
+                        webCallout={{
+                          traceId,
+                          observationId: observation.id,
+                          sessionId: observation.sessionId ?? null,
                         }}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            ref={mobileActionsTriggerRef}
-                            aria-label="More actions"
-                            className="ml-auto shrink-0"
+                        renderMenu={(utilityItems) => (
+                          <DropdownMenu
+                            placement="bottom-end"
+                            maxHeight="min(24rem, calc(100dvh - 2rem))"
+                            items={[
+                              ...(!isAnnotationMode
+                                ? [
+                                    {
+                                      type: "item" as const,
+                                      id: "annotate",
+                                      title: "Annotate",
+                                      icon: annotationDisabled
+                                        ? LockIcon
+                                        : SquarePen,
+                                      disabled: annotationDisabled
+                                        ? {
+                                            reason:
+                                              "You don't have permission to annotate.",
+                                          }
+                                        : undefined,
+                                      onClick: () => {
+                                        mobileActionsTriggerRef.current?.focus({
+                                          preventScroll: true,
+                                        });
+                                        openDrawer({
+                                          scoreTarget: {
+                                            type: "trace",
+                                            traceId,
+                                            observationId: observation.id,
+                                          },
+                                          scores: observationScores,
+                                          companionTrace: isV4Enabled
+                                            ? {
+                                                environment: trace.environment,
+                                                scores: traceScores,
+                                              }
+                                            : undefined,
+                                          analyticsData: {
+                                            type: "trace",
+                                            source: "TraceDetail",
+                                            isV4: isV4Enabled,
+                                          },
+                                          scoreMetadata: {
+                                            projectId,
+                                            environment:
+                                              observation.environment,
+                                          },
+                                        });
+                                      },
+                                    },
+                                  ]
+                                : []),
+                              {
+                                type: "item",
+                                id: "comments",
+                                title:
+                                  !commentDrawerControl.disabled && commentCount
+                                    ? `Comments (${commentCount})`
+                                    : "Comments",
+                                icon: commentDrawerControl.disabled
+                                  ? MessageSquareOff
+                                  : MessageSquare,
+                                disabled: commentDrawerControl.disabled
+                                  ? {
+                                      reason:
+                                        "You don't have permission to comment.",
+                                    }
+                                  : undefined,
+                                onClick: () => {
+                                  mobileActionsTriggerRef.current?.focus({
+                                    preventScroll: true,
+                                  });
+                                  commentDrawerControl.openDrawer();
+                                },
+                              },
+                              ...(observationWithIO
+                                ? [
+                                    {
+                                      type: "submenu" as const,
+                                      id: "add-to",
+                                      title: "Add to",
+                                      icon: PlusIcon,
+                                      items: addToItems,
+                                    },
+                                  ]
+                                : []),
+                              {
+                                id: "review-actions-separator",
+                                type: "separator",
+                              },
+                              ...utilityItems,
+                            ]}
                           >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent
-                          align="end"
-                          onCloseAutoFocus={(event) => {
-                            if (!restoreMobileActionsFocus.current)
-                              event.preventDefault();
-                            restoreMobileActionsFocus.current = true;
-                          }}
-                          onFocusOutside={(event) => {
-                            // Keep the anchor mounted while a portaled action menu takes focus.
-                            event.preventDefault();
-                          }}
-                          className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
-                        >
-                          {observationWithIO && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full justify-start gap-2 font-normal"
-                              {...getTriggerProps()}
-                            >
-                              <PlusIcon className="h-4 w-4" />
-                              <span>Add to</span>
-                              <ChevronDown className="ml-auto h-3 w-3" />
-                            </Button>
-                          )}
-                          {!isAnnotationMode && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={annotationDisabled}
-                              className="w-full justify-start gap-2 font-normal"
-                              onClick={() => {
-                                restoreMobileActionsFocus.current = false;
-                                setMobileActionsOpen(false);
-                                mobileActionsTriggerRef.current?.focus({
-                                  preventScroll: true,
-                                });
-                                openDrawer({
-                                  scoreTarget: {
-                                    type: "trace",
-                                    traceId,
-                                    observationId: observation.id,
-                                  },
-                                  scores: observationScores,
-                                  companionTrace: isV4Enabled
-                                    ? {
-                                        environment: trace.environment,
-                                        scores: traceScores,
-                                      }
-                                    : undefined,
-                                  analyticsData: {
-                                    type: "trace",
-                                    source: "TraceDetail",
-                                    isV4: isV4Enabled,
-                                  },
-                                  scoreMetadata: {
-                                    projectId,
-                                    environment: observation.environment,
-                                  },
-                                });
-                              }}
-                            >
-                              {annotationDisabled ? (
-                                <LockIcon className="h-3 w-3" />
-                              ) : (
-                                <SquarePen className="h-4 w-4" />
-                              )}
-                              <span className="text-sm">Annotate</span>
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            disabled={commentDrawerControl.disabled}
-                            onClick={() => {
-                              restoreMobileActionsFocus.current = false;
-                              setMobileActionsOpen(false);
-                              mobileActionsTriggerRef.current?.focus({
-                                preventScroll: true,
-                              });
-                              commentDrawerControl.openDrawer();
-                            }}
-                            className="w-full justify-start gap-2 font-normal"
-                          >
-                            {commentDrawerControl.disabled ? (
-                              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                            ) : (
-                              <MessageSquare className="h-4 w-4" />
+                            {({ getTriggerProps }) => (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                aria-label="More actions"
+                                className="ml-auto shrink-0"
+                                {...getTriggerProps({
+                                  ref: mobileActionsTriggerRef,
+                                })}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
                             )}
-                            <span className="text-sm">Comments</span>
-                            {!commentDrawerControl.disabled && commentCount ? (
-                              <ActionButtonCountBadge count={commentCount} />
-                            ) : null}
-                          </Button>
-                        </PopoverContent>
-                      </Popover>
+                          </DropdownMenu>
+                        )}
+                      />
                     )}
                   </AnnotateDrawerController>
                 )}
-              </ConnectedTraceObservationAddToDropdownMenuController>
-            )}
-            {isMobile && (
-              <ConnectedDetailHeaderActionsMenuController
-                idItems={[
-                  { id: traceId, name: "Trace ID" },
-                  { id: observation.id, name: "Observation ID" },
-                ]}
-                observationType={observation.type}
-                projectId={projectId}
-                observation={
-                  isV4Enabled
-                    ? {
-                        id: observation.id,
-                        traceId,
-                        startTime: observation.startTime,
-                      }
-                    : undefined
-                }
-                spanName={observation.name ?? ""}
-                webCallout={{
-                  traceId,
-                  observationId: observation.id,
-                  sessionId: observation.sessionId ?? null,
-                }}
-              >
-                {({ getTriggerProps }) => (
-                  <Button
-                    aria-label="Options"
-                    className="shrink-0"
-                    size="icon"
-                    title="Options"
-                    variant="secondary"
-                    {...getTriggerProps()}
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </Button>
-                )}
-              </ConnectedDetailHeaderActionsMenuController>
+              />
             )}
           </div>
           {/* Action buttons (desktop inline cluster) */}

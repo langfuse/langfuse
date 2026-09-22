@@ -1,7 +1,12 @@
 import { AnnotationQueueObjectType, type Prisma } from "@langfuse/shared";
 import { Database, ListPlus, PlusIcon, Terminal } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { type ComponentProps, useCallback, useMemo } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   DropdownMenu,
@@ -31,27 +36,37 @@ type QueueRemoval = {
   queueName: string;
 };
 
-type ConnectedTraceObservationAddToDropdownMenuControllerProps = {
-  projectId: string;
-  input: Prisma.JsonValue | null;
-  output: Prisma.JsonValue | null;
-  metadata: MetadataDomainClient;
-  analyticsData: Pick<AnalyticsData, "source" | "isV4">;
-  children: ComponentProps<typeof DropdownMenu>["children"];
-} & (
+type MenuPresentation =
   | {
-      variant: "trace";
-      traceId: string;
-      observationId?: never;
-      generation?: never;
+      children: ComponentProps<typeof DropdownMenu>["children"];
+      renderMenu?: never;
     }
   | {
-      variant: "observation";
-      traceId: string;
-      observationId: string;
-      generation?: PlaygroundGeneration;
-    }
-);
+      children?: never;
+      renderMenu: (items: DropdownMenuItemDefinition[]) => ReactNode;
+    };
+
+type ConnectedTraceObservationAddToDropdownMenuControllerProps =
+  MenuPresentation & {
+    projectId: string;
+    input: Prisma.JsonValue | null;
+    output: Prisma.JsonValue | null;
+    metadata: MetadataDomainClient;
+    analyticsData: Pick<AnalyticsData, "source" | "isV4">;
+  } & (
+      | {
+          variant: "trace";
+          traceId: string;
+          observationId?: never;
+          generation?: never;
+        }
+      | {
+          variant: "observation";
+          traceId: string;
+          observationId: string;
+          generation?: PlaygroundGeneration;
+        }
+    );
 
 export function ConnectedTraceObservationAddToDropdownMenuController(
   props: ConnectedTraceObservationAddToDropdownMenuControllerProps,
@@ -148,6 +163,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   analyticsData,
   generation,
   children,
+  renderMenu,
   createDatasetDisabled,
   createQueueDisabled,
   openDatasetDialog,
@@ -449,6 +465,8 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     setIncludeOutput,
     traceId,
   ]);
+
+  if (renderMenu) return renderMenu(items);
 
   return (
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">
