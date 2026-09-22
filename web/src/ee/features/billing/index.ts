@@ -5,8 +5,9 @@
 // BillingSettings stays off this door: OrganizationSettingsPage is the
 // only consumer, and putting the settings page here would pull billing
 // UI into every SupportOrUpgradePage importer. isCloudBillingEnabled
-// stays a deep import for server callers (rule 10) — it shares a module
-// with the client hook. stripeCatalogue, chbProjectEvents, and
-// resolveBillingService live on server/index.ts.
+// lives on server/index.ts so server callers do not load this hook.
+// stripeCatalogue stays deep so entitlements getPlan does not load the
+// billing service graph. chbProjectEvents and resolveBillingService
+// live on server/index.ts.
 export { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
 export { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";

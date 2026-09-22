@@ -29,7 +29,7 @@ vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
-vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
+vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: mocks.isCloudBillingEnabled,
 }));
 
