@@ -94,7 +94,10 @@ const ResourceRow = ({
   <div className="flex items-start gap-3">
     <div className={cn("shrink-0", dense ? "max-w-[40%]" : "w-40")}>
       <span
-        className={cn("leading-tight font-bold", dense ? "text-xs" : "text-sm")}
+        className={cn(
+          "block leading-[1.1] font-bold",
+          dense ? "text-xs" : "text-sm",
+        )}
       >
         {group.label}
       </span>
