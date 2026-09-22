@@ -1,0 +1,181 @@
+// PROTOTYPE — throwaway. Variant F: role dropdown like E, non-admin roles gated behind a plan.
+
+import { Plus, X } from "lucide-react";
+
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/src/components/ui/card";
+import { Input } from "@/src/components/ui/input";
+import { Label } from "@/src/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { Textarea } from "@/src/components/ui/textarea";
+import {
+  type ApiKeyDraft,
+  type ProjectOption,
+  presetIcons,
+  presets,
+} from "./permissionCatalog";
+import { ExpirySelect } from "./ExpirySelect";
+import { ProjectMultiSelect } from "./ProjectMultiSelect";
+
+export const variantFMeta = { key: "F", name: "Role dropdown + plan gating" };
+
+export const VariantF = ({
+  projects,
+  draft,
+  setDraft,
+}: {
+  projects: ProjectOption[];
+  draft: ApiKeyDraft;
+  setDraft: (draft: ApiKeyDraft) => void;
+}) => {
+  const onRoleChange = (value: string) =>
+    setDraft({ ...draft, preset: value as ApiKeyDraft["preset"] });
+
+  return (
+    <div className="bg-muted flex justify-center rounded-lg border p-6 sm:p-10">
+      <Card className="w-full max-w-[33.05rem] shadow-2xl">
+        <CardHeader>
+          <div className="flex items-start justify-between gap-2">
+            <CardTitle>Create a new API key</CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="-mt-1 -mr-1 h-8 w-8 shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-5">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="name">Name</Label>
+            <Input
+              id="name"
+              placeholder="This name will be used to identify the key in your account."
+              value={draft.name}
+              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="description">Description (optional)</Label>
+            <Textarea
+              id="description"
+              placeholder="What is this key used for?"
+              value={draft.description}
+              onChange={(e) =>
+                setDraft({ ...draft, description: e.target.value })
+              }
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Expiration</Label>
+            <ExpirySelect
+              expiry={draft.expiry}
+              customExpiry={draft.customExpiry}
+              onChange={(next) => setDraft({ ...draft, ...next })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Resources</Label>
+            <ProjectMultiSelect
+              projects={projects}
+              allProjects={draft.allProjects}
+              projectIds={draft.projectIds}
+              onChange={(next) => setDraft({ ...draft, ...next })}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>Permissions</Label>
+            <Select value={draft.preset} onValueChange={onRoleChange}>
+              <SelectTrigger className="h-auto" disableValueLineClamp>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {presets
+                  .filter((p) => p.key !== "custom")
+                  .map((p) => {
+                    const Icon = presetIcons[p.key];
+                    const locked = p.key !== "admin";
+                    return (
+                      <SelectItem
+                        key={p.key}
+                        value={p.key}
+                        disabled={locked}
+                        className="pl-2 [&>span[data-checkmark]]:hidden"
+                      >
+                        <div className="flex items-start gap-2 text-left">
+                          <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div className="flex flex-col">
+                            <span className="flex items-center gap-2 font-bold">
+                              {p.label}
+                              {locked && (
+                                <Badge size="sm" variant="secondary">
+                                  PRO
+                                </Badge>
+                              )}
+                            </span>
+                            <span className="text-muted-foreground text-xs">
+                              {p.description}
+                            </span>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                <SelectItem
+                  value="__new"
+                  disabled
+                  className="pl-2 [&>span[data-checkmark]]:hidden"
+                >
+                  <div className="flex items-start gap-2 text-left">
+                    <Plus className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="flex flex-col">
+                      <span className="flex items-center gap-2 font-bold">
+                        New role
+                        <Badge size="sm" variant="secondary">
+                          PRO
+                        </Badge>
+                      </span>
+                      <span className="text-muted-foreground text-xs">
+                        Define a custom role with specific permissions.
+                      </span>
+                    </div>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-muted-foreground text-xs">
+              Your plan only includes the Admin role.{" "}
+              <a
+                href="https://langfuse.com/pricing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                Upgrade your plan
+              </a>{" "}
+              to use the others.
+            </p>
+          </div>
+        </CardContent>
+        <CardFooter className="justify-end gap-2">
+          <Button variant="secondary">Cancel</Button>
+          <Button disabled={draft.name.trim() === ""}>Create API key</Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+};
