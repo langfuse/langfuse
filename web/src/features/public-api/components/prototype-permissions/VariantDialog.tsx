@@ -95,10 +95,24 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
       renderContent={() => (
         <>
           <DialogHeader>
-            <DialogTitle>Role permissions</DialogTitle>
+            <DialogTitle>Permissions</DialogTitle>
           </DialogHeader>
           <DialogBody className="flex gap-4">
-            <div className="flex w-44 shrink-0 flex-col gap-1">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="mb-3 flex items-center gap-2">
+                <ActiveIcon className="h-4 w-4" />
+                <span className="text-sm font-bold">
+                  {presets.find((p) => p.key === active)?.label}
+                </span>
+                <span className="text-muted-foreground ml-auto text-xs">
+                  {rolePermissionCount(active)} permissions
+                </span>
+              </div>
+              <ScrollArea className="max-h-96 pr-3">
+                <RolePermissionList preset={active} />
+              </ScrollArea>
+            </div>
+            <div className="flex w-44 shrink-0 flex-col gap-1 border-l pl-4">
               {roles.map((p) => {
                 const Icon = presetIcons[p.key];
                 return (
@@ -118,20 +132,6 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
                   </button>
                 );
               })}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <div className="mb-3 flex items-center gap-2">
-                <ActiveIcon className="h-4 w-4" />
-                <span className="text-sm font-bold">
-                  {presets.find((p) => p.key === active)?.label}
-                </span>
-                <span className="text-muted-foreground ml-auto text-xs">
-                  {rolePermissionCount(active)} permissions
-                </span>
-              </div>
-              <ScrollArea className="max-h-96 pr-3">
-                <RolePermissionList preset={active} />
-              </ScrollArea>
             </div>
           </DialogBody>
           <SystemRolesFooter />
