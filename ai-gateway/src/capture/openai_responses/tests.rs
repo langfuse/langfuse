@@ -1,9 +1,11 @@
 use super::*;
-use crate::capture::{ExecutionCapture, ProtocolCapture, RelayOutcome};
+use crate::capture::{ExecutionCapture, ProtocolCapture, RelayOutcome, sse::SseDecoder};
+use crate::resolution::ApiFormat;
 use crate::{
-    providers::openai::{OpenAiProvider, ProviderLimits},
+    providers::{ProviderLimits, ProviderTransport},
     test_support::{FakeServer, resolved_request_context_with_mode},
 };
+use axum::http::header;
 use axum::{
     body::{Body, Bytes, to_bytes},
     http::{HeaderValue, Response},
@@ -18,13 +20,15 @@ use std::{
 use tokio::sync::Notify;
 
 fn captured(execution: &ExecutionCapture) -> &OpenAiResponsesCapture {
-    let ProtocolCapture::OpenAiResponses(capture) = execution.protocol.as_ref().unwrap();
+    let ProtocolCapture::OpenAiResponses(capture) = execution.protocol.as_ref().unwrap() else {
+        panic!("expected the OpenAI Responses adapter");
+    };
     capture
 }
 
 async fn observer(mode: &'static str) -> ExecutionCapture {
     let context = resolved_request_context_with_mode("provider-secret", mode).await;
-    ExecutionCapture::for_openai_responses(&context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
+    ExecutionCapture::for_request(ApiFormat::OpenAiResponses, &context, &HeaderMap::new(), br#"{"model":"requested","instructions":"prompt-canary","input":[{"role":"user","content":"hello"}],"tools":[{"type":"function","name":"weather","parameters":{"type":"object"}}],"text":{"format":{"type":"json_schema","schema":{"description":"schema-canary"}}},"service_tier":"auto","metadata":{"label":"request-metadata-canary"},"safety_identifier":"safety-id-canary","prompt_cache_key":"cache-id-canary","user":"user-id-canary"}"#)
 }
 
 fn record_response(observer: &mut ExecutionCapture, content_type: &'static str) {
@@ -301,7 +305,8 @@ async fn completion_time_requires_sse_generated_content_in_either_ingestion_mode
         }
         // The upstream content type controls timing even if the request asks to stream.
         let context = resolved_request_context_with_mode("provider-secret", mode).await;
-        let mut observer = ExecutionCapture::for_openai_responses(
+        let mut observer = ExecutionCapture::for_request(
+            ApiFormat::OpenAiResponses,
             &context,
             &HeaderMap::new(),
             br#"{"stream":true,"input":"hello"}"#,
@@ -430,7 +435,9 @@ async fn debug_record_is_emitted_once_and_only_at_debug_level() {
         observer.push_bytes(terminal("completed", 1).as_bytes());
         observer.end_body();
         observer.metadata["key_metadata"] = json!({"secret": "metadata-canary"});
-        let ProtocolCapture::OpenAiResponses(capture) = observer.protocol.as_mut().unwrap();
+        let ProtocolCapture::OpenAiResponses(capture) = observer.protocol.as_mut().unwrap() else {
+            panic!("expected the OpenAI Responses adapter");
+        };
         capture
             .facts
             .model_parameters
@@ -498,7 +505,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     })
     .await;
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
-    let provider = OpenAiProvider::for_test(
+    let provider = ProviderTransport::for_test(
         format!("{}/v1", upstream.url),
         ProviderLimits {
             active: 1,
@@ -515,7 +522,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let _guard = tracing::subscriber::set_default(subscriber);
     let response = provider
         .forward(
-            provider.try_admit().unwrap(),
+            provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
             context,
             &HeaderMap::new(),
             Bytes::from_static(b"{}"),
@@ -526,7 +533,7 @@ async fn upstream_read_timeout_is_logged_as_timeout() {
     let records = records(&writer);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["outcome"], "timeout");
-    assert!(provider.try_admit().is_ok());
+    assert!(provider.try_admit(ApiFormat::OpenAiResponses).is_ok());
 }
 
 #[tokio::test]
@@ -553,7 +560,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         })
         .await;
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
-        let provider = OpenAiProvider::for_test(
+        let provider = ProviderTransport::for_test(
             format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
@@ -570,7 +577,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
         let _guard = tracing::subscriber::set_default(subscriber);
         let response = provider
             .forward(
-                provider.try_admit().unwrap(),
+                provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"input":"request-content"}"#),
@@ -585,7 +592,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             RelayOutcome::Cancelled => drop(response),
             RelayOutcome::Timeout => {
                 tokio::time::sleep(Duration::from_millis(1100)).await;
-                assert!(provider.try_admit().is_ok());
+                assert!(provider.try_admit(ApiFormat::OpenAiResponses).is_ok());
                 drop(response);
             }
             RelayOutcome::TransportError => unreachable!(),
@@ -598,7 +605,7 @@ async fn native_http_relay_logs_once_on_eof_drop_and_unpolled_deadline() {
             assert_eq!(records[0]["output_complete"], true);
             assert!(records[0]["first_byte_ms"].is_number());
         }
-        assert!(provider.try_admit().is_ok());
+        assert!(provider.try_admit(ApiFormat::OpenAiResponses).is_ok());
         assert_eq!(upstream.calls(), 1);
     }
 }
@@ -617,7 +624,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         })
         .await;
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
-        let provider = OpenAiProvider::for_test(
+        let provider = ProviderTransport::for_test(
             format!("{}/v1", upstream.url),
             ProviderLimits {
                 active: 1,
@@ -634,7 +641,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
         let _guard = tracing::subscriber::set_default(subscriber);
         let headers = HeaderMap::new();
         let call = provider.forward(
-            provider.try_admit().unwrap(),
+            provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
             context,
             &headers,
             Bytes::from_static(b"{}"),
@@ -657,7 +664,7 @@ async fn provider_future_finalizes_on_timeout_and_cancellation_before_headers() 
             if cancel { "cancelled" } else { "timeout" }
         );
         assert!(records[0]["http_status"].is_null());
-        assert!(provider.try_admit().is_ok());
+        assert!(provider.try_admit(ApiFormat::OpenAiResponses).is_ok());
     }
 }
 
@@ -721,7 +728,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         .unwrap();
         let context = resolved_request_context_with_mode("provider-secret", "full").await;
         let provider =
-            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
+            ProviderTransport::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
                 .with_telemetry(telemetry.clone());
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -730,7 +737,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         );
         let forwarded = provider
             .forward(
-                provider.try_admit().unwrap(),
+                provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
                 context,
                 &headers,
                 Bytes::from(json!({"input":"hello","stream":streaming}).to_string()),
@@ -791,7 +798,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     .unwrap();
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
     let provider =
-        OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
+        ProviderTransport::for_test(format!("{}/v1", upstream.url), ProviderLimits::default())
             .with_telemetry(telemetry.clone());
     let turn_metadata = json!({
         "installation_id": "install-1", "session_id": "routing-session",
@@ -809,7 +816,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     });
     let forwarded = provider
         .forward(
-            provider.try_admit().unwrap(),
+            provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
             context,
             &HeaderMap::new(),
             Bytes::from(body.to_string()),
@@ -855,8 +862,12 @@ async fn capture_regression_large_request_does_not_invalidate_output() {
     let context = resolved_request_context_with_mode("provider-secret", "full").await;
     let request = json!({"input": "x".repeat(MAX_CAPTURE_BYTES)}).to_string();
     for streaming in [false, true] {
-        let mut observer =
-            ExecutionCapture::for_openai_responses(&context, &HeaderMap::new(), request.as_bytes());
+        let mut observer = ExecutionCapture::for_request(
+            ApiFormat::OpenAiResponses,
+            &context,
+            &HeaderMap::new(),
+            request.as_bytes(),
+        );
         record_response(
             &mut observer,
             if streaming {
@@ -892,7 +903,8 @@ async fn capture_regression_preserves_native_request_and_usage() {
         ] {
             let request = json!({"model":"requested","input":input,"instructions":"be brief","future_request_field":{"enabled":true}});
             for streaming in [false, true] {
-                let mut execution = ExecutionCapture::for_openai_responses(
+                let mut execution = ExecutionCapture::for_request(
+                    ApiFormat::OpenAiResponses,
                     &context,
                     &HeaderMap::new(),
                     request.to_string().as_bytes(),

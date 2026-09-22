@@ -36,7 +36,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details
-        && let Some(projected) = openai_usage(&usage)
+        && let Some(projected) = usage_projection(facts.api_format, &usage)
     {
         attributes.push(attribute(
             "langfuse.observation.usage_details",
@@ -157,6 +157,9 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
     }
+    for (key, value) in &facts.inference.response_metadata {
+        metadata.insert(format!("langfuse.gateway.response.{key}"), value.clone());
+    }
     metadata
 }
 
@@ -198,6 +201,52 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
 
 fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
+}
+
+/// Project native usage into the shape Langfuse ingestion prices for that API.
+/// Each format keeps its own counters; nothing is renamed across providers.
+fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
+    match api_format {
+        "openai.responses" => openai_usage(usage),
+        "anthropic.messages" => anthropic_usage(usage),
+        _ => None,
+    }
+}
+
+/// Ingestion prices flat integer counters and derives the total by summing them,
+/// which matches Anthropic's semantics: `input_tokens` excludes cached tokens.
+/// Cache writes are split by TTL when the breakdown is present so the 1-hour
+/// price applies; the aggregate `cache_creation_input_tokens` is emitted only
+/// without the breakdown, never alongside it. Nested objects and strings such as
+/// `server_tool_use`, `output_tokens_details` and `service_tier` are dropped
+/// because ingestion cannot price them.
+fn anthropic_usage(usage: &Value) -> Option<Value> {
+    let usage = usage.as_object()?;
+    let counter = |source: &Map<String, Value>, key: &str| {
+        source.get(key).and_then(Value::as_u64).map(Value::from)
+    };
+    let mut projected = Map::new();
+    for key in ["input_tokens", "output_tokens"] {
+        projected.insert(key.into(), counter(usage, key)?);
+    }
+    if let Some(value) = counter(usage, "cache_read_input_tokens") {
+        projected.insert("cache_read_input_tokens".into(), value);
+    }
+    let breakdown = usage.get("cache_creation").and_then(Value::as_object);
+    let mut split = false;
+    for (source, target) in [
+        ("ephemeral_5m_input_tokens", "input_cache_creation_5m"),
+        ("ephemeral_1h_input_tokens", "input_cache_creation_1h"),
+    ] {
+        if let Some(value) = breakdown.and_then(|details| counter(details, source)) {
+            projected.insert(target.into(), value);
+            split = true;
+        }
+    }
+    if !split && let Some(value) = counter(usage, "cache_creation_input_tokens") {
+        projected.insert("cache_creation_input_tokens".into(), value);
+    }
+    Some(Value::Object(projected))
 }
 
 /// The receiver's native `OpenAI` usage schema is strict at the top level, but
@@ -503,6 +552,79 @@ mod tests {
         let attrs = attributes(&span(facts, &context()));
         assert!(!attrs.contains_key("langfuse.observation.usage_details"));
         assert!(metadata(&attrs).get("native_usage").is_none());
+    }
+
+    fn projected_usage(api_format: &'static str, usage: Value) -> Option<Value> {
+        let mut facts = facts();
+        facts.api_format = api_format;
+        facts.inference.usage_details = Some(usage);
+        let attrs = attributes(&span(facts, &context()));
+        attrs
+            .get("langfuse.observation.usage_details")
+            .map(|value| serde_json::from_str(value.as_str().unwrap()).unwrap())
+    }
+
+    #[test]
+    fn anthropic_usage_is_flat_splits_cache_writes_by_ttl_and_drops_unpriceable_fields() {
+        // Claude Code's typical cached turn: uncached input, both cache buckets, thinking.
+        assert_eq!(
+            projected_usage(
+                "anthropic.messages",
+                json!({
+                    "input_tokens": 7, "output_tokens": 445,
+                    "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
+                    "cache_creation": {"ephemeral_5m_input_tokens": 2000, "ephemeral_1h_input_tokens": 89},
+                    "output_tokens_details": {"thinking_tokens": 300},
+                    "server_tool_use": {"web_search_requests": 1},
+                    "service_tier": "standard", "inference_geo": null
+                })
+            ),
+            Some(json!({
+                "input_tokens": 7, "output_tokens": 445, "cache_read_input_tokens": 16399,
+                "input_cache_creation_5m": 2000, "input_cache_creation_1h": 89
+            }))
+        );
+        // Without the TTL breakdown the aggregate write counter prices at the 5-minute rate.
+        assert_eq!(
+            projected_usage(
+                "anthropic.messages",
+                json!({"input_tokens": 7, "output_tokens": 1, "cache_creation_input_tokens": 50, "cache_read_input_tokens": null, "cache_creation": null})
+            ),
+            Some(json!({"input_tokens": 7, "output_tokens": 1, "cache_creation_input_tokens": 50}))
+        );
+        // Truncated streams may lack output counts; nothing is invented.
+        assert_eq!(
+            projected_usage("anthropic.messages", json!({"input_tokens": 7})),
+            None
+        );
+        // The Anthropic shape never projects through the OpenAI rules and vice versa.
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn response_metadata_is_namespaced_under_the_gateway_response() {
+        let mut facts = facts();
+        facts.api_format = "anthropic.messages";
+        facts
+            .inference
+            .response_metadata
+            .insert("stop_reason".into(), json!("tool_use"));
+        let attrs = attributes(&span(facts, &context()));
+        let metadata = metadata(&attrs);
+        assert_eq!(
+            metadata["langfuse.gateway.response.stop_reason"],
+            "tool_use"
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.api_format"],
+            "anthropic.messages"
+        );
     }
 
     #[test]

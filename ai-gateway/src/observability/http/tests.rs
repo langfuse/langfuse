@@ -1,7 +1,8 @@
 use super::*;
+use crate::resolution::ApiFormat;
 use crate::{
     inference::InferenceService,
-    providers::openai::{OpenAiProvider, ProviderLimits},
+    providers::{ProviderLimits, ProviderTransport},
     resolution::ControlPlaneConfig,
     server::GatewayLifecycleState,
     telemetry::Telemetry,
@@ -178,7 +179,7 @@ async fn cancellation_releases_spans_before_and_after_headers() {
 #[tokio::test]
 async fn provider_http_errors_are_traced_without_changing_the_response() {
     use crate::{
-        providers::openai::{OpenAiProvider, ProviderLimits},
+        providers::{ProviderLimits, ProviderTransport},
         test_support::{FakeServer, resolved_request_context},
     };
     for status in [429, 500] {
@@ -191,11 +192,11 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         })
         .await;
         let provider =
-            OpenAiProvider::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
+            ProviderTransport::for_test(format!("{}/v1", upstream.url), ProviderLimits::default());
         let recording = Recording::start();
         let response = provider
             .forward(
-                provider.try_admit().unwrap(),
+                provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(b"{}"),
@@ -276,7 +277,7 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
         Telemetry::new(&ControlPlaneConfig::new(&web.url, "test-service-key").unwrap()).unwrap();
     let service = InferenceService::for_test(
         web.control_plane(),
-        OpenAiProvider::for_test(provider.url.clone(), ProviderLimits::default())
+        ProviderTransport::for_test(provider.url.clone(), ProviderLimits::default())
             .with_telemetry(telemetry.clone()),
         1,
     );

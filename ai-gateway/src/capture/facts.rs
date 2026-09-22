@@ -43,6 +43,8 @@ pub(crate) struct ProviderFacts {
     pub requested_model: Option<String>,
     pub model_parameters: Map<String, Value>,
     pub request_metadata: Map<String, Value>,
+    /// Native response facts beyond the ID and status, such as a stop reason.
+    pub response_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
     pub input: Option<Value>,
