@@ -84,7 +84,15 @@ export function createAnnotationFormActions({
   const latestSaves = new Map<string, number>();
   const pendingFields = new Map<string, number>();
   const failedFields = new Set<string>();
-
+  const serverFields = new Map(
+    fields().map((field) => [annotationFieldKey(field), { ...field }]),
+  );
+  const sameScore = (
+    left: AnnotationScoreFormData,
+    right: AnnotationScoreFormData | undefined,
+  ) =>
+    (left.id ?? null) === (right?.id ?? null) &&
+    !hasChangedAnnotationValue(left, right);
   const finishPendingField = (key: string) => {
     const remaining = (pendingFields.get(key) ?? 1) - 1;
     if (remaining) pendingFields.set(key, remaining);
@@ -324,6 +332,76 @@ export function createAnnotationFormActions({
     isSaving: (key: string) => pendingFields.has(key),
     clear,
     validateNumericInput,
+    reconcileServerFields(incoming: AnnotationScoreFormData[]) {
+      const confirmedFields = new Map(saveStore.getState().confirmedFields);
+      let changed = false;
+      for (const next of incoming) {
+        const key = annotationFieldKey(next);
+        if (pendingFields.has(key) || failedFields.has(key)) continue;
+        const current = find(key);
+        const confirmed = confirmedFields.get(key);
+        // A repeated pre-save snapshot is not an external edit, including
+        // after a cleared row is removed. Once the server acknowledges the
+        // local value, later changes can replace it.
+        const previousServer = serverFields.get(key);
+        if (
+          confirmed &&
+          confirmed.sequence > 0 &&
+          !sameScore(confirmed.field, previousServer) &&
+          sameScore(next, previousServer) &&
+          !sameScore(next, confirmed.field)
+        )
+          continue;
+        if (current) {
+          const index = indexOf(key);
+          if (
+            !sameScore(current, confirmed?.field) ||
+            form.getFieldState(`scoreData.${index}.value`).invalid ||
+            form.getFieldState(`scoreData.${index}.stringValue`).invalid ||
+            form.getFieldState(`scoreData.${index}.comment`).invalid
+          )
+            continue;
+          const properties = [
+            "id",
+            "name",
+            "dataType",
+            "value",
+            "stringValue",
+            "comment",
+            "timestamp",
+          ] as const;
+          for (const property of properties) {
+            const value = next[property];
+            const previous = current[property];
+            const equal =
+              property === "timestamp"
+                ? next.timestamp?.getTime() === current.timestamp?.getTime()
+                : value === previous;
+            if (equal) continue;
+            form.setValue(`scoreData.${index}.${property}`, value);
+            changed = true;
+          }
+        } else {
+          // Empty selections belong to the local form. Only saved server
+          // scores can introduce rows during a refresh.
+          if (!next.id) continue;
+          const currentFields = fields();
+          const before = currentFields.findIndex(
+            (field) => field.name.localeCompare(next.name) > 0,
+          );
+          insertField(before < 0 ? currentFields.length : before, next, {
+            shouldFocus: false,
+          });
+          changed = true;
+        }
+        serverFields.set(key, { ...next });
+        confirmedFields.set(key, {
+          field: { ...next },
+          sequence: confirmed?.sequence ?? 0,
+        });
+      }
+      if (changed) saveStore.setState({ confirmedFields });
+    },
     addDraftTarget(key: string, destination: PreparedAnnotationTarget) {
       const field = find(key);
       const config = destination.configControl.configs.find(

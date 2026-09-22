@@ -8,10 +8,15 @@ import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/tem
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 const RECOMMENDED_TEMPLATE_ORDER = [
+  "topic-decision-model",
   "topic-classifier",
   "out-of-scope-request",
   "quality-criterion",
 ] as const;
+
+const RECOMMENDED_TEMPLATE_REPLACEMENTS: Record<string, string> = {
+  "topic-decision-model": "topic-classifier",
+};
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
   RECOMMENDED_TEMPLATE_ORDER.map((key, index) => [key, index]),
@@ -21,10 +26,12 @@ export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
   search,
+  includeDecisionModels = false,
 }: {
   customTemplates: CustomEvaluatorTemplate[];
   customTemplateCount: number;
   search: string;
+  includeDecisionModels?: boolean;
 }): {
   navigationItems: GalleryNavigationItem[];
   sections: GallerySection[];
@@ -37,21 +44,31 @@ export function prepareEvaluatorGallery({
   const filteredCustom = customTemplates.filter((template) =>
     matches(template.name, template.description),
   );
-  const managedCatalog = managedEvaluatorTemplateService.list({ search });
+  const managedCatalog = managedEvaluatorTemplateService.list({
+    search,
+    includeDecisionModels,
+  });
   const managedByCategory = new Map(
     managedCatalog.categories.map((category) => {
       const templatesInCategory = managedCatalog.templates.filter((template) =>
         template.categories.includes(category.key),
       );
+      const replacedKeys = new Set(
+        templatesInCategory.flatMap(
+          (template) => RECOMMENDED_TEMPLATE_REPLACEMENTS[template.key] ?? [],
+        ),
+      );
       const orderedTemplates =
         category.key === "recommended"
-          ? templatesInCategory.toSorted(
-              (left, right) =>
-                (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
-                  Number.MAX_SAFE_INTEGER) -
-                (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
-                  Number.MAX_SAFE_INTEGER),
-            )
+          ? templatesInCategory
+              .filter((template) => !replacedKeys.has(template.key))
+              .toSorted(
+                (left, right) =>
+                  (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
+                    Number.MAX_SAFE_INTEGER) -
+                  (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
+                    Number.MAX_SAFE_INTEGER),
+              )
           : templatesInCategory;
 
       return [

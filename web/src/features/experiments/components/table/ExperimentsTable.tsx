@@ -272,8 +272,8 @@ function ExperimentsMultiSelectActionMenu({
           totalCount={selectedExperimentIds.length}
           onClose={() => {
             setShowRunEvaluationDialog(false);
-            clearSelection();
           }}
+          onSuccess={clearSelection}
           sourceTable="experiments"
         />
       )}

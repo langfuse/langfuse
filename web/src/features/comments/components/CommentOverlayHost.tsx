@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { useStore } from "zustand";
 import { useRouter } from "next/router";
 import { X } from "lucide-react";
@@ -54,11 +54,13 @@ export function CommentOverlayHost({
   projectId,
   overlay,
   onCommentChange,
+  onCloseAutoFocus,
 }: {
   store: CommentOverlayStore;
   projectId: string;
   overlay: CommentOverlay;
   onCommentChange?: () => void | Promise<void>;
+  onCloseAutoFocus: ComponentProps<typeof DrawerContent>["onCloseAutoFocus"];
 }) {
   const router = useRouter();
   const utils = api.useUtils();
@@ -93,7 +95,11 @@ export function CommentOverlayHost({
         if (!open) close();
       }}
     >
-      <DialogContent className="overflow-visible" closeOnInteractionOutside>
+      <DialogContent
+        className="overflow-visible"
+        closeOnInteractionOutside
+        onCloseAutoFocus={onCloseAutoFocus}
+      >
         <DialogHeader>
           <DialogTitle>Add a comment</DialogTitle>
         </DialogHeader>
@@ -139,6 +145,7 @@ export function CommentOverlayHost({
         }
         onSelectionUsed={() => actions.consumeSelection(overlay)}
         onCommentChange={onCommentChange}
+        onCloseAutoFocus={onCloseAutoFocus}
         {...guardProps}
       />
     </Drawer>
@@ -155,6 +162,7 @@ type CommentDrawerContentProps = {
   onCommentChange?: () => void | Promise<void>;
   onMentionDropdownChange: (isOpen: boolean) => void;
   onDraftChange: (hasDraft: boolean) => void;
+  onCloseAutoFocus: ComponentProps<typeof DrawerContent>["onCloseAutoFocus"];
 };
 
 function CommentDrawerContent({
@@ -167,11 +175,13 @@ function CommentDrawerContent({
   onCommentChange,
   onMentionDropdownChange,
   onDraftChange,
+  onCloseAutoFocus,
 }: CommentDrawerContentProps) {
   return (
     <DrawerContent
       overlayClassName="bg-primary/10"
       className="h-screen-with-banner max-h-screen-with-banner overflow-hidden outline-hidden"
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       <DrawerHeader className="flex shrink-0 flex-row items-center justify-between border-b text-left">
         <DrawerTitle>Comments</DrawerTitle>

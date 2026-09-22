@@ -25,6 +25,7 @@ export function AddScoreCategoryDialog({
   analyticsData,
   onClose,
   onCategoryAdded,
+  isActive = true,
 }: {
   projectId: string;
   config: ScoreConfigDomain;
@@ -32,6 +33,7 @@ export function AddScoreCategoryDialog({
   analyticsData: AnnotationAnalyticsContext;
   onClose: () => void;
   onCategoryAdded: (label: string, numericValue: number) => void;
+  isActive?: boolean;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -70,12 +72,17 @@ export function AddScoreCategoryDialog({
 
   return (
     <Dialog
-      open
+      open={isActive}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
     >
-      <DialogContent closeOnInteractionOutside>
+      <DialogContent
+        closeOnInteractionOutside
+        onCloseAutoFocus={(event) => {
+          if (!isActive) event.preventDefault();
+        }}
+      >
         <DialogHeader variant="action">
           <DialogTitle>Add category</DialogTitle>
           <DialogDescription>

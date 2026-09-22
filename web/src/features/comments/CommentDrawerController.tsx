@@ -1,8 +1,9 @@
 import { useRouter } from "next/router";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
+import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 import {
   createCommentOverlayStore,
   type CommentTarget,
@@ -54,7 +55,9 @@ export function CommentDrawerController({
   onCommentChange,
 }: CommentDrawerControllerProps) {
   const router = useRouter();
+  const reviewPanel = useTraceReviewPanelOptional();
   const [store] = useState(createCommentOverlayStore);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const utils = api.useUtils();
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -73,6 +76,21 @@ export function CommentDrawerController({
         disabled,
         openDrawer: (target) => {
           if (disabled) return;
+          triggerRef.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
+          if (reviewPanel) {
+            const actions = reviewPanel.getState().actions;
+            actions.rememberTrigger(triggerRef.current);
+            actions.openComments({
+              target,
+              onCommentChange,
+              confirmDiscard: () =>
+                window.confirm("Discard your unsent comment?"),
+            });
+            return;
+          }
           store.getState().actions.open({
             target,
             canWrite: hasWriteAccess,
@@ -87,7 +105,7 @@ export function CommentDrawerController({
           });
         },
       })}
-      {router.isReady && hasReadAccess ? (
+      {!reviewPanel && router.isReady && hasReadAccess ? (
         <CommentOverlayState store={store} initialState={initialState}>
           {(overlay) => (
             <CommentOverlayHost
@@ -95,6 +113,14 @@ export function CommentDrawerController({
               overlay={overlay}
               projectId={projectId}
               onCommentChange={onCommentChange}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (
+                  !store.getState().overlay?.isOpen &&
+                  triggerRef.current?.isConnected
+                )
+                  triggerRef.current.focus({ preventScroll: true });
+              }}
             />
           )}
         </CommentOverlayState>
