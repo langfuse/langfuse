@@ -98,24 +98,21 @@ function SelectInputInner<V extends string>(
               disabled={node.disabled}
             >
               <InputDropdown.OptionContent
+                type="checkmark"
+                checked={value === node.value}
                 label={
                   <SelectPrimitive.ItemText>
                     {node.label}
                   </SelectPrimitive.ItemText>
                 }
                 title={node.disabled ? node.disabledReason : node.label}
-                indicator={
-                  <SelectPrimitive.ItemIndicator>
-                    <InputDropdown.CheckIndicator checked />
-                  </SelectPrimitive.ItemIndicator>
-                }
               />
             </SelectPrimitive.SelectItem>
           </InputDropdown.Option>
         </React.Fragment>
       );
     },
-    [],
+    [value],
   );
 
   return (
