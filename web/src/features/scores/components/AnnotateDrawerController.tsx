@@ -48,8 +48,14 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   return (
     <DrawerController<AnnotateDrawerState>
       renderContent={({ state }) => (
-        <DrawerContent className="overflow-y-auto p-3 [--annotation-surface:var(--modal)]">
-          <AnnotationPanelContent data={state} actionButtons={null} isActive />
+        <DrawerContent className="[--annotation-surface:var(--modal)]">
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
+            <AnnotationPanelContent
+              data={state}
+              actionButtons={null}
+              isActive
+            />
+          </div>
         </DrawerContent>
       )}
     >

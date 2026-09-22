@@ -6,7 +6,7 @@ import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcu
 import {
   useInAppAiAgent,
   type InAppAgentEntryPoint,
-} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+} from "@/src/features/in-app-agent";
 import { cn } from "@/src/utils/tailwind";
 
 /** Launcher only — the assistant window itself is rendered by

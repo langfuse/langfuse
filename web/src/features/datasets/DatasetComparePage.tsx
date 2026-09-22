@@ -1,6 +1,6 @@
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { MultiSelectKeyValues } from "@/src/features/scores";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -9,14 +9,18 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import {
+  CreateExperimentsForm,
+  useExperimentAccess,
+  toExperimentsResultsUrl,
+} from "@/src/features/experiments";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
 import {
   ActiveCellProvider,
@@ -24,8 +28,6 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 function DatasetCompareLegacy() {

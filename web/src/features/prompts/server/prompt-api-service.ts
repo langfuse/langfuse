@@ -15,7 +15,7 @@ import type { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
+import { shadowAuthorize } from "@/src/features/public-api/server";
 import { createPrompt } from "./actions/createPrompt";
 import { deletePrompt } from "./actions/deletePrompt";
 import { getPromptByName } from "./actions/getPromptByName";

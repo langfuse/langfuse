@@ -5,7 +5,7 @@ import type {
   PreparedAnnotationTarget,
 } from "@/src/features/scores/types";
 import type { UseFieldArrayInsert, UseFieldArrayRemove } from "react-hook-form";
-import { toast } from "sonner";
+import { isPresent } from "@langfuse/shared";
 
 export const annotationFieldKey = (field: {
   targetKey?: string;
@@ -58,85 +58,81 @@ export function getScoreConfigSelection({
     })
     .sort((a, b) => a.config.name.localeCompare(b.config.name));
 
-  const handleSelectionChange = (values: string[]) => {
-    const currentKeys = new Set(
-      controlledFields.map((field) => field.configId),
+  const addScore = (configId: string) => {
+    const option = selectionOptions.find((option) => option.value === configId);
+    if (
+      !option ||
+      option.disabled ||
+      controlledFields.some((field) => field.configId === configId)
+    )
+      return;
+    const field = {
+      targetKey: option.targetKey,
+      id: null,
+      configId: option.config.id,
+      name: option.config.name,
+      dataType: option.config.dataType,
+      value: null,
+      stringValue: null,
+      comment: null,
+    };
+    const nextIndex = controlledFields.findIndex(
+      (current) => current.name.localeCompare(field.name) > 0,
     );
-    const newOptions = selectionOptions.filter(
-      (option) =>
-        values.includes(option.value) &&
-        !currentKeys.has(option.value) &&
-        !option.disabled,
-    );
-    const deselectedFields = controlledFields.flatMap((field, index) =>
-      !values.includes(field.configId) ? [{ field, index }] : [],
-    );
-    if (deselectedFields.some(({ field }) => field.id)) {
-      toast.error("Cannot deselect a populated score");
-    }
-    const removableFields = deselectedFields.filter(({ field }) => {
-      const target = targets.find((target) => target.key === field.targetKey);
-      const config = target?.configControl.configs.find(
-        (config) => config.id === field.configId,
-      );
-      return (
-        target?.configControl.allowManualSelection &&
-        !field.id &&
-        config &&
-        !config.isArchived
-      );
-    });
-    if (removableFields.length)
-      remove(removableFields.map(({ index }) => index));
+    insert(nextIndex < 0 ? controlledFields.length : nextIndex, field);
+    const target = targets.find((target) => target.key === option.targetKey)!;
+    if (!target.configControl.selectedConfigIds.includes(configId))
+      target.configControl.setSelectedConfigIds([
+        ...target.configControl.selectedConfigIds,
+        configId,
+      ]);
+  };
 
-    const removedKeys = new Set(
-      removableFields.map(({ field }) => annotationFieldKey(field)),
+  const removeEmptyField = (key: string) => {
+    const index = controlledFields.findIndex(
+      (field) => annotationFieldKey(field) === key,
     );
+    const field = controlledFields[index];
+    if (
+      !field ||
+      field.id ||
+      isPresent(field.value) ||
+      field.stringValue ||
+      field.comment
+    )
+      return;
+    const owner = targets.find((target) => target.key === field.targetKey);
+    const config = owner?.configControl.configs.find(
+      (config) => config.id === field.configId,
+    );
+    if (
+      !owner?.configControl.allowManualSelection ||
+      !config ||
+      config.isArchived
+    )
+      return;
+    remove(index);
     const remainingFields = controlledFields.filter(
-      (field) => !removedKeys.has(annotationFieldKey(field)),
+      (_, fieldIndex) => fieldIndex !== index,
     );
-    for (const option of newOptions) {
-      const field = {
-        targetKey: option.targetKey,
-        id: null,
-        configId: option.config.id,
-        name: option.config.name,
-        dataType: option.config.dataType,
-        value: null,
-        stringValue: null,
-        comment: null,
-      };
-      const nextIndex = remainingFields.findIndex(
-        (current) => current.name.localeCompare(field.name) > 0,
-      );
-      const position = nextIndex < 0 ? remainingFields.length : nextIndex;
-      insert(position, field);
-      remainingFields.splice(position, 0, field);
-    }
     for (const target of targets) {
       if (!target.configControl.allowManualSelection) continue;
-      const added = newOptions.filter(
-        (option) => option.targetKey === target.key,
-      );
-      const selected = new Set(target.configControl.selectedConfigIds);
-      added.forEach((option) => selected.add(option.config.id));
-      deselectedFields.forEach(({ field }) => {
-        if (
-          !remainingFields.some(
-            (remaining) =>
-              remaining.configId === field.configId &&
-              remaining.targetKey === target.key,
-          )
-        )
-          selected.delete(field.configId);
-      });
       if (
-        selected.size !== target.configControl.selectedConfigIds.length ||
-        target.configControl.selectedConfigIds.some((id) => !selected.has(id))
+        remainingFields.some(
+          (remaining) =>
+            remaining.configId === field.configId &&
+            remaining.targetKey === target.key,
+        )
       )
-        target.configControl.setSelectedConfigIds([...selected]);
+        continue;
+      if (target.configControl.selectedConfigIds.includes(field.configId))
+        target.configControl.setSelectedConfigIds(
+          target.configControl.selectedConfigIds.filter(
+            (id) => id !== field.configId,
+          ),
+        );
     }
   };
 
-  return { selectionOptions, handleSelectionChange };
+  return { selectionOptions, addScore, removeEmptyField };
 }

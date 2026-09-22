@@ -3,12 +3,11 @@ import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
 import { type WidgetSavePayload } from "@/src/features/widgets/components/widgetFormSchema";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { type metricAggregations, type views } from "@langfuse/shared/query";
 import { type z } from "zod";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events";
 
 export default function EditWidgetPage() {
   const router = useRouter();

@@ -46,7 +46,7 @@ import {
 } from "@langfuse/shared";
 import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";

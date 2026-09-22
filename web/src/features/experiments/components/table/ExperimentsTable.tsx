@@ -33,7 +33,7 @@ import {
   buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -47,18 +47,20 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import Link from "next/link";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableActionMenu,
+  type TableAction,
+  TableSelectionManager,
+} from "@/src/features/table";
 import { Badge } from "@/src/components/ui/badge";
 import { type VisibilityState } from "@tanstack/react-table";
 import { useStore } from "zustand";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { useRouter } from "next/router";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import {
   collectPresentScoreKeys,
   collectScoreNameCoverage,
@@ -69,7 +71,7 @@ import {
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {

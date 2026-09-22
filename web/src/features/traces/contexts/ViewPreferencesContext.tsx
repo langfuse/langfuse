@@ -18,7 +18,7 @@ import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSys
 import {
   GRAPH_VIEW_MODES,
   type GraphViewMode,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view";
 import {
   DEFAULT_JSON_VIEW_PREFERENCE,
   JSON_VIEW_PREFERENCE_STORAGE_KEY,

@@ -1,7 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import React from "react";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import { api } from "@/src/utils/api";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
@@ -17,10 +20,9 @@ import {
   isBooleanDataType,
   isCategoricalDataType,
   isNumericDataType,
-} from "@/src/features/scores/lib/helpers";
+} from "@/src/features/scores";
 import { Archive, Edit, MoreVertical, PlusIcon } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";

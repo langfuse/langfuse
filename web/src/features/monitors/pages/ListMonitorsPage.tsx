@@ -5,7 +5,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
 import { DataTableControlsProvider } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
-import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
+import { AutomationButton } from "@/src/features/automations";
 import { useEntitlementLimit } from "@/src/features/entitlements";
 import { monitorFilterConfig } from "@/src/features/filters";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
