@@ -99,6 +99,7 @@ export const ScoreAtEdges = meta.story({
 
 /** Maximum-length scales keep descriptions available without rendering them inline. */
 export const TenLevels = meta.story({
+  name: "(Test) Ten Levels",
   args: {
     results: [
       {
