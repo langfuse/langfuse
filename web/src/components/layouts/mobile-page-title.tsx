@@ -2,7 +2,10 @@
 import { ItemBadge } from "@/src/components/ItemBadge";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
+import {
+  PageHeaderActionsSlotTarget,
+  PageHeaderControlsSlotTarget,
+} from "@/src/components/layouts/page-header-controls-slot";
 import { PageTabs } from "@/src/components/layouts/page-tabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
@@ -39,6 +42,7 @@ export const MobilePageTitle = ({
 }) => {
   const {
     title,
+    subtitle,
     titleContent,
     titleTooltip,
     help,
@@ -174,6 +178,16 @@ export const MobilePageTitle = ({
             </PopoverContent>
           </Popover>
         )}
+      </div>
+
+      {subtitle ? (
+        <p className="text-muted-foreground mt-1 line-clamp-2 text-sm">
+          {subtitle}
+        </p>
+      ) : null}
+
+      <div className="flex justify-end [&:has(>*>*)]:mt-2">
+        <PageHeaderActionsSlotTarget />
       </div>
 
       {/* Hoisted page controls (time range, auto-refresh). The assistant

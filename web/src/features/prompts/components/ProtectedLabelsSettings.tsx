@@ -108,12 +108,12 @@ export default function ProtectedLabelsSettings({
 
   return (
     <div>
-      <Header title="Protected Prompt Labels" />
+      <Header title="Protected Labels" />
       <Card className="mb-4 p-3">
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from prompts.
+          labels from prompts and skills.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (

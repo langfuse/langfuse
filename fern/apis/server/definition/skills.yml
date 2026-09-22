@@ -1,0 +1,173 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
+imports:
+  pagination: ./utils/pagination.yml
+service:
+  auth: true
+  base-path: /api/public/v1
+  endpoints:
+    list:
+      docs: List skills and their available versions.
+      method: GET
+      path: /skills
+      request:
+        name: ListSkillsRequest
+        query-parameters:
+          name: optional<string>
+          label: optional<string>
+          tag: optional<string>
+          page: optional<integer>
+          limit: optional<integer>
+          fromUpdatedAt: optional<datetime>
+          toUpdatedAt: optional<datetime>
+      response: SkillMetaListResponse
+
+    prepareUploads:
+      docs: Prepare content-addressed file uploads for a skill version.
+      method: POST
+      path: /skills/uploads
+      request: PrepareSkillUploadsRequest
+      response:
+        status-code: 201
+        type: PrepareSkillUploadsResponse
+
+    createVersion:
+      docs: Verify uploaded files and create an immutable skill version.
+      method: POST
+      path: /skills
+      request: CreateSkillVersionRequest
+      response:
+        status-code: 201
+        type: SkillVersion
+
+    get:
+      docs: Resolve a skill's metadata and file manifest by version or label. Defaults to the production label. Use each file's id with getFileContent to download its bytes.
+      method: GET
+      path: /skills/{skillName}
+      path-parameters:
+        skillName: string
+      request:
+        name: GetSkillRequest
+        query-parameters:
+          version: optional<integer>
+          label: optional<string>
+      response: SkillVersion
+
+    getFileContent:
+      docs: |
+        Download one file from a persisted skill version using its file id, not its blob id.
+        Returns a 307 redirect with a Location header containing a presigned storage URL
+        that expires after 15 minutes and Cache-Control: no-store. Follow the redirect
+        to download bytes directly from storage; Langfuse does not proxy file contents.
+        Do not forward Langfuse API credentials to the storage URL.
+      method: GET
+      path: /skills/files/{fileId}/content
+      path-parameters:
+        fileId: string
+      response:
+        status-code: 307
+        type: SkillFileRedirectResponse
+
+    setLabels:
+      docs: Replace the labels on a skill version and atomically move them from other versions.
+      method: PATCH
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      request: UpdateSkillLabelsRequest
+      response: SkillVersion
+
+    deleteVersion:
+      docs: Delete one immutable skill version. Unreferenced blobs are retained for asynchronous cleanup.
+      method: DELETE
+      path: /skills/{skillName}/versions/{skillVersion}
+      path-parameters:
+        skillName: string
+        skillVersion: integer
+      response: DeleteSkillVersionResponse
+
+types:
+  SkillMetaListResponse:
+    properties:
+      data: list<SkillMeta>
+      meta: pagination.MetaResponse
+
+  SkillMeta:
+    properties:
+      name: string
+      versions: list<integer>
+      labels: list<string>
+      tags: list<string>
+      lastUpdatedAt: datetime
+      latestVersion: integer
+      description: string
+
+  SkillBlobDescriptor:
+    properties:
+      sha256Hash: string
+      contentType: string
+      contentLength: long
+
+  PrepareSkillUploadsRequest:
+    properties:
+      blobs: list<SkillBlobDescriptor>
+
+  PreparedSkillUpload:
+    extends: SkillBlobDescriptor
+    properties:
+      blobId: string
+      uploadUrl: nullable<string>
+
+  PrepareSkillUploadsResponse:
+    properties:
+      data: list<PreparedSkillUpload>
+
+  SkillVersionFileInput:
+    properties:
+      path: string
+      blobId: string
+
+  CreateSkillVersionRequest:
+    properties:
+      files: list<SkillVersionFileInput>
+      labels: optional<list<string>>
+      tags: optional<list<string>>
+      commitMessage: optional<nullable<string>>
+
+  SkillFile:
+    properties:
+      id: string
+      path: string
+      blobId: string
+      sha256Hash: string
+      contentType: string
+      contentLength: long
+
+  SkillFileRedirectResponse:
+    docs: Redirect acknowledgment. Follow the Location response header to download the file bytes.
+    properties:
+      message: string
+
+  SkillVersion:
+    properties:
+      id: string
+      createdAt: datetime
+      updatedAt: datetime
+      projectId: string
+      createdBy: string
+      name: string
+      description: string
+      frontmatter: unknown
+      version: integer
+      tags: list<string>
+      labels: list<string>
+      commitMessage: nullable<string>
+      files: list<SkillFile>
+
+  UpdateSkillLabelsRequest:
+    properties:
+      labels: list<string>
+
+  DeleteSkillVersionResponse:
+    properties:
+      deleted: boolean

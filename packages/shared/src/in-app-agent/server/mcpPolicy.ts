@@ -288,6 +288,18 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "approval",
     availability: { scope: "prompts:CUD" },
   },
+  listSkills: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
+  getSkillFile: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
   listScores: {
     approval: "auto",
     availability: { scope: "project:read" },

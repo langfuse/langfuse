@@ -7351,6 +7351,408 @@ paths:
               schema: {}
       security: *ref_0
       deprecated: true
+  /api/public/v1/skills:
+    get:
+      description: List skills and their available versions.
+      operationId: skills_list
+      tags:
+        - Skills
+      parameters:
+        - name: name
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: tag
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: fromUpdatedAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toUpdatedAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillMetaListResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    post:
+      description: Verify uploaded files and create an immutable skill version.
+      operationId: skills_createVersion
+      tags:
+        - Skills
+      parameters: []
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSkillVersionRequest'
+  /api/public/v1/skills/uploads:
+    post:
+      description: Prepare content-addressed file uploads for a skill version.
+      operationId: skills_prepareUploads
+      tags:
+        - Skills
+      parameters: []
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrepareSkillUploadsResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareSkillUploadsRequest'
+  /api/public/v1/skills/{skillName}:
+    get:
+      description: >-
+        Resolve a skill's metadata and file manifest by version or label.
+        Defaults to the production label. Use each file's id with getFileContent
+        to download its bytes.
+      operationId: skills_get
+      tags:
+        - Skills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: label
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/v1/skills/files/{fileId}/content:
+    get:
+      description: >-
+        Download one file from a persisted skill version using its file id, not
+        its blob id.
+
+        Returns a 307 redirect with a Location header containing a presigned
+        storage URL
+
+        that expires after 15 minutes and Cache-Control: no-store. Follow the
+        redirect
+
+        to download bytes directly from storage; Langfuse does not proxy file
+        contents.
+
+        Do not forward Langfuse API credentials to the storage URL.
+      operationId: skills_getFileContent
+      tags:
+        - Skills
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '307':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillFileRedirectResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+  /api/public/v1/skills/{skillName}/versions/{skillVersion}:
+    patch:
+      description: >-
+        Replace the labels on a skill version and atomically move them from
+        other versions.
+      operationId: skills_setLabels
+      tags:
+        - Skills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillVersion'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSkillLabelsRequest'
+    delete:
+      description: >-
+        Delete one immutable skill version. Unreferenced blobs are retained for
+        asynchronous cleanup.
+      operationId: skills_deleteVersion
+      tags:
+        - Skills
+      parameters:
+        - name: skillName
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: skillVersion
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteSkillVersionResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
   /api/public/traces/{traceId}:
     get:
       description: >-
@@ -16616,6 +17018,240 @@ components:
       required:
         - data
         - meta
+    SkillMetaListResponse:
+      title: SkillMetaListResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillMeta'
+        meta:
+          $ref: '#/components/schemas/utilsMetaResponse'
+      required:
+        - data
+        - meta
+    SkillMeta:
+      title: SkillMeta
+      type: object
+      properties:
+        name:
+          type: string
+        versions:
+          type: array
+          items:
+            type: integer
+        labels:
+          type: array
+          items:
+            type: string
+        tags:
+          type: array
+          items:
+            type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
+        latestVersion:
+          type: integer
+        description:
+          type: string
+      required:
+        - name
+        - versions
+        - labels
+        - tags
+        - lastUpdatedAt
+        - latestVersion
+        - description
+    SkillBlobDescriptor:
+      title: SkillBlobDescriptor
+      type: object
+      properties:
+        sha256Hash:
+          type: string
+        contentType:
+          type: string
+        contentLength:
+          type: integer
+          format: int64
+      required:
+        - sha256Hash
+        - contentType
+        - contentLength
+    PrepareSkillUploadsRequest:
+      title: PrepareSkillUploadsRequest
+      type: object
+      properties:
+        blobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillBlobDescriptor'
+      required:
+        - blobs
+    PreparedSkillUpload:
+      title: PreparedSkillUpload
+      type: object
+      properties:
+        blobId:
+          type: string
+        uploadUrl:
+          type: string
+          nullable: true
+      required:
+        - blobId
+        - uploadUrl
+      allOf:
+        - $ref: '#/components/schemas/SkillBlobDescriptor'
+    PrepareSkillUploadsResponse:
+      title: PrepareSkillUploadsResponse
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PreparedSkillUpload'
+      required:
+        - data
+    SkillVersionFileInput:
+      title: SkillVersionFileInput
+      type: object
+      properties:
+        path:
+          type: string
+        blobId:
+          type: string
+      required:
+        - path
+        - blobId
+    CreateSkillVersionRequest:
+      title: CreateSkillVersionRequest
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillVersionFileInput'
+        labels:
+          type: array
+          items:
+            type: string
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          nullable: true
+        commitMessage:
+          type: string
+          nullable: true
+      required:
+        - files
+    SkillFile:
+      title: SkillFile
+      type: object
+      properties:
+        id:
+          type: string
+        path:
+          type: string
+        blobId:
+          type: string
+        sha256Hash:
+          type: string
+        contentType:
+          type: string
+        contentLength:
+          type: integer
+          format: int64
+      required:
+        - id
+        - path
+        - blobId
+        - sha256Hash
+        - contentType
+        - contentLength
+    SkillFileRedirectResponse:
+      title: SkillFileRedirectResponse
+      type: object
+      description: >-
+        Redirect acknowledgment. Follow the Location response header to download
+        the file bytes.
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    SkillVersion:
+      title: SkillVersion
+      type: object
+      properties:
+        id:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        projectId:
+          type: string
+        createdBy:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        frontmatter: {}
+        version:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            type: string
+        commitMessage:
+          type: string
+          nullable: true
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkillFile'
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - projectId
+        - createdBy
+        - name
+        - description
+        - frontmatter
+        - version
+        - tags
+        - labels
+        - commitMessage
+        - files
+    UpdateSkillLabelsRequest:
+      title: UpdateSkillLabelsRequest
+      type: object
+      properties:
+        labels:
+          type: array
+          items:
+            type: string
+      required:
+        - labels
+    DeleteSkillVersionResponse:
+      title: DeleteSkillVersionResponse
+      type: object
+      properties:
+        deleted:
+          type: boolean
+      required:
+        - deleted
     Traces:
       title: Traces
       type: object

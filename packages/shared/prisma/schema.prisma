@@ -150,6 +150,9 @@ model Project {
   invitations                       MembershipInvitation[]
   sessions                          TraceSession[]
   Prompt                            Prompt[]
+  Skill                             Skill[]
+  SkillFile                         SkillFile[]
+  SkillBlob                         SkillBlob[]
   Model                             Model[]
   EvalTemplate                      EvalTemplate[]
   JobConfiguration                  JobConfiguration[]
@@ -839,6 +842,80 @@ model PromptProtectedLabels {
 
   @@unique([projectId, label])
   @@map("prompt_protected_labels")
+}
+
+model Skill {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdBy     String      @map("created_by")
+  name          String
+  description   String
+  frontmatter   Json        @default("{}") @db.Json
+  version       Int
+  tags          String[]    @default([])
+  labels        String[]    @default([])
+  commitMessage String?     @map("commit_message")
+  files         SkillFile[]
+
+  @@unique([projectId, name, version])
+  @@unique([projectId, id])
+  @@index([projectId, id])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([tags(ops: ArrayOps)], type: Gin)
+  @@index([labels(ops: ArrayOps)], type: Gin)
+  @@map("skills")
+}
+
+model SkillFile {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  skillId String @map("skill_id")
+  skill   Skill  @relation(fields: [projectId, skillId], references: [projectId, id], onDelete: Cascade)
+
+  blobId String    @map("blob_id")
+  blob   SkillBlob @relation(fields: [projectId, blobId], references: [projectId, id], onDelete: Restrict)
+
+  path String
+
+  @@unique([projectId, skillId, path])
+  @@index([projectId, blobId])
+  @@map("skill_files")
+}
+
+model SkillBlob {
+  id         String    @id @default(cuid())
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+  uploadedAt DateTime? @map("uploaded_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdBy String @map("created_by")
+
+  sha256Hash    String @map("sha_256_hash") @db.Char(44)
+  contentType   String @map("content_type")
+  contentLength BigInt @map("content_length")
+  bucketPath    String @map("bucket_path")
+  bucketName    String @map("bucket_name")
+
+  files SkillFile[]
+
+  @@unique([projectId, id])
+  @@unique([projectId, sha256Hash])
+  @@index([projectId, createdAt])
+  @@map("skill_blobs")
 }
 
 // Update ObservationView below when making changes to this model!

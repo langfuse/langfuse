@@ -12,6 +12,7 @@
 
 import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "./prompts";
+import { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
 import { annotationQueuesFeature } from "./annotationQueues";
 import { commentsFeature } from "./comments";
@@ -30,6 +31,7 @@ import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
+  skillsFeature,
   observationsFeature,
   annotationQueuesFeature,
   commentsFeature,

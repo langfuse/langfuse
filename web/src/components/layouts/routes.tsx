@@ -14,6 +14,7 @@ import {
   Grid2X2,
   Sparkle,
   FileJson,
+  FolderCode,
   Search,
   Home,
   SquarePercent,
@@ -44,7 +45,7 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Prompt Management",
+  PromptManagement = "Agent Management",
   Evaluation = "Evaluation",
 }
 
@@ -152,6 +153,15 @@ export const ROUTES: Route[] = [
     projectRbacScopes: ["alerts:read"],
     show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
     group: RouteGroup.Observability,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Skills",
+    href: "/project/[projectId]/skills",
+    icon: FolderCode,
+    projectRbacScopes: ["skills:read"],
+    productModule: "prompt-management",
+    group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
   },
   {
