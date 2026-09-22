@@ -1,5 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { Button } from "@/src/components/ui/button";
+import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import * as z from "zod";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -466,15 +467,13 @@ function InitializedNewDatasetItemForm({
                     </FormItem>
                   )}
                 />
-                <Button
-                  type="button"
-                  variant="outline"
+                <DesignSystemButton
+                  text="Create dataset"
+                  icon={Plus}
+                  variant="secondary"
                   disabled={isPending || pendingUploads.length > 0}
                   onClick={() => setScreen("create")}
-                >
-                  <Plus className="size-4" />
-                  Create dataset
-                </Button>
+                />
               </div>
             </div>
             <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
