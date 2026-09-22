@@ -176,14 +176,14 @@ function rankedEntries(probabilities: Record<string, number>) {
 
 /**
  * Decision models return no rationale, so the comment carries the numbers a
- * reviewer needs to judge the verdict from the trace view.
+ * reviewer needs to judge the verdict from the trace view. Provenance such as
+ * the model version lives in `metadata.typesafe`, not here.
  */
 export function formatDecisionModelComment(params: {
   question: DecisionModelQuestion;
   answer: DecisionModelAnswer;
-  model: string;
 }): string {
-  const { question, answer, model } = params;
+  const { question, answer } = params;
   const parts: string[] = [];
   if (answer.type === "choice") {
     const winner = answer.probabilities[answer.choice];
@@ -223,8 +223,7 @@ export function formatDecisionModelComment(params: {
   } else {
     parts.push(`P(true)=${formatNumber(answer.probability)}`);
   }
-  parts.push(model);
-  return parts.join(" · ");
+  return parts.join("; ");
 }
 
 /**
@@ -304,11 +303,7 @@ export function mapDecisionModelAnswersToScores(params: {
 
     const common = {
       name: question.scoreName,
-      comment: formatDecisionModelComment({
-        question,
-        answer,
-        model: evaluation.model,
-      }),
+      comment: formatDecisionModelComment({ question, answer }),
       metadata: toScoreMetadata({ question, answer, model: evaluation.model }),
     };
 

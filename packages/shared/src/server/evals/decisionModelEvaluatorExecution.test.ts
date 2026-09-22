@@ -124,7 +124,7 @@ describe("executeDecisionModelEvaluator", () => {
         dataType: "CATEGORICAL",
         value: "ready",
         comment:
-          "ready (p=0.91) · confidence 0.82 · runner-up needs_revision (0.09) · jev-1.13.0",
+          "ready (p=0.91); confidence 0.82; runner-up needs_revision (0.09)",
         metadata: {
           typesafe: {
             questionId: "readiness",
@@ -140,8 +140,7 @@ describe("executeDecisionModelEvaluator", () => {
         name: "customer_frustration",
         dataType: "NUMERIC",
         value: 1.26,
-        comment:
-          '1.26 ≈ level 1 "Frustrated but civil" · confidence 0.61 · jev-1.13.0',
+        comment: '1.26 ≈ level 1 "Frustrated but civil"; confidence 0.61',
         metadata: {
           typesafe: {
             questionId: "frustration",
@@ -161,7 +160,7 @@ describe("executeDecisionModelEvaluator", () => {
         name: "refund_requested",
         dataType: "NUMERIC",
         value: 0.97,
-        comment: "P(true)=0.97 · jev-1.13.0",
+        comment: "P(true)=0.97",
         metadata: {
           typesafe: {
             questionId: "refund",
