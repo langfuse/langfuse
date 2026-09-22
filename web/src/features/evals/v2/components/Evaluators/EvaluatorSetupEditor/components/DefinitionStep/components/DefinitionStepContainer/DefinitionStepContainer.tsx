@@ -7,8 +7,7 @@ import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeature
 import { DefinitionStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/DefinitionStep";
 import { CodeEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeEditor/CodeEditor";
 import { CodeLanguageSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/CodeLanguageSelector/CodeLanguageSelector";
-import { DecisionModelInstructionsEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelInstructionsEditor/DecisionModelInstructionsEditor";
-import { DecisionModelScoreOutputEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelScoreOutputEditor/DecisionModelScoreOutputEditor";
+import { DecisionModelQuestionsEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelQuestionsEditor/DecisionModelQuestionsEditor";
 import { DecisionModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/DecisionModelSelector/DecisionModelSelector";
 import { ModelSelector } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/ModelSelector/ModelSelector";
 import { PromptEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/components/DefinitionStep/components/PromptEditor/PromptEditor";
@@ -112,8 +111,7 @@ export function DefinitionStepContainer({
               onConfigureProviders={onConfigureProviders}
             />
           }
-          instructionsEditor={<DecisionModelInstructionsEditor store={store} />}
-          scoreOutputEditor={<DecisionModelScoreOutputEditor store={store} />}
+          questionsEditor={<DecisionModelQuestionsEditor store={store} />}
         />
       );
   }

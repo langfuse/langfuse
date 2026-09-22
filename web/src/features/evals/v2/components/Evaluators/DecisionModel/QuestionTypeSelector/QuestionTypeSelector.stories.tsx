@@ -7,10 +7,9 @@ import { QuestionTypeSelector } from "./QuestionTypeSelector";
 
 const meta = preview.meta({ component: QuestionTypeSelector });
 
-export const Tabs = meta.story({
+export const Default = meta.story({
   args: {
     value: DecisionModelQuestionType.CHOICE,
-    layout: "tabs",
     onValueChange: fn(),
   },
   render: (args) => {
@@ -28,23 +27,10 @@ export const Tabs = meta.story({
   },
 });
 
-export const Cards = meta.story({
+export const Disabled = meta.story({
   args: {
     value: DecisionModelQuestionType.SCORE,
-    layout: "cards",
+    disabled: true,
     onValueChange: fn(),
-  },
-  render: (args) => {
-    const [value, setValue] = useState(args.value);
-    return (
-      <QuestionTypeSelector
-        {...args}
-        value={value}
-        onValueChange={(next) => {
-          setValue(next);
-          args.onValueChange(next);
-        }}
-      />
-    );
   },
 });

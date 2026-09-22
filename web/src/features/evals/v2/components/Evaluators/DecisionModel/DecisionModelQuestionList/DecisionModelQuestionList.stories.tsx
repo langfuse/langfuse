@@ -3,9 +3,9 @@ import { DecisionModelQuestionType } from "@langfuse/shared";
 import { fn } from "storybook/test";
 
 import preview from "../../../../../../../../.storybook/preview";
+import { createEmptyQuestion } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 import {
-  createEmptyQuestion,
   DecisionModelQuestionList,
   QUESTION_EXAMPLES,
 } from "./DecisionModelQuestionList";
@@ -54,7 +54,7 @@ function InteractiveQuestionList(args: StoryArgs) {
         args.onChange(next);
       }}
       onAdd={() => {
-        const question = createEmptyQuestion(nextId());
+        const question = createEmptyQuestion();
         setQuestions((current) => [...current, question]);
         setExpandedId(question.id);
         args.onAdd();

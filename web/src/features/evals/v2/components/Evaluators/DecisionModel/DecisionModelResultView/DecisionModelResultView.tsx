@@ -1,8 +1,4 @@
-import { useState } from "react";
-import { ChevronDown } from "lucide-react";
-
 import { Badge } from "@/src/components/ui/badge";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -239,70 +235,19 @@ function ResultRow({ result }: { result: DecisionModelQuestionResult }) {
 }
 
 /**
- * Test result for a decision-model evaluator: one row per question with the
- * full probability distribution, since the model returns no rationale. The
- * request that produced the answers is the debugging aid and stays one click
- * away.
+ * Test result of a decision-model evaluator: one row per question with the
+ * full probability distribution, since the model returns no rationale.
  */
-export function DecisionModelResultPanel({
+export function DecisionModelResultView({
   results,
-  model,
-  request,
-  durationMs,
 }: {
   results: DecisionModelQuestionResult[];
-  model: string;
-  request: {
-    state: Record<string, unknown>;
-    questions: Record<string, unknown>;
-  };
-  durationMs?: number;
 }) {
-  const [requestOpen, setRequestOpen] = useState(false);
   return (
-    <div className="flex flex-col gap-3">
-      <div className="text-muted-foreground flex items-center justify-between text-xs">
-        <span>
-          {results.length} score{results.length === 1 ? "" : "s"} from one call
-          · <span className="font-mono">{model}</span>
-        </span>
-        {durationMs !== undefined ? <span>{durationMs} ms</span> : null}
-      </div>
-      <ul className="flex flex-col gap-2">
-        {results.map((result) => (
-          <ResultRow key={result.questionId} result={result} />
-        ))}
-      </ul>
-      <div className="rounded-md border">
-        <button
-          type="button"
-          className="hover:bg-muted/50 flex w-full items-center justify-between px-3 py-2 text-left text-sm"
-          aria-expanded={requestOpen}
-          onClick={() => setRequestOpen((open) => !open)}
-        >
-          <span className="font-bold">Request sent to the model</span>
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 transition-transform",
-              requestOpen ? "rotate-180" : "rotate-0",
-            )}
-          />
-        </button>
-        {requestOpen ? (
-          <div className="border-t">
-            <PrettyJsonView
-              json={request}
-              currentView="pretty"
-              isLoading={false}
-              showNullValues={true}
-              stickyTopLevelKey={false}
-              showObservationTypeBadge={false}
-              scrollable={true}
-              className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-            />
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <ul className="flex flex-col gap-2">
+      {results.map((result) => (
+        <ResultRow key={result.questionId} result={result} />
+      ))}
+    </ul>
   );
 }

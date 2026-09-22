@@ -1,4 +1,4 @@
-import { ScoreDataTypeEnum } from "@langfuse/shared";
+import { DecisionModelQuestionType, ScoreDataTypeEnum } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { prepareEvaluatorDraft } from "./prepareEvaluatorDraft";
@@ -24,7 +24,8 @@ describe("prepareEvaluatorDraft", () => {
       prepareEvaluatorDraft({
         type: "LLM_AS_JUDGE",
         promptMessages: [{ role: "user", content: "Judge {{output}}" }],
-        instructions: "",
+        questions: [],
+        stateKeys: [],
         name: "",
         sourceCode: "",
         sourceCodeLanguage: "TYPESCRIPT",
@@ -72,7 +73,8 @@ describe("prepareEvaluatorDraft", () => {
         { role: "user", content: "Judge {{output}}" },
         { role: "system", content: "Be strict" },
       ],
-      instructions: "",
+      questions: [],
+      stateKeys: [],
       name: "",
       sourceCode: "",
       sourceCodeLanguage: "TYPESCRIPT",
@@ -104,7 +106,8 @@ describe("prepareEvaluatorDraft", () => {
         { role: "user", content: "Judge {{output}}" },
         { role: "assistant", content: "   " },
       ],
-      instructions: "",
+      questions: [],
+      stateKeys: [],
       name: "",
       sourceCode: "",
       sourceCodeLanguage: "TYPESCRIPT",
@@ -127,5 +130,86 @@ describe("prepareEvaluatorDraft", () => {
     });
 
     expect(result.definition).toBeNull();
+  });
+
+  it("prepares a decision-model definition from questions and state", () => {
+    const base = {
+      type: "DECISION_MODEL" as const,
+      promptMessages: [],
+      questions: [
+        {
+          id: "q1",
+          type: DecisionModelQuestionType.CHOICE,
+          scoreName: "verdict",
+          instructions: "Is `output` ready to send?",
+          options: [
+            { value: "ready", description: "" },
+            { value: "not_ready", description: "Needs edits" },
+          ],
+          levels: [],
+          criteria: { true: "", false: "" },
+        },
+      ],
+      stateKeys: ["input", "output"],
+      name: "",
+      sourceCode: "",
+      sourceCodeLanguage: "TYPESCRIPT" as const,
+      scoreOutput: {
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        scoreDescription: "",
+        reasoningDescription: "",
+        choices: [],
+        shouldAllowMultipleMatches: false,
+        minValue: "",
+        maxValue: "",
+      },
+      variableFields: {
+        output: { selectedColumnId: "output", jsonSelector: "$.answer" },
+      },
+      modelMode: "custom" as const,
+      selectedModel: { provider: "typesafe", model: "jev-latest" },
+      modelParams: null,
+      initialDefinition: undefined,
+    };
+
+    expect(prepareEvaluatorDraft(base).definition).toEqual({
+      type: "DECISION_MODEL",
+      questions: [
+        {
+          id: "q1",
+          type: "choice",
+          scoreName: "verdict",
+          instructions: "Is `output` ready to send?",
+          options: [
+            { value: "ready" },
+            { value: "not_ready", description: "Needs edits" },
+          ],
+        },
+      ],
+      modelConfig: { provider: "typesafe", model: "jev-latest" },
+      variableMapping: [
+        {
+          templateVariable: "input",
+          selectedColumnId: "input",
+          jsonSelector: null,
+        },
+        {
+          templateVariable: "output",
+          selectedColumnId: "output",
+          jsonSelector: "$.answer",
+        },
+      ],
+    });
+
+    // An unmapped state key blocks saving; the model would never see it.
+    expect(
+      prepareEvaluatorDraft({
+        ...base,
+        variableFields: {
+          ...base.variableFields,
+          input: { selectedColumnId: null, jsonSelector: null },
+        },
+      }).definition,
+    ).toBeNull();
   });
 });

@@ -1,7 +1,6 @@
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { Gauge, ListChecks, ToggleLeft, type LucideIcon } from "lucide-react";
 
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 
 export const QUESTION_TYPE_COPY: Record<
@@ -19,7 +18,7 @@ export const QUESTION_TYPE_COPY: Record<
     label: "Choice",
     icon: ListChecks,
     summary: "Pick one of a fixed set of labels.",
-    writes: "categorical score",
+    writes: "a categorical score",
     example: "Which team should handle this ticket?",
     whenToUse:
       "The answer is one of a few options with no order between them. Add an “other” option if the list may not cover every input.",
@@ -28,7 +27,7 @@ export const QUESTION_TYPE_COPY: Record<
     label: "Score",
     icon: Gauge,
     summary: "Rate along ordered levels you describe.",
-    writes: "numeric score (expected level)",
+    writes: "a numeric score (the expected level)",
     example: "How frustrated is the customer?",
     whenToUse:
       "The answer sits on a spectrum you can describe in steps. Describe situations, not degrees: “broken but a workaround exists” beats “moderately severe”.",
@@ -37,7 +36,7 @@ export const QUESTION_TYPE_COPY: Record<
     label: "Yes / no",
     icon: ToggleLeft,
     summary: "Get the probability a statement is true.",
-    writes: "numeric score (probability 0–1)",
+    writes: "a numeric score (probability 0–1)",
     example: "Does the message request a refund?",
     whenToUse:
       "A clean yes/no where the probability itself is the signal. Define the condition precisely; 0.5 means undecided, not “medium”.",
@@ -51,23 +50,21 @@ const ORDER: DecisionModelQuestionType[] = [
 ];
 
 /**
- * Picks the question type. `tabs` is a compact segmented control with the
- * descriptor of the active type below; `cards` shows all three side by side
- * with their descriptor, trading space for discoverability.
+ * Picks the question type. All three primitives stay visible with their
+ * descriptor so the model's vocabulary is learned where it is used.
  */
 export function QuestionTypeSelector({
   value,
   onValueChange,
-  layout = "tabs",
   disabled = false,
 }: {
   value: DecisionModelQuestionType;
   onValueChange: (value: DecisionModelQuestionType) => void;
-  layout?: "tabs" | "cards";
   disabled?: boolean;
 }) {
-  if (layout === "cards") {
-    return (
+  const active = QUESTION_TYPE_COPY[value];
+  return (
+    <div className="flex flex-col gap-1.5">
       <div
         role="radiogroup"
         aria-label="Question type"
@@ -105,32 +102,8 @@ export function QuestionTypeSelector({
           );
         })}
       </div>
-    );
-  }
-
-  const active = QUESTION_TYPE_COPY[value];
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Tabs
-        value={value}
-        onValueChange={(next) =>
-          onValueChange(next as DecisionModelQuestionType)
-        }
-      >
-        <Tabs.List variant="outline" aria-label="Question type">
-          {ORDER.map((type) => (
-            <Tabs.Trigger
-              key={type}
-              value={type}
-              disabled={disabled}
-              icon={QUESTION_TYPE_COPY[type].icon}
-              label={QUESTION_TYPE_COPY[type].label}
-            />
-          ))}
-        </Tabs.List>
-      </Tabs>
       <p className="text-muted-foreground text-xs">
-        {active.summary} Writes a {active.writes}. {active.whenToUse}
+        Writes {active.writes}. {active.whenToUse}
       </p>
     </div>
   );

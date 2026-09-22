@@ -143,6 +143,7 @@ function MappingPreviewSurface({
  */
 function TreeSelectorBody({
   variable,
+  variableDisplay,
   fieldState,
   segments,
   sourceObject,
@@ -152,6 +153,7 @@ function TreeSelectorBody({
   onApplyJsonPath,
 }: {
   variable: string;
+  variableDisplay?: VariableDisplay;
   fieldState: VariableFieldState;
   segments: PathSegment[] | null;
   sourceObject: Record<string, unknown> | null;
@@ -204,7 +206,9 @@ function TreeSelectorBody({
     );
   }
 
-  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind {{${variable}}}.`;
+  const variableLabel =
+    variableDisplay === "stateKey" ? variable : `{{${variable}}}`;
+  const treeGuidance = `Click rows to open them — hover one and press "Use" to bind ${variableLabel}.`;
 
   return (
     <>
@@ -238,7 +242,7 @@ function TreeSelectorBody({
         </button>
       </div>
       <SampleDataTreeSelector
-        variable={variable}
+        variableLabel={variableLabel}
         currentColumnId={selectedColumnId}
         currentSegments={segments}
         roots={roots}
@@ -321,6 +325,7 @@ function VariableMappingRow({
   const body = editing ? (
     <TreeSelectorBody
       variable={variable}
+      variableDisplay={variableDisplay}
       fieldState={fieldState}
       segments={segments}
       sourceObject={sourceObject}

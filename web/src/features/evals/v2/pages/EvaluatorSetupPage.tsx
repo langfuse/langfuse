@@ -28,10 +28,7 @@ import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluat
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
-import {
-  buildDecisionModelDraftQuestions,
-  DECISION_MODEL_DRAFT_QUESTION_ID,
-} from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -394,12 +391,7 @@ export function EvaluatorSetupPage(
       case "DECISION_MODEL":
         return {
           type: state.type,
-          questions:
-            buildDecisionModelDraftQuestions({
-              instructions: state.instructions,
-              scoreName: state.name || DECISION_MODEL_DRAFT_QUESTION_ID,
-              scoreOutput: state.scoreOutput,
-            }) ?? [],
+          questions: draftsToQuestions(state.questions) ?? [],
         };
     }
   };

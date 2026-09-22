@@ -131,29 +131,3 @@ export const WithErrors = meta.story({
     },
   },
 });
-
-/** Alternative layouts under review: type cards and inline option list. */
-export const AlternativeLayouts = meta.story({
-  args: {
-    ...base,
-    typeLayout: "cards",
-    optionsLayout: "list",
-    question: {
-      id: "q1",
-      ...QUESTION_EXAMPLES[DecisionModelQuestionType.CHOICE],
-    },
-  },
-  render: (args) => {
-    const [question, setQuestion] = useState(args.question);
-    return (
-      <DecisionModelQuestionCard
-        {...args}
-        question={question}
-        onChange={(next) => {
-          setQuestion(next);
-          args.onChange(next);
-        }}
-      />
-    );
-  },
-});

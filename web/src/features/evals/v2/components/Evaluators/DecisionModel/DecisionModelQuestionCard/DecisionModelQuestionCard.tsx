@@ -33,9 +33,6 @@ export type DecisionModelQuestionCardProps = {
   onRemove: (() => void) | null;
   onMove: ((direction: -1 | 1) => void) | null;
   errors?: DecisionModelQuestionDraftErrors;
-  /** Layout experiments for review; the defaults are the current proposal. */
-  typeLayout?: "tabs" | "cards";
-  optionsLayout?: "chips" | "list";
 };
 
 function writesLine(question: DecisionModelQuestionDraft) {
@@ -51,12 +48,10 @@ function writesLine(question: DecisionModelQuestionDraft) {
 
 function CriteriaEditor({
   question,
-  optionsLayout,
   errors,
   onChange,
 }: {
   question: DecisionModelQuestionDraft;
-  optionsLayout: "chips" | "list";
   errors: DecisionModelQuestionDraftErrors;
   onChange: (question: DecisionModelQuestionDraft) => void;
 }) {
@@ -65,7 +60,6 @@ function CriteriaEditor({
       return (
         <ChoiceOptionsEditor
           options={question.options}
-          layout={optionsLayout}
           onChange={(options) => onChange({ ...question, options })}
           error={errors.options}
         />
@@ -103,8 +97,6 @@ export function DecisionModelQuestionCard({
   onRemove,
   onMove,
   errors = {},
-  typeLayout = "tabs",
-  optionsLayout = "chips",
 }: DecisionModelQuestionCardProps) {
   const id = useId();
   const copy = QUESTION_TYPE_COPY[question.type];
@@ -198,7 +190,6 @@ export function DecisionModelQuestionCard({
           </Label>
           <QuestionTypeSelector
             value={question.type}
-            layout={typeLayout}
             onValueChange={(type) => onChange({ ...question, type })}
           />
         </div>
@@ -223,7 +214,6 @@ export function DecisionModelQuestionCard({
 
         <CriteriaEditor
           question={question}
-          optionsLayout={optionsLayout}
           errors={errors}
           onChange={onChange}
         />

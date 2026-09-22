@@ -3,17 +3,16 @@ import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/pr
 import { buildScoreOutputDefinition } from "@/src/features/evals/v2/fns/scoreOutput/buildScoreOutputDefinition";
 import { buildEvaluatorVariableMappings } from "@/src/features/evals/v2/fns/variableMapping/buildEvaluatorVariableMappings";
 import type { EvaluatorSetupStoreState } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
-import {
-  buildDecisionModelDraftQuestions,
-  DECISION_MODEL_DRAFT_STATE_MAPPING,
-} from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import { buildDecisionModelStateFields } from "@/src/features/evals/v2/fns/variableMapping/buildDecisionModelStateFields";
 
 type EvaluatorSetupDraftState = Pick<
   EvaluatorSetupStoreState,
   | "type"
   | "name"
   | "promptMessages"
-  | "instructions"
+  | "questions"
+  | "stateKeys"
   | "sourceCode"
   | "sourceCodeLanguage"
   | "scoreOutput"
@@ -34,16 +33,32 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
           promptMessages: params.promptMessages,
           variableFields: params.variableFields,
         })
-      : [];
+      : params.type === "DECISION_MODEL"
+        ? buildDecisionModelStateFields({
+            stateKeys: params.stateKeys,
+            variableFields: params.variableFields,
+          })
+        : [];
 
   if (params.type === "DECISION_MODEL") {
-    const questions = buildDecisionModelDraftQuestions({
-      instructions: params.instructions,
-      scoreName: params.name,
-      scoreOutput: params.scoreOutput,
-    });
+    const questions = draftsToQuestions(params.questions);
+    // Every state key has to resolve to data, or the state the model sees
+    // would silently miss a field the questions refer to.
+    const variableMapping = mappings.flatMap(({ variable, fieldState }) =>
+      fieldState.selectedColumnId
+        ? [
+            {
+              templateVariable: variable,
+              selectedColumnId: fieldState.selectedColumnId,
+              jsonSelector: fieldState.jsonSelector,
+            },
+          ]
+        : [],
+    );
+    const stateComplete =
+      mappings.length > 0 && variableMapping.length === mappings.length;
     const definition =
-      questions && params.selectedModel
+      questions && params.selectedModel && stateComplete
         ? {
             type: params.type,
             questions,
@@ -51,7 +66,7 @@ export function prepareEvaluatorDraft(params: EvaluatorSetupDraftState) {
               provider: params.selectedModel.provider,
               model: params.selectedModel.model,
             },
-            variableMapping: DECISION_MODEL_DRAFT_STATE_MAPPING,
+            variableMapping,
           }
         : null;
     return { definition, mappings };

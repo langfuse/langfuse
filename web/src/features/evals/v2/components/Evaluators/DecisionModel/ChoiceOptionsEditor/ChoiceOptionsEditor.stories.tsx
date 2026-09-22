@@ -15,25 +15,8 @@ const OPTIONS = [
   { value: "unsafe", description: "" },
 ];
 
-export const Chips = meta.story({
-  args: { options: OPTIONS, layout: "chips", onChange: fn() },
-  render: (args) => {
-    const [options, setOptions] = useState(args.options);
-    return (
-      <ChoiceOptionsEditor
-        {...args}
-        options={options}
-        onChange={(next) => {
-          setOptions(next);
-          args.onChange(next);
-        }}
-      />
-    );
-  },
-});
-
-export const List = meta.story({
-  args: { options: OPTIONS, layout: "list", onChange: fn() },
+export const Default = meta.story({
+  args: { options: OPTIONS, onChange: fn() },
   render: (args) => {
     const [options, setOptions] = useState(args.options);
     return (
@@ -55,7 +38,6 @@ export const Error = meta.story({
       { value: "yes", description: "" },
       { value: "yes", description: "" },
     ],
-    layout: "chips",
     error: "Option labels must be unique.",
     onChange: fn(),
   },

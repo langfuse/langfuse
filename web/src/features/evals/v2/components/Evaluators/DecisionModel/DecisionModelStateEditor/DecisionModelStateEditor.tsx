@@ -2,9 +2,7 @@ import { useId, useMemo, useState } from "react";
 import { ChevronDown, Plus, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { EditableVariableMapping } from "@/src/features/evals/v2/components/VariableMapping/components/EditableVariableMapping/EditableVariableMapping";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
@@ -75,6 +73,7 @@ export function DecisionModelStateEditor({
   onRemoveField,
   sourceObject,
   hasMatchingObservations,
+  sourceUnavailableMessage,
 }: {
   fields: DecisionModelStateField[];
   activeMapping: ActiveVariableMapping;
@@ -84,6 +83,7 @@ export function DecisionModelStateEditor({
   onRemoveField: (key: string) => void;
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
+  sourceUnavailableMessage?: string;
 }) {
   const id = useId();
   const [newKey, setNewKey] = useState("");
@@ -107,22 +107,6 @@ export function DecisionModelStateEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <Label className="flex items-center gap-1.5">
-          State
-          <InfoTooltip label="About the state">
-            The model reads one JSON object per observation. Each field below
-            becomes a key in that object; the value is extracted from the
-            observation. Include only what the questions need: accuracy drops as
-            the state fills with material the questions do not use.
-          </InfoTooltip>
-        </Label>
-        <p className="text-muted-foreground text-xs">
-          Questions refer to these fields by name, e.g. “Does `input` request a
-          refund?”.
-        </p>
-      </div>
-
       <EditableVariableMapping
         mappings={fields.map((field) => ({
           variable: field.key,
@@ -135,6 +119,7 @@ export function DecisionModelStateEditor({
         onDeleteVariable={fields.length > 1 ? onRemoveField : undefined}
         sourceObject={sourceObject}
         hasMatchingObservations={hasMatchingObservations}
+        sourceUnavailableMessage={sourceUnavailableMessage}
       />
 
       <form

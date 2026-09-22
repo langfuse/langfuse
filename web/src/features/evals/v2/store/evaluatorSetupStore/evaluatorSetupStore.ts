@@ -21,7 +21,8 @@ import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import type { ScoreOutputFormState } from "@/src/features/evals/v2/scoreOutputTypes";
 import type { NormalizedEvaluatorDefinition } from "@/src/features/evals/v2/server/evaluators/evaluatorTypes";
 import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
-import { decisionModelQuestionsToDraft } from "@/src/features/evals/v2/fns/evaluators/decisionModelDraft";
+import { questionsToDrafts } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
+import type { DecisionModelQuestionDraft } from "@/src/features/evals/v2/types/decisionModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 
 const DEFAULT_PROMPT = `Evaluate the quality of the response.
@@ -29,25 +30,26 @@ const DEFAULT_PROMPT = `Evaluate the quality of the response.
 Input: {{input}}
 Response: {{output}}`;
 
-// Decision models see the observation fields as state, so the instructions
-// are a single question and the categories below are its possible answers.
-const DEFAULT_DECISION_MODEL_INSTRUCTIONS =
-  "Does the output answer the input accurately and completely?";
+/** The state a new decision-model evaluator starts from. */
+const DEFAULT_STATE_KEYS = ["input", "output"];
 
-const DEFAULT_DECISION_MODEL_SCORE_OUTPUT: ScoreOutputFormState = {
-  dataType: "CATEGORICAL",
-  scoreDescription: "",
-  reasoningDescription: "",
-  choices: [{ label: "pass" }, { label: "fail" }],
-  shouldAllowMultipleMatches: false,
-  minValue: "",
-  maxValue: "",
-};
+function buildInitialStateKeys(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): string[] {
+  return definition?.type === "DECISION_MODEL"
+    ? definition.vars
+    : DEFAULT_STATE_KEYS;
+}
 
 function buildInitialVariableFields(
   definition: NormalizedEvaluatorDefinition | null | undefined,
 ): Record<string, VariableFieldState> {
-  if (definition?.type !== "LLM_AS_JUDGE") return {};
+  if (
+    definition?.type !== "LLM_AS_JUDGE" &&
+    definition?.type !== "DECISION_MODEL"
+  ) {
+    return {};
+  }
 
   const parsed = observationVariableMappingList.safeParse(
     definition.variableMapping,
@@ -73,26 +75,29 @@ function buildInitialVariableFields(
 
 function buildInitialScoreOutput(
   definition: NormalizedEvaluatorDefinition | null | undefined,
-  type: EvalTemplateType,
 ): ScoreOutputFormState {
-  if (definition?.type === "LLM_AS_JUDGE") {
-    return toScoreOutputFormState(definition.outputDefinition);
-  }
-  if (definition?.type === "DECISION_MODEL") {
-    return (
-      decisionModelQuestionsToDraft(definition.questions)?.scoreOutput ??
-      DEFAULT_DECISION_MODEL_SCORE_OUTPUT
-    );
-  }
-  if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
-    return DEFAULT_DECISION_MODEL_SCORE_OUTPUT;
-  }
-  return toScoreOutputFormState(null);
+  return toScoreOutputFormState(
+    definition?.type === "LLM_AS_JUDGE" ? definition.outputDefinition : null,
+  );
+}
+
+function buildInitialQuestions(
+  definition: NormalizedEvaluatorDefinition | null | undefined,
+): DecisionModelQuestionDraft[] {
+  return definition?.type === "DECISION_MODEL"
+    ? questionsToDrafts(definition.questions)
+    : [];
 }
 
 type EvaluatorSetupStoreActions = {
   setType: (type: EvalTemplateType) => void;
-  setInstructions: (instructions: string) => void;
+  setQuestion: (question: DecisionModelQuestionDraft) => void;
+  addQuestion: (question: DecisionModelQuestionDraft) => void;
+  removeQuestion: (id: string) => void;
+  moveQuestion: (id: string, direction: -1 | 1) => void;
+  setExpandedQuestionId: (id: string | null) => void;
+  addStateKey: (key: string) => void;
+  removeStateKey: (key: string) => void;
   setPromptMessage: (index: number, message: EvaluatorPromptMessage) => void;
   addPromptMessage: () => void;
   removePromptMessage: (index: number) => void;
@@ -127,8 +132,11 @@ export type EvaluatorSetupStoreState = {
   promptMessages: EvaluatorPromptMessage[];
   /** Stable client-only ids used by drag-and-drop; never persisted. */
   promptMessageIds: string[];
-  /** Decision-model question instructions; persisted as the version prompt. */
-  instructions: string;
+  /** Decision-model questions, one score each. */
+  questions: DecisionModelQuestionDraft[];
+  expandedQuestionId: string | null;
+  /** Ordered keys of the decision-model state; each maps through `variableFields`. */
+  stateKeys: string[];
   sourceCode: string;
   sourceCodeLanguage: EvalTemplateSourceCodeLanguage;
   sourceCodeDrafts: Partial<Record<EvalTemplateSourceCodeLanguage, string>>;
@@ -200,23 +208,22 @@ export function createEvaluatorSetupStore({
   const hasModelSelection =
     initialDefinition?.type === "LLM_AS_JUDGE" ||
     initialDefinition?.type === "DECISION_MODEL";
+  const initialQuestions = buildInitialQuestions(initialDefinition);
 
   return createStore<EvaluatorSetupStoreState>((set) => ({
     initialDefinition,
     type,
     promptMessages: initialPromptMessages,
     promptMessageIds: initialPromptMessages.map(() => safeRandomUUID()),
-    instructions:
-      (initialDefinition?.type === "DECISION_MODEL"
-        ? decisionModelQuestionsToDraft(initialDefinition.questions)
-            ?.instructions
-        : undefined) ?? DEFAULT_DECISION_MODEL_INSTRUCTIONS,
+    questions: initialQuestions,
+    expandedQuestionId: initialQuestions[0]?.id ?? null,
+    stateKeys: buildInitialStateKeys(initialDefinition),
     sourceCode: initialSourceCode,
     sourceCodeLanguage: initialSourceCodeLanguage,
     sourceCodeDrafts: {
       [initialSourceCodeLanguage]: initialSourceCode,
     },
-    scoreOutput: buildInitialScoreOutput(initialDefinition, type),
+    scoreOutput: buildInitialScoreOutput(initialDefinition),
     name: initialEvaluator?.name ?? "",
     description: initialEvaluator?.description ?? "",
     openSteps: { 1: true, 2: true, 3: true },
@@ -250,18 +257,14 @@ export function createEvaluatorSetupStore({
       setType: (type) =>
         set((state) => {
           if (type === state.type) return state;
-          // Decision models always answer with one category; switching to one
-          // replaces a numeric or boolean output with a categorical default.
+          // Decision models have no project default, so a connection must be
+          // picked explicitly.
           if (type === EvalTemplateTypeEnum.DECISION_MODEL) {
             return {
               type,
               modelMode: "custom",
               selectedModel: null,
               modelParams: null,
-              scoreOutput:
-                state.scoreOutput.dataType === "CATEGORICAL"
-                  ? { ...state.scoreOutput, shouldAllowMultipleMatches: false }
-                  : DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
             };
           }
           // A decision-model connection cannot serve as an LLM judge, so the
@@ -276,7 +279,72 @@ export function createEvaluatorSetupStore({
           }
           return { type };
         }),
-      setInstructions: (instructions) => set({ instructions }),
+      setQuestion: (question) =>
+        set((state) => ({
+          questions: state.questions.map((current) =>
+            current.id === question.id ? question : current,
+          ),
+        })),
+      addQuestion: (question) =>
+        set((state) => ({
+          questions: [...state.questions, question],
+          expandedQuestionId: question.id,
+        })),
+      removeQuestion: (id) =>
+        set((state) => ({
+          questions: state.questions.filter((question) => question.id !== id),
+          expandedQuestionId:
+            state.expandedQuestionId === id ? null : state.expandedQuestionId,
+        })),
+      moveQuestion: (id, direction) =>
+        set((state) => {
+          const index = state.questions.findIndex(
+            (question) => question.id === id,
+          );
+          const target = index + direction;
+          if (index < 0 || target < 0 || target >= state.questions.length) {
+            return state;
+          }
+          const questions = [...state.questions];
+          const [question] = questions.splice(index, 1);
+          questions.splice(target, 0, question!);
+          return { questions };
+        }),
+      setExpandedQuestionId: (expandedQuestionId) =>
+        set({ expandedQuestionId }),
+      addStateKey: (key) =>
+        set((state) => {
+          if (state.stateKeys.includes(key)) return state;
+          const selectedColumnId =
+            inferDefaultMapping(key).selectedColumnId ?? null;
+          return {
+            stateKeys: [...state.stateKeys, key],
+            variableFields: {
+              ...state.variableFields,
+              [key]: { selectedColumnId, jsonSelector: null },
+            },
+            // Known names come pre-bound; anything else opens the field picker.
+            activeMapping: {
+              variable: key,
+              state: selectedColumnId ? "preview" : "editing",
+            },
+          };
+        }),
+      removeStateKey: (key) =>
+        set((state) => {
+          return {
+            stateKeys: state.stateKeys.filter((current) => current !== key),
+            variableFields: Object.fromEntries(
+              Object.entries(state.variableFields).filter(
+                ([variable]) => variable !== key,
+              ),
+            ),
+            activeMapping:
+              state.activeMapping?.variable === key
+                ? null
+                : state.activeMapping,
+          };
+        }),
       setPromptMessage: (index, message) =>
         set((state) => {
           const promptMessages = state.promptMessages.map((current, i) =>
@@ -406,13 +474,13 @@ export function createEvaluatorSetupStore({
               : null;
 
           if (definition.type === EvalTemplateTypeEnum.DECISION_MODEL) {
-            const draft = decisionModelQuestionsToDraft(definition.questions);
+            const questions = questionsToDrafts(definition.questions);
             return {
               type: definition.type,
-              instructions:
-                draft?.instructions ?? DEFAULT_DECISION_MODEL_INSTRUCTIONS,
-              scoreOutput:
-                draft?.scoreOutput ?? DEFAULT_DECISION_MODEL_SCORE_OUTPUT,
+              questions,
+              expandedQuestionId: questions[0]?.id ?? null,
+              stateKeys: buildInitialStateKeys(definition),
+              variableFields: buildInitialVariableFields(definition),
               activeMapping: null,
               modelMode: "custom",
               selectedModel,

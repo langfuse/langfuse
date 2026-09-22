@@ -43,11 +43,6 @@ export const DecisionModel = meta.story({
     isEditing: false,
     showDecisionModel: true,
     typeConfiguration: <button type="button">typesafe: jev-1.13.0</button>,
-    instructionsEditor: (
-      <div className="rounded-md border p-3">Question editor</div>
-    ),
-    scoreOutputEditor: (
-      <div className="rounded-md border p-3">Categorical score output</div>
-    ),
+    questionsEditor: <div className="rounded-md border p-3">Question list</div>,
   },
 });

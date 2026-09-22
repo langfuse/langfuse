@@ -1,3 +1,4 @@
+import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -7,8 +8,6 @@ import { Label } from "@/src/components/ui/label";
 import { RowActions } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/ChoiceOptionsEditor/ChoiceOptionsEditor";
 
 export type ScoreLevelDraft = { description: string };
-
-const MAX_LEVELS = 10;
 
 function levelPlaceholder(index: number, count: number) {
   if (index === 0) return "Lowest level, e.g. Calm, just stating facts";
@@ -56,7 +55,7 @@ export function ScoreLevelsEditor({
           (“moderately severe”). Two to ten levels.
         </InfoTooltip>
         <span className="text-muted-foreground text-xs font-normal">
-          {levels.length} of {MAX_LEVELS}
+          {levels.length} of {DECISION_MODEL_LIMITS.maxScoreLevels}
         </span>
       </Label>
       <ol className="flex flex-col gap-1.5">
@@ -80,7 +79,11 @@ export function ScoreLevelsEditor({
             <RowActions
               onUp={index > 0 ? () => move(index, -1) : null}
               onDown={index < levels.length - 1 ? () => move(index, 1) : null}
-              onDelete={levels.length > 2 ? () => remove(index) : null}
+              onDelete={
+                levels.length > DECISION_MODEL_LIMITS.minScoreLevels
+                  ? () => remove(index)
+                  : null
+              }
             />
           </li>
         ))}
@@ -90,7 +93,7 @@ export function ScoreLevelsEditor({
           type="button"
           variant="outline"
           size="sm"
-          disabled={levels.length >= MAX_LEVELS}
+          disabled={levels.length >= DECISION_MODEL_LIMITS.maxScoreLevels}
           onClick={() => onChange([...levels, { description: "" }])}
         >
           <Plus className="mr-1 h-3.5 w-3.5" />

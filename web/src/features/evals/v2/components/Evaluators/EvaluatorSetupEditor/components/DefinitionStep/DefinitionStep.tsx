@@ -27,8 +27,7 @@ type DefinitionStepContent =
   | {
       type: "DECISION_MODEL";
       typeConfiguration: ReactNode;
-      instructionsEditor: ReactNode;
-      scoreOutputEditor: ReactNode;
+      questionsEditor: ReactNode;
     };
 
 function DefinitionStepBody(props: DefinitionStepContent) {
@@ -43,12 +42,7 @@ function DefinitionStepBody(props: DefinitionStepContent) {
     case "CODE":
       return props.codeEditor;
     case "DECISION_MODEL":
-      return (
-        <>
-          {props.instructionsEditor}
-          {props.scoreOutputEditor}
-        </>
-      );
+      return props.questionsEditor;
   }
 }
 

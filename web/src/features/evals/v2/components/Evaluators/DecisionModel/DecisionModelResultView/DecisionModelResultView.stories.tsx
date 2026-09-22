@@ -1,45 +1,10 @@
 import preview from "../../../../../../../../.storybook/preview";
-import { DecisionModelResultPanel } from "./DecisionModelResultPanel";
+import { DecisionModelResultView } from "./DecisionModelResultView";
 
-const meta = preview.meta({ component: DecisionModelResultPanel });
-
-const REQUEST = {
-  state: {
-    input: "My order #4411 arrived broken and I want my money back.",
-    output:
-      "I'm sorry about that. I've issued a full refund for order #4411; it will show up within 3-5 business days.",
-  },
-  questions: {
-    send_readiness: {
-      type: "choice",
-      instructions: "Is `output` ready to send as an answer to `input`?",
-      criteria: {
-        ready: "Answers the request and states the next step.",
-        needs_revision: "Accurate but incomplete or unclear.",
-        unsafe: "Contradicts policy or invents information.",
-      },
-    },
-    customer_frustration: {
-      type: "score",
-      instructions: "How frustrated is the customer in `input`?",
-      criteria: [
-        "Calm, just stating facts",
-        "Frustrated but civil",
-        "Very angry, strong language or threatening to leave",
-      ],
-    },
-    refund_requested: {
-      type: "noul",
-      instructions: "Does `input` request a refund?",
-    },
-  },
-};
+const meta = preview.meta({ component: DecisionModelResultView });
 
 export const AllTypes = meta.story({
   args: {
-    model: "jev-1.13.0",
-    durationMs: 412,
-    request: REQUEST,
     results: [
       {
         questionId: "q1",
@@ -77,9 +42,6 @@ export const AllTypes = meta.story({
 
 export const LowConfidence = meta.story({
   args: {
-    model: "jev-1.13.0",
-    durationMs: 388,
-    request: REQUEST,
     results: [
       {
         questionId: "q1",

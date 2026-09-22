@@ -1,13 +1,13 @@
-import { DecisionModelQuestionType } from "@langfuse/shared";
+import {
+  DECISION_MODEL_LIMITS,
+  DecisionModelQuestionType,
+} from "@langfuse/shared";
 import { Plus, Sparkles } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Label } from "@/src/components/ui/label";
-import {
-  DecisionModelQuestionCard,
-  type DecisionModelQuestionCardProps,
-} from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionCard/DecisionModelQuestionCard";
+import { DecisionModelQuestionCard } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelQuestionCard/DecisionModelQuestionCard";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import type {
   DecisionModelQuestionDraft,
@@ -61,24 +61,6 @@ export const QUESTION_EXAMPLES: Record<
   },
 };
 
-export function createEmptyQuestion(
-  id: string,
-  type: DecisionModelQuestionType = DecisionModelQuestionType.CHOICE,
-): DecisionModelQuestionDraft {
-  return {
-    id,
-    type,
-    scoreName: "",
-    instructions: "",
-    options: [
-      { value: "", description: "" },
-      { value: "", description: "" },
-    ],
-    levels: [{ description: "" }, { description: "" }],
-    criteria: { true: "", false: "" },
-  };
-}
-
 /**
  * The ordered questions of a decision-model evaluator. Every question is
  * answered in the same call, so adding one costs only its own tokens; the
@@ -95,8 +77,6 @@ export function DecisionModelQuestionList({
   onAddExample,
   onRemove,
   onMove,
-  typeLayout,
-  optionsLayout,
 }: {
   questions: DecisionModelQuestionDraft[];
   expandedId: string | null;
@@ -108,7 +88,7 @@ export function DecisionModelQuestionList({
   onAddExample: (type: DecisionModelQuestionType) => void;
   onRemove: (id: string) => void;
   onMove: (id: string, direction: -1 | 1) => void;
-} & Pick<DecisionModelQuestionCardProps, "typeLayout" | "optionsLayout">) {
+}) {
   return (
     <div className="flex flex-col gap-3">
       <Label className="flex items-center gap-1.5">
@@ -119,7 +99,7 @@ export function DecisionModelQuestionList({
           or tenth question costs only its own tokens.
         </InfoTooltip>
         <span className="text-muted-foreground text-xs font-normal">
-          {questions.length} of 50
+          {questions.length} of {DECISION_MODEL_LIMITS.maxQuestions}
         </span>
       </Label>
 
@@ -170,8 +150,6 @@ export function DecisionModelQuestionList({
                   : null
               }
               errors={errorsById[question.id]}
-              typeLayout={typeLayout}
-              optionsLayout={optionsLayout}
             />
           ))}
         </div>
