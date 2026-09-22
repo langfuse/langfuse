@@ -123,6 +123,19 @@ describe("demo redirect page", () => {
     });
   });
 
+  it("falls back home when the session has no database user", async () => {
+    getServerAuthSessionMock.mockResolvedValue({
+      user: null,
+    });
+
+    await expect(getDemoServerSideProps(makeCtx())).resolves.toEqual({
+      redirect: {
+        destination: "/",
+        permanent: false,
+      },
+    });
+  });
+
   it("redirects unauthenticated users to sign up with the demo target", async () => {
     getServerAuthSessionMock.mockResolvedValue(null);
 

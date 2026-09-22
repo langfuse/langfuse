@@ -40,7 +40,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return redirect(demoProjectPath);
   }
 
-  if (session?.user) {
+  if (session) {
     return redirect("/");
   }
 
