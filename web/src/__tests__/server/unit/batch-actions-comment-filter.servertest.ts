@@ -113,25 +113,22 @@ function prepare({
         if (args?.select?.id) {
           return foundEvaluatorIds.map((id) => ({ id }));
         }
+        const llmPrompt = missingPromptVariable
+          ? "Evaluate {{output}} {{input}}"
+          : "Evaluate {{output}}";
         return foundEvaluatorIds.map((id) => ({
           id,
           name: "Quality",
           type: decisionModel ? "DECISION_MODEL" : "LLM_AS_JUDGE",
           versions: [
             {
-              prompt: decisionModel
-                ? null
-                : missingPromptVariable
-                  ? "Evaluate {{output}} {{input}}"
-                  : "Evaluate {{output}}",
+              prompt: decisionModel ? null : llmPrompt,
               promptMessages: decisionModel
                 ? null
                 : [
                     {
                       role: "user",
-                      content: missingPromptVariable
-                        ? "Evaluate {{output}} {{input}}"
-                        : "Evaluate {{output}}",
+                      content: llmPrompt,
                     },
                   ],
               vars: decisionModel ? ["input", "output"] : ["output"],
