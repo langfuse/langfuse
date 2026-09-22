@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { type CommentObjectType } from "@langfuse/shared";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
@@ -57,6 +57,7 @@ export function CommentDrawerController({
   const router = useRouter();
   const reviewPanel = useTraceReviewPanelOptional();
   const [store] = useState(createCommentOverlayStore);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const utils = api.useUtils();
   const hasReadAccess = useHasProjectAccess({
     projectId,
@@ -75,13 +76,13 @@ export function CommentDrawerController({
         disabled,
         openDrawer: (target) => {
           if (disabled) return;
+          triggerRef.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
           if (reviewPanel) {
             const actions = reviewPanel.getState().actions;
-            actions.rememberTrigger(
-              document.activeElement instanceof HTMLElement
-                ? document.activeElement
-                : null,
-            );
+            actions.rememberTrigger(triggerRef.current);
             actions.openComments({
               target,
               onCommentChange,
@@ -112,6 +113,14 @@ export function CommentDrawerController({
               overlay={overlay}
               projectId={projectId}
               onCommentChange={onCommentChange}
+              onCloseAutoFocus={(event) => {
+                event.preventDefault();
+                if (
+                  !store.getState().overlay?.isOpen &&
+                  triggerRef.current?.isConnected
+                )
+                  triggerRef.current.focus({ preventScroll: true });
+              }}
             />
           )}
         </CommentOverlayState>
