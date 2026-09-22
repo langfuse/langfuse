@@ -49,8 +49,13 @@ export type PageHeaderProps = {
    * `layout="menu"` variant of their actions here (mirrors the table peek's
    * `actionsMenu`). When omitted, the mobile header falls back to folding the
    * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
-   * `PageHeader` ignores this. */
-  actionButtonsMenu?: React.ReactNode;
+   * `PageHeader` ignores this. The render callback can hand off focus through the stable menu trigger
+   * before opening another panel, without delayed trigger focus restoration. */
+  actionButtonsMenu?:
+    | ReactNode
+    | ((control: {
+        closeMenu: (options?: { handoffFocus?: boolean }) => void;
+      }) => ReactNode);
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;

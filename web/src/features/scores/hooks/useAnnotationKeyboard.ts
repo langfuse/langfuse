@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import type {
   AnnotateFormSchemaType,
@@ -21,12 +21,48 @@ export function useAnnotationKeyboard({
   form,
   actions,
   targets,
+  isActive,
 }: {
   formRootRef: RefObject<HTMLDivElement | null>;
   form: UseFormReturn<AnnotateFormSchemaType>;
   actions: AnnotationFormActions;
   targets: PreparedAnnotationTarget[];
+  isActive: boolean;
 }) {
+  const focusFrame = useRef<number | null>(null);
+  const focus = useCallback(() => {
+    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    // Focus after panel layout, once the opening menu has released focus.
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      const root = formRootRef.current;
+      if (
+        !root?.isConnected ||
+        root.closest('[hidden], [inert], [data-state="closed"]') ||
+        hasBlockingOverlay(root)
+      )
+        return;
+      const active = document.activeElement;
+      if (
+        active instanceof HTMLElement &&
+        root.contains(active) &&
+        active.closest("[data-score-row], [data-add-score]")
+      )
+        return;
+      const entry = root.querySelector<HTMLElement>(
+        "[data-score-row], [data-add-score]:not(:disabled)",
+      );
+      (entry ?? root).focus();
+    });
+  }, [formRootRef]);
+
+  useEffect(() => {
+    if (isActive) focus();
+    return () => {
+      if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
+    };
+  }, [isActive, focus]);
+
   // Keyboard navigation uses real DOM focus with a
   // spreadsheet-style navigate-vs-edit split (single source of truth, one
   // outline, never trapped):
@@ -38,6 +74,7 @@ export function useAnnotationKeyboard({
   //  - `1`-`9`  pick the Nth option of the focused row (option rows only).
   // A focused text field owns its keys; an open popover/drawer suspends these.
   useEffect(() => {
+    if (!isActive) return;
     const targetFor = (field: AnnotationScoreSchemaType) =>
       targets.find((target) => target.key === field.targetKey)!;
     const configFor = (field: AnnotationScoreSchemaType | undefined) =>
@@ -234,7 +271,7 @@ export function useAnnotationKeyboard({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [actions, form, formRootRef, targets]);
+  }, [actions, form, formRootRef, targets, isActive]);
 
   // `Esc` leaves a focused score field (back to its row) without
   // dismissing a wrapping drawer. Vaul/Radix DismissableLayer listens for Esc on
@@ -243,6 +280,7 @@ export function useAnnotationKeyboard({
   // from closing. Scoped to fields inside this form (a portaled comment popover
   // is not inside the form root, so its own Esc-to-close still works).
   useEffect(() => {
+    if (!isActive) return;
     const onEscapeCapture = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       const root = formRootRef.current;
@@ -262,5 +300,7 @@ export function useAnnotationKeyboard({
     };
     window.addEventListener("keydown", onEscapeCapture, true);
     return () => window.removeEventListener("keydown", onEscapeCapture, true);
-  }, [formRootRef]);
+  }, [formRootRef, isActive]);
+
+  return focus;
 }

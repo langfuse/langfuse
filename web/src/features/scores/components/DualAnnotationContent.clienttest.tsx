@@ -24,6 +24,8 @@ import {
 } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
+import { cloneElement, createRef } from "react";
+import type { AnnotationRefreshHandle } from "../types";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -31,6 +33,8 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   capture: vi.fn(),
   headerRender: vi.fn(),
+  hasConfigAccess: false,
+  configsLoading: false,
 }));
 const defaultConfig = {
   id: "quality",
@@ -59,7 +63,9 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => false }));
+vi.mock("@/src/features/rbac", () => ({
+  useHasProjectAccess: () => mocks.hasConfigAccess,
+}));
 vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => mocks.capture,
@@ -72,8 +78,20 @@ vi.mock("@/src/utils/api", async () => {
   return {
     api: {
       scoreConfigs: {
-        all: { useQuery: () => ({ isLoading: false, data: { configs } }) },
+        all: {
+          useQuery: () => ({
+            isLoading: mocks.configsLoading,
+            data: { configs },
+          }),
+        },
+        appendCategory: {
+          useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+        },
       },
+      useUtils: () => ({
+        scoreConfigs: { invalidate: vi.fn() },
+        annotationQueues: { invalidate: vi.fn() },
+      }),
       scores: {
         createAnnotationScore: {
           useMutation: (
@@ -117,6 +135,33 @@ const content = (
   />
 );
 
+function serverQualityScore() {
+  return {
+    longStringValue: "",
+    executionTraceId: null,
+    datasetRunId: null,
+    id: "saved-quality",
+    configId: "quality",
+    name: "Quality",
+    source: "ANNOTATION",
+    dataType: "BOOLEAN",
+    value: 0,
+    stringValue: "False",
+    comment: "Saved comment",
+    traceId: "trace",
+    observationId: "observation",
+    projectId: "project",
+    timestamp: new Date(),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    metadata: {},
+    environment: "default",
+    queueId: null,
+    sessionId: null,
+    authorUserId: null,
+  } satisfies ScoreDomain;
+}
+
 function renderContent(children = content) {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
@@ -141,6 +186,8 @@ function renderContent(children = content) {
 describe("unified annotation targets", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.hasConfigAccess = false;
+    mocks.configsLoading = false;
     Element.prototype.scrollIntoView = vi.fn();
     localStorage.clear();
     localStorage.setItem(
@@ -196,6 +243,382 @@ describe("unified annotation targets", () => {
     expect(
       screen.queryByRole("group", { name: "Accuracy" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("focuses the first score on activation without taking focus on rerenders", async () => {
+    mocks.create.mockResolvedValue({});
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    const view = (isActive: boolean) => (
+      <>
+        <button>Outside annotation</button>
+        {cloneElement(content, { isActive, refreshRef })}
+      </>
+    );
+    const rendered = renderContent(view(false));
+    const outside = screen.getByRole("button", { name: "Outside annotation" });
+    outside.focus();
+    rendered.rerenderContent(view(true));
+    const row = screen.getByRole("group", { name: "Quality" });
+    await waitFor(() => expect(row).toHaveFocus());
+    fireEvent.keyDown(row, { key: "2" });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+    expect(row).toHaveFocus();
+
+    outside.focus();
+    rendered.rerenderContent(view(true));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(outside).toHaveFocus();
+    act(() => refreshRef.current?.focus());
+    await waitFor(() => expect(row).toHaveFocus());
+    outside.focus();
+    rendered.rerenderContent(view(false));
+    rendered.rerenderContent(view(true));
+    await waitFor(() => expect(row).toHaveFocus());
+  });
+
+  it("focuses a loaded empty form unless its drawer is closing", async () => {
+    localStorage.clear();
+    mocks.configsLoading = true;
+    const view = (state: "open" | "closed") => (
+      <>
+        <button>Outside annotation</button>
+        <div data-state={state}>{content}</div>
+      </>
+    );
+    const rendered = renderContent(view("open"));
+    expect(screen.queryByRole("button", { name: "Add score" })).toBeNull();
+    mocks.configsLoading = false;
+    rendered.rerenderContent(view("open"));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add score" })).toHaveFocus(),
+    );
+
+    mocks.configsLoading = true;
+    rendered.rerenderContent(view("closed"));
+    const outside = screen.getByRole("button", { name: "Outside annotation" });
+    outside.focus();
+    mocks.configsLoading = false;
+    rendered.rerenderContent(view("closed"));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(outside).toHaveFocus();
+  });
+
+  it("suspends score shortcuts while a shared action menu is open", async () => {
+    mocks.create.mockResolvedValue({});
+    const view = (menuOpen: boolean) => (
+      <>
+        {content}
+        {menuOpen && <div role="menu" aria-label="More actions" />}
+      </>
+    );
+    const rendered = renderContent(view(false));
+    const row = screen.getByRole("group", { name: "Quality" });
+    await waitFor(() => expect(row).toHaveFocus());
+    rendered.rerenderContent(view(true));
+    await act(async () => fireEvent.keyDown(row, { key: "2" }));
+    expect(mocks.create).not.toHaveBeenCalled();
+    rendered.rerenderContent(view(false));
+    row.focus();
+    fireEvent.keyDown(row, { key: "2" });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+  });
+
+  it("preserves inactive drafts without handling keyboard navigation until reopened", () => {
+    configs.push({
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: null,
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["quality", "feedback"]),
+    );
+    const rendered = renderContent();
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Keep this draft" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    fireEvent.keyDown(document.body, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(document.body);
+    expect(mocks.create).not.toHaveBeenCalled();
+    rendered.rerenderContent(content);
+    expect(screen.getByRole("textbox")).toHaveValue("Keep this draft");
+    fireEvent.keyDown(document.body, { key: "ArrowDown" });
+    expect(screen.getByRole("group", { name: "Feedback" })).toHaveFocus();
+  });
+
+  it.each(["picker", "row menu", "category"])(
+    "hides an open %s portal while annotation is inactive",
+    async (control) => {
+      if (control === "picker")
+        configs.push({ ...defaultConfig, id: "accuracy", name: "Accuracy" });
+      if (control === "category") {
+        configs.push({
+          ...defaultConfig,
+          id: "accuracy",
+          name: "Accuracy",
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "Fully correct", value: 1 },
+            { label: "Partly correct", value: 0 },
+          ],
+        });
+        localStorage.setItem(
+          "emptySelectedConfigIds:observation",
+          JSON.stringify(["accuracy"]),
+        );
+      }
+      const rendered = renderContent();
+      if (control === "row menu") {
+        fireEvent.keyDown(
+          screen.getByRole("button", { name: "Score actions for Quality" }),
+          { key: "ArrowDown" },
+        );
+        expect(await screen.findByRole("menu")).toBeVisible();
+      } else {
+        const trigger =
+          control === "picker"
+            ? screen.getByRole("button", { name: "Add score" })
+            : within(screen.getByRole("group", { name: "Accuracy" })).getByRole(
+                "combobox",
+              );
+        fireEvent.click(trigger);
+        expect(await screen.findByRole("listbox")).toBeVisible();
+      }
+      rendered.rerenderContent(cloneElement(content, { isActive: false }));
+      await waitFor(() => {
+        expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+        expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+      });
+      expect(mocks.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("refreshes clean scores on reopening while retaining text and score-comment drafts", async () => {
+    configs.push({
+      ...defaultConfig,
+      id: "feedback",
+      name: "Feedback",
+      dataType: "TEXT",
+      categories: undefined,
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["quality", "feedback"]),
+    );
+    const score = serverQualityScore();
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...score, metadata: "{}" }],
+        refreshRef,
+      }),
+    );
+    const quality = screen.getByRole("group", { name: "Quality" });
+    const feedback = within(
+      screen.getByRole("group", { name: "Feedback" }),
+    ).getByRole("textbox");
+    fireEvent.change(feedback, { target: { value: "Unsent feedback" } });
+    fireEvent.click(within(quality).getByTitle("Add or view score comment"));
+    const comment = await within(screen.getByRole("dialog")).findByRole(
+      "textbox",
+    );
+    fireEvent.change(comment, { target: { value: "Unsent score comment" } });
+    act(() =>
+      refreshRef.current?.refresh({
+        scoreTarget: {
+          type: "trace",
+          traceId: "trace",
+          observationId: "observation",
+        },
+        scoreMetadata: { projectId: "project" },
+        analyticsData: { type: "trace", source: "TraceDetail", isV4: true },
+        scores: [
+          {
+            ...score,
+            metadata: "{}",
+            value: 1,
+            stringValue: "True",
+            comment: "Updated remotely",
+          },
+        ],
+        companionTrace: {
+          environment: "default",
+          scores: [
+            {
+              ...score,
+              metadata: "{}",
+              id: "trace-quality",
+              observationId: null,
+              value: 1,
+              stringValue: "True",
+            },
+          ],
+        },
+      }),
+    );
+    expect(
+      within(screen.getByRole("group", { name: "Quality (Trace)" })).getByRole(
+        "radio",
+        { name: /True/ },
+      ),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      within(quality).getByRole("radio", { name: /True/ }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(feedback).toHaveValue("Unsent feedback");
+    expect(comment).toHaveValue("Unsent score comment");
+    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("retains pending and just-saved values across lagging refreshes, then accepts acknowledged external edits", async () => {
+    const score = serverQualityScore();
+    const pending = deferred();
+    mocks.update.mockReturnValueOnce(pending.promise);
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    renderContent(
+      cloneElement(content, {
+        observationScores: [{ ...score, metadata: "{}" }],
+        refreshRef,
+      }),
+    );
+    const row = screen.getByRole("group", { name: "Quality" });
+    const refresh = (value: number, scoresPresent = true) =>
+      act(() =>
+        refreshRef.current?.refresh({
+          scoreTarget: {
+            type: "trace",
+            traceId: "trace",
+            observationId: "observation",
+          },
+          scoreMetadata: { projectId: "project" },
+          analyticsData: { type: "trace", source: "TraceDetail", isV4: true },
+          scores: scoresPresent
+            ? [
+                {
+                  ...score,
+                  metadata: "{}",
+                  value,
+                  stringValue: value ? "True" : "False",
+                },
+              ]
+            : [],
+          companionTrace: { environment: "default", scores: [] },
+        }),
+      );
+    fireEvent.click(within(row).getByRole("radio", { name: /True/ }));
+    await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await act(async () => pending.resolve({}));
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /True/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    refresh(1);
+    refresh(0);
+    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    refresh(0, false);
+    expect(within(row).getByRole("radio", { name: /False/ })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    expect(mocks.update).toHaveBeenCalledOnce();
+
+    refresh(0);
+    const clearing = deferred();
+    mocks.remove.mockReturnValueOnce(clearing.promise);
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Score actions for Quality" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Clear score" }),
+    );
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledOnce());
+    await act(async () => clearing.resolve({}));
+    fireEvent.keyDown(
+      screen.getByRole("button", { name: "Score actions for Quality" }),
+      { key: "ArrowDown" },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Remove score" }),
+    );
+    refresh(0);
+    expect(
+      screen.queryByRole("group", { name: "Quality" }),
+    ).not.toBeInTheDocument();
+
+    refresh(1);
+    expect(screen.getByRole("radio", { name: /True/ })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
+  it("hides the score comment portal without losing its unsaved draft", async () => {
+    mocks.create.mockResolvedValue({});
+    const rendered = renderContent();
+    fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Saved"),
+    );
+    fireEvent.click(screen.getByTitle("Add or view score comment"));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "Unsent score comment" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    await waitFor(() =>
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument(),
+    );
+    rendered.rerenderContent(content);
+    expect(await screen.findByRole("textbox")).toHaveValue(
+      "Unsent score comment",
+    );
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("retains an unfinished new category while its annotation panel is inactive", async () => {
+    mocks.hasConfigAccess = true;
+    configs.push({
+      ...defaultConfig,
+      id: "accuracy",
+      name: "Accuracy",
+      dataType: "CATEGORICAL",
+      categories: [{ label: "Good", value: 1 }],
+    });
+    localStorage.setItem(
+      "emptySelectedConfigIds:observation",
+      JSON.stringify(["accuracy"]),
+    );
+    const rendered = renderContent();
+    fireEvent.click(screen.getByRole("button", { name: "Add new category" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Category name" }), {
+      target: { value: "Needs follow-up" },
+    });
+    rendered.rerenderContent(cloneElement(content, { isActive: false }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Add category" }),
+      ).not.toBeInTheDocument(),
+    );
+    rendered.rerenderContent(content);
+    expect(
+      await screen.findByRole("textbox", { name: "Category name" }),
+    ).toHaveValue("Needs follow-up");
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it("chooses a target before the first save and cannot change it during or after saving", async () => {

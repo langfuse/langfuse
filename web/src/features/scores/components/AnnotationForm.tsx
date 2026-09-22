@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Settings2 } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -43,6 +43,7 @@ import type {
   PreparedAnnotationTarget,
   ScoreTarget,
   AnnotationForm as AnnotationFormType,
+  AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
 
 function AnnotateHeader({
@@ -92,9 +93,13 @@ const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
 export function AnnotationFormContent({
   targets,
   actionButtons,
+  isActive = true,
+  refreshRef,
 }: {
   targets: PreparedAnnotationTarget[];
   actionButtons?: React.ReactNode;
+  isActive?: boolean;
+  refreshRef?: React.Ref<AnnotationRefreshHandle>;
 }) {
   const capture = usePostHogClientCapture();
   const primaryTarget = targets[0]!;
@@ -132,13 +137,44 @@ export function AnnotationFormContent({
       deleteScore: deleteMutation.mutateAsync,
     }),
   );
+  const formRootRef = useRef<HTMLDivElement | null>(null);
+  const focus = useAnnotationKeyboard({
+    formRootRef,
+    form,
+    actions,
+    targets,
+    isActive,
+  });
+  useImperativeHandle(refreshRef, () => ({
+    focus,
+    refresh(data) {
+      const refreshed = targets.flatMap((target) => {
+        const primary =
+          target.scoreTarget.type === data.scoreTarget.type &&
+          (target.scoreTarget.type !== "trace" ||
+            data.scoreTarget.type !== "trace" ||
+            target.scoreTarget.observationId ===
+              data.scoreTarget.observationId);
+        const scores = primary ? data.scores : data.companionTrace?.scores;
+        if (!scores) return [];
+        const selected = form
+          .getValues("scoreData")
+          .filter((field) => field.targetKey === target.key)
+          .map((field) => field.configId);
+        return prepareAnnotationFormData(
+          transformToAnnotationScores(scores, target.configControl.configs),
+          target.configControl.configs,
+          selected,
+        ).map((field) => ({ ...field, targetKey: target.key }));
+      });
+      actions.reconcileServerFields(refreshed);
+    },
+  }));
   // The analytics session follows the mounted form, not query refetches.
   useEffect(() => {
     actions.open();
     return () => actions.close();
   }, [actions]);
-  const formRootRef = useRef<HTMLDivElement | null>(null);
-  useAnnotationKeyboard({ formRootRef, form, actions, targets });
 
   const targetFor = (field: AnnotationScoreSchemaType) =>
     targets.find((target) => target.key === field.targetKey)!;
@@ -187,6 +223,7 @@ export function AnnotationFormContent({
     <div
       ref={formRootRef}
       data-annotation-form
+      tabIndex={-1}
       className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
     >
       <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
@@ -244,6 +281,7 @@ export function AnnotationFormContent({
             return config ? (
               <AnnotationScoreRow
                 key={field.id}
+                isActive={isActive}
                 onRemove={() => {
                   if (actions.isSaving(annotationFieldKey(field))) return;
                   getScoreConfigSelection({
@@ -288,7 +326,7 @@ export function AnnotationFormContent({
             ) : null;
           })}
         </div>
-        {allowManualSelection ? (
+        {allowManualSelection && isActive ? (
           <div>
             <PopoverController
               align="start"
@@ -333,12 +371,12 @@ export function AnnotationFormContent({
               {({ Trigger, disabled }) => (
                 <Trigger asChild>
                   <Button
+                    data-add-score
                     type="button"
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs"
                     disabled={disabled}
-                    data-add-score
                   >
                     <Plus className="size-3.5" aria-hidden="true" />
                     Add score
@@ -460,6 +498,8 @@ export function AnnotationForm<Target extends ScoreTarget>(
       key={target.key}
       targets={[target]}
       actionButtons={props.actionButtons}
+      isActive={props.isActive}
+      refreshRef={props.refreshRef}
     />
   );
 }
