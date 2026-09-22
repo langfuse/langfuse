@@ -170,7 +170,7 @@ export const HeaderControlsOnHover = meta.story({
     await userEvent.unhover(message);
     await waitFor(() => expect(copyButton).not.toBeVisible());
 
-    await userEvent.hover(message);
+    copyButton.focus();
     await waitFor(() => expect(copyButton).toBeVisible());
   },
 });

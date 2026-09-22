@@ -169,14 +169,15 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      // Most presets stretch to their fixed tile. Score Analytics is measured
-      // by the grid because each selected score adds another chart row.
-      className: "min-h-full",
+      // Fixed presets need a definite height so their flex children can grow.
+      // Score Analytics is measured because each selected score adds a row.
+      className: heightBehavior.mode === "content" ? "min-h-full" : "h-full",
     };
   }, [
     dashboardId,
     dateRange,
     filterState,
+    heightBehavior.mode,
     metricsVersion,
     projectId,
     schedulerId,
