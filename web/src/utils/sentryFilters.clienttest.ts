@@ -9,6 +9,7 @@ import {
   isReactDevtoolsInternalEvent,
   isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
+  isWitnessAiLogBeaconEvent,
 } from "@/src/utils/sentryFilters";
 
 /**
@@ -2654,6 +2655,132 @@ describe("isKitesurfInternalEvent", () => {
     it("does not let the generic denylist swallow this TypeError on its own", () => {
       expect(
         isDenylistedNoiseEvent(exceptionEvent(PROXY_TYPEERROR, "TypeError")),
+      ).toBe(false);
+    });
+  });
+});
+
+describe("isWitnessAiLogBeaconEvent", () => {
+  const HTTP_401 = "HTTP error! status: 401";
+  const DOC_SIGN_IN = "app:///:2";
+  const DOC_ONBOARDING = "app:///onboarding";
+
+  function witnessAiEvent(
+    value: string,
+    frames: { filename: string; function?: string }[],
+    mechanism = "auto.browser.global_handlers.onunhandledrejection",
+  ): ErrorEvent {
+    return {
+      exception: {
+        values: [
+          {
+            type: "Error",
+            value,
+            mechanism: { type: mechanism, handled: false },
+            stacktrace: { frames },
+          },
+        ],
+      },
+    } as ErrorEvent;
+  }
+
+  describe("drops WitnessAI LogBeacon collector HTTP errors", () => {
+    it("drops the document-attributed 401 on sign-in (LANGFUSE-624)", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent(HTTP_401, [
+            frame(DOC_SIGN_IN, "async t.LogBeacon.forceFlush"),
+            frame(DOC_SIGN_IN, "async t.LogBeacon.tryFlush"),
+            frame(DOC_SIGN_IN, "t.JSLoggerClient.fetch"),
+            frame(DOC_SIGN_IN, "t.JSLoggerClient.checkStatus"),
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same 401 on the onboarding document (LANGFUSE-625)", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent(HTTP_401, [
+            frame(DOC_ONBOARDING, "t.LogBeacon.forceFlush"),
+            frame(DOC_ONBOARDING, "t.JSLoggerClient.checkStatus"),
+          ]),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops other collector HTTP statuses from the same stack", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent("HTTP error! status: 403", [
+            frame(DOC_SIGN_IN, "t.JSLoggerClient.checkStatus"),
+          ]),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("KEEPS real errors (never masks a genuine app error)", () => {
+    it("keeps the same 401 message without LogBeacon / JSLoggerClient frames", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent(HTTP_401, [
+            frame("app:///_next/static/chunks/app.js", "savePrompt"),
+          ]),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a LogBeacon stack that also has a first-party /_next/ frame", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent(HTTP_401, [
+            frame(DOC_SIGN_IN, "t.JSLoggerClient.checkStatus"),
+            frame(
+              "app:///_next/static/chunks/0r47ep231kqhy.js",
+              "handleSubmit",
+            ),
+          ]),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured exception that quotes the phrase", () => {
+      expect(
+        isWitnessAiLogBeaconEvent(
+          witnessAiEvent(
+            HTTP_401,
+            [frame(DOC_SIGN_IN, "t.JSLoggerClient.checkStatus")],
+            "generic",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a console-captured 401 with no vendor function names", () => {
+      expect(isWitnessAiLogBeaconEvent(exceptionEvent(HTTP_401))).toBe(false);
+    });
+
+    it("does not let the generic denylist swallow this 401 on its own", () => {
+      expect(isDenylistedNoiseEvent(exceptionEvent(HTTP_401))).toBe(false);
+    });
+
+    it("keeps events with no stacktrace", () => {
+      expect(
+        isWitnessAiLogBeaconEvent({
+          exception: {
+            values: [
+              {
+                type: "Error",
+                value: HTTP_401,
+                mechanism: {
+                  type: "auto.browser.global_handlers.onunhandledrejection",
+                  handled: false,
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
       ).toBe(false);
     });
   });
