@@ -1,4 +1,7 @@
+import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
+
 import { Badge } from "@/src/components/ui/badge";
+import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -103,6 +106,7 @@ function ScoreDistribution({
   const top = Math.max(levels.length - 1, 1);
   const nearest = Math.min(Math.max(Math.round(score), 0), levels.length - 1);
   const position = Math.min(Math.max(score / top, 0), 1) * 100;
+  const showDescriptions = levels.length < DECISION_MODEL_LIMITS.maxScoreLevels;
   return (
     <div className="flex flex-col gap-2">
       <div className="relative pt-4">
@@ -136,12 +140,20 @@ function ScoreDistribution({
               index === nearest ? "" : "text-muted-foreground",
             )}
           >
-            <span className="font-mono">
-              {index} · {percent(probabilities[String(index)] ?? 0)}
+            <span className="flex items-center gap-0.5 font-mono">
+              {index}
+              {!showDescriptions ? (
+                <InfoTooltip label={`Level ${index} description`}>
+                  {description}
+                </InfoTooltip>
+              ) : null}
+              · {percent(probabilities[String(index)] ?? 0)}
             </span>
-            <span className="line-clamp-2" title={description}>
-              {description}
-            </span>
+            {showDescriptions ? (
+              <span className="line-clamp-2" title={description}>
+                {description}
+              </span>
+            ) : null}
           </li>
         ))}
       </ol>
