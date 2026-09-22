@@ -303,6 +303,17 @@ describe("unified annotation targets", () => {
     expect(outside).toHaveFocus();
   });
 
+  it("shows the annotation guidance inline when no scores are selected", () => {
+    localStorage.clear();
+    renderContent();
+
+    expect(
+      screen.getByText(
+        "Annotate the trace and observation with scores to capture human evaluation across different dimensions.",
+      ),
+    ).toBeVisible();
+  });
+
   it("suspends score shortcuts while a shared action menu is open", async () => {
     mocks.create.mockResolvedValue({});
     const view = (menuOpen: boolean) => (

@@ -608,7 +608,14 @@ export const SessionPage: React.FC<{
                       ) : (
                         <>
                           <MessageSquare className="h-4 w-4" />
-                          <span>Comments</span>
+                          <span>
+                            {getNumberFromMap(
+                              sessionCommentCounts.data,
+                              sessionId,
+                            )
+                              ? "Comments"
+                              : "Comment"}
+                          </span>
                           {getNumberFromMap(
                             sessionCommentCounts.data,
                             sessionId,
@@ -1667,7 +1674,14 @@ const LoadedSessionEventsPage: React.FC<{
                       ) : (
                         <>
                           <MessageSquare className="h-4 w-4" />
-                          <span>Comments</span>
+                          <span>
+                            {getNumberFromMap(
+                              sessionCommentCounts.data,
+                              sessionId,
+                            )
+                              ? "Comments"
+                              : "Comment"}
+                          </span>
                           {getNumberFromMap(
                             sessionCommentCounts.data,
                             sessionId,

@@ -53,16 +53,20 @@ function AnnotateHeader({
 }: {
   saveStatus: React.ReactNode;
   actionButtons: React.ReactNode;
-  description: string;
+  description?: string;
 }) {
   return (
     <Header
       title="Annotate"
-      help={{
-        description,
-        href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
-        className: "leading-relaxed",
-      }}
+      help={
+        description
+          ? {
+              description,
+              href: "https://langfuse.com/docs/evaluation/evaluation-methods/annotation",
+              className: "leading-relaxed",
+            }
+          : undefined
+      }
       actionButtons={[
         <React.Fragment key="annotation-save-status">
           {saveStatus}
@@ -264,7 +268,7 @@ export function AnnotationFormContent({
               {actionButtons}
             </>
           }
-          description={description}
+          description={rowCount > 0 ? description : undefined}
         />
       </div>
       {/* No real submit: scores save per-field. Prevent the browser's implicit
@@ -274,6 +278,11 @@ export function AnnotationFormContent({
         className="flex flex-col gap-4"
         onSubmit={(e) => e.preventDefault()}
       >
+        {rowCount === 0 ? (
+          <p className="text-muted-foreground max-w-sm text-sm leading-relaxed">
+            {description}
+          </p>
+        ) : null}
         <div className="grid grid-flow-row gap-2.5">
           {fields.map((field, index) => {
             const target = targetFor(field);
