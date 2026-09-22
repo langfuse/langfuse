@@ -1,11 +1,12 @@
 /* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
-import { Code2, Search, Sparkles } from "lucide-react";
+import { Code2, Scale, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
 import type {
@@ -53,6 +54,7 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
+  decisionModel,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -71,6 +73,15 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
+  /**
+   * Discoverability of the experimental decision-model type; absent while
+   * the feature flag is off. `pill` is the accent on the header button,
+   * `banner` shows a dismissible launch callout above the sections.
+   */
+  decisionModel?: {
+    pill: "New" | "Jev" | null;
+    banner?: { onDismiss: () => void };
+  };
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -169,10 +180,37 @@ export function EvaluatorGalleryView({
                   <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
                   New code evaluator
                 </Button>
+                {decisionModel ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
+                    title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                    onClick={() =>
+                      onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                    }
+                  >
+                    <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                    New decision model
+                    {decisionModel.pill ? (
+                      <span className="bg-primary-accent text-primary-foreground rounded-full px-1.5 py-px text-[10px] leading-none font-bold">
+                        {decisionModel.pill}
+                      </span>
+                    ) : null}
+                  </Button>
+                ) : null}
               </div>
             </div>
 
             <div className="flex flex-col gap-10 px-4 py-4">
+              {decisionModel?.banner ? (
+                <EvaluatorGalleryDecisionModelBanner
+                  onTry={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                  onDismiss={decisionModel.banner.onDismiss}
+                />
+              ) : null}
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (
                 <div className="text-destructive py-8 text-center text-sm">

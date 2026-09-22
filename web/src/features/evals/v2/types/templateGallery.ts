@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import type {
+  DecisionModelQuestions,
   EvalTemplateSourceCodeLanguage,
   EvalTemplateType,
   EvaluatorPromptMessage,
@@ -35,6 +36,12 @@ export type ManagedTemplate = {
         type: Extract<EvalTemplateType, "CODE">;
         language: EvalTemplateSourceCodeLanguage;
         source: string;
+      }
+    | {
+        type: Extract<EvalTemplateType, "DECISION_MODEL">;
+        questions: DecisionModelQuestions;
+        /** The state keys and the observation field each starts from. */
+        state: Array<{ key: string; defaultMapping: { field: string } }>;
       };
 };
 

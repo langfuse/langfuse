@@ -91,7 +91,25 @@ function managedTemplateId(key: string) {
   return `${MANAGED_TEMPLATE_ID_PREFIX}${key}`;
 }
 
-function toLegacyManagedTemplate(template: ManagedTemplate) {
+/** Decision-model templates exist only in the v2 setup; the legacy editor cannot run them. */
+type LegacyManagedTemplate = ManagedTemplate & {
+  evaluator: Exclude<
+    ManagedTemplate["evaluator"],
+    { type: typeof EvalTemplateType.DECISION_MODEL }
+  >;
+};
+
+function isLegacyManagedTemplate(
+  template: ManagedTemplate,
+): template is LegacyManagedTemplate {
+  return template.evaluator.type !== EvalTemplateType.DECISION_MODEL;
+}
+
+function legacyManagedTemplates(): LegacyManagedTemplate[] {
+  return MANAGED_TEMPLATES_CATALOG.templates.filter(isLegacyManagedTemplate);
+}
+
+function toLegacyManagedTemplate(template: LegacyManagedTemplate) {
   const now = new Date(0);
   if (template.evaluator.type === EvalTemplateType.CODE) {
     return {
@@ -203,7 +221,7 @@ type LlmEvaluatorVariableMapping = Extract<
 >["variableMapping"];
 
 function definitionFromManagedTemplate(
-  template: ManagedTemplate,
+  template: LegacyManagedTemplate,
   variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition {
   if (template.evaluator.type === EvalTemplateType.CODE) {
@@ -408,7 +426,7 @@ type ManagedCatalogEntry = {
 };
 
 function runnableManagedCatalog(): ManagedCatalogEntry[] {
-  return MANAGED_TEMPLATES_CATALOG.templates
+  return legacyManagedTemplates()
     .map((template) => ({
       template: toLegacyManagedTemplate(template),
       definition: definitionFromManagedTemplate(template, null),
@@ -897,7 +915,7 @@ export class LegacyEvalCompatibilityService {
   }
 
   listManagedTemplates() {
-    return MANAGED_TEMPLATES_CATALOG.templates
+    return legacyManagedTemplates()
       .map(toLegacyManagedTemplate)
       .filter(isRunnableTemplate);
   }
@@ -921,7 +939,7 @@ export class LegacyEvalCompatibilityService {
   async getTemplate(projectId: string, templateId: string) {
     if (templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       if (!template) return null;
@@ -948,7 +966,7 @@ export class LegacyEvalCompatibilityService {
   }) {
     if (params.templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = params.templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       return template
@@ -1234,9 +1252,7 @@ export class LegacyEvalCompatibilityService {
           ? params.intent.cloneSourceId.slice(MANAGED_TEMPLATE_ID_PREFIX.length)
           : null;
         const source = key
-          ? MANAGED_TEMPLATES_CATALOG.templates.find(
-              (candidate) => candidate.key === key,
-            )
+          ? legacyManagedTemplates().find((candidate) => candidate.key === key)
           : undefined;
         if (!source) {
           throw new LangfuseNotFoundError(
