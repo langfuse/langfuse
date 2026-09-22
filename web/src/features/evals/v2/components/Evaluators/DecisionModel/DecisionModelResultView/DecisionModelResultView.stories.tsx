@@ -62,3 +62,35 @@ export const LowConfidence = meta.story({
     ],
   },
 });
+
+/** Expected values at both ends of the scale keep their labels inside the track. */
+export const ScoreAtEdges = meta.story({
+  args: {
+    results: [
+      {
+        questionId: "q1",
+        type: "score",
+        scoreName: "customer_frustration",
+        instructions: "How frustrated is the customer in `input`?",
+        score: 0,
+        levels: [
+          "Calm, just stating facts",
+          "Frustrated but civil",
+          "Very angry",
+        ],
+        probabilities: { "0": 1, "1": 0, "2": 0 },
+        confidence: 1,
+      },
+      {
+        questionId: "q2",
+        type: "score",
+        scoreName: "urgency",
+        instructions: "How urgent is `input`?",
+        score: 2,
+        levels: ["Can wait", "This week", "Right now"],
+        probabilities: { "0": 0, "1": 0, "2": 1 },
+        confidence: 1,
+      },
+    ],
+  },
+});
