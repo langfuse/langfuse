@@ -106,50 +106,48 @@ function OptionContent({
   label,
   secondaryLabel,
   title,
-  indicator,
-  indicatorPosition,
+  type,
+  checked,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
   title: string;
-  indicator: ReactNode;
-  indicatorPosition: "start" | "end";
+  type: "checkbox" | "checkmark";
+  checked: boolean;
 }) {
   return (
     <>
-      {indicatorPosition === "start" && indicator}
       <span className="min-w-0 flex-1 truncate" title={title}>
         {label}
         {secondaryLabel && (
           <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
         )}
       </span>
-      {indicatorPosition === "end" && (
-        <span className="flex size-3.5 shrink-0 items-center justify-center">
-          {indicator}
-        </span>
-      )}
+      <span
+        className={cn(
+          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+          type === "checkbox" && "order-first",
+        )}
+      >
+        {type === "checkbox" ? (
+          <Checkbox
+            checked={checked}
+            size="sm"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        ) : (
+          <Check
+            aria-hidden="true"
+            className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+          />
+        )}
+      </span>
     </>
   );
 }
 
-function CheckIndicator({ checked }: { checked: boolean }) {
-  return (
-    <Check className={cn("size-4", checked ? "opacity-100" : "opacity-0")} />
-  );
-}
-
-function CheckboxIndicator({ checked }: { checked: boolean }) {
-  return (
-    <span className="pointer-events-none flex shrink-0 items-center">
-      <Checkbox checked={checked} size="sm" tabIndex={-1} aria-hidden="true" />
-    </span>
-  );
-}
-
 export const InputDropdown = {
-  CheckboxIndicator,
-  CheckIndicator,
   Content,
   Empty,
   List,

@@ -126,12 +126,8 @@ function MultiSelectInputInner<V extends string>(
                                 label={option.label}
                                 title={option.label}
                                 secondaryLabel={option.secondaryLabel}
-                                indicatorPosition="start"
-                                indicator={
-                                  <InputDropdown.CheckboxIndicator
-                                    checked={isSelected}
-                                  />
-                                }
+                                type="checkbox"
+                                checked={isSelected}
                               />
                             </CommandPrimitive.Item>
                           </InputDropdown.Option>
