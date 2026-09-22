@@ -303,6 +303,17 @@ describe("unified annotation targets", () => {
     expect(outside).toHaveFocus();
   });
 
+  it("shows the annotation guidance inline when no scores are selected", () => {
+    localStorage.clear();
+    renderContent();
+
+    expect(
+      screen.getByText(
+        "Annotate the trace and observation with scores to capture human evaluation across different dimensions.",
+      ),
+    ).toBeVisible();
+  });
+
   it("suspends score shortcuts while a shared action menu is open", async () => {
     mocks.create.mockResolvedValue({});
     const view = (menuOpen: boolean) => (
@@ -810,7 +821,7 @@ describe("unified annotation targets", () => {
       1,
     );
     expect(
-      screen.queryByText(/Score data saved|^Saved$/),
+      screen.queryByRole("status", { name: "Score save status" }),
     ).not.toBeInTheDocument();
     const observationRow = screen.getByRole("group", {
       name: "Quality (Observation)",
@@ -1133,7 +1144,9 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
     fireEvent.blur(input);
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Score save status" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not delete a saved score for Firefox badInput and recovers from number and range errors", async () => {

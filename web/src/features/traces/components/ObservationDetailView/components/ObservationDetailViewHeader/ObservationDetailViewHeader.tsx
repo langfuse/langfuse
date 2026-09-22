@@ -102,6 +102,11 @@ export const ObservationDetailViewHeader = memo(
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
     const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
+    const commentActionLabel = commentCount ? "Comments" : "Comment";
+    const mobileCommentActionLabel =
+      commentCount && !commentDrawerControl.disabled
+        ? `${commentActionLabel} (${commentCount})`
+        : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
 
@@ -276,10 +281,7 @@ export const ObservationDetailViewHeader = memo(
                               {
                                 type: "item",
                                 id: "comments",
-                                title:
-                                  !commentDrawerControl.disabled && commentCount
-                                    ? `Comments (${commentCount})`
-                                    : "Comments",
+                                title: mobileCommentActionLabel,
                                 icon: commentDrawerControl.disabled
                                   ? MessageSquareOff
                                   : MessageSquare,
@@ -427,7 +429,7 @@ export const ObservationDetailViewHeader = memo(
                 ) : (
                   <>
                     <MessageSquare className="h-3.5 w-3.5" />
-                    <span>Comments</span>
+                    <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}

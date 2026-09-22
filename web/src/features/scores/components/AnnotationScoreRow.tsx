@@ -236,7 +236,7 @@ export function AnnotationScoreRow({
         role="group"
         aria-label={showTarget ? `${score.name} (${target.label})` : score.name}
         className={cn(
-          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
+          "group grid w-full grid-cols-[minmax(0,1fr)_minmax(0,2fr)] items-center gap-3 rounded-md py-1 text-left transition-colors outline-none",
           "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
         )}
       >
