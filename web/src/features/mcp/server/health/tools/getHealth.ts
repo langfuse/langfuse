@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { runHealthCheck } from "@/src/features/public-api/server";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
+import {
+  runHealthCheck,
+  __dangerouslySkipAuthz,
+} from "@/src/features/public-api/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 

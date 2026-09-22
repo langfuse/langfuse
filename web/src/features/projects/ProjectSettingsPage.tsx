@@ -10,32 +10,34 @@ import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer"
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
+import {
+  useHasProjectAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { PostHogLogo } from "@/src/components/PosthogLogo";
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import { Card } from "@/src/components/ui/card";
 import { TransferProjectDialogController } from "@/src/features/projects/components/TransferProjectDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { ActionButton } from "@/src/components/ActionButton";
 import { BatchExportsSettingsPage } from "@/src/features/batch-exports/components/BatchExportsSettingsPage";
-import { BatchActionsSettingsPage } from "@/src/features/batch-actions/components/BatchActionsSettingsPage";
+import { BatchActionsSettingsPage } from "@/src/features/batch-actions";
 import { AuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/AuditLogsSettingsPage";
-import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
+import { ModelsSettings } from "@/src/features/models";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
+import { ProtectedLabelsSettings } from "@/src/features/prompts";
 import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
 import { PersonalNotificationSettings } from "@/src/features/notifications/components/PersonalNotificationSettings";
 import { ProjectNotificationChannels } from "@/src/features/notifications/components/ProjectNotificationChannels";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
+import { WebCalloutIntegrationCard } from "@/src/features/web-callouts";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { api } from "@/src/utils/api";

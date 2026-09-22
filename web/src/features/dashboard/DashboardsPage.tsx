@@ -3,11 +3,8 @@ import Page from "@/src/components/layouts/page";
 import { ConnectedDashboardTable } from "@/src/features/dashboard/components/DashboardTable/ConnectedDashboardTable";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  getDashboardTabs,
-  DASHBOARD_TABS,
-} from "@/src/features/navigation/utils/dashboard-tabs";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { getDashboardTabs, DASHBOARD_TABS } from "@/src/features/navigation";
 
 export default function DashboardsPage() {
   const router = useRouter();

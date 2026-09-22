@@ -25,7 +25,7 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { passwordSchema } from "@/src/features/auth";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 

@@ -10,7 +10,7 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "lucide-react";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import {
   HoverCard,
   HoverCardContent,
