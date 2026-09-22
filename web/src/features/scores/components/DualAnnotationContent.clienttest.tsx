@@ -246,6 +246,7 @@ describe("unified annotation targets", () => {
   });
 
   it("focuses the first score on activation without taking focus on rerenders", async () => {
+    configs.push({ ...defaultConfig, id: "accuracy", name: "Accuracy" });
     mocks.create.mockResolvedValue({});
     const refreshRef = createRef<AnnotationRefreshHandle>();
     const view = (isActive: boolean) => (

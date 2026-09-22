@@ -62,6 +62,7 @@ import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTrac
 import { toast } from "sonner";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import { useElementSize } from "@/src/hooks/useElementSize";
 
 interface TracePanelNavigationHeaderProps {
   isPanelCollapsed: boolean;
@@ -115,6 +116,9 @@ function TracePanelNavigationHeaderExpanded({
   const [viewMode, setViewMode] = useQueryParam("view", StringParam);
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
+  const [headerContainerRef, headerContainerSize] =
+    useElementSize<HTMLDivElement>();
+  const isSearchWrapped = (headerContainerSize?.width ?? Infinity) <= 439;
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
@@ -245,19 +249,40 @@ function TracePanelNavigationHeaderExpanded({
       <TraceViewOptionsMenuItems />
     </>
   );
+  const searchControl = (
+    <div
+      key="search"
+      className={cn(
+        "@max-[439px]/navheader:bg-background @max-[439px]/navheader:focus-within:border-ring @max-[439px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2 @max-[439px]/navheader:ml-1 @max-[439px]/navheader:rounded-md @max-[439px]/navheader:border @max-[439px]/navheader:shadow-xs @max-[439px]/navheader:focus-within:ring-2 @max-[439px]/navheader:[&>div]:p-0",
+        isDetailPanelCollapsed && "pl-1",
+      )}
+    >
+      <CommandInput
+        showBorder={false}
+        placeholder="Search"
+        className="@max-[439px]/navheader:placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 focus:ring-0 @max-[439px]/navheader:h-[1.625rem]"
+        value={searchInputValue}
+        onValueChange={setSearchInputValue}
+        onKeyDown={handleSearchKeyDown}
+      />
+    </div>
+  );
 
   return (
     <Command className="h-auto shrink-0 overflow-hidden rounded-none border-b">
       {/* Container queries keep the primary view switch visible for as long as
           it fits. Search moves below the controls before that switch collapses,
           and remains the same input across every layout. */}
-      <div className="@container/navheader">
+      <div ref={headerContainerRef} className="@container/navheader">
         <div className="grid min-h-8 grid-cols-[auto_minmax(0,1fr)_auto] items-center pr-2 pl-1 @max-[439px]/navheader:min-h-0 @max-[439px]/navheader:gap-y-1 @max-[439px]/navheader:pt-1 @max-[439px]/navheader:pb-1.5">
           {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed
               version. Hidden while the detail panel is closed (nothing useful to
               collapse the full-width tree/timeline into). */}
           {!isDetailPanelCollapsed && (
-            <div className="col-start-1 row-start-1 flex flex-row items-center p-0.5">
+            <div
+              key="toggle"
+              className="col-start-1 row-start-1 flex flex-row items-center p-0.5"
+            >
               <TracePanelNavigationButton
                 isPanelCollapsed={isPanelCollapsed}
                 onTogglePanel={onTogglePanel}
@@ -265,23 +290,14 @@ function TracePanelNavigationHeaderExpanded({
               />
             </div>
           )}
-          {/* Search Input */}
+          {/* Keep keyboard order in sync when search wraps below the tools.
+              The keyed element is moved rather than duplicated, preserving its
+              value and focus across panel resizing. */}
+          {!isSearchWrapped ? searchControl : null}
           <div
-            className={cn(
-              "@max-[439px]/navheader:bg-background @max-[439px]/navheader:focus-within:border-ring @max-[439px]/navheader:focus-within:ring-ring/30 relative col-start-2 row-start-1 min-w-0 @max-[439px]/navheader:col-span-3 @max-[439px]/navheader:col-start-1 @max-[439px]/navheader:row-start-2 @max-[439px]/navheader:ml-1 @max-[439px]/navheader:rounded-md @max-[439px]/navheader:border @max-[439px]/navheader:shadow-xs @max-[439px]/navheader:focus-within:ring-2 @max-[439px]/navheader:[&>div]:p-0",
-              isDetailPanelCollapsed && "pl-1",
-            )}
+            key="tools"
+            className="col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5"
           >
-            <CommandInput
-              showBorder={false}
-              placeholder="Search"
-              className="@max-[439px]/navheader:placeholder:text-muted-foreground h-7 min-w-0 border-0 pr-0 focus:ring-0 @max-[439px]/navheader:h-[1.625rem]"
-              value={searchInputValue}
-              onValueChange={setSearchInputValue}
-              onKeyDown={handleSearchKeyDown}
-            />
-          </div>
-          <div className="col-start-3 row-start-1 flex shrink-0 flex-row items-center gap-0.5">
             {/* Minor tools — inline when the panel is wide enough. */}
             <div className="hidden flex-row items-center gap-0.5 @min-[510px]/navheader:flex">
               <Button
@@ -412,6 +428,7 @@ function TracePanelNavigationHeaderExpanded({
                 TraceLayoutDesktop, mirroring the navigation panel's rail), so the
                 header needs no re-open button of its own. */}
           </div>
+          {isSearchWrapped ? searchControl : null}
         </div>
       </div>
     </Command>
