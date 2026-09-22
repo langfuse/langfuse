@@ -93,9 +93,9 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
           <DialogHeader>
             <DialogTitle>Permissions</DialogTitle>
           </DialogHeader>
-          <DialogBody>
-            <div className="flex min-h-0 flex-1 gap-4">
-              <div className="flex w-56 shrink-0 flex-col gap-1 border-r pr-4">
+          <DialogBody className="min-h-0 flex-1 p-0">
+            <div className="flex h-[78vh] min-h-0">
+              <div className="flex w-60 shrink-0 flex-col gap-1 overflow-y-auto border-r p-3">
                 {roles.map((p) => {
                   const Icon = presetIcons[p.key];
                   return (
@@ -124,8 +124,10 @@ const PermissionsDialog = ({ initial }: { initial: PresetKey }) => {
                   );
                 })}
               </div>
-              <ScrollArea className="min-h-0 min-w-0 flex-1 pr-3">
-                <RolePermissionList preset={active} />
+              <ScrollArea className="min-h-0 min-w-0 flex-1">
+                <div className="px-5 py-4">
+                  <RolePermissionList preset={active} />
+                </div>
               </ScrollArea>
             </div>
           </DialogBody>
