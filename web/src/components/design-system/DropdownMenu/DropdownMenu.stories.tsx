@@ -345,3 +345,81 @@ export const TestCheckboxAndSubmenu = meta.story({
     await expect(body.queryByRole("menu", { name: "Unavailable" })).toBeNull();
   },
 });
+
+export const TestNestedMenusStayWithinViewport = meta.story({
+  name: "(Test) Nested menus stay within viewport",
+  globals: { viewport: { value: "narrow", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        narrow: {
+          name: "Narrow phone",
+          styles: { width: "320px", height: "640px" },
+        },
+      },
+    },
+  },
+  args: {
+    placement: "bottom-end",
+    items: [
+      {
+        type: "item",
+        id: "copy-observation",
+        title: "Copy observation identifier",
+        onClick: fn(),
+      },
+      {
+        type: "submenu",
+        id: "add-to",
+        title: "Add to",
+        items: [
+          {
+            type: "submenu",
+            id: "datasets",
+            title: "Datasets",
+            search: { placeholder: "Search datasets…" },
+            items: [
+              {
+                type: "item",
+                id: "long-dataset",
+                title:
+                  "Customer support quality evaluation with additional reference answers",
+                onClick: fn(),
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const document = canvasElement.ownerDocument;
+    const body = within(document.body);
+    const expectMenuWithinViewport = async (name: string) => {
+      const menu = await body.findByRole("menu", { name });
+      await waitFor(() => {
+        const bounds = menu.getBoundingClientRect();
+        expect(bounds.left).toBeGreaterThanOrEqual(0);
+        expect(bounds.right).toBeLessThanOrEqual(
+          document.documentElement.clientWidth,
+        );
+      });
+    };
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await expectMenuWithinViewport("Actions");
+    await userEvent.click(body.getByRole("menuitem", { name: "Add to" }));
+    await expectMenuWithinViewport("Add to");
+    await userEvent.click(body.getByRole("menuitem", { name: "Datasets" }));
+    await expectMenuWithinViewport("Datasets");
+    const search = body.getByRole("searchbox", { name: "Search datasets…" });
+    await userEvent.type(search, "quality");
+    await expect(search).toHaveValue("quality");
+    await expect(
+      body.getByRole("menuitem", {
+        name: "Customer support quality evaluation with additional reference answers",
+      }),
+    ).toBeVisible();
+  },
+});
