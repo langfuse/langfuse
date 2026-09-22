@@ -54,6 +54,10 @@ vi.mock(
 );
 
 export function configureDefaultOtelReplayMocks(): void {
+  for (const mock of Object.values(otelReplayMocks)) {
+    mock.mockReset();
+  }
+
   otelReplayMocks.findModel.mockResolvedValue({
     model: null,
     pricingTiers: [],
@@ -85,6 +89,8 @@ export function configureOtelReplayEnvironment(
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
+    LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS:
+      env.LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS,
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
     LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
     LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: env.LANGFUSE_S3_MEDIA_UPLOAD_PREFIX,
@@ -97,6 +103,7 @@ export function configureOtelReplayEnvironment(
   Object.assign(env, {
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
     LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "false",
+    LANGFUSE_INGESTION_CLICKHOUSE_MAX_ATTEMPTS: 3,
     LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED: options.mediaUploadEnabled
       ? "true"
       : "false",

@@ -65,7 +65,6 @@ async function createOtelReplayClickhouseSink(): Promise<OtelReplayClickhouseSin
 
   let tableCreated = false;
   let closed = false;
-  const failedInserts: unknown[] = [];
 
   try {
     await client.command({
@@ -73,6 +72,8 @@ async function createOtelReplayClickhouseSink(): Promise<OtelReplayClickhouseSin
     });
     tableCreated = true;
 
+    const stickyInsertFailures: unknown[] = [];
+    let unresolvedInsertError: unknown | undefined;
     const writerClient: ClickhouseClientType = {
       insert: async (params: Parameters<ClickhouseClientType["insert"]>[0]) => {
         try {
@@ -86,13 +87,25 @@ async function createOtelReplayClickhouseSink(): Promise<OtelReplayClickhouseSin
               "OTEL replay sink requires array JSONEachRow values",
             );
           }
+        } catch (error) {
+          // These are harness contract violations. They are sticky even if a
+          // later insert succeeds, because the writer must never route a
+          // different table or non-array payload into this isolated table.
+          stickyInsertFailures.push(error);
+          throw error;
+        }
 
-          return await client.insert({
+        try {
+          const result = await client.insert({
             ...params,
             table: tableName,
           });
+          // A later successful EventsFull insert resolves an earlier
+          // transient error; it must not make a successful replay fail.
+          unresolvedInsertError = undefined;
+          return result;
         } catch (error) {
-          failedInserts.push(error);
+          unresolvedInsertError = error;
           throw error;
         }
       },
@@ -122,9 +135,15 @@ async function createOtelReplayClickhouseSink(): Promise<OtelReplayClickhouseSin
     const flushAndRead = async () => {
       await writer.flushAll(true);
 
-      if (failedInserts.length > 0) {
+      if (stickyInsertFailures.length > 0) {
         throw new Error(
-          `ClickHouse replay insert failed: ${formatUnknownError(failedInserts[0])}`,
+          `ClickHouse replay sink contract failed: ${formatUnknownError(stickyInsertFailures[0])}`,
+        );
+      }
+
+      if (unresolvedInsertError) {
+        throw new Error(
+          `ClickHouse replay insert failed: ${formatUnknownError(unresolvedInsertError)}`,
         );
       }
 

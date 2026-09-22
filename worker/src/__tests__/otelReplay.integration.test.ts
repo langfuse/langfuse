@@ -1,8 +1,11 @@
 import "./helpers/otelReplaySetup";
 
 import { Decimal } from "decimal.js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import type { ResourceSpan } from "@langfuse/shared/src/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  clickhouseClient,
+  type ResourceSpan,
+} from "@langfuse/shared/src/server";
 import { runOtelReplay } from "./helpers/otelReplayHarness";
 import {
   configureDefaultOtelReplayMocks,
@@ -29,6 +32,13 @@ function intAttribute(key: string, value: number) {
     key,
     value: { intValue: { low: value, high: 0, unsigned: false } },
   };
+}
+
+function logicalEventBytes(row: Record<string, unknown>): number {
+  const withoutEventBytes = Object.fromEntries(
+    Object.entries(row).filter(([key]) => key !== "event_bytes"),
+  );
+  return Buffer.byteLength(JSON.stringify(withoutEventBytes), "utf8");
 }
 
 function buildResourceSpans(): ResourceSpan[] {
@@ -112,183 +122,255 @@ function buildResourceSpans(): ResourceSpan[] {
   ];
 }
 
-describe("OTEL replay production path with ClickHouse persistence", () => {
-  let restoreEnvironment: (() => void) | undefined;
+// Avoid re-entering the process-wide writer singleton when a test times out
+// while ClickHouseWriter is still retrying an insert.
+describe(
+  "OTEL replay production path with ClickHouse persistence",
+  { retry: 0, timeout: 120_000 },
+  () => {
+    let restoreEnvironment: (() => void) | undefined;
 
-  beforeAll(() => {
-    configureDefaultOtelReplayMocks();
-    restoreEnvironment = configureOtelReplayEnvironment({
-      mediaUploadEnabled: true,
-      overflowEnabled: true,
-      overflowSizeLimitBytes: 256,
+    beforeEach(() => {
+      configureDefaultOtelReplayMocks();
+      restoreEnvironment = configureOtelReplayEnvironment({
+        mediaUploadEnabled: true,
+        overflowEnabled: true,
+        overflowSizeLimitBytes: 256,
+      });
+
+      const model = {
+        id: "otel-replay-model",
+        modelName: "gpt-4o-mini",
+        tokenizerId: "openai",
+        tokenizerConfig: { tokenizerModel: "gpt-4o" },
+      };
+      otelReplayMocks.findModel.mockResolvedValue({
+        model,
+        pricingTiers: [
+          {
+            id: "otel-replay-tier",
+            name: "Replay default",
+            isDefault: true,
+            priority: 0,
+            conditions: [],
+            prices: [
+              { usageType: "input", price: new Decimal("0.01") },
+              { usageType: "output", price: new Decimal("0.02") },
+            ],
+          },
+        ],
+      });
+      otelReplayMocks.getPrompt.mockResolvedValue({ id: "replay-prompt-id" });
+      otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([{}]);
+      otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
+      otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
+      otelReplayMocks.uploadMediaForTrace.mockImplementation(
+        async (params: { field: string }) => ({
+          mediaId:
+            params.field === "input" ? "image-media-id" : "overflow-media-id",
+          outcome: "uploaded" as const,
+        }),
+      );
     });
 
-    const model = {
-      id: "otel-replay-model",
-      modelName: "gpt-4o-mini",
-      tokenizerId: "openai",
-      tokenizerConfig: { tokenizerModel: "gpt-4o" },
-    };
-    otelReplayMocks.findModel.mockResolvedValue({
-      model,
-      pricingTiers: [
-        {
-          id: "otel-replay-tier",
-          name: "Replay default",
-          isDefault: true,
-          priority: 0,
-          conditions: [],
-          prices: [
-            { usageType: "input", price: new Decimal("0.01") },
-            { usageType: "output", price: new Decimal("0.02") },
-          ],
+    afterEach(() => {
+      restoreEnvironment?.();
+      restoreEnvironment = undefined;
+      // The test owns this mutable mock setup; restore its deterministic
+      // defaults so another worker suite in the same process is unaffected.
+      configureDefaultOtelReplayMocks();
+    });
+
+    it("writes both enriched observations and preserves accounting through readback", async () => {
+      const { queuedRows, storedRows } = await runOtelReplay({
+        resourceSpans: buildResourceSpans(),
+        projectId: PROJECT_ID,
+        fileKey: FILE_KEY,
+      });
+
+      expect(queuedRows).toHaveLength(2);
+      expect(storedRows).toHaveLength(2);
+      expect(otelReplayMocks.findModel).toHaveBeenCalledTimes(2);
+      expect(otelReplayMocks.getPrompt).toHaveBeenCalledTimes(2);
+      expect(otelReplayMocks.fetchObservationEvalRules).toHaveBeenCalledWith(
+        PROJECT_ID,
+      );
+      expect(
+        otelReplayMocks.createObservationEvalSchedulerDeps,
+      ).toHaveBeenCalledOnce();
+      expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(2);
+      expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+
+      const rowsBySpanId = new Map(
+        storedRows.map((row) => [String(row.span_id), row]),
+      );
+      const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
+      const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
+      expect(firstRow).toBeDefined();
+      expect(secondRow).toBeDefined();
+
+      expect(firstRow).toMatchObject({
+        project_id: PROJECT_ID,
+        trace_id: TRACE_ID,
+        span_id: FIRST_SPAN_ID,
+        parent_span_id: "",
+        name: "replay-generation-with-media",
+        type: "GENERATION",
+        environment: "integration",
+        release: "replay-release",
+        trace_name: "replay-trace",
+        user_id: "replay-user",
+        session_id: "replay-session",
+        prompt_id: "replay-prompt-id",
+        prompt_name: "replay-prompt",
+        prompt_version: 3,
+        model_id: "otel-replay-model",
+        provided_model_name: "gpt-4o-mini",
+        usage_pricing_tier_id: "otel-replay-tier",
+        usage_pricing_tier_name: "Replay default",
+        ingestion_sdk_name: "otel-replay",
+        ingestion_sdk_version: "test",
+        blob_storage_file_path: FILE_KEY,
+      });
+      expect(String(firstRow?.input)).toContain(
+        "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
+      );
+      expect(firstRow?.output).toBe("short replay answer");
+      expect(firstRow?.metadata_names).toContain("source");
+      expect(firstRow?.metadata_values).toContain("integration");
+      expect(
+        Number((firstRow?.usage_details as Record<string, unknown>).input),
+      ).toBeGreaterThan(0);
+      expect(
+        Number((firstRow?.usage_details as Record<string, unknown>).output),
+      ).toBeGreaterThan(0);
+      const firstUsage = firstRow?.usage_details as Record<string, unknown>;
+      const firstCost = firstRow?.cost_details as Record<string, unknown>;
+      expect(Number(firstCost.input)).toBeCloseTo(
+        Number(firstUsage.input) * 0.01,
+        12,
+      );
+      expect(Number(firstCost.output)).toBeCloseTo(
+        Number(firstUsage.output) * 0.02,
+        12,
+      );
+      expect(Number(firstCost.total)).toBeCloseTo(
+        Number(firstCost.input) + Number(firstCost.output),
+        12,
+      );
+
+      expect(secondRow).toMatchObject({
+        project_id: PROJECT_ID,
+        trace_id: TRACE_ID,
+        span_id: SECOND_SPAN_ID,
+        parent_span_id: FIRST_SPAN_ID,
+        name: "replay-generation-with-overflow",
+        type: "GENERATION",
+        prompt_id: "replay-prompt-id",
+        model_id: "otel-replay-model",
+        provided_model_name: "gpt-4o-mini",
+        usage_details: {},
+        provided_cost_details: {
+          input: 999_999.999999,
+          output: -999_999.999999,
+          total: 999_999.999999,
         },
-      ],
+        cost_details: {
+          input: 999_999.999999,
+          output: -999_999.999999,
+          total: 999_999.999999,
+        },
+      });
+      expect(secondRow?.input).toBe("plain input");
+      expect(secondRow?.output).toBe(
+        "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
+      );
+
+      const queuedBySpanId = new Map(
+        queuedRows.map((row) => [String(row.span_id), row]),
+      );
+      for (const row of storedRows) {
+        const queued = queuedBySpanId.get(String(row.span_id));
+        expect(queued).toBeDefined();
+        const expectedLogicalBytes = logicalEventBytes(queued!);
+        expect(Number(queued?.event_bytes)).toBe(expectedLogicalBytes);
+        expect(Number(row.event_bytes)).toBe(expectedLogicalBytes);
+      }
+
+      const queuedSecondRow = queuedBySpanId.get(SECOND_SPAN_ID);
+      expect(queuedSecondRow).toBeDefined();
+      expect(queuedSecondRow?.provided_cost_details).toEqual({
+        input: 1_500_000,
+        output: -1_500_000,
+        total: 1_500_000,
+      });
+      expect(queuedSecondRow?.cost_details).toEqual({
+        input: 1_500_000,
+        output: -1_500_000,
+        total: 1_500_000,
+      });
+
+      const rawLogicalBytes = logicalEventBytes(queuedSecondRow!);
+      const clampedLogicalBytes = logicalEventBytes({
+        ...queuedSecondRow!,
+        provided_cost_details: secondRow!.provided_cost_details,
+        cost_details: secondRow!.cost_details,
+      });
+      expect(clampedLogicalBytes).not.toBe(rawLogicalBytes);
+      expect(Number(secondRow?.event_bytes)).toBe(rawLogicalBytes);
+      expect(Number(secondRow?.event_bytes)).not.toBe(clampedLogicalBytes);
     });
-    otelReplayMocks.getPrompt.mockResolvedValue({ id: "replay-prompt-id" });
-    otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([{}]);
-    otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
-    otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
-    otelReplayMocks.uploadMediaForTrace.mockImplementation(
-      async (params: { field: string }) => ({
-        mediaId:
-          params.field === "input" ? "image-media-id" : "overflow-media-id",
-        outcome: "uploaded" as const,
-      }),
-    );
-  });
 
-  afterAll(() => {
-    restoreEnvironment?.();
-    // The test owns this mutable mock setup; restore its deterministic
-    // defaults so another worker suite in the same process is unaffected.
-    configureDefaultOtelReplayMocks();
-  });
+    it("persists successfully when the first ClickHouse insert attempt times out", async () => {
+      const client = clickhouseClient();
+      const originalInsert = client.insert.bind(client);
+      let attempts = 0;
+      const insertSpy = vi
+        .spyOn(client, "insert")
+        .mockImplementation(async (params) => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw new Error("timeout error from replay regression test");
+          }
+          return originalInsert(params);
+        });
 
-  it("writes both enriched observations and preserves accounting through readback", async () => {
-    const { queuedRows, storedRows } = await runOtelReplay({
-      resourceSpans: buildResourceSpans(),
-      projectId: PROJECT_ID,
-      fileKey: FILE_KEY,
+      try {
+        const { storedRows } = await runOtelReplay({
+          resourceSpans: buildResourceSpans(),
+          projectId: `${PROJECT_ID}-transient`,
+          fileKey: FILE_KEY,
+        });
+
+        expect(attempts).toBeGreaterThan(1);
+        expect(storedRows).toHaveLength(2);
+      } finally {
+        insertSpy.mockRestore();
+      }
     });
 
-    expect(queuedRows).toHaveLength(2);
-    expect(storedRows).toHaveLength(2);
-    expect(otelReplayMocks.findModel).toHaveBeenCalledTimes(2);
-    expect(otelReplayMocks.getPrompt).toHaveBeenCalledTimes(2);
-    expect(otelReplayMocks.fetchObservationEvalRules).toHaveBeenCalledWith(
-      PROJECT_ID,
-    );
-    expect(
-      otelReplayMocks.createObservationEvalSchedulerDeps,
-    ).toHaveBeenCalledOnce();
-    expect(otelReplayMocks.scheduleObservationEvals).toHaveBeenCalledTimes(2);
-    expect(otelReplayMocks.uploadMediaForTrace).toHaveBeenCalledTimes(2);
+    it("fails visibly when an EventsFull insert remains unresolved", async () => {
+      const client = clickhouseClient();
+      const insertSpy = vi
+        .spyOn(client, "insert")
+        .mockRejectedValue(
+          new Error("permanent replay regression test failure"),
+        );
 
-    const rowsBySpanId = new Map(
-      storedRows.map((row) => [String(row.span_id), row]),
-    );
-    const firstRow = rowsBySpanId.get(FIRST_SPAN_ID);
-    const secondRow = rowsBySpanId.get(SECOND_SPAN_ID);
-    expect(firstRow).toBeDefined();
-    expect(secondRow).toBeDefined();
-
-    expect(firstRow).toMatchObject({
-      project_id: PROJECT_ID,
-      trace_id: TRACE_ID,
-      span_id: FIRST_SPAN_ID,
-      parent_span_id: "",
-      name: "replay-generation-with-media",
-      type: "GENERATION",
-      environment: "integration",
-      release: "replay-release",
-      trace_name: "replay-trace",
-      user_id: "replay-user",
-      session_id: "replay-session",
-      prompt_id: "replay-prompt-id",
-      prompt_name: "replay-prompt",
-      prompt_version: 3,
-      model_id: "otel-replay-model",
-      provided_model_name: "gpt-4o-mini",
-      usage_pricing_tier_id: "otel-replay-tier",
-      usage_pricing_tier_name: "Replay default",
-      ingestion_sdk_name: "otel-replay",
-      ingestion_sdk_version: "test",
-      blob_storage_file_path: FILE_KEY,
+      try {
+        await expect(
+          runOtelReplay({
+            resourceSpans: buildResourceSpans(),
+            projectId: `${PROJECT_ID}-permanent-failure`,
+            fileKey: FILE_KEY,
+          }),
+        ).rejects.toThrow(
+          "ClickHouse replay insert failed: permanent replay regression test failure",
+        );
+        expect(insertSpy).toHaveBeenCalled();
+      } finally {
+        insertSpy.mockRestore();
+      }
     });
-    expect(String(firstRow?.input)).toContain(
-      "@@@langfuseMedia:type=image/png|id=image-media-id|source=",
-    );
-    expect(firstRow?.output).toBe("short replay answer");
-    expect(firstRow?.metadata_names).toContain("source");
-    expect(firstRow?.metadata_values).toContain("integration");
-    expect(
-      Number((firstRow?.usage_details as Record<string, unknown>).input),
-    ).toBeGreaterThan(0);
-    expect(
-      Number((firstRow?.usage_details as Record<string, unknown>).output),
-    ).toBeGreaterThan(0);
-    const firstUsage = firstRow?.usage_details as Record<string, unknown>;
-    const firstCost = firstRow?.cost_details as Record<string, unknown>;
-    expect(Number(firstCost.input)).toBeCloseTo(
-      Number(firstUsage.input) * 0.01,
-      12,
-    );
-    expect(Number(firstCost.output)).toBeCloseTo(
-      Number(firstUsage.output) * 0.02,
-      12,
-    );
-    expect(Number(firstCost.total)).toBeCloseTo(
-      Number(firstCost.input) + Number(firstCost.output),
-      12,
-    );
-
-    expect(secondRow).toMatchObject({
-      project_id: PROJECT_ID,
-      trace_id: TRACE_ID,
-      span_id: SECOND_SPAN_ID,
-      parent_span_id: FIRST_SPAN_ID,
-      name: "replay-generation-with-overflow",
-      type: "GENERATION",
-      prompt_id: "replay-prompt-id",
-      model_id: "otel-replay-model",
-      provided_model_name: "gpt-4o-mini",
-      usage_details: {},
-      provided_cost_details: {
-        input: 999_999.999999,
-        output: -999_999.999999,
-        total: 999_999.999999,
-      },
-      cost_details: {
-        input: 999_999.999999,
-        output: -999_999.999999,
-        total: 999_999.999999,
-      },
-    });
-    expect(secondRow?.input).toBe("plain input");
-    expect(secondRow?.output).toBe(
-      "@@@langfuseMedia:type=text/plain|id=overflow-media-id|source=field_size_limit@@@",
-    );
-
-    const queuedBySpanId = new Map(
-      queuedRows.map((row) => [String(row.span_id), row]),
-    );
-    for (const row of storedRows) {
-      const queued = queuedBySpanId.get(String(row.span_id));
-      expect(queued).toBeDefined();
-      expect(Number(row.event_bytes)).toBe(Number(queued?.event_bytes));
-    }
-
-    const queuedSecondRow = queuedBySpanId.get(SECOND_SPAN_ID);
-    expect(queuedSecondRow?.provided_cost_details).toEqual({
-      input: 1_500_000,
-      output: -1_500_000,
-      total: 1_500_000,
-    });
-    expect(queuedSecondRow?.cost_details).toEqual({
-      input: 1_500_000,
-      output: -1_500_000,
-      total: 1_500_000,
-    });
-  });
-});
+  },
+);
