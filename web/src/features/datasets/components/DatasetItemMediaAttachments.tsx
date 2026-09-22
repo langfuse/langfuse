@@ -11,7 +11,7 @@ import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {

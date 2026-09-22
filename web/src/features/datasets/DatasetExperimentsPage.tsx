@@ -24,10 +24,7 @@ import { DatasetAnalytics } from "@/src/features/datasets/components/DatasetAnal
 import { RESOURCE_METRICS } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
-import {
-  getDatasetTabs,
-  DATASET_TABS,
-} from "@/src/features/navigation/utils/dataset-tabs";
+import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
 import { TemplateSelector } from "@/src/features/evals/components/template-selector";
 import {
   EvaluatorForm,

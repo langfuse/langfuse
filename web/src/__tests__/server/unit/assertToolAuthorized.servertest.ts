@@ -20,7 +20,7 @@ import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
 import {
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server/enforceAuth";
+} from "@/src/features/public-api/server";
 import type { ServerContext } from "@/src/features/mcp/types";
 import {
   type AuthorizationContext,

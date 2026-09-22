@@ -17,7 +17,10 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -48,16 +51,15 @@ import {
 import { isNumericDataType } from "@/src/features/scores/lib/helpers";
 import { ScoresSearchBar } from "@/src/features/scores/components/ScoresSearchBar";
 import { getScoreChartTimeRange } from "@/src/features/scores-chart-view/fns/scoreChartConfig";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 
 import type { RouterOutput } from "@/src/utils/types";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { cn } from "@/src/utils/tailwind";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { showSuccessToast } from "@/src/features/notifications";
 import {

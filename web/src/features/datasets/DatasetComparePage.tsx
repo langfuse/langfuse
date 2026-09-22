@@ -20,7 +20,7 @@ import Page from "@/src/components/layouts/page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
 import {
   ActiveCellProvider,

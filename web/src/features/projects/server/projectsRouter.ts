@@ -24,7 +24,7 @@ import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { buildAdminOrgContext } from "@/src/features/organizations/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure

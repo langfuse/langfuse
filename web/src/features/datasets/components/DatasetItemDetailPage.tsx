@@ -27,7 +27,7 @@ import {
   getDatasetItemTabs,
   DATASET_ITEM_TABS,
   type DatasetItemTab,
-} from "@/src/features/navigation/utils/dataset-item-tabs";
+} from "@/src/features/navigation";
 import { useExperimentAccess } from "@/src/features/experiments";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";

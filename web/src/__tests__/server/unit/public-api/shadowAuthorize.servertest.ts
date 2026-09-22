@@ -14,11 +14,11 @@ vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
   shadowAuthDiff,
 }));
 
-import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import {
+  shadowAuthorize,
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server/enforceAuth";
+} from "@/src/features/public-api/server";
 import {
   type AuthorizationContext,
   type Policy,

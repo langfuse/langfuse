@@ -15,7 +15,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { RoleSelectItem } from "@/src/features/rbac/components/RoleSelectItem";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import type { FeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import type { FeaturePreviewFlag } from "@/src/features/feature-flags";
 import { UserFeaturePreviewsControl } from "@/src/features/feature-flags/components/UserFeaturePreviewsPopover";
 import type { RouterOutput } from "@/src/utils/types";
 import {

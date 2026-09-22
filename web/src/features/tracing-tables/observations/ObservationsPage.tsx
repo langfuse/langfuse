@@ -4,10 +4,7 @@ import { ObservationsTable } from "@/src/features/tracing-tables";
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
-import {
-  getTracingTabs,
-  TRACING_TABS,
-} from "@/src/features/navigation/utils/tracing-tabs";
+import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
 import { useReadPath } from "@/src/features/events";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects";

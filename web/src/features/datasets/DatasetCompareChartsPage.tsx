@@ -27,7 +27,7 @@ import {
   compareViewChartDataToDataPoints,
   getCompareViewChartUnit,
 } from "@/src/features/dashboard";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { Chart } from "@/src/features/widgets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -44,7 +44,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 
 function DatasetCompareChartsLegacy() {

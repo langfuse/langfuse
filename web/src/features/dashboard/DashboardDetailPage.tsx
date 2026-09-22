@@ -35,9 +35,15 @@ import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
-  DashboardGrid,
   type DashboardPlacement,
-} from "@/src/features/widgets/components/DashboardGrid";
+  parsePastedWidget,
+  toWidgetCreateFields,
+  type PastedWidgetParseResult,
+  type WidgetExportSource,
+  pushDownForInsertion,
+  useClipboardWidgetProbe,
+} from "@/src/features/widgets";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
@@ -68,21 +74,13 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import {
-  parsePastedWidget,
-  toWidgetCreateFields,
-  type PastedWidgetParseResult,
-  type WidgetExportSource,
-} from "@/src/features/widgets/utils/import-export-utils";
-import {
   isPasteablePlacementPayload,
   parseDashboardImport,
   parsePastedPreset,
   type ParsedDashboardImport,
 } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
-import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";

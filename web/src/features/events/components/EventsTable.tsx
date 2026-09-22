@@ -78,7 +78,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   getRowHeightIOCharLimit,
   useRowHeightLocalStorage,
@@ -107,7 +107,7 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -142,7 +142,9 @@ import { getSafeRedirectPath } from "@/src/utils/redirect";
 //   useEventsViewMode,
 //   type EventsViewMode,
 // } from "@/src/features/events/hooks/useEventsViewMode";
+
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import {
   REFRESH_INTERVALS,
@@ -150,8 +152,10 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  RunEvaluationDialog,
+  AddObservationsToDatasetDialog,
+} from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
