@@ -186,6 +186,8 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   const {
     disabled: playgroundDisabled,
     handlePlaygroundAction,
+    includeOutput,
+    setIncludeOutput,
     title: playgroundTitle,
   } = playground;
 
@@ -351,27 +353,40 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
 
     const items = [datasetItem, annotationQueueItem];
 
-    items.push({
-      type: "submenu",
-      id: "playground",
-      title: "Playground",
-      icon: Terminal,
-      disabled: playgroundDisabled ? { reason: playgroundTitle } : undefined,
-      items: [
-        {
-          type: "item",
-          id: "fresh-playground",
-          title: "Fresh playground",
-          onClick: () => handlePlaygroundAction("fresh"),
-        },
-        {
-          type: "item",
-          id: "existing-playground",
-          title: "Add to existing",
-          onClick: () => handlePlaygroundAction("existing"),
-        },
-      ],
-    });
+    if (generation) {
+      items.push({
+        type: "submenu",
+        id: "playground",
+        title: "Playground",
+        icon: Terminal,
+        disabled: playgroundDisabled ? { reason: playgroundTitle } : undefined,
+        items: [
+          {
+            type: "item",
+            id: "fresh-playground",
+            title: "Fresh playground",
+            onClick: () => handlePlaygroundAction("fresh"),
+          },
+          {
+            type: "item",
+            id: "existing-playground",
+            title: "Add to existing",
+            onClick: () => handlePlaygroundAction("existing"),
+          },
+          {
+            type: "separator",
+            id: "playground-separator",
+          },
+          {
+            type: "checkbox",
+            id: "include-output",
+            title: "Include output",
+            checked: includeOutput,
+            onCheckedChange: setIncludeOutput,
+          },
+        ],
+      });
+    }
 
     return items;
   }, [
@@ -379,10 +394,12 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     createQueueDisabled,
     datasets.data,
     datasets.isLoading,
+    generation,
     handleQueueItemToggle,
     hasAnnotationQueueAccess,
     hasDatasetAccess,
     input,
+    includeOutput,
     metadata,
     observationId,
     openDatasetDialog,
@@ -394,6 +411,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     playgroundTitle,
     queues.data?.queues,
     queuesAreLoading,
+    setIncludeOutput,
     traceId,
   ]);
 

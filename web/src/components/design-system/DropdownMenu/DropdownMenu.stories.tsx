@@ -309,13 +309,12 @@ export const TestCheckboxAndSubmenu = meta.story({
       name: "Include output",
     });
     await expect(checkbox).toHaveFocus();
-    checkbox.focus();
-    await userEvent.keyboard("{ArrowUp}");
+    await userEvent.keyboard("{Enter}");
+    await expect(onCheckboxChange).toHaveBeenCalledWith(true);
+    await userEvent.keyboard("{ArrowDown}");
     await expect(
       body.getByRole("menuitem", { name: "Destinations" }),
     ).toHaveFocus();
-    await userEvent.click(checkbox);
-    await expect(onCheckboxChange).toHaveBeenCalledWith(true);
     await expect(menu).toBeVisible();
 
     await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
@@ -325,13 +324,23 @@ export const TestCheckboxAndSubmenu = meta.story({
       body.getByRole("searchbox", { name: "Search destinations…" }),
       "data",
     );
-    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.keyboard("{ArrowUp}");
     await expect(body.getByRole("menuitem", { name: "Dataset" })).toHaveFocus();
     await userEvent.click(body.getByRole("button", { name: "Dataset" }));
     await expect(onNestedAction).toHaveBeenCalledOnce();
     await expect(body.queryByRole("menu", { name: "Actions" })).toBeNull();
 
     await userEvent.click(trigger);
+    await userEvent.hover(body.getByRole("menuitem", { name: "Destinations" }));
+    await body.findByRole("menu", { name: "Destinations" });
+    await userEvent.click(
+      body.getByRole("searchbox", { name: "Search destinations…" }),
+    );
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(body.queryByRole("menu", { name: "Destinations" })).toBeNull(),
+    );
+
     await userEvent.hover(body.getByRole("menuitem", { name: "Unavailable" }));
     await expect(body.queryByRole("menu", { name: "Unavailable" })).toBeNull();
   },

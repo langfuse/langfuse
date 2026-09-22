@@ -312,7 +312,10 @@ function DropdownMenuNode({
                       setActiveIndex(null);
                     }}
                     onKeyDown={(event) => {
-                      if (event.key === "ArrowDown") {
+                      if (event.key === "Escape") {
+                        closeMenu();
+                        event.preventDefault();
+                      } else if (event.key === "ArrowDown") {
                         const firstIndex = listRef.current
                           .slice(0, visibleItems.length)
                           .findIndex((element) => element !== null);
@@ -450,6 +453,13 @@ function DropdownMenuNode({
                         className={menuItemVariants()}
                         {...getItemProps({
                           onClick: () => {
+                            handleCheckedChange(!item.checked);
+                          },
+                          onKeyDown: (event) => {
+                            if (item.disabled) return;
+                            if (event.key !== "Enter" && event.key !== " ")
+                              return;
+                            event.preventDefault();
                             handleCheckedChange(!item.checked);
                           },
                         })}
