@@ -5849,6 +5849,12 @@ paths:
           schema:
             type: string
             nullable: true
+        - name: namePrefix
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
         - name: label
           in: query
           required: false

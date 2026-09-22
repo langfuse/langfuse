@@ -78,6 +78,7 @@ export type CreatePromptTRPCType = z.infer<typeof CreatePromptTRPCSchema>;
 
 export const GetPromptsMetaSchema = z.object({
   name: z.string().optional(),
+  namePrefix: z.string().optional(),
   version: z.coerce.number().int().nullish(),
   label: z.string().optional(),
   tag: z.string().optional(),

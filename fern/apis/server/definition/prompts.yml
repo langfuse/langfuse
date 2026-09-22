@@ -38,7 +38,10 @@ service:
       request:
         name: ListPromptsMetaRequest
         query-parameters:
-          name: optional<string>
+          name:
+            type: optional<string>
+          namePrefix:
+            type: optional<string>
           label: optional<string>
           tag: optional<string>
           page:

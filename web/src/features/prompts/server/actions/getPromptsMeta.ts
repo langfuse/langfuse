@@ -114,7 +114,8 @@ export type PromptsMetaResponse = {
 };
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
-  const { name, version, label, tag, fromUpdatedAt, toUpdatedAt } = params;
+  const { name, namePrefix, version, label, tag, fromUpdatedAt, toUpdatedAt } =
+    params;
   const filters: FilterState = [];
 
   if (name) {
@@ -123,6 +124,15 @@ const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
       type: "string",
       operator: "=",
       value: name,
+    });
+  }
+
+  if (namePrefix) {
+    filters.push({
+      column: "name",
+      type: "string",
+      operator: "starts with",
+      value: namePrefix,
     });
   }
 
