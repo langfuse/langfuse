@@ -1,10 +1,9 @@
-/* eslint-disable no-nested-ternary */
 /**
  * ObservationDetailViewHeader - Extracted header component for ObservationDetailView
  *
  * Contains:
  * - Title row with ItemBadge, observation name, options menu
- * - Action buttons (Dataset, Annotate, Queue, Playground, Comments)
+ * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
@@ -13,24 +12,14 @@
 import { memo, useMemo, useState } from "react";
 import {
   type ObservationType,
-  AnnotationQueueObjectType,
   isGenerationLike,
   LangfuseInternalTraceEnvironment,
   type ScoreDomain,
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import {
-  ExistingDatasetItemsDropdownMenuController,
-  NewDatasetItemFromExistingObjectDialogController,
-  useDatasetItemFromTraceOrObservation,
-} from "@/src/features/datasets";
 import { AnnotateDrawerController } from "@/src/features/scores";
-import {
-  AnnotationQueueItemDropdownMenuController,
-  AnnotationQueueItemCountBadge,
-} from "@/src/features/annotation-queues";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
+import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
   LatencyBadge,
@@ -50,7 +39,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
-import { DetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
+import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useReadPath } from "@/src/features/events";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
@@ -59,14 +48,12 @@ import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-
 import {
   ChevronDown,
   EllipsisVertical,
-  ListPlus,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
   MoreHorizontal,
   PlusIcon,
   SquarePen,
-  Terminal,
 } from "lucide-react";
 import {
   Popover,
@@ -128,19 +115,6 @@ export const ObservationDetailViewHeader = memo(
       [serverScores],
     );
 
-    const {
-      existingDatasetItems,
-      hasAccess: hasDatasetAccess,
-      captureNewDatasetItemFormOpen,
-    } = useDatasetItemFromTraceOrObservation({
-      projectId,
-      traceId,
-      observationId: observation.id,
-      enabled: Boolean(observationWithIO),
-    });
-    const datasetCount = existingDatasetItems.length;
-    const hasExistingDatasetItems = datasetCount > 0;
-
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
@@ -199,7 +173,7 @@ export const ObservationDetailViewHeader = memo(
     return (
       <div className="@container shrink-0 space-y-2 border-b p-2">
         {/* Title row with actions */}
-        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[auto_auto] @2xl:justify-between">
+        <div className="grid w-full grid-cols-1 items-start gap-2 @2xl:grid-cols-[minmax(0,1fr)_auto]">
           <div className="flex w-full min-w-0 flex-row items-center gap-1">
             <ItemBadge type={observation.type as ObservationType} isSmall />
             <span
@@ -211,439 +185,247 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            <DetailHeaderActionsMenuController
-              idItems={[
-                { id: traceId, name: "Trace ID" },
-                { id: observation.id, name: "Observation ID" },
-              ]}
-              observationType={observation.type}
-              projectId={projectId}
-              observation={
-                isV4Enabled
-                  ? {
-                      id: observation.id,
-                      traceId,
-                      startTime: observation.startTime,
-                    }
-                  : undefined
-              }
-              spanName={observation.name ?? ""}
-              webCallout={{
-                traceId,
-                observationId: observation.id,
-                sessionId: observation.sessionId ?? null,
-              }}
-            >
-              {({ Trigger }) => (
-                <Trigger asChild>
-                  <Button
-                    aria-label="Options"
-                    className="mt-0.5 shrink-0"
-                    size="icon-xs"
-                    title="Options"
-                    variant="ghost"
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </Button>
-                </Trigger>
-              )}
-            </DetailHeaderActionsMenuController>
             {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
                 full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile && (
-              <NewDatasetItemFromExistingObjectDialogController
+              <ConnectedTraceObservationAddToDropdownMenuController
+                analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                 projectId={projectId}
+                traceId={traceId}
+                variant="observation"
+                observationId={observation.id}
+                input={observationWithIO?.input ?? null}
+                output={observationWithIO?.output ?? null}
+                metadata={observationWithIO?.metadata ?? null}
+                generation={
+                  observationWithIO && isGenerationLike(observationWithIO.type)
+                    ? observationWithIO
+                    : undefined
+                }
               >
-                {({ openDialog }) => (
-                  <ExistingDatasetItemsDropdownMenuController
-                    projectId={projectId}
-                    datasetItems={existingDatasetItems}
-                    disabled={!hasDatasetAccess}
-                    onOpenDialog={() => {
-                      setMobileActionsOpen(false);
-                      openDialog({
-                        traceId,
-                        observationId: observation.id,
-                        input: observationWithIO?.input ?? null,
-                        output: observationWithIO?.output ?? null,
-                        metadata: observationWithIO?.metadata ?? null,
-                      });
-                    }}
-                  >
-                    {({ Anchor, openDropdown }) => (
-                      <AnnotateDrawerController projectId={projectId}>
-                        {({ disabled: annotationDisabled, openDrawer }) => (
-                          <Popover
-                            open={isMobileActionsOpen}
-                            onOpenChange={setMobileActionsOpen}
+                {({ getTriggerProps }) => (
+                  <AnnotateDrawerController projectId={projectId}>
+                    {({ disabled: annotationDisabled, openDrawer }) => (
+                      <Popover
+                        open={isMobileActionsOpen}
+                        onOpenChange={setMobileActionsOpen}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            aria-label="More actions"
+                            className="ml-auto shrink-0"
                           >
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                aria-label="More actions"
-                                className="ml-auto shrink-0"
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent
-                              onFocusOutside={(event) => {
-                                // Keep the anchor mounted while a portaled action menu takes focus.
-                                event.preventDefault();
-                              }}
-                              align="end"
-                              className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="end"
+                          onFocusOutside={(event) => {
+                            // Keep the anchor mounted while a portaled action menu takes focus.
+                            event.preventDefault();
+                          }}
+                          className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+                        >
+                          {observationWithIO && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start gap-2 font-normal"
+                              {...getTriggerProps()}
                             >
-                              {observationWithIO && (
-                                <Anchor>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={!hasDatasetAccess}
-                                    className="w-full justify-start gap-2 font-normal"
-                                    onClick={() => {
-                                      if (hasExistingDatasetItems) {
-                                        openDropdown();
-                                        return;
+                              <PlusIcon className="h-4 w-4" />
+                              <span>Add to</span>
+                              <ChevronDown className="ml-auto h-3 w-3" />
+                            </Button>
+                          )}
+                          {!isAnnotationMode && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={annotationDisabled}
+                              className="w-full justify-start gap-2 font-normal"
+                              onClick={() => {
+                                setMobileActionsOpen(false);
+                                openDrawer({
+                                  scoreTarget: {
+                                    type: "trace",
+                                    traceId,
+                                    observationId: observation.id,
+                                  },
+                                  scores: observationScores,
+                                  companionTrace: isV4Enabled
+                                    ? {
+                                        environment: trace.environment,
+                                        scores: traceScores,
                                       }
-
-                                      setMobileActionsOpen(false);
-                                      captureNewDatasetItemFormOpen();
-                                      openDialog({
-                                        traceId,
-                                        observationId: observation.id,
-                                        input: observationWithIO.input,
-                                        output: observationWithIO.output,
-                                        metadata: observationWithIO.metadata,
-                                      });
-                                    }}
-                                  >
-                                    {hasExistingDatasetItems ||
-                                    hasDatasetAccess ? (
-                                      <PlusIcon
-                                        className="h-4 w-4"
-                                        aria-hidden="true"
-                                      />
-                                    ) : null}
-                                    <span className="text-sm">
-                                      {hasExistingDatasetItems
-                                        ? `In ${datasetCount} dataset(s)`
-                                        : "Add to datasets"}
-                                    </span>
-                                    {hasExistingDatasetItems ? (
-                                      <ChevronDown className="ml-auto h-3 w-3" />
-                                    ) : !hasDatasetAccess ? (
-                                      <LockIcon
-                                        className="ml-auto h-3 w-3"
-                                        aria-hidden="true"
-                                      />
-                                    ) : null}
-                                  </Button>
-                                </Anchor>
+                                    : undefined,
+                                  analyticsData: {
+                                    type: "trace",
+                                    source: "TraceDetail",
+                                    isV4: isV4Enabled,
+                                  },
+                                  scoreMetadata: {
+                                    projectId,
+                                    environment: observation.environment,
+                                  },
+                                });
+                              }}
+                            >
+                              {annotationDisabled ? (
+                                <LockIcon className="h-3 w-3" />
+                              ) : (
+                                <SquarePen className="h-4 w-4" />
                               )}
-                              {!isAnnotationMode && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={annotationDisabled}
-                                    className="w-full justify-start gap-2 font-normal"
-                                    onClick={() => {
-                                      setMobileActionsOpen(false);
-                                      openDrawer({
-                                        scoreTarget: {
-                                          type: "trace",
-                                          traceId,
-                                          observationId: observation.id,
-                                        },
-                                        scores: observationScores,
-                                        companionTrace: isV4Enabled
-                                          ? {
-                                              environment: trace.environment,
-                                              scores: traceScores,
-                                            }
-                                          : undefined,
-                                        analyticsData: {
-                                          type: "trace",
-                                          source: "TraceDetail",
-                                          isV4: isV4Enabled,
-                                        },
-                                        scoreMetadata: {
-                                          projectId,
-                                          environment: observation.environment,
-                                        },
-                                      });
-                                    }}
-                                  >
-                                    {annotationDisabled ? (
-                                      <LockIcon className="h-3 w-3" />
-                                    ) : (
-                                      <SquarePen className="h-4 w-4" />
-                                    )}
-                                    <span className="text-sm">Annotate</span>
-                                  </Button>
-                                  <AnnotationQueueItemDropdownMenuController
-                                    projectId={projectId}
-                                    objectId={observation.id}
-                                    objectType={
-                                      AnnotationQueueObjectType.OBSERVATION
-                                    }
-                                    analyticsData={{
-                                      source: "TraceDetail",
-                                      isV4: isV4Enabled,
-                                    }}
-                                  >
-                                    {({ disabled, totalCount }) => (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        disabled={disabled !== undefined}
-                                        className="w-full justify-start gap-2 font-normal"
-                                      >
-                                        <ListPlus className="h-4 w-4" />
-                                        <span className="text-sm">Queue</span>
-                                        {totalCount > 0 && (
-                                          <AnnotationQueueItemCountBadge
-                                            totalCount={totalCount}
-                                            layout="menu"
-                                          />
-                                        )}
-                                      </Button>
-                                    )}
-                                  </AnnotationQueueItemDropdownMenuController>
-                                </>
-                              )}
-                              {observationWithIO &&
-                                isGenerationLike(observationWithIO.type) && (
-                                  <JumpToPlaygroundDropdownMenuController
-                                    source="generation"
-                                    generation={observationWithIO}
-                                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                                  >
-                                    {({ Trigger, disabled, title }) => (
-                                      <Trigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          disabled={disabled}
-                                          title={title}
-                                          className={cn(
-                                            "w-full justify-start gap-2 font-normal",
-                                            disabled
-                                              ? "cursor-not-allowed opacity-50"
-                                              : "cursor-pointer",
-                                          )}
-                                        >
-                                          <Terminal className="h-4 w-4" />
-                                          <span className="text-sm">
-                                            Test in playground
-                                          </span>
-                                        </Button>
-                                      </Trigger>
-                                    )}
-                                  </JumpToPlaygroundDropdownMenuController>
-                                )}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                disabled={commentDrawerControl.disabled}
-                                onClick={() => {
-                                  setMobileActionsOpen(false);
-                                  commentDrawerControl.openDrawer();
-                                }}
-                                className="w-full justify-start gap-2 font-normal"
-                              >
-                                {commentDrawerControl.disabled ? (
-                                  <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                                ) : (
-                                  <MessageSquare className="h-4 w-4" />
-                                )}
-                                <span className="text-sm">Add comment</span>
-                                {!commentDrawerControl.disabled &&
-                                commentCount ? (
-                                  <ActionButtonCountBadge
-                                    count={commentCount}
-                                  />
-                                ) : null}
-                              </Button>
-                            </PopoverContent>
-                          </Popover>
-                        )}
-                      </AnnotateDrawerController>
+                              <span className="text-sm">Annotate</span>
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            disabled={commentDrawerControl.disabled}
+                            onClick={() => {
+                              setMobileActionsOpen(false);
+                              commentDrawerControl.openDrawer();
+                            }}
+                            className="w-full justify-start gap-2 font-normal"
+                          >
+                            {commentDrawerControl.disabled ? (
+                              <MessageSquareOff className="text-muted-foreground h-4 w-4" />
+                            ) : (
+                              <MessageSquare className="h-4 w-4" />
+                            )}
+                            <span className="text-sm">Add comment</span>
+                            {!commentDrawerControl.disabled && commentCount ? (
+                              <ActionButtonCountBadge count={commentCount} />
+                            ) : null}
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
                     )}
-                  </ExistingDatasetItemsDropdownMenuController>
+                  </AnnotateDrawerController>
                 )}
-              </NewDatasetItemFromExistingObjectDialogController>
+              </ConnectedTraceObservationAddToDropdownMenuController>
+            )}
+            {isMobile && (
+              <ConnectedDetailHeaderActionsMenuController
+                idItems={[
+                  { id: traceId, name: "Trace ID" },
+                  { id: observation.id, name: "Observation ID" },
+                ]}
+                observationType={observation.type}
+                projectId={projectId}
+                observation={
+                  isV4Enabled
+                    ? {
+                        id: observation.id,
+                        traceId,
+                        startTime: observation.startTime,
+                      }
+                    : undefined
+                }
+                spanName={observation.name ?? ""}
+                webCallout={{
+                  traceId,
+                  observationId: observation.id,
+                  sessionId: observation.sessionId ?? null,
+                }}
+              >
+                {({ getTriggerProps }) => (
+                  <Button
+                    aria-label="Options"
+                    className="shrink-0"
+                    size="icon"
+                    title="Options"
+                    variant="secondary"
+                    {...getTriggerProps()}
+                  >
+                    <EllipsisVertical className="h-4 w-4" />
+                  </Button>
+                )}
+              </ConnectedDetailHeaderActionsMenuController>
             )}
           </div>
           {/* Action buttons (desktop inline cluster) */}
           {!isMobile && (
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
-                <NewDatasetItemFromExistingObjectDialogController
+                <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
                   key={observation.id}
+                  traceId={traceId}
+                  variant="observation"
+                  observationId={observation.id}
+                  input={observationWithIO.input}
+                  output={observationWithIO.output}
+                  metadata={observationWithIO.metadata}
+                  generation={
+                    isGenerationLike(observationWithIO.type)
+                      ? observationWithIO
+                      : undefined
+                  }
                 >
-                  {({ openDialog }) => (
-                    <ExistingDatasetItemsDropdownMenuController
-                      projectId={projectId}
-                      datasetItems={existingDatasetItems}
-                      disabled={!hasDatasetAccess}
-                      onOpenDialog={() =>
-                        openDialog({
-                          traceId,
-                          observationId: observation.id,
-                          input: observationWithIO.input,
-                          output: observationWithIO.output,
-                          metadata: observationWithIO.metadata,
-                        })
-                      }
+                  {({ getTriggerProps }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1"
+                      {...getTriggerProps()}
                     >
-                      {({ Anchor, openDropdown }) => (
-                        <Anchor>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={!hasDatasetAccess}
-                            onClick={() => {
-                              if (hasExistingDatasetItems) {
-                                openDropdown();
-                                return;
-                              }
-
-                              captureNewDatasetItemFormOpen();
-                              openDialog({
-                                traceId,
-                                observationId: observation.id,
-                                input: observationWithIO.input,
-                                output: observationWithIO.output,
-                                metadata: observationWithIO.metadata,
-                              });
-                            }}
-                          >
-                            {!hasExistingDatasetItems && hasDatasetAccess ? (
-                              <PlusIcon
-                                className="mr-1.5 -ml-0.5 h-3.5 w-3.5"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                            {hasExistingDatasetItems
-                              ? `In ${datasetCount} dataset(s)`
-                              : "Add to datasets"}
-                            {hasExistingDatasetItems ? (
-                              <ChevronDown className="ml-2 h-3 w-3" />
-                            ) : !hasDatasetAccess ? (
-                              <LockIcon
-                                className="ml-1.5 h-3 w-3"
-                                aria-hidden="true"
-                              />
-                            ) : null}
-                          </Button>
-                        </Anchor>
-                      )}
-                    </ExistingDatasetItemsDropdownMenuController>
+                      <PlusIcon className="h-3.5 w-3.5" />
+                      <span>Add to</span>
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
                   )}
-                </NewDatasetItemFromExistingObjectDialogController>
+                </ConnectedTraceObservationAddToDropdownMenuController>
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
               {!isAnnotationMode && (
-                <div className="flex flex-wrap items-start gap-2">
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled, openDrawer }) => (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={disabled}
-                        onClick={() =>
-                          openDrawer({
-                            scoreTarget: {
-                              type: "trace",
-                              traceId,
-                              observationId: observation.id,
-                            },
-                            scores: observationScores,
-                            companionTrace: isV4Enabled
-                              ? {
-                                  environment: trace.environment,
-                                  scores: traceScores,
-                                }
-                              : undefined,
-                            analyticsData: {
-                              type: "trace",
-                              source: "TraceDetail",
-                              isV4: isV4Enabled,
-                            },
-                            scoreMetadata: {
-                              projectId,
-                              environment: observation.environment,
-                            },
-                          })
-                        }
-                      >
-                        {disabled ? (
-                          <LockIcon className="mr-1.5 h-3 w-3" />
-                        ) : (
-                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        <span>Annotate</span>
-                      </Button>
-                    )}
-                  </AnnotateDrawerController>
-                  <AnnotationQueueItemDropdownMenuController
-                    projectId={projectId}
-                    objectId={observation.id}
-                    objectType={AnnotationQueueObjectType.OBSERVATION}
-                    analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                  >
-                    {({ disabled, totalCount }) => (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={disabled !== undefined}
-                        className="gap-1.5"
-                      >
-                        <ListPlus className="h-3.5 w-3.5" />
-                        <span>Queue</span>
-                        {totalCount > 0 && (
-                          <ActionButtonCountBadge count={totalCount} />
-                        )}
-                        <ChevronDown className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </AnnotationQueueItemDropdownMenuController>
-                </div>
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() =>
+                        openDrawer({
+                          scoreTarget: {
+                            type: "trace",
+                            traceId,
+                            observationId: observation.id,
+                          },
+                          scores: observationScores,
+                          companionTrace: isV4Enabled
+                            ? {
+                                environment: trace.environment,
+                                scores: traceScores,
+                              }
+                            : undefined,
+                          analyticsData: {
+                            type: "trace",
+                            source: "TraceDetail",
+                            isV4: isV4Enabled,
+                          },
+                          scoreMetadata: {
+                            projectId,
+                            environment: observation.environment,
+                          },
+                        })
+                      }
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
               )}
-              {observationWithIO &&
-                isGenerationLike(observationWithIO.type) && (
-                  <JumpToPlaygroundDropdownMenuController
-                    source="generation"
-                    generation={observationWithIO}
-                    analyticsEventName="trace_detail:test_in_playground_button_click"
-                  >
-                    {({ Trigger, disabled, title }) => (
-                      <Trigger asChild>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          disabled={disabled}
-                          title={title}
-                          className={cn(
-                            "flex items-center gap-1",
-                            disabled
-                              ? "cursor-not-allowed opacity-50"
-                              : "cursor-pointer",
-                          )}
-                        >
-                          <Terminal className="h-3.5 w-3.5" />
-                          <span className="hidden md:inline">Playground</span>
-                          <ChevronDown className="h-3 w-3" />
-                        </Button>
-                      </Trigger>
-                    )}
-                  </JumpToPlaygroundDropdownMenuController>
-                )}
               <Button
                 type="button"
                 variant="secondary"
@@ -664,6 +446,42 @@ export const ObservationDetailViewHeader = memo(
                   </>
                 )}
               </Button>
+              <ConnectedDetailHeaderActionsMenuController
+                idItems={[
+                  { id: traceId, name: "Trace ID" },
+                  { id: observation.id, name: "Observation ID" },
+                ]}
+                observationType={observation.type}
+                projectId={projectId}
+                observation={
+                  isV4Enabled
+                    ? {
+                        id: observation.id,
+                        traceId,
+                        startTime: observation.startTime,
+                      }
+                    : undefined
+                }
+                spanName={observation.name ?? ""}
+                webCallout={{
+                  traceId,
+                  observationId: observation.id,
+                  sessionId: observation.sessionId ?? null,
+                }}
+              >
+                {({ getTriggerProps }) => (
+                  <Button
+                    aria-label="Options"
+                    className="shrink-0"
+                    size="icon-sm"
+                    title="Options"
+                    variant="secondary"
+                    {...getTriggerProps()}
+                  >
+                    <EllipsisVertical className="h-4 w-4" />
+                  </Button>
+                )}
+              </ConnectedDetailHeaderActionsMenuController>
             </div>
           )}
         </div>

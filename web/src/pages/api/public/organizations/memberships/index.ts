@@ -8,8 +8,7 @@ import {
 } from "@/src/ee/features/admin-api/server/memberships";
 import { shadowAuth, writeOrgError } from "@/src/features/public-api/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
-
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,

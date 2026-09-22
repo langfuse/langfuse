@@ -6,8 +6,9 @@
 // useDashboardQueryScheduler stay off this door: mapping helpers are
 // imported by widgets/utils and scores adapters, and putting the dialog or
 // home-chart registry here would load that UI into every mapping consumer.
-// dashboardUiTableToViewMapping stays a deep import for server callers
-// (rule 10). Pages and dashboardRouter stay off this door.
+// dashboardUiTableToViewMapping stays on this door for client callers
+// and on server/index.ts for server callers (rule 10). Pages and
+// dashboardRouter stay off this door.
 export {
   buildTableFilterHref,
   buildViewAsTableHint,
