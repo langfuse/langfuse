@@ -7,6 +7,7 @@ import {
   isNoisyHttpClientPollEvent,
   isPosthogRecorderInternalEvent,
   isReactDevtoolsInternalEvent,
+  isStaleChunkLoadErrorEvent,
   isStaleChunkParseErrorEvent,
 } from "@/src/utils/sentryFilters";
 
@@ -998,6 +999,131 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("J. drops console-captured getter-only window.__NEXT_DATA__ TypeError", () => {
+    // Real shape (LANGFUSE-61R): Next.js Pages Router `initialize()` does
+    // `window.__NEXT_DATA__ = initialData`. When that Window property is
+    // getter-only, Chromium throws. An injected wrapper logs
+    // `Error was not caught` + the TypeError; captureConsoleIntegration
+    // mints the issue. Stack is Next.js / turbopack only. 0 users.
+    const getterOnlyWindowNextDataEvent = (
+      value: string,
+      mechanismType = "auto.core.capture_console",
+      type = "TypeError",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: true },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-61R Chromium TypeError via capture_console", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          getterOnlyWindowNextDataEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          getterOnlyWindowNextDataEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter.",
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe("K. drops Safari password-manager addMore.click (document-attributed)", () => {
+    // Real shape: Safari 26.5 on settings API keys. Injected
+    // password-manager / autofill JS does `addMore.click()` after a key is
+    // created. `addMore` is undefined. WebKit's TypeError includes the
+    // expression. Stack is document-attributed global code — no /_next/
+    // chunk — so denyUrls cannot match. Langfuse has no `addMore` identifier.
+    const safariAddMoreClickEvent = (
+      value: string,
+      mechanismType = "auto.browser.global_handlers.onerror",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the WebKit addMore.click TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the null WebKit variant and a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "null is not an object (evaluating 'addMore.click').",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with click()", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click()')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording with document-attributed frames", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariAddMoreClickEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+            "auto.browser.global_handlers.onerror",
+            [
+              {
+                filename: "app:///project/example/settings/api-keys",
+                function: "global code",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1108,7 +1234,7 @@ describe("isDenylistedNoiseEvent", () => {
     it("keeps a first-party chunk dynamic-import failure (stale deploy / CDN)", () => {
       // Same Chrome message as LANGFUSE-5ZS, but the URL is ours. This is a
       // real client failure (stale tab after deploy, truncated download) and
-      // must still reach Sentry.
+      // must still reach Sentry (grouped, not dropped).
       expect(
         isDenylistedNoiseEvent(
           exceptionEvent(
@@ -1359,6 +1485,57 @@ describe("isDenylistedNoiseEvent", () => {
       expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
     });
 
+    it("keeps an UNCAUGHT getter-only window.__NEXT_DATA__ TypeError (hydration crash)", () => {
+      // LANGFUSE-61R drops only the console-captured sibling. A global
+      // onerror means Next.js Pages Router failed to boot — keep it.
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured getter-only window.__NEXT_DATA__ TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a longer message that merely quotes the __NEXT_DATA__ TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "hydrate failed: Cannot set property __NEXT_DATA__ of #<Window> which has only a getter",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
     it("keeps a listener TypeError that is not the Chromium Java-bridge wording", () => {
       const event = {
         exception: {
@@ -1503,6 +1680,114 @@ describe("isDenylistedNoiseEvent", () => {
       expect(isDenylistedNoiseEvent(event)).toBe(false);
     });
 
+    it("keeps a longer app message that merely quotes addMore.click", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Failed to copy secret: undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different WebKit evaluating TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'foo.bar')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Chromium's generic undefined.click TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "Cannot read properties of undefined (reading 'click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured addMore.click TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "undefined is not an object (evaluating 'addMore.click')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps the Safari addMore.click TypeError when a first-party chunk is on the stack", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+              stacktrace: {
+                frames: [
+                  {
+                    filename:
+                      "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/settings/[page]-abc.js",
+                    function: "onClick",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
     it("keeps an event with no exception values", () => {
       expect(
         isDenylistedNoiseEvent({ message: "some message" } as ErrorEvent),
@@ -1580,6 +1865,115 @@ describe("isReactDevtoolsInternalEvent", () => {
 
     it("keeps an event with no exception/message/logentry text", () => {
       expect(isReactDevtoolsInternalEvent({} as ErrorEvent)).toBe(false);
+    });
+  });
+});
+
+/**
+ * Next.js route-loader `script.onerror`: capture_console from
+ * `Error rendering page: ` + `Failed to load script: <hashed chunk URL>`.
+ */
+function chunkLoadErrorEvent(
+  value = "Failed to load script: https://us.cloud.langfuse.com/_next/static/chunks/31w9e6884-o68.js",
+): ErrorEvent {
+  return {
+    exception: {
+      values: [
+        {
+          type: "Error",
+          value,
+          mechanism: { type: "auto.core.capture_console", handled: true },
+          stacktrace: {
+            frames: [
+              {
+                filename: "node_modules/next/src/client/route-loader.ts",
+                function: "script.onerror",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  } as ErrorEvent;
+}
+
+describe("isStaleChunkLoadErrorEvent", () => {
+  describe("matches first-party chunk LOAD failures (grouped, not dropped)", () => {
+    it("matches Next.js route-loader script.onerror (hashed chunk URL)", () => {
+      expect(isStaleChunkLoadErrorEvent(chunkLoadErrorEvent())).toBe(true);
+    });
+
+    it("matches regardless of the (per-deploy hashed) chunk filename", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          chunkLoadErrorEvent(
+            "Failed to load script: https://static-hipaa.langfuse.com/_next/static/chunks/abc123-xyz.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("matches a first-party dynamic import() chunk failure", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: https://us.cloud.langfuse.com/_next/static/chunks/app.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(true);
+      expect(
+        isStaleChunkLoadErrorEvent(
+          messageEvent(
+            "Failed to fetch dynamically imported module: http://localhost:3000/_next/static/chunks/app.js",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("is grouped by beforeSend, NOT dropped by the denylist", () => {
+      expect(isDenylistedNoiseEvent(chunkLoadErrorEvent())).toBe(false);
+    });
+  });
+
+  describe("NEVER matches unrelated load failures", () => {
+    it("keeps a third-party script.onerror (no Next chunk path)", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          chunkLoadErrorEvent(
+            "Failed to load script: https://cdn.example.com/vendor.js",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps UI copy that quotes Failed to load without a chunk URL", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent("Failed to load evaluators: upstream timed out"),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps worker importScripts failures (separate family)", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "[ELK layout] worker failed to load: Uncaught NetworkError: Failed to execute 'importScripts' on 'WorkerGlobalScope': The script at 'https://us.cloud.langfuse.com/_next/static/chunks/27ywx138-jmac.js' failed to load.",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a browser-extension dynamic import() failure", () => {
+      expect(
+        isStaleChunkLoadErrorEvent(
+          exceptionEvent(
+            "Failed to fetch dynamically imported module: chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/chunk.js",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
     });
   });
 });

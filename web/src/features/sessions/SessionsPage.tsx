@@ -4,7 +4,7 @@ import SessionsTable from "@/src/features/sessions/SessionsTable";
 import Page from "@/src/components/layouts/page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
-import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { useReadPath } from "@/src/features/events";
 
 export default function SessionsPage() {
   const router = useRouter();

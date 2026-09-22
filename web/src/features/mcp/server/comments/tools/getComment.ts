@@ -1,4 +1,4 @@
-import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
+import { getCommentForApi } from "@/src/features/comments/server";
 import {
   GetCommentV1Query,
   GetCommentV1Response,

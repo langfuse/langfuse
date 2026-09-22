@@ -1,10 +1,10 @@
 import { renderHook } from "@testing-library/react";
 
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 

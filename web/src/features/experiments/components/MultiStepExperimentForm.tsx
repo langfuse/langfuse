@@ -24,7 +24,7 @@ import Link from "next/link";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type UseFormReturn } from "react-hook-form";
 import { api } from "@/src/utils/api";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";

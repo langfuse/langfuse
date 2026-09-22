@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { LATEST_PROMPT_LABEL, type Prompt } from "@langfuse/shared";
 
-import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
-
+import { getPromptForApi } from "@/src/features/prompts/server";
 import { defineTool } from "../../../core/define-tool";
 import { buildPromptUrl } from "@langfuse/shared/src/server";
 import { runMcpTool } from "../../../core/run-mcp-tool";

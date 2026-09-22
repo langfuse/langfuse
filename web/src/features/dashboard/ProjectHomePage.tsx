@@ -24,17 +24,14 @@ import {
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import Page from "@/src/components/layouts/page";
 
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
 } from "@/src/hooks/useEnvironmentFilter";
-import {
-  useReadPath,
-  type ResolvedReadPath,
-} from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -45,14 +42,14 @@ import {
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import Link from "next/link";
 import { LockIcon, PencilIcon } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showErrorToast } from "@/src/features/notifications";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { setupTracingRoute } from "@/src/features/setup";
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of

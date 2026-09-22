@@ -1,5 +1,5 @@
 import { TRPCClientError } from "@trpc/client";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 
 // Catch network level errors, e.g. by proxy rate-limiting

@@ -3,7 +3,7 @@
 import { type PropsWithChildren, Children } from "react";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 import { Sheet, SheetContent, SheetTitle } from "@/src/components/ui/sheet";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useDataTableControls } from "./data-table-controls";
 
 // Mirrors the trace peek's collapsed-panel rail (TraceLayoutDesktop): instead

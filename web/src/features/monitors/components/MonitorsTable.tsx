@@ -24,9 +24,9 @@ import {
   useSidebarFilterState,
 } from "@/src/features/filters";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";

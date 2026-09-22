@@ -14,7 +14,10 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -39,8 +42,8 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
+import { useOrderByState } from "@/src/features/orderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -52,26 +55,26 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { type TableAction } from "@/src/features/table/types";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
+import {
+  useSelectAll,
+  type TableAction,
+  TableActionMenu,
+  TableSelectionManager,
+} from "@/src/features/table";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { showSuccessToast } from "@/src/features/notifications";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
 
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 export type SessionTableRow = {
   id: string;
