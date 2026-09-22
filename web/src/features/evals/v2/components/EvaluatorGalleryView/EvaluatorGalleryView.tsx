@@ -73,14 +73,9 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
-  /**
-   * Discoverability of the experimental decision-model type; absent while
-   * the feature flag is off. `pill` is the accent on the header button,
-   * `banner` shows a dismissible launch callout above the sections.
-   */
   decisionModel?: {
-    pill: "New" | "Jev" | null;
-    banner?: { onDismiss: () => void };
+    bannerDismissed: boolean;
+    onDismissBanner: () => void;
   };
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
@@ -192,23 +187,21 @@ export function EvaluatorGalleryView({
                   >
                     <Scale className="h-3.5 w-3.5" aria-hidden="true" />
                     New decision model
-                    {decisionModel.pill ? (
-                      <span className="bg-primary-accent text-primary-foreground rounded-full px-1.5 py-px text-[10px] leading-none font-bold">
-                        {decisionModel.pill}
-                      </span>
-                    ) : null}
+                    <span className="bg-primary-accent text-primary-foreground rounded-full px-1.5 py-px text-[10px] leading-none font-bold">
+                      New
+                    </span>
                   </Button>
                 ) : null}
               </div>
             </div>
 
             <div className="flex flex-col gap-10 px-4 py-4">
-              {decisionModel?.banner ? (
+              {decisionModel && !decisionModel.bannerDismissed ? (
                 <EvaluatorGalleryDecisionModelBanner
                   onTry={() =>
                     onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
                   }
-                  onDismiss={decisionModel.banner.onDismiss}
+                  onDismiss={decisionModel.onDismissBanner}
                 />
               ) : null}
               {isLoading ? <GallerySkeleton /> : null}

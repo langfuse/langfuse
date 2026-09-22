@@ -91,7 +91,6 @@ function managedTemplateId(key: string) {
   return `${MANAGED_TEMPLATE_ID_PREFIX}${key}`;
 }
 
-/** Decision-model templates exist only in the v2 setup; the legacy editor cannot run them. */
 type LegacyManagedTemplate = ManagedTemplate & {
   evaluator: Exclude<
     ManagedTemplate["evaluator"],
@@ -106,7 +105,8 @@ function isLegacyManagedTemplate(
 }
 
 function legacyManagedTemplates(): LegacyManagedTemplate[] {
-  return MANAGED_TEMPLATES_CATALOG.templates.filter(isLegacyManagedTemplate);
+  const templates: ManagedTemplate[] = MANAGED_TEMPLATES_CATALOG.templates;
+  return templates.filter(isLegacyManagedTemplate);
 }
 
 function toLegacyManagedTemplate(template: LegacyManagedTemplate) {

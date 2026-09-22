@@ -5,10 +5,12 @@ export const managedEvaluatorTemplateService = {
     search,
     category,
     type,
+    includeDecisionModels = false,
   }: {
     search?: string;
     category?: string;
     type?: "LLM_AS_JUDGE" | "CODE";
+    includeDecisionModels?: boolean;
   } = {}) {
     const query = search?.trim().toLowerCase();
 
@@ -17,6 +19,8 @@ export const managedEvaluatorTemplateService = {
       categories: MANAGED_TEMPLATES_CATALOG.categories,
       templates: MANAGED_TEMPLATES_CATALOG.templates.filter(
         (template) =>
+          (includeDecisionModels ||
+            template.evaluator.type !== "DECISION_MODEL") &&
           (!query ||
             template.name.toLowerCase().includes(query) ||
             template.description.toLowerCase().includes(query)) &&

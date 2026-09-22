@@ -205,11 +205,11 @@ export const Default = meta.story({
 const topicDecisionModel = {
   source: "managed",
   key: "topic-decision-model",
-  name: "Classify Input Topic",
+  name: "Assign Input Topic",
   categories: ["classifier", "recommended"],
   icon: "tags",
   description:
-    "Assigns the input to one of your topics with a calibrated probability for each, in a single fast call.",
+    "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
   maintainer: "langfuse",
   evaluator: {
     type: EvalTemplateTypeEnum.DECISION_MODEL,
@@ -231,29 +231,6 @@ const topicDecisionModel = {
   },
 } satisfies GalleryTemplate;
 
-const decisionModelTemplates: GalleryTemplate[] = [
-  topicDecisionModel,
-  {
-    ...topicDecisionModel,
-    key: "out-of-scope-decision-model",
-    name: "Detect Out-of-Scope Request",
-    icon: "shield",
-    description:
-      "Probability that the user's request falls outside the assistant's defined scope.",
-    categories: ["conversation", "decision-model"],
-  },
-  {
-    ...topicDecisionModel,
-    key: "frustration-decision-model",
-    name: "Rate Customer Frustration",
-    icon: "frown",
-    description:
-      "Rates the user's frustration along levels you describe, from calm to furious.",
-    categories: ["conversation", "decision-model"],
-  },
-];
-
-/** Recommended row with a Jev-based template in the first slot. */
 const sectionsWithDecisionModelCard = sections.map((section) =>
   section.key === "recommended"
     ? {
@@ -263,59 +240,20 @@ const sectionsWithDecisionModelCard = sections.map((section) =>
     : section,
 );
 
-/** Option A: a third header button, accented with a "New" pill. */
-export const DecisionModelHeaderButton = meta.story({
-  args: { ...defaultArgs, decisionModel: { pill: "New" } },
-  render: StatefulEvaluatorGalleryView,
-});
-
-/** Option A2: same button, but the pill names the model everyone is talking about. */
-export const DecisionModelHeaderButtonJevPill = meta.story({
-  args: { ...defaultArgs, decisionModel: { pill: "Jev" } },
-  render: StatefulEvaluatorGalleryView,
-});
-
-/** Option B: header button plus a Jev-based template card in the recommended row. */
-export const DecisionModelRecommendedCard = meta.story({
+export const DecisionModels = meta.story({
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,
-    decisionModel: { pill: "New" },
+    decisionModel: { bannerDismissed: false, onDismissBanner: fn() },
   },
   render: StatefulEvaluatorGalleryView,
 });
 
-/** Option C: header button plus a dismissible launch banner above the sections. */
-export const DecisionModelBanner = meta.story({
+export const DecisionModelsBannerDismissed = meta.story({
   args: {
     ...defaultArgs,
     sections: sectionsWithDecisionModelCard,
-    decisionModel: { pill: "New", banner: { onDismiss: fn() } },
-  },
-  render: StatefulEvaluatorGalleryView,
-});
-
-/** Option D: header button plus a method-based sidebar category with Jev templates. */
-export const DecisionModelSidebarCategory = meta.story({
-  args: {
-    ...defaultArgs,
-    navigationItems: [
-      ...defaultArgs.navigationItems.slice(0, 2),
-      { key: "decision-model", label: "Decision models (Jev)", count: 3 },
-      ...defaultArgs.navigationItems.slice(2),
-    ],
-    sections: [
-      ...sectionsWithDecisionModelCard.slice(0, 2),
-      {
-        key: "decision-model",
-        label: "Decision models (Jev)",
-        description:
-          "Typed questions answered by TypeSafe Jev: fast, cheap, calibrated.",
-        templates: decisionModelTemplates,
-      },
-      ...sectionsWithDecisionModelCard.slice(2),
-    ],
-    decisionModel: { pill: "New" },
+    decisionModel: { bannerDismissed: true, onDismissBanner: fn() },
   },
   render: StatefulEvaluatorGalleryView,
 });

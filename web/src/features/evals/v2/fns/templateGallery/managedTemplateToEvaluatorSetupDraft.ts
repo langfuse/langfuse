@@ -31,8 +31,6 @@ function managedTemplateDefinition(
         sourceCodeLanguage: evaluator.language,
       };
     case "DECISION_MODEL":
-      // Templates never pin a connection; the empty model leaves the picker
-      // unselected so the user chooses their TypeSafe connection.
       return {
         type: evaluator.type,
         questions: evaluator.questions,

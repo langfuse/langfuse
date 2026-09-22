@@ -2,10 +2,6 @@ import { Scale, X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 
-/**
- * Launch callout for decision-model evaluators above the template sections.
- * Dismissible so it stops competing for attention once it has done its job.
- */
 export function EvaluatorGalleryDecisionModelBanner({
   onTry,
   onDismiss,

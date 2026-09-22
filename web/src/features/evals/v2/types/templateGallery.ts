@@ -40,7 +40,6 @@ export type ManagedTemplate = {
     | {
         type: Extract<EvalTemplateType, "DECISION_MODEL">;
         questions: DecisionModelQuestions;
-        /** The state keys and the observation field each starts from. */
         state: Array<{ key: string; defaultMapping: { field: string } }>;
       };
 };
