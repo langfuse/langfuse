@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * Tree building utilities for trace component.
  *
@@ -564,13 +563,15 @@ export function buildTraceUiData(
   const rootDuration =
     roots.length > 0
       ? Math.max(
-          ...roots.map((r) =>
-            r.latency
-              ? r.latency * 1000
-              : r.endTime
-                ? r.endTime.getTime() - r.startTime.getTime()
-                : 0,
-          ),
+          ...roots.map((r) => {
+            if (r.latency) {
+              return r.latency * 1000;
+            }
+            if (r.endTime) {
+              return r.endTime.getTime() - r.startTime.getTime();
+            }
+            return 0;
+          }),
         )
       : undefined;
 

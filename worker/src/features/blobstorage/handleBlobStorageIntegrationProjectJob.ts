@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job, UnrecoverableError } from "bullmq";
@@ -502,25 +501,37 @@ const processBlobStorageExport = async (config: {
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        const exportPath = parquetEligible
-          ? "parquet"
-          : passthroughEligible
-            ? "passthrough"
-            : "standard";
+        const exportPath = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (passthroughEligible) {
+            return "passthrough";
+          }
+          return "standard";
+        })();
 
         const timestamp = formatBlobExportTimestamp(config.maxTimestamp);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
-        const extension = parquetEligible
-          ? "parquet"
-          : config.compressed
-            ? `${blobStorageProps.extension}.gz`
-            : blobStorageProps.extension;
+        const extension = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (config.compressed) {
+            return `${blobStorageProps.extension}.gz`;
+          }
+          return blobStorageProps.extension;
+        })();
         const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = parquetEligible
-          ? "application/vnd.apache.parquet"
-          : config.compressed
-            ? "application/gzip"
-            : blobStorageProps.contentType;
+        const uploadContentType = (() => {
+          if (parquetEligible) {
+            return "application/vnd.apache.parquet";
+          }
+          if (config.compressed) {
+            return "application/gzip";
+          }
+          return blobStorageProps.contentType;
+        })();
 
         const exportFieldGroups =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
@@ -880,11 +891,15 @@ const processBlobStorageExport = async (config: {
               )
             : 0;
           // Measured backpressure (gzip / parquet boundary), else duration residual.
-          const uploadWaitMs = gzipStats
-            ? Math.round(gzipStats.backpressureMs)
-            : parquetEligible
-              ? Math.round(sourceStats.backpressureMs)
-              : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          const uploadWaitMs = (() => {
+            if (gzipStats) {
+              return Math.round(gzipStats.backpressureMs);
+            }
+            if (parquetEligible) {
+              return Math.round(sourceStats.backpressureMs);
+            }
+            return Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+          })();
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -940,11 +955,15 @@ const processBlobStorageExport = async (config: {
                   Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
                 )
               : 0;
-            const finalUploadWaitMs = gzipStats
-              ? Math.round(gzipStats.backpressureMs)
-              : parquetEligible
-                ? Math.round(sourceStats.backpressureMs)
-                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            const finalUploadWaitMs = (() => {
+              if (gzipStats) {
+                return Math.round(gzipStats.backpressureMs);
+              }
+              if (parquetEligible) {
+                return Math.round(sourceStats.backpressureMs);
+              }
+              return Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+            })();
             span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
             span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
             const finalExportFormat = parquetEligible
@@ -1888,12 +1907,15 @@ function extractStorageErrorMessage(error: unknown): string {
   const errorDetails = (error as unknown as { Details?: unknown }).Details;
   const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
     ?.Details;
-  const details =
-    typeof errorDetails === "string"
-      ? errorDetails
-      : typeof causeDetails === "string"
-        ? causeDetails
-        : undefined;
+  const details = (() => {
+    if (typeof errorDetails === "string") {
+      return errorDetails;
+    }
+    if (typeof causeDetails === "string") {
+      return causeDetails;
+    }
+    return undefined;
+  })();
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);

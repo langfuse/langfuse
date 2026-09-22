@@ -21,14 +21,18 @@ const sdkSeries = (
     overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
   const sdkName = overrides.sdkName ?? "python";
   const sdkVersion = overrides.sdkVersion ?? "4.7.0";
-  const canonicalSdkName =
-    overrides.canonicalSdkName !== undefined
-      ? overrides.canonicalSdkName
-      : sdkName === "python"
-        ? "python"
-        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
-          ? "javascript"
-          : null;
+  const canonicalSdkName = (() => {
+    if (overrides.canonicalSdkName !== undefined) {
+      return overrides.canonicalSdkName;
+    }
+    if (sdkName === "python") {
+      return "python";
+    }
+    if (sdkName === "javascript" || sdkName.startsWith("@langfuse/")) {
+      return "javascript";
+    }
+    return null;
+  })();
   const sdkVersionMajor =
     overrides.sdkVersionMajor !== undefined
       ? overrides.sdkVersionMajor
@@ -36,12 +40,15 @@ const sdkSeries = (
   const resolvedMajor = Number.isFinite(sdkVersionMajor)
     ? Number(sdkVersionMajor)
     : null;
-  const latestMajor =
-    canonicalSdkName === "python"
-      ? 4
-      : canonicalSdkName === "javascript"
-        ? 5
-        : null;
+  const latestMajor = (() => {
+    if (canonicalSdkName === "python") {
+      return 4;
+    }
+    if (canonicalSdkName === "javascript") {
+      return 5;
+    }
+    return null;
+  })();
   const v4MigrationStatus =
     overrides.v4MigrationStatus ??
     (canonicalSdkName === null || resolvedMajor === null

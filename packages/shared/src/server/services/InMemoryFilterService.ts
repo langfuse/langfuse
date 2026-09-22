@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { FilterCondition, FilterState } from "../../types";
 import { logger } from "../logger";
 import { encodeBooleanScoreEntry } from "../queries/clickhouse-sql/clickhouse-filter";
@@ -375,12 +374,15 @@ export class InMemoryFilterService {
     // null ("" via `null?.toString()` vs. the stored "null"), arrays ("1,2"
     // vs. the stored "[1,2]"), and plain objects ("[object Object]" vs. the
     // stored '{"a":1}').
-    const stringValue =
-      typeof objectValue === "string"
-        ? objectValue
-        : objectValue === undefined
-          ? ""
-          : JSON.stringify(objectValue);
+    const stringValue = (() => {
+      if (typeof objectValue === "string") {
+        return objectValue;
+      }
+      if (objectValue === undefined) {
+        return "";
+      }
+      return JSON.stringify(objectValue);
+    })();
     return this.evaluateStringFilter(stringValue, filterValue, operator);
   }
 

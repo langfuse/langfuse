@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
 
@@ -56,7 +55,13 @@ export function prepareVisibleSeries(
   const ranked = [...dimensions].sort((a, b) => {
     const diff = magnitude(b) - magnitude(a);
     if (diff !== 0 && !Number.isNaN(diff)) return diff;
-    return a < b ? -1 : a > b ? 1 : 0;
+    if (a < b) {
+      return -1;
+    }
+    if (a > b) {
+      return 1;
+    }
+    return 0;
   });
 
   const visible = ranked.slice(0, maxSeries);

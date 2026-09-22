@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
 import {
@@ -197,12 +196,15 @@ export default async function handler(
         error: error instanceof Error ? error.message : String(error),
         projectId,
       });
-      const message =
-        error instanceof ClickHouseResourceError
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : error instanceof Error
-            ? error.message
-            : "Internal server error";
+      const message = (() => {
+        if (error instanceof ClickHouseResourceError) {
+          return RESOURCE_LIMIT_ERROR_MESSAGE;
+        }
+        if (error instanceof Error) {
+          return error.message;
+        }
+        return "Internal server error";
+      })();
       res.write(formatSSEEvent({ type: "error", message }));
     }
   } finally {

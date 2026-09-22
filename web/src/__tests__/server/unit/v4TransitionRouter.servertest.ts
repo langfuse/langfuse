@@ -131,13 +131,21 @@ const sharedServerMock = vi.hoisted(() => ({
       };
     }
 
-    const canonicalSdkName =
-      normalizedSdkName === "python" || normalizedSdkName === "langfuse-python"
-        ? "python"
-        : normalizedSdkName === "javascript" ||
-            normalizedSdkName.startsWith("@langfuse/")
-          ? "javascript"
-          : null;
+    const canonicalSdkName = (() => {
+      if (
+        normalizedSdkName === "python" ||
+        normalizedSdkName === "langfuse-python"
+      ) {
+        return "python";
+      }
+      if (
+        normalizedSdkName === "javascript" ||
+        normalizedSdkName.startsWith("@langfuse/")
+      ) {
+        return "javascript";
+      }
+      return null;
+    })();
 
     if (!canonicalSdkName) {
       return {
@@ -261,14 +269,18 @@ const mockSdkUsageRow = (overrides: {
     overrides.deliveryMode ?? (source === "otel" ? "realtime" : "delayed");
   const sdkName = overrides.sdkName ?? "python";
   const sdkVersion = overrides.sdkVersion ?? "4.7.0";
-  const canonicalSdkName =
-    overrides.canonicalSdkName !== undefined
-      ? overrides.canonicalSdkName
-      : sdkName === "python" || sdkName === "langfuse-python"
-        ? ("python" as const)
-        : sdkName === "javascript" || sdkName.startsWith("@langfuse/")
-          ? ("javascript" as const)
-          : null;
+  const canonicalSdkName = (() => {
+    if (overrides.canonicalSdkName !== undefined) {
+      return overrides.canonicalSdkName;
+    }
+    if (sdkName === "python" || sdkName === "langfuse-python") {
+      return "python" as const;
+    }
+    if (sdkName === "javascript" || sdkName.startsWith("@langfuse/")) {
+      return "javascript" as const;
+    }
+    return null;
+  })();
   const sdkVersionMajor =
     overrides.sdkVersionMajor !== undefined
       ? overrides.sdkVersionMajor
@@ -276,12 +288,15 @@ const mockSdkUsageRow = (overrides: {
   const resolvedMajor = Number.isFinite(Number(sdkVersionMajor))
     ? Number(sdkVersionMajor)
     : null;
-  const latestMajor =
-    canonicalSdkName === "python"
-      ? 4
-      : canonicalSdkName === "javascript"
-        ? 5
-        : null;
+  const latestMajor = (() => {
+    if (canonicalSdkName === "python") {
+      return 4;
+    }
+    if (canonicalSdkName === "javascript") {
+      return 5;
+    }
+    return null;
+  })();
   const v4MigrationStatus =
     overrides.v4MigrationStatus ??
     (canonicalSdkName === null || resolvedMajor === null

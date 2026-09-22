@@ -890,8 +890,15 @@ function serializeFilter(node: FilterNode): string {
   // Text-match ops render as positional `*` globs around the value.
   if (node.op === "~" || node.op === "^" || node.op === "$") {
     const v = serializeValue(node.values[0] ?? "");
-    const wrapped =
-      node.op === "~" ? `*${v}*` : node.op === "^" ? `${v}*` : `*${v}`;
+    const wrapped = (() => {
+      if (node.op === "~") {
+        return `*${v}*`;
+      }
+      if (node.op === "^") {
+        return `${v}*`;
+      }
+      return `*${v}`;
+    })();
     return `${key}:${wrapped}`;
   }
   return `${key}:${OP_SYMBOL[node.op] ?? ""}${node.values.map(serializeValue).join(",")}`;

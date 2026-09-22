@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { type EvalTemplateType, EvalTemplateTypeEnum } from "@langfuse/shared";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -41,12 +40,15 @@ export function EvaluatorSavedCostSummary({
 }) {
   const estimate = estimates[0];
   const sampledObservations = Math.round(matchingObservations * sampling);
-  const estimatedCostUsd =
-    matchingObservations === 0
-      ? 0
-      : estimate
-        ? estimate.matchingObservations * sampling * estimate.testRunCostUsd
-        : null;
+  const estimatedCostUsd = (() => {
+    if (matchingObservations === 0) {
+      return 0;
+    }
+    if (estimate) {
+      return estimate.matchingObservations * sampling * estimate.testRunCostUsd;
+    }
+    return null;
+  })();
   const backfillObservationCount = backfill.enabled
     ? Math.min(backfill.matchingObservations, backfill.maxItems)
     : 0;

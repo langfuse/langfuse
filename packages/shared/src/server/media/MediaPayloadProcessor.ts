@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 import { isMediaContentType, type MediaContentType } from "../../domain/media";
 
@@ -580,12 +579,15 @@ function matchStructuredMedia(
   }
 
   if (value.type === "file" && typeof value.mediaType === "string") {
-    const property =
-      typeof value.data === "string"
-        ? "data"
-        : typeof value.image === "string"
-          ? "image"
-          : undefined;
+    const property = (() => {
+      if (typeof value.data === "string") {
+        return "data";
+      }
+      if (typeof value.image === "string") {
+        return "image";
+      }
+      return undefined;
+    })();
     if (property) {
       return {
         target: value,

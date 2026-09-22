@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   createEvent,
   createObservation,
@@ -152,13 +151,18 @@ describe("/api/public/observations API Endpoint", () => {
             `/api/public/observations/${observationId}?useEventsTable=${useEventsTable}`,
           );
 
-          const expectedModelId = useEventsTable
-            ? "model_id" in observation
-              ? observation.model_id
-              : undefined
-            : "internal_model_id" in observation
-              ? observation.internal_model_id
-              : undefined;
+          const expectedModelId = (() => {
+            if (useEventsTable) {
+              if ("model_id" in observation) {
+                return observation.model_id;
+              }
+              return undefined;
+            }
+            if ("internal_model_id" in observation) {
+              return observation.internal_model_id;
+            }
+            return undefined;
+          })();
 
           expect(getEventRes.body).toMatchObject({
             id: observationId,

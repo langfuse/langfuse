@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   getMinimumCategoricalCategoriesMessage,
   ScoreDataTypeEnum,
@@ -22,13 +21,15 @@ export function getScoreOutputValidation(state: ScoreOutputSelectorState) {
       state.choices.map(({ label }) => label),
     ),
   );
-  const categoryWarnings = state.choices.map(({ label }, index) =>
-    !label.trim()
-      ? EMPTY_CATEGORY_NAME_MESSAGE
-      : duplicateIndexes.has(index)
-        ? DUPLICATE_CATEGORY_NAMES_MESSAGE
-        : null,
-  );
+  const categoryWarnings = state.choices.map(({ label }, index) => {
+    if (!label.trim()) {
+      return EMPTY_CATEGORY_NAME_MESSAGE;
+    }
+    if (duplicateIndexes.has(index)) {
+      return DUPLICATE_CATEGORY_NAMES_MESSAGE;
+    }
+    return null;
+  });
 
   return {
     categoryWarnings,

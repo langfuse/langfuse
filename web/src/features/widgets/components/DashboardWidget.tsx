@@ -295,12 +295,15 @@ export function DashboardWidget({
     isV4Enabled: isV4,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,

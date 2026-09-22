@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { useRouter } from "next/router";
 import { ErrorPage } from "@/src/components/error-page";
@@ -59,31 +58,37 @@ export function TracePage({
   const encodedTargetPath = encodeURIComponent(
     stripBasePath(router.asPath || "/"),
   );
-  const leadingControl = showPublicIndicators ? (
-    session.status === "authenticated" ? (
-      <Button
-        asChild
-        size="sm"
-        variant="outline"
-        title="Back to Langfuse"
-        className="px-3"
-      >
-        <Link href="/">Langfuse</Link>
-      </Button>
-    ) : (
-      <Button
-        asChild
-        size="sm"
-        variant="default"
-        title="Sign in to Langfuse"
-        className="px-3"
-      >
-        <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
-          Sign in
-        </Link>
-      </Button>
-    )
-  ) : undefined;
+  const leadingControl = (() => {
+    if (showPublicIndicators) {
+      if (session.status === "authenticated") {
+        return (
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            title="Back to Langfuse"
+            className="px-3"
+          >
+            <Link href="/">Langfuse</Link>
+          </Button>
+        );
+      }
+      return (
+        <Button
+          asChild
+          size="sm"
+          variant="default"
+          title="Sign in to Langfuse"
+          className="px-3"
+        >
+          <Link href={`/auth/sign-in?targetPath=${encodedTargetPath}`}>
+            Sign in
+          </Link>
+        </Button>
+      );
+    }
+    return undefined;
+  })();
   const sharedBadge = showPublicIndicators ? (
     <Badge variant="outline" className="text-xs font-bold">
       Public

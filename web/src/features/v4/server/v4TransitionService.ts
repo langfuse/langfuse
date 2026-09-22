@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * v4 transition orchestration: Postgres summaries, sidebar migration actions,
  * and re-exports for the tRPC router. SDK / events_core and system.query_log
@@ -294,17 +293,20 @@ export const getMigrationActions = async ({
   const postBlob = postBlobs[0] ?? null;
   const apiBlob = apiBlobs[0] ?? null;
 
-  const experimentsActionNeeded =
-    postBlob === null
-      ? null
-      : postBlob.used === false
-        ? false
-        : ["required", "sdk_usage_inconclusive"].includes(
-            deriveExperimentInstrumentationMigration({
-              sdkUsageSeries,
-              postUsage: true,
-            }).status,
-          );
+  const experimentsActionNeeded = (() => {
+    if (postBlob === null) {
+      return null;
+    }
+    if (postBlob.used === false) {
+      return false;
+    }
+    return ["required", "sdk_usage_inconclusive"].includes(
+      deriveExperimentInstrumentationMigration({
+        sdkUsageSeries,
+        postUsage: true,
+      }).status,
+    );
+  })();
 
   return {
     forceV3Experience: isForceV3ExperienceProject(projectId),

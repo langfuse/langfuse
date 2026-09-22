@@ -163,12 +163,15 @@ export const PromptReferenceButton = ({
     );
   }
 
-  const promptRefSuffix =
-    promptRef.type === "version"
-      ? ` (v${promptRef.version})`
-      : promptRef.label
-        ? ` (${promptRef.label})`
-        : "";
+  const promptRefSuffix = (() => {
+    if (promptRef.type === "version") {
+      return ` (v${promptRef.version})`;
+    }
+    if (promptRef.label) {
+      return ` (${promptRef.label})`;
+    }
+    return "";
+  })();
 
   const promptRefTitle = `${promptRef.name}${promptRefSuffix}`;
 

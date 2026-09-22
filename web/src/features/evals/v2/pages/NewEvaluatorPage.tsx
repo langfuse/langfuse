@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
@@ -7,11 +6,13 @@ import { useEvalTemplate } from "@/src/features/evals/v2/hooks/useEvalTemplate";
 import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 
 function requestedEvaluatorType(value: string | string[] | undefined) {
-  return value === EvalTemplateTypeEnum.CODE
-    ? EvalTemplateTypeEnum.CODE
-    : value === EvalTemplateTypeEnum.DECISION_MODEL
-      ? EvalTemplateTypeEnum.DECISION_MODEL
-      : EvalTemplateTypeEnum.LLM_AS_JUDGE;
+  if (value === EvalTemplateTypeEnum.CODE) {
+    return EvalTemplateTypeEnum.CODE;
+  }
+  if (value === EvalTemplateTypeEnum.DECISION_MODEL) {
+    return EvalTemplateTypeEnum.DECISION_MODEL;
+  }
+  return EvalTemplateTypeEnum.LLM_AS_JUDGE;
 }
 
 export default function NewEvaluatorPage() {
@@ -39,11 +40,15 @@ export default function NewEvaluatorPage() {
   }
 
   const initialType = requestedEvaluatorType(router.query.type);
-  const creationSource = templateKey
-    ? { type: "managed" as const, templateKey }
-    : evaluatorId
-      ? { type: "custom" as const }
-      : { type: "scratch" as const };
+  const creationSource = (() => {
+    if (templateKey) {
+      return { type: "managed" as const, templateKey };
+    }
+    if (evaluatorId) {
+      return { type: "custom" as const };
+    }
+    return { type: "scratch" as const };
+  })();
 
   return (
     <EvaluatorSetupPage

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { ActionButton } from "@/src/components/ActionButton";
 import Page from "@/src/components/layouts/page";
@@ -40,12 +39,15 @@ export default function PromptsPage() {
   const isMetricsPage =
     segmentsArray.length > 0 &&
     segmentsArray[segmentsArray.length - 1] === "metrics";
-  const promptNameFromRoute =
-    segmentsArray.length > 0
-      ? isMetricsPage
-        ? segmentsArray.slice(0, -1).join("/")
-        : segmentsArray.join("/")
-      : "";
+  const promptNameFromRoute = (() => {
+    if (segmentsArray.length > 0) {
+      if (isMetricsPage) {
+        return segmentsArray.slice(0, -1).join("/");
+      }
+      return segmentsArray.join("/");
+    }
+    return "";
+  })();
 
   const hasCUDAccess = useHasProjectAccess({
     projectId,

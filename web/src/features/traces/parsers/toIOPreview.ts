@@ -183,12 +183,15 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
       ? contentParts.join("")
       : undefined;
 
-  const json =
-    jsonParts.length === 0
-      ? undefined
-      : jsonParts.length === 1
-        ? jsonParts[0]
-        : jsonParts;
+  const json = (() => {
+    if (jsonParts.length === 0) {
+      return undefined;
+    }
+    if (jsonParts.length === 1) {
+      return jsonParts[0];
+    }
+    return jsonParts;
+  })();
 
   const hasMainMessage =
     content !== undefined ||

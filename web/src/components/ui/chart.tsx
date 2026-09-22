@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 "use client";
 
@@ -409,12 +408,15 @@ function ChartTooltipPortal({
   // Anchor the tooltip's bottom/top to the point near the viewport's
   // bottom/top so a tall multi-series tooltip can't spill its rows out of view
   // (the overlay layer no longer clips it). (LFE-10549)
-  const translateY =
-    y > window.innerHeight * 0.65
-      ? "-100%"
-      : y < window.innerHeight * 0.2
-        ? "0%"
-        : "-50%";
+  const translateY = (() => {
+    if (y > window.innerHeight * 0.65) {
+      return "-100%";
+    }
+    if (y < window.innerHeight * 0.2) {
+      return "0%";
+    }
+    return "-50%";
+  })();
 
   return (
     <Layer name="tooltip">

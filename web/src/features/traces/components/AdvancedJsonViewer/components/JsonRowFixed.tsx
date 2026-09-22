@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 /**
  * JsonRowFixed - Fixed column content (line number + expand button)
@@ -43,11 +42,15 @@ export function JsonRowFixed({
   isToggling = false,
 }: JsonRowFixedProps) {
   // Calculate background based on search match
-  const backgroundColor = isCurrentMatch
-    ? theme.searchCurrentBackground
-    : searchMatch
-      ? theme.searchMatchBackground
-      : "transparent";
+  const backgroundColor = (() => {
+    if (isCurrentMatch) {
+      return theme.searchCurrentBackground;
+    }
+    if (searchMatch) {
+      return theme.searchMatchBackground;
+    }
+    return "transparent";
+  })();
 
   return (
     <div
