@@ -36,7 +36,7 @@ export function createEmptyQuestion(
   };
 }
 
-/** Reads persisted questions into editor drafts; unparseable input yields none. */
+/** Reads persisted questions into editor drafts; unparsable input yields none. */
 export function questionsToDrafts(
   questions: unknown,
 ): DecisionModelQuestionDraft[] {

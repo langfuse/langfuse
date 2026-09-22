@@ -206,8 +206,7 @@ export function EvaluatorSetupPage(
       : initialEvaluator?.definition.type === "LLM_AS_JUDGE"
         ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
             .dataType
-        :
-          undefined;
+        : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",

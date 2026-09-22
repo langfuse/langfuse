@@ -113,9 +113,7 @@ export async function runDecisionModelEvaluation({
       let modelConfigError: string | null = null;
       if (!modelConfig.valid) {
         modelConfigError = modelConfig.error;
-      } else if (
-        !isDecisionModelAdapter(modelConfig.config.apiKey.adapter)
-      ) {
+      } else if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
         modelConfigError = `Connection "${modelConfig.config.provider}" is not a decision-model connection`;
       }
       if (!modelConfig.valid || modelConfigError !== null) {
