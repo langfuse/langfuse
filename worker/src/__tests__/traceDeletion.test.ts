@@ -22,6 +22,7 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
 import { env } from "../env";
 import { prisma } from "@langfuse/shared/src/db";
@@ -85,7 +86,19 @@ describe("trace deletion", () => {
     expect(scores).toHaveLength(0);
   });
 
-  it("deletes all Topics results for selected traces without affecting other traces or projects", async () => {
+  it("deletes all Topics results for selected traces without affecting other traces or projects", async ({
+    onTestFinished,
+  }) => {
+    // The built Topics entrypoint reads the CommonJS env singleton.
+    const { env: sharedEnv } = createRequire(import.meta.url)(
+      "@langfuse/shared/src/env",
+    ) as typeof import("@langfuse/shared/src/env");
+    const originalTopicsEnabled = sharedEnv.LANGFUSE_TOPICS_ENABLED;
+    onTestFinished(() => {
+      sharedEnv.LANGFUSE_TOPICS_ENABLED = originalTopicsEnabled;
+    });
+    sharedEnv.LANGFUSE_TOPICS_ENABLED = "true";
+
     const { projectId } = await createOrgProjectAndApiKey();
     const otherProjectId = randomUUID();
     const traceId = randomUUID();
@@ -96,38 +109,38 @@ describe("trace deletion", () => {
         project_id: projectId,
         trace_id: traceId,
         facet_id: "intent",
-        facet_version_id: "v1",
+        facet_version: 1,
       },
       {
         project_id: projectId,
         trace_id: traceId,
         facet_id: "intent",
-        facet_version_id: "v2",
+        facet_version: 2,
       },
       {
         project_id: projectId,
         trace_id: traceId,
         facet_id: "outcome",
-        facet_version_id: "v1",
+        facet_version: 1,
       },
       {
         project_id: projectId,
         trace_id: retainedTraceId,
         facet_id: "intent",
-        facet_version_id: "v1",
+        facet_version: 1,
       },
       {
         project_id: otherProjectId,
         trace_id: traceId,
         facet_id: "intent",
-        facet_version_id: "v1",
+        facet_version: 1,
       },
       {
         project_id: projectId,
         trace_id: "",
         session_id: traceId,
         facet_id: "intent",
-        facet_version_id: "v1",
+        facet_version: 1,
       },
     ].map((row) => ({
       session_id: "",

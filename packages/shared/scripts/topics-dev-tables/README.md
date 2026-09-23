@@ -1,5 +1,24 @@
 # Topics development tables
 
+For full local setup after starting clean development infrastructure, run from
+the repository root:
+
+```bash
+pnpm run topics:dev-setup
+```
+
+This applies baseline migrations, generates Prisma and builds the shared
+package, creates Topics tables, and runs the normal development seeders followed
+by the Topics sample-trace seeder. It stops on the first failure. It uses the
+existing root `.env`; configure Topics enablement and the project allowlist as
+described below. For the seeded demo project, set
+`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
+
+The command assumes infrastructure is already running and does not reset Docker
+volumes, configure the test Postgres database, or start the app. Its
+`ch:dev-tables` step truncates and reseeds the development event tables. Start
+the app afterwards with `pnpm run dev`.
+
 The setup script creates the five Topics Postgres tables and three ClickHouse
 tables independently of the migration files. Apply the normal migrations first,
 then run from the repository root:
