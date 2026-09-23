@@ -6,7 +6,9 @@ import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { queryClickhouse } from "../repositories/clickhouse";
 import type {
   TopicAssignment,
+  TopicDefinition,
   TopicEmbeddingConfig,
+  TopicFacetRef,
   TopicSummary,
 } from "../../topics";
 import { topicSourceSchema } from "../../topics";
@@ -18,14 +20,15 @@ import { createHash } from "node:crypto";
 export function topicSummaryId(
   row: Pick<
     TopicSummary,
-    "projectId" | "facetVersionId" | "traceId" | "sessionId"
+    "projectId" | "facetId" | "facetVersion" | "traceId" | "sessionId"
   >,
 ): string {
   return createHash("sha256")
     .update(
       [
         row.projectId,
-        row.facetVersionId,
+        row.facetId,
+        String(row.facetVersion),
         row.traceId ? "trace" : "session",
         row.traceId ?? row.sessionId,
       ].join("\0"),
@@ -33,18 +36,18 @@ export function topicSummaryId(
     .digest("hex");
 }
 
-const summaryIdSql = `lower(hex(SHA256(concat(project_id, char(0), facet_version_id,
+const summaryIdSql = `lower(hex(SHA256(concat(project_id, char(0), facet_id, char(0), toString(facet_version),
   char(0), if(trace_id != '', 'trace', 'session'), char(0),
   if(trace_id != '', trace_id, session_id)))))`;
 const sourceKeySql =
-  "project_id, facet_version_id, trace_id, if(trace_id = '', session_id, '')";
+  "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
 
 const LOOKUP_BATCH_SIZE = 1000;
 const INSERT_BATCH_SIZE = 10_000;
 const INSERT_BATCH_BYTES = 8 * 1024 * 1024;
 
 async function insertTopicRows<T extends { projectId: string }>(
-  table: "topic_facet_summaries" | "topic_assignments",
+  table: "topic_facet_summaries" | "topic_assignments" | "topics",
   rows: T[],
   serialize: (row: T) => Record<string, unknown>,
 ): Promise<void> {
@@ -61,10 +64,11 @@ async function insertTopicRows<T extends { projectId: string }>(
         wait_for_async_insert: 1,
         log_comment: buildClickHouseLogComment({
           surface: "worker",
-          route:
-            table === "topic_facet_summaries"
-              ? "topics-summaries"
-              : "topics-assignments",
+          route: {
+            topic_facet_summaries: "topics-summaries",
+            topic_assignments: "topics-assignments",
+            topics: "topics-definitions",
+          }[table],
           projectId: rows[0].projectId,
         }),
       },
@@ -85,11 +89,79 @@ async function insertTopicRows<T extends { projectId: string }>(
   await flush();
 }
 
+export async function getTopicDefinitions(
+  projectId: string,
+  topicVersionIds: string[],
+): Promise<TopicDefinition[]> {
+  const definitions: TopicDefinition[] = [];
+  for (const ids of chunk([...new Set(topicVersionIds)], LOOKUP_BATCH_SIZE)) {
+    const rows = await queryClickhouse<
+      Omit<TopicDefinition, "createdAt" | "metadata"> & {
+        createdAtMs: string;
+        metadataJson: string;
+      }
+    >({
+      query: `SELECT project_id AS projectId, id AS topicVersionId,
+        stable_id AS topicId, created_by_run_id AS createdByRunId,
+        toUnixTimestamp64Milli(created_at) AS createdAtMs, name, description,
+        centroid, radius, tags, representative_summary_ids AS representativeSummaryIds,
+        metadata AS metadataJson
+        FROM topics
+        WHERE project_id = {projectId:String} AND id IN {ids:Array(String)}
+        ORDER BY created_at DESC LIMIT 1 BY project_id, id`,
+      params: { projectId, ids },
+      tags: { route: "topics-definitions", projectId },
+    });
+    definitions.push(
+      ...rows.map(({ createdAtMs, metadataJson, ...row }) => ({
+        ...row,
+        createdAt: new Date(Number(createdAtMs)).toISOString(),
+        metadata: JSON.parse(metadataJson) as Record<string, unknown>,
+      })),
+    );
+  }
+  return definitions;
+}
+
+export async function writeTopicDefinitions(
+  rows: TopicDefinition[],
+): Promise<void> {
+  for (const row of rows) {
+    if (
+      !row.projectId ||
+      !row.topicVersionId ||
+      !row.topicId ||
+      !row.createdByRunId ||
+      !Number.isFinite(Date.parse(row.createdAt)) ||
+      !row.centroid.length ||
+      !row.centroid.every(Number.isFinite) ||
+      !Number.isFinite(row.radius) ||
+      row.radius < 0
+    )
+      throw new Error("Invalid topic definition.");
+  }
+  await insertTopicRows("topics", rows, (row) => ({
+    project_id: row.projectId,
+    id: row.topicVersionId,
+    stable_id: row.topicId,
+    created_by_run_id: row.createdByRunId,
+    created_at: convertDateToClickhouseDateTime(new Date(row.createdAt)),
+    name: row.name,
+    description: row.description,
+    centroid: row.centroid,
+    radius: row.radius,
+    tags: row.tags,
+    representative_summary_ids: row.representativeSummaryIds,
+    metadata: JSON.stringify(row.metadata),
+  }));
+}
+
 const summaryColumns = `${summaryIdSql} AS id, project_id AS projectId, facet_id AS facetId,
-  facet_version_id AS facetVersionId, facet_version AS facetVersion,
+  facet_version AS facetVersion,
   trace_id AS traceId, session_id AS sessionId, trigger_type AS triggerType,
+  environment, trace_name AS traceName,
   toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
-  execution_id AS executionId, processing_state AS state, summary, embedding,
+  processing_state AS state, summary, embedding,
   transcript_id AS transcriptId, transcript_version AS transcriptVersion,
   summary_model AS summaryModel, embedding_model AS embeddingModel,
   provided_usage_details AS providedUsageDetails, usage_details AS usageDetails,
@@ -124,9 +196,10 @@ function summaryResult(row: SummaryRow): TopicSummary {
 
 export async function listTopicSummaries(
   projectId: string,
-  filter:
-    | { ids: string[]; traceIds?: never; facetId?: never }
-    | { traceIds: string[]; facetId?: string; ids?: never },
+  filter: (
+    | { ids: string[]; traceIds?: never }
+    | { traceIds: string[]; ids?: never }
+  ) & { facetId?: string; facetVersion?: number },
 ): Promise<TopicSummary[]> {
   const rows: SummaryRow[] = [];
   for (const ids of chunk(
@@ -139,11 +212,13 @@ export async function listTopicSummaries(
       WHERE project_id = {projectId:String}
         AND ${filter.ids ? "id" : "trace_id"} IN ({ids:Array(String)})
         ${filter.facetId ? "AND facet_id = {facetId:String}" : ""}
+        ${filter.facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
       ORDER BY processed_at DESC LIMIT 1 BY ${sourceKeySql}`,
         params: {
           projectId,
           ids,
           ...(filter.facetId ? { facetId: filter.facetId } : {}),
+          ...(filter.facetVersion ? { facetVersion: filter.facetVersion } : {}),
         },
         tags: { route: "topics-summaries", projectId },
       })),
@@ -159,18 +234,18 @@ export const readTopicSummaries = (projectId: string, summaryIds: string[]) =>
 export async function getLatestFacetSummaries(
   projectId: string,
   facetId: string,
-  facetVersionId?: string,
+  facetVersion?: number,
 ): Promise<TopicSummary[]> {
   const rows = await queryClickhouse<SummaryRow>({
     query: `SELECT ${summaryColumns} FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND facet_id = {facetId:String}
-        ${facetVersionId ? "AND facet_version_id = {facetVersionId:String}" : ""}
-      ORDER BY ${facetVersionId ? "" : "facet_version DESC, "}processed_at DESC
-      LIMIT 1 BY ${facetVersionId ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
+        ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
+      ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
+      LIMIT 1 BY ${facetVersion ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
     params: {
       projectId,
       facetId,
-      ...(facetVersionId ? { facetVersionId } : {}),
+      ...(facetVersion ? { facetVersion } : {}),
     },
     tags: { route: "topics-latest-summaries", projectId },
   });
@@ -180,20 +255,20 @@ export async function getLatestFacetSummaries(
 export async function getTopicClusteringSummaries(
   projectId: string,
   facetId: string,
-  facetVersionId: string,
+  facetVersion: number,
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<TopicSummary[]> {
   const rows = await queryClickhouse<SummaryRow>({
     query: `SELECT ${summaryColumns} FROM (
       SELECT * FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND trace_id != '' AND facet_id = {facetId:String}
-        AND facet_version_id = {facetVersionId:String}
+        AND facet_version = {facetVersion:UInt32}
       ORDER BY processed_at DESC
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND length(embedding) = {embeddingDimensions:UInt32}
-    ORDER BY trace_id, session_id, id`,
-    params: { projectId, facetId, facetVersionId, ...embeddingConfig },
+    ORDER BY trace_id`,
+    params: { projectId, facetId, facetVersion, ...embeddingConfig },
     tags: { route: "topics-clustering-summaries", projectId },
   });
   return rows.map(summaryResult);
@@ -202,32 +277,42 @@ export async function getTopicClusteringSummaries(
 /** Count current compatible summaries without loading summary text or vectors. */
 export async function getTopicSummaryCounts(
   projectId: string,
-  facetVersionIds: string[],
+  facets: TopicFacetRef[],
   embeddingConfig: TopicEmbeddingConfig,
-): Promise<Record<string, number>> {
-  if (!facetVersionIds.length) return {};
-  const rows = await queryClickhouse<{ facetVersionId: string; count: string }>(
-    {
-      query: `SELECT facet_version_id AS facetVersionId, count() AS count FROM (
-      SELECT facet_version_id, processing_state, embedding_model, length(embedding) AS dimensions
+): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
+  if (!facets.length) return [];
+  const rows = await queryClickhouse<{
+    facetId: string;
+    facetVersion: number;
+    count: string;
+  }>({
+    query: `SELECT facet_id AS facetId, facet_version AS facetVersion, count() AS count FROM (
+      SELECT facet_id, facet_version, processing_state, embedding_model, length(embedding) AS dimensions
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String} AND trace_id != ''
-        AND facet_version_id IN ({facetVersionIds:Array(String)})
+        AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})
       ORDER BY processed_at DESC
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
       AND dimensions = {embeddingDimensions:UInt32}
-    GROUP BY facet_version_id`,
-      params: { projectId, facetVersionIds, ...embeddingConfig },
-      tags: { route: "topics-summary-counts", projectId },
+    GROUP BY facet_id, facet_version`,
+    params: {
+      projectId,
+      facetIds: facets.map(({ facetId }) => facetId),
+      facetVersions: facets.map(({ version }) => version),
+      ...embeddingConfig,
     },
-  );
-  return Object.fromEntries(
-    facetVersionIds.map((id) => [
-      id,
-      Number(rows.find((row) => row.facetVersionId === id)?.count ?? 0),
-    ]),
-  );
+    tags: { route: "topics-summary-counts", projectId },
+  });
+  return facets.map(({ facetId, version }) => ({
+    facetId,
+    facetVersion: version,
+    count: Number(
+      rows.find(
+        (row) => row.facetId === facetId && row.facetVersion === version,
+      )?.count ?? 0,
+    ),
+  }));
 }
 
 export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
@@ -244,15 +329,15 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
   await insertTopicRows("topic_facet_summaries", rows, (row) => ({
     project_id: row.projectId,
     facet_id: row.facetId,
-    facet_version_id: row.facetVersionId,
     facet_version: row.facetVersion,
     trace_id: row.traceId ?? "",
     session_id: row.sessionId ?? "",
-    trigger_type: "manual_poc",
+    trigger_type: row.triggerType,
+    environment: row.environment,
+    trace_name: row.traceId ? row.traceName : "",
     unit_start_time: convertDateToClickhouseDateTime(
       new Date(row.unitStartTime),
     ),
-    execution_id: row.executionId,
     processing_state: row.state,
     summary: row.summary,
     embedding: row.embedding,
@@ -290,7 +375,6 @@ export async function writeTopicAssignments(
   await insertTopicRows("topic_assignments", rows, (row) => ({
     project_id: row.projectId,
     facet_id: row.facetId,
-    facet_version_id: row.facetVersionId,
     facet_version: row.facetVersion,
     trace_id: row.traceId ?? "",
     session_id: row.sessionId ?? "",
@@ -300,6 +384,8 @@ export async function writeTopicAssignments(
     summary_processed_at: convertDateToClickhouseDateTime(
       new Date(row.summaryProcessedAt),
     ),
+    environment: row.environment,
+    trace_name: row.traceId ? row.traceName : "",
     clustering_run_id: row.runId ?? "",
     topic_id: row.topicId ?? "",
     topic_version_id: row.topicVersionId ?? "",
@@ -312,8 +398,9 @@ export async function writeTopicAssignments(
 }
 
 const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
-      facet_version_id AS facetVersionId, facet_version AS facetVersion, trace_id AS traceId,
+      facet_version AS facetVersion, trace_id AS traceId,
       session_id AS sessionId,
+      environment, trace_name AS traceName,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
       ${summaryIdSql} AS summaryId, coordinates,
       toUnixTimestamp64Milli(summary_processed_at) AS summaryProcessedAtMs,
@@ -377,7 +464,7 @@ export async function readTopicRunSummaryIds(
   return rows.map((row) => row.summaryId);
 }
 
-/** Initial map coordinates remain separate from later online assignments. */
+/** Initial membership includes rows with missing coordinates, excluding online assignments. */
 export async function readTopicMapAssignments(
   projectId: string,
   runId: string,
@@ -386,7 +473,7 @@ export async function readTopicMapAssignments(
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String}
         AND clustering_run_id = {runId:String}
-        AND origin = 'initial' AND length(coordinates) = 2
+        AND origin = 'initial' AND trace_id != ''
       ORDER BY assigned_at DESC
       LIMIT 1 BY ${sourceKeySql}`,
     params: { projectId, runId },
@@ -426,9 +513,8 @@ export async function readLatestTopicAssignments(
   const publishedRuns = await prisma.topicClusteringRun.findMany({
     where: {
       projectId,
-      facetVersion: { facetId },
+      facetId,
       status: "completed",
-      publishedAt: { not: null },
     },
     select: { id: true },
   });

@@ -157,7 +157,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
           actionButtonsRight: actions,
           actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
         }}
-        scrollable
+        scrollable={Boolean(facets.data?.length || executionId)}
         withPadding
       >
         {configuration}
@@ -246,7 +246,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
           {facets.data?.length === 0 && (
-            <section className="flex flex-col items-start gap-3 border-t pt-6">
+            <section className="flex flex-col items-start gap-3">
               <h2 className="font-bold">Start with a question</h2>
               <p className="text-muted-foreground text-sm">
                 Create starter facets for intent, outcome, and issues. You can
@@ -540,14 +540,10 @@ function ExecutionPanel({
         )}
       {retry.error && <ErrorMessage message={retry.error.message} />}
       {execution.facets.map((progress) => {
-        const facet = facets.find((item) =>
-          item.versions.some(
-            (version) => version.id === progress.facetVersionId,
-          ),
-        );
+        const facet = facets.find((item) => item.id === progress.facetId);
         return (
           <div
-            key={progress.facetVersionId}
+            key={`${progress.facetId}:${progress.facetVersion}`}
             className="flex flex-col gap-3 border-t pt-4"
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -605,8 +601,9 @@ function ExecutionPanel({
             {!busy(execution.status) && (
               <TopicResults
                 projectId={projectId}
-                executionId={executionId}
-                facetVersionId={progress.facetVersionId}
+                runId={progress.runId}
+                facetId={progress.facetId}
+                facetVersion={progress.facetVersion}
               />
             )}
           </div>
@@ -631,17 +628,20 @@ function ExecutionPanel({
 
 function TopicResults({
   projectId,
-  executionId,
-  facetVersionId,
+  runId,
+  facetId,
+  facetVersion,
 }: {
   projectId: string;
-  executionId: string;
-  facetVersionId: string;
+  runId: string | null;
+  facetId: string;
+  facetVersion: number;
 }) {
   const result = api.topics.results.useQuery({
     projectId,
-    executionId,
-    facetVersionId,
+    runId,
+    facetId,
+    facetVersion,
   });
   const [selected, setSelected] = useState<string | null>(null);
   const [inspecting, setInspecting] = useState<string | null>(null);
@@ -663,7 +663,7 @@ function TopicResults({
         });
   return (
     <div className="flex flex-col gap-4">
-      {run?.publishedAt && (
+      {run?.status === "completed" && (
         <TopicEmbeddingMap
           projectId={projectId}
           runId={run.id}
@@ -755,11 +755,7 @@ function TopicResults({
                 : "Inspect transcript"}
             </Button>
             {inspecting === summary.id && (
-              <SummaryInspector
-                projectId={projectId}
-                executionId={executionId}
-                summaryId={summary.id}
-              />
+              <SummaryInspector projectId={projectId} summaryId={summary.id} />
             )}
           </article>
         ))}
@@ -769,10 +765,11 @@ function TopicResults({
           No summaries in this selection.
         </p>
       )}
-      {run?.publishedAt && (
+      {run?.status === "completed" && (
         <TopicComparison
           projectId={projectId}
-          facetVersionId={facetVersionId}
+          facetId={facetId}
+          facetVersion={facetVersion}
           runId={run.id}
         />
       )}
@@ -782,11 +779,13 @@ function TopicResults({
 
 function TopicComparison({
   projectId,
-  facetVersionId,
+  facetId,
+  facetVersion,
   runId,
 }: {
   projectId: string;
-  facetVersionId: string;
+  facetId: string;
+  facetVersion: number;
   runId: string;
 }) {
   const [otherRunId, setOtherRunId] = useState<string | null>(null);
@@ -802,8 +801,9 @@ function TopicComparison({
   const candidates =
     runs.data?.filter(
       (run) =>
-        run.publishedAt &&
-        run.facetVersionId === facetVersionId &&
+        run.status === "completed" &&
+        run.facetId === facetId &&
+        run.facetVersion === facetVersion &&
         run.id !== runId,
     ) ?? [];
   if (!candidates.length)
@@ -825,7 +825,8 @@ function TopicComparison({
           <SelectContent className="ph-no-capture">
             {candidates.map((run) => (
               <SelectItem key={run.id} value={run.id}>
-                Map {run.runSequence} · {run.topics.length} topics
+                {new Date(run.createdAt).toLocaleString()} · {run.topics.length}{" "}
+                topics
               </SelectItem>
             ))}
           </SelectContent>
@@ -856,21 +857,18 @@ function TopicComparison({
 
 function SummaryInspector({
   projectId,
-  executionId,
   summaryId,
 }: {
   projectId: string;
-  executionId: string;
   summaryId: string;
 }) {
   const query = api.topics.inspect.useQuery({
     projectId,
-    executionId,
     summaryId,
   });
   if (query.error) return <ErrorMessage message={query.error.message} />;
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
-  const transcript = query.data.projection;
+  const transcript = query.data.text;
   const projectionDescription = transcript
     ? "Current transcript regenerated from trace data. It may differ from the summarized input."
     : "Source transcript unavailable. The stored summary is still retained.";
@@ -883,7 +881,7 @@ function SummaryInspector({
       {transcript && (
         <JSONView
           title="Transcript"
-          json={JSON.parse(transcript.text)}
+          json={JSON.parse(transcript)}
           preserveStrings
         />
       )}

@@ -9,11 +9,11 @@ current Langfuse instance (locally, normally `http://localhost:3000`).
 Like evaluators and evaluation rules, Topics separates semantic definitions from
 which traces are processed:
 
-- `topic_facets`: stable facet identity, name and current published map.
-- `topic_facet_versions`: immutable prompt versions only. Saving an unchanged
-  prompt does not create a version.
-- `topic_rules`: editable names, observation filters and optional random/latest
-  sample size. `topic_rule_facet_assignments` attaches stable facets to rules;
+- `facets`: stable facet identity, name and description.
+- `facet_versions`: immutable prompts keyed by project, facet and numeric
+  version. Saving an unchanged prompt does not create a version.
+- `facet_rules`: editable names, observation filters and optional random/latest
+  sample size. `facet_rule_assignments` attaches stable facets to rules;
   editing a rule does not create prompt versions.
 - At trigger, the request freezes the rule ID, filter, time window,
   sampling seed, exclusions, resolved trace IDs, selected prompt versions and
@@ -100,7 +100,11 @@ list`). There is no automatic fixture insertion in this feature.
 There is no total trace-count cap; explicit lookups use bounded internal batches.
 Each processing request pins the current compatible published map per facet
 before summarization, including the absence of a map. Retries keep that choice.
-New requests can use a map published while an earlier request was running.
+New requests can use a map completed while an earlier request was running.
+The serving map is the completed run with the highest facet version, then newest
+creation time and ID. A newer configured version without a completed map does
+not hide the previous map. Pending, running, failed and skipped runs are ineligible.
+A valid all-outlier map is completed even though it contains no topics.
 
 An update selects the latest summary per trace, then keeps only complete results
 matching the selected facet version and embedding configuration. The attempt uses
@@ -140,7 +144,7 @@ processing the next trace. Loading is lazy: accepted summary references in the
 batch job resume without reading the source. It does not persist source
 snapshots, transcripts, or model request bodies. Shared deterministic
 assembly is used by the worker and the on-demand summary inspector. Accepted
-summaries and embeddings are saved in ClickHouse; accepted names are saved in Postgres.
+summaries, embeddings and complete topic definitions are saved in ClickHouse.
 Successful extraction writes the summary and embedding together to ClickHouse.
 Summarization stages its result in Redis; the separate `topics-embedding` queue
 holds only references, in batches of up to 100 traces across selected facets.
@@ -167,7 +171,8 @@ execution with **Reuse stored summaries** to recover any persisted results.
 Redis staging is temporary: data loss or expiry can require repeating inference
 for work that was never persisted. Normal processing and retries never read
 summary or assignment tables, even to confirm writes. They load source traces
-from ClickHouse and pinned serving-map metadata/topics from Postgres.
+from ClickHouse, pinned serving-map metadata from Postgres, and immutable topic
+definitions from ClickHouse.
 
 **Reuse stored summaries** is an unchecked process option (`reuseExistingSummaries`).
 Only this explicit reprocessing path looks up stored summaries. It reuses the
@@ -249,8 +254,9 @@ ClickHouse. Topic definitions and initial coordinates remain fixed while later
 assignments can extend a map's live membership. Displayed summaries use current
 text. Updates match final memberships to the previous published map for that facet
 version. Changed embedding spaces use membership evidence without comparing
-centroids. Continuing
-topics retain their stable topic IDs and receive new topic version IDs. Material
+centroids. Continuing topics retain their stable topic IDs. When the embedding
+space, centroid and radius are unchanged, the existing definition is reused
+without another naming call. Changed definitions receive new topic version IDs. Material
 splits/merges receive new IDs with predecessor lineage in topic metadata.
 
 ## Cost and recovery
@@ -268,14 +274,24 @@ requested from the model. A non-applicable result containing a summary is reject
 not silently repaired. Real model
 quality checks remain necessary; mocked tests cannot establish summary accuracy.
 
-Postgres stores one `batch_actions` row per manual Process traces request,
-compact update coordinator rows per facet, and one clustering-run row per attempt.
+Postgres stores one `batch_actions` row per manual request for either operation,
+and one clustering-run row per real attempt. Update admission creates the first
+pending run for each selected facet/version and saves its reference atomically.
+BatchAction owns lifecycle, error and aggregate progress; run config contains
+embedding compatibility and numerical settings. Retry counts for completed maps
+come from initial assignments, excluding later online classifications.
 These contain settings and aggregate progress, not per-trace records or paid outputs.
 BullMQ jobs carry bounded batches of up to 100 trace IDs, accepted summary references,
 and temporary retry state. ClickHouse stores current summary text, embeddings,
 classifications, and map coordinates. Completed summaries can await a map without
 an assignment row.
-Postgres stores topic names, descriptions and prototypes. Transcripts stay in memory.
+ClickHouse stores immutable topic names, descriptions and prototypes, including
+their original creation run. Each Postgres run stores the exact topic-version
+IDs used by its classifier; missing definitions prevent loading that map.
+Definitions use `Float64` geometry to preserve classifier precision and
+`ReplacingMergeTree(created_at)` keyed by project and version ID to deduplicate
+identical retry writes. They have no time partition or age-based expiry: an old
+definition may still be in use by the current map. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
 Processing reads staged Redis summaries in batches of 100 traces and records
@@ -312,12 +328,15 @@ without repeating them. If a worker stops after a provider call succeeds but
 before saving its result, a manual resume may repeat that call.
 
 Trace retries reuse accepted summary references from their bounded BullMQ job.
+Execution ownership belongs to the Redis staging envelope, not the durable summary.
 The summary payload itself still expires after three hours; expiry requires a new
 execution. Current completed results live in ClickHouse.
 An interrupted update starts a new attempt from current compatible summaries,
-then fits and names from scratch. Partially named failed attempts cannot overwrite
+then fits again and names only new or changed definitions. Partially named failed attempts cannot overwrite
 the previous published map. After publication, an acknowledgement retry recognizes
-the completed attempt without fitting again.
+the completed attempt without fitting again. Skipped attempts also resume
+without recomputation, using the previously saved cohort count to distinguish
+no applicable summaries from insufficient data.
 
 There is no automatic discovery schedule or stream producer yet. The planned
 six-hour scheduler should invoke the same update path as the manual button.
@@ -328,6 +347,8 @@ Trace deletion removes stored facet summaries (including embeddings), assignment
 and map coordinates through the existing batched ClickHouse deletion path.
 It does not cancel in-flight Topics jobs, which can write results after deletion.
 Topic-name/centroid refresh remains separate lifecycle work.
+Project deletion removes summaries, assignments and topic definitions through
+the batch project cleaner.
 
 ### Datadog metrics
 

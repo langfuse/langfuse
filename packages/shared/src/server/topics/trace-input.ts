@@ -25,6 +25,8 @@ export async function loadTopicTranscript({
   return {
     unitStartTime: snapshot.timestamp,
     sessionId: snapshot.sessionId,
+    environment: snapshot.environment,
+    traceName: snapshot.traceName,
     transcript: serializeTraceTranscript(prepareTrace(snapshot.observations)),
   };
 }

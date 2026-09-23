@@ -80,6 +80,7 @@ export async function getTopicExecutionQueueState(
   const queue = executionQueue(operation);
   if (!queue)
     throw new Error("Topics requires the local development server and Redis.");
+  let jobId = executionId;
   if (operation === "process") {
     const execution = await readTopicExecutionSummary(projectId, executionId);
     if (!execution) return "missing" as const;
@@ -97,16 +98,9 @@ export async function getTopicExecutionQueueState(
       execution.facets[0].counts.requested / TOPICS_TRACE_BATCH_SIZE,
     );
     const index = Math.min(Number(cursor ?? 0), count - 1);
-    const job = await queue.getJob(batchJobId(executionId, index));
-    if (
-      !job ||
-      job.data.payload.projectId !== projectId ||
-      job.data.payload.executionId !== executionId
-    )
-      return "missing" as const;
-    return job.getState();
+    jobId = batchJobId(executionId, index);
   }
-  const job = await queue.getJob(executionId);
+  const job = await queue.getJob(jobId);
   if (
     !job ||
     job.data.payload.projectId !== projectId ||
@@ -256,8 +250,11 @@ export async function recordTopicProcessBatchProgress(
   };
   for (const facet of local.facets) {
     for (const [name, value] of Object.entries(facet.counts))
-      values[`${facet.facetVersionId}:${name}`] = value;
-    values[`${facet.facetVersionId}:outcome:${facet.outcome}`] = 1;
+      values[`${JSON.stringify([facet.facetId, facet.facetVersion])}:${name}`] =
+        value;
+    values[
+      `${JSON.stringify([facet.facetId, facet.facetVersion])}:outcome:${facet.outcome}`
+    ] = 1;
   }
   const keys = progressKeys(local.projectId, local.id);
   if (execution.status !== "queued" && (await redis.exists(...keys)) !== 2)
@@ -302,7 +299,7 @@ export async function recordTopicProcessBatchProgress(
   const done = (totals.get("finished") ?? 0) >= count;
   const failed = (totals.get("failed") ?? 0) > 0;
   execution.facets = execution.facets.map((facet) => {
-    const prefix = `${facet.facetVersionId}:`;
+    const prefix = `${JSON.stringify([facet.facetId, facet.facetVersion])}:`;
     const counts = { ...facet.counts };
     for (const name of Object.keys(
       counts,
@@ -331,7 +328,9 @@ export async function recordTopicProcessBatchProgress(
         done && !failed
           ? null
           : (local.facets.find(
-              (item) => item.facetVersionId === facet.facetVersionId,
+              (item) =>
+                item.facetId === facet.facetId &&
+                item.facetVersion === facet.facetVersion,
             )?.error ?? facet.error),
     };
   });

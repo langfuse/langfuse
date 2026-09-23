@@ -1,3 +1,4 @@
+import type { TopicAssignment, TopicSummary } from "@langfuse/shared/topics";
 import {
   getLatestFacetSummaries,
   getPublishedTopicRun,
@@ -5,6 +6,22 @@ import {
   listTopicFacets,
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
+
+export function resolveTopicResult(
+  summary: TopicSummary,
+  stored?: TopicAssignment,
+) {
+  const assignment =
+    summary.state === "complete" &&
+    stored?.summaryId === summary.id &&
+    stored.summaryProcessedAt === summary.processedAt
+      ? stored
+      : undefined;
+  let outcome: string = summary.state;
+  if (summary.state === "complete") outcome = "awaiting_map";
+  if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
+  return { assignment, outcome };
+}
 
 /** Current state is resolved per trace and facet, independently of execution batches. */
 export async function currentTopicResults(projectId: string) {
@@ -23,13 +40,9 @@ export async function currentTopicResults(projectId: string) {
       const latestSummaries = storedSummaries.filter(
         (row) => row.traceId !== null,
       );
-      const topicVersionIds = [
-        ...new Set(
-          assignments.flatMap((row) =>
-            row.topicVersionId ? [row.topicVersionId] : [],
-          ),
-        ),
-      ];
+      const topicVersionIds = assignments.flatMap((row) =>
+        row.topicVersionId ? [row.topicVersionId] : [],
+      );
       const definitions = await getTopicDefinitions(projectId, topicVersionIds);
       const assignmentByTrace = new Map(
         assignments.map((row) => [row.traceId, row]),
@@ -37,76 +50,75 @@ export async function currentTopicResults(projectId: string) {
       const topicByVersion = new Map(
         definitions.map((topic) => [topic.topicVersionId, topic]),
       );
+      const topics = new Map<
+        string,
+        { assignment: TopicAssignment; count: number }
+      >();
       const rows = latestSummaries
+        .sort(
+          (a, b) =>
+            b.unitStartTime.localeCompare(a.unitStartTime) ||
+            a.traceId.localeCompare(b.traceId),
+        )
         .map((summary) => {
-          const storedAssignment = assignmentByTrace.get(summary.traceId);
-          const assignment =
-            summary.state === "complete" &&
-            storedAssignment?.summaryId === summary.id &&
-            storedAssignment.summaryProcessedAt === summary.processedAt
-              ? storedAssignment
-              : undefined;
-          const topic = assignment?.topicVersionId
+          const { assignment, outcome } = resolveTopicResult(
+            summary,
+            assignmentByTrace.get(summary.traceId),
+          );
+          const definition = assignment?.topicVersionId
             ? topicByVersion.get(assignment.topicVersionId)
             : undefined;
-          let outcome: string = summary.state;
-          if (summary.state === "complete") outcome = "awaiting_map";
-          if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
+          if (assignment?.topicId) {
+            const topic = topics.get(assignment.topicId);
+            topics.set(assignment.topicId, {
+              assignment:
+                !topic || assignment.assignedAt > topic.assignment.assignedAt
+                  ? assignment
+                  : topic.assignment,
+              count: (topic?.count ?? 0) + 1,
+            });
+          }
           return {
             traceId: summary.traceId,
             summary: summary.summary,
             outcome,
             topicId: assignment?.topicId ?? null,
-            topicName: topic?.name ?? null,
-            topicDescription: topic?.description ?? null,
-            assignedAt: assignment?.assignedAt ?? null,
-            unitStartTime: summary.unitStartTime,
+            topicName: definition?.name ?? null,
           };
-        })
-        .sort(
-          (a, b) =>
-            (b.unitStartTime ?? "").localeCompare(a.unitStartTime ?? "") ||
-            a.traceId.localeCompare(b.traceId),
-        );
+        });
       // Current map names take precedence; retired IDs keep their latest referenced name.
       const currentTopics = new Map(
-        (run?.publishedAt ? run.topics : []).map((topic) => [
-          topic.topicId,
-          topic,
-        ]),
+        run?.topics.map((topic) => [topic.topicId, topic]),
       );
-      const topicRows = [...rows].sort((a, b) =>
-        (b.assignedAt ?? "").localeCompare(a.assignedAt ?? ""),
-      );
-      const topics = new Map<
-        string,
-        { id: string; name: string; description: string; count: number }
-      >();
-      for (const row of topicRows) {
-        if (!row.topicId) continue;
-        const currentTopic = currentTopics.get(row.topicId);
-        const topic = topics.get(row.topicId) ?? {
-          id: row.topicId,
-          name: currentTopic?.name ?? row.topicName ?? "Unavailable topic",
-          description: currentTopic?.description ?? row.topicDescription ?? "",
-          count: 0,
-        };
-        topic.count++;
-        topics.set(topic.id, topic);
-      }
       return {
         facetId: facet.id,
         name: facet.name,
         facetVersion: version?.version ?? null,
         usableCount: latestSummaries.filter(
           (row) =>
-            row.facetVersionId === version?.id && row.state === "complete",
+            row.facetVersion === version?.version && row.state === "complete",
         ).length,
         awaitingCount: rows.filter((row) => row.outcome === "awaiting_map")
           .length,
-        topics: [...topics.values()].sort((a, b) => b.count - a.count),
+        topics: [...topics]
+          .sort(
+            ([, a], [, b]) =>
+              b.count - a.count ||
+              b.assignment.assignedAt.localeCompare(a.assignment.assignedAt),
+          )
+          .map(([id, topic]) => {
+            const definition =
+              currentTopics.get(id) ??
+              topicByVersion.get(topic.assignment.topicVersionId ?? "");
+            return {
+              id,
+              name: definition?.name ?? "Unavailable topic",
+              description: definition?.description ?? "",
+              count: topic.count,
+            };
+          }),
         rows,
-        map: run?.publishedAt
+        map: run
           ? {
               runId: run.id,
               topics: run.topics.map((topic) => ({

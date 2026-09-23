@@ -10,8 +10,11 @@ const row = {
   project_id: "project",
   trace_id: "trace",
   session_id: "session",
+  environment: "production",
+  trace_name: "Billing requests",
   span_id: "span",
   parent_span_id: null,
+  is_app_root: false,
   start_time: "2026-09-15 10:00:00.000",
   end_time: "2026-09-15 10:00:01.000",
   type: "GENERATION",
@@ -52,6 +55,8 @@ describe("Topics snapshot loader", () => {
     expect(result.observations[0].output).toBe("false");
     expect(result.timestamp).toBe("2026-09-15T09:00:00.000Z");
     expect(result.sessionId).toBe("session");
+    expect(result.environment).toBe("production");
+    expect(result.traceName).toBe("Billing requests");
   });
 
   it("rejects cross-project rows and refuses oversized snapshots", async () => {
@@ -69,21 +74,104 @@ describe("Topics snapshot loader", () => {
     ).rejects.toThrow("limit");
   });
 
-  it("keeps all observations and uses the latest non-empty session context", async () => {
+  it("keeps observations while taking the latest non-empty trace metadata", async () => {
     vi.mocked(queryClickhouseStream).mockImplementation(async function* () {
-      yield { ...row, span_id: "newest", session_id: "" };
-      yield { ...row, span_id: "current", session_id: "current-session" };
-      yield { ...row, span_id: "older", session_id: "previous-session" };
+      yield {
+        ...row,
+        span_id: "newest",
+        session_id: "",
+        environment: "",
+        trace_name: "",
+      };
+      yield {
+        ...row,
+        span_id: "current",
+        session_id: "current-session",
+        environment: "production",
+        trace_name: "Current trace",
+      };
+      yield {
+        ...row,
+        span_id: "older",
+        session_id: "previous-session",
+        environment: "staging",
+        trace_name: "Old trace",
+      };
     });
     const result = await loadTraceSnapshot({
       projectId: "project",
       traceId: "trace",
     });
     expect(result.sessionId).toBe("current-session");
+    expect(result.environment).toBe("production");
+    expect(result.traceName).toBe("Current trace");
     expect(result.observations.map((observation) => observation.id)).toEqual([
       "newest",
       "current",
       "older",
     ]);
+  });
+  it.each([
+    { parent_span_id: "", is_app_root: false },
+    { parent_span_id: "external-parent", is_app_root: true },
+  ])(
+    "prefers an explicit trace name over a newer root fallback: %j",
+    async (root) => {
+      const latestRoot = {
+        ...row,
+        ...root,
+        span_id: "root",
+        trace_name: "",
+        name: "Root fallback",
+      };
+      const olderChild = {
+        ...row,
+        span_id: "child",
+        parent_span_id: "root",
+        trace_name: "Explicit trace name",
+        name: "Child generation",
+      };
+      vi.mocked(queryClickhouseStream).mockImplementationOnce(
+        async function* () {
+          yield latestRoot;
+          yield olderChild;
+        },
+      );
+      const explicit = await loadTraceSnapshot({
+        projectId: "project",
+        traceId: "trace",
+      });
+      expect(explicit.traceName).toBe("Explicit trace name");
+      vi.mocked(queryClickhouseStream).mockImplementationOnce(
+        async function* () {
+          yield latestRoot;
+          yield { ...olderChild, trace_name: "" };
+        },
+      );
+      const fallback = await loadTraceSnapshot({
+        projectId: "project",
+        traceId: "trace",
+      });
+      expect(fallback.traceName).toBe("Root fallback");
+    },
+  );
+
+  it("defaults an absent environment and keeps unnamed child-only traces unnamed", async () => {
+    vi.mocked(queryClickhouseStream).mockImplementation(async function* () {
+      yield {
+        ...row,
+        parent_span_id: "missing-root",
+        environment: "",
+        trace_name: "",
+        name: "Child generation",
+      };
+    });
+    const result = await loadTraceSnapshot({
+      projectId: "project",
+      traceId: "trace",
+    });
+    expect(result.environment).toBe("default");
+    expect(result.traceName).toBe("");
+    expect(result.observations[0].name).toBe("Child generation");
   });
 });

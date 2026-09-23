@@ -23,8 +23,14 @@
 - Feature modules: `src/features/*`
 - Topics PoC: `src/features/topics/TopicsPage.tsx` and
   `src/features/topics/server/topicsRouter.ts`; project-scoped triggers, facets,
-  execution results and transcripts. `Process traces` accepts filters/IDs;
+  execution history, current facet/map results and transcripts. Results accept
+  the selected map directly; transcript inspection needs only a summary reference.
+  `Process traces` accepts filters/IDs;
   `Update topics` clusters stored compatible summaries without a trace selection.
+  Map reads hydrate the selected run's immutable ClickHouse topic definitions;
+  definitions may have been created by an earlier run. Exact facet selection uses
+  facet ID plus numeric version; comparisons offer completed maps, including
+  empty maps, labelled by creation time. Both operations read BatchAction history.
   Trigger/retry require `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
   remain controlled by the `langfuseTopics` feature flag and project permissions.
   Runtime/setup: `../worker/src/features/topics/README.md`.

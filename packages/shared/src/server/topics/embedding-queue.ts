@@ -21,6 +21,7 @@ export type TopicEmbeddingBatch =
 export type TopicEmbeddingRef = TopicEmbeddingBatch["summaries"][number];
 type BatchScope = Pick<TopicEmbeddingBatch, "projectId" | "executionId">;
 type StagedSummary = {
+  executionId: string;
   summary: TopicSummary;
   embeddingConfig: TopicEmbeddingConfig;
 };
@@ -33,12 +34,13 @@ const hash = (value: unknown) =>
 
 function summaryKey(
   scope: BatchScope,
-  ref: Pick<TopicEmbeddingRef, "facetVersionId" | "traceId">,
+  ref: Pick<TopicEmbeddingRef, "facetId" | "facetVersion" | "traceId">,
 ) {
   return `topics:summary:${hash([
     scope.projectId,
     scope.executionId,
-    ref.facetVersionId,
+    ref.facetId,
+    ref.facetVersion,
     ref.traceId,
   ])}`;
 }
@@ -51,20 +53,22 @@ function getRedis() {
 function decodeStagedSummary(
   value: string,
   scope: BatchScope,
-  ref: Pick<TopicEmbeddingRef, "facetVersionId" | "traceId"> & {
+  ref: Pick<TopicEmbeddingRef, "facetId" | "facetVersion" | "traceId"> & {
     summaryId?: string;
   },
 ): StagedSummary {
   const staged = JSON.parse(value) as StagedSummary;
   if (
     staged.summary?.projectId !== scope.projectId ||
-    staged.summary.executionId !== scope.executionId ||
-    staged.summary.facetVersionId !== ref.facetVersionId ||
+    staged.executionId !== scope.executionId ||
+    staged.summary.facetId !== ref.facetId ||
+    staged.summary.facetVersion !== ref.facetVersion ||
     staged.summary.traceId !== ref.traceId ||
     (ref.summaryId !== undefined && staged.summary.id !== ref.summaryId)
   )
     throw new Error("Topics staged summary scope mismatch.");
   return {
+    executionId: staged.executionId,
     summary: staged.summary,
     embeddingConfig: topicEmbeddingConfigSchema.parse(staged.embeddingConfig),
   };
@@ -72,14 +76,18 @@ function decodeStagedSummary(
 
 /** The first accepted summary owns the key and its expiry; retries do not renew it. */
 export async function stageTopicSummary(
+  scope: BatchScope,
   summary: TopicSummary,
   embeddingConfig: TopicEmbeddingConfig,
 ): Promise<TopicSummary> {
+  if (summary.projectId !== scope.projectId)
+    throw new Error("Topics staged summary scope mismatch.");
   if (summary.traceId === null)
     throw new Error("Topics processing requires a trace summary.");
   const client = getRedis();
-  const key = summaryKey(summary, summary);
+  const key = summaryKey(scope, summary);
   const payload = JSON.stringify({
+    executionId: scope.executionId,
     summary,
     embeddingConfig: topicEmbeddingConfigSchema.parse(embeddingConfig),
   });
@@ -93,7 +101,7 @@ export async function stageTopicSummary(
   if (inserted) return summary;
   const existing = await client.get(key);
   if (!existing) throw new Error(TOPIC_EMBEDDING_EXPIRED_ERROR);
-  const staged = decodeStagedSummary(existing, summary, summary);
+  const staged = decodeStagedSummary(existing, scope, summary);
   if (
     staged.embeddingConfig.embeddingModel !== embeddingConfig.embeddingModel ||
     staged.embeddingConfig.embeddingDimensions !==
@@ -106,7 +114,8 @@ export async function stageTopicSummary(
 export async function readStagedTopicSummaries(
   projectId: string,
   executionId: string,
-  facetVersionId: string,
+  facetId: string,
+  facetVersion: number,
   traceIds: string[],
 ): Promise<TopicSummary[]> {
   const client = getRedis();
@@ -114,7 +123,7 @@ export async function readStagedTopicSummaries(
   // Individual GETs remain routable across Redis Cluster slots.
   const values = await Promise.all(
     traceIds.map(async (traceId) => {
-      const ref = { facetVersionId, traceId };
+      const ref = { facetId, facetVersion, traceId };
       const value = await client.get(summaryKey(scope, ref));
       return value ? decodeStagedSummary(value, scope, ref).summary : null;
     }),

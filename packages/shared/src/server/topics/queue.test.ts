@@ -56,7 +56,7 @@ const execution = (
   input: topicExecutionInputSchema.parse({
     projectId: "project-a",
     requestId: "request",
-    facetVersionIds: ["facet-v1"],
+    facets: [{ facetId: "facet", version: 1 }],
     operation,
     ...(operation === "process"
       ? { traceIds: Array.from({ length: count }, (_, i) => `trace-${i}`) }
@@ -70,9 +70,9 @@ const execution = (
   traceErrors: [],
   facets: [
     {
-      facetVersionId: "facet-v1",
+      facetId: "facet",
+      facetVersion: 1,
       outcome: "pending",
-      summaryIds: [],
       runId: null,
       error: null,
       counts: {
@@ -382,6 +382,10 @@ describe("Topics execution queue state", () => {
       },
     );
     const parent = { ...execution("process", 200), id: randomUUID() };
+    parent.facets.push({
+      ...structuredClone(parent.facets[0]),
+      facetVersion: 2,
+    });
     mocks.read.mockImplementation(async () => structuredClone(parent));
     mocks.write.mockImplementation(async (state: TopicExecution) => {
       Object.assign(parent, structuredClone(state));
@@ -391,6 +395,9 @@ describe("Topics execution queue state", () => {
     ): TopicProcessBatchState => {
       const local = structuredClone(parent);
       local.status = status;
+      local.facets[1].counts.requested = 100;
+      local.facets[1].counts.complete = status === "completed" ? 50 : 0;
+      local.facets[1].outcome = status === "completed" ? "assigned" : "pending";
       local.facets[0].counts.requested = 100;
       local.facets[0].counts.complete = status === "completed" ? 100 : 0;
       local.facets[0].outcome = {
@@ -401,7 +408,7 @@ describe("Topics execution queue state", () => {
       return {
         execution: local,
         summaries: [],
-        failedTraceIds: {},
+        failedTraceIds: [],
         summarized: true,
       };
     };
@@ -410,7 +417,10 @@ describe("Topics execution queue state", () => {
       await recordTopicProcessBatchProgress("0", batch("completed"));
       expect(mocks.write.mock.lastCall?.[0]).toMatchObject({
         status: "running",
-        facets: [{ counts: { requested: 200, complete: 100 } }],
+        facets: [
+          { facetVersion: 1, counts: { requested: 200, complete: 100 } },
+          { facetVersion: 2, counts: { requested: 200, complete: 50 } },
+        ],
       });
       const totalsKey = [...keys].find((key) => key.endsWith(":totals"))!;
       expect(await client.hget(totalsKey, "next")).toBe("1");
@@ -426,6 +436,11 @@ describe("Topics execution queue state", () => {
           {
             outcome: "awaiting_topics",
             counts: { requested: 200, complete: 200 },
+          },
+          {
+            facetVersion: 2,
+            outcome: "assigned",
+            counts: { requested: 200, complete: 100 },
           },
         ],
       });
@@ -452,32 +467,58 @@ describe("Topics embedding queue handoff", () => {
     executionId: "run",
     batchId: "batch-1",
     summaries: [
-      { summaryId: "summary", facetVersionId: "facet", traceId: "trace" },
+      {
+        summaryId: "summary",
+        facetId: "facet",
+        facetVersion: 1,
+        traceId: "trace",
+      },
     ],
   };
 
-  it("rejects a staged summary belonging to another project", async () => {
-    mocks.get.mockResolvedValue(
-      JSON.stringify({ summary: { projectId: "different-project" } }),
-    );
-    await expect(
-      readStagedTopicSummary(batch, batch.summaries[0]!),
-    ).rejects.toThrow("scope mismatch");
-  });
+  it.each([
+    { executionId: "other-execution" },
+    { projectId: "other-project" },
+    { facetId: "other-facet" },
+    { facetVersion: 2 },
+    { traceId: "other-trace" },
+  ])(
+    "rejects a staged result outside the requested scope: %j",
+    async (mismatch) => {
+      const { executionId = batch.executionId, ...summaryMismatch } = mismatch;
+      mocks.get.mockResolvedValue(
+        JSON.stringify({
+          executionId,
+          summary: {
+            projectId: batch.projectId,
+            id: "summary",
+            facetId: "facet",
+            facetVersion: 1,
+            traceId: "trace",
+            ...summaryMismatch,
+          },
+        }),
+      );
+      await expect(
+        readStagedTopicSummary(batch, batch.summaries[0]!),
+      ).rejects.toThrow("scope mismatch");
+    },
+  );
 
   it.each(["summarized", "complete"])(
     "returns the accepted terminal result when a competing attempt reads %s",
     async (state) => {
       const accepted = {
         projectId: batch.projectId,
-        executionId: batch.executionId,
         id: "summary",
-        facetVersionId: "facet",
+        facetId: "facet",
+        facetVersion: 1,
         traceId: "trace",
         state: "complete",
         processedAt: "2026-09-22T10:00:00.000Z",
       } as TopicSummary;
       const payload = {
+        executionId: batch.executionId,
         summary: accepted,
         embeddingConfig: {
           embeddingModel: "text-embedding-3-small",

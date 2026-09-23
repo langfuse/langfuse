@@ -4,10 +4,12 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import {
   topicEmbeddingConfigSchema,
   topicIdSchema,
+  topicFacetRefSchema,
   topicTraceIdSchema,
   topicRuleConfigSchema,
   type TopicExecutionSummary,
   type TopicRun,
+  type TopicFacetRef,
 } from "@langfuse/shared/topics";
 import {
   createTopicExecution,
@@ -31,7 +33,6 @@ import {
   listTopicSummaries,
   readTopicAssignments,
   readTopicMapAssignments,
-  readTopicRunSummaryIds,
   loadTopicTranscript,
   isTopicsProjectEnabled,
   enqueueTopicExecution,
@@ -50,7 +51,7 @@ import {
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults } from "./currentResults";
+import { currentTopicResults, resolveTopicResult } from "./currentResults";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -80,24 +81,29 @@ const topicsWriteProcedure = topicsProcedure.use(({ ctx, input, next }) => {
   return next();
 });
 
+async function requireFacetVersions(
+  projectId: string,
+  facets: TopicFacetRef[],
+) {
+  for (const { facetId, version } of facets) {
+    if (!(await getTopicFacetVersion(projectId, facetId, version)))
+      throw new InvalidRequestError("Facet version not found in this project.");
+  }
+}
+
 function publicRun(run: TopicRun) {
   return {
     id: run.id,
-    facetVersionId: run.facetVersionId,
-    runSequence: run.runSequence,
-    publishedAt: run.publishedAt,
-    topics: (run.publishedAt ? run.topics : []).map((topic) => ({
+    facetId: run.facetId,
+    facetVersion: run.facetVersion,
+    status: run.status,
+    createdAt: run.createdAt,
+    topics: (run.status === "completed" ? run.topics : []).map((topic) => ({
       id: topic.topicId,
       name: topic.name,
       description: topic.description,
     })),
   };
-}
-
-async function latestFacetSummaries(projectId: string, facetVersionId: string) {
-  const facet = await getTopicFacetVersion(projectId, facetVersionId);
-  if (!facet) throw new LangfuseNotFoundError("Facet version not found.");
-  return getLatestFacetSummaries(projectId, facet.facetId, facetVersionId);
 }
 
 async function executionWithRecovery(projectId: string, executionId: string) {
@@ -106,15 +112,21 @@ async function executionWithRecovery(projectId: string, executionId: string) {
   return recoverExecutionState(execution);
 }
 
-async function recoverExecutionState(execution: TopicExecutionSummary) {
-  if (
-    execution.status === "running" ||
-    execution.status === "queued" ||
+function canResume(execution: TopicExecutionSummary) {
+  return (
     execution.status === "failed" ||
     (execution.status === "completed_with_errors" &&
       execution.facets.some(
         (facet) => facet.outcome === "pending" || facet.outcome === "failed",
       ))
+  );
+}
+
+async function recoverExecutionState(execution: TopicExecutionSummary) {
+  if (
+    execution.status === "running" ||
+    execution.status === "queued" ||
+    canResume(execution)
   ) {
     const queueState = await getTopicExecutionQueueState(
       execution.projectId,
@@ -129,8 +141,7 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
         "prioritized",
         "waiting-children",
       ].includes(queueState) &&
-      (execution.status === "failed" ||
-        execution.status === "completed_with_errors")
+      canResume(execution)
     ) {
       return {
         ...execution,
@@ -156,19 +167,19 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
   return execution;
 }
 
-type MapSummary = {
-  traceId: string;
-  summary: string;
-  summaryId: string;
-  topicId: string | null;
-  outcome: "assigned" | "outlier" | "unassigned";
-};
 type TopicMap = {
   status: "ready" | "unavailable";
   reason: string | null;
   runId: string | null;
   missingSummaryCount: number;
-  points: (MapSummary & { x: number; y: number })[];
+  points: {
+    traceId: string;
+    summary: string;
+    topicId: string | null;
+    outcome: "assigned" | "outlier" | "unassigned";
+    x: number;
+    y: number;
+  }[];
   unpositionedCount: number;
 };
 async function publishedTopicMap(input: {
@@ -186,86 +197,81 @@ async function publishedTopicMap(input: {
     points: [],
     unpositionedCount: 0,
   };
-  if (!run.publishedAt) return unavailable;
-  const [summaryIds, discoveryAssignments] = await Promise.all([
-    readTopicRunSummaryIds(input.projectId, run.id),
-    readTopicMapAssignments(input.projectId, run.id),
-  ]);
-  if (!summaryIds.length)
+  if (run.status !== "completed") return unavailable;
+  const discoveryAssignments = (
+    await readTopicMapAssignments(input.projectId, run.id)
+  ).sort((a, b) => a.summaryId.localeCompare(b.summaryId));
+  if (!discoveryAssignments.length)
     return {
       ...unavailable,
       reason: "The discovery cohort is unavailable for this map.",
     };
-  const discoveryIds = new Set(summaryIds);
-  const projectedById = new Map(
-    discoveryAssignments
-      .filter(
-        (row) =>
-          row.projectId === input.projectId &&
-          row.runId === run.id &&
-          row.origin === "initial" &&
-          row.facetVersionId === run.facetVersionId &&
-          discoveryIds.has(row.summaryId) &&
-          row.coordinates?.length === 2 &&
-          row.coordinates.every(Number.isFinite),
-      )
-      .map((row) => [row.summaryId, row]),
-  );
-  if (projectedById.size !== discoveryIds.size)
+  if (
+    discoveryAssignments.some(
+      (row) =>
+        row.projectId !== input.projectId ||
+        row.runId !== run.id ||
+        row.origin !== "initial" ||
+        row.facetId !== run.facetId ||
+        row.facetVersion !== run.facetVersion ||
+        row.traceId === null ||
+        row.coordinates?.length !== 2 ||
+        !row.coordinates.every(Number.isFinite),
+    )
+  )
     return {
       ...unavailable,
       reason:
         "Saved coordinates are not fully available for the discovery cohort.",
     };
 
-  const summaries = await latestFacetSummaries(
+  const summaries = await getLatestFacetSummaries(
     input.projectId,
-    run.facetVersionId,
+    run.facetId,
+    run.facetVersion,
   );
   const byId = new Map(
     summaries
       .filter(
         (row) =>
           row.projectId === input.projectId &&
-          row.facetVersionId === run.facetVersionId &&
+          row.facetId === run.facetId &&
+          row.facetVersion === run.facetVersion &&
           row.traceId !== null,
       )
       .map((row) => [row.id, row]),
   );
   const topicIds = new Set(run.topics.map((topic) => topic.topicId));
-  const points = summaryIds.flatMap((id): TopicMap["points"] => {
-    const row = byId.get(id);
-    if (!row || row.traceId === null) return [];
-    const projected = projectedById.get(id)!;
-    const [x, y] = projected.coordinates!;
-    const assignment =
-      projected.topicId === null || topicIds.has(projected.topicId)
-        ? projected
-        : undefined;
-    let outcome: MapSummary["outcome"] = "unassigned";
-    if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
-    return [
-      {
-        summaryId: row.id,
-        traceId: row.traceId,
-        summary: row.summary,
-        topicId: assignment?.topicId ?? null,
-        outcome,
-        x,
-        y,
-      },
-    ];
-  });
-  const unpositionedCount = [...byId.keys()].filter(
-    (id) => !discoveryIds.has(id),
-  ).length;
+  const points = discoveryAssignments.flatMap(
+    (projected): TopicMap["points"] => {
+      const row = byId.get(projected.summaryId);
+      if (!row || row.traceId === null) return [];
+      const [x, y] = projected.coordinates!;
+      const assignment =
+        projected.topicId === null || topicIds.has(projected.topicId)
+          ? projected
+          : undefined;
+      let outcome: TopicMap["points"][number]["outcome"] = "unassigned";
+      if (assignment) outcome = assignment.topicId ? "assigned" : "outlier";
+      return [
+        {
+          traceId: row.traceId,
+          summary: row.summary,
+          topicId: assignment?.topicId ?? null,
+          outcome,
+          x,
+          y,
+        },
+      ];
+    },
+  );
   return {
     status: "ready",
     reason: null,
     runId: run.id,
-    missingSummaryCount: summaryIds.length - points.length,
+    missingSummaryCount: discoveryAssignments.length - points.length,
     points,
-    unpositionedCount,
+    unpositionedCount: byId.size - points.length,
   };
 }
 
@@ -313,20 +319,15 @@ export const topicsRouter = createTRPCRouter({
   summaryCounts: topicsProcedure
     .input(
       projectInput.extend({
-        facetVersionIds: z.array(topicIdSchema).min(1),
+        facets: z.array(topicFacetRefSchema).min(1),
         embeddingConfig: topicEmbeddingConfigSchema,
       }),
     )
     .query(async ({ input }) => {
-      for (const id of input.facetVersionIds) {
-        if (!(await getTopicFacetVersion(input.projectId, id)))
-          throw new InvalidRequestError(
-            "Facet version not found in this project.",
-          );
-      }
+      await requireFacetVersions(input.projectId, input.facets);
       return getTopicSummaryCounts(
         input.projectId,
-        input.facetVersionIds,
+        input.facets,
         input.embeddingConfig,
       );
     }),
@@ -382,15 +383,8 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Topic rules require a filtered trace selection.",
         );
-      const facetIds = new Set<string>();
-      for (const id of input.facetVersionIds) {
-        const version = await getTopicFacetVersion(input.projectId, id);
-        if (!version)
-          throw new InvalidRequestError(
-            "Facet version not found in this project.",
-          );
-        facetIds.add(version.facetId);
-      }
+      await requireFacetVersions(input.projectId, input.facets);
+      const facetIds = new Set(input.facets.map(({ facetId }) => facetId));
 
       if (
         rule &&
@@ -436,16 +430,7 @@ export const topicsRouter = createTRPCRouter({
         input.projectId,
         input.executionId,
       );
-      if (
-        execution.status !== "failed" &&
-        !(
-          execution.status === "completed_with_errors" &&
-          execution.facets.some(
-            (facet) =>
-              facet.outcome === "pending" || facet.outcome === "failed",
-          )
-        )
-      )
+      if (!canResume(execution))
         throw new InvalidRequestError(
           "Only failed or interrupted executions can be resumed.",
         );
@@ -462,31 +447,49 @@ export const topicsRouter = createTRPCRouter({
       };
     }),
   results: topicsProcedure
-    .input(executionInput.extend({ facetVersionId: topicIdSchema }))
+    .input(
+      projectInput.extend({
+        facetId: topicIdSchema,
+        facetVersion: z.number().int().positive(),
+        runId: topicIdSchema.nullish(),
+      }),
+    )
     .query(async ({ input }) => {
-      const execution = await readTopicExecutionSummary(
-        input.projectId,
-        input.executionId,
-      );
-      const facet = execution?.facets.find(
-        (f) => f.facetVersionId === input.facetVersionId,
-      );
-      if (!execution || !facet)
-        throw new LangfuseNotFoundError("Execution facet not found.");
-      const run = facet.runId
-        ? await getTopicRun(input.projectId, facet.runId)
+      const run = input.runId
+        ? await getTopicRun(input.projectId, input.runId)
         : null;
-      const summaries = await latestFacetSummaries(
+      if (
+        input.runId &&
+        (!run ||
+          run.projectId !== input.projectId ||
+          run.facetId !== input.facetId ||
+          run.facetVersion !== input.facetVersion)
+      )
+        throw new LangfuseNotFoundError(
+          "Map not found for this facet version.",
+        );
+      if (
+        !run &&
+        !(await getTopicFacetVersion(
+          input.projectId,
+          input.facetId,
+          input.facetVersion,
+        ))
+      )
+        throw new LangfuseNotFoundError("Facet version not found.");
+      const summaries = await getLatestFacetSummaries(
         input.projectId,
-        input.facetVersionId,
+        input.facetId,
+        input.facetVersion,
       );
-      const assignments = run?.publishedAt
-        ? await readTopicAssignments(
-            input.projectId,
-            summaries.map((row) => row.id),
-            run.id,
-          )
-        : [];
+      const assignments =
+        run?.status === "completed"
+          ? await readTopicAssignments(
+              input.projectId,
+              summaries.map((row) => row.id),
+              run.id,
+            )
+          : [];
       const assignmentBySummary = new Map(
         assignments.map((row) => [row.summaryId, row]),
       );
@@ -495,16 +498,10 @@ export const topicsRouter = createTRPCRouter({
         rows: summaries
           .filter((row) => row.traceId !== null)
           .map((summary) => {
-            const stored = assignmentBySummary.get(summary.id);
-            const assignment =
-              summary.state === "complete" &&
-              stored?.summaryProcessedAt === summary.processedAt
-                ? stored
-                : undefined;
-            let outcome: string = summary.state;
-            if (summary.state === "complete") outcome = "awaiting_map";
-            if (assignment)
-              outcome = assignment.topicId ? "assigned" : "outlier";
+            const { assignment, outcome } = resolveTopicResult(
+              summary,
+              assignmentBySummary.get(summary.id),
+            );
             return {
               id: summary.id,
               traceId: summary.traceId,
@@ -532,7 +529,6 @@ export const topicsRouter = createTRPCRouter({
           facetName:
             facets.find((facet) => facet.id === summary.facetId)?.name ??
             "Deleted facet",
-          facetVersionId: summary.facetVersionId,
           facetVersion: summary.facetVersion,
           summary: summary.summary,
           state: summary.state,
@@ -554,40 +550,31 @@ export const topicsRouter = createTRPCRouter({
       };
     }),
   inspect: topicsProcedure
-    .input(executionInput.extend({ summaryId: topicIdSchema }))
+    .input(projectInput.extend({ summaryId: topicIdSchema }))
     .query(async ({ input }) => {
-      const execution = await readTopicExecutionSummary(
-        input.projectId,
-        input.executionId,
-      );
-      if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       const [summary] = await readTopicSummaries(input.projectId, [
         input.summaryId,
       ]);
       if (
         !summary ||
         summary.id !== input.summaryId ||
-        summary.traceId === null ||
-        !execution.facets.some(
-          (facet) => facet.facetVersionId === summary.facetVersionId,
-        )
+        summary.projectId !== input.projectId ||
+        summary.traceId === null
       )
         throw new LangfuseNotFoundError("Trace summary not found.");
-      let projection:
-        | Awaited<ReturnType<typeof loadTopicTranscript>>["transcript"]
-        | null = null;
+      let text: string | null = null;
       try {
         const current = await loadTopicTranscript({
           projectId: input.projectId,
           traceId: summary.traceId,
         });
-        projection = current.transcript;
+        text = current.transcript.text;
       } catch {
         // Stored summaries remain inspectable after source retention or deletion.
       }
       return {
         model: summary.summaryModel,
-        projection,
+        text,
       };
     }),
   compare: topicsProcedure
@@ -602,18 +589,20 @@ export const topicsRouter = createTRPCRouter({
         getTopicRun(input.projectId, input.otherRunId),
       ]);
       if (
-        !current?.publishedAt ||
-        !other?.publishedAt ||
+        current?.status !== "completed" ||
+        other?.status !== "completed" ||
         current.projectId !== input.projectId ||
         other.projectId !== input.projectId ||
-        other.facetVersionId !== current.facetVersionId
+        other.facetId !== current.facetId ||
+        other.facetVersion !== current.facetVersion
       )
         throw new InvalidRequestError(
           "Compare published maps of the same facet version.",
         );
-      const summaries = await latestFacetSummaries(
+      const summaries = await getLatestFacetSummaries(
         input.projectId,
-        current.facetVersionId,
+        current.facetId,
+        current.facetVersion,
       );
       const summaryById = new Map(summaries.map((row) => [row.id, row]));
       const summaryIds = summaries.map((row) => row.id);
@@ -628,14 +617,13 @@ export const topicsRouter = createTRPCRouter({
       >();
       let compared = 0;
       for (const row of currentRows) {
-        const previous = byId.get(row.summaryId);
         const summary = summaryById.get(row.summaryId);
-        if (
-          summary?.state !== "complete" ||
-          row.summaryProcessedAt !== summary.processedAt ||
-          previous?.summaryProcessedAt !== summary.processedAt
-        )
-          continue;
+        if (!summary || !resolveTopicResult(summary, row).assignment) continue;
+        const previous = resolveTopicResult(
+          summary,
+          byId.get(row.summaryId),
+        ).assignment;
+        if (!previous) continue;
         compared++;
         const from =
           other.topics.find((topic) => topic.topicId === previous.topicId)

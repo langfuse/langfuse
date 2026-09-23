@@ -1,3 +1,5 @@
+import { isRootObservation } from "../../eventsTable";
+import { DEFAULT_TRACE_ENVIRONMENT } from "../ingestion/types";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { queryClickhouseStream } from "../repositories/clickhouse";
 import type { TopicsObservation } from "./transcript";
@@ -9,8 +11,11 @@ type SnapshotRow = {
   project_id: string;
   trace_id: string;
   session_id: string;
+  environment: string;
+  trace_name: string;
   span_id: string;
   parent_span_id: string | null;
+  is_app_root: boolean;
   start_time: string;
   end_time: string | null;
   type: string;
@@ -36,6 +41,9 @@ export async function loadTraceSnapshot(params: {
       "e.project_id",
       "e.trace_id",
       "e.session_id",
+      "e.environment",
+      "e.trace_name",
+      "e.is_app_root",
       "e.span_id",
       "e.parent_span_id",
       "e.start_time",
@@ -55,7 +63,7 @@ export async function loadTraceSnapshot(params: {
       // Equal storage timestamps need a stable choice; they do not establish causal order.
       {
         column:
-          "cityHash64(tuple(e.parent_span_id, e.start_time, e.end_time, e.type, e.name, e.level, e.status_message, e.input, e.output, e.metadata_names, e.metadata_values))",
+          "cityHash64(tuple(e.environment, e.trace_name, e.is_app_root, e.parent_span_id, e.start_time, e.end_time, e.type, e.name, e.level, e.status_message, e.input, e.output, e.metadata_names, e.metadata_values))",
         direction: "DESC",
       },
     ])
@@ -64,6 +72,9 @@ export async function loadTraceSnapshot(params: {
   const { query, params: queryParams } = builder.buildWithParams();
   const observations: TopicsObservation[] = [];
   let sessionId: string | null = null;
+  let environment = "";
+  let traceName = "";
+  let rootName = "";
   let bytes = 0;
   for await (const row of queryClickhouseStream<SnapshotRow>({
     query,
@@ -80,8 +91,19 @@ export async function loadTraceSnapshot(params: {
   })) {
     if (row.project_id !== projectId || row.trace_id !== traceId)
       throw new Error("Trace snapshot scope mismatch");
-    // Rows arrive newest first; session context can change between observations.
+    // Rows arrive newest first; retain the latest non-empty trace context.
     if (!sessionId && row.session_id) sessionId = row.session_id;
+    if (!environment && row.environment) environment = row.environment;
+    if (!traceName && row.trace_name) traceName = row.trace_name;
+    if (
+      !rootName &&
+      row.name &&
+      isRootObservation({
+        parentObservationId: row.parent_span_id,
+        isAppRoot: row.is_app_root,
+      })
+    )
+      rootName = row.name;
     bytes += Buffer.byteLength(JSON.stringify(row));
     if (bytes > MAX_SNAPSHOT_BYTES || observations.length >= MAX_OBSERVATIONS) {
       throw new Error(
@@ -112,6 +134,8 @@ export async function loadTraceSnapshot(params: {
     projectId,
     traceId,
     sessionId,
+    environment: environment || DEFAULT_TRACE_ENVIRONMENT,
+    traceName: traceName || rootName,
     observations,
     timestamp: observations.reduce(
       (earliest, row) => (row.startTime < earliest ? row.startTime : earliest),

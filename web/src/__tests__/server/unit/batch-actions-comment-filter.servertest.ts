@@ -542,7 +542,7 @@ describe("batch action history", () => {
         id: "topics",
         projectId,
         userId: "user-id",
-        actionType: "trace-process-topics",
+        actionType: "topics",
       },
       {
         id: "other-project",

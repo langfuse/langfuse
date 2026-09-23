@@ -7,19 +7,15 @@ import type {
 import type { TopicEmbeddingBatch } from "@langfuse/shared/topics/server";
 
 const mocks = vi.hoisted(() => ({
-  read: vi.fn(),
   write: vi.fn(),
   staged: vi.fn(),
   update: vi.fn(),
-  remove: vi.fn(),
   embed: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
-  readTopicSummaries: mocks.read,
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
   updateStagedTopicSummary: mocks.update,
-  deleteStagedTopicSummary: mocks.remove,
   TOPIC_EMBEDDING_EXPIRED_ERROR:
     "Topics staged results expired before processing completed. Start a new execution with stored-summary reuse to recover persisted results.",
 }));
@@ -39,14 +35,14 @@ const embeddingConfig: TopicEmbeddingConfig = {
 const summary = (id = "summary"): TopicSummary => ({
   id,
   projectId: "project",
-  executionId: "execution",
   facetId: "facet",
-  facetVersionId: "facet-version",
   facetVersion: 1,
   traceId: `trace-${id}`,
   sessionId: null,
   triggerType: "manual_poc",
   unitStartTime: "2026-09-18T00:00:00.000Z",
+  environment: "production",
+  traceName: "Customer support",
   processedAt: "2026-09-18T00:00:00.000Z",
   state: "summarized",
   summary: `A summary of ${id}.`,
@@ -71,7 +67,8 @@ const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
   batchId: "batch",
   summaries: rows.map((row) => ({
     summaryId: row.id,
-    facetVersionId: row.facetVersionId,
+    facetId: row.facetId,
+    facetVersion: row.facetVersion,
     traceId: row.traceId,
   })),
 });
@@ -86,7 +83,6 @@ let staged: Map<string, TopicSummary>;
 beforeEach(() => {
   vi.resetAllMocks();
   staged = new Map();
-  mocks.read.mockRejectedValue(new Error("Unexpected ClickHouse result read"));
   mocks.write.mockResolvedValue(undefined);
   mocks.staged.mockImplementation(async (_batch, ref) => {
     const row = staged.get(ref.summaryId);
@@ -98,9 +94,6 @@ beforeEach(() => {
     if (existing.state !== "summarized") return existing;
     staged.set(ref.summaryId, row);
     return row;
-  });
-  mocks.remove.mockImplementation(async (_batch, ref) => {
-    staged.delete(ref.summaryId);
   });
   mocks.embed.mockResolvedValue(embeddingResult);
 });
@@ -152,7 +145,6 @@ describe("Topics embedding handoff", () => {
       },
       { id: nonApplicable.id, state: "not_applicable", embedding: [] },
     ]);
-    expect(mocks.remove).not.toHaveBeenCalled();
     expect(mocks.embed).toHaveBeenCalledOnce();
     acknowledge();
     await processing;
@@ -168,7 +160,6 @@ describe("Topics embedding handoff", () => {
     );
     expect(staged.get(row.id)?.state).toBe("complete");
     const completed = staged.get(row.id);
-    expect(mocks.remove).not.toHaveBeenCalled();
     await processTopicEmbeddingBatch(batch(row));
     expect(mocks.embed).toHaveBeenCalledOnce();
     expect(mocks.write).toHaveBeenCalledTimes(2);
@@ -241,7 +232,6 @@ describe("Topics embedding handoff", () => {
     expect(staged.get("second")?.state).toBe("summarized");
     await processTopicEmbeddingBatch(batch(...rows));
     expect(mocks.embed).toHaveBeenCalledTimes(3);
-    expect(mocks.read).not.toHaveBeenCalled();
     expect(staged.get("second")?.state).toBe("complete");
   });
 

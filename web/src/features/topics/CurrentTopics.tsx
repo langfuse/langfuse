@@ -35,19 +35,15 @@ export function CurrentTopics({
   )
     ? selectedFacetId
     : result.data?.[0]?.facetId;
+  const empty = !result.isLoading && !result.error && result.data?.length === 0;
   return (
-    <section className="flex min-w-0 flex-col gap-5">
+    <section className={cn("flex min-w-0 flex-col gap-5", empty && "hidden")}>
       {result.error && (
         <p role="alert" className="text-destructive text-sm">
           {result.error.message}
         </p>
       )}
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
-      {result.data?.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          Process traces, then run Update topics to discover patterns.
-        </p>
-      )}
       {selectedFacet && (
         <TabsBar value={selectedFacet} onValueChange={setSelectedFacetId}>
           <TabsBarList aria-label="Facets" className="shrink-0 overflow-x-auto">

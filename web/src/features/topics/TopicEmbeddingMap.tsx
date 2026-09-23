@@ -170,18 +170,15 @@ function EmbeddingMapView({
       : data.points.filter((point) => pointGroup(point) === selectedTopic);
   const [localSelectedId, setSelectedId] = useState<string | null>(null);
   const selectedId =
-    selectedTraceId === undefined
-      ? localSelectedId
-      : (data.points.find((point) => point.traceId === selectedTraceId)
-          ?.summaryId ?? null);
+    selectedTraceId === undefined ? localSelectedId : selectedTraceId;
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [focusedId, setFocusedId] = useState<string | null>(null);
-  const tabStopId = plotted.some((point) => point.summaryId === focusedId)
+  const tabStopId = plotted.some((point) => point.traceId === focusedId)
     ? focusedId
-    : plotted[0]?.summaryId;
+    : plotted[0]?.traceId;
   const active =
-    plotted.find((point) => point.summaryId === selectedId) ??
-    plotted.find((point) => point.summaryId === hoveredId);
+    plotted.find((point) => point.traceId === selectedId) ??
+    plotted.find((point) => point.traceId === hoveredId);
   const groups = [
     ...topics.map((topic, index) => ({
       id: topic.id,
@@ -239,15 +236,15 @@ function EmbeddingMapView({
             const color = topicColor(
               topics.findIndex((topic) => topic.id === point.topicId),
             );
-            const isActive = active?.summaryId === point.summaryId;
+            const isActive = active?.traceId === point.traceId;
             const select = () => {
-              const deselect = selectedId === point.summaryId;
-              setSelectedId(deselect ? null : point.summaryId);
+              const deselect = selectedId === point.traceId;
+              setSelectedId(deselect ? null : point.traceId);
               onSelectTrace?.(deselect ? null : point.traceId);
             };
             return (
               <circle
-                key={point.summaryId}
+                key={point.traceId}
                 cx={point.x}
                 cy={point.y}
                 r={isActive ? 7 : 4.5}
@@ -257,9 +254,9 @@ function EmbeddingMapView({
                 strokeWidth={isActive ? 2 : 0.8}
                 strokeOpacity={1}
                 role="button"
-                tabIndex={point.summaryId === tabStopId ? 0 : -1}
+                tabIndex={point.traceId === tabStopId ? 0 : -1}
                 aria-label={`${point.traceId}: ${point.summary}`}
-                aria-pressed={selectedId === point.summaryId}
+                aria-pressed={selectedId === point.traceId}
                 className="cursor-pointer focus:outline-2 focus:outline-offset-4"
                 onClick={select}
                 onKeyDown={(event) => {
@@ -294,11 +291,11 @@ function EmbeddingMapView({
                     dots[next]?.focus();
                   }
                 }}
-                onMouseEnter={() => setHoveredId(point.summaryId)}
+                onMouseEnter={() => setHoveredId(point.traceId)}
                 onMouseLeave={() => setHoveredId(null)}
                 onFocus={() => {
-                  setHoveredId(point.summaryId);
-                  setFocusedId(point.summaryId);
+                  setHoveredId(point.traceId);
+                  setFocusedId(point.traceId);
                 }}
                 onBlur={() => setHoveredId(null)}
               >

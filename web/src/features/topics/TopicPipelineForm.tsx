@@ -63,10 +63,10 @@ export function TopicPipelineForm({
       .filter((facet) => facet.versions.length > 0)
       .map((facet) => facet.id),
   );
-  const [facetVersions, setFacetVersions] = useState<Record<string, string>>(
+  const [facetVersions, setFacetVersions] = useState<Record<string, number>>(
     () =>
       Object.fromEntries(
-        facets.map((facet) => [facet.id, facet.versions[0]?.id ?? ""]),
+        facets.map((facet) => [facet.id, facet.versions[0]?.version ?? 0]),
       ),
   );
   const [exploratory, setExploratory] = useState(false);
@@ -99,18 +99,19 @@ export function TopicPipelineForm({
   const facetChoices = facets.flatMap((facet) => {
     const version =
       facet.versions.find(
-        (version) => version.id === facetVersions[facet.id],
+        (version) => version.version === facetVersions[facet.id],
       ) ?? facet.versions[0];
     return version
       ? [{ facet, version, selected: selectedFacetIds.includes(facet.id) }]
       : [];
   });
-  const facetVersionIds = facetChoices
+  const selectedFacets = facetChoices
     .filter((choice) => choice.selected)
-    .map((choice) => choice.version.id);
-  const activeFacetIds = facetChoices
-    .filter((choice) => choice.selected)
-    .map((choice) => choice.facet.id);
+    .map((choice) => ({
+      facetId: choice.facet.id,
+      version: choice.version.version,
+    }));
+  const activeFacetIds = selectedFacets.map(({ facetId }) => facetId);
   const matchesRule = (criteria: TopicTraceCriteria | null) =>
     selectedRule &&
     criteria &&
@@ -122,7 +123,7 @@ export function TopicPipelineForm({
   const summaryCounts = api.topics.summaryCounts.useQuery(
     {
       projectId,
-      facetVersionIds,
+      facets: selectedFacets,
       embeddingConfig:
         embeddingConfig.data ?? topicEmbeddingConfigSchema.parse({}),
     },
@@ -130,16 +131,20 @@ export function TopicPipelineForm({
       enabled:
         operation === "update" &&
         embeddingConfig.success &&
-        facetVersionIds.length > 0,
+        selectedFacets.length > 0,
     },
   );
-  const hasStoredSummaries = facetVersionIds.some(
-    (id) => (summaryCounts.data?.[id] ?? 0) > 0,
+  const summaryCount = (facetId: string, version: number) =>
+    summaryCounts.data?.find(
+      (count) => count.facetId === facetId && count.facetVersion === version,
+    )?.count ?? 0;
+  const hasStoredSummaries = selectedFacets.some(
+    ({ facetId, version }) => summaryCount(facetId, version) > 0,
   );
-  const compatibleSummaryLabel = (versionId: string) => {
+  const compatibleSummaryLabel = (facetId: string, version: number) => {
     if (summaryCounts.isFetching) return "Counting stored summaries…";
     if (summaryCounts.error) return "Could not count stored summaries.";
-    return `${(summaryCounts.data?.[versionId] ?? 0).toLocaleString()} compatible summaries ready`;
+    return `${summaryCount(facetId, version).toLocaleString()} compatible summaries ready`;
   };
   const toggleFacet = (id: string, checked: boolean) =>
     setSelectedFacetIds((current) =>
@@ -151,11 +156,10 @@ export function TopicPipelineForm({
   ) {
     setError(null);
     try {
-      if (!facetVersionIds.length)
-        throw new Error("Select at least one facet.");
+      if (!selectedFacets.length) throw new Error("Select at least one facet.");
       const base = {
         projectId,
-        facetVersionIds,
+        facets: selectedFacets,
         embeddingConfig: topicEmbeddingConfigSchema.parse({
           embeddingDimensions: Number(dimensions),
         }),
@@ -231,7 +235,7 @@ export function TopicPipelineForm({
             !embeddingConfig.success ||
             (operation === "update" && !minimumTraceCountResult.success) ||
             trigger.isPending ||
-            !facetVersionIds.length ||
+            !selectedFacets.length ||
             (operation === "update"
               ? summaryCounts.isFetching ||
                 !!summaryCounts.error ||
@@ -283,11 +287,11 @@ export function TopicPipelineForm({
                       {facet.name}
                     </label>
                     <Select
-                      value={version.id}
+                      value={String(version.version)}
                       onValueChange={(value) =>
                         setFacetVersions((current) => ({
                           ...current,
-                          [facet.id]: value,
+                          [facet.id]: Number(value),
                         }))
                       }
                     >
@@ -299,7 +303,10 @@ export function TopicPipelineForm({
                       </SelectTrigger>
                       <SelectContent className="ph-no-capture">
                         {facet.versions.map((candidate) => (
-                          <SelectItem key={candidate.id} value={candidate.id}>
+                          <SelectItem
+                            key={candidate.version}
+                            value={String(candidate.version)}
+                          >
                             v{candidate.version}
                           </SelectItem>
                         ))}
@@ -311,7 +318,7 @@ export function TopicPipelineForm({
                   </p>
                   {operation === "update" && selected && (
                     <p className="text-muted-foreground text-sm">
-                      {compatibleSummaryLabel(version.id)}
+                      {compatibleSummaryLabel(facet.id, version.version)}
                     </p>
                   )}
                 </div>
@@ -428,7 +435,7 @@ export function TopicPipelineForm({
             {operation === "process" && selection?.count ? (
               <p className="text-muted-foreground text-sm">
                 Process {selection.count.toLocaleString()} traces across{" "}
-                {facetVersionIds.length} facets.{" "}
+                {selectedFacets.length} facets.{" "}
                 {reuseExistingSummaries
                   ? "Matching stored summaries and embeddings are reused. Missing results are generated with OpenAI."
                   : "Generate fresh summaries and embeddings with OpenAI."}
@@ -510,7 +517,7 @@ export function TopicPipelineForm({
                 Object.fromEntries(
                   facets.map((facet) => [
                     facet.id,
-                    facet.versions[0]?.id ?? "",
+                    facet.versions[0]?.version ?? 0,
                   ]),
                 ),
               );

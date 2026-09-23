@@ -1,14 +1,33 @@
+CREATE TABLE IF NOT EXISTS topics {CLICKHOUSE_CLUSTER_CLAUSE}
+(
+    project_id String,
+    id String,
+    stable_id String,
+    created_by_run_id String,
+    created_at DateTime64(3, 'UTC'),
+    name String,
+    description String CODEC(ZSTD(3)),
+    centroid Array(Float64),
+    radius Float64,
+    tags Array(String) DEFAULT [],
+    representative_summary_ids Array(String),
+    metadata String CODEC(ZSTD(3))
+)
+ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(created_at)
+ORDER BY (project_id, id);
+
 CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
     facet_id String,
-    facet_version_id String,
     facet_version UInt32,
     trace_id String DEFAULT '',
     session_id String DEFAULT '',
     CONSTRAINT topic_source_present CHECK notEmpty(trace_id) OR notEmpty(session_id),
+    environment LowCardinality(String) DEFAULT 'default',
+    trace_name String DEFAULT '',
+    CONSTRAINT topic_trace_name CHECK notEmpty(trace_id) OR empty(trace_name),
     unit_start_time DateTime64(3, 'UTC'),
-    execution_id String,
     trigger_type LowCardinality(String) DEFAULT 'manual_poc',
     processing_state Enum8('complete' = 2, 'not_applicable' = 3, 'insufficient_input' = 4),
     summary String CODEC(ZSTD(3)),
@@ -21,6 +40,7 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     usage_details Map(LowCardinality(String), UInt64),
     provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
     cost_details Map(LowCardinality(String), Decimal(18,12)),
+    -- TODO: check if we really need this here & if we really want to have precise cost here
     calculated_input_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
     calculated_output_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
     calculated_total_cost Decimal(18,12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
@@ -29,18 +49,21 @@ CREATE TABLE IF NOT EXISTS topic_facet_summaries {CLICKHOUSE_CLUSTER_CLAUSE}
     metadata String CODEC(ZSTD(3))
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(processed_at)
-PRIMARY KEY (project_id, facet_id, facet_version_id)
-ORDER BY (project_id, facet_id, facet_version_id, trace_id, if(trace_id = '', session_id, ''));
+-- TODO: should prob include time toMinute
+PRIMARY KEY (project_id, facet_id, facet_version)
+ORDER BY (project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''));
 
 CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
 (
     project_id String,
     facet_id String,
-    facet_version_id String,
     facet_version UInt32,
     trace_id String DEFAULT '',
     session_id String DEFAULT '',
     CONSTRAINT topic_source_present CHECK notEmpty(trace_id) OR notEmpty(session_id),
+    environment LowCardinality(String) DEFAULT 'default',
+    trace_name String DEFAULT '',
+    CONSTRAINT topic_trace_name CHECK notEmpty(trace_id) OR empty(trace_name),
     unit_start_time DateTime64(3, 'UTC'),
     summary_processed_at DateTime64(3, 'UTC'),
     clustering_run_id String DEFAULT '',
@@ -54,5 +77,6 @@ CREATE TABLE IF NOT EXISTS topic_assignments {CLICKHOUSE_CLUSTER_CLAUSE}
     assigned_at DateTime64(3, 'UTC')
 )
 ENGINE = {CLICKHOUSE_REPLICATION_PREFIX}ReplacingMergeTree(assigned_at)
-PRIMARY KEY (project_id, facet_id, facet_version_id)
-ORDER BY (project_id, facet_id, facet_version_id, clustering_run_id, origin, trace_id, if(trace_id = '', session_id, ''));
+-- TODO: should prob include time toMinute
+PRIMARY KEY (project_id, facet_id, facet_version)
+ORDER BY (project_id, facet_id, facet_version, clustering_run_id, origin, trace_id, if(trace_id = '', session_id, ''));

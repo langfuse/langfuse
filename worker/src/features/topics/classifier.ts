@@ -127,6 +127,21 @@ export function classifyTopic(
   };
 }
 
+/** Removing an unused nearest prototype can expose another serving population. */
+export function retainPopulatedTopics<T extends TopicPrototype>(
+  summaries: Pick<TopicSummary, "embedding">[],
+  prototypes: T[],
+): T[] {
+  for (;;) {
+    const active = new Set(
+      summaries.map((row) => classifyTopic(row.embedding, prototypes).topicId),
+    );
+    const retained = prototypes.filter((prototype) => active.has(prototype.id));
+    if (retained.length === prototypes.length) return retained;
+    prototypes = retained;
+  }
+}
+
 /** Names only populations produced by the same classifier used for new traces. */
 export function buildNamingEvidence(
   summaries: TopicSummary[],

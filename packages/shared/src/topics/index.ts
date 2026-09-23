@@ -61,10 +61,16 @@ export type TopicRule = z.infer<typeof topicRuleConfigSchema> & {
   updatedAt: string;
 };
 
+export const topicFacetRefSchema = z.object({
+  facetId: topicIdSchema,
+  version: z.number().int().positive(),
+});
+export type TopicFacetRef = z.infer<typeof topicFacetRefSchema>;
+
 const executionBase = {
   projectId: topicIdSchema,
   requestId: topicIdSchema,
-  facetVersionIds: z.array(topicIdSchema).min(1),
+  facets: z.array(topicFacetRefSchema).min(1),
   embeddingConfig: topicEmbeddingConfigSchema.default(() =>
     topicEmbeddingConfigSchema.parse({}),
   ),
@@ -116,7 +122,6 @@ export type TopicSummaryState =
   | "insufficient_input";
 
 export interface TopicFacetVersion {
-  id: string;
   projectId: string;
   facetId: string;
   version: number;
@@ -128,7 +133,6 @@ export interface TopicFacet {
   projectId: string;
   name: string;
   description: string;
-  publishedRunId: string | null;
   versions: TopicFacetVersion[];
 }
 export const topicSourceSchema = z.union([
@@ -143,11 +147,11 @@ export type TopicSummary = z.infer<typeof topicSourceSchema> & {
   id: string;
   projectId: string;
   facetId: string;
-  facetVersionId: string;
   facetVersion: number;
   triggerType: "manual_poc";
+  environment: string;
+  traceName: string;
   unitStartTime: string;
-  executionId: string;
   state: TopicSummaryState;
   summary: string;
   embedding: number[];
@@ -166,8 +170,9 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   coordinates: [number, number] | null;
   projectId: string;
   facetId: string;
-  facetVersionId: string;
   facetVersion: number;
+  environment: string;
+  traceName: string;
   unitStartTime: string;
   summaryId: string;
   summaryProcessedAt: string;
@@ -183,7 +188,9 @@ export interface TopicDefinition {
   topicVersionId: string;
   projectId: string;
   topicId: string;
-  runId: string;
+  createdByRunId: string;
+  createdAt: string;
+  tags: string[];
   name: string;
   description: string;
   centroid: number[];
@@ -194,22 +201,20 @@ export interface TopicDefinition {
 export interface TopicRun {
   id: string;
   projectId: string;
-  facetVersionId: string;
-  runSequence: string;
-  status: "pending" | "running" | "completed" | "failed";
-  publishedAt: string | null;
+  facetId: string;
+  facetVersion: number;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
   config: Record<string, unknown>;
-  metrics: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
 }
 export interface TopicFacetProgress {
-  facetVersionId: string;
+  facetId: string;
+  facetVersion: number;
   outcome: TopicFacetOutcome;
-  summaryIds: string[];
   runId: string | null;
   error: string | null;
   counts: {
@@ -240,10 +245,15 @@ export interface TopicProcessBatchState {
   execution: TopicExecution;
   summaries: {
     summaryId: string;
-    facetVersionId: string;
+    facetId: string;
+    facetVersion: number;
     traceId: string;
   }[];
-  failedTraceIds: Record<string, string[]>;
+  failedTraceIds: {
+    facetId: string;
+    facetVersion: number;
+    traceIds: string[];
+  }[];
   summarized: boolean;
   assignedAt?: string;
 }
@@ -251,7 +261,7 @@ export interface TopicProcessBatchState {
 /** Progress and history omit per-trace inputs, summary references and errors. */
 export type TopicExecutionSummary = Omit<
   TopicExecution,
-  "input" | "facets" | "traceErrors"
+  "input" | "traceErrors"
 > & {
   input:
     | Omit<
@@ -259,5 +269,4 @@ export type TopicExecutionSummary = Omit<
         "traceIds" | "traceSelection"
       >
     | Extract<TopicExecutionInput, { operation: "update" }>;
-  facets: Omit<TopicFacetProgress, "summaryIds">[];
 };

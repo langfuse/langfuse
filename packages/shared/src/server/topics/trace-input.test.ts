@@ -35,6 +35,8 @@ const snapshot = (rows = observations) => ({
   projectId: "project-a",
   traceId: "trace-a",
   sessionId: "session-a",
+  environment: "production",
+  traceName: "Billing requests",
   observations: rows,
   timestamp: rows[0].startTime,
 });
@@ -303,14 +305,24 @@ describe("shared in-memory Topics input", () => {
       projectId: "project-a",
       traceId: "trace-a",
     });
-    vi.mocked(loadTraceSnapshot).mockResolvedValue(
-      snapshot([{ ...observations[0], output: "Cancellation failed." }]),
-    );
+    vi.mocked(loadTraceSnapshot).mockResolvedValue({
+      ...snapshot([{ ...observations[0], output: "Cancellation failed." }]),
+      environment: "staging",
+      traceName: "Updated billing request",
+    });
     const second = await loadTopicTranscript({
       projectId: "project-a",
       traceId: "trace-a",
     });
     expect(loadTraceSnapshot).toHaveBeenCalledTimes(2);
+    expect(first).toMatchObject({
+      environment: "production",
+      traceName: "Billing requests",
+    });
+    expect(second).toMatchObject({
+      environment: "staging",
+      traceName: "Updated billing request",
+    });
     expect(second.transcript.text).toContain("Cancellation failed.");
     expect(second.transcript.text).not.toBe(first.transcript.text);
   });

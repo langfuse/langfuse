@@ -2,23 +2,22 @@ import { prisma, Prisma } from "../../db";
 import {
   topicRuleConfigSchema,
   type TopicFacet,
+  type TopicFacetRef,
   type TopicFacetVersion,
   type TopicRun,
   type TopicRule,
   type TopicDefinition,
   type TopicEmbeddingConfig,
 } from "../../topics";
-import { chunk, isEqual } from "lodash";
+import { isEqual } from "lodash";
+import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
 import { InvalidRequestError } from "../../errors";
 
-type FacetVersionRow = Prisma.TopicFacetVersionGetPayload<object>;
-type RunRow = Prisma.TopicClusteringRunGetPayload<{
-  include: { topics: true };
-}>;
+type FacetVersionRow = Prisma.FacetVersionGetPayload<object>;
+type RunRow = Prisma.TopicClusteringRunGetPayload<object>;
 
 function facetVersion(row: FacetVersionRow): TopicFacetVersion {
   return {
-    id: row.id,
     projectId: row.projectId,
     facetId: row.facetId,
     version: row.version,
@@ -30,7 +29,7 @@ function facetVersion(row: FacetVersionRow): TopicFacetVersion {
 export async function listTopicFacets(
   projectId: string,
 ): Promise<TopicFacet[]> {
-  const rows = await prisma.topicFacet.findMany({
+  const rows = await prisma.facet.findMany({
     where: { projectId },
     include: { versions: { orderBy: { version: "desc" } } },
     orderBy: { createdAt: "asc" },
@@ -40,17 +39,17 @@ export async function listTopicFacets(
     projectId,
     name: row.name,
     description: row.description,
-    publishedRunId: row.publishedRunId,
     versions: row.versions.map(facetVersion),
   }));
 }
 
 export async function getTopicFacetVersion(
   projectId: string,
-  id: string,
+  facetId: string,
+  version: number,
 ): Promise<TopicFacetVersion | null> {
-  const row = await prisma.topicFacetVersion.findFirst({
-    where: { projectId, id },
+  const row = await prisma.facetVersion.findFirst({
+    where: { projectId, facetId, version },
   });
   return row ? facetVersion(row) : null;
 }
@@ -64,14 +63,14 @@ export async function createTopicFacet(
   input: FacetVersionInput & { name: string; description: string },
 ): Promise<TopicFacet> {
   const row = await prisma.$transaction(async (tx) => {
-    const facet = await tx.topicFacet.create({
+    const facet = await tx.facet.create({
       data: {
         projectId: input.projectId,
         name: input.name.trim(),
         description: input.description.trim(),
       },
     });
-    const version = await tx.topicFacetVersion.create({
+    const version = await tx.facetVersion.create({
       data: {
         projectId: input.projectId,
         facetId: facet.id,
@@ -86,7 +85,6 @@ export async function createTopicFacet(
     projectId: row.projectId,
     name: row.name,
     description: row.description,
-    publishedRunId: row.publishedRunId,
     versions: row.versions.map(facetVersion),
   };
 }
@@ -97,14 +95,14 @@ export async function createTopicFacetVersion(
   const row = await prisma.$transaction(async (tx) => {
     const facets = await tx.$queryRaw<
       { id: string }[]
-    >`SELECT id FROM topic_facets WHERE project_id = ${input.projectId} AND id = ${input.facetId} FOR UPDATE`;
+    >`SELECT id FROM facets WHERE project_id = ${input.projectId} AND id = ${input.facetId} FOR UPDATE`;
     if (!facets.length) throw new Error("Facet not found.");
-    const last = await tx.topicFacetVersion.findFirst({
+    const last = await tx.facetVersion.findFirst({
       where: { projectId: input.projectId, facetId: input.facetId },
       orderBy: { version: "desc" },
     });
     if (last?.prompt === input.prompt.trim()) return last;
-    return tx.topicFacetVersion.create({
+    return tx.facetVersion.create({
       data: {
         projectId: input.projectId,
         facetId: input.facetId,
@@ -141,7 +139,7 @@ export async function ensureDefaultTopicFacets(
   ];
   for (const preset of presets) {
     try {
-      const existing = await prisma.topicFacet.findUnique({
+      const existing = await prisma.facet.findUnique({
         where: { projectId_name: { projectId, name: preset.name } },
       });
       if (!existing)
@@ -162,7 +160,7 @@ export async function ensureDefaultTopicFacets(
   return listTopicFacets(projectId);
 }
 
-type RuleRow = Prisma.TopicRuleGetPayload<{ include: { assignments: true } }>;
+type RuleRow = Prisma.FacetRuleGetPayload<{ include: { assignments: true } }>;
 const topicRule = (row: RuleRow): TopicRule => ({
   id: row.id,
   projectId: row.projectId,
@@ -174,7 +172,7 @@ const topicRule = (row: RuleRow): TopicRule => ({
 
 export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
   return (
-    await prisma.topicRule.findMany({
+    await prisma.facetRule.findMany({
       where: { projectId },
       include: { assignments: true },
       orderBy: { updatedAt: "desc" },
@@ -186,7 +184,7 @@ export async function getTopicRule(
   projectId: string,
   id: string,
 ): Promise<TopicRule | null> {
-  const row = await prisma.topicRule.findFirst({
+  const row = await prisma.facetRule.findFirst({
     where: { projectId, id },
     include: { assignments: true },
   });
@@ -198,7 +196,7 @@ export async function saveTopicRule(
 ): Promise<TopicRule> {
   const facetIds = [...new Set(input.facetIds)];
   return prisma.$transaction(async (tx) => {
-    const facets = await tx.topicFacet.findMany({
+    const facets = await tx.facet.findMany({
       where: { projectId: input.projectId, id: { in: facetIds } },
       select: { id: true },
     });
@@ -206,7 +204,7 @@ export async function saveTopicRule(
       throw new InvalidRequestError("Select facets from this project.");
     if (
       input.id &&
-      !(await tx.topicRule.findFirst({
+      !(await tx.facetRule.findFirst({
         where: { projectId: input.projectId, id: input.id },
       }))
     )
@@ -222,7 +220,7 @@ export async function saveTopicRule(
     };
     const assignments = facetIds.map((facetId) => ({ facetId }));
     const row = input.id
-      ? await tx.topicRule.update({
+      ? await tx.facetRule.update({
           where: { projectId_id: { projectId: input.projectId, id: input.id } },
           data: {
             ...data,
@@ -230,7 +228,7 @@ export async function saveTopicRule(
           },
           include: { assignments: true },
         })
-      : await tx.topicRule.create({
+      : await tx.facetRule.create({
           data: {
             ...data,
             projectId: input.projectId,
@@ -242,25 +240,42 @@ export async function saveTopicRule(
   });
 }
 
-function runResult(row: RunRow): TopicRun {
+function runResult(
+  row: RunRow,
+  definitions: Map<string, TopicDefinition>,
+): TopicRun {
   return {
     id: row.id,
     projectId: row.projectId,
-    facetVersionId: row.facetVersionId,
-    runSequence: row.runSequence.toString(),
+    facetId: row.facetId,
+    facetVersion: row.facetVersion,
     status: row.status as TopicRun["status"],
-    publishedAt: row.publishedAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
-    metrics: row.metrics as Record<string, unknown>,
     error: row.error,
-    topics: row.topics.map((topic) => ({
-      ...topic,
-      metadata: topic.metadata as Record<string, unknown>,
-    })),
+    topics: row.topicVersionIds.map((id) => {
+      const topic = definitions.get(id);
+      if (!topic || topic.projectId !== row.projectId)
+        throw new Error("Topic run references a missing definition.");
+      return topic;
+    }),
   };
+}
+
+async function hydrateRuns(
+  projectId: string,
+  rows: RunRow[],
+): Promise<TopicRun[]> {
+  const ids = rows.flatMap((row) => row.topicVersionIds);
+  const definitions = new Map(
+    (await getTopicDefinitions(projectId, ids)).map((topic) => [
+      topic.topicVersionId,
+      topic,
+    ]),
+  );
+  return rows.map((row) => runResult(row, definitions));
 }
 
 export async function getTopicRun(
@@ -269,243 +284,164 @@ export async function getTopicRun(
 ): Promise<TopicRun | null> {
   const row = await prisma.topicClusteringRun.findFirst({
     where: { projectId, id },
-    include: { topics: true },
   });
-  return row ? runResult(row) : null;
+  return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
-export async function getPublishedTopicRunForExecution(
-  projectId: string,
-  executionId: string,
-  facetVersionId: string,
-): Promise<TopicRun | null> {
-  const row = await prisma.topicClusteringRun.findFirst({
-    where: {
-      projectId,
-      executionId,
-      facetVersionId,
-      status: "completed",
-      publishedAt: { not: null },
-    },
-    orderBy: { runSequence: "desc" },
-    include: { topics: true },
-  });
-  return row ? runResult(row) : null;
-}
+// Higher facet versions win; a late-finishing older run cannot replace a newer map.
+const servingMapOrder = [
+  { facetVersion: "desc" },
+  { createdAt: "desc" },
+  { id: "desc" },
+] satisfies Prisma.TopicClusteringRunOrderByWithRelationInput[];
 
 export async function getPublishedTopicRun(
   projectId: string,
   facetId: string,
 ): Promise<TopicRun | null> {
-  const facet = await prisma.topicFacet.findFirst({
-    where: { projectId, id: facetId },
-    select: { publishedRunId: true },
-  });
-  if (!facet?.publishedRunId) return null;
   const row = await prisma.topicClusteringRun.findFirst({
-    where: {
-      projectId,
-      id: facet.publishedRunId,
-      status: "completed",
-      publishedAt: { not: null },
-      facetVersion: { facetId },
-    },
-    include: { topics: true },
+    where: { projectId, facetId, status: "completed" },
+    orderBy: servingMapOrder,
   });
-  return row ? runResult(row) : null;
+  return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
 export async function getTopicProcessingMapIds(
   projectId: string,
-  facetVersionIds: string[],
+  facets: TopicFacetRef[],
   embeddingConfig: TopicEmbeddingConfig,
-): Promise<Record<string, string | null>> {
-  const versions = await prisma.topicFacetVersion.findMany({
-    where: { projectId, id: { in: facetVersionIds } },
-    select: { id: true, facet: { select: { publishedRunId: true } } },
+): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
+  if (!facets.length) return [];
+  const runs = await prisma.topicClusteringRun.findMany({
+    where: {
+      projectId,
+      facetId: { in: [...new Set(facets.map((facet) => facet.facetId))] },
+      status: "completed",
+    },
+    orderBy: servingMapOrder,
+    distinct: ["facetId"],
+    select: { id: true, facetId: true, facetVersion: true, config: true },
   });
-  const runIds = versions.flatMap(({ facet }) =>
-    facet.publishedRunId ? [facet.publishedRunId] : [],
-  );
-  const runs = runIds.length
-    ? await prisma.topicClusteringRun.findMany({
-        where: {
-          projectId,
-          id: { in: [...new Set(runIds)] },
-          status: "completed",
-          publishedAt: { not: null },
-        },
-        select: { id: true, facetVersionId: true, config: true },
-      })
-    : [];
-  const compatible = new Map(
-    runs
-      .filter((run) => {
-        const config = run.config as Record<string, unknown>;
-        return (
-          config.embeddingModel === embeddingConfig.embeddingModel &&
-          config.dimensions === embeddingConfig.embeddingDimensions
-        );
-      })
-      .map((run) => [run.facetVersionId, run.id]),
-  );
-  return Object.fromEntries(
-    facetVersionIds.map((id) => [id, compatible.get(id) ?? null]),
-  );
-}
-
-export async function getTopicDefinitions(
-  projectId: string,
-  topicVersionIds: string[],
-): Promise<TopicDefinition[]> {
-  const definitions: TopicDefinition[] = [];
-  for (const ids of chunk([...new Set(topicVersionIds)], 1000)) {
-    const rows = await prisma.topic.findMany({
-      where: { projectId, topicVersionId: { in: ids } },
-    });
-    definitions.push(
-      ...rows.map((row) => ({
-        ...row,
-        metadata: row.metadata as Record<string, unknown>,
-      })),
-    );
-  }
-  return definitions;
+  return facets.map(({ facetId, version }) => {
+    const run = runs.find((run) => run.facetId === facetId);
+    const config = run?.config as Record<string, unknown> | undefined;
+    return {
+      facetId,
+      facetVersion: version,
+      runId:
+        run?.facetVersion === version &&
+        config?.embeddingModel === embeddingConfig.embeddingModel &&
+        config?.dimensions === embeddingConfig.embeddingDimensions
+          ? run.id
+          : null,
+    };
+  });
 }
 
 export async function listTopicRuns(projectId: string): Promise<TopicRun[]> {
   const rows = await prisma.topicClusteringRun.findMany({
     where: { projectId },
-    include: { topics: true },
-    orderBy: { runSequence: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 100,
   });
-  return rows.map(runResult);
+  return hydrateRuns(projectId, rows);
 }
 
 export async function createTopicRun(input: {
-  id: string;
   projectId: string;
-  executionId: string;
-  facetVersionId: string;
-  config?: Record<string, unknown>;
+  facetId: string;
+  facetVersion: number;
+  config: Record<string, unknown>;
 }): Promise<TopicRun> {
-  const { id, projectId } = input;
-  const existing = await prisma.topicClusteringRun.findFirst({
-    where: { projectId, id },
-    include: { topics: true },
-  });
-  if (existing) {
-    if (
-      existing.facetVersionId !== input.facetVersionId ||
-      existing.executionId !== input.executionId
-    )
-      throw new Error("Run execution and facet version cannot change.");
-    return runResult(existing);
-  }
   const row = await prisma.topicClusteringRun.create({
     data: {
-      id,
-      projectId,
-      executionId: input.executionId,
-      facetVersionId: input.facetVersionId,
-      config: (input.config ?? {}) as Prisma.InputJsonValue,
+      projectId: input.projectId,
+      facetId: input.facetId,
+      facetVersion: input.facetVersion,
+      config: input.config as Prisma.InputJsonValue,
     },
-    include: { topics: true },
   });
-  return runResult(row);
+  return runResult(row, new Map());
 }
 
 export async function saveTopicRun(run: TopicRun): Promise<TopicRun> {
+  const stored = await prisma.topicClusteringRun.findFirst({
+    where: { projectId: run.projectId, id: run.id },
+  });
+  if (
+    !stored ||
+    stored.facetId !== run.facetId ||
+    stored.facetVersion !== run.facetVersion
+  )
+    throw new Error("Run not found or facet version mismatch.");
+  if (stored.status === "completed" || stored.status === "skipped")
+    return (await hydrateRuns(run.projectId, [stored]))[0];
+  const topicVersionIds = run.topics.map((topic) => topic.topicVersionId);
+  if (
+    new Set(topicVersionIds).size !== topicVersionIds.length ||
+    new Set(run.topics.map((topic) => topic.topicId)).size !== run.topics.length
+  )
+    throw new Error("Topic run contains duplicate definitions.");
+  const saved = new Map(
+    (await getTopicDefinitions(run.projectId, topicVersionIds)).map((topic) => [
+      topic.topicVersionId,
+      topic,
+    ]),
+  );
+  const missing: TopicDefinition[] = [];
+  for (const topic of run.topics) {
+    if (topic.projectId !== run.projectId)
+      throw new Error("Invalid topic definition.");
+    const existing = saved.get(topic.topicVersionId);
+    if (existing) {
+      if (!isEqual(existing, topic))
+        throw new Error("Topic definitions cannot change.");
+    } else {
+      if (topic.createdByRunId !== run.id)
+        throw new Error("Topic run references a missing definition.");
+      missing.push(topic);
+    }
+  }
+  if (missing.length) {
+    // Definitions must be readable before Postgres can publish their membership.
+    await writeTopicDefinitions(missing);
+    const inserted = await getTopicDefinitions(
+      run.projectId,
+      missing.map((topic) => topic.topicVersionId),
+    );
+    for (const topic of inserted) saved.set(topic.topicVersionId, topic);
+    for (const topic of missing) {
+      if (!isEqual(saved.get(topic.topicVersionId), topic))
+        throw new Error("Topic definition readback did not match.");
+    }
+  }
   const row = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM topic_clustering_runs WHERE project_id = ${run.projectId} AND id = ${run.id} FOR UPDATE`;
     const existing = await tx.topicClusteringRun.findFirst({
       where: { projectId: run.projectId, id: run.id },
-      include: { topics: true, facetVersion: true },
     });
-    if (!existing || existing.facetVersionId !== run.facetVersionId)
+    if (
+      !existing ||
+      existing.facetId !== run.facetId ||
+      existing.facetVersion !== run.facetVersion
+    )
       throw new Error("Run not found or facet version mismatch.");
-    if (existing.publishedAt) return existing;
-    for (const topic of run.topics) {
-      if (
-        topic.projectId !== run.projectId ||
-        topic.runId !== run.id ||
-        !topic.centroid.length ||
-        !topic.centroid.every(Number.isFinite) ||
-        !Number.isFinite(topic.radius) ||
-        topic.radius < 0
-      )
-        throw new Error("Invalid topic definition.");
-    }
-    if (run.publishedAt && run.status !== "completed")
-      throw new Error("Only a completed map can be published.");
-    if (run.startedAt) {
-      await tx.topicClusteringRun.updateMany({
-        where: { projectId: run.projectId, id: run.id, startedAt: null },
-        data: { startedAt: new Date(run.startedAt) },
-      });
-    }
-    for (const topic of run.topics) {
-      if (
-        isEqual(
-          existing.topics.find(
-            (saved) => saved.topicVersionId === topic.topicVersionId,
-          ),
-          topic,
-        )
-      )
-        continue;
-      const data = {
-        ...topic,
-        metadata: topic.metadata as Prisma.InputJsonValue,
-      };
-      await tx.topic.upsert({
-        where: {
-          topicVersionId: topic.topicVersionId,
-          projectId: run.projectId,
-          runId: run.id,
-        },
-        create: data,
-        update: data,
-      });
-    }
-    const updated = await tx.topicClusteringRun.update({
-      where: { projectId_id: { projectId: run.projectId, id: run.id } },
+    if (existing.status === "completed" || existing.status === "skipped")
+      return existing;
+    return tx.topicClusteringRun.update({
+      where: { id: run.id, projectId: run.projectId },
       data: {
+        topicVersionIds,
         status: run.status,
         config: run.config as Prisma.InputJsonValue,
-        metrics: run.metrics as Prisma.InputJsonValue,
         error: run.error,
+        startedAt:
+          existing.startedAt ??
+          (run.startedAt ? new Date(run.startedAt) : null),
         finishedAt: run.finishedAt ? new Date(run.finishedAt) : null,
-        publishedAt: run.publishedAt ? new Date(run.publishedAt) : null,
       },
-      include: { topics: true },
     });
-    if (run.publishedAt) {
-      await tx.$queryRaw`SELECT id FROM topic_facets WHERE project_id = ${run.projectId} AND id = ${existing.facetVersion.facetId} FOR UPDATE`;
-      const facet = await tx.topicFacet.findFirstOrThrow({
-        where: { projectId: run.projectId, id: existing.facetVersion.facetId },
-      });
-      const current = facet.publishedRunId
-        ? await tx.topicClusteringRun.findFirst({
-            where: { projectId: run.projectId, id: facet.publishedRunId },
-            include: { facetVersion: true },
-          })
-        : null;
-      if (
-        !current ||
-        existing.facetVersion.version > current.facetVersion.version ||
-        (existing.facetVersion.version === current.facetVersion.version &&
-          existing.runSequence > current.runSequence)
-      ) {
-        await tx.topicFacet.update({
-          where: { projectId_id: { projectId: run.projectId, id: facet.id } },
-          data: { publishedRunId: run.id },
-        });
-      }
-    }
-    return updated;
   });
-  return runResult(row);
+  return (await hydrateRuns(run.projectId, [row]))[0];
 }

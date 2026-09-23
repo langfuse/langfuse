@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TopicExecutionStore } from "./journal";
+import {
+  createTopicExecution,
+  readTopicExecutionForRequest,
+  readTopicExecutionSummary,
+  listTopicExecutions,
+  writeTopicExecution,
+} from "./journal";
 import { type TopicExecutionInput } from "../../topics";
 
 const state = vi.hoisted(() => ({
@@ -10,66 +16,23 @@ const state = vi.hoisted(() => ({
 vi.mock("./postgres", () => ({
   getTopicProcessingMapIds: async (
     _projectId: string,
-    facetVersionIds: string[],
-  ) => Object.fromEntries(facetVersionIds.map((id) => [id, null])),
+    facets: { facetId: string; version: number }[],
+  ) =>
+    facets.map(({ facetId, version }) => ({
+      facetId,
+      facetVersion: version,
+      runId: null,
+    })),
 }));
 vi.mock("../../db", () => {
   const matches = (
     row: Record<string, unknown>,
     where: Record<string, unknown>,
-  ) =>
-    Object.entries(where).every(([key, value]) =>
-      typeof value === "object" && value !== null && "in" in value
-        ? (value.in as unknown[]).includes(row[key])
-        : row[key] === value,
-    );
+  ) => Object.entries(where).every(([key, value]) => row[key] === value);
   const topicClusteringRun = {
-    findMany: async ({
-      where,
-      distinct,
-    }: {
-      where: Record<string, unknown>;
-      distinct?: string[];
-    }) => {
-      const rows = [...state.rows.values()].filter((row) =>
-        matches(row, where),
-      );
-      return distinct
-        ? rows.filter(
-            (row, index) =>
-              rows.findIndex(
-                (other) => other.executionId === row.executionId,
-              ) === index,
-          )
-        : rows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
-    },
     createMany: async ({ data }: { data: Record<string, unknown>[] }) => {
-      data.forEach((row) =>
-        state.rows.set(String(row.id), {
-          config: {},
-          metrics: {},
-          publishedAt: null,
-          createdAt: new Date(),
-          runSequence: BigInt(state.rows.size + 1),
-          ...row,
-        }),
-      );
+      data.forEach((row) => state.rows.set(String(row.id), row));
       return { count: data.length };
-    },
-    update: async ({
-      where,
-      data,
-    }: {
-      where: { projectId_id: { projectId: string; id: string } };
-      data: Record<string, unknown>;
-    }) => {
-      const row = state.rows.get(where.projectId_id.id)!;
-      if (row.projectId !== where.projectId_id.projectId)
-        throw new Error("Scope mismatch");
-      state.writes(data);
-      const updated = { ...row, ...data };
-      state.rows.set(String(row.id), updated);
-      return updated;
     },
   };
   const batchAction = {
@@ -78,8 +41,15 @@ vi.mock("../../db", () => {
     findMany: async ({ where }: { where: Record<string, unknown> }) =>
       [...state.batches.values()].filter((row) => matches(row, where)),
     create: async ({ data }: { data: Record<string, unknown> }) => {
-      state.batches.set(String(data.id), data);
-      return data;
+      const row = {
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        finishedAt: null,
+        log: null,
+        ...data,
+      };
+      state.batches.set(String(data.id), row);
+      return row;
     },
     update: async ({
       where,
@@ -91,7 +61,7 @@ vi.mock("../../db", () => {
       const row = state.batches.get(where.id)!;
       if (row.projectId !== where.projectId) throw new Error("Scope mismatch");
       state.writes(data);
-      const updated = { ...row, ...data };
+      const updated = { ...row, ...data, updatedAt: new Date() };
       state.batches.set(where.id, updated);
       return updated;
     },
@@ -120,7 +90,10 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   projectId: "project-a",
   requestId: "request-1",
   operation: "process",
-  facetVersionIds: ["facet-v1", "facet-v2"],
+  facets: [
+    { facetId: "facet", version: 1 },
+    { facetId: "facet", version: 2 },
+  ],
   traceIds: ["trace-a", "trace-b"],
   reuseExistingSummaries: false,
   processingConfig: {
@@ -137,7 +110,7 @@ const updateInput: TopicExecutionInput = {
   projectId: input.projectId,
   requestId: "update-1",
   operation: "update",
-  facetVersionIds: input.facetVersionIds,
+  facets: input.facets,
   embeddingConfig: input.embeddingConfig,
   exploratory: false,
 };
@@ -153,8 +126,7 @@ describe("compact Topics execution storage", () => {
       { length: 2001 },
       (_, index) => `request:${index}/opaque`,
     );
-    const store = new TopicExecutionStore();
-    const execution = await store.create(
+    const execution = await createTopicExecution(
       {
         ...input,
         traceIds,
@@ -186,7 +158,10 @@ describe("compact Topics execution storage", () => {
       status: "QUEUED",
       totalCount: 2001,
     });
-    const progress = (await store.readSummary(input.projectId, execution.id))!;
+    const progress = (await readTopicExecutionSummary(
+      input.projectId,
+      execution.id,
+    ))!;
     expect(progress.facets.map((facet) => facet.counts.requested)).toEqual([
       2001, 2001,
     ]);
@@ -196,92 +171,94 @@ describe("compact Topics execution storage", () => {
       traceErrors: [{ traceId: "failed-trace", error: "Read failed" }],
       facets: progress.facets.map((facet) => ({
         ...facet,
-        summaryIds: ["paid-summary-id"],
         counts: { ...facet.counts, complete: 1 },
       })),
     };
-    await store.write(noisyProgress, 1);
-    const restored = await store.readSummary(input.projectId, execution.id);
+    await writeTopicExecution(noisyProgress, 1);
+    const restored = await readTopicExecutionSummary(
+      input.projectId,
+      execution.id,
+    );
     expect(restored).toMatchObject({ status: "running" });
     expect(restored?.facets[0].counts.complete).toBe(1);
     const database = JSON.stringify([...state.batches.values()]);
     for (const value of [
       "traceIds",
       "traceSelection",
-      "summaryIds",
       "traceErrors",
       "request:0/opaque",
       "excluded",
-      "paid-summary-id",
       "failed-trace",
     ])
       expect(database).not.toContain(value);
   });
 
-  it("creates one clustering control row per selected facet", async () => {
-    const store = new TopicExecutionStore();
-    const execution = await store.create(updateInput);
-    expect(state.batches.size).toBe(0);
-    expect(state.rows.size).toBe(2);
-    expect([...state.rows.values()]).toEqual(
-      expect.arrayContaining(
-        input.facetVersionIds.map((facetVersionId) =>
-          expect.objectContaining({
-            executionId: execution.id,
-            facetVersionId,
-            status: "pending",
-          }),
+  it.each([input, updateInput])(
+    "admits concurrent $operation requests once and scopes their journal to the project",
+    async (request) => {
+      const [a, b] = await Promise.all([
+        createTopicExecution(request, "request-hash", "user-a"),
+        createTopicExecution(request, "request-hash", "user-a"),
+      ]);
+      expect(a.id).toBe(b.id);
+      expect(state.batches.size).toBe(1);
+      expect([...state.rows.values()]).toEqual(
+        request.operation === "update"
+          ? request.facets.map(({ facetId, version }) => ({
+              id: a.facets.find(
+                (facet) =>
+                  facet.facetId === facetId && facet.facetVersion === version,
+              )!.runId,
+              projectId: request.projectId,
+              facetId,
+              facetVersion: version,
+              status: "pending",
+            }))
+          : [],
+      );
+      expect(await listTopicExecutions(input.projectId)).toHaveLength(1);
+      const summary = (await readTopicExecutionSummary(input.projectId, a.id))!;
+      expect(
+        await readTopicExecutionForRequest(
+          input.projectId,
+          request.requestId,
+          "request-hash",
         ),
-      ),
-    );
-    expect(
-      (await store.readSummary(input.projectId, execution.id))?.input,
-    ).toEqual(updateInput);
-  });
-
-  it("accepts concurrent identical requests once and scopes reads and writes to the project", async () => {
-    const store = new TopicExecutionStore();
-    const [a, b] = await Promise.all([
-      store.create(input, "request-hash", "user-a"),
-      store.create(input, "request-hash", "user-a"),
-    ]);
-    expect(a.id).toBe(b.id);
-    expect(state.batches.size).toBe(1);
-    expect(await store.list(input.projectId)).toHaveLength(1);
-    const summary = (await store.readSummary(input.projectId, a.id))!;
-    expect(
-      await store.readForRequest(
-        input.projectId,
-        input.requestId,
-        "request-hash",
-      ),
-    ).toEqual(summary);
-    expect(summary.input).not.toHaveProperty("traceIds");
-    await expect(
-      store.readForRequest(input.projectId, input.requestId, "changed-hash"),
-    ).rejects.toThrow("different Topics request");
-    await expect(
-      store.create(
-        { ...input, traceIds: ["new-trace"] },
-        "request-hash",
-        "user-a",
-      ),
-    ).rejects.toThrow("different Topics request");
-    expect(await store.readSummary("project-b", a.id)).toBeNull();
-    expect(
-      await store.readForRequest("project-b", input.requestId, "request-hash"),
-    ).toBeNull();
-    expect(await store.list("project-b")).toEqual([]);
-    await expect(
-      store.write({ ...summary, projectId: "project-b" }),
-    ).rejects.toThrow("does not exist");
-  });
+      ).toEqual(summary);
+      expect(summary.input).not.toHaveProperty("traceIds");
+      await expect(
+        readTopicExecutionForRequest(
+          input.projectId,
+          request.requestId,
+          "changed-hash",
+        ),
+      ).rejects.toThrow("different Topics request");
+      expect(await readTopicExecutionSummary("project-b", a.id)).toBeNull();
+      expect(
+        await readTopicExecutionForRequest(
+          "project-b",
+          request.requestId,
+          "request-hash",
+        ),
+      ).toBeNull();
+      expect(await listTopicExecutions("project-b")).toEqual([]);
+      state.rows.set("attempt-only", {
+        id: "attempt-only",
+        projectId: input.projectId,
+      });
+      expect(
+        await readTopicExecutionSummary(input.projectId, "attempt-only"),
+      ).toBeNull();
+      await expect(
+        writeTopicExecution({ ...summary, projectId: "project-b" }),
+      ).rejects.toThrow("does not exist");
+    },
+  );
 
   it("rejects a different resolved cohort racing under the same original request", async () => {
-    const store = new TopicExecutionStore();
     const results = await Promise.allSettled([
-      store.create(input, "request-hash", "user-a"),
-      store.create(
+      createTopicExecution(input, "request-hash", "user-a"),
+      createTopicExecution(
         { ...input, traceIds: ["new-trace"] },
         "request-hash",
         "user-a",
@@ -298,9 +275,11 @@ describe("compact Topics execution storage", () => {
   });
 
   it("ignores stale aggregate snapshots and rejects mutated execution settings", async () => {
-    const store = new TopicExecutionStore();
-    const created = await store.create(input, undefined, "user-a");
-    const progress = (await store.readSummary(input.projectId, created.id))!;
+    const created = await createTopicExecution(input, undefined, "user-a");
+    const progress = (await readTopicExecutionSummary(
+      input.projectId,
+      created.id,
+    ))!;
     const newer = {
       ...progress,
       status: "running" as const,
@@ -310,18 +289,20 @@ describe("compact Topics execution storage", () => {
         counts: { ...facet.counts, complete: 2 },
       })),
     };
-    await store.write(newer, 2);
+    await writeTopicExecution(newer, 2);
     state.writes.mockClear();
-    await store.write(progress, 1);
-    await store.write(progress, 2);
+    await writeTopicExecution(progress, 1);
+    await writeTopicExecution(progress, 2);
     expect(state.writes).not.toHaveBeenCalled();
-    expect(await store.readSummary(input.projectId, created.id)).toMatchObject({
+    expect(
+      await readTopicExecutionSummary(input.projectId, created.id),
+    ).toMatchObject({
       status: "running",
       phase: "embedding",
       facets: newer.facets,
     });
     await expect(
-      store.write(
+      writeTopicExecution(
         {
           ...newer,
           input: {
@@ -336,71 +317,65 @@ describe("compact Topics execution storage", () => {
       ),
     ).rejects.toThrow("settings cannot change");
     await expect(
-      store.write({ ...newer, facets: newer.facets.slice(0, 1) }, 3),
+      writeTopicExecution({ ...newer, facets: newer.facets.slice(0, 1) }, 3),
+    ).rejects.toThrow("facets cannot change");
+    await expect(
+      writeTopicExecution(
+        { ...newer, facets: [newer.facets[0], newer.facets[0]] },
+        3,
+      ),
     ).rejects.toThrow("facets cannot change");
   });
 
-  it("preserves a published map when writing execution progress", async () => {
-    const store = new TopicExecutionStore();
-    const created = await store.create(updateInput);
-    const progress = (await store.readSummary(input.projectId, created.id))!;
-    const row = [...state.rows.values()][0];
-    state.rows.set(String(row.id), {
-      ...row,
+  it("writes update progress without modifying completed or pending clustering runs", async () => {
+    const created = await createTopicExecution(
+      updateInput,
+      undefined,
+      "user-a",
+    );
+    const progress = (await readTopicExecutionSummary(
+      input.projectId,
+      created.id,
+    ))!;
+    const first = state.rows.get(progress.facets[0].runId!)!;
+    state.rows.set(String(first.id), {
+      ...first,
       status: "completed",
-      publishedAt: new Date(),
+      finishedAt: new Date(),
     });
-    await store.write({ ...progress, status: "running", phase: "processing" });
-    expect(state.rows.get(String(row.id))).toMatchObject({
-      status: "completed",
-    });
-  });
-
-  it("preserves a completed facet and its finish time when another facet fails", async () => {
-    const store = new TopicExecutionStore();
-    const created = await store.create(updateInput);
-    const progress = (await store.readSummary(input.projectId, created.id))!;
-    progress.status = "running";
-    progress.facets[0].outcome = "no_applicable_summaries";
-    await store.write(progress);
-    const completed = [...state.rows.values()].find(
-      (row) => row.facetVersionId === input.facetVersionIds[0],
-    )!;
-    progress.status = "failed";
-    progress.phase = "failed";
-    progress.error = "Provider unavailable";
-    await store.write(progress);
-    expect(state.rows.get(String(completed.id))).toMatchObject({
-      status: "completed",
-      finishedAt: completed.finishedAt,
-      error: null,
-    });
-    expect(
-      [...state.rows.values()].find(
-        (row) => row.facetVersionId === input.facetVersionIds[1],
-      ),
-    ).toMatchObject({
+    const rowsBefore = structuredClone([...state.rows.values()]);
+    progress.facets[0].outcome = "published";
+    progress.facets[1].outcome = "failed";
+    progress.facets[1].error = "Provider unavailable";
+    await writeTopicExecution({
+      ...progress,
       status: "failed",
+      phase: "failed",
       error: "Provider unavailable",
     });
+    expect([...state.rows.values()]).toEqual(rowsBefore);
+    expect(state.batches.get(created.id)).toMatchObject({
+      status: "FAILED",
+      processedCount: 2,
+      failedCount: 1,
+      log: "Provider unavailable",
+    });
+    expect(
+      await readTopicExecutionSummary(input.projectId, created.id),
+    ).toMatchObject({
+      status: "failed",
+      facets: progress.facets,
+    });
   });
 
-  it("ignores numerical attempt rows without execution metadata in progress and history", async () => {
-    const store = new TopicExecutionStore();
-    const created = await store.create(updateInput);
-    const row = [...state.rows.values()][0];
-    state.rows.set("attempt", { ...row, id: "attempt", executionMetadata: {} });
-    state.rows.set("other-attempt", {
-      ...row,
-      id: "other-attempt",
-      executionId: "attempt-only",
-      executionMetadata: {},
-    });
-    const progress = await store.readSummary(input.projectId, created.id);
-    expect(progress?.facets.map((facet) => facet.facetVersionId)).toEqual(
-      input.facetVersionIds,
-    );
-    expect(await store.readSummary(input.projectId, "attempt-only")).toBeNull();
-    expect(await store.list(input.projectId)).toEqual([progress]);
-  });
+  it.each([input, updateInput])(
+    "requires the requesting user for $operation",
+    async (request) => {
+      await expect(createTopicExecution(request)).rejects.toThrow(
+        "A user is required",
+      );
+      expect(state.batches.size).toBe(0);
+      expect(state.rows.size).toBe(0);
+    },
+  );
 });

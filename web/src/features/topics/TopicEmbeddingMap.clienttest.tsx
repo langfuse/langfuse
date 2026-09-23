@@ -31,7 +31,6 @@ const ready = {
   unpositionedCount: 0,
   points: [
     {
-      summaryId: "a",
       traceId: "trace-a",
       summary: "An invoice question",
       x: 5,
@@ -40,7 +39,6 @@ const ready = {
       outcome: "assigned",
     },
     {
-      summaryId: "b",
       traceId: "trace-b",
       summary: "A baking question",
       x: 9,
@@ -158,7 +156,6 @@ describe("embedding map", () => {
       [1, 30],
     ].map(([x, y], index) => ({
       ...ready.points[0],
-      summaryId: `summary-${index}`,
       traceId: `trace-${index}`,
       x,
       y,

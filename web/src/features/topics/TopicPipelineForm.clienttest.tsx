@@ -44,7 +44,12 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
       summaryCounts: {
-        useQuery: () => ({ data: { "intent-v1": 120, "issues-v1": 0 } }),
+        useQuery: () => ({
+          data: [
+            { facetId: "intent", facetVersion: 2, count: 120 },
+            { facetId: "issues", facetVersion: 2, count: 0 },
+          ],
+        }),
       },
       rules: { useQuery: () => ({ data: [rule] }) },
       saveRule: {
@@ -81,17 +86,13 @@ describe("Topics pipeline selection handoff", () => {
       projectId: "project",
       name,
       description: "",
-      publishedRunId: null,
-      versions: [
-        {
-          id: `${name.toLowerCase()}-v1`,
-          projectId: "project",
-          facetId: name.toLowerCase(),
-          version: 1,
-          prompt: `Describe ${name}`,
-          createdAt: "2026-09-16T00:00:00Z",
-        },
-      ],
+      versions: [2, 1].map((version) => ({
+        projectId: "project",
+        facetId: name.toLowerCase(),
+        version,
+        prompt: `Describe ${name}`,
+        createdAt: "2026-09-16T00:00:00Z",
+      })),
     }));
     const onTriggered = vi.fn();
     const props = {
@@ -141,7 +142,10 @@ describe("Topics pipeline selection handoff", () => {
         reuseExistingSummaries: false,
         projectId: "project",
         traceIds: ["trace-with/custom-id", "second-trace"],
-        facetVersionIds: ["intent-v1", "issues-v1"],
+        facets: [
+          { facetId: "intent", version: 2 },
+          { facetId: "issues", version: 2 },
+        ],
         embeddingConfig: {
           embeddingModel: "text-embedding-3-small",
           embeddingDimensions: 512,
@@ -191,7 +195,16 @@ describe("Topics pipeline selection handoff", () => {
     ).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    // Reusing filters selects stable facets; runtime settings do not detach the rule.
+    fireEvent.keyDown(screen.getByLabelText("Version for Intent"), {
+      key: "ArrowDown",
+    });
+    fireEvent.keyDown(await screen.findByRole("option", { name: "v1" }), {
+      key: "Enter",
+    });
+    expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v1");
+    view.rerender(<TopicPipelineForm {...props} />);
+    expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v1");
+    // Reusing filters selects stable facets and resets their versions to the latest.
     fireEvent.keyDown(screen.getByLabelText("Saved configuration"), {
       key: "ArrowDown",
     });
@@ -205,6 +218,7 @@ describe("Topics pipeline selection handoff", () => {
     });
     expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
+    expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
     selection.criteria = selection.initialCriteria!;
     selection.value = {
       count: 50,
@@ -227,7 +241,7 @@ describe("Topics pipeline selection handoff", () => {
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(3));
     expect(trigger.mock.calls[2][0]).toMatchObject({
       ruleId: rule.id,
-      facetVersionIds: ["intent-v1"],
+      facets: [{ facetId: "intent", version: 2 }],
       embeddingConfig: { embeddingDimensions: 256 },
     });
 
@@ -289,7 +303,10 @@ describe("Topics pipeline selection handoff", () => {
     await waitFor(() => expect(trigger).toHaveBeenCalledTimes(5));
     expect(trigger.mock.calls[4][0]).toMatchObject({
       operation: "update",
-      facetVersionIds: ["intent-v1", "issues-v1"],
+      facets: [
+        { facetId: "intent", version: 2 },
+        { facetId: "issues", version: 2 },
+      ],
       embeddingConfig: { embeddingDimensions: 256 },
       minimumTraceCount: 30,
       exploratory: false,

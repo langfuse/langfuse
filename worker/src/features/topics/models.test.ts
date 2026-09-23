@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
 
 const state = vi.hoisted(() => ({
   call: vi.fn(),
@@ -22,6 +21,14 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 import { nameTopicGroup, summarizeTopicTrace } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";
 
+const facet = {
+  projectId: "project",
+  facetId: "facet",
+  version: 1,
+  prompt: "Describe the user's request.",
+  createdAt: "2026-09-16T00:00:00Z",
+};
+
 const evidence = {
   members: [
     { id: "member-a", summary: "The user requests an invoice." },
@@ -40,14 +47,6 @@ describe("Topics naming boundary", () => {
       output: { summary: "A billing request.", status: "applicable" },
       usage: { inputTokens: 100, outputTokens: 30 },
     });
-    const facet = {
-      id: "facet-version",
-      projectId: "project",
-      facetId: "facet",
-      version: 1,
-      prompt: "Describe the user's request.",
-      createdAt: "2026-09-16T00:00:00Z",
-    };
     const result = await summarizeTopicTrace(
       facet,
       "RAW_TRANSCRIPT_SENTINEL",
@@ -83,14 +82,7 @@ describe("Topics naming boundary", () => {
     });
     const config = topicProcessingConfigSchema.parse({});
     const result = await summarizeTopicTrace(
-      {
-        id: "facet-version",
-        projectId: "project",
-        facetId: "facet",
-        version: 1,
-        prompt: "Describe the user's request.",
-        createdAt: "2026-09-16T00:00:00Z",
-      },
+      facet,
       "A request for an invoice.",
       config,
     );
@@ -102,14 +94,6 @@ describe("Topics naming boundary", () => {
     });
   });
   it("rejects an oversized shared transcript before calling the provider", async () => {
-    const facet = {
-      id: "facet-version",
-      projectId: "project",
-      facetId: "facet",
-      version: 1,
-      prompt: "Describe intent.",
-      createdAt: "2026-09-16T00:00:00Z",
-    };
     await expect(
       summarizeTopicTrace(
         facet,
@@ -157,10 +141,6 @@ describe("Topics naming boundary", () => {
       state.call.mock.calls[0][0].messages[1].content,
     );
     expect(submitted.members).toEqual(members);
-    const outputSchema = z.toJSONSchema(state.call.mock.calls[0][0].output);
-    const enumValues =
-      outputSchema.properties?.evidenceSummaryIds?.items?.enum ?? [];
-    expect(enumValues.join("").length).toBeLessThanOrEqual(15_000);
   });
 
   it("rejects contrast evidence and excess evidence before accepting a name", async () => {

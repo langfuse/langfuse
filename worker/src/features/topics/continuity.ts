@@ -8,7 +8,7 @@ type Membership = {
 
 function membershipIndex(
   rows: readonly Membership[],
-  topics: readonly TopicDefinition[],
+  topics: readonly Pick<TopicDefinition, "topicVersionId">[],
 ) {
   const ids = new Set(topics.map((topic) => topic.topicVersionId));
   const result = new Map<string, Membership>();
@@ -41,14 +41,19 @@ function cosineDistance(left: number[], right: number[]) {
  * population still represented. Material branches need 5 anchors (3 exploratory)
  * and 20% of either common population; all split/merge children start new IDs.
  */
-export function matchTopicContinuity(input: {
+export function matchTopicContinuity<
+  T extends Pick<
+    TopicDefinition,
+    "topicVersionId" | "topicId" | "centroid" | "metadata"
+  >,
+>(input: {
   previousTopics: readonly TopicDefinition[];
-  candidateTopics: readonly TopicDefinition[];
+  candidateTopics: readonly T[];
   previousMemberships: readonly Membership[];
   candidateMemberships: readonly Membership[];
   exploratory: boolean;
   compatibleEmbeddingSpace: boolean;
-}): TopicDefinition[] {
+}): T[] {
   const previous = membershipIndex(
     input.previousMemberships,
     input.previousTopics,

@@ -4,10 +4,25 @@ import {
   buildTopicPrototypes,
   classifyTopic,
   normalizeVector,
+  retainPopulatedTopics,
 } from "./classifier";
 import type { TopicSummary } from "@langfuse/shared/topics";
 
 describe("Topics original-space classifier", () => {
+  it("drops a boundary-only topic when a reused version wins distance ties", () => {
+    const summaries = [{ embedding: [1, 0] }, { embedding: [1, 1] }];
+    const candidate = { id: "b", centroid: [0, 1], radius: 0.4 };
+    const other = { id: "c", centroid: [1, 0], radius: 0.4 };
+    expect(retainPopulatedTopics(summaries, [candidate, other])).toEqual([
+      candidate,
+      other,
+    ]);
+    const reused = { ...other, id: "a" };
+    expect(retainPopulatedTopics(summaries, [candidate, reused])).toEqual([
+      reused,
+    ]);
+  });
+
   it("preserves the leave-one-out radius when member vectors nearly cancel", () => {
     const summaries = [
       { id: "a", embedding: [Math.cos(5), Math.sin(5)] },

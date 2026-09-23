@@ -60,12 +60,11 @@ function acceptedState(): TopicProcessBatchState {
     execution: {
       id: "execution",
       projectId: "project",
-      revision: "1",
       input: topicExecutionInputSchema.parse({
         operation: "process",
         projectId: "project",
         requestId: "request",
-        facetVersionIds: ["facet"],
+        facets: [{ facetId: "facet", version: 1 }],
         traceIds: ["trace"],
       }),
       status: "running",
@@ -76,10 +75,10 @@ function acceptedState(): TopicProcessBatchState {
       traceErrors: [],
       facets: [
         {
-          facetVersionId: "facet",
+          facetId: "facet",
+          facetVersion: 1,
           outcome: "pending",
           runId: null,
-          summaryIds: ["summary"],
           error: null,
           counts: {
             requested: 1,
@@ -94,9 +93,14 @@ function acceptedState(): TopicProcessBatchState {
       ],
     },
     summaries: [
-      { summaryId: "summary", facetVersionId: "facet", traceId: "trace" },
+      {
+        summaryId: "summary",
+        facetId: "facet",
+        facetVersion: 1,
+        traceId: "trace",
+      },
     ],
-    failedTraceIds: {},
+    failedTraceIds: [],
     summarized: true,
   };
 }

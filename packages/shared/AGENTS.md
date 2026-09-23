@@ -60,24 +60,38 @@
 - `@langfuse/shared/topics`: client-safe local Topics execution and result contracts.
 - `@langfuse/shared/topics/server`: local Topics Postgres/ClickHouse persistence,
   bounded queue jobs and compact Postgres execution progress.
-  `process` executions use one `BatchAction` per manual request; `update`
-  executions use one clustering run per facet. The `topics` and `topics-update`
+  Both manual operations use one `BatchAction` per request. Its native lifecycle
+  fields own execution history; compact config carries settings and facet/run refs.
+  Update admission creates each facet's first real pending clustering run. The `topics` and `topics-update`
   queues isolate processing from numerical fitting/naming; enqueue and queue-state
   helpers route by the stored operation. Progress/history use compact
   execution summaries; history and maps read membership from ClickHouse assignments.
-  Processing jobs carry at most 100 trace IDs and accepted summary references.
-  Cluster retries create fresh unpublished attempts; Topics does not use object storage.
-  Summaries, embeddings, assignments and map coordinates live in ClickHouse.
-  Summary/assignment identity uses `traceId` when present; `sessionId` may carry
+  Processing jobs carry at most 100 trace IDs; accepted summary references live
+  only in batch state, while facet progress carries counters and run references.
+  Interrupted/failed cluster retries create fresh attempts; completed/skipped
+  attempts resume from saved run references. Completed means a usable map, including
+  an empty all-outlier map; skipped input leaves the prior map available.
+  Serving selection orders completed runs by facet version, creation time and ID.
+  Topics does not use object storage.
+  Summaries, embeddings, assignments, map coordinates and immutable topic
+  definitions live in ClickHouse. Postgres runs store their topic-version IDs;
+  hydration requires every referenced definition. Definitions retain their
+  creation run when reused by later runs.
+  Facet configuration uses `facets`, `facet_versions`, `facet_rules` and `facet_rule_assignments`.
+  Facet versions use `(projectId, facetId, version)` throughout database, queue
+  and UI contracts, without a surrogate ID. Summary/assignment identity uses `traceId` when present; `sessionId` may carry
   parent context. An empty trace ID identifies a session result. Processing remains
-  trace-only. Summary application IDs are derived from natural keys,
+  trace-only. Summaries and assignments carry source `environment`; `traceName` is empty for session results.
+  Summary application IDs are derived from natural keys,
   not stored columns. Assignments use the source, map and origin directly. Timestamp-versioned replacement keeps current results;
   unit start time is not part of replacement identity or partitioning.
-  `embedding-queue.ts` stages summaries in Redis with a fixed 3-hour TTL and
+  Summary `triggerType` remains durable; execution ownership lives only in the
+  Redis staging envelope. `embedding-queue.ts` stages summaries with a fixed 3-hour TTL and
   enqueues reference-only embedding batches. Consumers persist completed results
   to ClickHouse and retain staged payloads through assignment. The coordinator saves
   terminal BullMQ state before cleanup; job retention is separate from payload TTL.
-  Normal processing uses Redis results and the PG-only `getTopicRun`;
+  Normal processing uses Redis results and `getTopicRun`, which hydrates
+  definitions from ClickHouse without loading summary cohorts;
   historical summary reads require explicit `reuseExistingSummaries`. The Topics coordinator job tracks pending embedding batch
   IDs so its queue-state polling does not read or rewrite domain storage.
   Pipeline enablement uses `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` on web and worker;
