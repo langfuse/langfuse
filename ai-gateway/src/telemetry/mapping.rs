@@ -203,38 +203,9 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
         "openai.responses" => openai_usage(usage),
-        "anthropic.messages" => anthropic_usage(usage),
+        "anthropic.messages" => usage.is_object().then(|| usage.clone()),
         _ => None,
     }
-}
-
-fn anthropic_usage(usage: &Value) -> Option<Value> {
-    let usage = usage.as_object()?;
-    let counter = |source: &Map<String, Value>, key: &str| {
-        source.get(key).and_then(Value::as_u64).map(Value::from)
-    };
-    let mut projected = Map::new();
-    for key in ["input_tokens", "output_tokens"] {
-        projected.insert(key.into(), counter(usage, key)?);
-    }
-    if let Some(value) = counter(usage, "cache_read_input_tokens") {
-        projected.insert("cache_read_input_tokens".into(), value);
-    }
-    let breakdown = usage.get("cache_creation").and_then(Value::as_object);
-    let mut split = false;
-    for (source, target) in [
-        ("ephemeral_5m_input_tokens", "input_cache_creation_5m"),
-        ("ephemeral_1h_input_tokens", "input_cache_creation_1h"),
-    ] {
-        if let Some(value) = breakdown.and_then(|details| counter(details, source)) {
-            projected.insert(target.into(), value);
-            split = true;
-        }
-    }
-    if !split && let Some(value) = counter(usage, "cache_creation_input_tokens") {
-        projected.insert("cache_creation_input_tokens".into(), value);
-    }
-    Some(Value::Object(projected))
 }
 
 /// The receiver's native `OpenAI` usage schema is strict at the top level, but
@@ -553,39 +524,24 @@ mod tests {
     }
 
     #[test]
-    fn anthropic_usage_is_flat_splits_cache_writes_by_ttl_and_drops_unpriceable_fields() {
-        // Claude Code's typical cached turn: uncached input, both cache buckets, thinking.
+    fn anthropic_usage_is_uploaded_as_native() {
+        let native = json!({
+            "input_tokens": 7, "output_tokens": 445,
+            "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
+            "cache_creation": {"ephemeral_5m_input_tokens": 2000, "ephemeral_1h_input_tokens": 89},
+            "output_tokens_details": {"thinking_tokens": 300},
+            "server_tool_use": {"web_search_requests": 1},
+            "service_tier": "standard", "inference_geo": null
+        });
         assert_eq!(
-            projected_usage(
-                "anthropic.messages",
-                json!({
-                    "input_tokens": 7, "output_tokens": 445,
-                    "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
-                    "cache_creation": {"ephemeral_5m_input_tokens": 2000, "ephemeral_1h_input_tokens": 89},
-                    "output_tokens_details": {"thinking_tokens": 300},
-                    "server_tool_use": {"web_search_requests": 1},
-                    "service_tier": "standard", "inference_geo": null
-                })
-            ),
-            Some(json!({
-                "input_tokens": 7, "output_tokens": 445, "cache_read_input_tokens": 16399,
-                "input_cache_creation_5m": 2000, "input_cache_creation_1h": 89
-            }))
+            projected_usage("anthropic.messages", native.clone()),
+            Some(native)
         );
-        // Without the TTL breakdown the aggregate write counter prices at the 5-minute rate.
-        assert_eq!(
-            projected_usage(
-                "anthropic.messages",
-                json!({"input_tokens": 7, "output_tokens": 1, "cache_creation_input_tokens": 50, "cache_read_input_tokens": null, "cache_creation": null})
-            ),
-            Some(json!({"input_tokens": 7, "output_tokens": 1, "cache_creation_input_tokens": 50}))
-        );
-        // Truncated streams may lack output counts; nothing is invented.
         assert_eq!(
             projected_usage("anthropic.messages", json!({"input_tokens": 7})),
-            None
+            Some(json!({"input_tokens": 7}))
         );
-        // The Anthropic shape never projects through the OpenAI rules and vice versa.
+        // The Anthropic shape never projects through the OpenAI rules.
         assert_eq!(
             projected_usage(
                 "openai.responses",

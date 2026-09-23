@@ -301,7 +301,7 @@ fn span_attribute(span: &Value, key: &str) -> Value {
 }
 
 #[tokio::test]
-async fn streamed_messages_upload_one_generation_with_flat_priced_usage() {
+async fn streamed_messages_upload_one_generation_with_native_usage() {
     let upstream = FakeServer::start(|_| async {
         Response::builder()
             .header("content-type", "text/event-stream")
@@ -351,8 +351,10 @@ async fn streamed_messages_upload_one_generation_with_flat_priced_usage() {
     assert_eq!(
         span_attribute(span, "langfuse.observation.usage_details"),
         json!({
-            "input_tokens": 7, "output_tokens": 445, "cache_read_input_tokens": 16399,
-            "input_cache_creation_5m": 2089, "input_cache_creation_1h": 0
+            "input_tokens": 7, "output_tokens": 445,
+            "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
+            "cache_creation": {"ephemeral_5m_input_tokens": 2089, "ephemeral_1h_input_tokens": 0},
+            "service_tier": "standard"
         })
     );
     let metadata = span_attribute(span, "langfuse.observation.metadata");

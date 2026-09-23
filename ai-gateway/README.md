@@ -328,15 +328,10 @@ attribution. Full mode includes the captured input/output; usage mode omits cont
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
-The exporter projects native usage into the shape ingestion prices for that API without
-duplicating it in metadata. OpenAI Responses usage keeps its nested detail counters.
-Anthropic usage becomes flat integer counters: `input_tokens` (which Anthropic already
-reports net of cached tokens), `output_tokens`, `cache_read_input_tokens`, and the
-cache-write split `input_cache_creation_5m` / `input_cache_creation_1h` when
-`cache_creation` is present, otherwise the aggregate `cache_creation_input_tokens`;
-never both, so cost is not counted twice. `output_tokens_details`, `server_tool_use`
-and `service_tier` are dropped because ingestion cannot price them. Ingestion derives
-the total by summing the counters. Missing usage is not reported as zero.
+OpenAI Responses usage is projected into the receiver's strict native schema, keeping
+its nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
+is not reported as zero.
 
 Gateway metadata uses `langfuse.gateway.*`, grouped by the resource or exchange
 each field describes:
