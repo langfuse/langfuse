@@ -41,7 +41,10 @@
   and Redis snapshots independently of dispatch/consumption when either role is
   enabled. Global snapshot gauges must not be summed across worker reporters.
   `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
-  and token estimates. Allow one pending tokenization promise per batch while
+  phases, thread count, current-turn/history token estimates and their sum.
+  Token partitions run sequentially; tool-response size uses comparable character
+  counts over message parts, without another tokenizer pass.
+  Allow one pending tokenization promise per batch while
   buffering the next trace, and drain it even on read failure. Never flush a failed
   stream's partial final trace; completion covers the query window, not future arrivals.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
@@ -51,6 +54,9 @@
   records its own metrics and logs; see `../packages/native/AGENTS.md`. Topics runs
   its synchronous numerical fit in a killable Node child via `src/features/topics/numeric.ts`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
+  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
+  `src/features/otel-ingestion/README.md`.
 
 ## Shared Package Imports
 

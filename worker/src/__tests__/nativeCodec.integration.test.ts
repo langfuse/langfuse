@@ -26,9 +26,6 @@ describe.runIf(
 )("TypeScript and Rust Native ingestion parity", () => {
   let directory: string;
   let columns: Column[];
-  let writer: ClickhouseWriter;
-  let jsonTable: string;
-  let nativeTable: string;
   const client = clickhouseClient();
 
   const query = (sql: string, input: Buffer = Buffer.alloc(0)) =>
@@ -89,39 +86,42 @@ describe.runIf(
       .trim()
       .split("\n")
       .map((line) => JSON.parse(line) as Column);
-    // Exercise production writer clamping and the real JS client's JSONEachRow serializer.
-    // Only redirect the destination table; leave the records and insert settings untouched.
-    writer = ClickhouseWriter.getInstance({
-      insert: async (params: Parameters<ClickhouseClientType["insert"]>[0]) => {
-        return client.insert({ ...params, table: jsonTable });
-      },
-    } as ClickhouseClientType);
-    if (writer.intervalId) clearInterval(writer.intervalId);
-    writer.intervalId = null;
-    writer.batchSize = Number.MAX_SAFE_INTEGER;
   }, 120_000);
 
   afterAll(async () => {
-    if (writer) await writer.shutdown();
     await client.close();
     if (directory) rmSync(directory, { recursive: true, force: true });
   });
 
   const compare = async (rows: Row[], maxRows: number) => {
     const suffix = randomUUID().replaceAll("-", "");
-    jsonTable = `native_codec_json_${suffix}`;
-    nativeTable = `native_codec_native_${suffix}`;
+    const jsonTable = `native_codec_json_${suffix}`;
+    const nativeTable = `native_codec_native_${suffix}`;
     const manifest = encode(rows, maxRows);
+    let writer: ClickhouseWriter | undefined;
+    let writerShutdown = false;
     try {
       query(
         `CREATE TABLE ${jsonTable} AS events_full ENGINE=Memory; CREATE TABLE ${nativeTable} AS events_full ENGINE=Memory`,
       );
+      // Exercise production writer clamping and JSONEachRow serialization with the regular
+      // writer settings while directing only EventsFull to the parity table.
+      writer = ClickhouseWriter.getInstance({
+        insert: async (params: Parameters<ClickhouseClientType["insert"]>[0]) =>
+          client.insert({
+            ...params,
+            table:
+              params.table === TableName.EventsFull ? jsonTable : params.table,
+          }),
+      } as ClickhouseClientType);
       for (const row of rows)
         writer.addToQueue(
           TableName.EventsFull,
           structuredClone(row) as EventRecordInsertType,
         );
-      await writer.flushAll(true);
+      await writer.shutdown();
+      writerShutdown = true;
+      expect(writer.queue[TableName.EventsFull]).toHaveLength(0);
       query(
         `INSERT INTO ${nativeTable} FORMAT Native`,
         readFileSync(resolve(directory, "native.bin")),
@@ -154,11 +154,13 @@ describe.runIf(
         manifest.eventBytes.reduce((sum, bytes) => sum + BigInt(bytes), 0n),
       );
     } finally {
-      // Discard failed writes before shutdown can retry against the temporary table.
-      writer.queue[TableName.EventsFull] = [];
-      query(
-        `DROP TABLE IF EXISTS ${jsonTable}; DROP TABLE IF EXISTS ${nativeTable}`,
-      );
+      try {
+        if (writer && !writerShutdown) await writer.shutdown();
+      } finally {
+        query(
+          `DROP TABLE IF EXISTS ${jsonTable}; DROP TABLE IF EXISTS ${nativeTable}`,
+        );
+      }
     }
   };
 

@@ -1,4 +1,5 @@
 import {
+  DecisionModelQuestionsSchema,
   observationVariableMappingList,
   PersistedEvalOutputDefinitionSchema,
 } from "@langfuse/shared";
@@ -16,7 +17,7 @@ describe("managed evaluator templates catalog", () => {
       ({ key }) => key,
     );
 
-    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(23);
+    expect(MANAGED_TEMPLATES_CATALOG.templates).toHaveLength(24);
     expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     for (const template of MANAGED_TEMPLATES_CATALOG.templates) {
@@ -40,6 +41,23 @@ describe("managed evaluator templates catalog", () => {
         expect(draft.definition.vars).toEqual(
           template.evaluator.type === "LLM_AS_JUDGE"
             ? template.evaluator.variables.map(({ name }) => name)
+            : [],
+        );
+      }
+
+      if (draft.definition.type === "DECISION_MODEL") {
+        expect(
+          DecisionModelQuestionsSchema.safeParse(draft.definition.questions)
+            .success,
+        ).toBe(true);
+        expect(
+          observationVariableMappingList.safeParse(
+            draft.definition.variableMapping,
+          ).success,
+        ).toBe(true);
+        expect(draft.definition.vars).toEqual(
+          template.evaluator.type === "DECISION_MODEL"
+            ? template.evaluator.state.map(({ key }) => key)
             : [],
         );
       }

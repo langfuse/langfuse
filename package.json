@@ -6,7 +6,7 @@
   "private": true,
   "engines": {
     "node": "24",
-    "pnpm": "12.4.1"
+    "pnpm": "12.6.0"
   },
   "scripts": {
     "agents:check": "node scripts/agents/sync-agent-shims.mjs --check --check-paths",
@@ -61,7 +61,7 @@
     "prettier": "^3.8.3",
     "release-it": "^20.2.0",
     "ts7": "npm:typescript@^7.0.2",
-    "turbo": "2.10.5"
+    "turbo": "2.11.3"
   },
   "release-it": {
     "git": {
@@ -110,5 +110,5 @@
       }
     }
   },
-  "packageManager": "pnpm@12.4.1"
+  "packageManager": "pnpm@12.6.0"
 }
