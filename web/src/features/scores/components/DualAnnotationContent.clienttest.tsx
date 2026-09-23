@@ -246,6 +246,7 @@ describe("unified annotation targets", () => {
   });
 
   it("focuses the first score on activation without taking focus on rerenders", async () => {
+    configs.push({ ...defaultConfig, id: "accuracy", name: "Accuracy" });
     mocks.create.mockResolvedValue({});
     const refreshRef = createRef<AnnotationRefreshHandle>();
     const view = (isActive: boolean) => (
@@ -301,6 +302,17 @@ describe("unified annotation targets", () => {
     rendered.rerenderContent(view("closed"));
     await new Promise((resolve) => requestAnimationFrame(resolve));
     expect(outside).toHaveFocus();
+  });
+
+  it("shows the annotation guidance inline when no scores are selected", () => {
+    localStorage.clear();
+    renderContent();
+
+    expect(
+      screen.getByText(
+        "Annotate the trace and observation with scores to capture human evaluation across different dimensions.",
+      ),
+    ).toBeVisible();
   });
 
   it("suspends score shortcuts while a shared action menu is open", async () => {
@@ -590,6 +602,28 @@ describe("unified annotation targets", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
+  it("hides the saved status after its confirmation window", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      mocks.create.mockResolvedValue({});
+      renderContent();
+      fireEvent.click(screen.getByRole("radio", { name: /True/ }));
+      await waitFor(() =>
+        expect(
+          screen.getByRole("status", { name: "Score save status" }),
+        ).toHaveTextContent("Saved"),
+      );
+
+      act(() => vi.advanceTimersByTime(3_000));
+
+      expect(
+        screen.queryByRole("status", { name: "Score save status" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("retains an unfinished new category while its annotation panel is inactive", async () => {
     mocks.hasConfigAccess = true;
     configs.push({
@@ -810,7 +844,7 @@ describe("unified annotation targets", () => {
       1,
     );
     expect(
-      screen.queryByText(/Score data saved|^Saved$/),
+      screen.queryByRole("status", { name: "Score save status" }),
     ).not.toBeInTheDocument();
     const observationRow = screen.getByRole("group", {
       name: "Quality (Observation)",
@@ -1133,7 +1167,9 @@ describe("unified annotation targets", () => {
     ).not.toBeInTheDocument();
     fireEvent.blur(input);
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Score save status" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not delete a saved score for Firefox badInput and recovers from number and range errors", async () => {

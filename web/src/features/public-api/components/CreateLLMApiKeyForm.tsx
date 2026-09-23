@@ -20,7 +20,6 @@ import {
   isDecisionModelAdapter,
   resolveTypeSafeUpstream,
 } from "@langfuse/shared";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
 import { Button } from "@/src/components/ui/button";
@@ -304,16 +303,7 @@ export function CreateLLMApiKeyForm({
     },
     { enabled: Boolean(projectId) },
   );
-  const isDecisionModelEnabled = useIsFeatureEnabled(
-    "decisionModelEvaluators",
-    { projectId },
-  );
-  const adapterOptions = Object.values(LLMAdapter).filter(
-    (adapter) =>
-      isDecisionModelEnabled ||
-      !isDecisionModelAdapter(adapter) ||
-      existingKey?.adapter === adapter,
-  );
+  const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),

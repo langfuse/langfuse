@@ -25,7 +25,7 @@ function CloseReviewPanelButton() {
   return (
     <Button
       variant="ghost"
-      size="icon"
+      size="icon-xs"
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
@@ -86,7 +86,7 @@ function TraceAnnotationPanel() {
   return (
     <section
       aria-label="Annotate"
-      className="h-full overflow-y-auto p-4 [--annotation-surface:var(--background)]"
+      className="h-full overflow-y-auto p-1 [--annotation-surface:var(--background)]"
       hidden={!active}
     >
       <AnnotationPanelContent

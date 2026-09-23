@@ -608,7 +608,14 @@ export const SessionPage: React.FC<{
                       ) : (
                         <>
                           <MessageSquare className="h-4 w-4" />
-                          <span>Comments</span>
+                          <span>
+                            {getNumberFromMap(
+                              sessionCommentCounts.data,
+                              sessionId,
+                            )
+                              ? "Comments"
+                              : "Comment"}
+                          </span>
                           {getNumberFromMap(
                             sessionCommentCounts.data,
                             sessionId,
@@ -734,7 +741,11 @@ export const SessionPage: React.FC<{
                       ) : (
                         <MessageSquare className="h-4 w-4" />
                       )}
-                      <span className="text-sm">Comments</span>
+                      <span className="text-sm">
+                        {getNumberFromMap(sessionCommentCounts.data, sessionId)
+                          ? "Comments"
+                          : "Comment"}
+                      </span>
                       {!disabled &&
                       getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                         <ActionButtonCountBadge
@@ -1667,7 +1678,14 @@ const LoadedSessionEventsPage: React.FC<{
                       ) : (
                         <>
                           <MessageSquare className="h-4 w-4" />
-                          <span>Comments</span>
+                          <span>
+                            {getNumberFromMap(
+                              sessionCommentCounts.data,
+                              sessionId,
+                            )
+                              ? "Comments"
+                              : "Comment"}
+                          </span>
                           {getNumberFromMap(
                             sessionCommentCounts.data,
                             sessionId,
@@ -1826,7 +1844,11 @@ const LoadedSessionEventsPage: React.FC<{
                       ) : (
                         <MessageSquare className="h-4 w-4" />
                       )}
-                      <span className="text-sm">Comments</span>
+                      <span className="text-sm">
+                        {getNumberFromMap(sessionCommentCounts.data, sessionId)
+                          ? "Comments"
+                          : "Comment"}
+                      </span>
                       {!disabled &&
                       getNumberFromMap(sessionCommentCounts.data, sessionId) ? (
                         <ActionButtonCountBadge

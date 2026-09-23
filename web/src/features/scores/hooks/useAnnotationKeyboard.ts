@@ -49,9 +49,9 @@ export function useAnnotationKeyboard({
         active.closest("[data-score-row], [data-add-score]")
       )
         return;
-      const entry = root.querySelector<HTMLElement>(
-        "[data-score-row], [data-add-score]:not(:disabled)",
-      );
+      const entry =
+        root.querySelector<HTMLElement>("[data-score-row]") ??
+        root.querySelector<HTMLElement>("[data-add-score]:not(:disabled)");
       (entry ?? root).focus();
     });
   }, [formRootRef]);

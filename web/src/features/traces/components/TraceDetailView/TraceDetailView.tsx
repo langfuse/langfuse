@@ -338,7 +338,7 @@ export function TraceDetailView({
                                     value="json"
                                     size="sm"
                                     disabled
-                                    label="JSON"
+                                    label="Raw"
                                   />
                                 </HoverCardTrigger>
                                 <HoverCardContent
@@ -347,7 +347,7 @@ export function TraceDetailView({
                                   sideOffset={8}
                                 >
                                   <p className="font-bold">
-                                    JSON view unavailable
+                                    Raw view unavailable
                                   </p>
                                   <p className="text-muted-foreground mt-1">
                                     Disabled for traces with{" "}
@@ -363,7 +363,7 @@ export function TraceDetailView({
                               <Tabs.Trigger
                                 value="json"
                                 size="sm"
-                                label="JSON"
+                                label="Raw"
                               />
                             )}
                           </Tabs.List>
