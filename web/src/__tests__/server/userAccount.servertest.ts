@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { randomUUID } from "crypto";
@@ -7,7 +8,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
@@ -45,6 +46,25 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual(["templateFlag", "modernSession"]);
   });
 
+  it("allows users to enable the session timeline preview", async () => {
+    const { caller, userId } = await createCaller();
+
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "sessionTimeline",
+      enabled: true,
+    });
+
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { featureFlags: true },
+    });
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      "sessionTimeline",
+      "modernSession",
+    ]);
+  });
+
   it("persists a global opt-out when disabling a preview", async () => {
     const { caller, userId } = await createCaller({
       featureFlags: ["templateFlag", "modernSession"],
@@ -68,6 +88,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(user.featureFlags).toEqual([
       "templateFlag",
       getFeaturePreviewOptOutFlag("modernSession"),
+      getFeaturePreviewOptOutFlag("sessionTimeline"),
     ]);
   });
 
@@ -205,15 +226,12 @@ async function createCaller({
             : [],
         },
       ],
-      featureFlags: {
+      featureFlags: testFeatureFlags({
         modernSession: featureFlags.includes("modernSession"),
+        sessionTimeline: featureFlags.includes("sessionTimeline"),
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      }),
       admin: false,
     },
     environment: {

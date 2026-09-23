@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../db";
 import {
   TupleParam,
   type ClickHouseClientConfigOptions,
+  type ClickHouseSettings,
 } from "@clickhouse/client";
 import type {
   EventsObservation,
@@ -117,6 +119,7 @@ import {
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
   buildEventsMetadataValuesQuery,
   EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   EVENTS_FILTER_OPTION_TOP_N,
@@ -431,6 +434,10 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   timestamp?: Date;
   selectIOAndMetadata?: boolean;
   selectToolData?: boolean;
+  /** Restrict to these observation types. All types when omitted. */
+  types?: ObservationType[];
+  /** Rows read at most; `totalCount` exceeds it when the trace has more. */
+  limit?: number;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
   const {
     projectId,
@@ -438,6 +445,8 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     timestamp,
     selectIOAndMetadata = false,
     selectToolData = false,
+    types,
+    limit = MAX_OBSERVATIONS_PER_TRACE,
   } = params;
 
   const filter: FilterState = [
@@ -459,12 +468,21 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     });
   }
 
+  if (types) {
+    filter.push({
+      column: "type",
+      operator: "any of" as const,
+      value: types,
+      type: "stringOptions" as const,
+    });
+  }
+
   const records =
     await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
       projectId,
       filter,
       orderBy: { column: "startTime", order: "ASC" },
-      limit: MAX_OBSERVATIONS_PER_TRACE + 1,
+      limit: limit + 1,
       offset: 0,
       select: "rows",
       selectIOAndMetadata,
@@ -474,7 +492,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   const totalCount = records.length;
 
   const withModelData = await enrichObservationsWithModelData(
-    records.slice(0, MAX_OBSERVATIONS_PER_TRACE),
+    records.slice(0, limit),
     projectId,
     false,
     null,
@@ -1376,6 +1394,7 @@ type PublicApiObservationsQuery = {
 
 type BuildObservationsQueryComponentsOptions = {
   allowUnindexedIoFilters?: boolean;
+  clickhouseSettings?: ClickHouseSettings;
 };
 
 const EVENTS_IO_FILTER_TYPE_ERROR =
@@ -1435,6 +1454,7 @@ function buildObservationsQueryComponents(
     name: string;
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
+  filtersNeedFullTable: boolean;
 } {
   const { projectId, advancedFilters, ...filterParams } = opts;
 
@@ -1461,7 +1481,6 @@ function buildObservationsQueryComponents(
   );
   const filtersNeedFullTable = filtersRequireEventsFull(observationsFilter);
 
-  // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
   const appliedFilter = observationsFilter.apply();
 
@@ -1491,7 +1510,7 @@ function buildObservationsQueryComponents(
     )
     .where(appliedFilter);
 
-  return { queryBuilder, externalCTEs };
+  return { queryBuilder, externalCTEs, filtersNeedFullTable };
 }
 
 function buildObservationsQueryBase(
@@ -1580,6 +1599,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   extraTags: Record<string, string> = {},
+  clickhouseSettings?: ClickHouseSettings,
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1588,6 +1608,7 @@ async function getObservationsRowsFromBuilder<T>(
     params,
     tags: { projectId, ...extraTags },
     preferredClickhouseService: "EventsReadOnly",
+    clickhouseSettings,
   });
 }
 
@@ -1677,36 +1698,50 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     expandMetadataKeys != null &&
     expandMetadataKeys.length > 0;
   const needsIOCTE = needsIO || needsExpandedMetadata;
-  // Metadata goes to io CTE when in CTE mode and metadata is requested
-  const metadataFromFullTable =
-    needsIOCTE && requestedFields.includes("metadata");
 
   // Shared: build base query with field sets, ordering, pagination
-  const { queryBuilder: baseBuilder, externalCTEs } =
-    buildObservationsQueryComponents(
-      opts,
-      eventsTableNativeUiColumnDefinitions,
-      options,
-    );
+  const {
+    queryBuilder: baseBuilder,
+    externalCTEs,
+    filtersNeedFullTable,
+  } = buildObservationsQueryComponents(
+    opts,
+    eventsTableNativeUiColumnDefinitions,
+    options,
+  );
+
+  // The io lane only pays off when base reads the cheap truncated table
+  // (events_core) and the split defers the heavy input/output/metadata columns
+  // to a page-size lookup on events_full. When a filter touches input/output,
+  // `filtersNeedFullTable` already forces base onto events_full to evaluate that
+  // filter, so there is nothing left to defer — the split just re-scans
+  // events_full several times (base is referenced from the io lane and the final
+  // join, and ClickHouse inlines CTEs). Read io/metadata inline on base instead.
+  const useSplit = needsIOCTE && !filtersNeedFullTable;
+
+  // Metadata goes to the io CTE only when we actually split; on the simple path
+  // base already reads events_full (forced by the filter) so metadata is
+  // untruncated there.
+  const metadataFromIoCte = useSplit && requestedFields.includes("metadata");
 
   // Shared steps: ordering and pagination apply to every path and are
   // independent of which columns each path projects.
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  // Pick the query shape. When IO/expanded metadata is requested, use the
-  // CTE+JOIN split query that fetches those columns from events_full for the
-  // matched rows only; otherwise everything comes from events_core directly.
-  const queryPath: "simple" | "cte-join" = needsIOCTE ? "cte-join" : "simple";
+  const queryPath: "simple" | "cte-join" = useSplit ? "cte-join" : "simple";
 
-  // Field groups projected on the base builder.
-  // `io` (and `metadata` when it must come untruncated from events_full) is
-  // fetched by the io CTE instead; selecting it on events_core would return
-  // truncated values.
+  // Field groups projected on the base builder. In the split, `io` (and
+  // `metadata`) is fetched by the io CTE instead; selecting it on events_core
+  // would return truncated values. On the simple path base is on events_full
+  // whenever io/metadata is requested (filter-forced), so it is selected inline.
   const selectBaseFieldSets = () => {
     baseBuilder.selectFieldSet("core");
-    const excludeFromBase = new Set<string>(["core", "io"]);
-    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    const excludeFromBase = new Set<string>(["core"]);
+    if (useSplit) {
+      excludeFromBase.add("io");
+      if (metadataFromIoCte) excludeFromBase.add("metadata");
+    }
     requestedFields
       .filter((fg) => !excludeFromBase.has(fg))
       .forEach((fg) => baseBuilder.selectFieldSet(fg));
@@ -1729,7 +1764,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
         projectId,
         baseBuilder,
         includeIO: needsIO,
-        includeMetadata: metadataFromFullTable,
+        includeMetadata: metadataFromIoCte,
         externalCTEs,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
@@ -1739,6 +1774,8 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
       projectId,
       builder,
+      {},
+      options.clickhouseSettings,
     );
 
   return await enrichObservationsWithModelData(
@@ -2065,12 +2102,16 @@ type BuiltEventsFilterOptionColumnQuery = NonNullable<
 type BuiltEventsFilterOptionsForColumnsQuery = NonNullable<
   ReturnType<typeof buildEventsFilterOptionsForColumnsQuery>
 >;
+type BuiltEventsExactFilterOptionsForColumnsQuery = NonNullable<
+  ReturnType<typeof buildEventsExactFilterOptionsForColumnsQuery>
+>;
 
 const queryEventsFilterOptionRows = async (
   projectId: string,
   queryWithParams:
     | BuiltEventsFilterOptionColumnQuery
-    | BuiltEventsFilterOptionsForColumnsQuery,
+    | BuiltEventsFilterOptionsForColumnsQuery
+    | BuiltEventsExactFilterOptionsForColumnsQuery,
 ) => {
   return queryClickhouse<EventFilterOptionRow>({
     query: queryWithParams.query,
@@ -2144,6 +2185,30 @@ export const getEventsFilterOptionsForColumns = async (params: {
     limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
   });
 
+/** Exact per-column facets in one events_core scan: sumMap/countIf aggregate state fanned out with arrayJoin (no GROUP BY / UNION ALL). */
+export const getEventsExactFilterOptionsForColumns = async (params: {
+  projectId: string;
+  filter: FilterState;
+  columns: readonly EventFilterOptionColumn[];
+  topN?: number;
+  scope?: EventFilterOptionScope;
+}) => {
+  const queryWithParams = buildEventsExactFilterOptionsForColumnsQuery({
+    projectId: params.projectId,
+    filter: params.filter,
+    columns: params.columns,
+    limit: params.topN ?? EVENTS_FILTER_OPTION_TOP_N,
+    scope: params.scope,
+    sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
+  });
+
+  if (!queryWithParams) {
+    return [];
+  }
+
+  return queryEventsFilterOptionRows(params.projectId, queryWithParams);
+};
+
 // Unsampled: the cursor contract lets MCP agents page the true distinct set.
 export const getEventsFilterOptionValuesPage = async (params: {
   projectId: string;
@@ -2204,20 +2269,6 @@ const getSingleEventsFilterOptionColumn = async (
     scope: opts?.scope,
     sampleRows: EVENTS_FILTER_OPTION_SAMPLE_ROWS,
   });
-
-export const getEventsGroupedByTraceName = async (
-  projectId: string,
-  filter: FilterState,
-  opts?: GroupedEventsFilterOptions,
-) => {
-  const rows = await getSingleEventsFilterOptionColumn(
-    projectId,
-    filter,
-    "traceName",
-    opts,
-  );
-  return rows.map((row) => ({ traceName: row.value, count: row.count }));
-};
 
 export const getEventsGroupedByTraceTags = async (
   projectId: string,

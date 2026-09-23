@@ -3,6 +3,7 @@ import {
   asRecord,
   compact,
   optionalString,
+  recordKeyAsParsed,
   toJsonValue,
 } from "../../../core/utils/json";
 import {
@@ -19,6 +20,7 @@ import {
 import type { FilePart, FinishReason } from "../../../types";
 import type {
   IOConvention,
+  MessageSource,
   PartHandler,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
@@ -194,6 +196,22 @@ function aiSdkToolDefinitionSources(
 
 export const aiSdkProvider = {
   name: "ai-sdk",
+  claimMessages: (root, kind): MessageSource[] => {
+    if (kind !== "input" || root.messages !== undefined) return [];
+    const prompt = root.prompt;
+    if (typeof prompt === "string") {
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "single", value: prompt, fallbackRole: "user" }];
+    }
+    if (
+      Array.isArray(prompt) &&
+      prompt.every((message) => typeof asRecord(message)?.role === "string")
+    ) {
+      recordKeyAsParsed(root, "prompt");
+      return [{ kind: "sequence", values: prompt, fallbackRole: "user" }];
+    }
+    return [];
+  },
   finishReasonTypeByRaw: AI_SDK_FINISH_REASON_TYPE_BY_RAW,
   // AI SDK / MCP tool declarations: { name?, description, inputSchema }.
   tryNormalizeToolDefinition: (value: Record<string, unknown>) => {

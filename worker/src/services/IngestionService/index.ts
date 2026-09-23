@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
 import { Decimal } from "decimal.js";
@@ -500,16 +501,17 @@ export class IngestionService {
    * supplied record is not mutated.
    *
    * @param eventRecord - The event record to write
+   * @returns The serialized byte size of the accepted event record
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<void> {
-    const persistedRecord = await applyObservationFieldOverflow(eventRecord);
-
-    this.clickHouseWriter.addToQueue(
-      TableName.EventsFull,
-      withSerializedEventByteLength(persistedRecord),
+  ): Promise<number> {
+    const persistedRecord = withSerializedEventByteLength(
+      await applyObservationFieldOverflow(eventRecord),
     );
+
+    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
+    return persistedRecord.event_bytes;
   }
 
   private async processDatasetRunItemEventList(params: {
@@ -1644,7 +1646,10 @@ export class IngestionService {
       return;
     }
     IngestionService.lastUsageTotalMismatchLogAt = now;
-    logger.warn(
+    // The `langfuse.ingestion.usage_details.total_mismatch` metric above carries
+    // the aggregate signal; keep the detailed line at debug to avoid drowning
+    // warn-level log volume with a per-event customer-data condition.
+    logger.debug(
       "Sum of provided non-total usage_details buckets exceeds provided total; the instrumentor may be sending an inclusive input alongside cache buckets",
       {
         projectId: observationRecord.project_id,

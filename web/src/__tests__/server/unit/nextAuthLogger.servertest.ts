@@ -30,6 +30,23 @@ describe("nextAuthLogger", () => {
     expect(typeof meta.error.stack).toBe("string");
   });
 
+  it("downgrades CLIENT_FETCH_ERROR to debug so transient session-poll noise stays out of error logs", () => {
+    const errorSpy = vi.spyOn(logger, "error");
+    const debugSpy = vi.spyOn(logger, "debug");
+
+    nextAuthLogger.error?.("CLIENT_FETCH_ERROR", new Error("Failed to fetch"));
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(debugSpy).toHaveBeenCalledTimes(1);
+    const [message, meta] = debugSpy.mock.calls[0] as unknown as [
+      string,
+      Record<string, any>,
+    ];
+    expect(message).toBe("[NEXT_AUTH] CLIENT_FETCH_ERROR");
+    expect(meta.nextAuthErrorCode).toBe("CLIENT_FETCH_ERROR");
+    expect(meta.error.message).toBe("Failed to fetch");
+  });
+
   it("serializes metadata objects containing an error plus extra keys", () => {
     const errorSpy = vi.spyOn(logger, "error");
 

@@ -2,7 +2,7 @@ import { assertUnreachable } from "@langfuse/shared";
 
 export const featurePreviewFlags = [
   "modernSession",
-  "normalizedIoPreview",
+  "sessionTimeline",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
@@ -13,6 +13,18 @@ type RestrictedFlag = (typeof restrictedFlags)[number];
 
 export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
   restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
+
+/**
+ * Flags for Langfuse-internal surfaces. They are on for Langfuse admins and
+ * for deployments with experimental features enabled, and for nobody else:
+ * they are not feature previews, cannot be granted, and are never persisted.
+ */
+const internalFlags = ["traceMessages"] as const;
+
+type InternalFlag = (typeof internalFlags)[number];
+
+export const isInternalFlag = (flag: string): flag is InternalFlag =>
+  internalFlags.some((internalFlag) => internalFlag === flag);
 
 export const isFeaturePreviewFlag = (
   flag: string,
@@ -25,7 +37,7 @@ export const filterFeaturePreviewFlags = (
 
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
-  normalizedIoPreview: "Improved Message Rendering",
+  sessionTimeline: "Session Timeline",
 } satisfies Record<FeaturePreviewFlag, string>;
 
 export type FeaturePreviewAvailabilityContext = {
@@ -36,12 +48,8 @@ export const isFeaturePreviewAvailable = (
   flag: FeaturePreviewFlag,
   context: FeaturePreviewAvailabilityContext,
 ) => {
-  if (flag === "modernSession") {
+  if (flag === "modernSession" || flag === "sessionTimeline") {
     return context.v4BetaEnabled;
-  }
-
-  if (flag === "normalizedIoPreview") {
-    return true;
   }
 
   return assertUnreachable(flag);
@@ -50,13 +58,11 @@ export const isFeaturePreviewAvailable = (
 export const availableFlags = [
   ...featurePreviewFlags,
   ...restrictedFlags,
+  ...internalFlags,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",
   "v4BetaToggleVisible",
   "observationEvals",
   "experimentsV4Enabled",
-  // Internal flag (deliberately NOT in featurePreviewFlags): gates the
-  // redesigned compact session timeline for admins/flagged users only.
-  "sessionTimeline",
 ] as const;

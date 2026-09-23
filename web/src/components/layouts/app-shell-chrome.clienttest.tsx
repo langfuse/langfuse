@@ -1,7 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
 import { Home, Settings } from "lucide-react";
 
 import { APP_SHELL_CHROME_ROW_TEST_ID } from "@/src/components/layouts/app-shell-chrome";
+import { MobilePageTitle } from "@/src/components/layouts/mobile-page-title";
 import PageHeader from "@/src/components/layouts/page-header";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
 import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
@@ -46,6 +53,10 @@ vi.mock("@/src/features/projects/hooks", () => ({
 
 vi.mock("@/src/components/nav/in-app-ai-agent-button", () => ({
   InAppAiAgentButton: () => null,
+}));
+
+vi.mock("@/src/features/in-app-agent/components/InAppAiAgentProvider", () => ({
+  useIsInAppAgentLauncherVisible: () => true,
 }));
 
 vi.mock("@/src/components/nav/topbar-brand", () => ({
@@ -111,6 +122,19 @@ describe("app shell chrome row", () => {
     expect(container.querySelector(".h-1.flex-1.border-b")).toBeNull();
   });
 
+  it("sizes each page-header flex line as a full chrome row", () => {
+    const { container } = render(<Shell />);
+
+    const pageHeaderRow = container.querySelector(
+      `#page-header [data-testid="${APP_SHELL_CHROME_ROW_TEST_ID}"]`,
+    );
+    const rowContent = pageHeaderRow?.firstElementChild;
+
+    expect(rowContent?.className).toContain("gap-y-px");
+    expect(rowContent?.firstElementChild?.className).toContain("min-h-[43px]");
+    expect(rowContent?.lastElementChild?.className).toContain("min-h-[43px]");
+  });
+
   it("sizes the desktop sidebar toggle to the same 20px as the wordmark", () => {
     const { container } = render(<Shell />);
 
@@ -139,5 +163,60 @@ describe("app shell chrome row", () => {
     const inner = row.firstElementChild;
     expect(inner).toBeInstanceOf(HTMLElement);
     expect((inner as HTMLElement).className).toContain("lg:mx-auto");
+  });
+});
+
+describe("mobile page action focus handoff", () => {
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  it("closes before panel focus and restores the trigger only on ordinary dismissals", async () => {
+    vi.useFakeTimers();
+    const openReview = vi.fn();
+    render(
+      <>
+        <MobilePageTitle
+          headerProps={{
+            title: "Session",
+            actionButtonsMenu: ({
+              closeMenu,
+            }: {
+              closeMenu: (options?: { handoffFocus?: boolean }) => void;
+            }) => (
+              <>
+                <button
+                  onClick={() => {
+                    closeMenu({ handoffFocus: true });
+                    openReview(document.activeElement);
+                  }}
+                >
+                  Open review
+                </button>
+                <button onClick={() => closeMenu()}>Close menu</button>
+              </>
+            ),
+          }}
+        />
+        <input aria-label="Review field" />
+      </>,
+    );
+    const trigger = screen.getByRole("button", { name: "More actions" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Open review" }));
+    expect(openReview).toHaveBeenCalledWith(trigger);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    const field = screen.getByRole("textbox", { name: "Review field" });
+    field.focus();
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(field).toHaveFocus();
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "Close menu" }));
+    await act(async () => vi.runOnlyPendingTimersAsync());
+    expect(trigger).toHaveFocus();
   });
 });

@@ -1,7 +1,9 @@
+/* eslint-disable no-nested-ternary */
 import {
   availableFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
+  isInternalFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
@@ -11,6 +13,18 @@ import { type Flags } from "./types";
 
 export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
   `feature-preview:${flag}:disabled`;
+
+/**
+ * Langfuse admins and deployments with experimental features enabled see
+ * internal surfaces. Client and server gates share this rule.
+ */
+export const hasInternalAccess = ({
+  isAdmin,
+  isExperimentalFeaturesEnabled,
+}: {
+  isAdmin: boolean;
+  isExperimentalFeaturesEnabled: boolean;
+}) => isExperimentalFeaturesEnabled || isAdmin;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
@@ -38,6 +52,13 @@ export const parseFlags = (
       return;
     }
 
+    // Internal flags are decided per session by `hasInternalAccess`, never
+    // by stored flags.
+    if (isInternalFlag(flag)) {
+      parsedFlags[flag] = false;
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
@@ -57,6 +78,10 @@ export const parseFlags = (
 
     parsedFlags[flag] = dbFlags.includes(flag);
   });
+
+  if (!parsedFlags.modernSession) {
+    parsedFlags.sessionTimeline = false;
+  }
 
   return parsedFlags;
 };

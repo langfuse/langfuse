@@ -1,14 +1,16 @@
 //! Resolve credentials through trusted Web before any provider execution.
 mod contracts;
-mod signing;
+pub(crate) mod signing;
 
 pub use contracts::{
-    ApiFormat, Attribution, Connection, Ingestion, IngestionMode, MetadataValue, ResolvedExecution,
+    ApiFormat, IngestionGrant, IngestionMode, MetadataValue, Provider, ProviderConnection,
+    ProviderCredential, RequestAttribution, ResolvedRequestContext,
 };
 use reqwest::{
     Client, Url,
     header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
 };
+use reqwest_middleware::ClientWithMiddleware;
 use std::{
     fmt,
     net::IpAddr,
@@ -17,27 +19,27 @@ use std::{
 
 const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 
-struct Limits {
+struct ResolutionLimits {
     timeout: Duration,
     max_response_bytes: usize,
 }
 
 /// Operator-supplied Web base URL and the existing gateway/Web service key.
-pub struct ResolverConfig {
-    url: Url,
+pub struct ControlPlaneConfig {
+    web_url: Url,
     service_key: String,
-    limits: Limits,
+    limits: ResolutionLimits,
 }
 
-impl ResolverConfig {
+impl ControlPlaneConfig {
     /// Configure resolution against a trusted Web base URL, including any deployment prefix.
     ///
     /// # Errors
-    /// Returns [`ResolveError::Configuration`] for a blank service key or an invalid
+    /// Returns [`ResolutionError::Configuration`] for a blank service key or an invalid
     /// base URL. URLs require HTTPS (HTTP is allowed on loopback), with no userinfo,
     /// query, or fragment.
-    pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolveError> {
-        let mut url = Url::parse(web_url).map_err(|_| ResolveError::Configuration)?;
+    pub fn new(web_url: &str, service_key: &str) -> Result<Self, ResolutionError> {
+        let url = Url::parse(web_url).map_err(|_| ResolutionError::Configuration)?;
         let loopback = url.host_str().is_some_and(|host| {
             host == "localhost"
                 || host
@@ -53,33 +55,41 @@ impl ResolverConfig {
             || url.fragment().is_some()
             || service_key.trim().is_empty()
         {
-            return Err(ResolveError::Configuration);
+            return Err(ResolutionError::Configuration);
         }
-        let resolve_path = format!("{}{RESOLVE_PATH}", url.path().trim_end_matches('/'));
-        url.set_path(&resolve_path);
         Ok(Self {
-            url,
+            web_url: url,
             service_key: service_key.to_owned(),
-            limits: Limits {
+            limits: ResolutionLimits {
                 timeout: Duration::from_secs(5),
                 max_response_bytes: 256 * 1024,
             },
         })
     }
+
+    pub(crate) fn endpoint(&self, path: &str) -> Url {
+        let mut url = self.web_url.clone();
+        url.set_path(&format!("{}{path}", url.path().trim_end_matches('/')));
+        url
+    }
+
+    pub(crate) fn service_key(&self) -> &str {
+        &self.service_key
+    }
 }
 
 /// Reuses the HTTP connection pool; credentials belong exclusively to each request.
-pub struct Resolver {
-    client: Client,
-    config: ResolverConfig,
+pub struct ControlPlaneClient {
+    client: ClientWithMiddleware,
+    config: ControlPlaneConfig,
 }
 
-impl Resolver {
+impl ControlPlaneClient {
     /// Build a resolver with a reusable HTTP connection pool.
     ///
     /// # Errors
-    /// Returns [`ResolveError::Configuration`] if the HTTP client cannot be initialized.
-    pub fn new(config: ResolverConfig) -> Result<Self, ResolveError> {
+    /// Returns [`ResolutionError::Configuration`] if the HTTP client cannot be initialized.
+    pub fn new(config: ControlPlaneConfig) -> Result<Self, ResolutionError> {
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
@@ -89,24 +99,27 @@ impl Resolver {
             .no_zstd()
             .no_deflate()
             .build()
-            .map_err(|_| ResolveError::Configuration)?;
-        Ok(Self { client, config })
+            .map_err(|_| ResolutionError::Configuration)?;
+        Ok(Self {
+            client: crate::observability::instrument_client(client, "resolver"),
+            config,
+        })
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
     ///
     /// # Errors
-    /// Returns a sanitized [`ResolveError`] for invalid credentials, authentication or
+    /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
     /// authorization failures, missing routes, unavailable Web or system time, request
     /// construction or transport failures, timeouts, or oversized or invalid responses.
     pub async fn resolve(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
-    ) -> Result<ResolvedExecution, ResolveError> {
+    ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .map_err(|_| ResolveError::Unavailable)?;
+            .map_err(|_| ResolutionError::Unavailable)?;
         self.resolve_at(gateway_key, api_format, timestamp).await
     }
 
@@ -115,9 +128,9 @@ impl Resolver {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: Duration,
-    ) -> Result<ResolvedExecution, ResolveError> {
+    ) -> Result<ResolvedRequestContext, ResolutionError> {
         if gateway_key.len() > 8192 || !valid_token(gateway_key) {
-            return Err(ResolveError::InvalidCredential);
+            return Err(ResolutionError::InvalidCredential);
         }
         let started = Instant::now();
         let body = tokio::time::timeout(
@@ -125,7 +138,7 @@ impl Resolver {
             self.fetch(gateway_key, api_format, timestamp.as_secs()),
         )
         .await
-        .map_err(|_| ResolveError::Timeout)??;
+        .map_err(|_| ResolutionError::Timeout)??;
         contracts::decode(
             &body,
             api_format,
@@ -138,52 +151,52 @@ impl Resolver {
         gateway_key: &str,
         api_format: ApiFormat,
         timestamp: u64,
-    ) -> Result<Vec<u8>, ResolveError> {
+    ) -> Result<Vec<u8>, ResolutionError> {
         let mut credential = HeaderValue::from_str(&format!("Bearer {gateway_key}"))
-            .map_err(|_| ResolveError::InvalidCredential)?;
+            .map_err(|_| ResolutionError::InvalidCredential)?;
         credential.set_sensitive(true);
         let mut signature = HeaderValue::from_str(&signing::authorization(
             &self.config.service_key,
             gateway_key,
             timestamp,
         ))
-        .map_err(|_| ResolveError::Configuration)?;
+        .map_err(|_| ResolutionError::Configuration)?;
         signature.set_sensitive(true);
         let body = serde_json::to_vec(&serde_json::json!({ "apiFormat": api_format }))
-            .map_err(|_| ResolveError::Configuration)?;
+            .map_err(|_| ResolutionError::Configuration)?;
         let mut response = self
             .client
-            .post(self.config.url.clone())
+            .post(self.config.endpoint(RESOLVE_PATH))
             .header(AUTHORIZATION, credential)
             .header("langfuse-gateway-authorization", signature)
             .header(CONTENT_TYPE, "application/json")
             .body(body)
             .send()
             .await
-            .map_err(|_| ResolveError::Transport)?;
+            .map_err(|_| ResolutionError::Transport)?;
         match response.status().as_u16() {
             200 => {}
-            401 => return Err(ResolveError::Authentication),
-            403 => return Err(ResolveError::Forbidden),
-            404 => return Err(ResolveError::NoRoute),
-            429 | 500..=599 => return Err(ResolveError::Unavailable),
-            _ => return Err(ResolveError::InvalidResponse),
+            401 => return Err(ResolutionError::Authentication),
+            403 => return Err(ResolutionError::Forbidden),
+            404 => return Err(ResolutionError::NoRoute),
+            429 | 500..=599 => return Err(ResolutionError::Unavailable),
+            _ => return Err(ResolutionError::InvalidResponse),
         }
         let limit = self.config.limits.max_response_bytes;
         if response
             .content_length()
             .is_some_and(|size| size > limit as u64)
         {
-            return Err(ResolveError::ResponseTooLarge);
+            return Err(ResolutionError::ResponseTooLarge);
         }
         let mut bytes = Vec::new();
         while let Some(chunk) = response
             .chunk()
             .await
-            .map_err(|_| ResolveError::Transport)?
+            .map_err(|_| ResolutionError::Transport)?
         {
             if chunk.len() > limit - bytes.len() {
-                return Err(ResolveError::ResponseTooLarge);
+                return Err(ResolutionError::ResponseTooLarge);
             }
             bytes.extend_from_slice(&chunk);
         }
@@ -197,7 +210,7 @@ fn valid_token(value: &str) -> bool {
 
 /// Sanitized failure categories. Upstream bodies and transport errors are never retained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResolveError {
+pub enum ResolutionError {
     Configuration,
     InvalidCredential,
     Authentication,
@@ -210,7 +223,7 @@ pub enum ResolveError {
     ResponseTooLarge,
 }
 
-impl fmt::Display for ResolveError {
+impl fmt::Display for ResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Configuration => "invalid resolver configuration",
@@ -227,7 +240,7 @@ impl fmt::Display for ResolveError {
     }
 }
 
-impl std::error::Error for ResolveError {}
+impl std::error::Error for ResolutionError {}
 
 #[cfg(test)]
 mod tests;

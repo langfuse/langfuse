@@ -633,7 +633,7 @@ describe("legacy compatibility boundary", () => {
     ).rejects.toMatchObject({
       name: "LLMValidationError",
       message:
-        "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, and OpenAI",
+        "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, OpenAI, and Vertex AI",
       statusCode: 400,
       code: "invalid-connection",
     });

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import type {
   ColumnDefinition,
   FilterState,
@@ -63,12 +64,18 @@ export type BooleanKeyValueFilterEntry = {
 };
 
 // Represents one active string filter row in the string key-value facet UI
-// Example: key="environment", operator="=", value="production"
+// Example: key="environment", operator="=", value="production". `is set` /
+// `is not set` are value-less key-presence operators (value stays "").
 export type StringKeyValueFilterEntry = {
   key: string;
-  operator: "=" | "contains" | "does not contain";
+  operator: "=" | "contains" | "does not contain" | "is set" | "is not set";
   value: string;
 };
+
+// `is set` / `is not set` filter on key presence, so a row is complete without a
+// value — unlike the value operators, whose empty-value rows are still drafts.
+export const isStringPresenceOperator = (operator: string): boolean =>
+  operator === "is set" || operator === "is not set";
 
 const toValueList = (options: SidebarFilterOptions[string]): string[] | null =>
   Array.isArray(options)
@@ -640,13 +647,19 @@ export function applyKeyedFilterEntries(
       return [
         ...without,
         ...update.entries
-          .filter((entry) => entry.key && entry.value.trim() !== "")
+          .filter(
+            (entry) =>
+              entry.key &&
+              (isStringPresenceOperator(entry.operator) ||
+                entry.value.trim() !== ""),
+          )
           .map((entry) => ({
             column,
             type: "stringObject" as const,
             operator: entry.operator,
             key: entry.key,
-            value: entry.value,
+            // Presence operators carry no value.
+            value: isStringPresenceOperator(entry.operator) ? "" : entry.value,
           })),
       ];
   }

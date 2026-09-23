@@ -1,4 +1,4 @@
-use super::{ResolveError, valid_token};
+use super::{ResolutionError, valid_token};
 use serde::{
     Deserialize, Deserializer, Serialize,
     de::{DeserializeOwned, IntoDeserializer},
@@ -9,6 +9,40 @@ use std::{collections::BTreeMap, fmt};
 pub enum ApiFormat {
     #[serde(rename = "openai.responses")]
     OpenAiResponses,
+    #[serde(rename = "anthropic.messages")]
+    AnthropicMessages,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Provider {
+    OpenAi,
+    Anthropic,
+}
+
+impl Provider {
+    pub fn official_origin(self) -> &'static str {
+        match self {
+            Self::OpenAi => "https://api.openai.com/v1",
+            Self::Anthropic => "https://api.anthropic.com/v1",
+        }
+    }
+
+    fn supports(self, api_format: ApiFormat) -> bool {
+        matches!(
+            (self, api_format),
+            (Self::OpenAi, ApiFormat::OpenAiResponses)
+                | (Self::Anthropic, ApiFormat::AnthropicMessages)
+        )
+    }
+
+    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+        matches!(
+            (self, credential),
+            (Self::OpenAi, ProviderCredential::Bearer(_))
+                | (Self::Anthropic, ProviderCredential::XApiKey(_))
+        )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -26,40 +60,85 @@ pub enum MetadataValue {
     Bool(bool),
 }
 
-#[derive(Deserialize)]
-enum Provider {
-    #[serde(rename = "openai")]
-    OpenAi,
+#[derive(Clone, Copy)]
+pub enum ProviderCredential<'a> {
+    /// `Authorization: Bearer <token>`
+    Bearer(&'a str),
+    /// `x-api-key: <key>`
+    XApiKey(&'a str),
+}
+
+impl<'a> ProviderCredential<'a> {
+    fn secret(self) -> &'a str {
+        match self {
+            Self::Bearer(token) | Self::XApiKey(token) => token,
+        }
+    }
 }
 
 #[derive(Deserialize)]
-enum TokenType {
+enum BearerType {
     Bearer,
 }
 
 #[derive(Deserialize)]
+enum XApiKeyType {
+    #[serde(rename = "x-api-key")]
+    XApiKey,
+}
+
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Auth {
+struct BearerAuth {
     #[serde(rename = "type", deserialize_with = "string_enum")]
-    _token_type: TokenType,
+    _token_type: BearerType,
     token: String,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Connection {
+struct XApiKeyAuth {
+    #[serde(rename = "type", deserialize_with = "string_enum")]
+    _kind: XApiKeyType,
+    #[serde(rename = "header", deserialize_with = "string_enum")]
+    _header: XApiKeyType,
+    value: String,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Auth {
+    Bearer(BearerAuth),
+    XApiKey(XApiKeyAuth),
+}
+
+impl Auth {
+    fn credential(&self) -> ProviderCredential<'_> {
+        match self {
+            Self::Bearer(auth) => ProviderCredential::Bearer(&auth.token),
+            Self::XApiKey(auth) => ProviderCredential::XApiKey(&auth.value),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderConnection {
     id: String,
-    #[serde(rename = "provider", deserialize_with = "string_enum")]
-    _provider: Provider,
+    #[serde(deserialize_with = "string_enum")]
+    provider: Provider,
     #[serde(deserialize_with = "string_enum")]
     api_format: ApiFormat,
     base_url: String,
     auth: Auth,
 }
 
-impl Connection {
+impl ProviderConnection {
     pub fn id(&self) -> &str {
         &self.id
+    }
+    pub fn provider(&self) -> Provider {
+        self.provider
     }
     pub fn api_format(&self) -> ApiFormat {
         self.api_format
@@ -67,14 +146,14 @@ impl Connection {
     pub fn base_url(&self) -> &str {
         &self.base_url
     }
-    pub fn provider_token(&self) -> &str {
-        &self.auth.token
+    pub fn credential(&self) -> ProviderCredential<'_> {
+        self.auth.credential()
     }
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Attribution {
+pub struct RequestAttribution {
     organization_id: String,
     project_id: String,
     key_id: String,
@@ -82,7 +161,7 @@ pub struct Attribution {
     provider_connection_id: String,
 }
 
-impl Attribution {
+impl RequestAttribution {
     pub fn organization_id(&self) -> &str {
         &self.organization_id
     }
@@ -102,14 +181,14 @@ impl Attribution {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Ingestion {
+pub struct IngestionGrant {
     access_token: String,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
-    _token_type: TokenType,
+    _token_type: BearerType,
     expires_at: u64,
 }
 
-impl Ingestion {
+impl IngestionGrant {
     pub fn access_token(&self) -> &str {
         &self.access_token
     }
@@ -120,17 +199,17 @@ impl Ingestion {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Response {
+struct ResolutionResponse {
     version: u8,
-    connection: Connection,
-    attribution: Attribution,
+    connection: ProviderConnection,
+    attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
     ingestion_mode: IngestionMode,
-    ingestion: Ingestion,
+    ingestion: IngestionGrant,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
-pub struct ResolvedExecution(Response);
+pub struct ResolvedRequestContext(ResolutionResponse);
 
 // Web enums are JSON strings. Serde's externally tagged enums also accept objects.
 fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
@@ -139,24 +218,25 @@ fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
     T::deserialize(String::deserialize(deserializer)?.into_deserializer())
 }
 
-impl ResolvedExecution {
-    pub fn connection(&self) -> &Connection {
+impl ResolvedRequestContext {
+    pub fn connection(&self) -> &ProviderConnection {
         &self.0.connection
     }
-    pub fn attribution(&self) -> &Attribution {
+    pub fn attribution(&self) -> &RequestAttribution {
         &self.0.attribution
     }
     pub fn ingestion_mode(&self) -> IngestionMode {
         self.0.ingestion_mode
     }
-    pub fn ingestion(&self) -> &Ingestion {
+    pub fn ingestion(&self) -> &IngestionGrant {
         &self.0.ingestion
     }
 }
 
-impl fmt::Debug for ResolvedExecution {
+impl fmt::Debug for ResolvedRequestContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResolvedExecution").finish_non_exhaustive()
+        f.debug_struct("ResolvedRequestContext")
+            .finish_non_exhaustive()
     }
 }
 
@@ -164,15 +244,18 @@ pub(super) fn decode(
     bytes: &[u8],
     expected_format: ApiFormat,
     now: u64,
-) -> Result<ResolvedExecution, ResolveError> {
-    let response: Response =
-        serde_json::from_slice(bytes).map_err(|_| ResolveError::InvalidResponse)?;
+) -> Result<ResolvedRequestContext, ResolutionError> {
+    let response: ResolutionResponse =
+        serde_json::from_slice(bytes).map_err(|_| ResolutionError::InvalidResponse)?;
     let connection = &response.connection;
     let attribution = &response.attribution;
+    let provider = connection.provider;
     if response.version != 1
         || connection.api_format != expected_format
-        || connection.base_url != "https://api.openai.com/v1"
-        || !valid_token(&connection.auth.token)
+        || !provider.supports(connection.api_format)
+        || connection.base_url != provider.official_origin()
+        || !provider.accepts(connection.credential())
+        || !valid_token(connection.credential().secret())
         || !valid_token(&response.ingestion.access_token)
         || response.ingestion.expires_at <= now
         || [
@@ -185,7 +268,7 @@ pub(super) fn decode(
         .iter()
         .any(|value| value.trim().is_empty())
     {
-        return Err(ResolveError::InvalidResponse);
+        return Err(ResolutionError::InvalidResponse);
     }
-    Ok(ResolvedExecution(response))
+    Ok(ResolvedRequestContext(response))
 }

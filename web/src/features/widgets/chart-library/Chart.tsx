@@ -8,6 +8,7 @@ import {
   type LegendSummaryMode,
   type LegendInteraction,
   type MissingBucketValue,
+  type ChartProps,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { isChartDataEmpty } from "@/src/features/widgets/chart-library/isChartDataEmpty";
@@ -43,6 +44,7 @@ const EMPTY_STATE_CHART_TYPES = new Set<DashboardWidgetChartType>([
   "LINE_TIME_SERIES",
   "AREA_TIME_SERIES",
   "BAR_TIME_SERIES",
+  "NUMBER",
 ]);
 
 const ChartComponent = ({
@@ -59,6 +61,7 @@ const ChartComponent = ({
   legendInteraction,
   maxVisibleSeries,
   syncId,
+  sync,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
@@ -93,6 +96,7 @@ const ChartComponent = ({
   legendInteraction?: LegendInteraction;
   maxVisibleSeries?: number;
   syncId?: string;
+  sync?: ChartProps["sync"];
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -169,10 +173,10 @@ const ChartComponent = ({
     // mark.
     if (
       (EMPTY_STATE_CHART_TYPES.has(chartType) || emptyState !== undefined) &&
-      !isLoading &&
+      (chartType === "NUMBER" || !isLoading) &&
       isChartDataEmpty(data)
     ) {
-      return emptyState ?? <NoDataOrLoading isLoading={false} />;
+      return emptyState ?? <NoDataOrLoading isLoading={isLoading} />;
     }
 
     switch (chartType) {
@@ -187,6 +191,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
+            sync={sync}
             showDataPointDots={chartConfig?.show_data_point_dots ?? false}
             thresholds={thresholds}
             missingValue={missingValue}
@@ -204,6 +209,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
+            sync={sync}
             subtleFill={chartConfig?.subtle_fill}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
@@ -220,6 +226,7 @@ const ChartComponent = ({
             legendInteraction={legendInteraction}
             maxVisibleSeries={maxVisibleSeries}
             syncId={syncId}
+            sync={sync}
             subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
           />
@@ -249,7 +256,6 @@ const ChartComponent = ({
         return (
           <PieChart
             data={renderedData.slice(0, rowLimit)}
-            config={resolvedConfig}
             metricFormatter={metricFormatter}
             subtleFill={chartConfig?.subtle_fill}
           />

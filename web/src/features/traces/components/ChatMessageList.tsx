@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import {
@@ -16,7 +16,7 @@ import {
   type ChatMlMessage,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 const COLLAPSE_THRESHOLD = 3;
@@ -120,7 +120,7 @@ export function ChatMessageList({
       <div className="flex max-h-full min-h-0 flex-col gap-2">
         <div className="flex flex-col gap-2">
           {visibleMessages.map(({ message, originalIndex }) => (
-            <Fragment key={originalIndex}>
+            <div className="flex flex-col gap-1" key={originalIndex}>
               <ChatMessage
                 message={message}
                 shouldRenderMarkdown={shouldRenderMarkdown}
@@ -136,14 +136,14 @@ export function ChatMessageList({
                     variant="ghost"
                     size="xs"
                     onClick={() => setCollapsed((v) => !v)}
-                    className="underline"
+                    className="text-muted-foreground hover:text-foreground w-fit pl-2 underline hover:bg-transparent"
                   >
                     {isCollapsed
-                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more ...`
+                      ? `Show ${messagesToRender.length - COLLAPSE_THRESHOLD} more`
                       : "Hide history"}
                   </Button>
                 )}
-            </Fragment>
+            </div>
           ))}
         </div>
 

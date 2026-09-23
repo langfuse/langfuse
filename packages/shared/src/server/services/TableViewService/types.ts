@@ -1,7 +1,7 @@
 import z from "zod";
 import {
   orderBy,
-  singleFilter,
+  singleFilterList,
   SystemTableViewPresetCategory,
   TableViewPresetTableName,
 } from "../../..";
@@ -10,7 +10,7 @@ export const CreateTableViewPresetsInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "View name is required"),
   tableName: z.enum(TableViewPresetTableName),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
@@ -55,7 +55,7 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
         name: z.string().nullish(),
       })
       .nullish(),
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
     columnOrder: z.array(z.string()),
     columnVisibility: z.record(z.string(), z.boolean()),
     searchQuery: z.string().nullish(),
