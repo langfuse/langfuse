@@ -1,4 +1,12 @@
+import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
+import { InfoIcon } from "lucide-react";
+
 import { Badge } from "@/src/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 import { cn } from "@/src/utils/tailwind";
 
@@ -39,6 +47,27 @@ function ConfidenceBadge({ confidence }: { confidence: number }) {
     >
       confidence {confidence.toFixed(2)}
     </span>
+  );
+}
+
+function LevelDescriptionTooltip({
+  index,
+  description,
+}: {
+  index: number;
+  description: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        type="button"
+        className="text-muted-foreground focus-visible:ring-ring cursor-help rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+        aria-label={`Level ${index} description`}
+      >
+        <InfoIcon className="h-3.5 w-3.5" aria-hidden="true" />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{description}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -103,6 +132,7 @@ function ScoreDistribution({
   const top = Math.max(levels.length - 1, 1);
   const nearest = Math.min(Math.max(Math.round(score), 0), levels.length - 1);
   const position = Math.min(Math.max(score / top, 0), 1) * 100;
+  const showDescriptions = levels.length < DECISION_MODEL_LIMITS.maxScoreLevels;
   return (
     <div className="flex flex-col gap-2">
       <div className="relative pt-4">
@@ -136,12 +166,21 @@ function ScoreDistribution({
               index === nearest ? "" : "text-muted-foreground",
             )}
           >
-            <span className="font-mono">
-              {index} · {percent(probabilities[String(index)] ?? 0)}
+            <span className="flex items-center gap-0.5 font-mono">
+              {index}
+              {!showDescriptions ? (
+                <LevelDescriptionTooltip
+                  index={index}
+                  description={description}
+                />
+              ) : null}
+              · {percent(probabilities[String(index)] ?? 0)}
             </span>
-            <span className="line-clamp-2" title={description}>
-              {description}
-            </span>
+            {showDescriptions ? (
+              <span className="line-clamp-2" title={description}>
+                {description}
+              </span>
+            ) : null}
           </li>
         ))}
       </ol>

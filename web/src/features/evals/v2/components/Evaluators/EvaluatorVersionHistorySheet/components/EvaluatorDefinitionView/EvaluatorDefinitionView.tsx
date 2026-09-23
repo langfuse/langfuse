@@ -211,7 +211,6 @@ function DecisionModelDefinitionView({
         mode={EvalTemplateTypeEnum.DECISION_MODEL}
         onModeChange={noop}
         disabled
-        showDecisionModel
       >
         <Badge variant="outline" className="font-mono">
           {definition.selectedModel

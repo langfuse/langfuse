@@ -54,7 +54,8 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
-  decisionModel,
+  decisionModelBannerDismissed,
+  onDismissDecisionModelBanner,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -73,10 +74,8 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
-  decisionModel?: {
-    bannerDismissed: boolean;
-    onDismissBanner: () => void;
-  };
+  decisionModelBannerDismissed: boolean;
+  onDismissDecisionModelBanner: () => void;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -175,30 +174,28 @@ export function EvaluatorGalleryView({
                   <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
                   New code evaluator
                 </Button>
-                {decisionModel ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
-                    title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
-                    onClick={() =>
-                      onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
-                    }
-                  >
-                    <Scale className="h-3.5 w-3.5" aria-hidden="true" />
-                    New decision model evaluator
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
+                  title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                  onClick={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                >
+                  <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                  New decision model evaluator
+                </Button>
               </div>
             </div>
 
             <div className="flex flex-col gap-10 px-4 py-4">
-              {decisionModel && !decisionModel.bannerDismissed ? (
+              {!decisionModelBannerDismissed ? (
                 <EvaluatorGalleryDecisionModelBanner
                   onTry={() =>
                     onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
                   }
-                  onDismiss={decisionModel.onDismissBanner}
+                  onDismiss={onDismissDecisionModelBanner}
                 />
               ) : null}
               {isLoading ? <GallerySkeleton /> : null}

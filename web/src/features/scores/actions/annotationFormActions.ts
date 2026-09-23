@@ -46,6 +46,8 @@ type Dependencies = {
   deleteScore: (data: { id: string; projectId: string }) => Promise<unknown>;
 };
 
+const SAVED_STATUS_VISIBLE_MS = 3_000;
+
 // One owner per mounted form. Actions read drafts at invocation and resolve rows
 // by target + config again when asynchronous operations finish.
 export function createAnnotationFormActions({
@@ -87,6 +89,16 @@ export function createAnnotationFormActions({
   const serverFields = new Map(
     fields().map((field) => [annotationFieldKey(field), { ...field }]),
   );
+  let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
+  let isClosed = true;
+  const scheduleSavedStatusClear = () => {
+    if (savedStatusTimer) clearTimeout(savedStatusTimer);
+    if (isClosed) return;
+    savedStatusTimer = setTimeout(() => {
+      saveStore.setState({ saved: false });
+      savedStatusTimer = undefined;
+    }, SAVED_STATUS_VISIBLE_MS);
+  };
   const sameScore = (
     left: AnnotationScoreFormData,
     right: AnnotationScoreFormData | undefined,
@@ -155,6 +167,7 @@ export function createAnnotationFormActions({
             saved: state.saved || changed,
           };
         });
+        if (changed) scheduleSavedStatusClear();
         tracked?.success();
       },
       () => {
@@ -464,9 +477,13 @@ export function createAnnotationFormActions({
       return annotationFieldKey(next);
     },
     open() {
+      isClosed = false;
       analytics.forEach((tracker) => tracker.open());
     },
     close() {
+      isClosed = true;
+      if (savedStatusTimer) clearTimeout(savedStatusTimer);
+      savedStatusTimer = undefined;
       analytics.forEach((tracker, key) =>
         tracker.close(fields().filter((field) => field.targetKey === key)),
       );

@@ -101,8 +101,8 @@ export function ScoreLevelsEditor({
           Add level
         </Button>
         <span className="text-muted-foreground text-xs">
-          Score = 0 … {Math.max(levels.length - 1, 0)}, e.g. 1.3 sits between
-          levels 1 and 2.
+          The score is the probability-weighted average of the level numbers, so
+          it can be a decimal from 0 to {Math.max(levels.length - 1, 0)}.
         </span>
       </div>
       {error ? <p className="text-destructive text-xs">{error}</p> : null}

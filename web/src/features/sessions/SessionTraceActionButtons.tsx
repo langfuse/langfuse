@@ -140,7 +140,7 @@ export function SessionTraceActionButtons({
             ) : (
               <>
                 <MessageSquare className="h-4 w-4" />
-                <span>Comments</span>
+                <span>{commentCount ? "Comments" : "Comment"}</span>
                 {!!commentCount ? (
                   <ActionButtonCountBadge count={commentCount} />
                 ) : null}

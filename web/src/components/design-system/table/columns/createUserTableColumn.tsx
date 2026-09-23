@@ -79,7 +79,14 @@ export function createUserTableColumn<
         cell = { type: "user", user: value };
       }
 
-      if (!cell) return null;
+      if (!cell) {
+        const placeholder = nullValue ?? emptyValue;
+        return placeholder ? (
+          <span className="block w-full truncate" title={placeholder}>
+            {placeholder}
+          </span>
+        ) : null;
+      }
       if (cell.type === "loading") return loadingCell;
 
       const { name, email, image, id } = cell.user;
@@ -94,9 +101,14 @@ export function createUserTableColumn<
       }
 
       return (
-        <div className="flex items-center space-x-2">
+        <div
+          className="flex min-w-0 items-center space-x-2"
+          title={email ?? label}
+        >
           <Avatar size="md" src={image ?? undefined} displayName={label} />
-          <span>{label}</span>
+          <span className="truncate" title={email ?? label}>
+            {label}
+          </span>
         </div>
       );
     },
