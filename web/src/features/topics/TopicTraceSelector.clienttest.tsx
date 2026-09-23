@@ -99,9 +99,18 @@ beforeEach(() => {
   mocks.fetch.mockReset();
   mocks.push.mockReset();
   HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 afterEach(() => {
   HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  vi.unstubAllGlobals();
 });
 
 describe("Topics trace selection", () => {
@@ -130,7 +139,7 @@ describe("Topics trace selection", () => {
     );
     await act(async () => pending[0](result("stale-trace")));
     expect(selected().selection.seed).toBe(mocks.fetch.mock.calls[1][0].seed);
-    expect(screen.queryByRole("button", { name: "stale-trace" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "stale-trace" })).toBeNull();
     await act(async () => {
       await client.invalidateQueries();
     });
@@ -172,7 +181,7 @@ describe("Topics trace selection", () => {
     );
     expect(mocks.push).not.toHaveBeenCalled();
     expect(onOpenTrace).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "trace-0" }));
+    fireEvent.click(screen.getByRole("link", { name: "trace-0" }));
     fireEvent.click(screen.getByRole("row", { name: /Select trace trace-1 / }));
     expect(mocks.push.mock.calls).toEqual(
       ["trace-0", "trace-1"].map((traceId) => [
@@ -182,7 +191,7 @@ describe("Topics trace selection", () => {
       ]),
     );
     expect(onOpenTrace).toHaveBeenCalledTimes(2);
-    fireEvent.click(screen.getByRole("button", { name: "Next traces" }));
+    fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-20" }),
     );

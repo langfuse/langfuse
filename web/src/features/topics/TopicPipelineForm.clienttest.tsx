@@ -222,7 +222,7 @@ it("processes pasted IDs and reviewed rule selections, invalidating edited crite
   fireEvent.click(
     screen.getByRole("checkbox", { name: "Reuse stored summaries" }),
   );
-  click("trace-a");
+  fireEvent.click(screen.getByRole("link", { name: "trace-a" }));
   expect(screen.queryByRole("dialog")).toBeNull();
   const selection = {
     filter: rule.filter,

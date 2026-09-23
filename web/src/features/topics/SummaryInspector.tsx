@@ -1,3 +1,4 @@
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 
@@ -12,7 +13,14 @@ export function SummaryInspector({
     projectId,
     summaryId,
   });
-  if (query.error) return <p role="alert">{query.error.message}</p>;
+  if (query.error)
+    return (
+      <Alert variant="destructive" size="sm">
+        <Alert.Description>
+          <p className="break-words">{query.error.message}</p>
+        </Alert.Description>
+      </Alert>
+    );
   if (!query.data) return <p className="text-xs">Loading transcript…</p>;
   const transcript = query.data.text;
   const projectionDescription = transcript

@@ -3,10 +3,12 @@ import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useRouter } from "next/router";
-import Link from "next/link";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Button as PopoverButton } from "@/src/components/ui/button";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import {
   Sheet,
   SheetContent,
@@ -14,10 +16,10 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/src/components/ui/sheet";
-import { Input } from "@/src/components/ui/input";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Select,
   SelectContent,
@@ -150,16 +152,18 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     const actions = (
       <div className="ph-no-capture flex flex-wrap items-center justify-end gap-2">
         {pipelineActions}
-        <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
-          History
-        </Button>
         <Button
+          text="History"
+          variant="ghost"
+          size="sm"
+          onClick={() => setHistoryOpen(true)}
+        />
+        <Button
+          text="Refresh results"
           variant="ghost"
           size="sm"
           onClick={() => utils.topics.currentResults.invalidate({ projectId })}
-        >
-          Refresh results
-        </Button>
+        />
       </div>
     );
     return (
@@ -193,14 +197,14 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
               {executionId ? (
                 <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="self-start"
-                    onClick={() => showExecutionList(true)}
-                  >
-                    All runs
-                  </Button>
+                  <div className="self-start">
+                    <Button
+                      text="All runs"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => showExecutionList(true)}
+                    />
+                  </div>
                   <ExecutionPanel
                     key={executionId}
                     projectId={projectId}
@@ -212,14 +216,14 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
                 </>
               ) : (
                 <>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="self-end"
-                    onClick={() => executions.refetch()}
-                  >
-                    Refresh
-                  </Button>
+                  <div className="self-end">
+                    <Button
+                      text="Refresh"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => executions.refetch()}
+                    />
+                  </div>
                   {executions.error && (
                     <ErrorMessage message={executions.error.message} />
                   )}
@@ -239,9 +243,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
                         {new Date(execution.createdAt).toLocaleString()}
                       </span>
                       <span>{execution.facets.length} facets</span>
-                      <Badge variant="outline">
-                        {executionLabels[execution.status]}
-                      </Badge>
+                      <Badge text={executionLabels[execution.status]} />
                     </button>
                   ))}
                 </>
@@ -277,11 +279,10 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
                 edit the questions or add your own.
               </p>
               <Button
+                text="Create starter facets"
                 disabled={!canWrite || initialize.isPending}
                 onClick={() => initialize.mutate({ projectId })}
-              >
-                Create starter facets
-              </Button>
+              />
               {initialize.error && (
                 <ErrorMessage message={initialize.error.message} />
               )}
@@ -367,20 +368,22 @@ function FacetEditor({
           Revising a question creates an immutable version. Existing summaries
           and maps retain their original question.
         </p>
-        <Button
-          className="self-start"
-          disabled={save.isPending || !name.trim() || prompt.trim().length < 10}
-          onClick={() =>
-            save.mutate({
-              projectId,
-              ...(facetId === "new" ? {} : { facetId }),
-              name,
-              prompt,
-            })
-          }
-        >
-          Save facet
-        </Button>
+        <div className="self-start">
+          <Button
+            text="Save facet"
+            disabled={
+              save.isPending || !name.trim() || prompt.trim().length < 10
+            }
+            onClick={() =>
+              save.mutate({
+                projectId,
+                ...(facetId === "new" ? {} : { facetId }),
+                name,
+                prompt,
+              })
+            }
+          />
+        </div>
         {save.error && <ErrorMessage message={save.error.message} />}
         {save.isSuccess && <p className="text-sm">Facet saved.</p>}
       </div>
@@ -436,10 +439,10 @@ function ExecutionPanel({
     <section className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="secondary">{executionLabels[execution.status]}</Badge>
+          <Badge text={executionLabels[execution.status]} />
           {execution.input.operation === "update" &&
             execution.input.exploratory && (
-              <Badge variant="outline">Small sample · provisional</Badge>
+              <Badge text="Small sample · provisional" />
             )}
         </div>
         <PopoverController
@@ -480,9 +483,9 @@ function ExecutionPanel({
         >
           {({ Trigger }) => (
             <Trigger asChild>
-              <Button variant="ghost" size="sm">
+              <PopoverButton variant="ghost" size="sm">
                 Run details
-              </Button>
+              </PopoverButton>
             </Trigger>
           )}
         </PopoverController>
@@ -529,12 +532,10 @@ function ExecutionPanel({
                   key={`${item.traceId}:${item.error}`}
                   className="break-words"
                 >
-                  <Link
-                    className="underline"
-                    href={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
-                  >
-                    {item.traceId}
-                  </Link>
+                  <TextLink
+                    path={`/project/${projectId}/traces/${encodeURIComponent(item.traceId)}`}
+                    value={item.traceId}
+                  />
                   : {item.error}
                 </p>
               ))}
@@ -555,13 +556,13 @@ function ExecutionPanel({
               (facet) =>
                 facet.outcome === "pending" || facet.outcome === "failed",
             ))) && (
-          <Button
-            className="self-start"
-            disabled={retry.isPending}
-            onClick={() => retry.mutate({ projectId, executionId })}
-          >
-            Resume interrupted stages
-          </Button>
+          <div className="self-start">
+            <Button
+              text="Resume interrupted stages"
+              disabled={retry.isPending}
+              onClick={() => retry.mutate({ projectId, executionId })}
+            />
+          </div>
         )}
       {retry.error && <ErrorMessage message={retry.error.message} />}
       {execution.facets.map((progress) => {
@@ -573,9 +574,7 @@ function ExecutionPanel({
           >
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold">{facet?.name ?? "Facet"}</h3>
-              <Badge variant="outline">
-                {facetOutcomeLabels[progress.outcome]}
-              </Badge>
+              <Badge text={facetOutcomeLabels[progress.outcome]} />
             </div>
             <p className="text-muted-foreground text-sm">
               {[
@@ -627,18 +626,18 @@ function ExecutionPanel({
         );
       })}
       {!busy(execution.status) && (
-        <Button
-          variant="ghost"
-          className="self-start"
-          onClick={() => {
-            query.refetch();
-            utils.topics.currentResults.invalidate({ projectId });
-            utils.topics.executions.invalidate({ projectId });
-            utils.topics.summaryCounts.invalidate({ projectId });
-          }}
-        >
-          Refresh status
-        </Button>
+        <div className="self-start">
+          <Button
+            text="Refresh status"
+            variant="ghost"
+            onClick={() => {
+              query.refetch();
+              utils.topics.currentResults.invalidate({ projectId });
+              utils.topics.executions.invalidate({ projectId });
+              utils.topics.summaryCounts.invalidate({ projectId });
+            }}
+          />
+        </div>
       )}
     </section>
   );
@@ -646,11 +645,10 @@ function ExecutionPanel({
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <p
-      role="alert"
-      className="border-destructive/30 bg-destructive/5 text-destructive rounded-md border p-3 text-sm break-words"
-    >
-      {message}
-    </p>
+    <Alert variant="destructive">
+      <Alert.Description>
+        <p className="break-words">{message}</p>
+      </Alert.Description>
+    </Alert>
   );
 }

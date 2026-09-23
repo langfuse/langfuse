@@ -1,3 +1,4 @@
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useEffect, useRef, useState } from "react";
 import { Columns2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
@@ -8,20 +9,13 @@ import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  DialogController,
-  DialogBody,
-  DialogTitle,
-  DialogDescription,
-} from "@/src/components/ui/dialog";
-import {
-  TabsBar,
-  TabsBarContent,
-  TabsBarList,
-  TabsBarTrigger,
-} from "@/src/components/ui/tabs-bar";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
 import { SummaryInspector } from "./SummaryInspector";
 
@@ -58,26 +52,33 @@ export function CurrentTopics({
   return (
     <section className={cn("flex min-w-0 flex-col gap-5", empty && "hidden")}>
       {result.error && (
-        <p role="alert" className="text-destructive text-sm">
-          {result.error.message}
-        </p>
+        <Alert variant="destructive" size="sm">
+          <Alert.Description>
+            <p className="break-words">{result.error.message}</p>
+          </Alert.Description>
+        </Alert>
       )}
       {result.isLoading && <p className="text-sm">Loading topics…</p>}
       {selectedFacet && (
-        <TabsBar value={selectedFacet} onValueChange={setSelectedFacetId}>
-          <TabsBarList aria-label="Facets" className="shrink-0 overflow-x-auto">
-            {result.data?.map((facet) => (
-              <TabsBarTrigger key={facet.facetId} value={facet.facetId}>
-                {facet.name}
-              </TabsBarTrigger>
-            ))}
-          </TabsBarList>
+        <Tabs value={selectedFacet} onValueChange={setSelectedFacetId}>
+          <div className="mb-4 shrink-0 overflow-x-auto">
+            <Tabs.List aria-label="Facets" variant="underline">
+              {result.data?.map((facet) => (
+                <Tabs.Trigger
+                  key={facet.facetId}
+                  value={facet.facetId}
+                  label={facet.name}
+                  variant="underline"
+                />
+              ))}
+            </Tabs.List>
+          </div>
           {result.data?.map((facet) => (
-            <TabsBarContent key={facet.facetId} value={facet.facetId}>
+            <Tabs.Content key={facet.facetId} value={facet.facetId}>
               <CurrentFacet projectId={projectId} facet={facet} />
-            </TabsBarContent>
+            </Tabs.Content>
           ))}
-        </TabsBar>
+        </Tabs>
       )}
     </section>
   );
@@ -177,18 +178,16 @@ function CurrentFacet({
               selectedTraceId={selectedTraceId}
               headerStats={counts}
               headerActions={
-                <Button
-                  size="sm"
-                  variant={split ? "secondary" : "outline"}
-                  aria-pressed={split}
+                <Toggle
+                  pressed={split}
                   onClick={() => {
                     if (!split) selectTrace(selectedTraceId, true);
                     setSplit(!split);
                   }}
                 >
-                  <Columns2 className="mr-2 h-4 w-4" />
+                  <Columns2 className="mr-2 h-4 w-4" aria-hidden />
                   Split
-                </Button>
+                </Toggle>
               }
             />
           </div>
@@ -217,9 +216,7 @@ function CurrentFacet({
                   />
                   {topic.name}
                 </h4>
-                <Badge variant="secondary">
-                  {topic.count.toLocaleString()}
-                </Badge>
+                <Badge text={topic.count.toLocaleString()} />
               </div>
               <p className="text-muted-foreground text-sm">
                 {topic.description}
@@ -235,38 +232,34 @@ function CurrentFacet({
         >
           <div className="flex flex-wrap gap-2">
             <Button
+              text={`All traces (${facet.rows.length.toLocaleString()})`}
               size="sm"
               variant={selected === null ? "secondary" : "ghost"}
               onClick={() => selectTopic(null)}
-            >
-              All traces ({facet.rows.length.toLocaleString()})
-            </Button>
+            />
             {outliers > 0 && (
               <Button
+                text={`Outliers (${outliers.toLocaleString()})`}
                 size="sm"
                 variant={selected === "outliers" ? "secondary" : "ghost"}
                 onClick={() => selectTopic("outliers")}
-              >
-                Outliers ({outliers.toLocaleString()})
-              </Button>
+              />
             )}
             {noTopic > 0 && (
               <Button
+                text={`No topic (${noTopic.toLocaleString()})`}
                 size="sm"
                 variant={selected === "no_topic" ? "secondary" : "ghost"}
                 onClick={() => selectTopic("no_topic")}
-              >
-                No topic ({noTopic.toLocaleString()})
-              </Button>
+              />
             )}
             {facet.awaitingCount > 0 && (
               <Button
+                text={`Awaiting update (${facet.awaitingCount.toLocaleString()})`}
                 size="sm"
                 variant={selected === "awaiting_map" ? "secondary" : "ghost"}
                 onClick={() => selectTopic("awaiting_map")}
-              >
-                Awaiting update ({facet.awaitingCount.toLocaleString()})
-              </Button>
+              />
             )}
           </div>
           <CurrentTraceTable
@@ -327,14 +320,11 @@ function CurrentTraceTable({
       header: "Trace ID",
       size: split ? 160 : 220,
       cell: ({ row }) => (
-        <button
-          type="button"
+        <TextLink
+          path={`/project/${projectId}/traces/${encodeURIComponent(row.original.traceId)}`}
+          value={row.original.traceId}
           onClick={() => peekNavigation.openPeek(row.original.traceId)}
-          title={row.original.traceId}
-          className="font-mono text-xs underline"
-        >
-          {row.original.traceId}
-        </button>
+        />
       ),
     },
     {
@@ -342,9 +332,11 @@ function CurrentTraceTable({
       header: "Topic",
       size: 260,
       cell: ({ row }) => (
-        <Badge variant="outline" className="whitespace-normal">
-          {row.original.topicName ?? row.original.outcome.replaceAll("_", " ")}
-        </Badge>
+        <Badge
+          text={
+            row.original.topicName ?? row.original.outcome.replaceAll("_", " ")
+          }
+        />
       ),
     },
     {
@@ -357,31 +349,31 @@ function CurrentTraceTable({
             {row.original.summary || "No applicable summary."}
           </p>
           <Button
+            text="Inspect transcript"
             variant="ghost"
             size="sm"
             onClick={(event) => {
               event.stopPropagation();
               openInspector(row.original.summaryId);
             }}
-          >
-            Inspect transcript
-          </Button>
+          />
         </div>
       ),
     },
   ];
   return (
     <DialogController<string>
-      size="xl"
-      closeOnInteractionOutside
-      renderContent={({ state }) => (
-        <DialogBody className="ph-no-capture">
-          <DialogTitle>Summary source</DialogTitle>
-          <DialogDescription>
-            View the current trace transcript for this summary.
-          </DialogDescription>
-          <SummaryInspector projectId={projectId} summaryId={state} />
-        </DialogBody>
+      renderDialog={({ state }) => (
+        <Dialog title="Summary source" size="lg" closeOnInteractionOutside>
+          <Dialog.Body>
+            <div className="ph-no-capture flex flex-col gap-4">
+              <p className="text-muted-foreground">
+                View the current trace transcript for this summary.
+              </p>
+              <SummaryInspector projectId={projectId} summaryId={state} />
+            </div>
+          </Dialog.Body>
+        </Dialog>
       )}
     >
       {({ openDialog }) => (

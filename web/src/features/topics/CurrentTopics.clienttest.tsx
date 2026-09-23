@@ -186,8 +186,8 @@ describe("Current Topics", () => {
       },
     ]);
     renderCurrent();
-    await screen.findByRole("button", { name: "trace-0" });
-    fireEvent.click(screen.getByRole("button", { name: "trace-0" }));
+    await screen.findByRole("link", { name: "trace-0" });
+    fireEvent.click(screen.getByRole("link", { name: "trace-0" }));
     expect(state.push).toHaveBeenLastCalledWith(
       { pathname: "/project/project/topics", query: { peek: "trace-0" } },
       undefined,
@@ -223,16 +223,14 @@ describe("Current Topics", () => {
     fireEvent.click(
       within(inspector).getAllByRole("button", { name: "Close" })[0],
     );
-    expect(screen.queryByRole("button", { name: "trace-20" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "trace-20" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
-    expect(
-      screen.getByRole("button", { name: "trace-20" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "trace-20" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Billing tasks/ }));
     expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
       21,
     );
-    expect(screen.queryByRole("button", { name: "trace-20" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "trace-20" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "No topic (1)" }));
     const cleared = screen.getByRole("row", { name: /trace-20/ });
     expect(within(cleared).queryByText("Billing")).toBeNull();
@@ -312,7 +310,7 @@ describe("Current Topics", () => {
     expect(screen.queryByRole("row", { name: /trace-25/ })).toBeNull();
     expect(Element.prototype.scrollIntoView).not.toHaveBeenCalled();
     expect(state.push).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "trace-25" }));
+    fireEvent.click(screen.getByRole("link", { name: "trace-25" }));
     expect(state.push).toHaveBeenLastCalledWith(
       { pathname: "/project/project/topics", query: { peek: "trace-25" } },
       undefined,

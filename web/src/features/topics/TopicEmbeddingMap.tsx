@@ -1,6 +1,8 @@
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type ReactNode, useState } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
@@ -106,9 +108,13 @@ export function TopicEmbeddingMap({
   });
   if (query.error)
     return (
-      <p role="alert" className="text-destructive text-sm">
-        Map could not load: {query.error.message}
-      </p>
+      <Alert variant="destructive" size="sm">
+        <Alert.Description>
+          <p className="break-words">
+            Map could not load: {query.error.message}
+          </p>
+        </Alert.Description>
+      </Alert>
     );
   if (!query.data)
     return (
@@ -125,6 +131,7 @@ export function TopicEmbeddingMap({
   return (
     <EmbeddingMapView
       key={query.data.runId}
+      projectId={projectId}
       data={query.data}
       topics={topics}
       selectedTopic={selectedTopic}
@@ -138,6 +145,7 @@ export function TopicEmbeddingMap({
 }
 
 function EmbeddingMapView({
+  projectId,
   data,
   topics,
   selectedTopic,
@@ -147,6 +155,7 @@ function EmbeddingMapView({
   onSelectTrace,
   selectedTraceId,
 }: {
+  projectId: string;
   data: MapData;
   topics: Topic[];
   selectedTopic: string | null;
@@ -206,12 +215,11 @@ function EmbeddingMapView({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Button
+            text="All topics"
             size="sm"
             variant={selectedTopic === null ? "secondary" : "ghost"}
             onClick={() => onSelectTopic(null)}
-          >
-            All topics
-          </Button>
+          />
           {headerActions}
         </div>
       </div>
@@ -321,14 +329,11 @@ function EmbeddingMapView({
               <span className="font-bold" style={{ color: activeGroup?.color }}>
                 {activeGroup?.name ?? "Unassigned"}
               </span>
-              <button
-                type="button"
+              <TextLink
+                path={`/project/${projectId}/traces/${encodeURIComponent(active.traceId)}`}
+                value={active.traceId}
                 onClick={() => openPeek(active.traceId)}
-                title={active.traceId}
-                className="max-w-full truncate font-mono underline"
-              >
-                {active.traceId}
-              </button>
+              />
             </div>
             <p className="text-sm">{active.summary}</p>
           </>

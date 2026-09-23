@@ -1,6 +1,7 @@
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { useState, type ReactNode } from "react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import { type ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import {
   eventsEvalFilterColumns,
@@ -11,26 +12,15 @@ import {
 } from "@langfuse/shared";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import type { TopicRule } from "@langfuse/shared/topics";
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
+import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+import { Table } from "@/src/components/design-system/table/Table";
+import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
@@ -229,9 +219,15 @@ export function TopicTraceSelector({
       {mode === "filters" ? (
         <>
           <div className="flex flex-wrap items-end gap-3">
-            <label className="flex flex-col gap-1 text-sm">
+            <label className="flex w-44 flex-col gap-1 text-sm">
               Time range
-              <Select
+              <SelectInput
+                aria-label="Trace time range"
+                placeholder="Time range"
+                options={windows.map((item) => ({
+                  value: item.id,
+                  label: item.label,
+                }))}
                 value={timeWindow}
                 onValueChange={(value) => {
                   setTimeWindow(value);
@@ -251,18 +247,7 @@ export function TopicTraceSelector({
                     );
                   }
                 }}
-              >
-                <SelectTrigger className="w-44" aria-label="Trace time range">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="ph-no-capture">
-                  {windows.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              />
             </label>
             <label className="flex h-8 items-center gap-2 text-sm">
               <Checkbox
@@ -290,26 +275,21 @@ export function TopicTraceSelector({
                     }}
                   />
                 </label>
-                <label className="flex flex-col gap-1 text-sm">
+                <label className="flex w-44 flex-col gap-1 text-sm">
                   Selection
-                  <Select
+                  <SelectInput
+                    aria-label="Trace sampling method"
+                    placeholder="Selection"
+                    options={[
+                      { value: "random", label: "Random sample" },
+                      { value: "latest", label: "Newest first" },
+                    ]}
                     value={sampling}
                     onValueChange={(value) => {
                       setSampling(value as "random" | "latest");
                       setRequest(null);
                     }}
-                  >
-                    <SelectTrigger
-                      className="w-44"
-                      aria-label="Trace sampling method"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="ph-no-capture">
-                      <SelectItem value="random">Random sample</SelectItem>
-                      <SelectItem value="latest">Newest first</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  />
                 </label>
               </>
             )}
@@ -376,32 +356,42 @@ export function TopicTraceSelector({
             observations outside these filters.
           </p>
           {!validLimit && (
-            <p role="alert" className="text-destructive text-sm">
-              Enter a positive whole number of traces.
-            </p>
+            <Alert variant="destructive" size="sm">
+              <Alert.Description>
+                <p className="break-words">
+                  Enter a positive whole number of traces.
+                </p>
+              </Alert.Description>
+            </Alert>
           )}
           {!validRange && (
-            <p role="alert" className="text-destructive text-sm">
-              Choose a start before the end, within a 93-day window.
-            </p>
+            <Alert variant="destructive" size="sm">
+              <Alert.Description>
+                <p className="break-words">
+                  Choose a start before the end, within a 93-day window.
+                </p>
+              </Alert.Description>
+            </Alert>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            className="self-start"
-            disabled={
-              !validLimit ||
-              !validRange ||
-              (request !== null && preview.isFetching)
-            }
-            onClick={previewTraces}
-          >
-            {previewLabel}
-          </Button>
+          <div className="self-start">
+            <Button
+              text={previewLabel}
+              type="button"
+              variant="secondary"
+              disabled={
+                !validLimit ||
+                !validRange ||
+                (request !== null && preview.isFetching)
+              }
+              onClick={previewTraces}
+            />
+          </div>
           {request !== null && preview.error && (
-            <p role="alert" className="text-destructive text-sm">
-              {preview.error.message}
-            </p>
+            <Alert variant="destructive" size="sm">
+              <Alert.Description>
+                <p className="break-words">{preview.error.message}</p>
+              </Alert.Description>
+            </Alert>
           )}
           {ready ? (
             <>
@@ -419,6 +409,7 @@ export function TopicTraceSelector({
               </p>
               <TracePreviewTable
                 key={request?.seed}
+                projectId={projectId}
                 traces={ready.traces}
                 excluded={excluded}
                 onExcludedChange={setExcluded}
@@ -485,11 +476,13 @@ export function TopicTraceSelector({
 }
 
 function TracePreviewTable({
+  projectId,
   traces,
   excluded,
   onExcludedChange,
   onOpenTrace,
 }: {
+  projectId: string;
   traces: TracePreview[];
   excluded: string[];
   onExcludedChange: (ids: string[]) => void;
@@ -511,112 +504,99 @@ function TracePreviewTable({
   let allChecked: boolean | "indeterminate" =
     selectedCount > 0 ? "indeterminate" : false;
   if (selectedCount === traces.length && traces.length > 0) allChecked = true;
+  const columns: ColumnDef<TracePreview>[] = [
+    {
+      id: "selected",
+      size: 48,
+      enableResizing: false,
+      header: () => (
+        <Checkbox
+          aria-label="Select all previewed traces"
+          checked={allChecked}
+          disabled={traces.length === 0}
+          onCheckedChange={(checked) =>
+            onExcludedChange(
+              checked === true ? [] : traces.map((trace) => trace.id),
+            )
+          }
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          aria-label={`Select trace ${row.original.id}`}
+          checked={!excludedIds.has(row.original.id)}
+          onCheckedChange={(checked) =>
+            onExcludedChange(
+              checked === true
+                ? excluded.filter((id) => id !== row.original.id)
+                : excluded.concat(row.original.id),
+            )
+          }
+        />
+      ),
+    },
+    {
+      accessorKey: "name",
+      header: "Trace",
+      size: 300,
+      cell: ({ row: { original: trace } }) => (
+        <div className="min-w-0">
+          <TextLink
+            path={`/project/${projectId}/traces/${encodeURIComponent(trace.id)}`}
+            value={trace.name ?? trace.id}
+            onClick={() => openTrace(trace.id)}
+          />
+          {trace.name && (
+            <span
+              title={trace.id}
+              className="text-muted-foreground block truncate font-mono text-xs"
+            >
+              {trace.id}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "timestamp",
+      header: "Matching time",
+      size: 176,
+      cell: ({ row }) => new Date(row.original.timestamp).toLocaleString(),
+    },
+    {
+      accessorKey: "environment",
+      header: "Environment",
+      size: 128,
+      cell: ({ row }) => (
+        <span title={row.original.environment} className="block truncate">
+          {row.original.environment}
+        </span>
+      ),
+    },
+  ];
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <div className="max-h-96 overflow-auto rounded-md border">
-        <Table className="min-w-[36rem]">
-          <TableHeader className="bg-background sticky top-0 z-10">
-            <TableRow>
-              <TableHead className="w-12">
-                <Checkbox
-                  aria-label="Select all previewed traces"
-                  checked={allChecked}
-                  disabled={traces.length === 0}
-                  onCheckedChange={(checked) =>
-                    onExcludedChange(
-                      checked === true ? [] : traces.map((trace) => trace.id),
-                    )
-                  }
-                />
-              </TableHead>
-              <TableHead>Trace</TableHead>
-              <TableHead className="w-44">Matching time</TableHead>
-              <TableHead className="w-32">Environment</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {traces.slice(page * 20, (page + 1) * 20).map((trace) => (
-              <TableRow
-                key={trace.id}
-                className="cursor-pointer"
-                onClick={(event) => {
-                  if (!shouldIgnoreRowClickTarget(event.target))
-                    openTrace(trace.id);
-                }}
-              >
-                <TableCell density="comfortable">
-                  <Checkbox
-                    aria-label={`Select trace ${trace.id}`}
-                    checked={!excludedIds.has(trace.id)}
-                    onCheckedChange={(checked) =>
-                      onExcludedChange(
-                        checked === true
-                          ? excluded.filter((id) => id !== trace.id)
-                          : excluded.concat(trace.id),
-                      )
-                    }
-                  />
-                </TableCell>
-                <TableCell density="comfortable">
-                  <button
-                    type="button"
-                    className="block max-w-full truncate text-left underline"
-                    title={trace.name ?? trace.id}
-                    onClick={() => openTrace(trace.id)}
-                  >
-                    {trace.name ?? trace.id}
-                  </button>
-                  {trace.name && (
-                    <span
-                      title={trace.id}
-                      className="text-muted-foreground block truncate font-mono text-xs"
-                    >
-                      {trace.id}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell density="comfortable">
-                  {new Date(trace.timestamp).toLocaleString()}
-                </TableCell>
-                <TableCell density="comfortable">
-                  <span title={trace.environment} className="block truncate">
-                    {trace.environment}
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-        {traces.length === 0 && (
-          <p className="text-muted-foreground p-3 text-sm">
-            No traces match these filters and time range.
-          </p>
-        )}
+        <div className="min-w-[36rem]">
+          <Table
+            tableName="Topics trace preview"
+            columns={columns}
+            data={{
+              status: "success",
+              data: traces.slice(page * 20, (page + 1) * 20),
+            }}
+            onRowClick={(trace) => openTrace(trace.id)}
+            noResultsMessage="No traces match these filters and time range."
+          />
+        </div>
       </div>
       {pageCount > 1 && (
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={page === 0}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous traces
-          </Button>
-          <span className="text-muted-foreground text-xs">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage(page + 1)}
-          >
-            Next traces
-          </Button>
-        </div>
+        <PaginationBar
+          totalCount={traces.length}
+          state={{ pageIndex: page, pageSize: 20 }}
+          onChange={(next) => setPage(next.pageIndex)}
+          pageSizeOptions={[20]}
+        />
       )}
     </div>
   );
