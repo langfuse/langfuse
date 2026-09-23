@@ -817,6 +817,29 @@ describe("AI SDK request shapes", () => {
     );
   });
 
+  it("Bedrock: OpenAI GPT-6 redacted reasoning parses alongside the text", async () => {
+    const { result } = await runBedrockCompletion({
+      model: "us.openai.gpt-6-luna",
+      response: {
+        ...BEDROCK_RESPONSE,
+        output: {
+          message: {
+            role: "assistant",
+            content: [
+              { reasoningContent: { redactedContent: "cnNuX2VuY3J5cHRlZA==" } },
+              { text: "ok" },
+            ],
+          },
+        },
+      },
+    });
+
+    expect(result.content.map((part) => part.type)).toEqual([
+      "reasoning",
+      "text",
+    ]);
+  });
+
   it("Bedrock: Sonnet 5 structured output falls back to the JSON tool", async () => {
     const schema = {
       type: "object",
