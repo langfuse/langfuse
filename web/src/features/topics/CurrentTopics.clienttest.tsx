@@ -1,9 +1,16 @@
 import { type ReactNode } from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { CurrentTopics } from "./CurrentTopics";
 
-const state = vi.hoisted(() => ({ data: [] as unknown[], push: vi.fn() }));
+const state = vi.hoisted(() => ({
+  data: [] as unknown[],
+  push: vi.fn(),
+  inspect: vi.fn(),
+  queryClient: undefined as QueryClient | undefined,
+  fetchResults: vi.fn(),
+}));
 vi.mock("next/router", () => ({
   useRouter: () => ({
     query: {},
@@ -17,15 +24,39 @@ vi.mock("posthog-js/react", () => ({
 vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
   TablePeekViewTraceDetail: () => <div data-testid="trace-peek" />,
 }));
-vi.mock("@/src/utils/api", () => ({
-  getPathnameWithoutBasePath: () => "/project/project/topics",
-  api: {
-    topics: {
-      currentResults: {
-        useQuery: () => ({ data: state.data, refetch: vi.fn() }),
+vi.mock("@/src/utils/api", async () => {
+  const { QueryClient, useQuery } = await import("@tanstack/react-query");
+  const idleClient = new QueryClient();
+  return {
+    getPathnameWithoutBasePath: () => "/project/project/topics",
+    api: {
+      topics: {
+        currentResults: {
+          useQuery: (
+            _input: unknown,
+            options: Pick<UseQueryOptions, "refetchInterval">,
+          ) => {
+            const query = useQuery(
+              {
+                queryKey: ["current-topics"],
+                queryFn: state.fetchResults,
+                ...options,
+                enabled: state.queryClient !== undefined,
+              },
+              state.queryClient ?? idleClient,
+            );
+            return state.queryClient
+              ? query
+              : { data: state.data, refetch: vi.fn() };
+          },
+        },
+        inspect: { useQuery: state.inspect },
       },
     },
-  },
+  };
+});
+vi.mock("@/src/components/ui/CodeJsonViewer", () => ({
+  JSONView: ({ json }: { json: unknown }) => <pre>{JSON.stringify(json)}</pre>,
 }));
 vi.mock("./TopicEmbeddingMap", () => ({
   topicColor: () => "#000",
@@ -47,8 +78,74 @@ vi.mock("./TopicEmbeddingMap", () => ({
 }));
 
 describe("Current Topics", () => {
+  afterEach(() => {
+    state.queryClient?.clear();
+    state.queryClient = undefined;
+    vi.useRealTimers();
+  });
+
+  it("fetches results published after the last running poll, then stops polling", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
+    state.queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+    });
+    const facet = {
+      facetId: "intent",
+      name: "Intent",
+      facetVersion: 1,
+      rows: [],
+      topics: [],
+      map: null,
+      awaitingCount: 0,
+      usableCount: 0,
+    };
+    state.fetchResults.mockReset().mockResolvedValue([facet]);
+    const view = render(
+      <CurrentTopics projectId="project" running refreshAfter={Date.now()} />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(state.fetchResults).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText("No traces in this selection."),
+    ).toBeInTheDocument();
+
+    state.fetchResults.mockResolvedValue([
+      {
+        ...facet,
+        rows: [
+          {
+            summaryId: "summary-a",
+            traceId: "trace-a",
+            summary: "Result published at completion",
+            outcome: "not_applicable",
+            topicId: null,
+            topicName: null,
+          },
+        ],
+      },
+    ]);
+    vi.setSystemTime(Date.now() + 1000);
+    view.rerender(
+      <CurrentTopics
+        projectId="project"
+        running={false}
+        refreshAfter={Date.now()}
+      />,
+    );
+    await act(() => vi.advanceTimersByTimeAsync(3001));
+    expect(state.fetchResults).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText("Result published at completion"),
+    ).toBeInTheDocument();
+
+    await act(() => vi.advanceTimersByTimeAsync(9000));
+    expect(state.fetchResults).toHaveBeenCalledTimes(2);
+  });
+
   it("switches facets, pages current traces, and separates cleared topic results from assigned membership", () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({
+      summaryId: `summary-${i}`,
       traceId: `trace-${i}`,
       summary: `Summary ${i}`,
       outcome: i === 20 ? "not_applicable" : "assigned",
@@ -84,7 +181,9 @@ describe("Current Topics", () => {
         usableCount: 0,
       },
     ];
-    const view = render(<CurrentTopics projectId="project" running={false} />);
+    const view = render(
+      <CurrentTopics projectId="project" running={false} refreshAfter={0} />,
+    );
     expect(screen.getByRole("tab", { name: "Intent" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -104,12 +203,34 @@ describe("Current Topics", () => {
       { shallow: true },
     );
     fireEvent.click(
-      screen.getByRole("row", { name: /trace-1 Billing Summary 1$/ }),
+      screen.getByRole("row", { name: /trace-1 Billing Summary 1 Inspect/ }),
     );
     expect(state.push).toHaveBeenLastCalledWith(
       { pathname: "/project/project/topics", query: { peek: "trace-1" } },
       undefined,
       { shallow: true },
+    );
+    state.inspect.mockImplementation(
+      ({ summaryId }: { summaryId: string }) => ({
+        data: { model: "summary-model", text: JSON.stringify([summaryId]) },
+      }),
+    );
+    state.push.mockClear();
+    expect(state.inspect).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(
+        screen.getByRole("row", { name: /trace-1 Billing Summary 1 Inspect/ }),
+      ).getByRole("button", { name: "Inspect transcript" }),
+    );
+    const inspector = screen.getByRole("dialog", { name: "Summary source" });
+    expect(state.inspect).toHaveBeenLastCalledWith({
+      projectId: "project",
+      summaryId: "summary-1",
+    });
+    expect(within(inspector).getByText('["summary-1"]')).toBeInTheDocument();
+    expect(state.push).not.toHaveBeenCalled();
+    fireEvent.click(
+      within(inspector).getAllByRole("button", { name: "Close" })[0],
     );
     expect(screen.queryByRole("button", { name: "trace-20" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Go to next page" }));
@@ -146,14 +267,18 @@ describe("Current Topics", () => {
     ).toBeNull();
 
     state.data = [...state.data].reverse();
-    view.rerender(<CurrentTopics projectId="project" running={false} />);
+    view.rerender(
+      <CurrentTopics projectId="project" running={false} refreshAfter={0} />,
+    );
     expect(screen.getByRole("tab", { name: "Issues" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
     state.data = state.data.slice(1);
-    view.rerender(<CurrentTopics projectId="project" running={false} />);
+    view.rerender(
+      <CurrentTopics projectId="project" running={false} refreshAfter={0} />,
+    );
     expect(
       screen.getByRole("tabpanel", { name: "Intent" }),
     ).toBeInTheDocument();
@@ -175,6 +300,7 @@ describe("Current Topics", () => {
         name: "Intent",
         facetVersion: 1,
         rows: Array.from({ length: 41 }, (_, i) => ({
+          summaryId: `summary-${i}`,
           traceId: `trace-${i}`,
           summary: `Summary ${i}`,
           outcome: i < 25 ? "assigned" : "outlier",
@@ -187,7 +313,9 @@ describe("Current Topics", () => {
         usableCount: 41,
       },
     ];
-    render(<CurrentTopics projectId="project" running={false} />);
+    render(
+      <CurrentTopics projectId="project" running={false} refreshAfter={0} />,
+    );
     const split = screen.getByRole("button", { name: "Split" });
     fireEvent.click(screen.getByRole("button", { name: "Select map trace" }));
     expect(screen.getByRole("row", { name: /trace-0 / })).toBeInTheDocument();

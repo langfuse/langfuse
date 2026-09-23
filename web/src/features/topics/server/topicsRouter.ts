@@ -5,10 +5,8 @@ import {
   topicEmbeddingConfigSchema,
   topicIdSchema,
   topicFacetRefSchema,
-  topicTraceIdSchema,
   topicRuleConfigSchema,
   type TopicExecutionSummary,
-  type TopicRun,
   type TopicFacetRef,
 } from "@langfuse/shared/topics";
 import {
@@ -27,11 +25,8 @@ import {
   listTopicRules,
   getTopicRule,
   saveTopicRule,
-  listTopicRuns,
   getTopicRun,
   readTopicSummaries,
-  listTopicSummaries,
-  readTopicAssignments,
   readTopicMapAssignments,
   loadTopicTranscript,
   isTopicsProjectEnabled,
@@ -51,7 +46,7 @@ import {
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults, resolveTopicResult } from "./currentResults";
+import { currentTopicResults } from "./currentResults";
 
 const projectInput = z.object({ projectId: topicIdSchema });
 const executionInput = projectInput.extend({ executionId: topicIdSchema });
@@ -89,21 +84,6 @@ async function requireFacetVersions(
     if (!(await getTopicFacetVersion(projectId, facetId, version)))
       throw new InvalidRequestError("Facet version not found in this project.");
   }
-}
-
-function publicRun(run: TopicRun) {
-  return {
-    id: run.id,
-    facetId: run.facetId,
-    facetVersion: run.facetVersion,
-    status: run.status,
-    createdAt: run.createdAt,
-    topics: (run.status === "completed" ? run.topics : []).map((topic) => ({
-      id: topic.topicId,
-      name: topic.name,
-      description: topic.description,
-    })),
-  };
 }
 
 async function executionWithRecovery(projectId: string, executionId: string) {
@@ -309,9 +289,6 @@ export const topicsRouter = createTRPCRouter({
       }),
     )
     .mutation(({ input }) => saveTopicRule(input)),
-  runs: topicsProcedure.query(async ({ input }) =>
-    (await listTopicRuns(input.projectId)).map(publicRun),
-  ),
   summaryCounts: topicsProcedure
     .input(
       projectInput.extend({
@@ -442,109 +419,9 @@ export const topicsRouter = createTRPCRouter({
         error: null,
       };
     }),
-  results: topicsProcedure
-    .input(
-      projectInput.extend({
-        facetId: topicIdSchema,
-        facetVersion: z.number().int().positive(),
-        runId: topicIdSchema.nullish(),
-      }),
-    )
-    .query(async ({ input }) => {
-      const run = input.runId
-        ? await getTopicRun(input.projectId, input.runId)
-        : null;
-      if (
-        input.runId &&
-        (!run ||
-          run.projectId !== input.projectId ||
-          run.facetId !== input.facetId ||
-          run.facetVersion !== input.facetVersion)
-      )
-        throw new LangfuseNotFoundError(
-          "Map not found for this facet version.",
-        );
-      if (
-        !run &&
-        !(await getTopicFacetVersion(
-          input.projectId,
-          input.facetId,
-          input.facetVersion,
-        ))
-      )
-        throw new LangfuseNotFoundError("Facet version not found.");
-      const summaries = await getLatestFacetSummaries(
-        input.projectId,
-        input.facetId,
-        input.facetVersion,
-      );
-      const assignments =
-        run?.status === "completed"
-          ? await readTopicAssignments(
-              input.projectId,
-              summaries.map((row) => row.id),
-              run.id,
-            )
-          : [];
-      const assignmentBySummary = new Map(
-        assignments.map((row) => [row.summaryId, row]),
-      );
-      return {
-        run: run ? publicRun(run) : null,
-        rows: summaries
-          .filter((row) => row.traceId !== null)
-          .map((summary) => {
-            const { assignment, outcome } = resolveTopicResult(
-              summary,
-              assignmentBySummary.get(summary.id),
-            );
-            return {
-              id: summary.id,
-              traceId: summary.traceId,
-              summary: summary.summary,
-              outcome,
-              topicId: assignment?.topicId ?? null,
-              distance: assignment?.distance ?? null,
-            };
-          }),
-      };
-    }),
   map: topicsProcedure
     .input(mapInput)
     .query(({ input }) => publishedTopicMap(input)),
-  traceSummaries: topicsProcedure
-    .input(projectInput.extend({ traceId: topicTraceIdSchema }))
-    .query(async ({ input }) => {
-      const [summaries, facets] = await Promise.all([
-        listTopicSummaries(input.projectId, { traceIds: [input.traceId] }),
-        listTopicFacets(input.projectId),
-      ]);
-      return summaries
-        .map((summary) => ({
-          id: summary.id,
-          facetName:
-            facets.find((facet) => facet.id === summary.facetId)?.name ??
-            "Deleted facet",
-          facetVersion: summary.facetVersion,
-          summary: summary.summary,
-          state: summary.state,
-          processedAt: summary.processedAt,
-        }))
-        .sort(
-          (a, b) =>
-            a.facetName.localeCompare(b.facetName) ||
-            b.facetVersion - a.facetVersion,
-        );
-    }),
-  transcript: topicsProcedure
-    .input(projectInput.extend({ traceId: topicTraceIdSchema }))
-    .query(async ({ input }) => {
-      const { transcript } = await loadTopicTranscript(input);
-      return {
-        text: transcript.text,
-        coverage: transcript.coverage,
-      };
-    }),
   inspect: topicsProcedure
     .input(projectInput.extend({ summaryId: topicIdSchema }))
     .query(async ({ input }) => {
@@ -571,71 +448,6 @@ export const topicsRouter = createTRPCRouter({
       return {
         model: summary.summaryModel,
         text,
-      };
-    }),
-  compare: topicsProcedure
-    .input(
-      mapInput.extend({
-        otherRunId: topicIdSchema,
-      }),
-    )
-    .query(async ({ input }) => {
-      const [current, other] = await Promise.all([
-        getTopicRun(input.projectId, input.runId),
-        getTopicRun(input.projectId, input.otherRunId),
-      ]);
-      if (
-        current?.status !== "completed" ||
-        other?.status !== "completed" ||
-        current.projectId !== input.projectId ||
-        other.projectId !== input.projectId ||
-        other.facetId !== current.facetId ||
-        other.facetVersion !== current.facetVersion
-      )
-        throw new InvalidRequestError(
-          "Compare published maps of the same facet version.",
-        );
-      const summaries = await getLatestFacetSummaries(
-        input.projectId,
-        current.facetId,
-        current.facetVersion,
-      );
-      const summaryById = new Map(summaries.map((row) => [row.id, row]));
-      const summaryIds = summaries.map((row) => row.id);
-      const [currentRows, otherRows] = await Promise.all([
-        readTopicAssignments(input.projectId, summaryIds, current.id),
-        readTopicAssignments(input.projectId, summaryIds, other.id),
-      ]);
-      const byId = new Map(otherRows.map((row) => [row.summaryId, row]));
-      const flows = new Map<
-        string,
-        { from: string; to: string; count: number }
-      >();
-      let compared = 0;
-      for (const row of currentRows) {
-        const summary = summaryById.get(row.summaryId);
-        if (!summary || !resolveTopicResult(summary, row).assignment) continue;
-        const previous = resolveTopicResult(
-          summary,
-          byId.get(row.summaryId),
-        ).assignment;
-        if (!previous) continue;
-        compared++;
-        const from =
-          other.topics.find((topic) => topic.topicId === previous.topicId)
-            ?.name ?? "Outlier";
-        const to =
-          current.topics.find((topic) => topic.topicId === row.topicId)?.name ??
-          "Outlier";
-        const key = JSON.stringify([previous.topicId, row.topicId]);
-        const flow = flows.get(key) ?? { from, to, count: 0 };
-        flow.count++;
-        flows.set(key, flow);
-      }
-      return {
-        compared,
-        total: summaryIds.length,
-        flows: [...flows.values()].sort((a, b) => b.count - a.count),
       };
     }),
 });

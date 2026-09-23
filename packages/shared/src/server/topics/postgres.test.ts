@@ -3,7 +3,6 @@ import {
   createTopicFacetVersion,
   ensureDefaultTopicFacets,
   getPublishedTopicRun,
-  listTopicRuns,
   getTopicRun,
   getTopicProcessingMapIds,
   saveTopicRun,
@@ -354,7 +353,6 @@ describe("Topics immutable definitions and run membership", () => {
       ["run-b", runRow({ id: "run-b" })],
     ]);
     mocks.runFind.mockImplementation(async ({ where }) => rows.get(where.id));
-    mocks.runFindMany.mockImplementation(async () => [...rows.values()]);
     mocks.topicFind.mockImplementation(async (_project, ids: string[]) =>
       ids.includes(topic.topicVersionId) ? [topic] : [],
     );
@@ -368,11 +366,7 @@ describe("Topics immutable definitions and run membership", () => {
     expect(saved.topics).toEqual([topic]);
     expect(saved.topics[0].createdByRunId).toBe("run-a");
     expect(mocks.topicWrite).not.toHaveBeenCalled();
-    mocks.topicFind.mockClear();
-    expect((await listTopicRuns("project-a")).map((row) => row.topics)).toEqual(
-      [[topic], [topic]],
-    );
-    expect(mocks.topicFind).toHaveBeenCalledTimes(1);
+    expect((await getTopicRun("project-a", "run-a"))!.topics).toEqual([topic]);
 
     await saveTopicRun({ ...saved, topics: [] });
     expect((await getTopicRun("project-a", "run-b"))!.topics).toEqual([]);

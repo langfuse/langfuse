@@ -339,15 +339,6 @@ export async function getTopicProcessingMapIds(
   });
 }
 
-export async function listTopicRuns(projectId: string): Promise<TopicRun[]> {
-  const rows = await prisma.topicClusteringRun.findMany({
-    where: { projectId },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: 100,
-  });
-  return hydrateRuns(projectId, rows);
-}
-
 export async function createTopicRun(input: {
   projectId: string;
   facetId: string;

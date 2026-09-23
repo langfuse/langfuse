@@ -143,13 +143,13 @@ the same PR.
 - Dev watch build: `pnpm --filter @langfuse/shared run dev`
 - Lint: `pnpm --filter @langfuse/shared run lint`
 - Lint fix: `pnpm --filter @langfuse/shared run lint:fix`
+- Tests: `pnpm --filter @langfuse/shared run test`; Topics queue integration
+  coverage requires Redis configured through the shared environment.
 - Typecheck: `pnpm --filter @langfuse/shared run typecheck`
 - Build: `pnpm --filter @langfuse/shared run build`
 - Prisma generate: `pnpm --filter @langfuse/shared run db:generate`
 - Prisma migrate (dev): `pnpm --filter @langfuse/shared run db:migrate`
 - ClickHouse reset: `pnpm --filter @langfuse/shared run ch:reset`
-- Topics dev schema: `pnpm --filter @langfuse/shared run topics:dev-tables`;
-  migration cutover and database targeting: `scripts/topics-dev-tables/README.md`.
 - Materialize direct-migration trees: `pnpm ch:migrations:materialize`
 - Clean direct-migration trees: `pnpm ch:migrations:clean`
 

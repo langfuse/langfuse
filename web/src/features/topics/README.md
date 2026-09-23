@@ -2,22 +2,20 @@
 
 Topics requires explicit opt-in through **Profile → Feature Previews → Langfuse
 Topics**. Only platform administrators see or change this personal flag. The
-sidebar, direct page, transcript controls, and Topics API require the flag;
+sidebar, direct page, and Topics API require the flag;
 existing local-development and project-access checks still apply.
 
-- `TopicsPage.tsx` owns facet configuration, execution
-  selection, historical topic filters, summary lists, and transcript inspection.
-  The main workspace shows results and topic cards. Configure topics and History
-  open a centered configuration dialog and a history drawer from the toolbar;
-  Process traces or Update topics submits the retained configuration. Overlay owners stay outside the
-  responsive header menu, which closes before configuration or history opens.
-  Without an execution URL parameter, `CurrentTopics.tsx` displays current per-trace
-  assignments across runs and facets. Explicit execution links retain run history
-  and map selection while their result lists show current summaries.
-  A single run-status label sits alongside the heading; stage and operation
-  live in Run details. Facet outcomes use result-oriented labels and
-  omit zero-valued exception counts. Facet versions contain only prompts;
-  processing settings and embedding dimensions are frozen on executions.
+- `TopicsPage.tsx` owns facet configuration and the execution history drawer.
+  `CurrentTopics.tsx` remains mounted as the only results workspace, including
+  while a run's status is open. Execution URL parameters open progress, errors
+  and retry controls in the drawer; returning to the run list or closing the
+  drawer removes only that parameter. Historical map comparison is not exposed.
+  Current results poll while work runs and refresh after the latest execution
+  status response so completion cannot leave the final output stale.
+  Configure topics opens a centered dialog; Process traces or Update topics
+  submits the retained configuration. Overlay owners stay outside the responsive
+  header menu. Facet versions contain only prompts; processing settings and
+  embedding dimensions are frozen on executions.
 - `TopicPipelineForm.tsx` owns the configuration dialog, operation, facet versions
   and submission. Its state stays mounted when the dialog closes; the action
   remains outside the dialog and uses the reviewed selection. The render prop
@@ -57,17 +55,11 @@ existing local-development and project-access checks still apply.
   Matching counts can change between preview and submission, and source trace
   content can change before the worker loads it. Preview responses are not a
   historical trace snapshot.
-- `TraceTranscriptDialog.tsx` provides **Show transcript** on the standalone trace page
-  and both trace/observation peek headers, including their overflow menus. It fetches
-  only while open, using the same deterministic, facet-independent transcript
-  loader as the worker. The JSON viewer displays the compact transcript as an
-  expandable array, preserving strings inside each record. Saved summaries load
-  separately from ClickHouse: latest
-  result per facet version, with its processing time. Viewing them never
-  triggers inference, even when the original trace is unavailable.
-  It regenerates current data, not a historical copy. The read endpoint retains
-  the local-development and project-access gates. Content is marked `ph-no-capture`;
-  this local diagnostic control intentionally adds no product analytics event.
+- `SummaryInspector.tsx` displays the current transcript for a saved summary.
+  The current-results table owns its dialog and fetches only when inspection is
+  open. It uses the same deterministic transcript loader as the worker, does
+  not run inference, and explains when the source is unavailable or may differ
+  from the original input. Transcript content is marked `ph-no-capture`.
 - `TopicEmbeddingMap.tsx` loads the published map by run ID and renders its saved 2D UMAP
   coordinates. Clicking a point pins its summary until another selection; only
   split view synchronizes selection and pagination with the trace list. Trace IDs
@@ -95,13 +87,10 @@ existing local-development and project-access checks still apply.
   in the persisted discovery cohort’s order. It returns only map points and counts for
   missing or unpositioned summaries, never embedding vectors.
   History and detail reads reconcile interrupted/queued retries with the queue.
-  Results return summary rows already joined to their current assignments;
-  inspection accepts summaries from the execution's facet versions. Map and
-  comparison reads use run IDs independently of execution metadata. Comparison
-  includes only complete summaries with current assignments in both maps of the
-  same facet version. Exact execution membership is not retained. Maps explicitly
-  read their original discovery cohort and coordinates while summary
-  text reflects the latest stored result. These reads survive transient job state expiry.
+  Current results return summaries and their applicable assignments; inspection
+  accepts a saved summary identity scoped to the project. Maps read their original
+  discovery cohort and coordinates while summary text reflects the latest stored
+  result. These reads survive transient job state expiry.
   Resume requeues retained job inputs; if they have expired, start a new run.
   Facet prompt edits create versions independently of saved selection rules.
 - `parse-trace-input.ts` validates pasted trace IDs and links without fetching.

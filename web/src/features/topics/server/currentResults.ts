@@ -7,10 +7,7 @@ import {
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
 
-export function resolveTopicResult(
-  summary: TopicSummary,
-  stored?: TopicAssignment,
-) {
+function resolveTopicResult(summary: TopicSummary, stored?: TopicAssignment) {
   const assignment =
     summary.state === "complete" &&
     stored?.summaryId === summary.id &&
@@ -79,6 +76,7 @@ export async function currentTopicResults(projectId: string) {
             });
           }
           return {
+            summaryId: summary.id,
             traceId: summary.traceId,
             summary: summary.summary,
             outcome,

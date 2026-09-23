@@ -31,9 +31,7 @@ vi.mock("../instrumentation", async (importOriginal) => {
   };
 });
 
-// processToIngestionEvents awaits redis.set (seen-traces tracking); CI's
-// tests-shared job has REDIS_HOST set but no Redis server, so ioredis
-// queues the command forever and the suite times out. Stub the client.
+// Keep seen-trace tracking isolated from the metadata metrics assertions.
 vi.mock("../redis/redis", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../redis/redis")>()),
   redis: { set: vi.fn().mockResolvedValue("OK") },

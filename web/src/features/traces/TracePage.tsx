@@ -11,7 +11,6 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
-import { TraceTranscriptDialogController } from "@/src/features/topics";
 import { Badge } from "@/src/components/ui/badge";
 
 export function TracePage({
@@ -92,104 +91,80 @@ export function TracePage({
   ) : undefined;
 
   return (
-    <TraceTranscriptDialogController
-      projectId={projectIdForAccessCheck}
-      traceId={traceId}
-    >
-      {({ openTranscript }) => (
-        <Page
-          headerProps={{
-            title: traceData.id,
-            itemType: "TRACE",
-            breadcrumb: [
-              {
-                name: "Traces",
-                href: `/project/${router.query.projectId as string}/traces`,
-              },
-            ],
-            showSidebarTrigger: !showPublicIndicators,
-            leadingControl,
-            breadcrumbBadges: sharedBadge,
-            actionButtonsRight: (
-              <>
-                {openTranscript && (
-                  <Button size="sm" variant="outline" onClick={openTranscript}>
-                    Show transcript
-                  </Button>
-                )}
-                <DetailPageNav
-                  currentId={traceId}
-                  path={(entry) => {
-                    const { view, display, projectId } = router.query;
-                    const queryParams = new URLSearchParams({
-                      ...(typeof view === "string" ? { view } : {}),
-                      ...(typeof display === "string" ? { display } : {}),
-                    });
-                    const timestamp =
-                      entry.params && entry.params.timestamp
-                        ? encodeURIComponent(entry.params.timestamp)
-                        : undefined;
+    <Page
+      headerProps={{
+        title: traceData.id,
+        itemType: "TRACE",
+        breadcrumb: [
+          {
+            name: "Traces",
+            href: `/project/${router.query.projectId as string}/traces`,
+          },
+        ],
+        showSidebarTrigger: !showPublicIndicators,
+        leadingControl,
+        breadcrumbBadges: sharedBadge,
+        actionButtonsRight: (
+          <>
+            <DetailPageNav
+              currentId={traceId}
+              path={(entry) => {
+                const { view, display, projectId } = router.query;
+                const queryParams = new URLSearchParams({
+                  ...(typeof view === "string" ? { view } : {}),
+                  ...(typeof display === "string" ? { display } : {}),
+                });
+                const timestamp =
+                  entry.params && entry.params.timestamp
+                    ? encodeURIComponent(entry.params.timestamp)
+                    : undefined;
 
-                    if (timestamp) {
-                      queryParams.set("timestamp", timestamp);
-                    }
+                if (timestamp) {
+                  queryParams.set("timestamp", timestamp);
+                }
 
-                    const finalQueryString = queryParams.size
-                      ? `?${queryParams.toString()}`
-                      : "";
+                const finalQueryString = queryParams.size
+                  ? `?${queryParams.toString()}`
+                  : "";
 
-                    return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
-                  }}
-                  listKey="traces"
-                  size="sm"
-                />
-                <TraceDetailActions
-                  traceId={traceData.id}
-                  projectId={traceData.projectId}
-                  isPublic={traceData.public}
-                  name={traceData.name}
-                  timestamp={timestamp}
-                  deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-                />
-              </>
-            ),
-            // Mobile compact header: the same trace actions as full-width labeled
-            // menu rows (Share / Delete) for the `⋯` overflow, instead of the
-            // inline icon toolbar. Trace-to-trace nav is desktop-only.
-            actionButtonsMenu: (
-              <>
-                {openTranscript && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full justify-start font-normal"
-                    onClick={openTranscript}
-                  >
-                    Show transcript
-                  </Button>
-                )}
-                <TraceDetailActions
-                  traceId={traceData.id}
-                  projectId={traceData.projectId}
-                  isPublic={traceData.public}
-                  name={traceData.name}
-                  timestamp={timestamp}
-                  deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
-                  layout="menu"
-                />
-              </>
-            ),
-          }}
-        >
-          <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-            <TraceDetailBody
-              trace={traceData}
-              context={router.query.peek !== undefined ? "peek" : "fullscreen"}
-              truncatedAtObservations={trace.truncatedAtObservations}
+                return `/project/${projectId as string}/traces/${entry.id}${finalQueryString}`;
+              }}
+              listKey="traces"
+              size="sm"
             />
-          </div>
-        </Page>
-      )}
-    </TraceTranscriptDialogController>
+            <TraceDetailActions
+              traceId={traceData.id}
+              projectId={traceData.projectId}
+              isPublic={traceData.public}
+              name={traceData.name}
+              timestamp={timestamp}
+              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            />
+          </>
+        ),
+        // Mobile compact header: the same trace actions as full-width labeled
+        // menu rows (Share / Delete) for the `⋯` overflow, instead of the
+        // inline icon toolbar. Trace-to-trace nav is desktop-only.
+        actionButtonsMenu: (
+          <TraceDetailActions
+            traceId={traceData.id}
+            projectId={traceData.projectId}
+            isPublic={traceData.public}
+            name={traceData.name}
+            timestamp={timestamp}
+            deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
+            layout="menu"
+          />
+        ),
+      }}
+    >
+      <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
+        <TraceDetailBody
+          trace={traceData}
+          context={router.query.peek !== undefined ? "peek" : "fullscreen"}
+          truncatedAtObservations={trace.truncatedAtObservations}
+        />
+      </div>
+    </Page>
   );
 }

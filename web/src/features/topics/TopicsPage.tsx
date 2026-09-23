@@ -17,7 +17,6 @@ import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { PopoverClose, PopoverController } from "@/src/components/ui/popover";
 import { Badge } from "@/src/components/ui/badge";
-import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import {
   Select,
   SelectContent,
@@ -36,7 +35,6 @@ import {
 } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
 import { CurrentTopics } from "./CurrentTopics";
-import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
 
 const operationLabels: Record<TopicOperation, string> = {
   process: "Process traces",
@@ -119,11 +117,22 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
   const openExecution = (id: string) => {
     setHistoryOpen(false);
     router.push(
-      { pathname: router.pathname, query: { projectId, executionId: id } },
+      {
+        pathname: router.pathname,
+        query: { ...router.query, executionId: id },
+      },
       undefined,
       { shallow: true },
     );
     utils.topics.executions.invalidate({ projectId });
+  };
+  const showExecutionList = (open: boolean) => {
+    setHistoryOpen(open);
+    const query = { ...router.query };
+    delete query.executionId;
+    router.replace({ pathname: router.pathname, query }, undefined, {
+      shallow: true,
+    });
   };
   const renderWorkspace = (
     pipelineActions: ReactNode,
@@ -135,15 +144,13 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
         <Button variant="ghost" size="sm" onClick={() => setHistoryOpen(true)}>
           History
         </Button>
-        {!executionId && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => utils.topics.currentResults.refetch({ projectId })}
-          >
-            Refresh results
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => utils.topics.currentResults.refetch({ projectId })}
+        >
+          Refresh results
+        </Button>
       </div>
     );
     return (
@@ -157,51 +164,78 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
           actionButtonsRight: actions,
           actionButtonsMenu: <PopoverClose asChild>{actions}</PopoverClose>,
         }}
-        scrollable={Boolean(facets.data?.length || executionId)}
+        scrollable={Boolean(facets.data?.length)}
         withPadding
       >
         {configuration}
-        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <Sheet
+          open={historyOpen || executionId !== null}
+          onOpenChange={showExecutionList}
+        >
           <SheetContent className="ph-no-capture flex w-full flex-col gap-4 sm:max-w-xl">
             <SheetHeader>
-              <SheetTitle>Past executions</SheetTitle>
+              <SheetTitle>
+                {executionId ? "Run status" : "Past executions"}
+              </SheetTitle>
               <SheetDescription>
-                Review previous runs and their results.
+                Review progress, errors, and retry interrupted runs.
               </SheetDescription>
             </SheetHeader>
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="self-end"
-                onClick={() => executions.refetch()}
-              >
-                Refresh
-              </Button>
-              {executions.error && (
-                <ErrorMessage message={executions.error.message} />
+              {executionId ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="self-start"
+                    onClick={() => showExecutionList(true)}
+                  >
+                    All runs
+                  </Button>
+                  <ExecutionPanel
+                    key={executionId}
+                    projectId={projectId}
+                    executionId={executionId}
+                    facets={facets.data ?? []}
+                    canWrite={canWrite}
+                  />
+                </>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="self-end"
+                    onClick={() => executions.refetch()}
+                  >
+                    Refresh
+                  </Button>
+                  {executions.error && (
+                    <ErrorMessage message={executions.error.message} />
+                  )}
+                  {!executions.data?.length && (
+                    <p className="text-muted-foreground text-sm">
+                      Your triggered batches will appear here.
+                    </p>
+                  )}
+                  {executions.data?.map((execution) => (
+                    <button
+                      key={execution.id}
+                      onClick={() => openExecution(execution.id)}
+                      className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
+                    >
+                      <span className="capitalize">
+                        {operationLabels[execution.input.operation]} ·{" "}
+                        {new Date(execution.createdAt).toLocaleString()}
+                      </span>
+                      <span>{execution.facets.length} facets</span>
+                      <Badge variant="outline">
+                        {executionLabels[execution.status]}
+                      </Badge>
+                    </button>
+                  ))}
+                </>
               )}
-              {!executions.data?.length && (
-                <p className="text-muted-foreground text-sm">
-                  Your triggered batches will appear here.
-                </p>
-              )}
-              {executions.data?.map((execution) => (
-                <button
-                  key={execution.id}
-                  onClick={() => openExecution(execution.id)}
-                  className="hover:bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-left text-sm"
-                >
-                  <span className="capitalize">
-                    {operationLabels[execution.input.operation]} ·{" "}
-                    {new Date(execution.createdAt).toLocaleString()}
-                  </span>
-                  <span>{execution.facets.length} facets</span>
-                  <Badge variant="outline">
-                    {executionLabels[execution.status]}
-                  </Badge>
-                </button>
-              ))}
             </div>
           </SheetContent>
         </Sheet>
@@ -211,38 +245,14 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
             itemType="TRACE"
             projectId={projectId}
           />
-          {executionId ? (
-            <ExecutionPanel
-              key={executionId}
-              projectId={projectId}
-              executionId={executionId}
-              facets={facets.data ?? []}
-              canWrite={canWrite}
-            />
-          ) : (
-            <CurrentTopics
-              projectId={projectId}
-              running={
-                executions.data?.some((execution) => busy(execution.status)) ??
-                false
-              }
-            />
-          )}
-          {executionId && (
-            <Button
-              variant="outline"
-              className="self-start"
-              onClick={() =>
-                router.push(
-                  { pathname: router.pathname, query: { projectId } },
-                  undefined,
-                  { shallow: true },
-                )
-              }
-            >
-              Show current topics
-            </Button>
-          )}
+          <CurrentTopics
+            projectId={projectId}
+            refreshAfter={executions.dataUpdatedAt}
+            running={
+              executions.data?.some((execution) => busy(execution.status)) ??
+              false
+            }
+          />
           {facets.isLoading && <p>Loading facets…</p>}
           {facets.error && <ErrorMessage message={facets.error.message} />}
           {facets.data?.length === 0 && (
@@ -384,7 +394,11 @@ function ExecutionPanel({
     },
   );
   const retry = api.topics.retry.useMutation({
-    onSuccess: () => query.refetch(),
+    onSuccess: () =>
+      Promise.all([
+        query.refetch(),
+        utils.topics.executions.invalidate({ projectId }),
+      ]),
   });
   const [traceErrorsOpen, setTraceErrorsOpen] = useState(false);
   const traceErrors = api.topics.traceErrors.useQuery(
@@ -410,7 +424,6 @@ function ExecutionPanel({
     <section className="flex w-full min-w-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-lg font-bold">Topics</h2>
           <Badge variant="secondary">{executionLabels[execution.status]}</Badge>
           {execution.input.operation === "update" &&
             execution.input.exploratory && (
@@ -598,14 +611,6 @@ function ExecutionPanel({
                 or try a larger and more varied batch.
               </p>
             )}
-            {!busy(execution.status) && (
-              <TopicResults
-                projectId={projectId}
-                runId={progress.runId}
-                facetId={progress.facetId}
-                facetVersion={progress.facetVersion}
-              />
-            )}
           </div>
         );
       })}
@@ -614,278 +619,16 @@ function ExecutionPanel({
           variant="ghost"
           className="self-start"
           onClick={() => {
-            utils.topics.runs.invalidate({ projectId });
+            query.refetch();
+            utils.topics.currentResults.invalidate({ projectId });
             utils.topics.executions.invalidate({ projectId });
             utils.topics.summaryCounts.invalidate({ projectId });
           }}
         >
-          Refresh results and history
+          Refresh status
         </Button>
       )}
     </section>
-  );
-}
-
-function TopicResults({
-  projectId,
-  runId,
-  facetId,
-  facetVersion,
-}: {
-  projectId: string;
-  runId: string | null;
-  facetId: string;
-  facetVersion: number;
-}) {
-  const result = api.topics.results.useQuery({
-    projectId,
-    runId,
-    facetId,
-    facetVersion,
-  });
-  const [selected, setSelected] = useState<string | null>(null);
-  const [inspecting, setInspecting] = useState<string | null>(null);
-  if (result.error) return <ErrorMessage message={result.error.message} />;
-  if (!result.data) return <p className="text-sm">Loading summaries…</p>;
-  const { rows, run } = result.data;
-  const count = (topicId: string | null) =>
-    rows.filter((row) =>
-      topicId === null ? row.outcome === "outlier" : row.topicId === topicId,
-    ).length;
-  const visible =
-    selected === null
-      ? rows
-      : rows.filter((row) => {
-          if (selected === "outliers") return row.outcome === "outlier";
-          if (selected === "unassigned")
-            return row.outcome !== "assigned" && row.outcome !== "outlier";
-          return row.topicId === selected;
-        });
-  return (
-    <div className="flex flex-col gap-4">
-      {run?.status === "completed" && (
-        <TopicEmbeddingMap
-          projectId={projectId}
-          runId={run.id}
-          topics={run.topics}
-          selectedTopic={selected}
-          onSelectTopic={setSelected}
-        />
-      )}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {run?.topics.map((topic, index) => (
-          <button
-            key={topic.id}
-            className={`hover:bg-muted/50 flex flex-col gap-2 rounded-lg border p-4 text-left ${selected === topic.id ? "border-primary bg-muted/30" : ""}`}
-            onClick={() => setSelected(topic.id)}
-          >
-            <div className="flex w-full items-start justify-between gap-2">
-              <h4 className="font-bold">
-                <span
-                  className="mr-2 inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: topicColor(index) }}
-                />
-                {topic.name}
-              </h4>
-              <Badge variant="secondary">{count(topic.id)}</Badge>
-            </div>
-            <p className="text-muted-foreground text-sm">{topic.description}</p>
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant={selected === null ? "secondary" : "ghost"}
-          onClick={() => setSelected(null)}
-        >
-          All summaries ({rows.length})
-        </Button>
-        {rows.some(
-          (row) => row.outcome === "assigned" || row.outcome === "outlier",
-        ) && (
-          <Button
-            size="sm"
-            variant={selected === "outliers" ? "secondary" : "ghost"}
-            onClick={() => setSelected("outliers")}
-          >
-            Outliers ({count(null)})
-          </Button>
-        )}
-        <span className="text-muted-foreground text-xs">
-          Current summaries for this facet version. Counts may change after
-          processing.
-        </span>
-      </div>
-      <div className="flex max-h-[36rem] flex-col gap-2 overflow-y-auto">
-        {visible.map((summary) => (
-          <article
-            key={summary.id}
-            className="flex flex-col gap-2 rounded-md border p-3"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Link
-                href={`/project/${projectId}/traces/${encodeURIComponent(summary.traceId)}`}
-                title={summary.traceId}
-                className="truncate font-mono text-xs underline"
-              >
-                {summary.traceId}
-              </Link>
-              <Badge variant="outline">{summary.outcome}</Badge>
-            </div>
-            <p className="text-sm whitespace-pre-wrap">
-              {summary.summary || "No applicable summary."}
-            </p>
-            {(summary.outcome === "assigned" ||
-              summary.outcome === "outlier") && (
-              <p className="text-muted-foreground text-xs">
-                Distance: {summary.distance?.toFixed(3) ?? "—"}
-              </p>
-            )}
-            <Button
-              size="sm"
-              variant="ghost"
-              className="self-start"
-              onClick={() =>
-                setInspecting(inspecting === summary.id ? null : summary.id)
-              }
-            >
-              {inspecting === summary.id
-                ? "Hide transcript"
-                : "Inspect transcript"}
-            </Button>
-            {inspecting === summary.id && (
-              <SummaryInspector projectId={projectId} summaryId={summary.id} />
-            )}
-          </article>
-        ))}
-      </div>
-      {visible.length === 0 && (
-        <p className="text-muted-foreground text-sm">
-          No summaries in this selection.
-        </p>
-      )}
-      {run?.status === "completed" && (
-        <TopicComparison
-          projectId={projectId}
-          facetId={facetId}
-          facetVersion={facetVersion}
-          runId={run.id}
-        />
-      )}
-    </div>
-  );
-}
-
-function TopicComparison({
-  projectId,
-  facetId,
-  facetVersion,
-  runId,
-}: {
-  projectId: string;
-  facetId: string;
-  facetVersion: number;
-  runId: string;
-}) {
-  const [otherRunId, setOtherRunId] = useState<string | null>(null);
-  const runs = api.topics.runs.useQuery({ projectId });
-  const comparison = api.topics.compare.useQuery(
-    {
-      projectId,
-      runId,
-      otherRunId: otherRunId ?? "none",
-    },
-    { enabled: otherRunId !== null },
-  );
-  const candidates =
-    runs.data?.filter(
-      (run) =>
-        run.status === "completed" &&
-        run.facetId === facetId &&
-        run.facetVersion === facetVersion &&
-        run.id !== runId,
-    ) ?? [];
-  if (!candidates.length)
-    return (
-      <p className="text-muted-foreground text-xs">
-        Run Update topics again to create a second map and compare assignments.
-      </p>
-    );
-  return (
-    <details className="rounded-md border p-3">
-      <summary className="cursor-pointer text-sm">
-        Compare current summaries across maps
-      </summary>
-      <div className="mt-3 flex flex-col gap-3">
-        <Select value={otherRunId ?? undefined} onValueChange={setOtherRunId}>
-          <SelectTrigger aria-label="Map to compare">
-            <SelectValue placeholder="Select another map" />
-          </SelectTrigger>
-          <SelectContent className="ph-no-capture">
-            {candidates.map((run) => (
-              <SelectItem key={run.id} value={run.id}>
-                {new Date(run.createdAt).toLocaleString()} · {run.topics.length}{" "}
-                topics
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {comparison.error && (
-          <ErrorMessage message={comparison.error.message} />
-        )}
-        {comparison.data && (
-          <>
-            <p className="text-muted-foreground text-xs">
-              {comparison.data.compared} of {comparison.data.total} summaries
-              have assignments in both maps. Names may change between maps.
-            </p>
-            <ul className="flex flex-col gap-2 text-sm">
-              {comparison.data.flows.map((flow, i) => (
-                <li key={i}>
-                  {flow.from} → {flow.to}{" "}
-                  <Badge variant="outline">{flow.count}</Badge>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </div>
-    </details>
-  );
-}
-
-function SummaryInspector({
-  projectId,
-  summaryId,
-}: {
-  projectId: string;
-  summaryId: string;
-}) {
-  const query = api.topics.inspect.useQuery({
-    projectId,
-    summaryId,
-  });
-  if (query.error) return <ErrorMessage message={query.error.message} />;
-  if (!query.data) return <p className="text-xs">Loading transcript…</p>;
-  const transcript = query.data.text;
-  const projectionDescription = transcript
-    ? "Current transcript regenerated from trace data. It may differ from the summarized input."
-    : "Source transcript unavailable. The stored summary is still retained.";
-  return (
-    <div className="flex flex-col gap-2">
-      <p className="text-muted-foreground text-xs break-all">
-        {query.data.model}
-      </p>
-      <p className="text-muted-foreground text-xs">{projectionDescription}</p>
-      {transcript && (
-        <JSONView
-          title="Transcript"
-          json={JSON.parse(transcript)}
-          preserveStrings
-        />
-      )}
-    </div>
   );
 }
 

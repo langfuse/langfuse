@@ -1,5 +1,3 @@
-import { Button } from "@/src/components/ui/button";
-import { TraceTranscriptDialogController } from "@/src/features/topics";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { useRouter } from "next/router";
 import { useRef } from "react";
@@ -64,52 +62,24 @@ export const TablePeekViewTraceDetail = (
     : null;
 
   return (
-    <TraceTranscriptDialogController
-      projectId={actionProps?.projectId ?? projectId}
-      traceId={actionProps?.traceId ?? null}
+    <TablePeekView
+      {...tablePeekViewProps}
+      title={traceId}
+      actions={
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+      }
+      actionsMenu={
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
+        ) : undefined
+      }
     >
-      {({ openTranscript }) => (
-        <TablePeekView
-          {...tablePeekViewProps}
-          title={traceId}
-          actions={
-            actionProps ? (
-              <>
-                {openTranscript && (
-                  <Button size="sm" variant="outline" onClick={openTranscript}>
-                    Show transcript
-                  </Button>
-                )}
-                <TraceDetailActions {...actionProps} />
-              </>
-            ) : undefined
-          }
-          actionsMenu={
-            actionProps ? (
-              <>
-                {openTranscript && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="w-full justify-start font-normal"
-                    onClick={openTranscript}
-                  >
-                    Show transcript
-                  </Button>
-                )}
-                <TraceDetailActions {...actionProps} layout="menu" />
-              </>
-            ) : undefined
-          }
-        >
-          <TraceDetailBody
-            trace={trace.data}
-            context="peek"
-            layout={layout}
-            truncatedAtObservations={trace.truncatedAtObservations}
-          />
-        </TablePeekView>
-      )}
-    </TraceTranscriptDialogController>
+      <TraceDetailBody
+        trace={trace.data}
+        context="peek"
+        layout={layout}
+        truncatedAtObservations={trace.truncatedAtObservations}
+      />
+    </TablePeekView>
   );
 };

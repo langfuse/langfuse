@@ -9,26 +9,39 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import {
+  DialogController,
+  DialogBody,
+  DialogTitle,
+  DialogDescription,
+} from "@/src/components/ui/dialog";
+import {
   TabsBar,
   TabsBarContent,
   TabsBarList,
   TabsBarTrigger,
 } from "@/src/components/ui/tabs-bar";
 import { TopicEmbeddingMap, topicColor } from "./TopicEmbeddingMap";
+import { SummaryInspector } from "./SummaryInspector";
 
 type Facet = RouterOutputs["topics"]["currentResults"][number];
 
 export function CurrentTopics({
   projectId,
   running,
+  refreshAfter,
 }: {
   projectId: string;
   running: boolean;
+  refreshAfter: number;
 }) {
   const [selectedFacetId, setSelectedFacetId] = useState<string>();
   const result = api.topics.currentResults.useQuery(
     { projectId },
-    { refetchInterval: running ? 3000 : false },
+    {
+      // Fetch results after the latest execution status response, including completion.
+      refetchInterval: (query) =>
+        running || query.state.dataUpdatedAt < refreshAfter ? 3000 : false,
+    },
   );
   const selectedFacet = result.data?.some(
     (facet) => facet.facetId === selectedFacetId,
@@ -300,7 +313,9 @@ function CurrentTraceTable({
       ?.querySelector(".topics-selected-trace")
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [selectedTraceId, pageIndex, pagination.pageSize, split]);
-  const columns: LangfuseColumnDef<Facet["rows"][number]>[] = [
+  const columns = (
+    openInspector: (summaryId: string) => void,
+  ): LangfuseColumnDef<Facet["rows"][number]>[] => [
     {
       accessorKey: "traceId",
       header: "Trace ID",
@@ -331,43 +346,71 @@ function CurrentTraceTable({
       header: "Summary",
       size: split ? 360 : 600,
       cell: ({ row }) => (
-        <p className="break-words whitespace-pre-wrap">
-          {row.original.summary || "No applicable summary."}
-        </p>
+        <div className="flex flex-col items-start gap-2">
+          <p className="break-words whitespace-pre-wrap">
+            {row.original.summary || "No applicable summary."}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              openInspector(row.original.summaryId);
+            }}
+          >
+            Inspect transcript
+          </Button>
+        </div>
       ),
     },
   ];
   return (
-    <div ref={tableRef} className="min-h-0 min-w-0 overflow-auto">
-      <DataTable
-        tableName="topics-current-traces"
-        columns={columns}
-        columnVisibility={{ topicName: !split }}
-        rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
-        getRowClassName={(row) =>
-          row.traceId === selectedTraceId ? "topics-selected-trace" : ""
-        }
-        data={{
-          isLoading: false,
-          isError: false,
-          data: rows
-            .slice(
-              pageIndex * pagination.pageSize,
-              (pageIndex + 1) * pagination.pageSize,
-            )
-            .map((row) => ({ ...row, id: row.traceId })),
-        }}
-        pagination={{
-          totalCount: rows.length,
-          state: { ...pagination, pageIndex },
-          onChange: onPaginationChange,
-          options: [20, 50, 100],
-        }}
-        topAlignCells
-        cellPadding="comfortable"
-        noResultsMessage="No traces in this selection."
-        peekView={peekConfig}
-      />
-    </div>
+    <DialogController<string>
+      size="xl"
+      closeOnInteractionOutside
+      renderContent={({ state }) => (
+        <DialogBody className="ph-no-capture">
+          <DialogTitle>Summary source</DialogTitle>
+          <DialogDescription>
+            View the current trace transcript for this summary.
+          </DialogDescription>
+          <SummaryInspector projectId={projectId} summaryId={state} />
+        </DialogBody>
+      )}
+    >
+      {({ openDialog }) => (
+        <div ref={tableRef} className="min-h-0 min-w-0 overflow-auto">
+          <DataTable
+            tableName="topics-current-traces"
+            columns={columns(openDialog)}
+            columnVisibility={{ topicName: !split }}
+            rowSelection={selectedTraceId ? { [selectedTraceId]: true } : {}}
+            getRowClassName={(row) =>
+              row.traceId === selectedTraceId ? "topics-selected-trace" : ""
+            }
+            data={{
+              isLoading: false,
+              isError: false,
+              data: rows
+                .slice(
+                  pageIndex * pagination.pageSize,
+                  (pageIndex + 1) * pagination.pageSize,
+                )
+                .map((row) => ({ ...row, id: row.traceId })),
+            }}
+            pagination={{
+              totalCount: rows.length,
+              state: { ...pagination, pageIndex },
+              onChange: onPaginationChange,
+              options: [20, 50, 100],
+            }}
+            topAlignCells
+            cellPadding="comfortable"
+            noResultsMessage="No traces in this selection."
+            peekView={peekConfig}
+          />
+        </div>
+      )}
+    </DialogController>
   );
 }

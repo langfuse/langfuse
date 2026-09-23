@@ -5,7 +5,7 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { api, type RouterOutputs } from "@/src/utils/api";
 
 type Topic = Pick<
-  RouterOutputs["topics"]["runs"][number]["topics"][number],
+  RouterOutputs["topics"]["currentResults"][number]["topics"][number],
   "id" | "name"
 >;
 type MapData = RouterOutputs["topics"]["map"];
