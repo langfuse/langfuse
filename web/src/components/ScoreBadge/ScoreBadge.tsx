@@ -56,14 +56,15 @@ export const ScoreBadge = <
 >({
   name,
   scores,
-  compact,
   showLevels,
+  compact,
 }: {
   name: string;
   scores: T[];
-  compact?: boolean;
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
+  /** Tree rows use the small badge size. */
+  compact?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -76,9 +77,13 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell color="neutral" size={compact ? "sm" : "default"}>
+      <BadgeShell size={compact ? "sm" : undefined}>
+        <span
+          aria-hidden
+          className="bg-dark-yellow size-1.25 shrink-0 rounded-[1px]"
+        />
         <span className="min-w-0 flex-1 truncate" title={name}>
-          {name}:
+          {name}
         </span>
         <span className="flex min-w-0 items-center gap-1 text-nowrap">
           {scores.map((score, index) => {
@@ -98,7 +103,7 @@ export const ScoreBadge = <
                       aria-label={`View comment for ${name}: ${value}`}
                       className="inline-block shrink-0"
                     >
-                      <MessageCircleMoreIcon className="mb-0.25 size-3!" />
+                      <MessageCircleMoreIcon className="text-foreground-tertiary mb-0.25 size-3!" />
                     </HoverCardTrigger>
                     <HoverCardContent className="max-h-[50dvh] overflow-y-auto text-xs break-normal whitespace-normal">
                       <p className="whitespace-pre-wrap">{score.comment}</p>
@@ -121,7 +126,7 @@ export const ScoreBadge = <
                       aria-label={`View metadata for ${name}: ${value}`}
                       className="inline-block shrink-0"
                     >
-                      <BracesIcon className="mb-0.25 size-3!" />
+                      <BracesIcon className="text-foreground-tertiary mb-0.25 size-3!" />
                     </HoverCardTrigger>
                     <HoverCardContent className="max-h-[50dvh] overflow-y-auto rounded-md border-none p-0 text-xs break-normal whitespace-normal">
                       <JSONView

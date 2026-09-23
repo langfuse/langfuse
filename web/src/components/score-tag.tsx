@@ -114,7 +114,6 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
         <span {...getTriggerProps()}>
           <Badge
             color={scoreTagColors[level]}
-            size="sm"
             text={SCORE_LEVEL_LABELS[level]}
           />
         </span>

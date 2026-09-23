@@ -337,9 +337,7 @@ export function AnnotationScoreRow({
             </Popover>
           </div>
           {showTarget ? (
-            <Badge variant="outline-solid" size="sm">
-              {target.label}
-            </Badge>
+            <Badge variant="outline-solid">{target.label}</Badge>
           ) : null}
         </div>
         <div className="grid grid-cols-[minmax(0,1fr)_1.5rem] items-center gap-1 py-1">

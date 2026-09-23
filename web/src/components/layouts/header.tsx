@@ -58,9 +58,9 @@ function HeaderTitle({
         </h3>
       );
     case "h4":
-      return <h4 className={cn("text-lg leading-6", className)}>{title}</h4>;
+      return <h4 className={cn("text-lg", className)}>{title}</h4>;
     case "h5":
-      return <h5 className={cn("text-base leading-6", className)}>{title}</h5>;
+      return <h5 className={cn("text-base", className)}>{title}</h5>;
   }
 }
 
