@@ -34,6 +34,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
   SelectContent,
@@ -990,9 +991,8 @@ export function CreateLLMApiKeyForm({
                             )}
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
-                              type="password"
                               placeholder={
                                 mode === "update"
                                   ? isKeepingCurrentBedrockAuthMethod &&
@@ -1002,7 +1002,6 @@ export function CreateLLMApiKeyForm({
                                   : undefined
                               }
                               autoComplete="new-password"
-                              data-1p-ignore
                             />
                           </FormControl>
                           <FormMessage />
@@ -1070,9 +1069,8 @@ export function CreateLLMApiKeyForm({
                               )}
                             </FormLabel>
                             <FormControl>
-                              <Input
+                              <PasswordInput
                                 {...field}
-                                type="password"
                                 placeholder={
                                   mode === "update"
                                     ? isUsingDefaultAwsCredentialsForCurrentAuthMethod
@@ -1084,7 +1082,6 @@ export function CreateLLMApiKeyForm({
                                     : undefined
                                 }
                                 autoComplete="new-password"
-                                data-1p-ignore
                               />
                             </FormControl>
                             <FormMessage />
@@ -1196,7 +1193,7 @@ export function CreateLLMApiKeyForm({
                             </pre>
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
                               placeholder={
                                 mode === "update"
@@ -1204,8 +1201,6 @@ export function CreateLLMApiKeyForm({
                                   : '{"type": "service_account", ...}'
                               }
                               autoComplete="off"
-                              spellCheck="false"
-                              autoCapitalize="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1272,7 +1267,7 @@ export function CreateLLMApiKeyForm({
                           : "Your API keys are stored encrypted in your database."}
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <PasswordInput
                           {...field}
                           placeholder={
                             mode === "update"
@@ -1280,8 +1275,6 @@ export function CreateLLMApiKeyForm({
                               : undefined
                           }
                           autoComplete="off"
-                          spellCheck="false"
-                          autoCapitalize="off"
                         />
                       </FormControl>
                       <FormMessage />
