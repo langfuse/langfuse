@@ -30,145 +30,178 @@ pub(super) struct AnthropicMessagesCapture {
     mode: IngestionMode,
     body: ResponseBody,
     usage: Option<Map<String, Value>>,
-    stop: Map<String, Value>,
-    blocks: ContentBlocks,
+    /// Present only in full mode; usage mode never records output.
+    output: Option<AssistantMessage>,
     terminal: bool,
     request_complete: bool,
     response_valid: bool,
 }
 
-/// Streamed content blocks rebuilt from their start, delta and stop events in
-/// full mode. Only blocks that reached `content_block_stop` are recorded.
+/// A capture gap: the recorded output no longer matches what was relayed.
+struct Gap;
+
+/// The assistant message rebuilt in full mode. Streamed blocks are assembled
+/// from their start, delta and stop events; only stopped blocks are recorded.
 #[derive(Default)]
-struct ContentBlocks {
-    open: BTreeMap<u64, OpenBlock>,
-    done: BTreeMap<u64, Value>,
+struct AssistantMessage {
+    stop: Map<String, Value>,
+    blocks: BTreeMap<u64, Block>,
     bytes: usize,
-    valid: bool,
 }
 
-struct OpenBlock {
-    block: Map<String, Value>,
+struct Block {
+    fields: Map<String, Value>,
     partial_json: String,
+    finished: bool,
 }
 
-impl ContentBlocks {
-    fn start(&mut self, index: u64, block: Map<String, Value>) {
-        let size = Value::Object(block.clone()).to_string().len();
-        if self.open.contains_key(&index)
-            || self.done.contains_key(&index)
-            || self.open.len() + self.done.len() >= MAX_ITEMS
-            || !self.reserve(size)
-        {
-            self.valid = false;
-            return;
+impl AssistantMessage {
+    fn start(&mut self, index: u64, fields: Map<String, Value>) -> Result<(), Gap> {
+        if self.blocks.contains_key(&index) || self.blocks.len() >= MAX_ITEMS {
+            return Err(Gap);
         }
-        self.open.insert(
+        let size = serde_json::to_string(&fields).map_or(usize::MAX, |json| json.len());
+        reserve(&mut self.bytes, size)?;
+        self.blocks.insert(
             index,
-            OpenBlock {
-                block,
+            Block {
+                fields,
                 partial_json: String::new(),
+                finished: false,
             },
         );
+        Ok(())
     }
 
-    fn apply_delta(&mut self, index: u64, delta: &Map<String, Value>) {
-        let text = |key: &str| delta.get(key).and_then(Value::as_str);
-        let added = match delta.get("type").and_then(Value::as_str) {
-            Some("text_delta") => text("text").map_or(0, str::len),
-            Some("thinking_delta") => text("thinking").map_or(0, str::len),
-            Some("signature_delta") => text("signature").map_or(0, str::len),
-            Some("input_json_delta") => text("partial_json").map_or(0, str::len),
-            Some("citations_delta") => delta.get("citation").map_or(0, |c| c.to_string().len()),
-            _ => {
-                self.open.remove(&index);
-                self.valid = false;
-                return;
-            }
-        };
-        if !self.open.contains_key(&index) || !self.reserve(added) {
-            self.open.remove(&index);
-            self.valid = false;
-            return;
+    /// A block that cannot be rebuilt exactly is dropped rather than recorded wrong.
+    fn apply_delta(&mut self, index: u64, delta: &Map<String, Value>) -> Result<(), Gap> {
+        let applied = self.try_apply_delta(index, delta);
+        if applied.is_err() {
+            self.blocks.remove(&index);
         }
-        let open = self.open.get_mut(&index).expect("checked above");
-        let append = |block: &mut Map<String, Value>, key: &str, value: &str| {
-            let mut current = block
-                .get(key)
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_owned();
-            current.push_str(value);
-            block.insert(key.to_owned(), Value::String(current));
-        };
-        match delta.get("type").and_then(Value::as_str) {
-            Some("text_delta") => append(&mut open.block, "text", text("text").unwrap_or("")),
-            Some("thinking_delta") => {
-                append(&mut open.block, "thinking", text("thinking").unwrap_or(""));
-            }
-            // Signatures are opaque and arrive whole, once per thinking block.
-            Some("signature_delta") => {
-                open.block.insert(
-                    "signature".to_owned(),
-                    Value::String(text("signature").unwrap_or("").to_owned()),
-                );
-            }
-            Some("input_json_delta") => {
-                open.partial_json
-                    .push_str(text("partial_json").unwrap_or(""));
-            }
-            Some("citations_delta") => {
-                if let Some(citation) = delta.get("citation") {
-                    match open.block.get_mut("citations") {
-                        Some(Value::Array(citations)) => citations.push(citation.clone()),
-                        _ => {
-                            open.block
-                                .insert("citations".to_owned(), json!([citation.clone()]));
-                        }
-                    }
+        applied
+    }
+
+    fn try_apply_delta(&mut self, index: u64, delta: &Map<String, Value>) -> Result<(), Gap> {
+        let block = self
+            .blocks
+            .get_mut(&index)
+            .filter(|block| !block.finished)
+            .ok_or(Gap)?;
+        let kind = delta.get("type").and_then(Value::as_str).ok_or(Gap)?;
+        if kind == "citations_delta" {
+            let citation = delta.get("citation").ok_or(Gap)?;
+            reserve(&mut self.bytes, citation.to_string().len())?;
+            match block.fields.get_mut("citations") {
+                Some(Value::Array(citations)) => citations.push(citation.clone()),
+                _ => {
+                    block
+                        .fields
+                        .insert("citations".to_owned(), Value::Array(vec![citation.clone()]));
                 }
             }
-            _ => {}
+            return Ok(());
         }
-    }
-
-    fn stop(&mut self, index: u64) {
-        let Some(OpenBlock {
-            mut block,
-            partial_json,
-        }) = self.open.remove(&index)
-        else {
-            self.valid = false;
-            return;
+        // Every other delta appends a string fragment to one field of the block.
+        let (field, source) = match kind {
+            "text_delta" => ("text", "text"),
+            "thinking_delta" => ("thinking", "thinking"),
+            "signature_delta" => ("signature", "signature"),
+            "input_json_delta" => ("", "partial_json"),
+            _ => return Err(Gap),
         };
+        let fragment = delta.get(source).and_then(Value::as_str).ok_or(Gap)?;
+        reserve(&mut self.bytes, fragment.len())?;
+        if field.is_empty() {
+            block.partial_json.push_str(fragment);
+        } else if let Some(Value::String(current)) = block.fields.get_mut(field) {
+            current.push_str(fragment);
+        } else {
+            block
+                .fields
+                .insert(field.to_owned(), Value::String(fragment.to_owned()));
+        }
+        Ok(())
+    }
+
+    fn stop_block(&mut self, index: u64) -> Result<(), Gap> {
+        let block = self
+            .blocks
+            .get_mut(&index)
+            .filter(|block| !block.finished)
+            .ok_or(Gap)?;
         // Tool inputs stream as JSON fragments that only parse once complete.
-        if !partial_json.is_empty() {
-            let Ok(input) = serde_json::from_str::<Value>(&partial_json) else {
-                self.valid = false;
-                return;
+        if !block.partial_json.is_empty() {
+            let Ok(input) = serde_json::from_str::<Value>(&block.partial_json) else {
+                self.blocks.remove(&index);
+                return Err(Gap);
             };
-            block.insert("input".to_owned(), input);
+            block.fields.insert("input".to_owned(), input);
+            block.partial_json = String::new();
         }
-        self.done.insert(index, Value::Object(block));
+        block.finished = true;
+        Ok(())
     }
 
-    fn reserve(&mut self, bytes: usize) -> bool {
-        match self.bytes.checked_add(bytes) {
-            Some(total) if total <= MAX_CAPTURE_BYTES => {
-                self.bytes = total;
-                true
+    /// A non-streamed response carries its complete content at once.
+    fn record_content(&mut self, content: Option<&Vec<Value>>) -> Result<(), Gap> {
+        let content = content
+            .filter(|content| content.len() <= MAX_ITEMS)
+            .ok_or(Gap)?;
+        for (index, fields) in content.iter().enumerate() {
+            let fields = fields.as_object().ok_or(Gap)?.clone();
+            self.blocks.insert(
+                index as u64,
+                Block {
+                    fields,
+                    partial_json: String::new(),
+                    finished: true,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    /// The renderer reads the finish reason from the recorded output.
+    fn record_stop(&mut self, source: &Map<String, Value>) {
+        for key in ["stop_reason", "stop_sequence"] {
+            if let Some(value) = source.get(key).filter(|value| !value.is_null()) {
+                self.stop.insert(key.to_owned(), value.clone());
             }
-            _ => false,
         }
     }
 
-    fn complete(&self) -> bool {
-        self.valid && self.open.is_empty()
+    fn is_complete(&self) -> bool {
+        self.blocks.values().all(|block| block.finished)
     }
 
-    fn content(&mut self) -> Vec<Value> {
-        std::mem::take(&mut self.done).into_values().collect()
+    fn into_value(self) -> Value {
+        let content = self
+            .blocks
+            .into_values()
+            .filter(|block| block.finished)
+            .map(|block| Value::Object(block.fields))
+            .collect();
+        let mut message = Map::new();
+        message.insert("role".to_owned(), json!("assistant"));
+        message.insert("content".to_owned(), Value::Array(content));
+        message.extend(self.stop);
+        Value::Object(message)
     }
+}
+
+fn reserve(used: &mut usize, bytes: usize) -> Result<(), Gap> {
+    match used.checked_add(bytes) {
+        Some(total) if total <= MAX_CAPTURE_BYTES => {
+            *used = total;
+            Ok(())
+        }
+        _ => Err(Gap),
+    }
+}
+
+fn block_index(event: &Map<String, Value>) -> Option<u64> {
+    event.get("index").and_then(Value::as_u64)
 }
 
 impl AnthropicMessagesCapture {
@@ -178,11 +211,7 @@ impl AnthropicMessagesCapture {
             mode,
             body: ResponseBody::Unknown,
             usage: None,
-            stop: Map::new(),
-            blocks: ContentBlocks {
-                valid: true,
-                ..ContentBlocks::default()
-            },
+            output: (mode == IngestionMode::Full).then(AssistantMessage::default),
             terminal: false,
             request_complete: false,
             response_valid: true,
@@ -241,7 +270,10 @@ impl AnthropicMessagesCapture {
         }
         self.facts.output_complete = self.terminal
             && self.response_valid
-            && (self.mode != IngestionMode::Full || self.blocks.complete());
+            && self
+                .output
+                .as_ref()
+                .is_none_or(AssistantMessage::is_complete);
         self.facts.capture_complete = self.request_complete && self.facts.output_complete;
     }
 
@@ -250,13 +282,7 @@ impl AnthropicMessagesCapture {
             self.end_body();
         }
         self.facts.usage_details = self.usage.take().map(Value::Object);
-        if self.mode == IngestionMode::Full {
-            let mut output = Map::new();
-            output.insert("role".to_owned(), json!("assistant"));
-            output.insert("content".to_owned(), Value::Array(self.blocks.content()));
-            output.extend(std::mem::take(&mut self.stop));
-            self.facts.output = Some(Value::Object(output));
-        }
+        self.facts.output = self.output.take().map(AssistantMessage::into_value);
         self.facts
     }
 
@@ -296,16 +322,13 @@ impl AnthropicMessagesCapture {
     }
 
     fn capture_json_content(&mut self, message: &Map<String, Value>) {
-        if self.mode != IngestionMode::Full {
-            return;
-        }
-        match message.get("content").and_then(Value::as_array) {
-            Some(content) if content.len() <= MAX_ITEMS => {
-                for (index, block) in content.iter().enumerate() {
-                    self.blocks.done.insert(index as u64, block.clone());
-                }
-            }
-            _ => self.blocks.valid = false,
+        let content = message.get("content").and_then(Value::as_array);
+        if self
+            .output
+            .as_mut()
+            .is_some_and(|output| output.record_content(content).is_err())
+        {
+            self.response_valid = false;
         }
     }
 
@@ -322,28 +345,31 @@ impl AnthropicMessagesCapture {
                     self.response_valid = false;
                 }
             }
-            Some("content_block_start") if self.mode == IngestionMode::Full => {
-                match (
-                    event.get("index").and_then(Value::as_u64),
-                    event.get("content_block").and_then(Value::as_object),
-                ) {
-                    (Some(index), Some(block)) => self.blocks.start(index, block.clone()),
-                    _ => self.blocks.valid = false,
+            Some("content_block_start") => {
+                let block = event.get("content_block").and_then(Value::as_object);
+                if self.output.as_mut().is_some_and(|output| {
+                    block_index(&event)
+                        .zip(block)
+                        .is_none_or(|(index, block)| output.start(index, block.clone()).is_err())
+                }) {
+                    self.response_valid = false;
                 }
             }
-            Some("content_block_stop") if self.mode == IngestionMode::Full => {
-                match event.get("index").and_then(Value::as_u64) {
-                    Some(index) => self.blocks.stop(index),
-                    None => self.blocks.valid = false,
+            Some("content_block_stop") => {
+                if self.output.as_mut().is_some_and(|output| {
+                    block_index(&event).is_none_or(|index| output.stop_block(index).is_err())
+                }) {
+                    self.response_valid = false;
                 }
             }
             Some("content_block_delta") => {
                 let delta = event.get("delta").and_then(Value::as_object);
-                if self.mode == IngestionMode::Full {
-                    match (event.get("index").and_then(Value::as_u64), delta) {
-                        (Some(index), Some(delta)) => self.blocks.apply_delta(index, delta),
-                        _ => self.blocks.valid = false,
-                    }
+                if self.output.as_mut().is_some_and(|output| {
+                    block_index(&event)
+                        .zip(delta)
+                        .is_none_or(|(index, delta)| output.apply_delta(index, delta).is_err())
+                }) {
+                    self.response_valid = false;
                 }
                 return delta.is_some_and(|delta| {
                     ["text", "thinking", "partial_json"].iter().any(|key| {
@@ -392,11 +418,8 @@ impl AnthropicMessagesCapture {
         let Some(stop_reason) = source.get("stop_reason").and_then(Value::as_str) else {
             return;
         };
-        // The renderer reads the finish reason from the recorded output.
-        for key in ["stop_reason", "stop_sequence"] {
-            if let Some(value) = source.get(key).filter(|value| !value.is_null()) {
-                self.stop.insert(key.to_owned(), value.clone());
-            }
+        if let Some(output) = &mut self.output {
+            output.record_stop(source);
         }
         self.facts.provider_status = Some(
             match stop_reason {

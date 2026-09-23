@@ -341,7 +341,8 @@ async fn full_mode_stitches_text_thinking_tool_and_citation_blocks_in_order() {
             &[
                 json!({"type":"thinking_delta","thinking":"Let me "}),
                 json!({"type":"thinking_delta","thinking":"check."}),
-                json!({"type":"signature_delta","signature":"sig-opaque"}),
+                json!({"type":"signature_delta","signature":"sig-"}),
+                json!({"type":"signature_delta","signature":"opaque"}),
             ],
         ),
         event("ping", json!({})),
