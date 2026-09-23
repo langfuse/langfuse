@@ -10,12 +10,17 @@ import {
   FolderOpen,
   FolderPlus,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { SkillFilePathSchema } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
+import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { DropzoneController } from "@/src/components/design-system/DropzoneController/DropzoneController";
 import { showErrorToast } from "@/src/features/notifications";
+import { importSkillFiles } from "@/src/features/skills/actions/importSkillFiles";
 import {
   buildSkillFileTree,
   getParentFolderPaths,
@@ -30,7 +35,13 @@ type PendingEntry = {
   name: string;
 };
 
-export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
+export function SkillFileExplorer({
+  store,
+  disabled = false,
+}: {
+  store: SkillEditorStore;
+  disabled?: boolean;
+}) {
   const files = useStore(store, (state) => state.files);
   const folders = useStore(store, (state) => state.folders);
   const activePath = useStore(store, (state) => state.activePath);
@@ -40,6 +51,7 @@ export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
     () => new Set(store.getState().folders),
   );
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  const isImporting = useStore(store, (state) => state.isImporting);
   const tree = buildSkillFileTree(Object.keys(files), folders);
 
   const toggleFolder = (path: string) => {
@@ -275,39 +287,105 @@ export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
   );
 
   return (
-    <aside className="ph-no-capture bg-muted/20 flex h-full min-w-0 flex-col">
-      <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
-        <div className="flex items-center gap-2 text-sm font-bold">
-          <FolderOpen className="h-4 w-4" /> Files
-        </div>
-        <div className="flex items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="New file"
-            aria-label="New file"
-            onClick={() => startEntry("file")}
-          >
-            <FilePlus2 className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            title="New folder"
-            aria-label="New folder"
-            onClick={() => startEntry("folder")}
-          >
-            <FolderPlus className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto p-2">{renderTree(tree, "")}</div>
-      <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
-        Empty folders stay in this draft until they contain a file.
-      </p>
-    </aside>
+    <DropzoneController
+      noClick
+      noKeyboard
+      isDisabled={disabled || isImporting}
+      onError={(error) => showErrorToast("Could not add files", error.message)}
+      onProcessingChange={(isImporting) => store.setState({ isImporting })}
+      onDrop={async (droppedFiles) => {
+        const paths = await importSkillFiles(store, droppedFiles);
+        setExpandedFolders(
+          (current) => new Set([...current, ...getParentFolderPaths(paths)]),
+        );
+        setSelectedFolder("");
+        setPendingEntry(null);
+      }}
+    >
+      {({ getRootProps, getInputProps, isDragActive, open, openDirectory }) => (
+        <aside
+          {...getRootProps({
+            role: "region",
+            "aria-label": "Skill files",
+            className: cn(
+              "ph-no-capture bg-muted/20 relative flex h-full min-w-0 flex-col",
+              isDragActive && "ring-primary ring-2 ring-inset",
+            ),
+          })}
+        >
+          <input {...getInputProps()} aria-label="Add files to draft" />
+          <div className="flex min-h-11 items-center justify-between gap-2 border-b px-3">
+            <div className="flex items-center gap-2 text-sm font-bold">
+              <FolderOpen className="h-4 w-4" /> Files
+            </div>
+            <div className="flex items-center gap-0.5">
+              <DropdownMenu
+                disabled={disabled || isImporting}
+                items={[
+                  {
+                    id: "files",
+                    type: "item",
+                    title: "Add files",
+                    icon: FilePlus2,
+                    onClick: open,
+                  },
+                  {
+                    id: "folder",
+                    type: "item",
+                    title: "Add folder",
+                    icon: FolderPlus,
+                    onClick: openDirectory,
+                  },
+                ]}
+              >
+                {({ getTriggerProps }) => (
+                  <IconButton
+                    {...getTriggerProps()}
+                    icon={Upload}
+                    label="Upload files or folder"
+                    size="sm"
+                    disabled={disabled || isImporting}
+                  />
+                )}
+              </DropdownMenu>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="New file"
+                aria-label="New file"
+                onClick={() => startEntry("file")}
+              >
+                <FilePlus2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                title="New folder"
+                aria-label="New folder"
+                onClick={() => startEntry("folder")}
+              >
+                <FolderPlus className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2">
+            {renderTree(tree, "")}
+          </div>
+          <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
+            {isImporting
+              ? "Adding files to draft…"
+              : "Drop files or folders here to add them at the root. Changes stay local until you create a version."}
+          </p>
+          {isDragActive ? (
+            <div className="bg-background/90 pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm font-bold">
+              Drop files or folders to add to draft
+            </div>
+          ) : null}
+        </aside>
+      )}
+    </DropzoneController>
   );
 }
 

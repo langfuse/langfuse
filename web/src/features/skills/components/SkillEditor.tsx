@@ -30,6 +30,9 @@ import { saveSkillLabels } from "@/src/features/skills/actions/saveSkillLabels";
 import { saveSkillTags } from "@/src/features/skills/actions/saveSkillTags";
 import { CreateSkillVersionDialog } from "@/src/features/skills/components/CreateSkillVersionDialog";
 import { SkillFileExplorer } from "@/src/features/skills/components/SkillFileExplorer";
+import { SkillImagePreview } from "@/src/features/skills/components/SkillImagePreview";
+import { isSkillImageFile } from "@/src/features/skills/utils/isSkillImageFile";
+import { getSkillFileLanguageExtensions } from "@/src/features/skills/utils/getSkillFileLanguageExtensions";
 import {
   type SkillDraftFile,
   type SkillEditorInitialValue,
@@ -75,6 +78,7 @@ export function SkillEditor({
   metadataOptions: { labels: string[]; tags: string[] };
 }) {
   const dirty = useStore(store, (state) => state.dirty);
+  const isImporting = useStore(store, (state) => state.isImporting);
   const fileCount = useStore(store, (state) => Object.keys(state.files).length);
   const name = useStore(store, (state) => state.name);
   const baseVersion = useStore(store, (state) => state.baseVersion);
@@ -138,6 +142,7 @@ export function SkillEditor({
     if (
       !canCreate ||
       isSaving ||
+      store.getState().isImporting ||
       createDisabledReason ||
       isCheckingName ||
       (!createNew && hasNameChanged)
@@ -329,6 +334,7 @@ export function SkillEditor({
                 isFirstVersion={createNew}
                 isSaving={isSaving}
                 disabled={
+                  isImporting ||
                   Boolean(createDisabledReason) ||
                   isCheckingName ||
                   (!createNew && hasNameChanged)
@@ -348,6 +354,7 @@ export function SkillEditor({
                     disabled={
                       !canCreate ||
                       isSaving ||
+                      isImporting ||
                       Boolean(createDisabledReason) ||
                       isCheckingName
                     }
@@ -363,6 +370,7 @@ export function SkillEditor({
                     disabled={
                       !canCreate ||
                       isSaving ||
+                      isImporting ||
                       Boolean(createDisabledReason) ||
                       isCheckingName
                     }
@@ -399,7 +407,7 @@ export function SkillEditor({
               minSize={isDesktop ? "20%" : "24%"}
               maxSize={isDesktop ? "42%" : "50%"}
             >
-              <SkillFileExplorer store={store} />
+              <SkillFileExplorer store={store} disabled={isSaving} />
             </ResizablePanel>
             <ResizableHandle withHandle />
             <ResizablePanel
@@ -476,11 +484,26 @@ function SkillFileEditor({
   );
   const [view, setView] = useState<"edit" | "preview">("edit");
   const fileContents = useSkillFileContents(projectId, activeFile);
-  const content = activeFile.content ?? fileContents.data;
-  const canPreview = activePath.endsWith(".md");
+  const content =
+    activeFile.content ??
+    (fileContents.data?.kind === "text" ? fileContents.data.text : undefined);
+  const isImage = isSkillImageFile(activeFile);
+  const imageSource =
+    activeFile.blob ??
+    (fileContents.data?.kind === "image" ? fileContents.data.url : undefined);
+  const canPreview = isImage || /\.(md|markdown)$/i.test(activePath);
+  const isPreview = isImage || view === "preview";
 
   let editorContent;
-  if (content === undefined && fileContents.isError) {
+  if (isImage && imageSource) {
+    editorContent = (
+      <SkillImagePreview
+        key={activePath}
+        source={imageSource}
+        path={activePath}
+      />
+    );
+  } else if (content === undefined && fileContents.isError) {
     editorContent = (
       <div className="flex flex-col items-start gap-2 text-sm">
         <p>{fileContents.error.message}</p>
@@ -514,6 +537,7 @@ function SkillFileEditor({
         value={content}
         onChange={updateActiveFile}
         mode="text"
+        extensions={getSkillFileLanguageExtensions(activePath)}
         minHeight="500px"
         lineNumbers
         className="h-full"
@@ -530,14 +554,15 @@ function SkillFileEditor({
         <div className="flex gap-1">
           <Button
             size="sm"
-            variant={view === "edit" ? "secondary" : "ghost"}
+            variant={!isPreview ? "secondary" : "ghost"}
             onClick={() => setView("edit")}
+            disabled={isImage}
           >
             <FileCode2 className="mr-1 h-3.5 w-3.5" /> Edit
           </Button>
           <Button
             size="sm"
-            variant={view === "preview" ? "secondary" : "ghost"}
+            variant={isPreview ? "secondary" : "ghost"}
             onClick={() => setView("preview")}
             disabled={!canPreview}
           >

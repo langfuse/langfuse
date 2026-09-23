@@ -6,8 +6,13 @@ export type SkillDraftFile = {
   path: string;
   contentType: string;
 } & (
-  | { content: string; source?: never }
-  | { content?: never; source: { fileId: string; blobId: string } }
+  | { content: string; source?: never; blob?: never }
+  | {
+      content?: never;
+      source: { fileId: string; blobId: string };
+      blob?: never;
+    }
+  | { content?: never; source?: never; blob: Blob }
 );
 
 export type SkillEditorInitialValue = {
@@ -28,6 +33,7 @@ type SkillEditorState = {
   tags: string[];
   commitMessage: string;
   dirty: boolean;
+  isImporting: boolean;
   actions: {
     selectFile: (path: string) => void;
     updateActiveFile: (content: string) => void;
@@ -64,6 +70,7 @@ export function createSkillEditorStore(
     tags: initialValue.tags,
     commitMessage: "",
     dirty: false,
+    isImporting: false,
     actions: {
       resetName: () => {
         const state = get();

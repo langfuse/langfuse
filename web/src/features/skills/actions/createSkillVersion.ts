@@ -1,5 +1,8 @@
 import { Sha256 } from "@aws-crypto/sha256-browser";
-import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
+import {
+  type SkillDraftFile,
+  type SkillEditorStore,
+} from "@/src/features/skills/components/skillEditorStore";
 import { type RouterInputs } from "@/src/utils/api";
 
 type PreparedUpload = {
@@ -59,25 +62,31 @@ export async function createSkillVersionFromDraft(params: {
 }) {
   const draft = params.store.getState();
   const files = Object.values(draft.files);
-  const encodedFiles = await Promise.all(
-    files
-      .filter((file) => file.content !== undefined)
-      .map(async (file) => {
-        const bytes = new TextEncoder().encode(file.content);
-        return { file, bytes, sha256Hash: await sha256Base64(bytes) };
-      }),
-  );
+  const encodedFiles: Array<{
+    file: SkillDraftFile;
+    body: Blob;
+    sha256Hash: string;
+  }> = [];
+  for (const file of files) {
+    if (file.source) continue;
+    const body =
+      file.blob ?? new Blob([new TextEncoder().encode(file.content)]);
+    const sha256Hash = await sha256Base64(
+      new Uint8Array(await body.arrayBuffer()),
+    );
+    encodedFiles.push({ file, body, sha256Hash });
+  }
 
   const uniqueBlobs = new Map<
     string,
     { sha256Hash: string; contentType: string; contentLength: number }
   >();
-  for (const { file, bytes, sha256Hash } of encodedFiles) {
+  for (const { file, body, sha256Hash } of encodedFiles) {
     if (!uniqueBlobs.has(sha256Hash)) {
       uniqueBlobs.set(sha256Hash, {
         sha256Hash,
         contentType: file.contentType,
-        contentLength: bytes.byteLength,
+        contentLength: body.size,
       });
     }
   }
@@ -92,20 +101,23 @@ export async function createSkillVersionFromDraft(params: {
     prepared.data.map((upload) => [upload.sha256Hash, upload]),
   );
 
+  const pendingUploads = [...uniqueBlobs.keys()].values();
   await Promise.all(
-    [...uniqueBlobs.keys()].map(async (sha256Hash) => {
-      const upload = uploadByHash.get(sha256Hash)!;
-      if (!upload.uploadUrl) return;
-      const bytes = encodedFiles.find(
-        (file) => file.sha256Hash === sha256Hash,
-      )!.bytes;
-      const response = await fetch(upload.uploadUrl, {
-        method: "PUT",
-        body: bytes,
-        headers: uploadHeaders(upload),
-      });
-      if (!response.ok) {
-        throw new Error(`File upload failed with status ${response.status}`);
+    Array.from({ length: Math.min(4, uniqueBlobs.size) }, async () => {
+      for (const sha256Hash of pendingUploads) {
+        const upload = uploadByHash.get(sha256Hash)!;
+        if (!upload.uploadUrl) continue;
+        const body = encodedFiles.find(
+          (file) => file.sha256Hash === sha256Hash,
+        )!.body;
+        const response = await fetch(upload.uploadUrl, {
+          method: "PUT",
+          body,
+          headers: uploadHeaders(upload),
+        });
+        if (!response.ok) {
+          throw new Error(`File upload failed with status ${response.status}`);
+        }
       }
     }),
   );

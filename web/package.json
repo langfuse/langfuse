@@ -47,6 +47,7 @@
     "@codemirror/lang-json": "^6.0.2",
     "@codemirror/lang-python": "^6.2.1",
     "@codemirror/language": "^6.12.3",
+    "@codemirror/legacy-modes": "^6.5.4",
     "@codemirror/lint": "^6.9.5",
     "@codemirror/search": "^6.7.0",
     "@codemirror/state": "^6.6.0",
