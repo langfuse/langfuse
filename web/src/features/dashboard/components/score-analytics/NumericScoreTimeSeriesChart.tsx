@@ -112,7 +112,6 @@ export function NumericScoreTimeSeriesChart(props: {
     <div className="h-80 w-full shrink-0">
       <DashboardLineTimeSeriesChart
         data={extractedScores}
-        subtleFill
         syncId={props.syncId}
       />
     </div>
