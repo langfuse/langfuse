@@ -6,10 +6,13 @@ import {
   createLLMOutput,
   LLMAdapter,
   logger,
+  getLangfuseAIBedrockRegion,
 } from "@langfuse/shared/src/server";
+import { generateTopicEmbedding } from "@langfuse/shared/topics/server";
 import {
   TOPICS_SUMMARY_MODEL,
   TOPICS_EMBEDDING_MODEL,
+  topicEmbeddingConfigSchema,
   type TopicFacetVersion,
   type TopicProcessingConfig,
   type TopicSummary,
@@ -211,65 +214,56 @@ export async function embedTopicSummary(
   summary: string,
   dimensions: number,
 ): Promise<ModelUsage & { embedding: number[] }> {
-  if (!env.OPENAI_API_KEY)
+  const region = getLangfuseAIBedrockRegion();
+  if (!region)
     throw new TopicsProviderUnavailable(
-      "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
+      "LANGFUSE_AI_AWS_BEDROCK_REGION is required for Topics embeddings. Configure the worker's Bedrock region before resuming.",
       "authentication",
     );
-  const encoding = get_encoding("cl100k_base");
-  let inputTokens: number;
-  try {
-    inputTokens = encoding.encode(summary, "all", []).length;
-  } finally {
-    encoding.free();
-  }
-  if (inputTokens < 1 || inputTokens > 1024)
+  if (
+    !summary.trim() ||
+    !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
+      .success
+  )
     throw new TopicsProviderUnavailable(
-      "Topics embedding input must contain 1-1024 tokens.",
+      "Topics embeddings require non-empty text and 256, 512, 1024, or 1536 dimensions.",
       "invalid_input",
     );
-  const response = await fetch("https://api.openai.com/v1/embeddings", {
-    method: "POST",
-    redirect: "error",
-    signal: AbortSignal.timeout(60_000),
-    headers: {
-      Authorization: `Bearer ${env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: TOPICS_EMBEDDING_MODEL,
-      input: summary,
-      dimensions,
-      encoding_format: "float",
-    }),
+  const result = await generateTopicEmbedding({
+    summary,
+    dimensions,
+    region,
+    profile: env.AWS_PROFILE ?? env.LANGFUSE_TOPICS_AWS_PROFILE,
   }).catch((error: unknown) => {
     throw topicProviderError(error);
   });
-  if (!response.ok) throw topicProviderError({ statusCode: response.status });
-  const parsed = z
-    .object({
-      data: z
-        .array(
-          z.object({
-            embedding: z.array(z.number()).length(dimensions),
-          }),
-        )
-        .length(1),
-      usage: z.object({ total_tokens: z.number().nonnegative() }),
-    })
-    .parse(await response.json());
   // ClickHouse stores Float32; calibration and future classification must use those same vectors.
-  const usageDetails = {
-    embedding_input: parsed.usage.total_tokens,
-    total: parsed.usage.total_tokens,
-  };
-  const cost = (parsed.usage.total_tokens * 0.02) / 1_000_000;
-  const accepted = {
-    embedding: Array.from(new Float32Array(parsed.data[0].embedding)),
+  const embedding = Array.from(new Float32Array(result.embedding));
+  if (
+    embedding.length !== dimensions ||
+    !embedding.every(Number.isFinite) ||
+    !embedding.some((value) => value !== 0)
+  )
+    throw new TopicsProviderUnavailable(
+      "Topics embedding provider returned an invalid vector.",
+      "invalid_output",
+    );
+  const usageDetails: Record<string, number> = {};
+  const costDetails: Record<string, number> = {};
+  if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
+    usageDetails.embedding_input = usageDetails.total = result.tokens;
+    costDetails.embedding_input = costDetails.total =
+      (result.tokens * 0.12) / 1_000_000;
+  } else {
+    logger.warn("Topics embedding response omitted token usage", {
+      model: TOPICS_EMBEDDING_MODEL,
+    });
+  }
+  return {
+    embedding,
     providedUsageDetails: usageDetails,
     usageDetails,
     providedCostDetails: {},
-    costDetails: { embedding_input: cost, total: cost },
+    costDetails,
   };
-  return accepted;
 }

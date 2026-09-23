@@ -74,9 +74,18 @@ vi.mock("@/src/utils/api", () => ({
 const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
   HTMLElement.prototype.scrollIntoView = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
 });
 afterEach(() => {
   HTMLElement.prototype.scrollIntoView = scrollIntoView;
+  vi.unstubAllGlobals();
 });
 
 describe("Topics pipeline selection handoff", () => {
@@ -123,9 +132,10 @@ describe("Topics pipeline selection handoff", () => {
     };
     view.rerender(<TopicPipelineForm {...props} />);
     fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
-      target: { value: "512" },
+    fireEvent.keyDown(screen.getByLabelText("Embedding dimensions"), {
+      key: "ArrowDown",
     });
+    fireEvent.click(screen.getByRole("option", { name: "512" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(
       screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
@@ -142,7 +152,7 @@ describe("Topics pipeline selection handoff", () => {
           { facetId: "issues", version: 2 },
         ],
         embeddingConfig: {
-          embeddingModel: "text-embedding-3-small",
+          embeddingModel: "cohere.embed-v4:0",
           embeddingDimensions: 512,
         },
       }),
@@ -220,9 +230,10 @@ describe("Topics pipeline selection handoff", () => {
       },
     };
     view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.change(screen.getByLabelText("Embedding dimensions"), {
-      target: { value: "256" },
+    fireEvent.keyDown(screen.getByLabelText("Embedding dimensions"), {
+      key: "ArrowDown",
     });
+    fireEvent.click(screen.getByRole("option", { name: "256" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     fireEvent.click(
       screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),

@@ -27,6 +27,9 @@
   persistence, and unchanged embedding waits must read only Redis queue state.
   Transcript assembly is shared with web through `loadTopicTranscript`.
   Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
+  Cohere embeddings use `generateTopicEmbedding` from `@langfuse/shared/topics/server`
+  to keep the Bedrock transport on shared's AI SDK version. Local AWS auth uses
+  `LANGFUSE_TOPICS_AWS_PROFILE`; region/setup details live in the Topics README.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

@@ -11,6 +11,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import {
   Select,
   SelectContent,
@@ -78,7 +79,9 @@ export function TopicPipelineForm({
   const minimumTraceCountResult = topicMinimumTraceCountSchema.safeParse(
     Number(minimumTraceCountValue),
   );
-  const [dimensions, setDimensions] = useState("768");
+  const [dimensions, setDimensions] = useState(() =>
+    String(topicEmbeddingConfigSchema.parse({}).embeddingDimensions),
+  );
   const embeddingConfig = topicEmbeddingConfigSchema.safeParse({
     embeddingDimensions: Number(dimensions),
   });
@@ -393,15 +396,15 @@ export function TopicPipelineForm({
               )}
               <label className="flex flex-col gap-1 text-sm">
                 Embedding dimensions
-                <Input
+                <SelectInput
                   aria-label="Embedding dimensions"
-                  className="w-28"
-                  type="number"
-                  min={16}
-                  max={1536}
-                  step={1}
+                  placeholder="Embedding dimensions"
                   value={dimensions}
-                  onChange={(event) => setDimensions(event.target.value)}
+                  onValueChange={setDimensions}
+                  options={[256, 512, 1024, 1536].map((value) => ({
+                    value: String(value),
+                    label: String(value),
+                  }))}
                 />
               </label>
               {operation === "update" && (
@@ -437,8 +440,8 @@ export function TopicPipelineForm({
                 Process {selection.count.toLocaleString()} traces across{" "}
                 {selectedFacets.length} facets.{" "}
                 {reuseExistingSummaries
-                  ? "Matching stored summaries and embeddings are reused. Missing results are generated with OpenAI."
-                  : "Generate fresh summaries and embeddings with OpenAI."}
+                  ? "Matching stored summaries and embeddings are reused. Missing summaries use OpenAI; embeddings use Cohere on Amazon Bedrock."
+                  : "Generate fresh summaries with OpenAI and embeddings with Cohere on Amazon Bedrock."}
               </p>
             ) : null}
             {operation === "process" && (

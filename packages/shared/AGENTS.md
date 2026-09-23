@@ -71,6 +71,8 @@
     Trace inputs and paid outputs belong outside the journal.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
     payloads through assignment and save terminal job state before cleanup.
+  - `embeddings.ts`: Bedrock embedding transport using the shared AI SDK;
+    worker model calls own usage, cost and vector validation.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Token counting and its WASM dependency belong to worker model calls.
   - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,

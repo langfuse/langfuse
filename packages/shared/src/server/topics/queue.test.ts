@@ -515,8 +515,8 @@ describe("Topics embedding queue handoff", () => {
         executionId: batch.executionId,
         summary: accepted,
         embeddingConfig: {
-          embeddingModel: "text-embedding-3-small",
-          embeddingDimensions: 16,
+          embeddingModel: "cohere.embed-v4:0",
+          embeddingDimensions: 256,
         },
       };
       mocks.get.mockResolvedValue(

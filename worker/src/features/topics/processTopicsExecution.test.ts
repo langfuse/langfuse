@@ -346,7 +346,7 @@ function execution<T extends "process" | "update" = "process">(
   count: number,
   operation: T = "process" as T,
   facets = [facet],
-  embeddingDimensions = 16,
+  embeddingDimensions = 256,
 ): TopicExecution & {
   input: Extract<TopicExecution["input"], { operation: T }>;
 } {
@@ -358,7 +358,7 @@ function execution<T extends "process" | "update" = "process">(
     requestId: id,
     facets: facets.map(({ facetId, version }) => ({ facetId, version })),
     embeddingConfig: {
-      embeddingModel: "text-embedding-3-small" as const,
+      embeddingModel: "cohere.embed-v4:0" as const,
       embeddingDimensions,
     },
   };
@@ -769,7 +769,7 @@ describe("Topics execution", () => {
 
   it("reuses summary inference when embedding dimensions change", async () => {
     await processSelection("source", 4);
-    const reprocess = execution("dimensions", 4, "process", [facet], 32);
+    const reprocess = execution("dimensions", 4, "process", [facet], 512);
     reprocess.input.reuseExistingSummaries = true;
     state.executions.set("dimensions", reprocess);
     await processTopicsExecution({
@@ -780,7 +780,7 @@ describe("Topics execution", () => {
     expect(state.embed).toHaveBeenCalledTimes(8);
     expect(
       [...state.summaries.values()].filter(
-        (row) => row.embedding.length === 32,
+        (row) => row.embedding.length === 512,
       ),
     ).toHaveLength(4);
   });

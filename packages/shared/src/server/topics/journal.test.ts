@@ -102,8 +102,8 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
     maxOutputTokens: 512,
   },
   embeddingConfig: {
-    embeddingModel: "text-embedding-3-small",
-    embeddingDimensions: 768,
+    embeddingModel: "cohere.embed-v4:0",
+    embeddingDimensions: 1024,
   },
 };
 const updateInput: TopicExecutionInput = {

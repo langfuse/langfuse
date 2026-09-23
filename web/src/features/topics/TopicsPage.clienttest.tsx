@@ -81,7 +81,7 @@ vi.mock("@/src/utils/api", () => {
     createdAt: "2026-09-23T12:00:00Z",
     input: {
       operation: "process",
-      embeddingConfig: { embeddingDimensions: 768 },
+      embeddingConfig: { embeddingDimensions: 1024 },
     },
     facets: [],
     error: null,

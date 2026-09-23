@@ -71,7 +71,7 @@ const summaryFixture: TopicSummary = {
   transcriptId: "poc",
   transcriptVersion: "poc",
   summaryModel: "gpt-4.1-nano",
-  embeddingModel: "text-embedding-3-small",
+  embeddingModel: "cohere.embed-v4:0",
   providedUsageDetails: {
     summary_input: 10,
     summary_output: 5,
@@ -283,7 +283,7 @@ describe("Topics summary storage", () => {
       { facetId: "outcome", version: 2 },
     ];
     const counts = await getTopicSummaryCounts("project-a", facets, {
-      embeddingModel: "text-embedding-3-small",
+      embeddingModel: "cohere.embed-v4:0",
       embeddingDimensions: 256,
     });
     expect(counts).toEqual([

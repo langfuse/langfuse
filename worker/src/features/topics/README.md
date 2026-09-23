@@ -45,8 +45,15 @@ dev commands also build it):
 pnpm --filter @langfuse/native run build
 ```
 
-The worker reads `OPENAI_API_KEY` from its environment through the normal `.env`
-loader. Numerical fitting uses the worker's existing Node runtime and compiled
+The worker reads `OPENAI_API_KEY` for summaries/naming and
+`LANGFUSE_AI_AWS_BEDROCK_REGION` for embeddings through the normal `.env` loader.
+Use a region with direct Cohere Embed v4 availability, such as `eu-west-1`,
+`us-east-1`, or `ap-northeast-1`. Bedrock uses the default AWS credential chain;
+the worker role needs `bedrock:InvokeModel` access to `cohere.embed-v4:0`.
+Locally, set `LANGFUSE_TOPICS_AWS_PROFILE=playground` to use the SSO profile
+without changing credentials for local object storage. `AWS_PROFILE` takes
+precedence when set. Restart the worker's parent dev command after changing env.
+Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
 Summary and assignment records use `trace_id` as their source when present;
 `session_id` can also record that trace's parent session. With an empty `trace_id`,
@@ -61,12 +68,21 @@ snapshot. Reprocessing refreshes metadata even when text is reused; session
 results have no trace name.
 
 The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
-`gpt-5.6-luna` with reasoning disabled. Embeddings use `text-embedding-3-small`
-at 768 dimensions by default. Each execution chooses 16–1,536 dimensions.
+`gpt-5.6-luna` with reasoning disabled. Embeddings use Cohere Embed v4
+(`cohere.embed-v4:0`) on Amazon Bedrock, with float output, `clustering` input
+type for both discovery and assignment, and truncation disabled. Default: 1,024
+dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a
+time, retaining per-summary Redis checkpointing.
 Embedding settings are independent of immutable facet versions; changing them
 with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
 not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
 events; legacy-only traces are unsupported.
+
+After changing embedding models, start a new **Process traces** execution with
+**Reuse stored summaries** to replace vectors without repeating summary inference,
+then **Update topics** to rebuild the map. Old vectors/maps cannot match the new
+configuration. Drain existing work before deploying; old-model staged jobs cannot
+resume under the new schema. Old execution history remains readable.
 
 ## Run the experiment
 
@@ -286,6 +302,8 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
+is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
 Model prices and token budgets live in [models.ts](models.ts) and the shared
 Topics contracts. Oversized naming input fails before calling the provider;
 member summaries are never silently discarded.

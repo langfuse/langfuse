@@ -2,7 +2,7 @@ import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 
 export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
-export const TOPICS_EMBEDDING_MODEL = "text-embedding-3-small";
+export const TOPICS_EMBEDDING_MODEL = "cohere.embed-v4:0";
 
 export const topicIdSchema = z
   .string()
@@ -14,7 +14,12 @@ export const topicEmbeddingConfigSchema = z.object({
   embeddingModel: z
     .literal(TOPICS_EMBEDDING_MODEL)
     .default(TOPICS_EMBEDDING_MODEL),
-  embeddingDimensions: z.number().int().min(16).max(1536).default(768),
+  embeddingDimensions: z
+    .number()
+    .refine((value) => [256, 512, 1024, 1536].includes(value), {
+      message: "Choose 256, 512, 1024, or 1536 embedding dimensions.",
+    })
+    .default(1024),
 });
 export type TopicEmbeddingConfig = z.infer<typeof topicEmbeddingConfigSchema>;
 export const topicProcessingConfigSchema = z.object({

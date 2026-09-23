@@ -29,8 +29,8 @@ import { processTopicEmbeddingBatch } from "./processTopicEmbeddingBatch";
 import { TopicsProviderUnavailable } from "./provider-error";
 
 const embeddingConfig: TopicEmbeddingConfig = {
-  embeddingModel: "text-embedding-3-small",
-  embeddingDimensions: 16,
+  embeddingModel: "cohere.embed-v4:0",
+  embeddingDimensions: 256,
 };
 const summary = (id = "summary"): TopicSummary => ({
   id,
@@ -73,7 +73,7 @@ const batch = (...rows: TopicSummary[]): TopicEmbeddingBatch => ({
   })),
 });
 const embeddingResult = {
-  embedding: Array(16).fill(0.25),
+  embedding: Array(256).fill(0.25),
   providedUsageDetails: { embedding_input: 8, total: 8 },
   usageDetails: { embedding_input: 8, total: 8 },
   providedCostDetails: {},
@@ -174,7 +174,7 @@ describe("Topics embedding handoff", () => {
     await first;
     const accepted = staged.get(row.id);
     vi.setSystemTime("2026-09-18T00:02:00.000Z");
-    finishSecond({ ...embeddingResult, embedding: Array(16).fill(0.5) });
+    finishSecond({ ...embeddingResult, embedding: Array(256).fill(0.5) });
     await second;
     expect(mocks.write.mock.calls.map(([rows]) => rows)).toEqual([
       [accepted],
