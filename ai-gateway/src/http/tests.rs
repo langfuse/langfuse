@@ -499,6 +499,90 @@ async fn slow_request_body_and_resolution_have_bounded_waits() {
 }
 
 #[tokio::test]
+async fn pre_header_provider_failures_export_the_status_returned_to_the_caller() {
+    use crate::{resolution::ControlPlaneConfig, telemetry::Telemetry};
+    use serde_json::Value;
+
+    for expected in [StatusCode::GATEWAY_TIMEOUT, StatusCode::BAD_GATEWAY] {
+        let (sent, mut received) = tokio::sync::mpsc::channel(1);
+        let sink = FakeServer::start(move |request| {
+            let sent = sent.clone();
+            async move {
+                let bytes = to_bytes(request.into_body(), 65536).await.unwrap();
+                sent.send(serde_json::from_slice::<Value>(&bytes).unwrap())
+                    .await
+                    .unwrap();
+                Response::new(Body::from("{}"))
+            }
+        })
+        .await;
+        let telemetry =
+            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+        let upstream = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let upstream_url = format!("http://{}", upstream.local_addr().unwrap());
+        let upstream_task = tokio::spawn(async move {
+            let (_connection, _) = upstream.accept().await.unwrap();
+            if expected == StatusCode::GATEWAY_TIMEOUT {
+                std::future::pending::<()>().await;
+            }
+        });
+        let web = FakeServer::start(|_| async { resolution_response("provider-secret") }).await;
+        let provider = OpenAiProvider::for_test(
+            upstream_url,
+            ProviderLimits {
+                headers_timeout: Duration::from_millis(100),
+                ..ProviderLimits::default()
+            },
+        )
+        .with_telemetry(telemetry.clone());
+        let gateway = Gateway::start(Some(InferenceService::for_test(
+            web.control_plane(),
+            provider,
+            1,
+        )))
+        .await;
+        let response = gateway
+            .post()
+            .bearer_auth("gateway-key")
+            .body(r#"{"model":"requested","input":"hello"}"#)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        let payload = tokio::time::timeout(Duration::from_secs(2), received.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+            .as_array()
+            .unwrap();
+        let metadata: Value = serde_json::from_str(
+            attrs
+                .iter()
+                .find(|a| a["key"] == "langfuse.observation.metadata")
+                .unwrap()["value"]["stringValue"]
+                .as_str()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            metadata["langfuse.gateway.response.status_code"],
+            response.status().as_u16()
+        );
+        assert!(
+            metadata
+                .get("langfuse.gateway.upstream.request.id")
+                .is_none()
+        );
+        telemetry
+            .shutdown(tokio::time::Instant::now() + Duration::from_secs(1))
+            .await;
+        assert_eq!(sink.calls(), 1);
+        upstream_task.abort();
+    }
+}
+
+#[tokio::test]
 async fn unconfigured_gateway_is_live_but_not_ready_and_inference_is_unavailable() {
     let gateway = Gateway::start(None).await;
     let client = reqwest::Client::new();

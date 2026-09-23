@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
@@ -141,12 +142,22 @@ const DatasetAggregateCellContent = ({
   };
 
   const handleOpenReview = () => {
-    setActiveCell({
+    const opened = setActiveCell({
+      datasetRunId: value.datasetRunId,
       traceId: value.trace.id,
       observationId: value.observation?.id,
       scoreAggregates: scores,
       environment: data?.environment,
     });
+    if (opened && !isActiveCell) {
+      capture("annotation:entry_click", {
+        type: "trace",
+        entryPoint: "annotate_button",
+        source: "DatasetCompare",
+        targetType: value.observation ? "observation" : "trace",
+        isV4: false,
+      });
+    }
   };
 
   const isActiveCell =

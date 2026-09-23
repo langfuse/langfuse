@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useFieldArray, useForm } from "react-hook-form";
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -10,6 +11,7 @@ import {
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  isDecisionModelAdapter,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -35,15 +37,14 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { type useUiCustomization } from "@/src/ee/features/ui-customization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key/types";
-
+} from "@/src/features/llm-api-key";
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 /**
@@ -275,9 +276,11 @@ export function CreateLLMApiKeyForm({
   const existingKeys = api.llmApiKey.all.useQuery(
     {
       projectId: projectId as string,
+      includeDecisionModels: true,
     },
     { enabled: Boolean(projectId) },
   );
+  const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
@@ -711,9 +714,11 @@ export function CreateLLMApiKeyForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {Object.values(LLMAdapter).map((provider) => (
+                    {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {provider}
+                        {isDecisionModelAdapter(provider)
+                          ? `${provider} (experimental)`
+                          : provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (

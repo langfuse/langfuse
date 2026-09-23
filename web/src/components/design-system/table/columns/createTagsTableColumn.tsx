@@ -2,7 +2,7 @@
 import { type RowData } from "@tanstack/react-table";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { cn } from "@/src/utils/tailwind";
 import {
   createTableColumn,

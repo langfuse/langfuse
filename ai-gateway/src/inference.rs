@@ -4,6 +4,7 @@ use axum::{
     http::{HeaderMap, Response},
 };
 use tokio::sync::Semaphore;
+use tracing::Instrument;
 
 use crate::{
     providers::openai::{OpenAiProvider, OpenAiRoute, ProviderError, RequestPermit},
@@ -56,6 +57,33 @@ impl InferenceService {
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
+        api_format: ApiFormat,
+    ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
+        let span = tracing::info_span!(
+            "resolution",
+            otel.kind = "internal",
+            gateway.outcome = tracing::field::Empty
+        );
+        async {
+            let prepared = self.prepare(gateway_key, api_format).await;
+            tracing::Span::current().record(
+                "gateway.outcome",
+                match &prepared {
+                    Ok(_) => "admitted",
+                    Err(RequestPreparationError::Resolution(_)) => "resolution_failed",
+                    Err(RequestPreparationError::Provider(_)) => "busy",
+                },
+            );
+            prepared
+        }
+        .instrument(span)
+        .await
+    }
+
+    async fn prepare(
+        &self,
+        gateway_key: &str,
+        api_format: ApiFormat,
     ) -> Result<(RequestPermit, ResolvedRequestContext), RequestPreparationError> {
         let context = {
             let _permit = self.resolution_capacity.try_acquire().map_err(|_| {
@@ -64,7 +92,7 @@ impl InferenceService {
             })?;
             let _active = crate::observability::Active::new("resolution");
             self.control_plane
-                .resolve(gateway_key, ApiFormat::OpenAiResponses)
+                .resolve(gateway_key, api_format)
                 .await
                 .map_err(RequestPreparationError::Resolution)?
         };

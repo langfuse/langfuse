@@ -30,8 +30,8 @@ import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
   getCloudRegionAuthUrl,
-} from "@/src/features/organizations/cloudRegions";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+  useLangfuseCloudRegion,
+} from "@/src/features/organizations";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -42,16 +42,16 @@ import {
   useV4UpgradeUiEnabled,
   useV4UpgradeUiFlag,
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
 import { api } from "@/src/utils/api";
-import { usePlan } from "@/src/features/entitlements/hooks";
+import { usePlan } from "@/src/features/entitlements";
 import { env } from "@/src/env.mjs";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import {
   PaymentBannerView,
   usePaymentBanner,

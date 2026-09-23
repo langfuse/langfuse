@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   validateExportSource,
@@ -21,7 +20,7 @@ import {
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations/exportSource";
+} from "@/src/features/analytics-integrations";
 import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration/types";
 
 type PostHogIntegrationFormInput = z.input<typeof posthogIntegrationFormSchema>;

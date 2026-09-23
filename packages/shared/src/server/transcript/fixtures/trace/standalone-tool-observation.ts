@@ -3,7 +3,6 @@ import type { TranscriptFixture } from "../fixture-types";
 // Tool execution is recorded only as a TOOL observation, not a model tool call.
 export const standaloneToolObservationFixture = {
   name: "Standalone tool execution without a generation tool call",
-  scope: "trace",
   description:
     "The generation contains only text. A subsequent TOOL observation has input and output but no matching generation tool call, so its result is omitted from the transcript.",
   observations: [
@@ -41,25 +40,28 @@ export const standaloneToolObservationFixture = {
   expected: {
     threads: [
       {
-        messages: [
-          {
-            role: "user",
-            parts: [{ type: "text", text: "Find my orders." }],
-            source: "input",
-            observationId: "standalone-generation",
-            traceId: "standalone-tool-trace",
-          },
-          {
-            role: "assistant",
-            parts: [{ type: "text", text: "I'll look up your orders." }],
-            source: "output",
-            observationId: "standalone-generation",
-            traceId: "standalone-tool-trace",
-          },
-        ],
-        observations: [
-          { id: "standalone-generation", traceId: "standalone-tool-trace" },
-        ],
+        conversationHistory: [],
+        currentTurn: {
+          messages: [
+            {
+              role: "user",
+              parts: [{ type: "text", text: "Find my orders." }],
+              source: "input",
+              observationId: "standalone-generation",
+              traceId: "standalone-tool-trace",
+            },
+            {
+              role: "assistant",
+              parts: [{ type: "text", text: "I'll look up your orders." }],
+              source: "output",
+              observationId: "standalone-generation",
+              traceId: "standalone-tool-trace",
+            },
+          ],
+          observations: [
+            { id: "standalone-generation", traceId: "standalone-tool-trace" },
+          ],
+        },
       },
     ],
   },

@@ -201,7 +201,7 @@ jobs:
       - name: Run Rust tests
         run: cargo test --locked
       - name: Build runtime image
-        run: docker build --target runtime -t langfuse-ai-gateway:test .
+        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
@@ -262,6 +262,8 @@ jobs:
       # by every AGENTS.md are resolved.
       - name: agent guidance paths resolve
         run: pnpm run agents:check
+      - name: agent setup tests
+        run: node --test scripts/agents/sync-agent-shims.test.mjs
       - name: cursor PR label tests
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: Load default env
@@ -698,7 +700,7 @@ jobs:
     # at run creation, so this job starts immediately (!cancelled() lets the
     # condition evaluate despite the skipped dependency).
     if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
-    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
+    name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }}, otel-worker-shadow=${{ matrix.deploy-mode != '-azure' }})
     env:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
@@ -771,6 +773,7 @@ jobs:
           # phase below reapplies the mode-specific config and prerendering.
           write_test_env .env.dev.example .env
           write_test_env .env.dev${{ matrix.deploy-mode }}.example .env.runtime
+          echo "LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED=${{ matrix.deploy-mode != '-azure' }}" >> .env.runtime
       - name: Setup Turbo remote cache
         if: env.CI_CACHE_ALLOWED == 'true'
         continue-on-error: true
@@ -806,6 +809,8 @@ jobs:
           NEXT_DISABLE_BUILD_CACHE: "true"
           NODE_OPTIONS: --max_old_space_size=8192
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Build OTel ingestion worker
+        run: pnpm --filter web run build:otel-worker
       - name: Wait for dev containers
         run: |
           timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
@@ -997,6 +1002,13 @@ jobs:
           pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm --filter=worker... run build
+      - name: run native codec tests against ClickHouse
+        if: matrix.deploy-mode == ''
+        env:
+          LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE: "1"
+        run: |
+          pnpm --filter @langfuse/native run test
+          pnpm --filter worker run test:native-codec
       - name: run tests
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:

@@ -9,12 +9,18 @@ const { env } = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env }));
 
+const { shadowAuthDiff } = vi.hoisted(() => ({ shadowAuthDiff: vi.fn() }));
+
+vi.mock("@/src/features/public-api/server/shadowAuthDiff", () => ({
+  shadowAuthDiff,
+}));
+
 import { __test } from "@/src/features/mcp/server/mcpServer";
 import type { ToolDefinition } from "@/src/features/mcp/core/define-tool";
 import {
   __dangerouslySkipAuthz,
   type ApiAction,
-} from "@/src/features/public-api/server/enforceAuth";
+} from "@/src/features/public-api/server";
 import type { ServerContext } from "@/src/features/mcp/types";
 import {
   type AuthorizationContext,
@@ -70,6 +76,7 @@ const tool = (action: ApiAction): ToolDefinition => ({
 describe("assertToolAuthorized", () => {
   beforeEach(() => {
     env.API_AUTH_MIGRATION = "enforce";
+    shadowAuthDiff.mockReset();
   });
 
   it("throws a formatted InvalidRequest error when the context lacks the tool's action", () => {
@@ -113,15 +120,13 @@ describe("assertToolAuthorized", () => {
     });
 
     it("diffs a denied action without throwing", () => {
-      const diff = vi.fn();
       expect(() =>
         assertToolAuthorized(
           tool("prompts:CUD"),
           serverContext(authContext([allowPrompts])),
-          diff,
         ),
       ).not.toThrow();
-      expect(diff).toHaveBeenCalledWith(
+      expect(shadowAuthDiff).toHaveBeenCalledWith(
         { success: false, error: expect.any(ForbiddenError) },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:CUD",
@@ -129,13 +134,11 @@ describe("assertToolAuthorized", () => {
     });
 
     it("diffs an allowed action", () => {
-      const diff = vi.fn();
       assertToolAuthorized(
         tool("prompts:read"),
         serverContext(authContext([allowPrompts])),
-        diff,
       );
-      expect(diff).toHaveBeenCalledWith(
+      expect(shadowAuthDiff).toHaveBeenCalledWith(
         { success: true },
         { success: true, scope: { accessLevel: "project" } },
         "prompts:read",

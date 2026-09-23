@@ -23,8 +23,7 @@ vi.mock(
 
 import { ChatMessageList } from "@/src/features/traces/components/ChatMessageList";
 import { type ChatMlMessage } from "@/src/features/traces/fns/chatMessageUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
-
+import { type MediaReturnType } from "@/src/features/media";
 // Pin the limit so the test does not depend on the ambient .env value.
 const { TEST_LIMIT } = vi.hoisted(() => ({ TEST_LIMIT: 1_000 }));
 vi.mock("@/src/hooks/useMarkdownRenderCharacterLimit", () => ({

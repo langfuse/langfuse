@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { type ReactNode, useEffect, useRef, useState } from "react";
@@ -11,9 +12,9 @@ import {
   Info,
 } from "lucide-react";
 import { env } from "@/src/env.mjs";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useSupportDrawer } from "@/src/features/support-chat";
 import { Button } from "@/src/components/ui/button";
 import {
   HoverCard,
@@ -54,7 +55,7 @@ import {
 import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,

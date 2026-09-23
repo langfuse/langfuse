@@ -7,8 +7,10 @@
  */
 
 import { useCallback } from "react";
-import { TraceGraphView as TraceGraphViewComponent } from "@/src/features/trace-graph-view/components/TraceGraphView";
-import { type GraphViewMode } from "@/src/features/trace-graph-view/types";
+import {
+  TraceGraphView as TraceGraphViewComponent,
+  type GraphViewMode,
+} from "@/src/features/trace-graph-view";
 import { useTraceGraphData } from "@/src/features/traces/contexts/TraceGraphDataContext";
 import { useActiveObservationIds } from "@/src/features/traces/contexts/PlayheadContext";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";

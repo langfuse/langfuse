@@ -1,8 +1,6 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { logger } from "@langfuse/shared/src/server";
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
-import { writeScimError } from "@/src/features/public-api/server/writeError";
-
+import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 export default async function handler(

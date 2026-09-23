@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import { type FilterState, type QueryType } from "@langfuse/shared";
 import {
@@ -14,7 +15,7 @@ import {
   canReuseOutlierPlaceholder,
   pickChartGranularity,
 } from "@/src/features/events";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ScoreOutlierStripHeader } from "@/src/features/scores-chart-view/components/ScoreOutlierStripHeader";
 import { SCORE_OUTLIER_STRIP_METRICS } from "@/src/features/scores-chart-view/constants/scoreOutlierStripMetrics";

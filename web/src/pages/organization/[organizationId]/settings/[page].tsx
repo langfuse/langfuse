@@ -1,3 +1,1 @@
-import OrgSettingsPage from "@/src/pages/organization/[organizationId]/settings";
-
-export default OrgSettingsPage;
+export { default } from "@/src/features/organizations/OrganizationSettingsPage";
