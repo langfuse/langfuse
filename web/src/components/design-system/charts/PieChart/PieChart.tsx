@@ -192,6 +192,8 @@ function PieChartContent({
                       label: slice.data.label,
                       value: `${valueFormatter(slice.data.value)} (${percentageFormatter.format(slice.data.value / totalValue)})`,
                       color,
+                      copyLabel: slice.data.label,
+                      hint: "Click or press Enter to copy label",
                       details: slice.data.details?.map((datum) => ({
                         label: datum.label,
                         value: `${valueFormatter(datum.value)} (${percentageFormatter.format(datum.value / totalValue)})`,

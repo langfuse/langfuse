@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { BarChart } from "./BarChart";
 
@@ -45,6 +45,19 @@ export const KeyboardFocus = meta.story({
     );
     await expect(tooltip).toHaveTextContent("Alpha");
     await expect(tooltip).toHaveTextContent("12");
+    await expect(tooltip).toHaveTextContent(
+      "Click or press Enter to copy label",
+    );
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(firstBar);
+      await expect(copy).toHaveBeenCalledWith("Alpha");
+      firstBar.focus();
+      await userEvent.keyboard("{Enter}");
+      await expect(copy).toHaveBeenCalledTimes(2);
+    } finally {
+      copy.mockRestore();
+    }
     await expect(tooltip.querySelector("svg")).toBeNull();
     await expect(firstBar).toHaveAttribute("fill", "hsl(var(--chart-1))");
     await expect(
@@ -54,6 +67,27 @@ export const KeyboardFocus = meta.story({
     await expect(
       canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
     ).toHaveFocus();
+  },
+});
+
+export const CategoryHoverArea = meta.story({
+  name: "(Test) Category Hover Area",
+  play: async ({ canvasElement }) => {
+    const area = canvasElement.querySelector<SVGRectElement>(
+      "[data-bar-hover-area]",
+    );
+    const bar = within(canvasElement).getByRole("graphics-symbol", {
+      name: "Alpha: 12",
+    });
+    if (!area) throw new Error("Hover area not found");
+    await expect(Number(area.getAttribute("height"))).toBeGreaterThan(
+      Number(bar.getAttribute("height")),
+    );
+    await userEvent.hover(area);
+    const tooltip = await within(canvasElement.ownerDocument.body).findByRole(
+      "tooltip",
+    );
+    await expect(tooltip).toHaveTextContent("Alpha");
   },
 });
 
