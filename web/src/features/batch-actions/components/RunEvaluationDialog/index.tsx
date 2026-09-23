@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useStore } from "zustand";
@@ -20,11 +21,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { ChevronLeft, ExternalLink, Plus } from "lucide-react";
 import {
@@ -56,6 +53,7 @@ type RunEvaluationDialogProps = {
   selectAll: boolean;
   totalCount: number;
   onClose: () => void;
+  onSuccess: () => void;
   experimentCount?: number;
   exampleObservation?: {
     id: string;
@@ -311,6 +309,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       },
     });
 
+    props.onSuccess();
     props.onClose();
   };
 
@@ -321,7 +320,12 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
 
   return (
     <>
-      <Dialog open onOpenChange={(open) => !open && props.onClose()}>
+      <Dialog
+        open
+        onOpenChange={(open) =>
+          !open && !runEvaluationMutation.isPending && props.onClose()
+        }
+      >
         <DialogContent
           {...(showMappingEditor ? { size: "lg" as const } : {})}
           className={
@@ -498,13 +502,16 @@ function MappingRunButton({
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-not-allowed" tabIndex={0}>
+    <Tooltip label={disabledReason} hoverableContent={false}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          className="inline-flex cursor-not-allowed"
+          tabIndex={0}
+        >
           {button}
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{disabledReason}</TooltipContent>
+      )}
     </Tooltip>
   );
 }

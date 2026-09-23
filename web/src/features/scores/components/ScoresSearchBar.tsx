@@ -1,8 +1,8 @@
 import type { FilterState } from "@langfuse/shared";
 import { useMemo } from "react";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import type { FilterConfig } from "@/src/features/filters";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { scoresFieldRegistry } from "@/src/features/scores/constants/scoresSearchRegistry";
 
 export function ScoresSearchBar({

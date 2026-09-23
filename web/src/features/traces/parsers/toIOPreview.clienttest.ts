@@ -28,7 +28,7 @@ describe("toIOPreview", () => {
       ],
     };
 
-    expect(toIOPreview(io, {}).allMessages[0]?.content).toEqual([
+    expect(toIOPreview(io).allMessages[0]?.content).toEqual([
       { type: "text", text: "Look at this" },
       { type: "image_url", image_url: { url: mediaReference } },
     ]);
@@ -69,7 +69,7 @@ describe("toIOPreview", () => {
       ],
     };
 
-    const result = toIOPreview(io, {});
+    const result = toIOPreview(io);
 
     expect(result.allMessages).toEqual([
       {
@@ -135,7 +135,7 @@ describe("toIOPreview", () => {
       ],
     };
 
-    const result = toIOPreview(io, {});
+    const result = toIOPreview(io);
 
     expect(result.allMessages).toEqual([
       {

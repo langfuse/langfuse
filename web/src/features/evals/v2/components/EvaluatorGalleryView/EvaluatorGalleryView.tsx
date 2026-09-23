@@ -1,10 +1,12 @@
+/* eslint-disable no-nested-ternary */
 import { useCallback, type RefObject } from "react";
-import { Code2, Search, Sparkles } from "lucide-react";
+import { Code2, Scale, Search, Sparkles } from "lucide-react";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { EvaluatorGalleryDecisionModelBanner } from "./components/EvaluatorGalleryDecisionModelBanner/EvaluatorGalleryDecisionModelBanner";
 import { EvaluatorGallerySection } from "./components/EvaluatorGallerySection/EvaluatorGallerySection";
 import { EvaluatorGallerySidebar } from "./components/EvaluatorGallerySidebar/EvaluatorGallerySidebar";
 import type {
@@ -52,6 +54,8 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates = false,
   onLoadMoreProjectTemplates,
   errorMessage,
+  decisionModelBannerDismissed,
+  onDismissDecisionModelBanner,
 }: {
   search: string;
   onSearchChange: (search: string) => void;
@@ -70,6 +74,8 @@ export function EvaluatorGalleryView({
   isLoadingMoreProjectTemplates?: boolean;
   onLoadMoreProjectTemplates?: () => void;
   errorMessage?: string;
+  decisionModelBannerDismissed: boolean;
+  onDismissDecisionModelBanner: () => void;
 }) {
   const sidebarItems = gallerySidebarItems(navigationItems, sections);
   const resolvedSection =
@@ -168,10 +174,30 @@ export function EvaluatorGalleryView({
                   <Code2 className="h-3.5 w-3.5" aria-hidden="true" />
                   New code evaluator
                 </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="flex-1 shrink-0 gap-1.5 @2xl:flex-none"
+                  title="Ask TypeSafe Jev typed questions and get calibrated answers in one call. Experimental."
+                  onClick={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                >
+                  <Scale className="h-3.5 w-3.5" aria-hidden="true" />
+                  New decision model evaluator
+                </Button>
               </div>
             </div>
 
             <div className="flex flex-col gap-10 px-4 py-4">
+              {!decisionModelBannerDismissed ? (
+                <EvaluatorGalleryDecisionModelBanner
+                  onTry={() =>
+                    onCreateFromScratch(EvalTemplateTypeEnum.DECISION_MODEL)
+                  }
+                  onDismiss={onDismissDecisionModelBanner}
+                />
+              ) : null}
               {isLoading ? <GallerySkeleton /> : null}
               {errorMessage ? (
                 <div className="text-destructive py-8 text-center text-sm">

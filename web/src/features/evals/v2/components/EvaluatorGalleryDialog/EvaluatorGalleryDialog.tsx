@@ -12,6 +12,7 @@ import { EvaluatorGalleryView } from "@/src/features/evals/v2/components/Evaluat
 import type { GalleryTemplate } from "@/src/features/evals/v2/types/templateGallery";
 import { prepareEvaluatorGallery } from "@/src/features/evals/v2/fns/templateGallery/prepareEvaluatorGallery";
 import { EVALUATOR_GALLERY_ALL_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
+import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getEvaluatorCreationAnalyticsProperties } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
 import { api } from "@/src/utils/api";
@@ -39,6 +40,10 @@ export function EvaluatorGalleryDialog({
   );
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useLocalStorage(
+    "evaluatorGallery:decisionModelBannerDismissed:v1",
+    false,
+  );
   const projectEvaluators = api.evalsV2.listGallery.useInfiniteQuery(
     {
       projectId,
@@ -154,6 +159,8 @@ export function EvaluatorGalleryDialog({
               ? projectEvaluators.error.message
               : undefined
           }
+          decisionModelBannerDismissed={bannerDismissed}
+          onDismissDecisionModelBanner={() => setBannerDismissed(true)}
         />
       </DialogContent>
     </Dialog>

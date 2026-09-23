@@ -14,7 +14,7 @@ const LlmApiKeySchema = z.object({
     .min(1)
     .regex(/^[^:]+$/, "Provider name cannot contain colons"),
   adapter: z.enum(LLMAdapter),
-  baseURL: z.url().optional(),
+  baseURL: z.url().nullish(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   config: z

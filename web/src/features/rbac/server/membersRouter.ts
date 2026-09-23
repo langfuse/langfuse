@@ -35,8 +35,10 @@ import {
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
 import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
-import { featurePreviewFlags } from "@/src/features/feature-flags/available-flags";
-import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  featurePreviewFlags,
+  setUserFeaturePreviewWithAuthorization,
+} from "@/src/features/feature-flags/server";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -133,6 +135,33 @@ async function createProjectMembershipOrThrowIfDuplicate({
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "User is already a member of this project",
+      });
+    }
+    throw error;
+  }
+}
+
+async function createOrgMembershipOrThrowIfDuplicate({
+  prisma,
+  data,
+}: {
+  prisma: PrismaClient | Prisma.TransactionClient;
+  data: {
+    userId: string;
+    orgId: string;
+    role: Role;
+  };
+}) {
+  try {
+    return await prisma.organizationMembership.create({ data });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "User is already a member of this organization",
       });
     }
     throw error;
@@ -346,7 +375,8 @@ export const membersRouter = createTRPCRouter({
             countCurrentUsage: countSeatsInUse,
             create: async (tx) => {
               const createdOrgMembership =
-                await tx.organizationMembership.create({
+                await createOrgMembershipOrThrowIfDuplicate({
+                  prisma: tx,
                   data: {
                     userId: user.id,
                     orgId: input.orgId,

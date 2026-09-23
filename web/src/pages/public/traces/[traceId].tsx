@@ -1,9 +1,2 @@
-// This url is deprecated, we keep this redirect page for backward compatibility
-
-import TraceRedirectPage, {
-  getServerSideProps,
-} from "@/src/pages/trace/[traceId]";
-
-export { getServerSideProps };
-
-export default TraceRedirectPage;
+export { default } from "@/src/features/traces/TraceRedirectPage";
+export { getServerSideProps } from "@/src/features/traces/server/getTraceRedirectPageServerSideProps";

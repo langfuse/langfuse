@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useRef, useState } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
 import { Copy, ExternalLink, MoreVertical, Pencil, Trash2 } from "lucide-react";
@@ -18,12 +19,7 @@ import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList"
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
 import { EditRuleDialog } from "@/src/features/evals/v2/components/Rules/EditRuleDialog/EditRuleDialog";
 import { RulesOverviewSelectionBar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesOverviewSelectionBar/RulesOverviewSelectionBar";
@@ -32,7 +28,7 @@ import { RuleNameCell } from "@/src/features/evals/v2/components/Rules/RulesTabl
 import { RulesTableToolbar } from "@/src/features/evals/v2/components/Rules/RulesTable/components/RulesTableToolbar/RulesTableToolbar";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "@/src/features/table";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import {
   useColumnOrder,
@@ -63,8 +59,8 @@ import {
   omitFilterFacets,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { evaluationRulesListFieldRegistry } from "@/src/features/evals/v2/constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
@@ -73,7 +69,7 @@ import {
   evaluationRuleTableFilterOptions,
 } from "@/src/features/evals/v2/constants/tableFilterColumns";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 
 function RelativeDate({ date }: { date: Date }) {
@@ -97,14 +93,12 @@ function RuleEvaluatorsCell({
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
       renderItem={(assignment) => (
-        <Badge variant="secondary" size="sm">
-          {assignment.evaluator.name}
-        </Badge>
+        <Badge variant="secondary">{assignment.evaluator.name}</Badge>
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" size="sm" className="font-normal">
+            <Badge variant="secondary" className="font-normal">
               +{overflowItemCount}
             </Badge>
           </TooltipTrigger>
@@ -433,41 +427,54 @@ export function RulesTable({
               >
                 View traces <ExternalLink className="ml-1 h-3.5 w-3.5" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <DropdownMenu
+                placement="bottom-end"
+                items={[
+                  ...(navigationAction === "edit"
+                    ? [
+                        {
+                          type: "item" as const,
+                          id: "edit",
+                          title: "Edit",
+                          icon: Pencil,
+                          onClick: () => setEditRuleId(row.original.id),
+                        },
+                      ]
+                    : []),
+                  {
+                    type: "item",
+                    id: "clone",
+                    title: "Clone",
+                    icon: Copy,
+                    disabled:
+                      hasWriteAccess && navigationAction === "edit"
+                        ? undefined
+                        : { reason: "This rule cannot be cloned" },
+                    onClick: () => setCloneRule(row.original),
+                  },
+                  {
+                    type: "item",
+                    id: "delete",
+                    title: "Delete",
+                    icon: Trash2,
+                    disabled: hasWriteAccess
+                      ? undefined
+                      : { reason: "Missing permission to delete rules" },
+                    onClick: () => setDeleteIds([row.original.id]),
+                  },
+                ]}
+              >
+                {({ getTriggerProps }) => (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-xs"
                     aria-label={`Actions for ${row.original.name}`}
+                    {...getTriggerProps()}
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {navigationAction === "edit" ? (
-                    <DropdownMenuItem
-                      onClick={() => setEditRuleId(row.original.id)}
-                    >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                  ) : null}
-                  <DropdownMenuItem
-                    disabled={!hasWriteAccess || navigationAction !== "edit"}
-                    onClick={() => setCloneRule(row.original)}
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Clone
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    disabled={!hasWriteAccess}
-                    onClick={() => setDeleteIds([row.original.id])}
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                )}
               </DropdownMenu>
             </div>
           );

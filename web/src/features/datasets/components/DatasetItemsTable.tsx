@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { DataTable } from "@/src/components/table/data-table";
 import { createDropdownTableColumn } from "@/src/components/design-system/table/columns/createDropdownTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -17,7 +18,7 @@ import {
   BatchExportTableName,
 } from "@langfuse/shared";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useEffect, useState } from "react";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -34,8 +35,7 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { useQueryFilterState } from "@/src/features/filters";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { TableSearchBar } from "@/src/features/search-bar";
+import { useFullTextSearch, TableSearchBar } from "@/src/features/search-bar";
 import { DATASET_ITEMS_FIELD_REGISTRY } from "../constants/datasetItemsSearchRegistry";
 import { useDatasetVersion } from "../hooks/useDatasetVersion";
 import { EditDatasetItemDialog } from "./EditDatasetItemDialog";
@@ -90,6 +90,10 @@ export function DatasetItemsTable({
     useFullTextSearch();
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "datasets:CUD" });
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const { selectedVersion } = useDatasetVersion();
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedItemForEdit, setSelectedItemForEdit] = useState<string | null>(
@@ -163,7 +167,7 @@ export function DatasetItemsTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/datasets/${datasetId}/items/${id}${versionParam}`,
+            path: `/project/${projectId}/datasets/${datasetId}/items/${encodeURIComponent(id)}${versionParam}`,
             value: id,
           },
         };
@@ -335,7 +339,7 @@ export function DatasetItemsTable({
     columns,
   );
 
-  const batchExportButton = (
+  const batchExportButton = hasBatchExportAccess ? (
     <BatchExportTableButton
       key="batchExport"
       projectId={projectId}
@@ -350,7 +354,7 @@ export function DatasetItemsTable({
         },
       ]}
     />
-  );
+  ) : null;
 
   const setFilterStateWithDebounce = useDebounce(setFilterState);
 

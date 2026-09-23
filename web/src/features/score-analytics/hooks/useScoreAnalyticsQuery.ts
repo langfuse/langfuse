@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import type { IntervalConfig } from "@/src/utils/date-range-utils";

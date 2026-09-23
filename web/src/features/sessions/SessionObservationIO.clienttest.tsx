@@ -51,10 +51,11 @@ import {
   type SessionTraceObservation,
 } from "./SessionObservationIO";
 
+const observationStartTime = new Date("2026-07-15T10:00:00Z");
 const baseObservation = {
   id: "obs-1",
   name: "gpt-4o-completion",
-  startTime: new Date("2026-07-15T10:00:00Z"),
+  startTime: observationStartTime,
   input: '{"messages":[{"role":"user","content":"hi"}]}',
   output: "hello",
   metadata: "{}",
@@ -70,9 +71,6 @@ const renderComponent = (
   onOpenInTraceView = vi.fn(),
 ) => {
   render(
-    // IOPreview reads the normalizedIoPreview flag via useSession; a null
-    // session resolves it to false (legacy behavior), matching production
-    // for regular users.
     <SessionProvider session={null}>
       <SessionObservationIO
         observation={observation}
@@ -115,6 +113,18 @@ describe("SessionObservationIO", () => {
     expect(screen.getByText(/2\.5M characters/i)).toBeInTheDocument();
   });
 
+  it("decodes Unicode escapes in the truncated I/O preview", () => {
+    renderComponent({
+      ...baseObservation,
+      input: '{"text":"\\u4f60\\u597d"}',
+      inputLength: 2_500_000,
+      inputTruncated: true,
+    } as SessionTraceObservation);
+
+    expect(screen.getByText(/你好/)).toBeInTheDocument();
+    expect(screen.queryByText(/\\u4f60\\u597d/)).not.toBeInTheDocument();
+  });
+
   it("opens the trace view at the observation", () => {
     const { onOpenInTraceView } = renderComponent({
       ...baseObservation,
@@ -151,7 +161,7 @@ describe("SessionObservationIO", () => {
       sessionId: "s1",
       traceId: "t1",
       observationId: "obs-1",
-      startTime: baseObservation.startTime,
+      startTime: observationStartTime,
     });
     expect(downloadJsonFile).toHaveBeenCalledWith(
       expect.objectContaining({

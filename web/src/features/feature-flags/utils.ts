@@ -1,16 +1,30 @@
+/* eslint-disable no-nested-ternary */
 import {
   availableFlags,
   filterFeaturePreviewFlags,
   isRestrictedFlag,
+  isInternalFlag,
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type UserFeatureFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
+
+/**
+ * Langfuse admins and deployments with experimental features enabled see
+ * internal surfaces. Client and server gates share this rule.
+ */
+export const hasInternalAccess = ({
+  isAdmin,
+  isExperimentalFeaturesEnabled,
+}: {
+  isAdmin: boolean;
+  isExperimentalFeaturesEnabled: boolean;
+}) => isExperimentalFeaturesEnabled || isAdmin;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();
@@ -38,6 +52,12 @@ export const parseFlags = (
       return;
     }
 
+    // Stored preference does not grant internal access.
+    if (isInternalFlag(flag)) {
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
+      return;
+    }
+
     if (
       isFeaturePreviewFlag(flag) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
@@ -57,6 +77,10 @@ export const parseFlags = (
 
     parsedFlags[flag] = dbFlags.includes(flag);
   });
+
+  if (!parsedFlags.modernSession) {
+    parsedFlags.sessionTimeline = false;
+  }
 
   return parsedFlags;
 };

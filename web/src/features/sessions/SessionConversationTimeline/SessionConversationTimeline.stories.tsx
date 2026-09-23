@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps } from "react";
@@ -1810,7 +1811,7 @@ const observationActions = {
 const loadedArgs = {
   traces: [{ trace, turnNumber: 1, observations }],
   filterMeasurementKey: "default",
-  emptyMessage: "This trace has no observations.",
+  emptyState: { type: "empty" },
   onOpenTrace: fn(),
   onOpenObservation: fn(),
   observationActions,
@@ -1900,7 +1901,7 @@ const nestedObservation = ({
 }: {
   id: string;
   parentObservationId: string | null;
-  type: "AGENT" | "GENERATION" | "TOOL";
+  type: "AGENT" | "GENERATION" | "TOOL" | "SPAN";
   input: unknown;
   output: unknown;
   offset: number;
@@ -2040,11 +2041,23 @@ export const Empty = meta.story({
 });
 
 export const FilteredEmpty = meta.story({
+  name: "(Test) Filtered Empty",
   args: {
     ...loadedArgs,
     traces: [{ trace, turnNumber: 1, observations: [] }],
-    emptyMessage:
-      "No observation matches the “Generations” view in this trace.",
+    emptyState: {
+      type: "filtered-empty",
+      viewLabel: "Generations",
+      onClearFilters: fn(),
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear filters" }),
+    );
+    if (args.emptyState.type !== "filtered-empty") throw new globalThis.Error();
+    await expect(args.emptyState.onClearFilters).toHaveBeenCalledOnce();
   },
 });
 
@@ -2242,7 +2255,7 @@ export const UseObservationFilters = meta.story({
       page.getByRole("menuitem", { name: "Annotate" }),
     ).toBeInTheDocument();
     await expect(
-      page.getByRole("menuitem", { name: "Add comment" }),
+      page.getByRole("menuitem", { name: "Comments" }),
     ).toBeInTheDocument();
     await expect(
       page.getByRole("menuitem", { name: "Add to dataset" }),
@@ -2730,6 +2743,144 @@ export const ToolObservationDataOnly = meta.story({
         '[data-session-observation-id="tool-shape-observation"]',
       ),
     ).toBeInTheDocument();
+  },
+});
+
+export const ToolWithNestedObservation = meta.story({
+  name: "(Test) Tool With Nested Observation",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 3 },
+        turnNumber: 1,
+        observations: [
+          nestedObservation({
+            id: "assistant-run",
+            parentObservationId: null,
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 0,
+          }),
+          nestedObservation({
+            id: "lookup-record",
+            parentObservationId: "assistant-run",
+            type: "TOOL",
+            input: { recordId: "record-1" },
+            output: { found: true },
+            offset: 1,
+          }),
+          nestedObservation({
+            id: "lookup-log",
+            parentObservationId: "lookup-record",
+            type: "SPAN",
+            input: null,
+            output: null,
+            offset: 2,
+          }),
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="lookup-record"]',
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Show 1 span" }));
+    await expect(canvas.getByText("lookup-log")).toBeInTheDocument();
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="lookup-record"]',
+      ),
+    ).toBeInTheDocument();
+  },
+});
+
+export const CodingAgentSubagentTurn = meta.story({
+  name: "(Test) Coding Agent Subagent Turn Inside Tool",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 6 },
+        turnNumber: 1,
+        observations: [
+          nestedObservation({
+            id: "coding-agent-turn",
+            parentObservationId: null,
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 0,
+          }),
+          nestedObservation({
+            id: "spawn-reviewer",
+            parentObservationId: "coding-agent-turn",
+            type: "TOOL",
+            input: { task: "Review the new search endpoint" },
+            output: { summary: "Found one missing test" },
+            offset: 1,
+          }),
+          nestedObservation({
+            id: "reviewer-turn",
+            parentObservationId: "spawn-reviewer",
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 2,
+          }),
+          nestedObservation({
+            id: "reviewer-analysis",
+            parentObservationId: "reviewer-turn",
+            type: "GENERATION",
+            input: "Review the search endpoint",
+            output: "I will inspect the handler and its tests.",
+            offset: 3,
+          }),
+          nestedObservation({
+            id: "read-search-tests",
+            parentObservationId: "reviewer-turn",
+            type: "TOOL",
+            input: { path: "search.test.ts" },
+            output: { cases: 3 },
+            offset: 4,
+          }),
+          nestedObservation({
+            id: "reviewer-summary",
+            parentObservationId: "reviewer-turn",
+            type: "GENERATION",
+            input: null,
+            output: "Add a test for an empty search query.",
+            offset: 5,
+          }),
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="spawn-reviewer"]',
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show 2 generations, tools: read-search-tests, and 1 agent",
+      }),
+    );
+    await expect(canvas.getByText("reviewer-turn")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show 2 generations and tools: read-search-tests",
+      }),
+    );
+    await expect(canvas.getByText("read-search-tests")).toBeInTheDocument();
   },
 });
 

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 "use client";
 
@@ -62,7 +63,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -276,9 +277,15 @@ function MobileNavSwitcher({
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
+            <OrganizationDropdownMenu
+              {...(organizations
+                ? { state: "loaded", organizations }
+                : { state: "loading" })}
+              canCreateOrganizations={canCreateOrganizations}
+              getOrgPath={getOrgPath}
+            >
+              {({ getTriggerProps }) => (
+                <SidebarMenuButton {...getTriggerProps()}>
                   <span
                     className="min-w-0 flex-1 truncate text-left"
                     title={organization.name}
@@ -287,21 +294,27 @@ function MobileNavSwitcher({
                   </span>
                   <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
                 </SidebarMenuButton>
-              </DropdownMenuTrigger>
-              <OrganizationDropdownMenu
-                {...(organizations
-                  ? { state: "loaded", organizations }
-                  : { state: "loading" })}
-                canCreateOrganizations={canCreateOrganizations}
-                getOrgPath={getOrgPath}
-              />
-            </DropdownMenu>
+              )}
+            </OrganizationDropdownMenu>
           </SidebarMenuItem>
           {project && (
             <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton>
+              <ProjectDropdownMenu
+                organizationId={organization.id}
+                {...(organizations
+                  ? {
+                      state: "loaded",
+                      projects:
+                        organizations.find(
+                          (item) => item.id === organization.id,
+                        )?.projects ?? [],
+                    }
+                  : { state: "loading" })}
+                canCreateProjects={canCreateProjects}
+                getProjectPath={getProjectPath}
+              >
+                {({ getTriggerProps }) => (
+                  <SidebarMenuButton {...getTriggerProps()}>
                     <span
                       className="min-w-0 flex-1 truncate text-left"
                       title={project.name}
@@ -310,22 +323,8 @@ function MobileNavSwitcher({
                     </span>
                     <ChevronDownIcon className="ml-auto h-4 w-4 shrink-0" />
                   </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <ProjectDropdownMenu
-                  organizationId={organization.id}
-                  {...(organizations
-                    ? {
-                        state: "loaded",
-                        projects:
-                          organizations.find(
-                            (item) => item.id === organization.id,
-                          )?.projects ?? [],
-                      }
-                    : { state: "loading" })}
-                  canCreateProjects={canCreateProjects}
-                  getProjectPath={getProjectPath}
-                />
-              </DropdownMenu>
+                )}
+              </ProjectDropdownMenu>
             </SidebarMenuItem>
           )}
         </SidebarMenu>

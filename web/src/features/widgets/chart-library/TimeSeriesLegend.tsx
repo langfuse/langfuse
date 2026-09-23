@@ -1,4 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChartLegend } from "@/src/components/design-system/charts/ChartLegend";
 import { type ChartConfig } from "@/src/components/ui/chart";
 import {
   type DataPoint,
@@ -7,7 +9,6 @@ import {
 } from "@/src/features/widgets/chart-library/chart-props";
 import { getDimensionSummaries } from "@/src/features/widgets/chart-library/utils";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
-import { cn } from "@/src/utils/tailwind";
 
 /** The 8-slot chart palette, cycled by series index (matches the series fills). */
 export const seriesColor = (index: number): string =>
@@ -182,58 +183,53 @@ export function TimeSeriesLegend({
   formatSummary: (value: number) => string;
 }) {
   return (
-    // Wrap onto multiple rows so every series stays visible, but cap the
-    // legend's height and scroll inside it — a chart with hundreds of series
-    // must never let the legend crowd the plot out entirely. (LFE-10549)
-    // Sits BELOW the plot (classic bottom-legend placement), so it pads
-    // against the x-axis above it. (LFE-10576)
-    <div className="[max-height:8rem] min-w-0 shrink-0 overflow-y-auto pt-2">
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
-        {items.map((item) => {
-          const labelText = getPlainTextFromReactNode(item.label);
-          // Labels must describe the NEXT action, not the current state.
-          // - toggle: click flips visibility → "Show"/"Hide".
-          // - highlight: clicking the focused series clears focus ("Show all
-          //   series"); clicking any other focuses it ("Show only X"). (Getting
-          //   this from `dimmed` alone inverts it once a series is focused.)
-          const ariaLabel =
-            interaction === "toggle"
-              ? item.dimmed
-                ? `Show ${labelText}`
-                : `Hide ${labelText}`
-              : item.focused
-                ? "Show all series"
-                : `Show only ${labelText}`;
-          // aria-pressed reflects state: visible (toggle) / focused (highlight).
-          const ariaPressed =
-            interaction === "toggle" ? !item.dimmed : item.focused;
-          return (
-            <button
-              key={item.dimension}
-              type="button"
-              onClick={() => onItemClick(item.dimension)}
-              className={cn(
-                "flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap transition-opacity",
-                "cursor-pointer hover:opacity-80",
-                item.dimmed && "opacity-40",
-              )}
-              aria-pressed={ariaPressed}
-              aria-label={ariaLabel}
-            >
-              <div
-                className="h-2 w-2 shrink-0 rounded-[2px]"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="text-muted-foreground">{item.label}</span>
-              {item.summary !== null && (
-                <span className="text-foreground font-bold">
-                  {formatSummary(item.summary)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <ChartLegend
+      selectionActions={
+        interaction === "toggle"
+          ? {
+              allSelected: items.every((item) => !item.dimmed),
+              onSelectAll: () => {
+                items
+                  .filter((item) => item.dimmed)
+                  .forEach((item) => onItemClick(item.dimension));
+              },
+              onDeselectAll: () => {
+                items
+                  .filter((item) => !item.dimmed)
+                  .forEach((item) => onItemClick(item.dimension));
+              },
+            }
+          : undefined
+      }
+      items={items.map((item) => {
+        const labelText =
+          getPlainTextFromReactNode(item.label) ?? item.dimension;
+        // Labels describe the next action, which cannot be inferred from the
+        // visual muted state alone in highlight mode.
+        const actionLabel =
+          interaction === "toggle"
+            ? item.dimmed
+              ? `Show ${labelText}`
+              : `Hide ${labelText}`
+            : item.focused
+              ? "Show all series"
+              : `Show only ${labelText}`;
+        return {
+          id: item.dimension,
+          label: item.label,
+          color: item.color,
+          value:
+            item.summary === null
+              ? undefined
+              : { label: "Sum", value: formatSummary(item.summary) },
+          muted: item.dimmed,
+          action: {
+            label: actionLabel,
+            pressed: interaction === "toggle" ? !item.dimmed : item.focused,
+            onClick: () => onItemClick(item.dimension),
+          },
+        };
+      })}
+    />
   );
 }
