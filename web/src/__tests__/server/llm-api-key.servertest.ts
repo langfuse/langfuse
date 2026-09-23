@@ -355,25 +355,28 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
   });
 
-  it("should reject decision-model connections with a non-preset base URL", async () => {
-    await expect(
-      caller.llmApiKey.create({
-        projectId,
-        secretKey: "sk-test",
-        provider: "jev-custom-url",
-        adapter: LLMAdapter.TypeSafe,
-        baseURL: "https://example.com/v1",
-      }),
-    ).rejects.toThrow(
-      "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
-    );
+  it.each(["https://example.com/v1", "https://api.typesafe.ai/v1"])(
+    "should reject decision-model connections with the non-preset base URL %s",
+    async (baseURL) => {
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          secretKey: "sk-test",
+          provider: "jev-custom-url",
+          adapter: LLMAdapter.TypeSafe,
+          baseURL,
+        }),
+      ).rejects.toThrow(
+        "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
+      );
 
-    const { data: llmApiKeys } = await caller.llmApiKey.all({
-      projectId,
-      includeDecisionModels: true,
-    });
-    expect(llmApiKeys).toHaveLength(0);
-  });
+      const { data: llmApiKeys } = await caller.llmApiKey.all({
+        projectId,
+        includeDecisionModels: true,
+      });
+      expect(llmApiKeys).toHaveLength(0);
+    },
+  );
 
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({
@@ -410,6 +413,20 @@ describe("llmApiKey.all RPC", () => {
     });
     expect(updatedKey.baseURL).toBe("https://ai-gateway.vercel.sh/typesafe/v1");
     expect(decrypt(updatedKey.secretKey)).toBe("vck-gateway");
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+      secretKey: "sk-typesafe-2",
+      baseURL: null,
+    });
+
+    const revertedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(revertedKey.baseURL).toBeNull();
   });
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({

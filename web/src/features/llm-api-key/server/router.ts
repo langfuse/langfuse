@@ -564,7 +564,8 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const baseURL =
+          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
         if (isBaseURLChanged && !hasNewSecretKey) {

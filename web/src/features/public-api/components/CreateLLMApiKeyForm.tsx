@@ -14,7 +14,6 @@ import {
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   findTypeSafeUpstream,
   isDecisionModelAdapter,
-  typeSafeModels,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -631,7 +630,13 @@ export function CreateLLMApiKeyForm({
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
-      baseURL: values.baseURL || undefined,
+      // Switching an existing TypeSafe connection back to TypeSafe must clear
+      // the stored gateway URL, which `undefined` ("unchanged") would not.
+      baseURL:
+        values.baseURL ||
+        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+          ? null
+          : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
         ? false
         : values.withDefaultModels,
@@ -809,7 +814,7 @@ export function CreateLLMApiKeyForm({
                             field.onChange(
                               TYPESAFE_UPSTREAMS.find(
                                 (upstream) => upstream.id === id,
-                              )?.baseURL,
+                              )?.baseURL ?? "",
                             )
                           }
                         />

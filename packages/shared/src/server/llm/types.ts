@@ -476,29 +476,27 @@ export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 
 /**
  * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
- * connection's `baseURL` must be one of these; `null` means TypeSafe itself.
+ * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
+ * the AI SDK provider then defaults to.
  */
 export const TYPESAFE_UPSTREAMS = [
   {
     id: "typesafe",
     label: "TypeSafe",
-    baseURL: "https://api.typesafe.ai/v1",
+    baseURL: null,
     apiKeyLabel: "TypeSafe API key",
-    docsUrl: "https://docs.typesafe.ai/api",
   },
   {
     id: "vercel-ai-gateway",
     label: "Vercel AI Gateway",
     baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
     apiKeyLabel: "Vercel AI Gateway API key",
-    docsUrl: "https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe",
   },
   {
     id: "openrouter",
     label: "OpenRouter",
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyLabel: "OpenRouter API key",
-    docsUrl: "https://openrouter.ai/docs/guides/community/typesafe-sdk",
   },
 ] as const;
 
