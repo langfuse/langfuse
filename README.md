@@ -124,17 +124,9 @@ See [self-hosting documentation](https://langfuse.com/self-hosting) to learn mor
 
 #### Docker log rotation
 
-The base `docker-compose.yml` inherits your Docker daemon's logging driver and options. Docker's default `json-file` driver has no rotation limit, so configure [host-level log rotation](https://docs.docker.com/engine/logging/configure/) or explicitly opt in to bounded local JSON logs:
+The default `docker-compose.yml` inherits the [Docker daemon's logging configuration](https://docs.docker.com/engine/logging/configure/). Docker's default `json-file` driver does not rotate logs unless configured, which can exhaust disk space. Set its [`max-size` and `max-file` options](https://docs.docker.com/engine/logging/drivers/json-file/), or keep your chosen logging backend and configure retention there. Do not rotate or truncate Docker-managed JSON log files with external tools.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.logging.yml up -d
-```
-
-The optional [logging override](docker-compose.logging.yml) selects `json-file` with `max-size: "10m"` and `max-file: "3"` for all six services. It replaces any daemon-level logging driver: omit it if you use centralized logging such as `journald`, `syslog`, or `fluentd`, and manage retention in that backend. Do not only change the override's driver; its rotation options are driver-specific.
-
-Keep both `-f` arguments on subsequent Compose commands. For an existing deployment, use the same project name and other overrides as before; `up -d` recreates containers whose logging configuration changed, so plan for a brief interruption. A container restart alone does not apply new logging settings. These limits cover container stdout/stderr, not data volumes or ClickHouse's internal log files.
-
-Validate configuration without starting containers: `node scripts/compose-logging.test.mjs` (requires Node.js and Docker Compose v2).
+After changing daemon logging defaults, restart Docker and recreate existing containers to apply them; restarting containers alone is insufficient. Plan for interruption and preserve data volumes. These settings cover container stdout/stderr, not database data volumes or ClickHouse's internal log files.
 
 > [!TIP]
 > **Self-hosting Langfuse?** Subscribe to the [self-hosting update list](https://langfuse.com/self-hosting#subscribe) to get an email about important features and new releases for open source Langfuse — self-hosting updates only, no marketing.

@@ -3,9 +3,6 @@
 # In addition, we recommend to restrict inbound traffic on the host to langfuse-web (port 3000) and minio (port 9090) only.
 # All other components are bound to localhost (127.0.0.1) to only accept connections from the local machine.
 # External connections from other machines will not be able to reach these services directly.
-# Logging inherits the Docker daemon configuration. Configure host-level rotation or
-# opt in to docker-compose.logging.yml as described in README.md (Docker log rotation).
-
 services:
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
