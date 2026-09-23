@@ -125,7 +125,6 @@ export const skillRouter = createTRPCRouter({
       });
       return new SkillService(prisma).prepareUploads({
         projectId: input.projectId,
-        createdBy: ctx.session.user.id,
         input,
       });
     }),

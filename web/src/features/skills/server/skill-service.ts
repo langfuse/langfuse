@@ -140,24 +140,16 @@ function serializeVersion(skill: SkillWithRelations) {
       blobId: file.blobId,
       sha256Hash: file.blob.sha256Hash,
       contentType: file.blob.contentType,
-      contentLength: Number(file.blob.contentLength),
+      contentLength: file.blob.contentLength,
     })),
   });
 }
 
 export class SkillService {
-  private readonly storage: StorageService;
-  private readonly bucketName: string;
-
   constructor(
     private readonly prisma: PrismaClient,
-    storageConfig: ReturnType<
-      typeof getSkillStorageClient
-    > = getSkillStorageClient(),
-  ) {
-    this.storage = storageConfig.client;
-    this.bucketName = storageConfig.bucketName;
-  }
+    private readonly storage: StorageService = getSkillStorageClient(),
+  ) {}
 
   async skillVersions(params: {
     projectId: string;
@@ -190,7 +182,6 @@ export class SkillService {
 
   async prepareUploads(params: {
     projectId: string;
-    createdBy: string;
     input: PrepareSkillUploadsBody;
   }) {
     const uniqueHashes = new Set<string>();
@@ -219,11 +210,9 @@ export class SkillService {
           data: {
             id: randomUUID(),
             projectId: params.projectId,
-            createdBy: params.createdBy,
             sha256Hash: descriptor.sha256Hash,
             contentType: descriptor.contentType,
-            contentLength: BigInt(descriptor.contentLength),
-            bucketName: this.bucketName,
+            contentLength: descriptor.contentLength,
             bucketPath: skillBlobPath({
               projectId: params.projectId,
               sha256Hash: descriptor.sha256Hash,
@@ -248,7 +237,7 @@ export class SkillService {
       }
 
       if (
-        Number(blob.contentLength) !== descriptor.contentLength ||
+        blob.contentLength !== descriptor.contentLength ||
         blob.contentType !== descriptor.contentType
       ) {
         throw new LangfuseConflictError(
@@ -256,14 +245,14 @@ export class SkillService {
         );
       }
 
-      const uploadUrl = blob.uploadedAt
+      const uploadUrl = blob.verifiedAt
         ? null
         : await this.storage.getSignedUploadUrl({
             path: blob.bucketPath,
             ttlSeconds: 60 * 60,
             sha256Hash: blob.sha256Hash,
             contentType: blob.contentType,
-            contentLength: Number(blob.contentLength),
+            contentLength: blob.contentLength,
           });
 
       prepared.push({ ...descriptor, blobId: blob.id, uploadUrl });
@@ -319,7 +308,8 @@ export class SkillService {
         );
         await tx.skill.update({
           where: {
-            projectId_id: { projectId: params.projectId, id: latest.id },
+            projectId: params.projectId,
+            id: latest.id,
           },
           data: { labels: { set: labels } },
         });
@@ -354,10 +344,8 @@ export class SkillService {
               path: file.path,
               blob: {
                 connect: {
-                  projectId_id: {
-                    projectId: params.projectId,
-                    id: file.blobId,
-                  },
+                  projectId: params.projectId,
+                  id: file.blobId,
                 },
               },
             })),
@@ -604,10 +592,8 @@ export class SkillService {
         if (version.labels.join("\0") === labels.join("\0")) continue;
         await tx.skill.update({
           where: {
-            projectId_id: {
-              projectId: params.projectId,
-              id: version.id,
-            },
+            projectId: params.projectId,
+            id: version.id,
           },
           data: { labels: { set: labels } },
         });
@@ -752,7 +738,7 @@ export class SkillService {
         tx,
       );
       await tx.skill.delete({
-        where: { projectId_id: { projectId: params.projectId, id: target.id } },
+        where: { projectId: params.projectId, id: target.id },
       });
       if (target.labels.includes(SKILL_LATEST_LABEL)) {
         const latest = await tx.skill.findFirst({
@@ -764,7 +750,8 @@ export class SkillService {
           const labels = [...new Set([...latest.labels, SKILL_LATEST_LABEL])];
           await tx.skill.update({
             where: {
-              projectId_id: { projectId: params.projectId, id: latest.id },
+              projectId: params.projectId,
+              id: latest.id,
             },
             data: { labels: { set: labels } },
           });
@@ -834,7 +821,8 @@ export class SkillService {
   private async getById(params: { projectId: string; skillId: string }) {
     const skill = await this.prisma.skill.findUnique({
       where: {
-        projectId_id: { projectId: params.projectId, id: params.skillId },
+        projectId: params.projectId,
+        id: params.skillId,
       },
       include: { files: { include: { blob: true } } },
     });
@@ -886,19 +874,19 @@ export class SkillService {
           `Skill blob ${blob.id} has not been uploaded`,
         );
       }
-      if (contentLength !== Number(blob.contentLength)) {
+      if (contentLength !== blob.contentLength) {
         throw new LangfuseConflictError(
           `Skill blob ${blob.id} does not match its declared length`,
         );
       }
-      if (blob.uploadedAt === null) {
+      if (blob.verifiedAt === null) {
         await this.prisma.skillBlob.updateMany({
           where: {
             projectId: params.projectId,
             id: blob.id,
-            uploadedAt: null,
+            verifiedAt: null,
           },
-          data: { uploadedAt: new Date() },
+          data: { verifiedAt: new Date() },
         });
       }
     }

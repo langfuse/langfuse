@@ -49,7 +49,7 @@ sequenceDiagram
     service->>s3: HEAD every referenced blob
     s3-->>service: Content-Length only, no file bytes
     service->>service: Verify declared byte lengths
-    service->>db: Set missing uploadedAt timestamps outside version transaction
+    service->>db: Set missing verifiedAt timestamps outside version transaction
     service->>s3: GET SKILL.md only
     s3-->>service: SKILL.md bytes
     service->>service: Parse frontmatter

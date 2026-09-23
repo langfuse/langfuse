@@ -7,10 +7,7 @@ import {
 
 let skillStorageClient: StorageService | undefined;
 
-export function getSkillStorageClient(): {
-  bucketName: string;
-  client: StorageService;
-} {
+export function getSkillStorageClient(): StorageService {
   const bucketName = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
   if (!bucketName) {
     throw new Error(
@@ -35,5 +32,5 @@ export function getSkillStorageClient(): {
     });
   }
 
-  return { bucketName, client: skillStorageClient };
+  return skillStorageClient;
 }

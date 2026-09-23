@@ -22,14 +22,11 @@ describe("SkillService storage configuration", () => {
       const getSignedUploadUrl = vi
         .fn()
         .mockResolvedValue(`https://${mode}.example.com/upload`);
-      const storageConfig = {
-        client: { getSignedUploadUrl } as unknown as StorageService,
-        bucketName: `${mode}-bucket`,
-      };
+      const storage = { getSignedUploadUrl } as unknown as StorageService;
       const defaultConfig = vi.mocked(getSkillStorageClient);
       defaultConfig.mockReset();
       if (mode === "default") {
-        defaultConfig.mockReturnValue(storageConfig);
+        defaultConfig.mockReturnValue(storage);
       } else {
         defaultConfig.mockImplementation(() => {
           throw new Error("Default storage is unavailable");
@@ -38,13 +35,13 @@ describe("SkillService storage configuration", () => {
       const create = vi.fn(
         async ({ data }: { data: Prisma.SkillBlobUncheckedCreateInput }) => ({
           ...data,
-          uploadedAt: null,
+          verifiedAt: null,
         }),
       );
       const prisma = { skillBlob: { create } } as unknown as PrismaClient;
       const service = new SkillService(
         prisma,
-        mode === "injected" ? storageConfig : undefined,
+        mode === "injected" ? storage : undefined,
       );
       const hash = createHash("sha256").update("hello").digest();
       const descriptor = {
@@ -55,14 +52,12 @@ describe("SkillService storage configuration", () => {
 
       const result = await service.prepareUploads({
         projectId: "project",
-        createdBy: "user",
         input: { blobs: [descriptor] },
       });
 
       const path = `skills/project/${hash.toString("base64url")}`;
       expect(create).toHaveBeenCalledWith({
         data: expect.objectContaining({
-          bucketName: `${mode}-bucket`,
           bucketPath: path,
         }),
       });
@@ -100,23 +95,18 @@ describe("SkillService versions", () => {
       (bytes, index) => ({
         id: `blob-${index}`,
         projectId: "project",
-        createdBy: "user",
         createdAt: new Date(),
-        updatedAt: new Date(),
-        uploadedAt: null,
+        verifiedAt: null,
         sha256Hash: createHash("sha256").update(bytes).digest("base64"),
         contentType: index === 0 ? "text/markdown" : "application/octet-stream",
-        contentLength: BigInt(bytes.byteLength),
-        bucketName: "bucket",
+        contentLength: bytes.byteLength,
         bucketPath: `skills/project/blob-${index}`,
       }),
     );
     const events: string[] = [];
     const getObjectSize = vi.fn(async (path: string) => {
       events.push(`size:${path}`);
-      return Number(
-        blobs.find((blob) => blob.bucketPath === path)!.contentLength,
-      );
+      return blobs.find((blob) => blob.bucketPath === path)!.contentLength;
     });
     const downloadBytes = vi.fn(async (path: string) => {
       events.push(`download:${path}`);
@@ -152,18 +142,18 @@ describe("SkillService versions", () => {
         where,
         data,
       }: {
-        where: { projectId: string; id: string; uploadedAt: null };
-        data: { uploadedAt: Date };
+        where: { projectId: string; id: string; verifiedAt: null };
+        data: { verifiedAt: Date };
       }) => {
         const blob = blobs.find(
           (blob) =>
             blob.projectId === where.projectId &&
             blob.id === where.id &&
-            blob.uploadedAt === where.uploadedAt,
+            blob.verifiedAt === where.verifiedAt,
         );
         if (!blob) return { count: 0 };
-        blob.uploadedAt = data.uploadedAt;
-        events.push(`uploaded:${blob.id}`);
+        blob.verifiedAt = data.verifiedAt;
+        events.push(`verified:${blob.id}`);
         return { count: 1 };
       },
     );
@@ -211,10 +201,10 @@ describe("SkillService versions", () => {
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
       },
     };
-    const service = new SkillService(db as unknown as PrismaClient, {
-      bucketName: "bucket",
-      client: { getObjectSize, downloadBytes } as unknown as StorageService,
-    });
+    const service = new SkillService(
+      db as unknown as PrismaClient,
+      { getObjectSize, downloadBytes } as unknown as StorageService,
+    );
     const params = {
       projectId: "project",
       createdBy: "user",
@@ -492,7 +482,7 @@ describe("SkillService versions", () => {
       }),
     });
     expect(test.tx.skill.update).toHaveBeenCalledWith({
-      where: { projectId_id: { projectId: "project", id: "previous" } },
+      where: { projectId: "project", id: "previous" },
       data: { labels: { set: ["production", "stable"] } },
     });
   });
@@ -677,11 +667,11 @@ describe("SkillService versions", () => {
     });
 
     expect(test.tx.skill.update).toHaveBeenCalledWith({
-      where: { projectId_id: { projectId: "project", id: "skill" } },
+      where: { projectId: "project", id: "skill" },
       data: { labels: { set: ["stable", "latest"] } },
     });
     expect(test.tx.skill.update).toHaveBeenCalledWith({
-      where: { projectId_id: { projectId: "project", id: "previous" } },
+      where: { projectId: "project", id: "previous" },
       data: { labels: { set: [] } },
     });
   });
@@ -714,14 +704,14 @@ describe("SkillService versions", () => {
       );
       if (hasRemaining) {
         expect(test.tx.skill.update).toHaveBeenCalledWith({
-          where: { projectId_id: { projectId: "project", id: "previous" } },
+          where: { projectId: "project", id: "previous" },
           data: { labels: { set: ["production", "latest"] } },
         });
       } else {
         expect(test.tx.skill.update).not.toHaveBeenCalled();
       }
       expect(test.tx.skill.delete).toHaveBeenCalledWith({
-        where: { projectId_id: { projectId: "project", id: "skill" } },
+        where: { projectId: "project", id: "skill" },
       });
     },
   );
@@ -749,9 +739,9 @@ describe("SkillService versions", () => {
 
     expect(test.events).toEqual([
       "size:skills/project/blob-0",
-      "uploaded:blob-0",
+      "verified:blob-0",
       "size:skills/project/blob-1",
-      "uploaded:blob-1",
+      "verified:blob-1",
       "download:skills/project/blob-0",
       "transaction",
     ]);
@@ -770,12 +760,12 @@ describe("SkillService versions", () => {
     });
     expect(test.updateMany).toHaveBeenCalledTimes(2);
     expect(test.updateMany).toHaveBeenNthCalledWith(1, {
-      where: { projectId: "project", id: "blob-0", uploadedAt: null },
-      data: { uploadedAt: expect.any(Date) },
+      where: { projectId: "project", id: "blob-0", verifiedAt: null },
+      data: { verifiedAt: expect.any(Date) },
     });
     expect(test.updateMany).toHaveBeenNthCalledWith(2, {
-      where: { projectId: "project", id: "blob-1", uploadedAt: null },
-      data: { uploadedAt: expect.any(Date) },
+      where: { projectId: "project", id: "blob-1", verifiedAt: null },
+      data: { verifiedAt: expect.any(Date) },
     });
     expect(result.name).toBe("test-skill");
   });
@@ -785,7 +775,7 @@ describe("SkillService versions", () => {
     async (size) => {
       const test = setup();
       test.getObjectSize
-        .mockResolvedValueOnce(Number(test.blobs[0]!.contentLength))
+        .mockResolvedValueOnce(test.blobs[0]!.contentLength)
         .mockResolvedValueOnce(size);
 
       await expect(test.service.createVersion(test.params)).rejects.toThrow(
@@ -793,15 +783,15 @@ describe("SkillService versions", () => {
       );
       expect(test.downloadBytes).not.toHaveBeenCalled();
       expect(test.transaction).not.toHaveBeenCalled();
-      expect(test.blobs[0]!.uploadedAt).toBeInstanceOf(Date);
-      expect(test.blobs[1]!.uploadedAt).toBeNull();
+      expect(test.blobs[0]!.verifiedAt).toBeInstanceOf(Date);
+      expect(test.blobs[1]!.verifiedAt).toBeNull();
     },
   );
 
   it("rejects a missing upload before downloading SKILL.md", async () => {
     const test = setup();
     test.getObjectSize
-      .mockResolvedValueOnce(Number(test.blobs[0]!.contentLength))
+      .mockResolvedValueOnce(test.blobs[0]!.contentLength)
       .mockRejectedValueOnce(new Error("Object not found"));
 
     await expect(test.service.createVersion(test.params)).rejects.toThrow(
@@ -811,32 +801,32 @@ describe("SkillService versions", () => {
     expect(test.transaction).not.toHaveBeenCalled();
   });
 
-  it("preserves upload timestamps when publication fails and is retried", async () => {
+  it("preserves verification timestamps when publication fails and is retried", async () => {
     const test = setup();
     const existingTimestamp = new Date("2026-01-01T00:00:00Z");
-    test.blobs[1]!.uploadedAt = existingTimestamp;
+    test.blobs[1]!.verifiedAt = existingTimestamp;
     test.transaction.mockRejectedValueOnce(new Error("Publication failed"));
 
     await expect(test.service.createVersion(test.params)).rejects.toThrow(
       "Publication failed",
     );
-    const verifiedTimestamp = test.blobs[0]!.uploadedAt;
+    const verifiedTimestamp = test.blobs[0]!.verifiedAt;
     expect(verifiedTimestamp).toBeInstanceOf(Date);
-    expect(test.blobs[1]!.uploadedAt).toBe(existingTimestamp);
+    expect(test.blobs[1]!.verifiedAt).toBe(existingTimestamp);
     expect(test.updateMany).toHaveBeenCalledTimes(1);
 
     await test.service.createVersion(test.params);
 
     expect(test.getObjectSize).toHaveBeenCalledTimes(4);
     expect(test.updateMany).toHaveBeenCalledTimes(1);
-    expect(test.blobs[0]!.uploadedAt).toBe(verifiedTimestamp);
-    expect(test.blobs[1]!.uploadedAt).toBe(existingTimestamp);
+    expect(test.blobs[0]!.verifiedAt).toBe(verifiedTimestamp);
+    expect(test.blobs[1]!.verifiedAt).toBe(existingTimestamp);
   });
 
   it("rejects invalid SKILL.md frontmatter after verifying uploads but before publication", async () => {
     const test = setup();
     const invalidMarkdown = Buffer.from("No frontmatter");
-    test.blobs[0]!.contentLength = BigInt(invalidMarkdown.byteLength);
+    test.blobs[0]!.contentLength = invalidMarkdown.byteLength;
     test.downloadBytes.mockResolvedValue(invalidMarkdown);
 
     await expect(test.service.createVersion(test.params)).rejects.toThrow(
@@ -845,7 +835,7 @@ describe("SkillService versions", () => {
     expect(test.getObjectSize).toHaveBeenCalledTimes(2);
     expect(test.downloadBytes).toHaveBeenCalledOnce();
     expect(test.transaction).not.toHaveBeenCalled();
-    expect(test.blobs.every((blob) => blob.uploadedAt instanceof Date)).toBe(
+    expect(test.blobs.every((blob) => blob.verifiedAt instanceof Date)).toBe(
       true,
     );
   });

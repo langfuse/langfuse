@@ -20,7 +20,6 @@ export default withMiddlewares({
     fn: ({ body, auth }) =>
       new SkillService(prisma).prepareUploads({
         projectId: auth.scope.projectId,
-        createdBy: "API",
         input: body,
       }),
   }),

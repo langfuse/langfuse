@@ -873,16 +873,15 @@ model Skill {
 model SkillFile {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   skillId String @map("skill_id")
-  skill   Skill  @relation(fields: [projectId, skillId], references: [projectId, id], onDelete: Cascade)
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
 
   blobId String    @map("blob_id")
-  blob   SkillBlob @relation(fields: [projectId, blobId], references: [projectId, id], onDelete: Restrict)
+  blob   SkillBlob @relation(fields: [blobId], references: [id], onDelete: Restrict)
 
   path String
 
@@ -894,23 +893,18 @@ model SkillFile {
 model SkillBlob {
   id         String    @id @default(cuid())
   createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
-  uploadedAt DateTime? @map("uploaded_at")
+  verifiedAt DateTime? @map("verified_at")
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  createdBy String @map("created_by")
-
   sha256Hash    String @map("sha_256_hash") @db.Char(44)
   contentType   String @map("content_type")
-  contentLength BigInt @map("content_length")
+  contentLength Int @map("content_length")
   bucketPath    String @map("bucket_path")
-  bucketName    String @map("bucket_name")
 
   files SkillFile[]
 
-  @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
   @@map("skill_blobs")
 }
