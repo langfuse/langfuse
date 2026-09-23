@@ -126,7 +126,7 @@ function AddDomainButton({ orgId }: { orgId: string }) {
       showSuccessToast({
         title: "Domain added",
         description:
-          "Add the DNS TXT record shown in the table, then click Verify.",
+          "Click Verify to view the DNS TXT record, then confirm after adding it.",
       });
       form.reset();
       setOpen(false);
