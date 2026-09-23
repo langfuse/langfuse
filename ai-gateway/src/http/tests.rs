@@ -398,12 +398,7 @@ async fn malformed_credentials_skip_resolution_and_oversized_body_releases_capac
     let response = gateway
         .post()
         .bearer_auth("valid-key")
-        .body(vec![
-            b'x';
-            Route::OpenAi(OpenAiRoute::Responses)
-                .max_request_bytes()
-                + 1
-        ])
+        .body(vec![b'x'; MAX_REQUEST_BYTES + 1])
         .send()
         .await
         .unwrap();
@@ -957,4 +952,41 @@ async fn openai_routes_ignore_x_api_key_and_keep_their_envelope() {
     assert_eq!(body["error"]["code"], "invalid_api_key");
     assert!(body.get("type").is_none());
     assert_eq!(web.calls(), 0);
+}
+
+#[tokio::test]
+async fn anthropic_routes_share_the_request_body_limit() {
+    let web = FakeServer::start(|_| async {
+        resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
+    })
+    .await;
+    let provider = FakeServer::start(|request| async move {
+        let body = to_bytes(request.into_body(), MAX_REQUEST_BYTES)
+            .await
+            .unwrap();
+        assert_eq!(body.len(), MAX_REQUEST_BYTES);
+        Response::new(Body::empty())
+    })
+    .await;
+    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    let client = reqwest::Client::new();
+    for path in ["messages", "messages/count_tokens"] {
+        let send = |size| {
+            client
+                .post(format!("{}/anthropic/v1/{path}", gateway.url))
+                .header("x-api-key", "gateway-anthropic")
+                .body(vec![b'x'; size])
+                .send()
+        };
+        assert_eq!(
+            send(MAX_REQUEST_BYTES).await.unwrap().status(),
+            StatusCode::OK
+        );
+        let rejected = send(MAX_REQUEST_BYTES + 1).await.unwrap();
+        assert_eq!(rejected.status(), StatusCode::PAYLOAD_TOO_LARGE);
+        let body: serde_json::Value =
+            serde_json::from_str(&rejected.text().await.unwrap()).unwrap();
+        assert_eq!(body["error"]["type"], "request_too_large");
+    }
+    assert_eq!(provider.calls(), 2);
 }

@@ -82,17 +82,6 @@ impl Route {
             Self::OpenAi(_) | Self::Anthropic(_) => &[],
         }
     }
-
-    /// Request bodies Claude Code sends grow with the context window, so the
-    /// Anthropic inference routes accept larger entities than the `OpenAI` routes.
-    pub(crate) fn max_request_bytes(self) -> usize {
-        match self {
-            Self::Anthropic(AnthropicRoute::Messages | AnthropicRoute::CountTokens) => {
-                32 * 1024 * 1024
-            }
-            Self::OpenAi(_) | Self::Anthropic(AnthropicRoute::Models) => 4 * 1024 * 1024,
-        }
-    }
 }
 
 pub(crate) struct ProviderLimits {

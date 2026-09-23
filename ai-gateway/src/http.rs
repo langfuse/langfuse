@@ -19,6 +19,8 @@ use crate::{
     server::GatewayLifecycleState,
 };
 
+/// One request-body limit for every provider; large coding-agent contexts fit.
+const MAX_REQUEST_BYTES: usize = 10 * 1024 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_GATEWAY_KEY_BYTES: usize = 8192;
 
@@ -119,7 +121,7 @@ async fn relay(
     let bytes = if route.method() == axum::http::Method::GET {
         Bytes::new()
     } else {
-        read_request_body(body, route.max_request_bytes()).await?
+        read_request_body(body).await?
     };
     inference
         .forward(
@@ -136,7 +138,7 @@ async fn relay(
 
 /// Buffer the client body. The wait is mostly the caller's upload, so it gets its
 /// own span and the measured size lands on the server span for aggregation.
-async fn read_request_body(body: Body, limit: usize) -> Result<Bytes, InferenceHttpError> {
+async fn read_request_body(body: Body) -> Result<Bytes, InferenceHttpError> {
     let server = tracing::Span::current();
     let span = tracing::info_span!(
         "request.body",
@@ -144,7 +146,7 @@ async fn read_request_body(body: Body, limit: usize) -> Result<Bytes, InferenceH
         http.request.body.size = tracing::field::Empty
     );
     let bytes = async {
-        let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, limit))
+        let bytes = tokio::time::timeout(REQUEST_READ_TIMEOUT, to_bytes(body, MAX_REQUEST_BYTES))
             .await
             .map_err(|_| InferenceHttpError::RequestTimeout)?
             .map_err(|error| {

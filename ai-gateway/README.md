@@ -284,8 +284,7 @@ guardrails, not measured capacity: tune them independently using load tests for 
 instance resources, request sizes and stream durations. These limits bound work;
 they do not guarantee fairness between clients or tenants.
 
-Other limits are 4 MiB request bodies (32 MiB for Anthropic Messages and token counting,
-whose bodies grow with the context window), 10 seconds to read a request, 5 seconds to
+Other limits are 10 MiB request bodies in both namespaces, 10 seconds to read a request, 5 seconds to
 connect, 120 seconds for provider response headers or an individual upstream read,
 and 600 seconds overall from execution admission (14 minutes for Anthropic Messages,
 leaving one minute of the 15-minute ingestion grant for the upload after a long

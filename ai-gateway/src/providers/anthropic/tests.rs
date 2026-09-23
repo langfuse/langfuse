@@ -230,3 +230,21 @@ fn only_inference_routes_capture_generations_and_only_models_forwards_query() {
         None
     );
 }
+
+#[test]
+fn openai_and_anthropic_admissions_draw_from_one_execution_budget() {
+    let relay = ProviderTransport::for_test(
+        "http://127.0.0.1:9".to_owned(),
+        ProviderLimits {
+            active: 1,
+            ..ProviderLimits::default()
+        },
+    );
+    let held = relay.try_admit(ApiFormat::OpenAiResponses).unwrap();
+    assert!(relay.try_admit(ApiFormat::AnthropicMessages).is_err());
+    drop(held);
+    let held = relay.try_admit(ApiFormat::AnthropicMessages).unwrap();
+    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_err());
+    drop(held);
+    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+}
