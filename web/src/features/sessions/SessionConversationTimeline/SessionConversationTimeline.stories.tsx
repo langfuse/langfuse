@@ -1901,7 +1901,7 @@ const nestedObservation = ({
 }: {
   id: string;
   parentObservationId: string | null;
-  type: "AGENT" | "GENERATION" | "TOOL";
+  type: "AGENT" | "GENERATION" | "TOOL" | "SPAN";
   input: unknown;
   output: unknown;
   offset: number;
@@ -2741,6 +2741,60 @@ export const ToolObservationDataOnly = meta.story({
     await expect(
       canvasElement.querySelector(
         '[data-session-observation-id="tool-shape-observation"]',
+      ),
+    ).toBeInTheDocument();
+  },
+});
+
+export const ToolWithNestedObservation = meta.story({
+  name: "(Test) Tool With Nested Observation",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 3 },
+        turnNumber: 1,
+        observations: [
+          nestedObservation({
+            id: "assistant-run",
+            parentObservationId: null,
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 0,
+          }),
+          nestedObservation({
+            id: "lookup-record",
+            parentObservationId: "assistant-run",
+            type: "TOOL",
+            input: { recordId: "record-1" },
+            output: { found: true },
+            offset: 1,
+          }),
+          nestedObservation({
+            id: "lookup-log",
+            parentObservationId: "lookup-record",
+            type: "SPAN",
+            input: null,
+            output: null,
+            offset: 2,
+          }),
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="lookup-record"]',
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Show 1 span" }));
+    await expect(canvas.getByText("lookup-log")).toBeInTheDocument();
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="lookup-record"]',
       ),
     ).toBeInTheDocument();
   },
