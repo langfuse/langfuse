@@ -115,6 +115,7 @@ function useBackgroundExecutionView(
 }
 
 const NOOP_CONTEXT: InAppAiAgentContextType = {
+  isHistoryPruned: false,
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
@@ -172,6 +173,7 @@ type InAppAiAgentExecution = {
 };
 
 type InAppAiAgentContextType = {
+  isHistoryPruned: boolean;
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
@@ -1432,6 +1434,10 @@ function InAppAiAgentProviderInner({
 
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
+      isHistoryPruned: Boolean(
+        conversationQuery.data?.conversation.id === selectedConversationId &&
+        conversationQuery.data.conversation.historyPrunedAt,
+      ),
       isAvailable: true,
       open,
       setOpen: setAgentOpen,
@@ -1466,6 +1472,7 @@ function InAppAiAgentProviderInner({
       submitFeedback,
     }),
     [
+      conversationQuery.data,
       activityByConversationId,
       approveToolCall,
       attentionCount,

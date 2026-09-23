@@ -311,6 +311,8 @@ model InAppAgentConversation {
   deletedAt          DateTime?                             @map("deleted_at")
   createdAt          DateTime                              @default(now()) @map("created_at")
   updatedAt          DateTime                              @default(now()) @updatedAt @map("updated_at")
+  historyPrunedAt    DateTime?                             @map("history_pruned_at")
+  prunedEventCursor  Int                                   @default(-1) @map("pruned_event_cursor")
 
   events               InAppAgentEvent[]
   runs                 InAppAgentRun[]
@@ -335,6 +337,7 @@ model InAppAgentEvent {
 
   @@id([projectId, conversationId, sequenceNumber])
   @@index([projectId, runId], map: "in_app_agent_events_project_run_idx")
+  @@index([projectId, createdAt], map: "in_app_agent_events_project_created_at_idx")
   @@map("in_app_agent_events")
 }
 
@@ -370,6 +373,7 @@ model InAppAgentRun {
   // migration since Prisma cannot express partial uniqueness in the schema DSL.
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
+  @@index([projectId, createdAt], map: "in_app_agent_runs_project_created_at_idx")
   @@map("in_app_agent_runs")
 }
 

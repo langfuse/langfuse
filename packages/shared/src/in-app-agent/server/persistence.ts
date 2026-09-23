@@ -64,6 +64,7 @@ export type SerializedInAppAgentConversation = {
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
+  historyPrunedAt: Date | null;
 };
 
 export type PersistedConversationEvent = {
@@ -82,7 +83,7 @@ export type PersistedConversationEvent = {
 export function serializeConversation(
   conversation: Pick<
     InAppAgentConversation,
-    "id" | "title" | "createdAt" | "updatedAt"
+    "id" | "title" | "createdAt" | "updatedAt" | "historyPrunedAt"
   >,
 ): SerializedInAppAgentConversation {
   return {
@@ -90,6 +91,7 @@ export function serializeConversation(
     title: conversation.title,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
+    historyPrunedAt: conversation.historyPrunedAt,
   };
 }
 
@@ -207,6 +209,15 @@ export async function appendRunEvents(params: {
       }
     }
 
+    const conversation = await tx.inAppAgentConversation.findUniqueOrThrow({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      select: { prunedEventCursor: true },
+    });
     const latestEvent = await tx.inAppAgentEvent.findFirst({
       where: {
         projectId: params.projectId,
@@ -221,7 +232,13 @@ export async function appendRunEvents(params: {
         projectId: params.projectId,
         conversationId: params.conversationId,
         runId: params.runId,
-        sequenceNumber: (latestEvent?.sequenceNumber ?? -1) + index + 1,
+        sequenceNumber:
+          Math.max(
+            latestEvent?.sequenceNumber ?? -1,
+            conversation.prunedEventCursor,
+          ) +
+          index +
+          1,
         type: String(event.type),
         event: event as unknown as Prisma.InputJsonValue,
       }),

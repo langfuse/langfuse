@@ -143,6 +143,7 @@ export const inAppAgentRouter = createTRPCRouter({
           title: true,
           createdAt: true,
           updatedAt: true,
+          historyPrunedAt: true,
           runs: {
             orderBy: { createdAt: "desc" },
             take: 1,

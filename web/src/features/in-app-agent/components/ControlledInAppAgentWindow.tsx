@@ -55,6 +55,7 @@ export function ControlledInAppAgentWindow(
     hasMoreConversations,
     isLoadingMoreConversations,
     isRunning,
+    isHistoryPruned,
     isSelectedConversationHydrating,
     execution,
     isSubmitting,
@@ -179,6 +180,7 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isConversationInteractionDisabled={isConversationInteractionDisabled}
       isSelectedConversationHydrating={isSelectedConversationHydrating}
+      isHistoryPruned={isHistoryPruned}
       messages={drawerMessages}
       quickActionContext={quickActionContext}
       focusedQuickActions={focusedQuickActions}

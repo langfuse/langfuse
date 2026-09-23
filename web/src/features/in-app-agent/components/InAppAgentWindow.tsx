@@ -878,6 +878,7 @@ export type InAppAgentWindowProps = {
   isConversationInteractionDisabled: boolean;
   /** Distinguishes a loading transcript from an empty conversation. */
   isSelectedConversationHydrating: boolean;
+  isHistoryPruned?: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
   onExpandedChange: (isExpanded: boolean) => void;
@@ -1516,6 +1517,16 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ))}
             </div>
           </div>
+        ) : null}
+        {props.isHistoryPruned ? (
+          <InAppAgentNotice
+            icon={<Info aria-hidden="true" className="size-3 shrink-0" />}
+            isExpanded={isExpanded}
+            role="status"
+            tone="neutral"
+          >
+            Earlier messages were removed by data retention.
+          </InAppAgentNotice>
         ) : null}
         {backgroundNotice ? (
           <InAppAgentNotice

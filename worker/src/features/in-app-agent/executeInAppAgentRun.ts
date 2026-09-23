@@ -296,7 +296,17 @@ export async function executeInAppAgentRun(params: {
       threadId: conversation.id,
       runId,
       state: null,
-      messages: [...replayMessages],
+      messages: conversation.historyPrunedAt
+        ? [
+            {
+              id: `retention-notice-${conversation.id}`,
+              role: "system" as const,
+              content:
+                "Earlier events in this conversation were removed by data retention. Only the remaining history is available; do not assume you know the missing content.",
+            },
+            ...replayMessages,
+          ]
+        : [...replayMessages],
       tools: [],
       context: request.context,
       forwardedProps:
