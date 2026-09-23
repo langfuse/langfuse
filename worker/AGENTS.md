@@ -20,8 +20,10 @@
   `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
   storage, numerical fitting, model configuration or retry behavior.
   `topics` processes traces; `topics-update` fits stored summaries;
-  `topics-embedding` embeds staged results. Both coordinator queues enforce
-  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Paid results are staged before retryable
+  `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
+  registration and Topics cleanup. Processors also enforce
+  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; cleanup remains independent of this list.
+  Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Transcript assembly is shared with web through `loadTopicTranscript`.
 - OTEL event processing:

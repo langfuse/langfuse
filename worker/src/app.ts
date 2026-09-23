@@ -754,6 +754,14 @@ export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
+    if (
+      !isTopicsEnabled() &&
+      (table === "topic_facet_summaries" ||
+        table === "topic_assignments" ||
+        table === "topics")
+    ) {
+      continue;
+    }
     // Only start the events table cleaners when V4 write mode targets events_full.
     if (
       (table !== "events_full" && table !== "events_core") ||

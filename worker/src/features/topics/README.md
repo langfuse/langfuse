@@ -23,13 +23,17 @@ which traces are processed:
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
 repository's database migrations and regenerate/build shared before starting the
-worker. Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both web
-and worker to allow processing for those project IDs. An unset or empty environment
-variable defaults to demo project `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
-An explicit list replaces this default. IDs are comma-separated and whitespace
-is trimmed. UI visibility and read/configuration access use the `langfuseTopics`
+worker. Once the Topics tables exist, set `LANGFUSE_TOPICS_ENABLED=true` on both
+web and worker. It defaults to false: Topics routes, effective session flags,
+queues and Topics cleanup are disabled, so the tables may be absent.
+Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to
+allow processing for those project IDs. An unset or empty list admits no projects;
+IDs are comma-separated and whitespace is trimmed. Keep the deployment enabled
+while clearing the list to pause processing: trace and project deletion still
+clean historical Topics data, including data from formerly admitted projects.
+UI visibility and read/configuration access additionally use the `langfuseTopics`
 feature flag and project permissions. Trigger/retry and both worker processors
-check the allowlist; rejected queue jobs fail without retrying or running pipeline
+check deployment enablement and the allowlist; rejected queue jobs fail without retrying or running pipeline
 work. Apply changes by restarting web and worker; this does not cancel work that
 is already running. Web and worker use the same databases and Redis. Topics does
 not write to object storage or require a shared filesystem; ingestion storage is unchanged.

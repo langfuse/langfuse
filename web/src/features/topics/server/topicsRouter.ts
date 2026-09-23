@@ -29,6 +29,7 @@ import {
   readTopicSummaries,
   readTopicMapAssignments,
   loadTopicTranscript,
+  isTopicsEnabled,
   isTopicsProjectEnabled,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
@@ -55,6 +56,7 @@ const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
     if (
+      !isTopicsEnabled() ||
       getContextualFeatureFlags(ctx.session.user, {
         projectId: input.projectId,
       })?.langfuseTopics !== true

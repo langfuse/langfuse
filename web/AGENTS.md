@@ -25,7 +25,8 @@
   `src/features/topics/server/topicsRouter.ts`. Process traces from filters/IDs;
   update maps from stored summaries. Current results stay visible while the
   history drawer shows execution status, errors and retry controls.
-  Trigger/retry requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
+  `LANGFUSE_TOPICS_ENABLED` gates all routes and effective session flags.
+  Trigger/retry also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`; reads/configuration
   use the `langfuseTopics` flag and project permissions. Storage, retry and setup
   details: `../worker/src/features/topics/README.md`.
 - Reusable UI components: `src/components/*`
