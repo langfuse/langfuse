@@ -201,6 +201,13 @@ describe("SkillService versions", () => {
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
       },
     };
+    Object.assign(tx, {
+      promptProtectedLabels: db.promptProtectedLabels,
+      apiKey: db.apiKey,
+      user: db.user,
+      organizationMembership: db.organizationMembership,
+      projectMembership: db.projectMembership,
+    });
     const service = new SkillService(
       db as unknown as PrismaClient,
       { getObjectSize, downloadBytes } as unknown as StorageService,
@@ -233,6 +240,63 @@ describe("SkillService versions", () => {
     };
   }
 
+  it.each(["setLabels", "deleteVersion", "deleteSkill"] as const)(
+    "checks labels added before the mutation lock during %s",
+    async (operation) => {
+      const test = setup();
+      const lockedSkill = { ...test.skill, labels: ["production"] };
+      test.tx.skill.findFirst.mockResolvedValue(lockedSkill);
+      test.tx.skill.findMany.mockResolvedValue([lockedSkill]);
+      test.db.promptProtectedLabels.findMany.mockResolvedValue([
+        { label: "production" },
+      ]);
+      const params = {
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        actor: sessionActor("MEMBER"),
+      };
+      const mutations = {
+        setLabels: () => test.service.setLabels({ ...params, labels: [] }),
+        deleteVersion: () => test.service.deleteVersion(params),
+        deleteSkill: () => test.service.deleteSkill(params),
+      };
+
+      await expect(mutations[operation]()).rejects.toMatchObject({
+        code: "FORBIDDEN",
+      });
+      expect(test.tx.skill.update).not.toHaveBeenCalled();
+      expect(test.tx.skill.delete).not.toHaveBeenCalled();
+      expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
+      expect(auditLog).not.toHaveBeenCalled();
+    },
+  );
+
+  it("cannot restore a protected label moved away before the mutation lock", async () => {
+    const test = setup();
+    test.skill.labels = ["production"];
+    test.tx.skill.findFirst.mockResolvedValue({ ...test.skill, labels: [] });
+    test.tx.skill.findMany.mockResolvedValue([
+      { ...test.skill, labels: [] },
+      { id: "other-version", labels: ["production"] },
+    ]);
+    test.db.promptProtectedLabels.findMany.mockResolvedValue([
+      { label: "production" },
+    ]);
+
+    await expect(
+      test.service.setLabels({
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        labels: ["production", "stable"],
+        actor: sessionActor("MEMBER"),
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(test.tx.skill.update).not.toHaveBeenCalled();
+    expect(auditLog).not.toHaveBeenCalled();
+  });
+
   it.each(["add", "remove", "delete"] as const)(
     "rejects a MEMBER attempting to %s a protected label through the service",
     async (operation) => {
@@ -258,7 +322,7 @@ describe("SkillService versions", () => {
               labels: operation === "add" ? ["production"] : [],
             }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      expect(test.transaction).not.toHaveBeenCalled();
+      expect(test.transaction).toHaveBeenCalledOnce();
       expect(test.tx.skill.update).not.toHaveBeenCalled();
       expect(test.tx.skill.delete).not.toHaveBeenCalled();
       expect(auditLog).not.toHaveBeenCalled();
@@ -291,12 +355,12 @@ describe("SkillService versions", () => {
           : test.service.deleteVersion(params);
 
       await expect(mutate()).rejects.toMatchObject({ httpCode: 403 });
-      expect(test.transaction).not.toHaveBeenCalled();
+      expect(test.transaction).toHaveBeenCalledOnce();
       expect(auditLog).not.toHaveBeenCalled();
 
       test.db.projectMembership.findFirst.mockResolvedValue({ role: "ADMIN" });
       await mutate();
-      expect(test.transaction).toHaveBeenCalledOnce();
+      expect(test.transaction).toHaveBeenCalledTimes(2);
     },
   );
 
@@ -418,7 +482,7 @@ describe("SkillService versions", () => {
 
   it("blocks whole-skill deletion when an older version has a protected label", async () => {
     const test = setup();
-    test.db.skill.findMany.mockResolvedValue([
+    test.tx.skill.findMany.mockResolvedValue([
       { ...test.skill, labels: ["latest"], version: 2 },
       { ...test.skill, labels: ["production"] },
     ]);
@@ -432,8 +496,31 @@ describe("SkillService versions", () => {
         actor: sessionActor("MEMBER"),
       }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(test.transaction).not.toHaveBeenCalled();
+    expect(test.transaction).toHaveBeenCalledOnce();
     expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("allows ordinary label changes while keeping a protected label", async () => {
+    const test = setup();
+    test.skill.labels = ["latest", "production", "old"];
+    test.tx.skill.findFirst.mockResolvedValue(test.skill);
+    test.tx.skill.findMany.mockResolvedValue([test.skill]);
+    test.db.promptProtectedLabels.findMany.mockResolvedValue([
+      { label: "production" },
+    ]);
+
+    await test.service.setLabels({
+      projectId: "project",
+      name: "test-skill",
+      version: 1,
+      labels: ["production", "stable"],
+      actor: sessionActor("MEMBER"),
+    });
+
+    expect(test.tx.skill.update).toHaveBeenCalledExactlyOnceWith({
+      where: { projectId: "project", id: "skill" },
+      data: { labels: { set: ["production", "stable", "latest"] } },
+    });
   });
 
   it("preserves latest when replacing user-managed labels", async () => {

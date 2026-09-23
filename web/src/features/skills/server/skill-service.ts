@@ -561,20 +561,6 @@ export class SkillService {
     actor: SkillActor;
   }) {
     const input = UpdateSkillLabelsBodySchema.parse({ labels: params.labels });
-    const existing = await this.get({
-      projectId: params.projectId,
-      name: params.name,
-      selector: { version: params.version },
-    });
-    const changedLabels = [
-      ...existing.labels.filter((label) => !input.labels.includes(label)),
-      ...input.labels.filter((label) => !existing.labels.includes(label)),
-    ];
-    await this.requireProtectedLabelAccess({
-      projectId: params.projectId,
-      labels: changedLabels,
-      actor: params.actor,
-    });
     const skillId = await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const target = await tx.skill.findFirst({
@@ -585,6 +571,17 @@ export class SkillService {
         },
       });
       if (!target) throw new LangfuseNotFoundError("Skill version not found");
+
+      const changedLabels = [
+        ...target.labels.filter((label) => !input.labels.includes(label)),
+        ...input.labels.filter((label) => !target.labels.includes(label)),
+      ];
+      await this.requireProtectedLabelAccess({
+        prisma: tx,
+        projectId: params.projectId,
+        labels: changedLabels,
+        actor: params.actor,
+      });
 
       const versions = await tx.skill.findMany({
         where: { projectId: params.projectId, name: params.name },
@@ -673,16 +670,6 @@ export class SkillService {
     actor: SkillActor;
   }): Promise<void> {
     const where = { projectId: params.projectId, name: params.name };
-    const existing = await this.prisma.skill.findMany({
-      where,
-      select: { labels: true },
-    });
-    if (!existing.length) throw new LangfuseNotFoundError("Skill not found");
-    await this.requireProtectedLabelAccess({
-      projectId: params.projectId,
-      labels: [...new Set(existing.flatMap(({ labels }) => labels))],
-      actor: params.actor,
-    });
     await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const versions = await tx.skill.findMany({
@@ -691,6 +678,12 @@ export class SkillService {
         orderBy: { version: "asc" },
       });
       if (!versions.length) throw new LangfuseNotFoundError("Skill not found");
+      await this.requireProtectedLabelAccess({
+        prisma: tx,
+        projectId: params.projectId,
+        labels: [...new Set(versions.flatMap(({ labels }) => labels))],
+        actor: params.actor,
+      });
       await auditLog(
         {
           ...params.actor,
@@ -717,16 +710,6 @@ export class SkillService {
     version: number;
     actor: SkillActor;
   }): Promise<void> {
-    const existing = await this.get({
-      projectId: params.projectId,
-      name: params.name,
-      selector: { version: params.version },
-    });
-    await this.requireProtectedLabelAccess({
-      projectId: params.projectId,
-      labels: existing.labels,
-      actor: params.actor,
-    });
     await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const target = await tx.skill.findFirst({
@@ -738,6 +721,12 @@ export class SkillService {
         include: { files: { include: { blob: true } } },
       });
       if (!target) throw new LangfuseNotFoundError("Skill version not found");
+      await this.requireProtectedLabelAccess({
+        prisma: tx,
+        projectId: params.projectId,
+        labels: target.labels,
+        actor: params.actor,
+      });
       await auditLog(
         {
           ...params.actor,
@@ -785,6 +774,7 @@ export class SkillService {
   }
 
   private async requireProtectedLabelAccess(params: {
+    prisma: Prisma.TransactionClient;
     projectId: string;
     labels: string[];
     actor: SkillActor;
@@ -795,7 +785,7 @@ export class SkillService {
     if ("session" in params.actor) {
       const { hasProtectedLabels, protectedLabels } =
         await checkHasProtectedLabels({
-          prisma: this.prisma,
+          prisma: params.prisma,
           projectId: params.projectId,
           labelsToCheck,
         });
@@ -811,7 +801,7 @@ export class SkillService {
     }
 
     await authorizeProtectedLabelMutation({
-      prisma: this.prisma,
+      prisma: params.prisma,
       context: { ...params.actor, projectId: params.projectId },
       ctx: params.actor.ctx,
       labelsToCheck,

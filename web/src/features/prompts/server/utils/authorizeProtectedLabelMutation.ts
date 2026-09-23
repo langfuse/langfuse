@@ -1,4 +1,4 @@
-import { type PrismaClient, Role } from "@langfuse/shared/src/db";
+import { type Prisma, Role } from "@langfuse/shared/src/db";
 import { ForbiddenError, hasProjectAccessByRole } from "@langfuse/shared";
 import { type ApiAccessLevel } from "@langfuse/shared/src/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
@@ -19,7 +19,7 @@ export type ApiKeyProjectContext = {
  * user, missing org membership, or NONE.
  */
 async function resolveApiKeyCreatorProjectAccess(params: {
-  prisma: PrismaClient;
+  prisma: Prisma.TransactionClient;
   userId: string;
   projectId: string;
   orgId: string;
@@ -74,7 +74,7 @@ async function resolveApiKeyCreatorProjectAccess(params: {
  * Call after checkHasProtectedLabels; skip when that result is false.
  */
 async function assertInAppAgentMayMutateProtectedLabels(params: {
-  prisma: PrismaClient;
+  prisma: Prisma.TransactionClient;
   context: ApiKeyProjectContext;
   protectedLabels: string[];
   forbiddenErrorMessage: string;
@@ -117,7 +117,7 @@ async function assertInAppAgentMayMutateProtectedLabels(params: {
 
 /** Authorize protected-label mutations for project API keys and their creators. */
 export async function authorizeProtectedLabelMutation(params: {
-  prisma: PrismaClient;
+  prisma: Prisma.TransactionClient;
   context: ApiKeyProjectContext;
   ctx?: AuthorizationContext;
   labelsToCheck: string[];
