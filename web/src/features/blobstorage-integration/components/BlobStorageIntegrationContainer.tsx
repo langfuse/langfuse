@@ -1,7 +1,10 @@
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import {
+  IntegrationSettingsSkeleton,
+  buildExportSourceContext,
+} from "@/src/features/analytics-integrations";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import {
@@ -9,7 +12,6 @@ import {
   type BlobStorageIntegration,
   type ExportSourceContext,
 } from "@langfuse/shared";
-import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";

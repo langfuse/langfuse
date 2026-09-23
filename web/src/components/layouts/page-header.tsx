@@ -12,7 +12,7 @@ import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-head
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { TopbarBrand } from "@/src/components/nav/topbar-brand";
 import { useHasAppSidebar } from "@/src/components/nav/sidebar-presence";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
@@ -49,8 +49,13 @@ export type PageHeaderProps = {
    * `layout="menu"` variant of their actions here (mirrors the table peek's
    * `actionsMenu`). When omitted, the mobile header falls back to folding the
    * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
-   * `PageHeader` ignores this. */
-  actionButtonsMenu?: React.ReactNode;
+   * `PageHeader` ignores this. The render callback can hand off focus through the stable menu trigger
+   * before opening another panel, without delayed trigger focus restoration. */
+  actionButtonsMenu?:
+    | ReactNode
+    | ((control: {
+        closeMenu: (options?: { handoffFocus?: boolean }) => void;
+      }) => ReactNode);
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;

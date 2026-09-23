@@ -110,7 +110,7 @@ function wildcardRepresentative(entries: unknown[]) {
 }
 
 function TreeRow({
-  variable,
+  variableLabel,
   columnId,
   segments,
   label,
@@ -124,7 +124,8 @@ function TreeRow({
   onSelect,
   currentKey,
 }: {
-  variable: string;
+  /** How the caller names the target, e.g. `{{input}}` or `input`. */
+  variableLabel: string;
   columnId: string;
   segments: PathSegment[];
   label: string;
@@ -187,7 +188,7 @@ function TreeRow({
               ? undefined
               : expandable
                 ? preview
-                : `Pull {{${variable}}} from here`
+                : `Pull ${variableLabel} from here`
           }
         >
           {expandable ? (
@@ -230,7 +231,7 @@ function TreeRow({
         {isCurrent ? (
           <span
             className="text-primary-accent bg-primary-accent/10 shrink-0 self-center rounded border border-transparent px-1.5 py-px text-[10px] font-bold"
-            title={`{{${variable}}} currently maps to here`}
+            title={`${variableLabel} currently maps to here`}
           >
             current
           </span>
@@ -239,7 +240,7 @@ function TreeRow({
           type="button"
           data-tree-row-action=""
           className="bg-primary text-primary-foreground hover:bg-primary/90 hidden shrink-0 self-center rounded px-2 py-0.5 text-xs font-bold shadow-sm group-focus-within/row:inline-flex group-hover/row:inline-flex"
-          title={`Pull {{${variable}}} from here`}
+          title={`Pull ${variableLabel} from here`}
           onClick={() => onSelect(columnId, segments)}
         >
           Use
@@ -253,7 +254,7 @@ function TreeRow({
               return (
                 <>
                   <TreeRow
-                    variable={variable}
+                    variableLabel={variableLabel}
                     columnId={columnId}
                     segments={[...segments, WILDCARD]}
                     label="[*]"
@@ -267,7 +268,7 @@ function TreeRow({
                     currentKey={currentKey}
                   />
                   <TreeRow
-                    variable={variable}
+                    variableLabel={variableLabel}
                     columnId={columnId}
                     segments={[...segments, LAST]}
                     label="last"
@@ -282,7 +283,7 @@ function TreeRow({
                   {value.slice(0, MAX_CONCRETE_ENTRIES).map((entry, index) => (
                     <TreeRow
                       key={index}
-                      variable={variable}
+                      variableLabel={variableLabel}
                       columnId={columnId}
                       segments={[...segments, index]}
                       label={`[${index}]`}
@@ -314,7 +315,7 @@ function TreeRow({
                   {entries.map(([childKey, childValue]) => (
                     <TreeRow
                       key={childKey}
-                      variable={variable}
+                      variableLabel={variableLabel}
                       columnId={columnId}
                       segments={[...segments, childKey]}
                       label={childKey}
@@ -345,13 +346,14 @@ function TreeRow({
 
 /** Selects one sample-observation field or nested path for a prompt variable. */
 export function SampleDataTreeSelector({
-  variable,
+  variableLabel,
   roots,
   currentColumnId,
   currentSegments,
   onSelect,
 }: {
-  variable: string;
+  /** How the caller names the target, e.g. `{{input}}` or `input`. */
+  variableLabel: string;
   roots: Array<{ id: string; label: string; value: unknown }>;
   currentColumnId: string | null;
   currentSegments: PathSegment[] | null;
@@ -376,7 +378,7 @@ export function SampleDataTreeSelector({
       {roots.map((root) => (
         <TreeRow
           key={root.id}
-          variable={variable}
+          variableLabel={variableLabel}
           columnId={root.id}
           segments={[]}
           label={root.label}

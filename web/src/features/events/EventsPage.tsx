@@ -4,10 +4,7 @@ import ObservationsEventsTable from "@/src/features/events/components/EventsTabl
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { TracesOnboarding } from "@/src/components/onboarding/TracesOnboarding";
-import {
-  getTracingTabs,
-  TRACING_TABS,
-} from "@/src/features/navigation/utils/tracing-tabs";
+import { getTracingTabs, TRACING_TABS } from "@/src/features/navigation";
 import { useQueryProject } from "@/src/features/projects";
 
 export default function EventsPage() {

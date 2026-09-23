@@ -20,7 +20,7 @@ import Page from "@/src/components/layouts/page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
+} from "@/src/features/navigation";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
 import {
   ActiveCellProvider,
@@ -38,7 +38,6 @@ function DatasetCompareLegacy() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
-  const [isAnnotationPanelOpen, setIsAnnotationPanelOpen] = useState(false);
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -55,7 +54,7 @@ function DatasetCompareLegacy() {
     setLocalRuns,
   } = useDatasetRunsCompare(projectId, datasetId);
 
-  const { activeCell, clearActiveCell } = useActiveCell();
+  const { activeCell, clearActiveCell, closeRunAnnotation } = useActiveCell();
 
   const handleExperimentSettled = async (data?: {
     success: boolean;
@@ -67,31 +66,11 @@ function DatasetCompareLegacy() {
     await handleExperimentSettledBase(data);
   };
 
-  // Clear annotation state on URL change (filters, navigation, etc.)
-  useEffect(() => {
-    clearActiveCell();
-  }, [router.query, clearActiveCell]);
-
-  // Open panel when cell becomes active, close when cleared
-  useEffect(() => {
-    setIsAnnotationPanelOpen(!!activeCell);
-  }, [activeCell]);
-
-  // Clear active cell when panel manually closed
   const handlePanelOpenChange = (open: boolean) => {
     if (!open) {
       clearActiveCell();
     }
-    setIsAnnotationPanelOpen(open);
   };
-
-  if (!runsData.data || runs.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Spinner size="xl" variant="muted" />
-      </div>
-    );
-  }
 
   return (
     <Page
@@ -173,6 +152,7 @@ function DatasetCompareLegacy() {
                     });
                     setLocalRuns([]);
                   } else {
+                    if (!closeRunAnnotation(changedValueId)) return;
                     capture("dataset_run:compare_run_removed");
                     const newRunIds =
                       runIds?.filter((id) => id !== changedValueId) ?? [];
@@ -201,17 +181,23 @@ function DatasetCompareLegacy() {
     >
       <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          <DatasetCompareRunsTable
-            key={runIds?.join(",") ?? "empty"}
-            projectId={projectId}
-            datasetId={datasetId}
-            runIds={runIds ?? []}
-          />
+          {!runsData.data || runs.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <Spinner size="xl" variant="muted" />
+            </div>
+          ) : (
+            <DatasetCompareRunsTable
+              key={runIds?.join(",") ?? "empty"}
+              projectId={projectId}
+              datasetId={datasetId}
+              runIds={runIds ?? []}
+            />
+          )}
         </div>
         <SidePanel
           id="annotation-panel"
           openState={{
-            open: isAnnotationPanelOpen,
+            open: activeCell !== null,
             onOpenChange: handlePanelOpenChange,
           }}
           mobileTitle="Annotate"
@@ -262,7 +248,9 @@ export default function DatasetComparePage() {
   }
 
   return (
-    <ActiveCellProvider>
+    <ActiveCellProvider
+      key={JSON.stringify([projectId, router.query.datasetId])}
+    >
       <DatasetCompareLegacy />
     </ActiveCellProvider>
   );

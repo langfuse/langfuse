@@ -37,9 +37,10 @@ import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
-
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";

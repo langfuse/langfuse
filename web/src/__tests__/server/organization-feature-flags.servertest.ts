@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { Role, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -234,7 +234,6 @@ describe("organization feature preview defaults", () => {
       // a second preview; add that half back with the next one.
       modernSession: false,
       sessionTimeline: false,
-      normalizedIoPreview: false,
     });
   });
 
@@ -495,7 +494,6 @@ describe("organization member feature preview overrides", () => {
     expect(row?.featurePreviews).toEqual({
       modernSession: true,
       sessionTimeline: false,
-      normalizedIoPreview: false,
     });
     expect(row?.user).not.toHaveProperty("featureFlags");
     expect(row).not.toHaveProperty("organizationIds");

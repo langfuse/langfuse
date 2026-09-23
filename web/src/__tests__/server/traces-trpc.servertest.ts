@@ -19,7 +19,7 @@ import {
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { composeAggregateScoreKey } from "@/src/features/scores/server";
 import { BatchExportFileFormat, BatchTableNames } from "@langfuse/shared";
 
 describe("traces trpc", () => {

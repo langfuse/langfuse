@@ -33,7 +33,7 @@ import {
   buildExperimentPath,
 } from "@langfuse/shared";
 import { numberFormatter } from "@/src/utils/numbers";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -71,7 +71,7 @@ import {
 import { useExperimentsTableData } from "../../hooks/useExperimentsTableData";
 import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ExperimentMetricStrip } from "../ExperimentMetricStrip";
 import {
@@ -272,8 +272,8 @@ function ExperimentsMultiSelectActionMenu({
           totalCount={selectedExperimentIds.length}
           onClose={() => {
             setShowRunEvaluationDialog(false);
-            clearSelection();
           }}
+          onSuccess={clearSelection}
           sourceTable="experiments"
         />
       )}

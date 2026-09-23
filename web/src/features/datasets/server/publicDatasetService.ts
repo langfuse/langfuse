@@ -37,7 +37,7 @@ import { env } from "@/src/env.mjs";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
+} from "@/src/features/media/server";
 import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,

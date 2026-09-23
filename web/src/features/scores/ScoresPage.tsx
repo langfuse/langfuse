@@ -4,10 +4,7 @@ import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace
 import Page from "@/src/components/layouts/page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
-import {
-  getScoresTabs,
-  SCORES_TABS,
-} from "@/src/features/navigation/utils/scores-tabs";
+import { getScoresTabs, SCORES_TABS } from "@/src/features/navigation";
 import { useReadPath } from "@/src/features/events";
 
 export default function ScoresPage() {

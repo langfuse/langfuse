@@ -33,7 +33,7 @@ export function ViewModeToggle({
         >
           <Tabs.List size="sm">
             <Tabs.Trigger value="pretty" size="sm" label="Formatted" />
-            <Tabs.Trigger value="json" size="sm" label="JSON" />
+            <Tabs.Trigger value="json" size="sm" label="Raw" />
           </Tabs.List>
         </Tabs>
       </div>

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { Button } from "@/src/components/ui/button";
-import { TagButton } from "@/src/features/tag/components/TagButton";
+import { TagButton } from "@/src/features/tag";
 import {
   SessionBadge,
   UserIdBadge,

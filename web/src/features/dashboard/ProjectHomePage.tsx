@@ -49,7 +49,7 @@ import { Button } from "@/src/components/ui/button";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { HomeDashboardSelect } from "@/src/features/dashboard/components/HomeDashboardSelect";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { setupTracingRoute } from "@/src/features/setup/setupRoutes";
+import { setupTracingRoute } from "@/src/features/setup";
 
 // Controller: no widget query may fire before the session resolves the v3/v4
 // read path — an unresolved session used to read as v3, fire a full wave of

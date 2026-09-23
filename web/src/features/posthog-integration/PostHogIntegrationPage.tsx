@@ -19,14 +19,14 @@ import {
 import {
   buildExportSourceContext,
   getExportSourceFormValue,
-} from "@/src/features/analytics-integrations/exportSource";
+  IntegrationSettingsSkeleton,
+} from "@/src/features/analytics-integrations";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useQueryProject } from "@/src/features/projects";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";

@@ -14,7 +14,10 @@ import { createNumberTableColumn } from "@/src/components/design-system/table/co
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
@@ -40,7 +43,7 @@ import {
 } from "@langfuse/shared";
 
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
@@ -52,11 +55,10 @@ import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { joinSessionCoreAndMetrics } from "@/src/features/sessions/session-row-data";
-import TagList from "@/src/features/tag/components/TagList";
+import { TagList } from "@/src/features/tag";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { cn } from "@/src/utils/tailwind";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import {
@@ -68,6 +70,7 @@ import {
 import { type RowSelectionState } from "@tanstack/react-table";
 import { showSuccessToast } from "@/src/features/notifications";
 import { useScoreColumns, scoreFilters } from "@/src/features/scores";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 
 import { toObservedOptions, TableSearchBar } from "@/src/features/search-bar";
@@ -112,6 +115,7 @@ export default function SessionsTable({
   isV4 = false,
   showControlsInPageHeader = false,
 }: SessionTableProps) {
+  const capture = usePostHogClientCapture();
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter, isV4),
     [isV4, omittedFilter],
@@ -379,7 +383,19 @@ export default function SessionsTable({
   const sessionCountQuery = isV4 ? sessionCountQueryV4 : sessionCountQueryV3;
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onMutate: () => ({ isV4 }),
+    onSuccess: (data, variables, context) => {
+      if (context && (variables.isBatchAction || data.createdCount > 0)) {
+        capture("annotation_queues:item_added", {
+          type: "session",
+          source: "SessionTable",
+          targetType: "session",
+          objectType: "SESSION",
+          queueCount: 1,
+          isV4: context.isV4,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Sessions added to queue",
         description: `Selected sessions will be added to queue "${data.queueName}". This may take a minute.`,

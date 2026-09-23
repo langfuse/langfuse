@@ -20,14 +20,14 @@ import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-fol
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
+import { TagPromptPopover } from "@/src/features/tag";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   promptFilterConfig,
   useQueryFilterState,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
@@ -36,9 +36,11 @@ import {
   toObservedOptions,
 } from "@/src/features/search-bar";
 
-import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
-import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import {
+  useFolderPagination,
+  buildFullPath,
+  FolderBreadcrumb,
+} from "@/src/features/folders";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";

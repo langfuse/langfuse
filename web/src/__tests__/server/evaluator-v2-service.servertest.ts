@@ -393,6 +393,64 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("persists the state mapping and typed questions of a decision-model evaluator", async () => {
+    const questions = [
+      {
+        id: "readiness",
+        scoreName: "send_readiness",
+        type: "choice" as const,
+        instructions: "Is `reply` ready to send as an answer to `question`?",
+        options: [{ value: "ready" }, { value: "needs_revision" }],
+      },
+      {
+        id: "refund",
+        scoreName: "refund_requested",
+        type: "noul" as const,
+        instructions: "Does `question` request a refund?",
+      },
+    ];
+    const variableMapping = [
+      {
+        templateVariable: "question",
+        selectedColumnId: "input",
+        jsonSelector: "$.messages[-1].content",
+      },
+      {
+        templateVariable: "reply",
+        selectedColumnId: "output",
+        jsonSelector: null,
+      },
+    ];
+
+    const created = await createService().create(
+      {
+        projectId,
+        name: "Send readiness",
+        description: null,
+        definition: {
+          type: "DECISION_MODEL",
+          questions,
+          provider: "typesafe",
+          model: "jev-1.13.0",
+          vars: ["question", "reply"],
+          variableMapping,
+        },
+      },
+      null,
+    );
+
+    expect(created.type).toBe("DECISION_MODEL");
+    expect(created.versions[0]).toMatchObject({
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: ["question", "reply"],
+      variableMapping,
+      questions,
+      promptMessages: null,
+      outputDefinition: null,
+    });
+  });
+
   it("returns the filter from the first assigned rule", async () => {
     const service = createService();
     const created = await service.create(llmInput("Assigned evaluator"), null);
