@@ -3,8 +3,6 @@ import z from "zod";
 import {
   BedrockConfigSchema,
   OpenAIConfigSchema,
-  TypeSafeConfigSchema,
-  type TypeSafeUpstream,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
@@ -474,109 +472,43 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-export type TypeSafeUpstreamDefinition = {
-  label: string;
-  /** Base URL the `@ai-sdk/typesafe-ai` provider appends `/systemone` to. */
-  baseURL: string;
-  apiKeyLabel: string;
-  docsUrl: string;
-};
+export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 
-export const TYPESAFE_UPSTREAM_DEFINITIONS: Record<
-  TypeSafeUpstream,
-  TypeSafeUpstreamDefinition
-> = {
-  typesafe: {
+/**
+ * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
+ * connection's `baseURL` must be one of these; `null` means TypeSafe itself.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  {
+    id: "typesafe",
     label: "TypeSafe",
     baseURL: "https://api.typesafe.ai/v1",
     apiKeyLabel: "TypeSafe API key",
     docsUrl: "https://docs.typesafe.ai/api",
   },
-  "vercel-ai-gateway": {
+  {
+    id: "vercel-ai-gateway",
     label: "Vercel AI Gateway",
     baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
     apiKeyLabel: "Vercel AI Gateway API key",
     docsUrl: "https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe",
   },
-  openrouter: {
+  {
+    id: "openrouter",
     label: "OpenRouter",
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyLabel: "OpenRouter API key",
     docsUrl: "https://openrouter.ai/docs/guides/community/typesafe-sdk",
   },
-};
+] as const;
 
-export const DEFAULT_TYPESAFE_UPSTREAM: TypeSafeUpstream = "typesafe";
+export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
 
-/**
- * Reads the upstream from a stored TypeSafe connection config. Connections
- * created before upstreams existed have no config and talk to TypeSafe
- * directly.
- */
-export function resolveTypeSafeUpstream(config: unknown): TypeSafeUpstream {
-  const parsed = TypeSafeConfigSchema.safeParse(config);
-  return parsed.success ? parsed.data.upstream : DEFAULT_TYPESAFE_UPSTREAM;
-}
-
-/**
- * Langfuse stores TypeSafe's own model IDs everywhere (connection defaults,
- * evaluator definitions) and translates them for the upstream at request time,
- * so an evaluator keeps working when its connection moves between upstreams.
- * Both gateways accept TypeSafe's bare aliases; only the pinned version is
- * named differently (OpenRouter) or not offered at all (Vercel AI Gateway).
- */
-export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
-
-const TYPESAFE_MODEL_ID_BY_UPSTREAM: Record<
-  (typeof typeSafeModels)[number],
-  Record<TypeSafeUpstream, string | null>
-> = {
-  "jev-1.13.0": {
-    typesafe: "jev-1.13.0",
-    "vercel-ai-gateway": null,
-    openrouter: "jev-1.13",
-  },
-  "jev-latest": {
-    typesafe: "jev-latest",
-    "vercel-ai-gateway": "jev-latest",
-    openrouter: "jev-latest",
-  },
-};
-
-function isCanonicalTypeSafeModel(
-  model: string,
-): model is (typeof typeSafeModels)[number] {
-  return (typeSafeModels as readonly string[]).includes(model);
-}
-
-/**
- * Translates a canonical Jev model ID into the ID the upstream expects.
- * Returns `null` when the upstream does not serve that model. IDs outside the
- * canonical list (custom model names) pass through untouched so a connection
- * can still address any raw upstream model.
- */
-export function resolveTypeSafeModelId(
-  model: string,
-  upstream: TypeSafeUpstream,
-): string | null {
-  return isCanonicalTypeSafeModel(model)
-    ? TYPESAFE_MODEL_ID_BY_UPSTREAM[model][upstream]
-    : model;
-}
-
-/**
- * Default model IDs offered by a decision-model connection: the canonical Jev
- * IDs the connection's upstream can serve.
- */
-export function getDecisionModelDefaultModels(connection: {
-  adapter: string;
-  config?: unknown;
-}): readonly string[] {
-  if (connection.adapter !== LLMAdapter.TypeSafe) return [];
-  const upstream = resolveTypeSafeUpstream(connection.config);
-  return typeSafeModels.filter(
-    (model) => resolveTypeSafeModelId(model, upstream) !== null,
-  );
+export function findTypeSafeUpstream(
+  baseURL: string | null | undefined,
+): TypeSafeUpstream | undefined {
+  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  return TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL);
 }
 
 export type AnthropicModel = (typeof anthropicModels)[number];
@@ -613,12 +545,7 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z
-      .union([
-        BedrockConfigSchema,
-        VertexAIConfigSchema,
-        OpenAIConfigSchema,
-        TypeSafeConfigSchema,
-      ])
+      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
       .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise

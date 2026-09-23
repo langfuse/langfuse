@@ -9,46 +9,23 @@ import type {
   DecisionModelClient,
   DecisionModelEvaluation,
 } from "../../evals/decisionModelEvaluatorExecution";
-import type { TypeSafeUpstream } from "../../../interfaces/customLLMProviderConfigSchemas";
-import { LLMValidationError } from "../errors";
 import { createSecureLlmFetch } from "../secureLlmFetch";
-import {
-  DEFAULT_TYPESAFE_UPSTREAM,
-  resolveTypeSafeModelId,
-  TYPESAFE_UPSTREAM_DEFINITIONS,
-} from "../types";
 
-/**
- * Builds a client for one canonical Jev model against one upstream. Throws an
- * `LLMValidationError` when the upstream does not serve that model, before any
- * request is made.
- */
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
-  upstream?: TypeSafeUpstream;
+  /** TypeSafe-compatible base URL; defaults to TypeSafe's own API. */
+  baseURL?: string | null;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
-  const upstreamKey = params.upstream ?? DEFAULT_TYPESAFE_UPSTREAM;
-  const upstream = TYPESAFE_UPSTREAM_DEFINITIONS[upstreamKey];
-  const upstreamModelId = resolveTypeSafeModelId(params.model, upstreamKey);
-  if (upstreamModelId === null) {
-    throw new LLMValidationError({
-      code: "invalid-request",
-      message: `Model "${params.model}" is not available through ${upstream.label}.`,
-    });
-  }
-
   const provider = createTypeSafeAi({
     apiKey: params.apiKey,
-    baseURL: upstream.baseURL,
+    baseURL: params.baseURL ?? undefined,
     fetch:
       params.fetchImpl ??
-      createSecureLlmFetch({
-        logContext: `${upstream.label} decision model`,
-      }),
+      createSecureLlmFetch({ logContext: "TypeSafe decision model" }),
   });
-  const model = provider.evaluationModel(upstreamModelId);
+  const model = provider.evaluationModel(params.model);
 
   return {
     evaluate: async (request) => {

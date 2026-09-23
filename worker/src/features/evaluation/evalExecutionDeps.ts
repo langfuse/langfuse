@@ -15,10 +15,7 @@ import {
   LLMAdapter,
   mapLegacyLLMCompletionParams,
   QueueJobs,
-  resolveTypeSafeModelId,
-  resolveTypeSafeUpstream,
   ScoreEventType,
-  TYPESAFE_UPSTREAM_DEFINITIONS,
   UNKNOWN_INGESTION_SDK_VALUE,
   type ChatMessage,
   type DecisionModelEvaluation,
@@ -361,17 +358,10 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         );
       }
 
-      const upstream = resolveTypeSafeUpstream(apiKey.config);
-      if (resolveTypeSafeModelId(params.modelConfig.model, upstream) === null) {
-        throw new UnrecoverableError(
-          `Model "${params.modelConfig.model}" is not available through ${TYPESAFE_UPSTREAM_DEFINITIONS[upstream].label}`,
-        );
-      }
-
       const client = createTypeSafeDecisionModelClient({
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
-        upstream,
+        baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
       });
 
       return client.evaluate(params.request);

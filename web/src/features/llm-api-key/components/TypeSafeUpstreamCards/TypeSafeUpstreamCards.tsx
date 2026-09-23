@@ -3,21 +3,19 @@
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 import { Check } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
-import {
-  TYPESAFE_UPSTREAM_DEFINITIONS,
-  TYPESAFE_UPSTREAMS,
-  type TypeSafeUpstream,
-} from "@langfuse/shared";
+import { TYPESAFE_UPSTREAMS, type TypeSafeUpstream } from "@langfuse/shared";
 
-const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstream, string> = {
+type TypeSafeUpstreamId = TypeSafeUpstream["id"];
+
+const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamId, string> = {
   typesafe: "Direct connection, billed by TypeSafe.",
   "vercel-ai-gateway": "Routed and billed through your AI Gateway.",
   openrouter: "Routed and billed through OpenRouter.",
 };
 
 type TypeSafeUpstreamCardsProps = {
-  value: TypeSafeUpstream;
-  onValueChange: (value: TypeSafeUpstream) => void;
+  value: TypeSafeUpstreamId;
+  onValueChange: (value: TypeSafeUpstreamId) => void;
 } & Pick<
   ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "aria-describedby" | "aria-label" | "aria-labelledby" | "disabled" | "id"
@@ -36,16 +34,14 @@ export function TypeSafeUpstreamCards({
     <RadioGroupPrimitive.Root
       {...rootProps}
       value={value}
-      onValueChange={(next) => onValueChange(next as TypeSafeUpstream)}
+      onValueChange={(next) => onValueChange(next as TypeSafeUpstreamId)}
       className="grid gap-2 sm:grid-cols-3"
     >
-      {TYPESAFE_UPSTREAMS.map((upstream) => {
-        const { label } = TYPESAFE_UPSTREAM_DEFINITIONS[upstream];
-
+      {TYPESAFE_UPSTREAMS.map(({ id, label }) => {
         return (
           <RadioGroupPrimitive.Item
-            key={upstream}
-            value={upstream}
+            key={id}
+            value={id}
             aria-label={label}
             className="focus-visible:ring-ring data-[state=checked]:border-foreground data-[state=checked]:bg-background data-[state=unchecked]:bg-muted/30 data-[state=unchecked]:hover:bg-muted/50 relative flex min-w-0 flex-col items-start gap-1 rounded-md border p-3 pr-7 text-left transition-colors focus:outline-hidden focus-visible:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -54,7 +50,7 @@ export function TypeSafeUpstreamCards({
             </RadioGroupPrimitive.Indicator>
             <span className="text-sm leading-none font-bold">{label}</span>
             <span className="text-muted-foreground text-xs">
-              {UPSTREAM_DESCRIPTIONS[upstream]}
+              {UPSTREAM_DESCRIPTIONS[id]}
             </span>
           </RadioGroupPrimitive.Item>
         );

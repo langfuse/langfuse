@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { TypeSafeUpstream } from "@langfuse/shared";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../../.storybook/preview";
@@ -16,7 +15,7 @@ export const Default = meta.story({
     onValueChange: fn(),
   },
   render: function Render(args) {
-    const [value, setValue] = useState<TypeSafeUpstream>(args.value);
+    const [value, setValue] = useState(args.value);
 
     return (
       <TypeSafeUpstreamCards

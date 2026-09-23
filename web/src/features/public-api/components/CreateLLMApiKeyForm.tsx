@@ -7,18 +7,14 @@ import {
   type BedrockAccessKeys,
   type BedrockConfig,
   type OpenAIConfig,
-  type TypeSafeConfig,
-  type TypeSafeUpstream,
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
-  DEFAULT_TYPESAFE_UPSTREAM,
-  TYPESAFE_UPSTREAM_DEFINITIONS,
-  TypeSafeUpstreamSchema,
+  TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  getDecisionModelDefaultModels,
+  findTypeSafeUpstream,
   isDecisionModelAdapter,
-  resolveTypeSafeUpstream,
+  typeSafeModels,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -101,7 +97,6 @@ const getInitialBedrockAuthMethod = (params: {
 const createFormSchema = (params: {
   mode: "create" | "update";
   existingAuthMethod?: BedrockAuthMethod;
-  existingTypeSafeUpstream?: TypeSafeUpstream;
 }) =>
   z
     .object({
@@ -124,7 +119,6 @@ const createFormSchema = (params: {
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
       openAIUseResponsesApi: z.boolean(),
-      typeSafeUpstream: TypeSafeUpstreamSchema,
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -259,18 +253,6 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
-    )
-    // A key only works against the upstream that issued it.
-    .refine(
-      (data) =>
-        params.mode !== "update" ||
-        data.adapter !== LLMAdapter.TypeSafe ||
-        data.typeSafeUpstream === params.existingTypeSafeUpstream ||
-        hasText(data.secretKey),
-      {
-        message: "Enter the API key for the new upstream.",
-        path: ["secretKey"],
-      },
     );
 
 interface CreateLLMApiKeyFormProps {
@@ -333,15 +315,9 @@ export function CreateLLMApiKeyForm({
     }
   };
 
-  const existingTypeSafeUpstream =
-    existingKey?.adapter === LLMAdapter.TypeSafe
-      ? resolveTypeSafeUpstream(existingKey.config)
-      : undefined;
-
   const formSchema = createFormSchema({
     mode,
     existingAuthMethod: existingKey?.authMethod,
-    existingTypeSafeUpstream,
   });
 
   const form = useForm({
@@ -377,8 +353,6 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
                 : "",
-            typeSafeUpstream:
-              existingTypeSafeUpstream ?? DEFAULT_TYPESAFE_UPSTREAM,
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
             bedrockApiKey: "",
@@ -397,7 +371,6 @@ export function CreateLLMApiKeyForm({
             extraHeaders: [],
             vertexAILocation: "global",
             openAIUseResponsesApi: false,
-            typeSafeUpstream: DEFAULT_TYPESAFE_UPSTREAM,
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -410,9 +383,8 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
-  const currentTypeSafeUpstream = form.watch("typeSafeUpstream");
-  const typeSafeUpstreamDefinition =
-    TYPESAFE_UPSTREAM_DEFINITIONS[currentTypeSafeUpstream];
+  const currentTypeSafeUpstream =
+    findTypeSafeUpstream(form.watch("baseURL")) ?? TYPESAFE_UPSTREAMS[0];
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -580,12 +552,7 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config:
-      | BedrockConfig
-      | OpenAIConfig
-      | VertexAIConfig
-      | TypeSafeConfig
-      | undefined;
+    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       const shouldPreserveExistingBedrockCredentials =
@@ -645,8 +612,6 @@ export function CreateLLMApiKeyForm({
         values.openAIUseResponsesApi || mode === "update"
           ? { useResponsesApi: values.openAIUseResponsesApi }
           : undefined;
-    } else if (currentAdapter === LLMAdapter.TypeSafe) {
-      config = { upstream: values.typeSafeUpstream };
     }
 
     const extraHeaders =
@@ -827,7 +792,7 @@ export function CreateLLMApiKeyForm({
               {currentAdapter === LLMAdapter.TypeSafe && (
                 <FormField
                   control={form.control}
-                  name="typeSafeUpstream"
+                  name="baseURL"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
@@ -839,26 +804,29 @@ export function CreateLLMApiKeyForm({
                       <FormControl>
                         <TypeSafeUpstreamCards
                           aria-label="Upstream"
-                          value={field.value}
-                          onValueChange={field.onChange}
+                          value={currentTypeSafeUpstream.id}
+                          onValueChange={(id) =>
+                            field.onChange(
+                              TYPESAFE_UPSTREAMS.find(
+                                (upstream) => upstream.id === id,
+                              )?.baseURL,
+                            )
+                          }
                         />
                       </FormControl>
                       <FormDescription>
-                        Models:{" "}
+                        Default models:{" "}
                         <code className="bg-muted rounded px-1 py-0.5">
-                          {getDecisionModelDefaultModels({
-                            adapter: LLMAdapter.TypeSafe,
-                            config: { upstream: currentTypeSafeUpstream },
-                          }).join(", ")}
+                          {typeSafeModels.join(", ")}
                         </code>
                         .{" "}
                         <a
-                          href={typeSafeUpstreamDefinition.docsUrl}
+                          href={currentTypeSafeUpstream.docsUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 underline hover:text-blue-800"
                         >
-                          {typeSafeUpstreamDefinition.label} docs
+                          {currentTypeSafeUpstream.label} docs
                         </a>
                       </FormDescription>
                       <FormMessage />
@@ -1244,7 +1212,7 @@ export function CreateLLMApiKeyForm({
                     <FormItem>
                       <FormLabel>
                         {currentAdapter === LLMAdapter.TypeSafe
-                          ? typeSafeUpstreamDefinition.apiKeyLabel
+                          ? currentTypeSafeUpstream.apiKeyLabel
                           : "API Key"}
                       </FormLabel>
                       <FormDescription>

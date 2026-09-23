@@ -3,7 +3,6 @@ import {
   LLMAdapter,
   BedrockConfigSchema,
   OpenAIConfigSchema,
-  TypeSafeConfigSchema,
   VertexAIConfigSchema,
   LLMApiKeySchema,
 } from "@langfuse/shared";
@@ -19,12 +18,7 @@ const LlmApiKeySchema = z.object({
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   config: z
-    .union([
-      VertexAIConfigSchema,
-      BedrockConfigSchema,
-      OpenAIConfigSchema,
-      TypeSafeConfigSchema,
-    ])
+    .union([VertexAIConfigSchema, BedrockConfigSchema, OpenAIConfigSchema])
     .optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
 });

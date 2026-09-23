@@ -20,7 +20,6 @@ import {
   mapLegacyLLMCompletionParams,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
-  resolveTypeSafeUpstream,
   runCodeBasedEvaluationDispatch,
   type DecisionModelRequest,
   type ExtractedVariable,
@@ -147,7 +146,7 @@ async function testDecisionModelEvaluator(params: {
     const client = createTypeSafeDecisionModelClient({
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
-      upstream: resolveTypeSafeUpstream(modelConfig.config.apiKey.config),
+      baseURL: modelConfig.config.apiKey.baseURL,
     });
     const execution = await executeDecisionModelEvaluator({
       variables: params.variables,

@@ -337,13 +337,13 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].config).toEqual({});
   });
 
-  it("should store the upstream of a decision-model connection", async () => {
+  it("should store a preset upstream as the base URL of a decision-model connection", async () => {
     await caller.llmApiKey.create({
       projectId,
       secretKey: "sk-or-test",
       provider: "jev-via-openrouter",
       adapter: LLMAdapter.TypeSafe,
-      config: { upstream: "openrouter" },
+      baseURL: "https://openrouter.ai/api/v1",
     });
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
@@ -352,11 +352,10 @@ describe("llmApiKey.all RPC", () => {
     });
 
     expect(llmApiKeys).toHaveLength(1);
-    expect(llmApiKeys[0].config).toEqual({ upstream: "openrouter" });
-    expect(llmApiKeys[0].baseURL).toBeNull();
+    expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
   });
 
-  it("should reject decision-model connections with a base URL or a foreign config", async () => {
+  it("should reject decision-model connections with a non-preset base URL", async () => {
     await expect(
       caller.llmApiKey.create({
         projectId,
@@ -365,17 +364,9 @@ describe("llmApiKey.all RPC", () => {
         adapter: LLMAdapter.TypeSafe,
         baseURL: "https://example.com/v1",
       }),
-    ).rejects.toThrow("do not support a custom base URL");
-
-    await expect(
-      caller.llmApiKey.create({
-        projectId,
-        secretKey: "sk-test",
-        provider: "jev-foreign-config",
-        adapter: LLMAdapter.TypeSafe,
-        config: { useResponsesApi: true },
-      }),
-    ).rejects.toThrow("only accept an upstream");
+    ).rejects.toThrow(
+      "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
+    );
 
     const { data: llmApiKeys } = await caller.llmApiKey.all({
       projectId,
@@ -384,15 +375,13 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys).toHaveLength(0);
   });
 
-  it("should require a new secret key when changing a decision-model upstream", async () => {
+  it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({
       projectId,
       secretKey: "sk-typesafe",
       provider: "jev",
       adapter: LLMAdapter.TypeSafe,
-      config: { upstream: "typesafe" },
     });
-
     const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
       where: { projectId, provider: "jev" },
     });
@@ -403,15 +392,9 @@ describe("llmApiKey.all RPC", () => {
         projectId,
         provider: "jev",
         adapter: LLMAdapter.TypeSafe,
-        config: { upstream: "vercel-ai-gateway" },
+        baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
       }),
-    ).rejects.toThrow("Secret key is required when changing the upstream");
-
-    const unchangedKey = await prisma.llmApiKeys.findUniqueOrThrow({
-      where: { id: existingKey.id, projectId },
-    });
-    expect(unchangedKey.config).toEqual({ upstream: "typesafe" });
-    expect(decrypt(unchangedKey.secretKey)).toBe("sk-typesafe");
+    ).rejects.toThrow("Secret key is required when changing the base URL");
 
     await caller.llmApiKey.update({
       id: existingKey.id,
@@ -419,53 +402,15 @@ describe("llmApiKey.all RPC", () => {
       provider: "jev",
       adapter: LLMAdapter.TypeSafe,
       secretKey: "vck-gateway",
-      config: { upstream: "vercel-ai-gateway" },
+      baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
     });
 
     const updatedKey = await prisma.llmApiKeys.findUniqueOrThrow({
       where: { id: existingKey.id, projectId },
     });
-    expect(updatedKey.config).toEqual({ upstream: "vercel-ai-gateway" });
+    expect(updatedKey.baseURL).toBe("https://ai-gateway.vercel.sh/typesafe/v1");
     expect(decrypt(updatedKey.secretKey)).toBe("vck-gateway");
   });
-
-  it("should treat a legacy decision-model connection without config as the TypeSafe upstream", async () => {
-    await prisma.llmApiKeys.create({
-      data: {
-        projectId,
-        provider: "jev-legacy",
-        adapter: LLMAdapter.TypeSafe,
-        secretKey: encrypt("sk-typesafe"),
-        displaySecretKey: "...safe",
-        customModels: [],
-        withDefaultModels: true,
-        extraHeaderKeys: [],
-      },
-    });
-    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
-      where: { projectId, provider: "jev-legacy" },
-    });
-
-    // Re-saving the implicit default upstream is not a change and needs no key.
-    await caller.llmApiKey.update({
-      id: existingKey.id,
-      projectId,
-      provider: "jev-legacy",
-      adapter: LLMAdapter.TypeSafe,
-      config: { upstream: "typesafe" },
-    });
-
-    await expect(
-      caller.llmApiKey.update({
-        id: existingKey.id,
-        projectId,
-        provider: "jev-legacy",
-        adapter: LLMAdapter.TypeSafe,
-        config: { upstream: "openrouter" },
-      }),
-    ).rejects.toThrow("Secret key is required when changing the upstream");
-  });
-
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
     await prisma.llmApiKeys.createMany({
       data: [

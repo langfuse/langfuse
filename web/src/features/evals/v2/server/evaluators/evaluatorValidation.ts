@@ -7,9 +7,6 @@ import {
 import {
   DefaultEvalModelService,
   isDecisionModelAdapter,
-  resolveTypeSafeModelId,
-  resolveTypeSafeUpstream,
-  TYPESAFE_UPSTREAM_DEFINITIONS,
 } from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
@@ -202,10 +199,6 @@ export async function getDecisionModelConfigurationError(params: {
   }
   if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
     return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`;
-  }
-  const upstream = resolveTypeSafeUpstream(modelConfig.config.apiKey.config);
-  if (resolveTypeSafeModelId(modelConfig.config.model, upstream) === null) {
-    return `Model "${modelConfig.config.model}" is not available through ${TYPESAFE_UPSTREAM_DEFINITIONS[upstream].label}, the upstream of connection "${params.definition.provider}". Pick another model or change the connection's upstream.`;
   }
   return null;
 }
