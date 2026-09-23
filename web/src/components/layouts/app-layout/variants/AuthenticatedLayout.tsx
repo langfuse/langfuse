@@ -11,6 +11,10 @@ import {
   type PropsWithChildren,
 } from "react";
 import Head from "next/head";
+import {
+  useInternalViewMode,
+  InternalViewModeDialog,
+} from "@/src/features/feature-flags/internal-view-mode";
 import { useRouter, type NextRouter } from "next/router";
 import {
   SidebarProvider,
@@ -121,6 +125,8 @@ export function AuthenticatedLayout({
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
+  const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
+  const internalViewMode = useInternalViewMode();
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
@@ -173,6 +179,15 @@ export function AuthenticatedLayout({
     avatar: user.image ?? "",
   };
   const userMenuItems = [
+    ...(internalViewMode.available
+      ? [
+          {
+            type: "action" as const,
+            name: "View mode",
+            onClick: () => setInternalViewModeOpen(true),
+          },
+        ]
+      : []),
     {
       type: "link" as const,
       name: "Account Settings",
@@ -327,6 +342,12 @@ export function AuthenticatedLayout({
                 <InAppAgentWindowHost />
               </SidebarInset>
             </div>
+            {internalViewMode.available && (
+              <InternalViewModeDialog
+                open={internalViewModeOpen}
+                onOpenChange={setInternalViewModeOpen}
+              />
+            )}
             {hasFeaturePreviews ? (
               <ControlledFeaturePreviewModal
                 open={featurePreviewOpen}

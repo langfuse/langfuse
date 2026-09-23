@@ -13,17 +13,14 @@ export const CATEGORY_COLOR_LIMIT = 8;
 
 type CategoryBarRow = DataPoint & { fill?: string };
 
-export type CategoryBarLegendItem = { category: string; color: string };
-
 export type CategoryBars = {
   /**
-   * Rows for recharts, each carrying its own `fill` when colour can identify.
-   * A per-row `fill` is the recharts idiom the tooltip already reads back for
-   * its swatch (see `getFillColor`), so bar, legend and tooltip cannot diverge.
+   * Rows carrying a `fill` when colour can identify. The widget adapter passes
+   * the same colour to the bar and tooltip, so they match the legend.
    */
   rows: CategoryBarRow[];
   /** One entry per bar, in bar order — empty when colour cannot identify. */
-  legend: CategoryBarLegendItem[];
+  legend: { category: string; color: string }[];
   /** Distinct categories, so a caller can say so when there is no legend. */
   total: number;
 };

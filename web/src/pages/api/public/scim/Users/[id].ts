@@ -455,6 +455,28 @@ export default async function handler(
   }
 }
 
+// Resolve the caller organization's membership for `userId`. When the user is
+// not a member, write a 404 that never echoes any of the user's attributes and
+// return null.
+async function requireOrgMembership(
+  res: NextApiResponse,
+  orgId: string,
+  userId: string,
+) {
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: { orgId, userId },
+  });
+  if (!orgMembership) {
+    res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found in organization",
+      status: 404,
+    });
+    return null;
+  }
+  return orgMembership;
+}
+
 // GET - Retrieve a specific user
 async function handleGet(
   req: NextApiRequest,
@@ -462,20 +484,9 @@ async function handleGet(
   user: User,
   orgId: string,
 ) {
-  // For GET operations, verify the user is a member of the organization
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      orgId: orgId,
-      userId: user.id,
-    },
-  });
-
-  if (!orgMembership) {
-    return res.status(404).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "User not found in organization",
-      status: 404,
-    });
+  // For GET operations, verify the user is a member of the organization.
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
   }
 
   // Transform to SCIM format
@@ -656,6 +667,14 @@ async function handlePut(
     });
   }
 
+  // A caller may only observe or mutate a user already tied to their
+  // organization. The sole exception is provisioning (active:true), which
+  // legitimately references a global user id in order to add the user.
+  const isProvisioning = body.active === true;
+  if (!isProvisioning && !(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
+
   // Handle active status for provisioning/deprovisioning.
   //
   // `active: true` ensures the user is provisioned. An explicit `roles` value is
@@ -717,6 +736,9 @@ async function handleDelete(
   orgId: string,
   apiKeyId: string,
 ) {
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
   // Deprovision atomically: check + delete in one Serializable txn.
   if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId, user.email))) {
     return;

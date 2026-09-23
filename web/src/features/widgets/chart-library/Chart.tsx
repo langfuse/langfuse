@@ -105,8 +105,7 @@ const ChartComponent = ({
   /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Consumed by the time-series
-   * charts and forwarded to `prepareTimeAxis`. Used by the experiments /
-   * dataset-compare charts.
+   * charts and forwarded to `prepareTimeAxis`. Used by dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
   /**
@@ -249,6 +248,7 @@ const ChartComponent = ({
             subtleFill={chartConfig?.subtle_fill}
             hideXAxisLabels={hideXAxisLabels}
             colorBarsByCategory={colorBarsByCategory}
+            legendPosition={legendPosition}
             zeroBaseline={zeroBaseline}
           />
         );

@@ -24,6 +24,8 @@ import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
 import { TraceReviewLayout } from "./TraceReviewLayout";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
@@ -488,7 +490,15 @@ function TraceNavigationDetailLayout({
   // cannot hide the trace overview on the next trace-level queue item. Re-
   // selecting the same node is handled at the row click via expandDetailPanel,
   // since the URL param — and thus this effect — doesn't change on re-click.
-  const { selectedNodeId } = useSelection();
+  const { selectedNodeId, selectedTab } = useSelection();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessages =
+    selectedTab === "messages" && internalFeaturesEnabled && isV4;
+  useEffect(() => {
+    if (!showMessages || reviewOpen) return;
+    panelRef.current?.collapse();
+  }, [showMessages, reviewOpen, panelRef]);
   useEffect(() => {
     // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
     // on mount/refresh when there's no selection (effects always run once).

@@ -286,11 +286,11 @@ export default [
   {
     name: "langfuse/web/design-system-component-structure",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
-      ignores: [
-        "src/components/design-system/charts/**",
-        "src/components/design-system/factories/**",
-        "src/components/design-system/internal/**",
-        "src/components/design-system/table/**",
+    ignores: [
+      "src/components/design-system/charts/**",
+      "src/components/design-system/factories/**",
+      "src/components/design-system/internal/**",
+      "src/components/design-system/table/**",
     ],
     plugins: {
       "check-file": checkFile,
@@ -323,11 +323,11 @@ export default [
   {
     name: "langfuse/web/design-system-component-exports",
     files: ["src/components/design-system/*/*.{ts,tsx}"],
-      ignores: [
-        "src/components/design-system/**/*.stories.{ts,tsx}",
-        "src/components/design-system/charts/**",
-        "src/components/design-system/table/**",
-      ],
+    ignores: [
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "src/components/design-system/charts/**",
+      "src/components/design-system/table/**",
+    ],
     rules: {
       "@repo/filename-matches-export": "error",
       "import/no-default-export": "error",
@@ -533,6 +533,21 @@ export default [
         {
           "src/components/design-system/*/": "KEBAB_CASE",
           "src/components/design-system/internal/*/": "PASCAL_CASE",
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-charts-naming",
+    files: ["src/components/design-system/internal/charts/**/*.{ts,tsx}"],
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/charts/*/": "PASCAL_CASE",
         },
       ],
     },

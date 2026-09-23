@@ -26,6 +26,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  findTypeSafeUpstream,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -113,10 +114,11 @@ function assertDecisionModelConnectionInput(input: {
   extraHeaders?: Record<string, string | null | undefined> | null;
 }) {
   if (!isDecisionModelAdapter(input.adapter)) return;
-  if (input.baseURL) {
+  if (!findTypeSafeUpstream(input.baseURL)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
-      message: "Decision-model connections do not support a custom base URL.",
+      message:
+        "Decision-model connections only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs.",
     });
   }
   if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
@@ -130,11 +132,13 @@ function assertDecisionModelConnectionInput(input: {
 async function testDecisionModelConnection(params: {
   secretKey: string;
   model: string;
+  baseURL?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const client = createTypeSafeDecisionModelClient({
       apiKey: params.secretKey,
       model: params.model,
+      baseURL: params.baseURL,
     });
     await client.evaluate({
       state: { message: "Hello, is anyone there?" },
@@ -170,6 +174,7 @@ async function testLLMConnection(
       return await testDecisionModelConnection({
         secretKey: params.secretKey,
         model,
+        baseURL: params.baseURL,
       });
     }
 
@@ -555,9 +560,12 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
+        assertDecisionModelConnectionInput(input);
+
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const baseURL =
+          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
         if (isBaseURLChanged && !hasNewSecretKey) {
