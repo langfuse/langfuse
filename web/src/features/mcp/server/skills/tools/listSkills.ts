@@ -11,6 +11,7 @@ export const [listSkillsTool, handleListSkills] = defineTool({
     "Filter by exact name or tag, or use search for case-insensitive name and latest-version description matches. Update timestamp filters use the latest version (fromUpdatedAt inclusive, toUpdatedAt exclusive).",
     "Pagination: page defaults to 1, limit defaults to 10 (maximum 100). Returns totals and hasNextPage.",
     "Use getSkill to retrieve a version's metadata and file manifest.",
+    "Use loadSkill to read a version's SKILL.md instructions directly.",
   ].join("\n"),
   action: "skills:read",
   baseSchema: ListSkillsQuerySchema,

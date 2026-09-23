@@ -386,6 +386,19 @@ export class SkillService {
     return serializeVersion(skill);
   }
 
+  async load(params: {
+    projectId: string;
+    name: string;
+    selector: SkillSelector;
+  }): Promise<string> {
+    const skill = await this.findSkillVersion(params);
+    const file = skill.files.find(({ path }) => path === "SKILL.md");
+    if (!file) throw new LangfuseNotFoundError("SKILL.md not found");
+
+    const bytes = await this.storage.downloadBytes(file.blob.bucketPath);
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  }
+
   async getFileDownload(params: { projectId: string; fileId: string }) {
     const file = await this.prisma.skillFile.findFirst({
       where: { projectId: params.projectId, id: params.fileId },

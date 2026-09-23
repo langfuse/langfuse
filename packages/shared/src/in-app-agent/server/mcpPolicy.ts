@@ -296,6 +296,10 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "skills:read" },
   },
+  loadSkill: {
+    approval: "auto",
+    availability: { scope: "skills:read" },
+  },
   listScores: {
     approval: "auto",
     availability: { scope: "project:read" },

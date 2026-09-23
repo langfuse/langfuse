@@ -73,6 +73,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getObservationFilterValues: "Looking up observation filters",
   getPromptUnresolved: "Inspecting prompt",
   listDashboardWidgets: "Browsing widgets",
+  loadSkill: "Loading skill",
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
