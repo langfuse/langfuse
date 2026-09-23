@@ -9,6 +9,7 @@ import type {
   TopicOperation,
   TopicProcessBatchState,
   TopicFacetProgress,
+  TopicExecutionSummary,
 } from "../../topics";
 
 export const TOPICS_TRACE_BATCH_SIZE = 100;
@@ -73,17 +74,15 @@ const executionQueue = (operation: TopicOperation) =>
     : TopicsUpdateQueue.getInstance();
 
 export async function getTopicExecutionQueueState(
-  projectId: string,
-  executionId: string,
-  operation: TopicOperation,
+  execution: TopicExecutionSummary,
 ) {
+  const { projectId, id: executionId } = execution;
+  const operation = execution.input.operation;
   const queue = executionQueue(operation);
   if (!queue)
     throw new Error("Topics requires the local development server and Redis.");
   let jobId = executionId;
   if (operation === "process") {
-    const execution = await readTopicExecutionSummary(projectId, executionId);
-    if (!execution) return "missing" as const;
     if (execution.status === "failed") return "failed" as const;
     if (
       execution.status === "completed" ||
@@ -348,11 +347,9 @@ export async function recordTopicProcessBatchProgress(
 
 /** Error details have the queue's retention; counts remain in Postgres. */
 export async function readTopicExecutionTraceErrors(
-  projectId: string,
-  executionId: string,
+  execution: TopicExecutionSummary,
 ) {
-  const execution = await readTopicExecutionSummary(projectId, executionId);
-  if (!execution) throw new Error("Topics execution not found.");
+  const { projectId, id: executionId } = execution;
   const errors: { traceId: string; error: string }[] = [];
   if (execution.input.operation !== "process")
     return { errors, expired: false };

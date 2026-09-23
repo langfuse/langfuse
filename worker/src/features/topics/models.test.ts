@@ -143,24 +143,18 @@ describe("Topics naming boundary", () => {
     expect(submitted.members).toEqual(members);
   });
 
-  it("rejects contrast evidence and excess evidence before accepting a name", async () => {
-    state.call.mockResolvedValue({
-      output: {
-        name: "Invoice assistance",
-        description: "Invoice requests.",
-        evidenceSummaryIds: ["contrast"],
-      },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    await expect(nameTopicGroup(evidence)).rejects.toThrow();
-    state.call.mockResolvedValue({
-      output: {
-        name: "Invoice assistance",
-        description: "Invoice requests.",
-        evidenceSummaryIds: ["member-a", "member-b", "member-a", "member-b"],
-      },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    await expect(nameTopicGroup(evidence)).rejects.toThrow();
-  });
+  it.each([["contrast"], ["member-a", "member-b", "member-a", "member-b"]])(
+    "rejects contrast or excess evidence: %j",
+    async (...evidenceSummaryIds) => {
+      state.call.mockResolvedValue({
+        output: {
+          name: "Invoice assistance",
+          description: "Invoice requests.",
+          evidenceSummaryIds,
+        },
+        usage: { inputTokens: 100, outputTokens: 30 },
+      });
+      await expect(nameTopicGroup(evidence)).rejects.toThrow();
+    },
+  );
 });

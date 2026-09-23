@@ -128,11 +128,7 @@ async function recoverExecutionState(execution: TopicExecutionSummary) {
     execution.status === "queued" ||
     canResume(execution)
   ) {
-    const queueState = await getTopicExecutionQueueState(
-      execution.projectId,
-      execution.id,
-      execution.input.operation,
-    );
+    const queueState = await getTopicExecutionQueueState(execution);
     if (
       [
         "active",
@@ -349,7 +345,7 @@ export const topicsRouter = createTRPCRouter({
         input.executionId,
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
-      return readTopicExecutionTraceErrors(input.projectId, input.executionId);
+      return readTopicExecutionTraceErrors(execution);
     }),
   trigger: topicsWriteProcedure
     .input(topicTriggerInputSchema)

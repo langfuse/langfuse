@@ -316,40 +316,34 @@ describe("Topics execution queue state", () => {
     } as unknown as NonNullable<
       ReturnType<typeof TopicsUpdateQueue.getInstance>
     >);
-    mocks.read.mockResolvedValue({
+    const input = {
       ...execution("process", 200),
-      status: "running",
-    });
+      status: "running" as const,
+    };
     mocks.hget.mockResolvedValue("1");
-    await expect(
-      getTopicExecutionQueueState("project-a", "run", "process"),
-    ).resolves.toBe("active");
+    await expect(getTopicExecutionQueueState(input)).resolves.toBe("active");
     expect(getJob).toHaveBeenCalledExactlyOnceWith("run-1");
     getState.mockResolvedValue("failed");
-    await expect(
-      getTopicExecutionQueueState("project-a", "run", "process"),
-    ).resolves.toBe("failed");
+    await expect(getTopicExecutionQueueState(input)).resolves.toBe("failed");
     mocks.hget.mockResolvedValue(null);
     getJob.mockClear();
+    await expect(getTopicExecutionQueueState(input)).resolves.toBe("missing");
     await expect(
-      getTopicExecutionQueueState("project-a", "run", "process"),
-    ).resolves.toBe("missing");
-    mocks.read.mockResolvedValue({ ...execution(), status: "failed" });
-    await expect(
-      getTopicExecutionQueueState("project-a", "run", "process"),
+      getTopicExecutionQueueState({ ...input, status: "failed" }),
     ).resolves.toBe("failed");
     expect(getJob).not.toHaveBeenCalled();
     getState.mockResolvedValue("active");
     await expect(
-      getTopicExecutionQueueState("project-a", "run", "update"),
+      getTopicExecutionQueueState(execution("update")),
     ).resolves.toBe("active");
     await expect(
-      getTopicExecutionQueueState("project-b", "run", "update"),
+      getTopicExecutionQueueState({
+        ...execution("update"),
+        projectId: "project-b",
+      }),
     ).resolves.toBe("missing");
     vi.spyOn(TopicsQueue, "getInstance").mockReturnValue(null);
-    await expect(
-      getTopicExecutionQueueState("project-a", "run", "process"),
-    ).rejects.toThrow("Redis");
+    await expect(getTopicExecutionQueueState(input)).rejects.toThrow("Redis");
   });
 
   it("aggregates replayed and resumed batches once using Redis", async () => {

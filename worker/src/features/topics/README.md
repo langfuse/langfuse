@@ -19,13 +19,6 @@ which traces are processed:
   sampling seed, exclusions, resolved trace IDs, selected prompt versions and
   runtime summary/embedding configuration. Retries never re-evaluate a rule.
 
-Summary reuse is explicit and requires the same facet version and summary model.
-It does not check whether source content changed. Embedding reuse additionally
-requires the same embedding model and dimensions.
-Summaries and embeddings remain in ClickHouse; there are no per-trace Postgres
-rule or execution rows. Rules select incoming traces for the facet's cumulative
-topics, rather than owning separate maps.
-
 ## Setup
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
@@ -58,6 +51,10 @@ The current pipeline processes traces only. `unit_start_time` (`unitStartTime` i
 TypeScript) is the first observation's start time for the processed source. Summaries set
 `trigger_type=manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
 attempt while keeping the previous published map available.
+
+Summaries snapshot source environment and trace name; assignments copy that
+snapshot. Reprocessing refreshes metadata even when text is reused; session
+results have no trace name.
 
 The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
 `gpt-5.6-luna` with reasoning disabled. Embeddings use `text-embedding-3-small`
@@ -138,50 +135,37 @@ not exact historical batch membership. A late older job may win by timestamp.
 
 ## Algorithm and queue recovery
 
-The worker loads and assembles each trace once per processing attempt, shares
-the same in-memory transcript across all selected facets, and releases it before
-processing the next trace. Loading is lazy: accepted summary references in the
-batch job resume without reading the source. It does not persist source
-snapshots, transcripts, or model request bodies. Shared deterministic
-assembly is used by the worker and the on-demand summary inspector. Accepted
-summaries, embeddings and complete topic definitions are saved in ClickHouse.
-Successful extraction writes the summary and embedding together to ClickHouse.
-Summarization stages its result in Redis; the separate `topics-embedding` queue
-holds only references, in batches of up to 100 traces across selected facets.
-The payload TTL defaults to **3 hours**, configured with
-`LANGFUSE_TOPICS_REDIS_TTL_SECONDS`. Retries never extend that deadline.
-The embedding worker caches a completed vector alongside its summary before the
-combined ClickHouse write. A completed embedding job acknowledges that insert;
-the payload stays in Redis for assignment. After assignment inserts succeed and
-terminal batch state is saved in BullMQ, the processing worker removes the
-payload. Cleanup failures leave it to expire at its original deadline. A database
-retry reuses the vector while the payload is available. No incomplete summary
-rows are written to ClickHouse. The three-hour deadline covers assignment too.
-Processing and updates have separate `topics` and `topics-update` queues, each
-with one coordinator slot per worker. A numerical fit or naming call therefore
-does not occupy the trace-processing slot. Both queues use the same execution
-processor; the stored operation determines the path. Embeddings retain their
-separate `topics-embedding` queue with two worker slots.
-The processing coordinator releases its worker slot while waiting. Its BullMQ job records
-pending embedding batch IDs; unchanged polls read only Redis queue states, with
-no Postgres or ClickHouse work. Completed batches are removed from the wait
-list. When pending jobs finish or need recovery, the batch resumes from references
-in its BullMQ job. Missing/expired payloads fail the batch explicitly; start a new
-execution with **Reuse stored summaries** to recover any persisted results.
-Redis staging is temporary: data loss or expiry can require repeating inference
-for work that was never persisted. Normal processing and retries never read
-summary or assignment tables, even to confirm writes. They load source traces
-from ClickHouse, pinned serving-map metadata from Postgres, and immutable topic
-definitions from ClickHouse.
+The worker loads each trace lazily, shares one in-memory transcript across facets,
+and releases it before the next trace. Worker and inspector use the same assembly.
+Accepted summary references resume without fetching source data; source snapshots,
+transcripts and model request bodies are not persisted.
 
-**Reuse stored summaries** is an unchecked process option (`reuseExistingSummaries`).
-Only this explicit reprocessing path looks up stored summaries. It reuses the
-current summary for the same facet version and model, without checking content
-freshness. Compatible vectors are reused; changed dimensions regenerate embeddings
-without summary inference. The combined result replaces the previous summary,
-records reuse timestamps and counts only new usage. Reused results are staged
-under the new execution identity. Redis staging and BullMQ completion
-receipts are scoped to an execution, not a cross-execution deduplication cache.
+Processing and fitting use separate `topics` and `topics-update` queues with one
+coordinator slot each. `topics-embedding` has two slots and receives reference-only
+batches of up to 100 traces across facets. This internal batch size is not a
+selected-trace cap.
+
+1. Summarization stages accepted results in Redis with a fixed deadline:
+   `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` defaults to three hours. Retries never extend it.
+2. Embedding saves its vector with the staged summary before the combined
+   ClickHouse insert. A completed embedding job acknowledges that insert;
+   no unfinished summary rows reach ClickHouse.
+3. The coordinator releases its slot while waiting. Pending batch IDs live in its
+   BullMQ job; unchanged polls read Redis queue state without database work.
+4. After assignment inserts succeed, save terminal BullMQ state before deleting
+   payloads. Cleanup failures leave them to expire. Repeated writes keep their
+   identity. Inserts are bounded by 10,000 rows / 8 MiB and await async acknowledgement.
+
+Normal retries use frozen inputs and accepted references, not summary/assignment
+reads. Missing/expired payloads fail explicitly. A new execution with **Reuse stored
+summaries** can recover persisted results. Redis loss or a crash between a provider
+response and saving it can repeat inference.
+
+Stored-summary reuse is opt-in and requires the same facet version/model; it does
+not check content freshness. Compatible vectors are reused; changed dimensions
+regenerate only embeddings. Results receive the new execution's staging ownership,
+replace previous summaries, record reuse timestamps and count only new usage.
+This is not a cross-execution deduplication cache.
 
 Each processing attempt shares identical transcript text across facets for a trace.
 Facet instructions affect only summarization. This PoC focuses on generations
@@ -294,43 +278,19 @@ identical retry writes. They have no time partition or age-based expiry: an old
 definition may still be in use by the current map. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
-Processing reads staged Redis summaries in batches of 100 traces and records
-accepted references before queueing embeddings. Completed BullMQ batch state
-suppresses repeated processing of that batch. Assignment references and their timestamp
-are stable across retries. ClickHouse writes are additionally
-bounded by 10,000 rows / 8 MiB with awaited async inserts. Successful
-summary+embedding work produces one combined row. Retries may repeat an
-acknowledged insert under the same row identity; the replacing table resolves it.
-The batch size is an internal work unit, not a selected-trace cap.
-
 Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
-Calculations use $0.10/M input and
-$0.40/M output for nano, $0.20/M input and $1.20/M output for Luna, and $0.02/M
-embedding input tokens. Luna requests above 272k input tokens use 2x input and
-1.5x output rates for the whole request. See the [model documentation](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
-Extraction defaults to 8,000/512 input/output tokens (execution settings). Naming
-allows its counted full input plus 10% and 512 framing tokens, and 1,000 output
-tokens. Inputs exceeding a conservative 900k-token context allowance fail before
-calling the provider; member summaries are never silently discarded. Embedding
-input remains capped at 1,024 tokens.
+Model prices and token budgets live in [models.ts](models.ts) and the shared
+Topics contracts. Oversized naming input fails before calling the provider;
+member summaries are never silently discarded.
 Provider SDK retries are disabled. Embedding queue jobs retry transient failures
 up to three attempts with exponential backoff; authentication and invalid
 input/output failures stop immediately. A manual resume can retry a failed batch
 while its Redis payload still exists; each manual resume resets the three-attempt
 retry budget.
 
-Explicit reprocessing can reuse a persisted summary or embedding without another charge. A failed
-clustering attempt restarts its fit and naming; a published attempt is recognized
-without repeating them. If a worker stops after a provider call succeeds but
-before saving its result, a manual resume may repeat that call.
-
-Trace retries reuse accepted summary references from their bounded BullMQ job.
-Execution ownership belongs to the Redis staging envelope, not the durable summary.
-The summary payload itself still expires after three hours; expiry requires a new
-execution. Current completed results live in ClickHouse.
 An interrupted update starts a new attempt from current compatible summaries,
 then fits again and names only new or changed definitions. Partially named failed attempts cannot overwrite
 the previous published map. After publication, an acknowledgement retry recognizes
@@ -352,29 +312,16 @@ the batch project cleaner.
 
 ### Datadog metrics
 
-Topics uses the worker's existing DogStatsD connection and emits four metrics:
+[metrics.ts](metrics.ts) owns `langfuse.topics.executions`, `.results`,
+`.stage_duration_ms` and `.errors`. Tags are fixed categories without tenant IDs
+or customer content. Counters measure attempts and work, not unique persisted
+rows: resumes can count again and accepted results can precede persistence
+failures. Nested catches count the same error once per attempt; completed replays
+emit no attempt/result metrics. Model durations exclude cache hits.
 
-| Metric                              | Meaning                                                                                                                                  | Tags                       |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| `langfuse.topics.executions`        | Execution attempts started, completed, completed with errors, or failed; independent of BullMQ success                                   | `outcome`                  |
-| `langfuse.topics.results`           | Generated/reused results, assignments/outliers, and clustering outcomes including insufficient data                                      | `stage`, `result`          |
-| `langfuse.topics.stage_duration_ms` | Duration of summary, embedding, numerical clustering, naming, assignment, transcript loading and instrumented storage operations         | `stage`, `outcome`, `unit` |
-| `langfuse.topics.errors`            | Failures classified as authentication, rate limit, timeout, invalid input/output, provider, trace loading, storage, numerical or unknown | `stage`, `reason`          |
-
-Tags contain only fixed categories, never tenant/run/trace IDs, facet names or
-customer content. The same error propagating through nested catches counts once
-per execution attempt. A resume starts another attempt; an already-completed
-execution replay emits no attempt or result metrics.
-
-Result counters measure work, not unique database rows: summary/embedding and
-assignment results count trace–facet processing, naming counts cluster labels,
-and clustering counts facet outcomes. Revisited stages can count again on a
-resume or repeated update. Generated results count when accepted in memory; a later
-persistence failure is reported separately. Model durations exclude cache hits.
-Metrics are best effort, not an exactly-once ledger or an execution heartbeat.
-Queue backlog, waiting time and BullMQ outcomes remain under
-`langfuse.queue.topics.*`, `langfuse.queue.topics-update.*`, and
-`langfuse.queue.topics-embedding.*`.
+Metrics are best effort, not an exactly-once ledger or heartbeat. Queue backlog,
+waiting time and BullMQ outcomes use `langfuse.queue.topics.*`,
+`langfuse.queue.topics-update.*` and `langfuse.queue.topics-embedding.*`.
 
 ## Offline verification
 

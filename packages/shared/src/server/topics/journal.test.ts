@@ -242,13 +242,6 @@ describe("compact Topics execution storage", () => {
         ),
       ).toBeNull();
       expect(await listTopicExecutions("project-b")).toEqual([]);
-      state.rows.set("attempt-only", {
-        id: "attempt-only",
-        projectId: input.projectId,
-      });
-      expect(
-        await readTopicExecutionSummary(input.projectId, "attempt-only"),
-      ).toBeNull();
       await expect(
         writeTopicExecution({ ...summary, projectId: "project-b" }),
       ).rejects.toThrow("does not exist");

@@ -16,40 +16,14 @@
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
-- Topics pipeline: `src/features/topics/processTopicsExecution.ts`,
-  registered by `src/queues/topicsQueue.ts`. Both queue processors require
-  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` before pipeline work. Processing summarizes/
-  embeds supplied traces and assigns to a compatible map, or leaves them awaiting topics. Updating
-  topics clusters stored compatible summaries and publishes a new map without
-  summarizing or embedding. Separate `topics` and `topics-update` consumers each
-  have one slot so a fit does not block trace processing. Summary results are staged in Redis
-  with a three-hour TTL; `src/queues/topicsEmbeddingQueue.ts` delegates to
-  `src/features/topics/processTopicEmbeddingBatch.ts` to embed and persist combined
-  results in ClickHouse. The coordinator reads terminal results from Redis, writes
-  assignments, saves terminal BullMQ state, then deletes payloads. Normal processing
-  uses Redis and insert acknowledgements; historical result reads require explicit
-  stored-summary reuse. The coordinator delays its queue job while waiting for embeddings. Pending batch IDs stay in that BullMQ
-  job; unchanged polls read Redis queue states without loading execution storage.
-  Read `src/features/topics/README.md`
-  for native numerical setup, database results, bounded queue retries, and model configuration.
-  Canonical transcript assembly is shared with the web transcript inspector through
-  `@langfuse/shared/topics/server` (`loadTopicTranscript`) and stays in memory.
-  Summary storage keeps the latest unit/facet-version result, using the earliest
-  observation start time as `unitStartTime`. Trace rows may also carry a parent
-  session ID. Source environment and trace name refresh even when summary text is reused.
-  Assignments copy that metadata from their summary snapshot. Storage generates IDs for fresh retry runs.
-  Assignments contain classification attempts only; empty topic IDs
-  mean outliers. Summary timestamps identify stale assignments. Historical
-  execution pages show current results; transcript hashes are not used for reuse.
-  Naming builds definitions in memory and saves the final set before classification.
-  A continuing topic with identical centroid/radius in the same embedding space
-  reuses its ClickHouse definition and skips naming. Changed definitions get a
-  new version with the matched stable ID. Creation-run provenance stays fixed;
-  each Postgres run records the versions used by its classifier. Both operations
-  use BatchAction for request progress. Persist the run reference and cohort
-  counters before inference; recover completed counts from initial assignments.
-  Only completed runs serve maps; skipped runs preserve the prior map. Facet
-  references carry stable facet ID and numeric version throughout retry state.
+- Topics pipeline: `src/features/topics/processTopicsExecution.ts`, registered by
+  `src/queues/topicsQueue.ts`. Read `src/features/topics/README.md` before changing
+  storage, numerical fitting, model configuration or retry behavior.
+  `topics` processes traces; `topics-update` fits stored summaries;
+  `topics-embedding` embeds staged results. Both coordinator queues enforce
+  `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`. Paid results are staged before retryable
+  persistence, and unchanged embedding waits must read only Redis queue state.
+  Transcript assembly is shared with web through `loadTopicTranscript`.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

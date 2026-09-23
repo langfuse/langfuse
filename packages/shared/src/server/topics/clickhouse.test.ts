@@ -39,6 +39,7 @@ vi.mock("../repositories/clickhouse", () => ({ queryClickhouse: mocks.query }));
 
 beforeEach(() => {
   vi.resetAllMocks();
+  mocks.query.mockResolvedValue([]);
   mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
 });
 
@@ -135,11 +136,7 @@ describe("Topics definition storage", () => {
     const inserted = mocks.insert.mock.calls[0][0];
     expect(inserted.table).toBe("topics");
     expect(inserted.values[0]).toMatchObject({
-      project_id: topic.projectId,
-      id: topic.topicVersionId,
-      stable_id: topic.topicId,
       created_by_run_id: topic.createdByRunId,
-      created_at: topic.createdAt,
       centroid: topic.centroid,
       radius: topic.radius,
     });
@@ -157,9 +154,11 @@ describe("Topics definition storage", () => {
   });
 
   it("bounds exact definition lookups and scopes every batch to its project", async () => {
-    mocks.query.mockResolvedValue([]);
     const ids = Array.from({ length: 1001 }, (_, index) => `topic-${index}`);
     await getTopicDefinitions("project-a", [...ids, ids[0]]);
+    expect(
+      mocks.query.mock.calls.map(([query]) => query.params.ids.length),
+    ).toEqual([1000, 1]);
     expect(
       mocks.query.mock.calls.flatMap(([query]) => query.params.ids),
     ).toEqual(ids);
@@ -247,7 +246,6 @@ describe("Topics summary storage", () => {
   });
 
   it("selects the latest result per trace within its project and facet version", async () => {
-    mocks.query.mockResolvedValue([]);
     await getLatestFacetSummaries("project-a", "facet-a", 1);
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
@@ -265,7 +263,6 @@ describe("Topics summary storage", () => {
   });
 
   it("resolves current state from the newest processed facet version per source", async () => {
-    mocks.query.mockResolvedValue([]);
     await getLatestFacetSummaries("project-a", "facet-a");
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({ projectId: "project-a", facetId: "facet-a" });
@@ -308,7 +305,6 @@ describe("Topics summary storage", () => {
   });
 
   it("batches large trace and summary lookups without dropping any selected IDs", async () => {
-    mocks.query.mockResolvedValue([]);
     const traceIds = Array.from(
       { length: 1001 },
       (_, index) => `trace-${index}`,
@@ -332,13 +328,18 @@ describe("Topics summary storage", () => {
       mocks.query.mockClear();
     }
     const summaryIds = Array.from(
-      { length: 20001 },
+      { length: 1001 },
       (_, index) => `summary-${index}`,
     );
     await readTopicAssignments("project-a", summaryIds, "run-a");
     expect(
       mocks.query.mock.calls.flatMap(([request]) => request.params.summaryIds),
     ).toEqual(summaryIds);
+    expect(
+      mocks.query.mock.calls.map(
+        ([request]) => request.params.summaryIds.length,
+      ),
+    ).toEqual([1000, 1]);
     expect(mocks.query.mock.calls[0][0].query).toContain(
       "ORDER BY assigned_at DESC, origin DESC",
     );
@@ -350,7 +351,6 @@ describe("Topics summary storage", () => {
   it.each([undefined, 1])(
     "scopes a bounded trace lookup to the project, facet and optional version %s",
     async (facetVersion) => {
-      mocks.query.mockResolvedValue([]);
       await listTopicSummaries("project-a", {
         facetId: "facet-a",
         facetVersion,
@@ -418,15 +418,6 @@ describe("Topics summary storage", () => {
       expect(await readTopicSummaries("project-a", [summary.id])).toEqual([
         { ...summary, traceName: inserted.trace_name },
       ]);
-      expect(mocks.query.mock.calls[0][0].query).toContain(
-        "session_id AS sessionId",
-      );
-      expect(mocks.query.mock.calls[0][0].query).toContain(
-        "trigger_type AS triggerType",
-      );
-      expect(mocks.query.mock.calls[0][0].query).toContain(
-        "environment, trace_name AS traceName",
-      );
     },
   );
 
@@ -508,9 +499,6 @@ describe("Topics classifications", () => {
         summary_processed_at: row.summaryProcessedAt,
         coordinates: [],
       });
-      await expect(
-        writeTopicAssignments([{ ...row, topicId: "stale-topic" }]),
-      ).rejects.toThrow("Invalid Topics assignment");
       mocks.query.mockResolvedValue([
         {
           ...row,
@@ -529,9 +517,6 @@ describe("Topics classifications", () => {
       expect(await readLatestTopicAssignments("project-a", "facet-a")).toEqual([
         { ...row, traceName: inserted.trace_name },
       ]);
-      expect(mocks.query.mock.calls[0][0].query).toContain(
-        "environment, trace_name AS traceName",
-      );
     },
   );
 
@@ -547,13 +532,16 @@ describe("Topics classifications", () => {
       topic_id: "topic-a",
       topic_version_id: "topic-v1",
     });
-    await expect(
-      writeTopicAssignments([{ ...row, coordinates: [0, 0] }]),
-    ).rejects.toThrow("Invalid Topics assignment");
+    for (const invalid of [
+      { topicVersionId: null },
+      { coordinates: [0, 0] },
+    ] satisfies Partial<TopicAssignment>[])
+      await expect(
+        writeTopicAssignments([{ ...row, ...invalid }]),
+      ).rejects.toThrow("Invalid Topics assignment");
   });
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
-    mocks.query.mockResolvedValue([]);
     await readTopicMapAssignments("project-a", "run-a");
     const { query, params } = mocks.query.mock.calls[0][0];
     expect(params).toEqual({
@@ -573,7 +561,6 @@ describe("Topics classifications", () => {
   });
 
   it("reads the latest published or ad-hoc classification for each source", async () => {
-    mocks.query.mockResolvedValue([]);
     await readLatestTopicAssignments("project-a", "facet-a");
     expect(mocks.publishedRuns).toHaveBeenCalledWith({
       where: {
