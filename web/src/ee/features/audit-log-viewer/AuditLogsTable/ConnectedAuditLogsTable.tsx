@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Download } from "lucide-react";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import {
   BatchExportTableName,
@@ -64,24 +65,40 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
 
   const toolbarActions =
     props.scope === "project" && hasBatchExportAccess
-      ? (Object.keys(exportOptions) as BatchExportFileFormat[]).map(
-          (format) => ({
-            id: `export-${format}`,
-            label: `Export ${exportOptions[format].label}`,
+      ? [
+          {
+            id: "export",
+            label: "Export",
+            icon: <Download className="size-4" />,
+            variant: "outline" as const,
+            size: "icon" as const,
             loading: createExport.isPending,
-            onClick: () =>
-              createExport.mutate({
-                projectId: props.projectId,
-                name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
-                format,
-                query: {
-                  tableName: BatchExportTableName.AuditLogs,
-                  filter: [],
-                  orderBy: { column: "createdAt", order: "DESC" },
-                },
-              }),
-          }),
-        )
+            dropdown: {
+              title: "Export",
+              description:
+                "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported.",
+              disabled: createExport.isPending,
+              items: (
+                Object.keys(exportOptions) as BatchExportFileFormat[]
+              ).map((format) => ({
+                type: "item" as const,
+                id: `export-${format}`,
+                title: `as ${exportOptions[format].label}`,
+                onClick: () =>
+                  createExport.mutate({
+                    projectId: props.projectId,
+                    name: `${new Date().toISOString()} - ${BatchExportTableName.AuditLogs} as ${format}`,
+                    format,
+                    query: {
+                      tableName: BatchExportTableName.AuditLogs,
+                      filter: [],
+                      orderBy: { column: "createdAt", order: "DESC" },
+                    },
+                  }),
+              })),
+            },
+          },
+        ]
       : undefined;
 
   const data = useMemo<AsyncTableData<AuditLogRow[]>>(() => {

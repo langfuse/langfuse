@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -29,7 +29,11 @@ import {
 
 export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps
-    ? Omit<TAction, "children"> & { id: string; label: string }
+    ? Omit<TAction, "children"> & {
+        id: string;
+        label: string;
+        dropdown?: Omit<ComponentProps<typeof DropdownMenu>, "children">;
+      }
     : never
   : never;
 
@@ -56,7 +60,6 @@ export type SettingsTableProps<TData extends object> = Omit<
   };
   filters?: SettingsTableFilter[];
   toolbarActions?: SettingsTableToolbarAction[];
-  toolbarNotice?: string;
   rowHeightControl?: {
     rowHeight: RowHeight;
     onRowHeightChange: (height: RowHeight) => void;
@@ -71,7 +74,6 @@ export function SettingsTable<TData extends object>({
   search,
   filters,
   toolbarActions,
-  toolbarNotice,
   rowHeightControl,
   pagination,
   ...tableProps
@@ -203,17 +205,27 @@ export function SettingsTable<TData extends object>({
                 )}
               </DropdownMenu>
             )}
-            {toolbarActions?.map(({ id, label, ...action }) => (
-              <ActionButton key={id} {...action}>
-                {label}
-              </ActionButton>
-            ))}
+            {toolbarActions?.map(({ id, label, dropdown, ...action }) => {
+              if (dropdown) {
+                return (
+                  <DropdownMenu key={id} {...dropdown}>
+                    {({ getTriggerProps }) => (
+                      <ActionButton {...action} {...getTriggerProps()}>
+                        {label}
+                      </ActionButton>
+                    )}
+                  </DropdownMenu>
+                );
+              }
+
+              return (
+                <ActionButton key={id} {...action}>
+                  {label}
+                </ActionButton>
+              );
+            })}
           </div>
         </div>
-      )}
-
-      {toolbarNotice && (
-        <p className="text-muted-foreground text-xs">{toolbarNotice}</p>
       )}
 
       <SettingsTableCard>

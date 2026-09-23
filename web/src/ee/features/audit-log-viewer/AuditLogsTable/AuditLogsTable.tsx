@@ -130,11 +130,6 @@ export function AuditLogsTable({
             pagination={pagination}
             rowHeightControl={{ rowHeight, onRowHeightChange }}
             toolbarActions={toolbarActions}
-            toolbarNotice={
-              toolbarActions?.length
-                ? "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported."
-                : undefined
-            }
           />
         );
       }}
