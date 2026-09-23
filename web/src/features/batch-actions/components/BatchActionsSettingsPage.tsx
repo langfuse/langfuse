@@ -1,6 +1,5 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ConnectedBatchActionsTable } from "./BatchActionsTable/ConnectedBatchActionsTable";
 
@@ -20,9 +19,7 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
         background.
       </p>
       {hasAccess ? (
-        <SettingsTableCard>
-          <ConnectedBatchActionsTable projectId={props.projectId} />
-        </SettingsTableCard>
+        <ConnectedBatchActionsTable projectId={props.projectId} />
       ) : (
         <Alert>
           <Alert.Title>Access Denied</Alert.Title>

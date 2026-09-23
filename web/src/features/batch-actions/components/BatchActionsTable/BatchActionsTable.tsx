@@ -129,12 +129,16 @@ export function BatchActionsTable({
               }
             >
               {({ getTriggerProps }) => (
-                <div {...getTriggerProps()} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  {...getTriggerProps()}
+                  className="flex items-center gap-1 text-left"
+                >
                   <InfoIcon className="text-muted-foreground h-3 w-3" />
                   <span className="max-w-[250px] truncate text-xs" title={log}>
                     {log}
                   </span>
-                </div>
+                </button>
               )}
             </CustomTooltip>
           ) : null;
@@ -150,7 +154,7 @@ export function BatchActionsTable({
       columns={columns}
       data={data}
       pagination={pagination}
-      loadingRowCount={pagination.state.pageSize}
+      loadingRowCount={Math.max(1, Math.min(pagination.state.pageSize, 8))}
     />
   );
 }
