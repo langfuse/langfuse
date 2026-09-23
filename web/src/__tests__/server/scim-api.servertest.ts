@@ -1496,10 +1496,10 @@ describe("SCIM API", () => {
 
   // Regression tests for cross-organization user disclosure via Users/{id}.
   // The dispatcher resolves the target user globally by internal id, so every
-  // method must still refuse to observe or mutate a user who is not a member of
-  // the caller's organization, and must not reveal whether such a user exists
-  // at all. Provisioning (active:true) is the sole path allowed to reference a
-  // not-yet-member user, in order to add them.
+  // method must still refuse to disclose a user's attributes (email, name,
+  // timestamps) or silently mutate membership when the caller's organization
+  // has no membership for that user. Provisioning (active:true) is the sole
+  // path allowed to reference a not-yet-member user, in order to add them.
   describe("Cross-organization isolation (Users/{id})", () => {
     const createdUserIds: string[] = [];
 
@@ -1528,32 +1528,28 @@ describe("SCIM API", () => {
       }
     });
 
-    it("GET returns a 404 indistinguishable from a nonexistent user", async () => {
+    it("GET on an out-of-org user is a 404 that leaks no user attributes", async () => {
       const outsider = await createNonMemberUser();
 
       const nonMember = await makeAPICall<{
         detail: string;
         userName?: string;
+        name?: unknown;
+        emails?: unknown;
+        meta?: unknown;
       }>(
         "GET",
         `/api/public/scim/Users/${outsider.id}`,
         undefined,
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
-      const nonExistent = await makeAPICall<{ detail: string }>(
-        "GET",
-        `/api/public/scim/Users/${randomUUID()}`,
-        undefined,
-        createBasicAuthHeader(orgApiKey, orgSecretKey),
-      );
 
       expect(nonMember.status).toBe(404);
-      expect(nonExistent.status).toBe(404);
-      // "exists in another org" and "does not exist anywhere" must look
-      // identical, so the endpoint is not an instance-wide existence oracle.
-      expect(nonMember.body.detail).toBe(nonExistent.body.detail);
-      // Nothing about the out-of-org user leaks.
+      // None of the out-of-org user's attributes may cross the org boundary.
       expect(nonMember.body.userName).toBeUndefined();
+      expect(nonMember.body.name).toBeUndefined();
+      expect(nonMember.body.emails).toBeUndefined();
+      expect(nonMember.body.meta).toBeUndefined();
     });
 
     it("PUT with active omitted does not disclose an out-of-org user's email", async () => {

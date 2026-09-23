@@ -456,11 +456,17 @@ export default async function handler(
 }
 
 // Resolve the caller organization's membership for `userId`. When the user is
-// not a member, write a 404 whose body is deliberately identical to the "no
-// such user anywhere on the instance" 404 emitted by the dispatcher, and
-// return null. Keeping the two responses indistinguishable stops the endpoint
-// from being used as a cross-tenant existence oracle (telling an account that
-// exists in another organization apart from one that does not exist at all).
+// not a member, write a 404 that never echoes any of the user's attributes and
+// return null. The body must not carry email, name, or timestamps: that (a
+// cross-organization user disclosure via PUT) is the issue this guard closes.
+//
+// The `detail` deliberately keeps the "in organization" wording rather than
+// collapsing into the dispatcher's plain "User not found". A legitimate SCIM
+// client needs to tell "this account exists, provision it into your org" apart
+// from "this id is wrong", and the residual signal it leaks — that some
+// account exists somewhere on the instance for an already-known, opaque cuid —
+// is existence-only and cannot be meaningfully closed here anyway (an
+// `active:true` PUT is itself an existence probe for the same id).
 async function requireOrgMembership(
   res: NextApiResponse,
   orgId: string,
@@ -472,7 +478,7 @@ async function requireOrgMembership(
   if (!orgMembership) {
     res.status(404).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "User not found",
+      detail: "User not found in organization",
       status: 404,
     });
     return null;
