@@ -660,17 +660,7 @@ export class ChbBillingService {
 
   /**
    * CHB rejects `PUT attachedplan/scheduled` while a scheduled change is
-   * already pending, so every set has to start from a clean slate. Mirror the
-   * Stripe path's release-then-write (`releaseExistingSubscriptionScheduleIfAny`):
-   * read the attached plan and, when a change is pending, DELETE it before the
-   * caller schedules the new one.
-   *
-   * Read-gated rather than an unconditional DELETE: the pending change is the
-   * documented signal — the same `scheduled` field the billing page renders —
-   * and the common path has nothing to clear, so a DELETE that CHB may reject
-   * when there is no schedule stays off it. The clear carries its own
-   * idempotency key (distinct from the standalone clear via the `phase` field)
-   * so a double-submit does not re-clear a change the same operation wrote.
+   * already pending, so every set has to start from a clean slate.
    */
   private async clearExistingScheduledChangeIfAny(
     chOrganizationId: string,
