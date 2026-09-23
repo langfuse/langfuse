@@ -4,7 +4,7 @@ import { reasoningPart } from "../../../core/normalize/message-parts/reasoning";
 import type { IOConvention, PartHandler } from "../../io-convention";
 
 const normalizeChatMlThinking: PartHandler = (value) => {
-  if (value.thinking !== undefined) return unmatched;
+  if (value.thinking !== undefined && value.thinking !== null) return unmatched;
   return claimed(
     reasoningPart(
       value.content ?? value.summary,
