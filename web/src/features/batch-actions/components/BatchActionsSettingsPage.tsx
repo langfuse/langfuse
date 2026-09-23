@@ -2,7 +2,7 @@ import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { BatchActionsTable } from "./BatchActionsTable";
+import { ConnectedBatchActionsTable } from "./BatchActionsTable/ConnectedBatchActionsTable";
 
 export function BatchActionsSettingsPage(props: { projectId: string }) {
   const hasAccess = useHasProjectAccess({
@@ -21,7 +21,7 @@ export function BatchActionsSettingsPage(props: { projectId: string }) {
       </p>
       {hasAccess ? (
         <SettingsTableCard>
-          <BatchActionsTable projectId={props.projectId} />
+          <ConnectedBatchActionsTable projectId={props.projectId} />
         </SettingsTableCard>
       ) : (
         <Alert>
