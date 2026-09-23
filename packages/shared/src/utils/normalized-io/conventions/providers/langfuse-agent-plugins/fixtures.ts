@@ -105,7 +105,7 @@ export const langfuseAgentPluginFixtures: NormalizedIOFixture[] = [
     },
   },
   {
-    name: "normalizes an Anthropic-native thinking part in the `thinking` sibling array",
+    name: "normalizes an Anthropic thinking block inside a Langfuse plugin thinking sibling array",
     spanIO: {
       input: JSON.stringify([question]),
       output: JSON.stringify({

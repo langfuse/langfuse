@@ -128,7 +128,7 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
   );
 
 const normalizeAnthropicThinking: PartHandler = (value) => {
-  if (value.thinking === undefined) return unmatched;
+  if (value.thinking === null || value.thinking === undefined) return unmatched;
   return claimed(
     reasoningPart(value.thinking, optionalString(value.signature)),
   );
