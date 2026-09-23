@@ -25,8 +25,8 @@ export function NewSkillPage() {
     scope: "skills:CUD",
   });
   const utils = api.useUtils();
-  const catalog = api.skills.all.useQuery(
-    { projectId: projectId ?? "", page: 1, limit: 100 },
+  const filterOptions = api.skills.filterOptions.useQuery(
+    { projectId: projectId ?? "" },
     { enabled: Boolean(projectId), refetchOnWindowFocus: false },
   );
   const [store] = useState(() =>
@@ -61,9 +61,15 @@ export function NewSkillPage() {
         store={store}
         canCreate={canCreate}
         history={{ kind: "new" }}
-        metadataOptions={getMetadataOptions(catalog.data?.data ?? [])}
+        metadataOptions={{
+          labels: ["production"],
+          tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
+        }}
         onCreated={async (created) => {
-          await utils.skills.all.invalidate();
+          await Promise.all([
+            utils.skills.all.invalidate(),
+            utils.skills.filterOptions.invalidate(),
+          ]);
           await router.push(
             `/project/${projectId}/skills/${encodeURIComponent(created.name)}?version=${created.version}`,
           );
@@ -90,11 +96,9 @@ export function ExistingSkillPage() {
     scope: "skills:CUD",
   });
   const utils = api.useUtils();
-  const catalog = api.skills.all.useQuery(
+  const filterOptions = api.skills.filterOptions.useQuery(
     {
       projectId: projectId ?? "",
-      page: 1,
-      limit: 100,
     },
     {
       enabled: Boolean(projectId && skillName),
@@ -148,7 +152,18 @@ export function ExistingSkillPage() {
           })),
         })}
         canCreate={canCreate}
-        metadataOptions={getMetadataOptions(catalog.data?.data ?? [])}
+        metadataOptions={{
+          labels: [
+            ...new Set([
+              "production",
+              ...skill.data.labels,
+              ...history.data.pages.flatMap((page) =>
+                page.items.flatMap((item) => item.labels),
+              ),
+            ]),
+          ],
+          tags: filterOptions.data?.tags.map((tag) => tag.value) ?? [],
+        }}
         history={{
           kind: "versions",
           versions: history.data.pages.flatMap((page) => page.items),
@@ -167,6 +182,7 @@ export function ExistingSkillPage() {
         onCreated={async (created) => {
           await Promise.all([
             utils.skills.all.invalidate(),
+            utils.skills.filterOptions.invalidate(),
             utils.skills.byName.invalidate(),
             utils.skills.skillVersions.invalidate(),
           ]);
@@ -214,13 +230,4 @@ function SkillEditorForInitialValue({
   const [store] = useState(() => createSkillEditorStore(initialValue));
 
   return <SkillEditor {...props} store={store} />;
-}
-
-function getMetadataOptions(
-  skills: Array<{ labels: string[]; tags: string[] }>,
-) {
-  return {
-    labels: [...new Set(skills.flatMap((skill) => skill.labels))],
-    tags: [...new Set(skills.flatMap((skill) => skill.tags))],
-  };
 }

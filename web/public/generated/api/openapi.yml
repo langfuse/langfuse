@@ -7353,25 +7353,32 @@ paths:
       deprecated: true
   /api/public/v1/skills:
     get:
-      description: List skills and their available versions.
+      description: >-
+        List skills with metadata and timestamps from their latest version,
+        shared tags, and the version assigned to production when present.
       operationId: skills_list
       tags:
         - Skills
       parameters:
         - name: name
           in: query
+          description: Filter by exact skill name.
           required: false
           schema:
             type: string
             nullable: true
-        - name: label
+        - name: search
           in: query
+          description: >-
+            Case-insensitive search across skill names and latest-version
+            descriptions.
           required: false
           schema:
             type: string
             nullable: true
         - name: tag
           in: query
+          description: Filter by a shared skill tag.
           required: false
           schema:
             type: string
@@ -7390,6 +7397,9 @@ paths:
             nullable: true
         - name: fromUpdatedAt
           in: query
+          description: >-
+            Include skills whose latest version was updated at or after this
+            timestamp.
           required: false
           schema:
             type: string
@@ -7397,6 +7407,9 @@ paths:
             nullable: true
         - name: toUpdatedAt
           in: query
+          description: >-
+            Include skills whose latest version was updated before this
+            timestamp.
           required: false
           schema:
             type: string
@@ -17027,43 +17040,54 @@ components:
           items:
             $ref: '#/components/schemas/SkillMeta'
         meta:
-          $ref: '#/components/schemas/utilsMetaResponse'
+          $ref: '#/components/schemas/SkillListPagination'
       required:
         - data
         - meta
+    SkillListPagination:
+      title: SkillListPagination
+      type: object
+      properties:
+        hasNextPage:
+          type: boolean
+      required:
+        - hasNextPage
+      allOf:
+        - $ref: '#/components/schemas/utilsMetaResponse'
     SkillMeta:
       title: SkillMeta
       type: object
       properties:
         name:
           type: string
-        versions:
-          type: array
-          items:
-            type: integer
-        labels:
-          type: array
-          items:
-            type: string
+        description:
+          type: string
         tags:
           type: array
           items:
             type: string
-        lastUpdatedAt:
-          type: string
-          format: date-time
         latestVersion:
           type: integer
-        description:
+        latestVersionCreatedAt:
           type: string
+          format: date-time
+        latestVersionLastUpdatedAt:
+          type: string
+          format: date-time
+        productionVersion:
+          type: integer
+          nullable: true
+          description: >-
+            Version assigned the production label, or null when no version is
+            assigned.
       required:
         - name
-        - versions
-        - labels
-        - tags
-        - lastUpdatedAt
-        - latestVersion
         - description
+        - tags
+        - latestVersion
+        - latestVersionCreatedAt
+        - latestVersionLastUpdatedAt
+        - productionVersion
     SkillBlobDescriptor:
       title: SkillBlobDescriptor
       type: object

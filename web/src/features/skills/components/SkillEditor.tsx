@@ -226,6 +226,7 @@ export function SkillEditor({
         invalidate: () =>
           Promise.all([
             utils.skills.all.invalidate(),
+            utils.skills.filterOptions.invalidate(),
             utils.skills.byName.invalidate(),
             utils.skills.skillVersions.invalidate(),
           ]),

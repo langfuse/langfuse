@@ -421,14 +421,12 @@ export class SkillService {
 
   async list(params: {
     projectId: string;
-    input: ListSkillsQuery & { search?: string; filter?: FilterState };
+    input: ListSkillsQuery & { filter?: FilterState };
   }) {
-    const filters = await this.listFilterConditions(
-      params.projectId,
-      params.input.filter ?? [],
-    );
+    const filters = this.listFilterConditions(params.input.filter ?? []);
     const where: Prisma.SkillWhereInput = {
       projectId: params.projectId,
+      labels: { has: SKILL_LATEST_LABEL },
       ...(filters.length ? { AND: filters } : {}),
       ...(params.input.search
         ? {
@@ -450,7 +448,6 @@ export class SkillService {
         : {}),
       ...(params.input.name ? { name: params.input.name } : {}),
       ...(params.input.tag ? { tags: { has: params.input.tag } } : {}),
-      ...(params.input.label ? { labels: { has: params.input.label } } : {}),
       ...(params.input.fromUpdatedAt || params.input.toUpdatedAt
         ? {
             updatedAt: {
@@ -464,123 +461,96 @@ export class SkillService {
           }
         : {}),
     };
-    const [matchingNames, groupedNames] = await Promise.all([
+    const [latestVersions, totalItems] = await Promise.all([
       this.prisma.skill.findMany({
         where,
-        orderBy: { updatedAt: "desc" },
-        distinct: ["name"],
+        orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
         skip: (params.input.page - 1) * params.input.limit,
         take: params.input.limit,
-        select: { name: true },
+        select: {
+          name: true,
+          description: true,
+          tags: true,
+          version: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
-      this.prisma.skill.groupBy({ by: ["name"], where }),
+      this.prisma.skill.count({ where }),
     ]);
-    const totalItems = groupedNames.length;
-    const skills = await this.prisma.skill.findMany({
-      where: {
-        projectId: params.projectId,
-        name: { in: matchingNames.map(({ name }) => name) },
-      },
-      orderBy: [{ name: "asc" }, { version: "desc" }],
-    });
-    const skillsByName = new Map<string, typeof skills>();
-    for (const skill of skills) {
-      skillsByName.set(skill.name, [
-        ...(skillsByName.get(skill.name) ?? []),
-        skill,
-      ]);
-    }
+    const productionVersions = latestVersions.length
+      ? await this.prisma.skill.findMany({
+          where: {
+            projectId: params.projectId,
+            name: { in: latestVersions.map(({ name }) => name) },
+            labels: { has: SKILL_PRODUCTION_LABEL },
+          },
+          select: { name: true, version: true },
+        })
+      : [];
+    const productionVersionByName = new Map(
+      productionVersions.map(({ name, version }) => [name, version]),
+    );
+    const totalPages = Math.ceil(totalItems / params.input.limit);
 
     return ListSkillsResponseSchema.parse({
-      data: matchingNames.flatMap(({ name }) => {
-        const versions = skillsByName.get(name) ?? [];
-        const latest = versions[0];
-        return latest
-          ? [
-              {
-                name,
-                versions: versions.map(({ version }) => version),
-                labels: [...new Set(versions.flatMap(({ labels }) => labels))],
-                tags: latest.tags,
-                lastUpdatedAt: versions.reduce(
-                  (lastUpdatedAt, version) =>
-                    version.updatedAt > lastUpdatedAt
-                      ? version.updatedAt
-                      : lastUpdatedAt,
-                  latest.updatedAt,
-                ),
-                latestVersion: latest.version,
-                description: latest.description,
-              },
-            ]
-          : [];
-      }),
+      data: latestVersions.map((skill) => ({
+        name: skill.name,
+        description: skill.description,
+        tags: skill.tags,
+        latestVersion: skill.version,
+        latestVersionCreatedAt: skill.createdAt,
+        latestVersionLastUpdatedAt: skill.updatedAt,
+        productionVersion: productionVersionByName.get(skill.name) ?? null,
+      })),
       meta: {
         page: params.input.page,
         limit: params.input.limit,
         totalItems,
-        totalPages: Math.ceil(totalItems / params.input.limit),
+        totalPages,
+        hasNextPage: params.input.page < totalPages,
       },
     });
   }
 
-  private async listFilterConditions(projectId: string, filters: FilterState) {
-    return Promise.all(
-      filters.map(async (filter): Promise<Prisma.SkillWhereInput> => {
-        if (
-          filter.type !== "arrayOptions" ||
-          (filter.column !== "labels" && filter.column !== "tags")
-        ) {
-          throw new InvalidRequestError(
-            `Unsupported skill filter: ${filter.column} (${filter.type})`,
-          );
-        }
-        if (!filter.value.length) return {};
-        const versions = await this.prisma.skill.findMany({
-          where: { projectId, [filter.column]: { hasSome: filter.value } },
-          select: { name: true, labels: true, tags: true },
-        });
-        // Labels can belong to different versions of the same skill.
-        const valuesByName = new Map<string, Set<string>>();
-        for (const version of versions) {
-          const values = valuesByName.get(version.name) ?? new Set<string>();
-          for (const value of version[filter.column]) values.add(value);
-          valuesByName.set(version.name, values);
-        }
-        const names = [...valuesByName]
-          .filter(
-            ([, values]) =>
-              filter.operator !== "all of" ||
-              filter.value.every((value) => values.has(value)),
-          )
-          .map(([name]) => name);
-        return {
-          name:
-            filter.operator === "none of" ? { notIn: names } : { in: names },
-        };
-      }),
-    );
+  private listFilterConditions(filters: FilterState): Prisma.SkillWhereInput[] {
+    return filters.map((filter) => {
+      if (filter.type !== "arrayOptions" || filter.column !== "tags") {
+        throw new InvalidRequestError(
+          `Unsupported skill filter: ${filter.column} (${filter.type})`,
+        );
+      }
+      if (!filter.value.length) return {};
+      switch (filter.operator) {
+        case "any of":
+          return { tags: { hasSome: filter.value } };
+        case "all of":
+          return { tags: { hasEvery: filter.value } };
+        case "none of":
+          return { NOT: { tags: { hasSome: filter.value } } };
+      }
+    });
   }
 
   async filterOptions(params: { projectId: string }) {
-    const versions = await this.prisma.skill.findMany({
-      where: { projectId: params.projectId },
-      select: { name: true, labels: true, tags: true },
+    const skills = await this.prisma.skill.findMany({
+      where: {
+        projectId: params.projectId,
+        labels: { has: SKILL_LATEST_LABEL },
+      },
+      select: { tags: true },
     });
-    const optionsFor = (column: "labels" | "tags") => {
-      const namesByValue = new Map<string, Set<string>>();
-      for (const version of versions) {
-        for (const value of version[column]) {
-          const names = namesByValue.get(value) ?? new Set<string>();
-          names.add(version.name);
-          namesByValue.set(value, names);
-        }
+    const counts = new Map<string, number>();
+    for (const skill of skills) {
+      for (const tag of new Set(skill.tags)) {
+        counts.set(tag, (counts.get(tag) ?? 0) + 1);
       }
-      return [...namesByValue]
-        .map(([value, names]) => ({ value, count: names.size }))
-        .sort((a, b) => a.value.localeCompare(b.value));
+    }
+    return {
+      tags: [...counts]
+        .map(([value, count]) => ({ value, count }))
+        .sort((a, b) => a.value.localeCompare(b.value)),
     };
-    return { labels: optionsFor("labels"), tags: optionsFor("tags") };
   }
 
   async setLabels(params: {

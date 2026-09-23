@@ -113,7 +113,7 @@ export const SkillSelectorSchema = z
 
 export const ListSkillsQuerySchema = z.object({
   name: SkillNameSchema.optional(),
-  label: PromptLabelSchema.optional(),
+  search: z.string().max(1000).optional(),
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
@@ -165,12 +165,12 @@ export const SkillVersionSchema = z.object({
 
 export const SkillMetaSchema = z.object({
   name: SkillNameSchema,
-  versions: z.array(z.number().int().positive()),
-  labels: z.array(PromptLabelSchema),
-  tags: z.array(z.string()),
-  lastUpdatedAt: z.coerce.date(),
-  latestVersion: z.number().int().positive(),
   description: SkillDescriptionSchema,
+  tags: z.array(z.string()),
+  latestVersion: z.number().int().positive(),
+  latestVersionCreatedAt: z.coerce.date(),
+  latestVersionLastUpdatedAt: z.coerce.date(),
+  productionVersion: z.number().int().positive().nullable(),
 });
 
 export const ListSkillsResponseSchema = z.object({
@@ -180,6 +180,7 @@ export const ListSkillsResponseSchema = z.object({
     limit: z.number().int(),
     totalItems: z.number().int(),
     totalPages: z.number().int(),
+    hasNextPage: z.boolean(),
   }),
 });
 

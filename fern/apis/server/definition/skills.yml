@@ -6,19 +6,29 @@ service:
   base-path: /api/public/v1
   endpoints:
     list:
-      docs: List skills and their available versions.
+      docs: List skills with metadata and timestamps from their latest version, shared tags, and the version assigned to production when present.
       method: GET
       path: /skills
       request:
         name: ListSkillsRequest
         query-parameters:
-          name: optional<string>
-          label: optional<string>
-          tag: optional<string>
+          name:
+            type: optional<string>
+            docs: Filter by exact skill name.
+          search:
+            type: optional<string>
+            docs: Case-insensitive search across skill names and latest-version descriptions.
+          tag:
+            type: optional<string>
+            docs: Filter by a shared skill tag.
           page: optional<integer>
           limit: optional<integer>
-          fromUpdatedAt: optional<datetime>
-          toUpdatedAt: optional<datetime>
+          fromUpdatedAt:
+            type: optional<datetime>
+            docs: Include skills whose latest version was updated at or after this timestamp.
+          toUpdatedAt:
+            type: optional<datetime>
+            docs: Include skills whose latest version was updated before this timestamp.
       response: SkillMetaListResponse
 
     prepareUploads:
@@ -90,17 +100,24 @@ types:
   SkillMetaListResponse:
     properties:
       data: list<SkillMeta>
-      meta: pagination.MetaResponse
+      meta: SkillListPagination
+
+  SkillListPagination:
+    extends: pagination.MetaResponse
+    properties:
+      hasNextPage: boolean
 
   SkillMeta:
     properties:
       name: string
-      versions: list<integer>
-      labels: list<string>
-      tags: list<string>
-      lastUpdatedAt: datetime
-      latestVersion: integer
       description: string
+      tags: list<string>
+      latestVersion: integer
+      latestVersionCreatedAt: datetime
+      latestVersionLastUpdatedAt: datetime
+      productionVersion:
+        type: nullable<integer>
+        docs: Version assigned the production label, or null when no version is assigned.
 
   SkillBlobDescriptor:
     properties:

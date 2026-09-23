@@ -863,8 +863,6 @@ model Skill {
   files         SkillFile[]
 
   @@unique([projectId, name, version])
-  @@unique([projectId, id])
-  @@index([projectId, id])
   @@index([createdAt])
   @@index([updatedAt])
   @@index([tags(ops: ArrayOps)], type: Gin)
@@ -914,7 +912,6 @@ model SkillBlob {
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
-  @@index([projectId, createdAt])
   @@map("skill_blobs")
 }
 

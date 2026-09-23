@@ -24,7 +24,6 @@ export const skillRouter = createTRPCRouter({
     .input(
       projectInput
         .extend({
-          search: z.string().max(1000).optional(),
           filter: singleFilterList
             .refine((filters) => filters.length <= 50, "Too many filters")
             .optional(),

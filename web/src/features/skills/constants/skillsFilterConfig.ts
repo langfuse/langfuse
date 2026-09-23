@@ -4,13 +4,6 @@ import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 const columns: ColumnDefinition[] = [
   {
-    id: "labels",
-    name: "Labels",
-    type: "arrayOptions",
-    internal: "labels",
-    options: [],
-  },
-  {
     id: "tags",
     name: "Tags",
     type: "arrayOptions",
@@ -22,15 +15,9 @@ const columns: ColumnDefinition[] = [
 export const skillsFilterConfig: FilterConfig = {
   tableName: "skills",
   columnDefinitions: columns,
-  defaultExpanded: ["labels", "tags"],
+  defaultExpanded: ["tags"],
   defaultSidebarCollapsed: true,
   facets: [
-    {
-      type: "categorical",
-      column: "labels",
-      label: "Labels",
-      disableTextFilter: true,
-    },
     {
       type: "categorical",
       column: "tags",
@@ -46,9 +33,8 @@ export const SKILLS_FIELD_REGISTRY = fieldRegistryFromColumns(columns, {
   defaultSearchType: ["id"],
   freeTextScopeLabel: "skill names and descriptions",
   recentSearches: true,
-  searchExamples: ["labels:production", "tags:support"],
+  searchExamples: ["tags:support"],
   fields: {
-    labels: { aliases: ["label"] },
     tags: { aliases: ["tag"] },
   },
 });

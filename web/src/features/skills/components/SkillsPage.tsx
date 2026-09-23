@@ -96,7 +96,7 @@ function SkillsList({
     { projectId },
     { enabled: Boolean(projectId) },
   );
-  const observedOptions = filterOptions.data ?? { labels: [], tags: [] };
+  const observedOptions = filterOptions.data ?? { tags: [] };
   const queryFilter = useSidebarFilterState(
     skillsFilterConfig,
     observedOptions,
@@ -151,7 +151,6 @@ function SkillsList({
               props: {
                 value: name,
                 path: `/project/${projectId}/skills/${encodeURIComponent(name)}`,
-                icon: FileCode2,
               },
             }
           : undefined,
@@ -168,12 +167,12 @@ function SkillsList({
       size: 100,
       formatter: (version) => `v${version}`,
     }),
-    createBadgeListTableColumn<SkillRow>({
-      accessorKey: "labels",
-      header: "Labels",
+    createNumberTableColumn<SkillRow>({
+      accessorKey: "productionVersion",
+      header: "Production version",
       size: 140,
-      shouldWrap: false,
-      cellClassName: "ph-no-capture",
+      formatter: (version) => `v${version}`,
+      emptyValue: "Not set",
     }),
     createBadgeListTableColumn<SkillRow>({
       accessorKey: "tags",
@@ -183,9 +182,9 @@ function SkillsList({
       cellClassName: "ph-no-capture",
     }),
     createDateTableColumn<SkillRow>({
-      accessorKey: "lastUpdatedAt",
-      header: "Updated",
-      size: 145,
+      accessorKey: "latestVersionCreatedAt",
+      header: "Latest version created",
+      size: 175,
     }),
   ];
 

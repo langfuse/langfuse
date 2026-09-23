@@ -206,7 +206,7 @@ describe("SkillService versions", () => {
       skill: {
         findFirst: vi.fn().mockResolvedValue(skill),
         findMany: vi.fn().mockResolvedValue([skill]),
-        groupBy: vi.fn().mockResolvedValue([{ name: skill.name }]),
+        count: vi.fn().mockResolvedValue(1),
         findUnique: vi.fn().mockResolvedValue(skill),
         findFirstOrThrow: vi.fn().mockResolvedValue({ version: 1 }),
       },
@@ -601,24 +601,6 @@ describe("SkillService versions", () => {
       ]);
     },
   );
-
-  it("filters skill lists by the persisted latest label and returns it only once", async () => {
-    const test = setup();
-    test.skill.labels = ["production", "latest"];
-
-    const result = await test.service.list({
-      projectId: "project",
-      input: { label: "latest", page: 1, limit: 10 },
-    });
-
-    expect(test.db.skill.findMany).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        where: { projectId: "project", labels: { has: "latest" } },
-      }),
-    );
-    expect(result.data[0]?.labels).toEqual(["production", "latest"]);
-  });
 
   it("blocks whole-skill deletion when an older version has a protected label", async () => {
     const test = setup();

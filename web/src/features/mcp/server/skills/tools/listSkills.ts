@@ -7,9 +7,9 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [listSkillsTool, handleListSkills] = defineTool({
   name: "listSkills",
   description: [
-    "List skills in the current project, including descriptions, versions, labels and tags.",
-    "Filter by exact name, label, tag or update timestamps (fromUpdatedAt inclusive, toUpdatedAt exclusive).",
-    "Pagination: page defaults to 1, limit defaults to 10 (maximum 100).",
+    "List skills in the current project, including latest-version descriptions and timestamps, shared tags, and latest and production version numbers. productionVersion is null when no version is assigned to production.",
+    "Filter by exact name or tag, or use search for case-insensitive name and latest-version description matches. Update timestamp filters use the latest version (fromUpdatedAt inclusive, toUpdatedAt exclusive).",
+    "Pagination: page defaults to 1, limit defaults to 10 (maximum 100). Returns totals and hasNextPage.",
     "Use getSkill to retrieve a version's metadata and file manifest.",
   ].join("\n"),
   action: "skills:read",
