@@ -71,9 +71,6 @@ const renderComponent = (
   onOpenInTraceView = vi.fn(),
 ) => {
   render(
-    // IOPreview reads the normalizedIoPreview flag via useSession; a null
-    // session resolves it to false (legacy behavior), matching production
-    // for regular users.
     <SessionProvider session={null}>
       <SessionObservationIO
         observation={observation}

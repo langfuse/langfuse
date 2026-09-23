@@ -13,7 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { TagButton } from "@/src/features/tag/components/TagButton";
+import { TagButton } from "@/src/features/tag";
 import {
   SessionBadge,
   UserIdBadge,

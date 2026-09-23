@@ -111,6 +111,13 @@ const projectRoutes: Route[] = [
   { route: "ingestion", methods: ["POST"] },
   { route: "otel/v1/traces/index", methods: ["POST"] },
   { route: "otel/v1/metrics/index", methods: ["POST"] },
+  { route: "prompts", methods: ["GET", "POST"] },
+  { route: "v2/prompts/index", methods: ["GET", "POST"] },
+  { route: "v2/prompts/[promptName]/index", methods: ["GET", "DELETE"] },
+  {
+    route: "v2/prompts/[promptName]/versions/[promptVersion]",
+    methods: ["PATCH"],
+  },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
@@ -143,8 +150,6 @@ const orgRoutes: Route[] = [
 const denylistPrefixes = [
   "health", // liveness probe
   "ready", // readiness probe
-  "prompts", // prompt handlers, own auth path
-  "v2/prompts", // prompt list/name handlers, own auth path
   "mcp", // MCP server, own auth path
   "otel/otlp-proto", // generated protobuf, not a route
   "slack", // Slack OAuth, own auth path

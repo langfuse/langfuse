@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -42,14 +43,7 @@ const prepare = async (projectRole: "ADMIN" | "MEMBER" = "ADMIN") => {
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: true,
-        excludeClickhouseRead: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {} as any,

@@ -48,7 +48,7 @@ vi.mock(
   }),
 );
 
-import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { shadowAuth } from "@/src/features/public-api/server";
 
 const mappedFields = {
   orgId: "org_1",

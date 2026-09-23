@@ -21,7 +21,10 @@ import {
   prepareDenseSeries,
   prepareIsolatedPoints,
 } from "@/src/features/widgets/chart-library/prepareDenseSeries";
-import { prepareTimeAxis } from "@/src/features/widgets/chart-library/prepareTimeAxis";
+import {
+  parseChartTimestamp,
+  prepareTimeAxis,
+} from "@/src/features/widgets/chart-library/prepareTimeAxis";
 import { temporalAxisTickProp } from "@/src/features/widgets/chart-library/TimeAxisTick";
 import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepareVisibleSeries";
 import {
@@ -48,6 +51,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   legendInteraction = "highlight",
   maxVisibleSeries,
   syncId,
+  sync,
   subtleFill = false,
   missingValue = "gap",
   connectNulls = false,
@@ -102,6 +106,13 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
+  const syncedIndex = groupedData.findIndex(
+    (item) =>
+      String(
+        parseChartTimestamp(item.time_dimension)?.getTime() ??
+          item.time_dimension,
+      ) === sync?.activeKey,
+  );
 
   return (
     <div
@@ -111,14 +122,19 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
       // cursor is already over the chart at mount/refresh (enter never fires). (LFE-10549)
       onMouseEnter={() => setSelfHovered(true)}
       onMouseMove={() => setSelfHovered(true)}
-      onMouseLeave={() => setSelfHovered(false)}
+      onMouseLeave={() => {
+        setSelfHovered(false);
+        sync?.onActiveKeyChange(undefined);
+      }}
       // Keyboard parity: recharts' accessibilityLayer lets Tab/arrow users move
       // the crosshair, but that fires no mouse event — un-gate the tooltip on
       // focus too, and re-gate only when focus leaves the chart. (LFE-10549)
       onFocus={() => setSelfHovered(true)}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
           setSelfHovered(false);
+          sync?.onActiveKeyChange(undefined);
+        }
       }}
     >
       {series.total > dimensions.length && (
@@ -137,6 +153,15 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           data={groupedData}
           syncId={syncId}
           syncMethod="value"
+          onMouseMove={(state) => {
+            if (state.activeLabel === undefined) return;
+            sync?.onActiveKeyChange(
+              String(
+                parseChartTimestamp(state.activeLabel)?.getTime() ??
+                  state.activeLabel,
+              ),
+            );
+          }}
         >
           {/* syncWithTicks: grid lines sit exactly on the budget-thinned axis
               ticks (a line per shown day/hour), instead of recharts' default
@@ -197,6 +222,8 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
           })}
           <ChartActiveReferenceLine />
           <ChartTooltip
+            active={syncedIndex >= 0 ? true : undefined}
+            defaultIndex={syncedIndex >= 0 ? syncedIndex : undefined}
             content={({ active, payload, label, coordinate }) =>
               // Synced siblings show only the crosshair; the tooltip is the
               // hovered chart's, portaled out of the chart frame. (LFE-10549)

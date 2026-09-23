@@ -12,6 +12,7 @@ import {
   assertValidFtsMatchFilter,
   bareFtsField,
   FTS_OPERATOR_DESCRIPTORS,
+  hasFtsSearchToken,
   isFtsEventsTable,
   isFtsMetadataField,
   isFtsTextField,
@@ -134,6 +135,7 @@ export class StringFilter implements Filter {
             fieldWithPrefix,
             `{${varName}: String}`,
             query,
+            hasFtsSearchToken(this.value),
           );
         } else if (ngramTarget) {
           query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
@@ -174,8 +176,10 @@ export class StringFilter implements Filter {
           fieldWithPrefix,
           `{${varName}: String}`,
           // `matches` shares the descriptor signature with exact filters but
-          // does not need a base exact predicate.
+          // does not need a base exact predicate, and always has a token
+          // (guaranteed by assertValidFtsMatchFilter above).
           "",
+          true,
         );
         break;
       default:
@@ -479,6 +483,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
+            hasToken: hasFtsSearchToken(this.value),
           });
           break;
         case "contains":
@@ -513,6 +518,7 @@ export class StringObjectFilter implements Filter {
             valuesColumn,
             valueAccessor,
             valueParam,
+            hasToken: true,
           });
           break;
         default:

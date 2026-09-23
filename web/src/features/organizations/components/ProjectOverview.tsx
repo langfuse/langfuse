@@ -28,12 +28,12 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup/setupRoutes";
+} from "@/src/features/setup";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
+import { AgentToolsBanner } from "@/src/features/developer-tools";
 import {
   V4MigrationBanner,
   useV4MigrationBannerState,
