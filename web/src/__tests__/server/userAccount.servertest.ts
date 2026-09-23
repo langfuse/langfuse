@@ -15,17 +15,6 @@ import {
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
-vi.mock("@/src/env.mjs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/src/env.mjs")>();
-  return {
-    ...actual,
-    env: {
-      ...actual.env,
-      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false",
-    },
-  };
-});
-
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
@@ -120,6 +109,17 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
+  const testEnv = env as {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  };
+  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  beforeEach(() => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+  });
+  afterEach(() => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+  });
+
   it("persists only the external override and preserves other preferences", async () => {
     const { caller, userId } = await createCaller({
       admin: true,

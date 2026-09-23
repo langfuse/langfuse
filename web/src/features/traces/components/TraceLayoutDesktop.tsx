@@ -495,24 +495,10 @@ function TraceNavigationDetailLayout({
   const { isV4 } = useReadPath();
   const showMessages =
     selectedTab === "messages" && internalFeaturesEnabled && isV4;
-  // Synchronize the imperative resizable panels with the active detail surface.
   useEffect(() => {
     if (!showMessages || reviewOpen) return;
-    const navigation = panelRef.current;
-    const detail = detailPanelRef.current;
-    const group = groupRef.current;
-    const width = document.getElementById(groupId)?.clientWidth;
-    if (!navigation || !detail || !group || !width) return;
-    const previousLayout = group.getLayout();
-    const navigationPercent = (COLLAPSED_PANEL_PX / width) * 100;
-    group.setLayout({
-      [RESIZABLE_PANEL_NAVIGATION_ID]: navigationPercent,
-      [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navigationPercent,
-    });
-    return () => {
-      group.setLayout(previousLayout);
-    };
-  }, [showMessages, reviewOpen, panelRef, detailPanelRef, groupRef, groupId]);
+    panelRef.current?.collapse();
+  }, [showMessages, reviewOpen, panelRef]);
   useEffect(() => {
     // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
     // on mount/refresh when there's no selection (effects always run once).
@@ -604,7 +590,6 @@ function TraceNavigationDetailLayout({
           defaultLayout={defaultLayout ?? computedDefaultLayout}
           onLayoutChanged={(layout) => {
             if (
-              showMessages ||
               reviewOpen ||
               appliedReviewMode.current !== reviewOpen
             )
