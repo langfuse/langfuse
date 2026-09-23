@@ -211,7 +211,6 @@ describe("useChatMLParser", () => {
         },
         metadata: undefined,
       }),
-      undefined,
     );
 
     const assistant = result.allMessages.find(
