@@ -1,6 +1,6 @@
 import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 
 import { ChartTooltip } from "../internal/charts/ChartTooltip";
 
@@ -152,6 +152,9 @@ export const Primary = meta.story({
     const tooltip = await focusTooltip(canvasElement);
     await expect(tooltip).toHaveTextContent("Claude Sonnet");
     await expect(tooltip).toHaveTextContent("31 (31%)");
+    await expect(within(tooltip).getByText("Claude Sonnet")).toHaveClass(
+      "text-foreground",
+    );
   },
 });
 
@@ -177,6 +180,52 @@ export const PrimaryWithDetails = meta.story({
     await expect(tooltip).toHaveTextContent("Small model");
     await expect(tooltip).toHaveTextContent("Legacy model");
     await expect(within(tooltip).getByRole("separator")).toBeInTheDocument();
+  },
+});
+
+export const WithCopyHint = meta.story({
+  name: "(Test) With Copy Hint",
+  args: {
+    data: {
+      type: "primary",
+      index: 0,
+      label: "Alpha",
+      value: "12",
+      copyLabel: "Alpha",
+      hint: "Click or press Enter to copy label",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    const hint = within(tooltip).getByText(
+      "Click or press Enter to copy label",
+    );
+    await expect(hint).toBeVisible();
+    await expect(hint.parentElement).toHaveClass(
+      "border-t",
+      "text-muted-foreground/70",
+    );
+    await expect(
+      Number.parseFloat(getComputedStyle(hint).fontSize),
+    ).toBeLessThan(Number.parseFloat(getComputedStyle(tooltip).fontSize));
+    const widthBeforeCopy = tooltip.getBoundingClientRect().width;
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(
+        within(canvasElement).getByLabelText("Tooltip trigger"),
+      );
+      await expect(copy).toHaveBeenCalledWith("Alpha");
+      await expect(hint).not.toBeVisible();
+      await expect(
+        within(tooltip).getByText("Label copied to clipboard"),
+      ).toBeVisible();
+      await expect(tooltip.getBoundingClientRect().width).toBeCloseTo(
+        widthBeforeCopy,
+        0,
+      );
+    } finally {
+      copy.mockRestore();
+    }
   },
 });
 

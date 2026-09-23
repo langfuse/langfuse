@@ -1,17 +1,23 @@
 import type { ReactNode } from "react";
 
-const TOP = 10;
-const RIGHT = 16;
-const BOTTOM_WITH_LABELS = 26;
-const BOTTOM_WITHOUT_LABELS = 12;
+export const CARTESIAN_CHART_INSETS = {
+  top: 10,
+  right: 16,
+  bottomWithLabels: 26,
+  bottomWithoutLabels: 12,
+  minLeft: 64,
+};
+
 const Y_TICK_HEIGHT = 28;
 
 function getCartesianPlotHeight(height: number, showXAxisLabels: boolean) {
   return Math.max(
     0,
     height -
-      TOP -
-      (showXAxisLabels ? BOTTOM_WITH_LABELS : BOTTOM_WITHOUT_LABELS),
+      CARTESIAN_CHART_INSETS.top -
+      (showXAxisLabels
+        ? CARTESIAN_CHART_INSETS.bottomWithLabels
+        : CARTESIAN_CHART_INSETS.bottomWithoutLabels),
   );
 }
 
@@ -31,13 +37,13 @@ function getCartesianLayout({
   yTickLabels: string[];
 }) {
   const left = Math.max(
-    64,
+    CARTESIAN_CHART_INSETS.minLeft,
     ...yTickLabels.map((label) => label.length * 7 + 16),
   );
   return {
     left,
-    top: TOP,
-    width: Math.max(0, width - left - RIGHT),
+    top: CARTESIAN_CHART_INSETS.top,
+    width: Math.max(0, width - left - CARTESIAN_CHART_INSETS.right),
     height: getCartesianPlotHeight(height, showXAxisLabels),
   };
 }

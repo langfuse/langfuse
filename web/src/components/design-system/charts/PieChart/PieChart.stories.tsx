@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import { PieChart } from "./PieChart";
 
 const data = [
@@ -60,6 +60,19 @@ export const KeyboardFocus = meta.story({
     );
     await expect(tooltip).toHaveTextContent("Claude Sonnet");
     await expect(tooltip).toHaveTextContent("31");
+    await expect(tooltip).toHaveTextContent(
+      "Click or press Enter to copy label",
+    );
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(slice);
+      await expect(copy).toHaveBeenCalledWith("Claude Sonnet");
+      slice.focus();
+      await userEvent.keyboard("{Enter}");
+      await expect(copy).toHaveBeenCalledTimes(2);
+    } finally {
+      copy.mockRestore();
+    }
   },
 });
 

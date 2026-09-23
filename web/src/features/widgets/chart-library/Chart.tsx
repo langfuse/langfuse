@@ -236,7 +236,6 @@ const ChartComponent = ({
             data={renderedData.slice(0, rowLimit)}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "VERTICAL_BAR":

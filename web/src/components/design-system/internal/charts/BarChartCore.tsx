@@ -175,38 +175,68 @@ export function BarChartCore({
                             colorStrength === 100
                               ? barColor
                               : `color-mix(in srgb, ${barColor} ${colorStrength}%, hsl(var(--background)))`;
+                          const previousX = xScale(index - 1);
+                          const nextX = xScale(index + 1);
+                          const centerX = x + xScale.bandwidth() / 2;
+                          const hoverLeft =
+                            previousX === undefined
+                              ? plot.left
+                              : (previousX + xScale.bandwidth() / 2 + centerX) /
+                                2;
+                          const hoverRight =
+                            nextX === undefined
+                              ? plot.left + plot.width
+                              : (centerX + nextX + xScale.bandwidth() / 2) / 2;
+                          const tooltipData = {
+                            type: "primary" as const,
+                            index,
+                            label: tooltipValueLabel ?? datum.label,
+                            value: valueFormatter(datum.value ?? 0),
+                            heading: tooltipHeading?.(datum.label),
+                            color: hasDistinctColors ? barColor : undefined,
+                            hint: "Click or press Enter to copy label",
+                            copyLabel: datum.label,
+                          };
+                          const { onPointerLeave, ...referenceProps } =
+                            getReferenceProps(tooltipData);
                           return (
-                            <g key={index}>
+                            <g key={index} onPointerLeave={onPointerLeave}>
                               {datum.value !== null &&
                               Number.isFinite(datum.value) ? (
-                                <rect
-                                  x={x + histogramInset}
-                                  y={barTop}
-                                  width={
-                                    xScale.bandwidth() - histogramInset * 2
-                                  }
-                                  height={Math.max(1, barHeight)}
-                                  rx={
-                                    barSpacing === "histogram"
-                                      ? 0
-                                      : Math.min(4, barHeight / 2)
-                                  }
-                                  fill={fill}
-                                  role="graphics-symbol"
-                                  tabIndex={0}
-                                  aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
-                                  className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
-                                  {...getReferenceProps({
-                                    type: "primary",
-                                    index,
-                                    label: tooltipValueLabel ?? datum.label,
-                                    value: valueFormatter(datum.value),
-                                    heading: tooltipHeading?.(datum.label),
-                                    color: hasDistinctColors
-                                      ? barColor
-                                      : undefined,
-                                  })}
-                                />
+                                <>
+                                  {barSpacing === "default" ? (
+                                    <rect
+                                      data-bar-hover-area=""
+                                      x={hoverLeft}
+                                      y={plot.top}
+                                      width={hoverRight - hoverLeft}
+                                      height={plot.height}
+                                      fill="transparent"
+                                      aria-hidden="true"
+                                      {...referenceProps}
+                                    />
+                                  ) : null}
+                                  <rect
+                                    x={x + histogramInset}
+                                    y={barTop}
+                                    width={
+                                      xScale.bandwidth() - histogramInset * 2
+                                    }
+                                    height={Math.max(1, barHeight)}
+                                    rx={
+                                      barSpacing === "histogram"
+                                        ? 0
+                                        : Math.min(4, barHeight / 2)
+                                    }
+                                    fill={fill}
+                                    role="graphics-symbol"
+                                    tabIndex={0}
+                                    aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
+                                    className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
+                                    {...getReferenceProps(tooltipData)}
+                                    onPointerLeave={undefined}
+                                  />
+                                </>
                               ) : null}
                             </g>
                           );
