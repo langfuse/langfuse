@@ -30,6 +30,7 @@ import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDeta
 import {
   CostBadge,
   UsageBadge,
+  hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
@@ -515,7 +516,8 @@ export const ObservationDetailViewHeader = memo(
               )}
               {subtreeMetrics
                 ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
+                  subtreeMetrics.usageDetails &&
+                  hasBreakdown(subtreeMetrics.usageDetails) && (
                     <UsageBadge
                       inputUsage={subtreeMetrics.inputUsage}
                       outputUsage={subtreeMetrics.outputUsage}
@@ -524,7 +526,8 @@ export const ObservationDetailViewHeader = memo(
                     />
                   )
                 : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
+                  observation.usageDetails &&
+                  hasBreakdown(observation.usageDetails) && (
                     <UsageBadge
                       inputUsage={inputUsage}
                       outputUsage={outputUsage}
