@@ -15,6 +15,7 @@ import { SearchInput } from "@/src/components/design-system/SearchInput/SearchIn
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { cn } from "@/src/utils/tailwind";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -78,10 +79,20 @@ export function SettingsTable<TData extends object>({
   return (
     <div className="flex min-h-0 flex-col gap-2">
       {hasToolbar && (
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2",
+            filters && "flex-wrap",
+          )}
+        >
+          <div
+            className={cn(
+              "flex flex-1 items-center gap-2",
+              filters ? "min-w-72" : "min-w-0",
+            )}
+          >
             {search && (
-              <div className="w-full max-w-sm">
+              <div className="w-full max-w-sm min-w-0">
                 <SearchInput
                   value={searchValue}
                   placeholder={search.placeholder}
@@ -99,7 +110,7 @@ export function SettingsTable<TData extends object>({
             {filters}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             {columnVisibilityKey && (
               <DataTableColumnVisibilityFilter
                 columns={columns}
