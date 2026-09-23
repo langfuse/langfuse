@@ -74,19 +74,30 @@ export function ConnectedMembersSettingsTable({
 
   const [rolesParam, setRolesParam] = useQueryParam("roles", ArrayParam);
   const roles = (rolesParam ?? []).filter(isRole);
+  const rolesKey = roles.toSorted().join(",");
 
-  const [paginationState, setPaginationState] = useSessionStorage(
+  const [storedPagination, setPaginationState] = useSessionStorage<{
+    pageIndex: number;
+    pageSize: number;
+    rolesKey?: string;
+  }>(
     project
       ? `projectMembers_${project.id}_pagination`
       : `orgMembers_${orgId}_pagination`,
     { pageIndex: 0, pageSize: 10 },
   );
+  // The stored page belongs to the role filter it was paged under; any other
+  // filter (dropdown, URL, or history navigation) starts on the first page.
+  const paginationState = {
+    pageIndex:
+      (storedPagination.rolesKey ?? "") === rolesKey
+        ? storedPagination.pageIndex
+        : 0,
+    pageSize: storedPagination.pageSize,
+  };
 
   useEffect(() => {
-    setPaginationState((previous) => ({
-      pageIndex: 0,
-      pageSize: previous.pageSize,
-    }));
+    setPaginationState((previous) => ({ ...previous, pageIndex: 0 }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
@@ -291,13 +302,7 @@ export function ConnectedMembersSettingsTable({
           }}
           roleFilter={{
             value: roles,
-            onChange: (value) => {
-              setRolesParam(value.length > 0 ? value : null);
-              setPaginationState((previous) => ({
-                pageIndex: 0,
-                pageSize: previous.pageSize,
-              }));
-            },
+            onChange: (value) => setRolesParam(value.length > 0 ? value : null),
           }}
           toolbarActions={[
             {
@@ -315,7 +320,7 @@ export function ConnectedMembersSettingsTable({
           ]}
           pagination={{
             totalCount: members.data?.totalCount ?? null,
-            onChange: setPaginationState,
+            onChange: (state) => setPaginationState({ ...state, rolesKey }),
             state: paginationState,
           }}
         />
