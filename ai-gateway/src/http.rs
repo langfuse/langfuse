@@ -5,7 +5,7 @@ use axum::{
     Json, Router,
     body::{Body, Bytes, to_bytes},
     extract::{Request, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
     routing::{get, post},
 };
@@ -14,7 +14,7 @@ use tracing::Instrument;
 
 use crate::{
     inference::{InferenceService, RequestPreparationError},
-    providers::{AnthropicRoute, OpenAiRoute, ProviderError, Route, forwarded_query},
+    providers::{ProviderError, Route, forwarded_query},
     resolution::{ApiFormat, ResolutionError},
     server::GatewayLifecycleState,
 };
@@ -52,44 +52,39 @@ pub fn router(inference: Option<InferenceService>, lifecycle: GatewayLifecycleSt
 }
 
 async fn handle_responses(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::OpenAi(OpenAiRoute::Responses)).await
+    handle(state, request, Route::OpenAiResponses).await
 }
 
 async fn handle_responses_compact(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAi(OpenAiRoute::ResponsesCompact)).await
+    handle(state, request, Route::OpenAiResponsesCompact).await
 }
 
 async fn handle_openai_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::OpenAi(OpenAiRoute::Models)).await
+    handle(state, request, Route::OpenAiModels).await
 }
 
 async fn handle_messages(State(state): State<InferenceRouteState>, request: Request) -> Response {
-    handle(state, request, Route::Anthropic(AnthropicRoute::Messages)).await
+    handle(state, request, Route::AnthropicMessages).await
 }
 
 async fn handle_count_tokens(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(
-        state,
-        request,
-        Route::Anthropic(AnthropicRoute::CountTokens),
-    )
-    .await
+    handle(state, request, Route::AnthropicCountTokens).await
 }
 
 async fn handle_anthropic_models(
     State(state): State<InferenceRouteState>,
     request: Request,
 ) -> Response {
-    handle(state, request, Route::Anthropic(AnthropicRoute::Models)).await
+    handle(state, request, Route::AnthropicModels).await
 }
 
 async fn handle(state: InferenceRouteState, request: Request, route: Route) -> Response {
@@ -388,7 +383,7 @@ impl InferenceHttpError {
                 "gateway request rejected"
             );
         }
-        let mut response = match api_format {
+        match api_format {
             ApiFormat::OpenAiResponses => (
                 status,
                 Json(OpenAiErrorResponse {
@@ -412,14 +407,7 @@ impl InferenceHttpError {
                 }),
             )
                 .into_response(),
-        };
-        // Clients back off on capacity rejections instead of retrying immediately.
-        if status == StatusCode::SERVICE_UNAVAILABLE {
-            response
-                .headers_mut()
-                .insert(header::RETRY_AFTER, HeaderValue::from_static("1"));
         }
-        response
     }
 }
 

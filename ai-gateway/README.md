@@ -273,7 +273,7 @@ their status and body. Gateway errors use the namespace's native envelope:
 `{"type":"error","error":{"type":"...","message":"..."}}` for Anthropic, where the
 error type follows the status (`authentication_error`, `permission_error`,
 `not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
-`api_error`). Capacity rejections (503) carry `Retry-After: 1` in both namespaces.
+`api_error`).
 
 The gateway authenticates through Web before reserving execution capacity or
 reading the request body. Web resolution uses a separate concurrency budget,
@@ -349,7 +349,6 @@ each field describes:
 | `request.api_format`                                                                        | Native API contract: `openai.responses` or `anthropic.messages`             |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
 | `response.id`                                                                               | Native response object's ID                                                 |
-| `response.stop_reason`                                                                      | Anthropic `stop_reason`; `max_tokens` and `model_context_window_exceeded` set a `WARNING` level |
 | `response.status_code`                                                                      | HTTP status returned to the caller                                          |
 | `upstream.request.id`                                                                       | Provider request ID from the upstream `x-request-id` (OpenAI) or `request-id` (Anthropic) header |
 
@@ -539,11 +538,10 @@ terminal event. `completion_start_ms` is set by the first `content_block_delta` 
 non-empty `text`, `thinking` or `partial_json`; signatures, citations and pings do not
 count. A mid-stream `error` event, or an HTTP error body, marks the generation failed;
 its `type` and `message` are retained only in full mode. Unknown event types are ignored.
-Full mode records the request (`system`, `messages`, `tools` and unknown fields, with
-model, sampling parameters, `thinking`, `tool_choice`, `context_management`,
-`output_config` projected into model parameters and `metadata` into
-`request.metadata`); response content blocks are not captured yet, so full-mode output
-completeness is false and `output` is null.
+A `stop_reason` of `max_tokens` or `model_context_window_exceeded` sets a `WARNING`
+level. Only scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
+`stream`, `service_tier`) are recorded. Request and response content are not captured
+in either mode yet, so full-mode output completeness is false and `input`/`output` are null.
 
 For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.
@@ -715,9 +713,9 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` descriptor
-  (method, upstream path, capture, forwarded query, body limit) and credential placement.
-- `providers/openai.rs`, `providers/anthropic.rs`: each provider's official operations.
+- `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
+  official operations (method, upstream path, capture, forwarded query) and credential
+  placement.
 - `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.

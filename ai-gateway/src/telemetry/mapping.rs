@@ -157,9 +157,6 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
     for (key, value) in &facts.inference.request_metadata {
         metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
     }
-    for (key, value) in &facts.inference.response_metadata {
-        metadata.insert(format!("langfuse.gateway.response.{key}"), value.clone());
-    }
     metadata
 }
 
@@ -604,26 +601,6 @@ mod tests {
                 json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
             ),
             None
-        );
-    }
-
-    #[test]
-    fn response_metadata_is_namespaced_under_the_gateway_response() {
-        let mut facts = facts();
-        facts.api_format = "anthropic.messages";
-        facts
-            .inference
-            .response_metadata
-            .insert("stop_reason".into(), json!("tool_use"));
-        let attrs = attributes(&span(facts, &context()));
-        let metadata = metadata(&attrs);
-        assert_eq!(
-            metadata["langfuse.gateway.response.stop_reason"],
-            "tool_use"
-        );
-        assert_eq!(
-            metadata["langfuse.gateway.request.api_format"],
-            "anthropic.messages"
         );
     }
 

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     capture::{ExecutionCapture, ProtocolCapture},
-    providers::{AnthropicRoute, ProviderLimits, ProviderTransport, Route},
+    providers::{ProviderLimits, ProviderTransport, Route},
     resolution::ApiFormat,
     test_support::{FakeServer, resolved_request_context_for},
 };
@@ -111,13 +111,6 @@ async fn streaming_usage_is_replaced_by_cumulative_deltas_not_summed() {
     );
     assert_eq!(facts.facts.provider_status.as_deref(), Some("completed"));
     assert_eq!(
-        facts.facts.response_metadata,
-        json!({"stop_reason":"end_turn"})
-            .as_object()
-            .cloned()
-            .unwrap()
-    );
-    assert_eq!(
         facts.facts.provider_request_id.as_deref(),
         Some("req_provider_1")
     );
@@ -166,10 +159,6 @@ async fn json_responses_capture_the_same_facts_and_error_bodies_mark_failure() {
     let facts = captured(&observer);
     assert_eq!(facts.facts.provider_response_id.as_deref(), Some("msg_2"));
     assert_eq!(facts.facts.provider_status.as_deref(), Some("incomplete"));
-    assert_eq!(
-        facts.facts.response_metadata["stop_reason"],
-        json!("max_tokens")
-    );
     assert_eq!(
         facts
             .usage
@@ -248,52 +237,26 @@ async fn in_stream_errors_unknown_events_and_truncation_are_tolerated() {
 }
 
 #[tokio::test]
-async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode() {
-    let observer = new_observer("full").await;
-    let facts = &captured(&observer).facts;
-    assert_eq!(
-        facts.model_parameters,
-        json!({"max_tokens":32000,"temperature":1,"stream":true,"thinking":{"type":"adaptive"},"tool_choice":{"type":"auto"}})
-            .as_object()
-            .cloned()
-            .unwrap()
-    );
-    assert_eq!(
-        facts.request_metadata,
-        json!({"metadata":{"user_id":"{\"session_id\":\"session-canary\"}"}})
-            .as_object()
-            .cloned()
-            .unwrap()
-    );
-    let input = facts.input.as_ref().unwrap();
-    assert_eq!(input["system"][0]["text"], json!("system-canary"));
-    assert_eq!(
-        input["system"][0]["cache_control"]["type"],
-        json!("ephemeral")
-    );
-    assert_eq!(input["messages"][0]["content"], json!("prompt-canary"));
-    assert_eq!(input["tools"][0]["name"], json!("Bash"));
-    assert_eq!(input["future_field"], json!({"kept":true}));
-    for projected in ["model", "max_tokens", "thinking", "tool_choice", "metadata"] {
-        assert!(input.get(projected).is_none(), "{projected} left in input");
-    }
-    assert!(facts.input_complete);
-
-    let observer = new_observer("usage").await;
-    let facts = &captured(&observer).facts;
-    assert_eq!(
-        facts.model_parameters,
-        json!({"max_tokens":32000,"temperature":1,"stream":true})
-            .as_object()
-            .cloned()
-            .unwrap()
-    );
-    assert!(facts.request_metadata.is_empty());
-    assert!(facts.input.is_none());
-    assert!(!facts.input_complete);
-    let serialized = serde_json::to_string(facts).unwrap();
-    for canary in ["system-canary", "prompt-canary", "session-canary"] {
-        assert!(!serialized.contains(canary), "usage mode leaked {canary}");
+async fn only_scalar_parameters_are_recorded_and_content_is_never_captured() {
+    for mode in ["usage", "full"] {
+        let observer = new_observer(mode).await;
+        let facts = &captured(&observer).facts;
+        assert_eq!(
+            facts.model_parameters,
+            json!({"max_tokens":32000,"temperature":1,"stream":true})
+                .as_object()
+                .cloned()
+                .unwrap()
+        );
+        assert!(facts.request_metadata.is_empty());
+        assert!(facts.input.is_none());
+        let serialized = serde_json::to_string(facts).unwrap();
+        for canary in ["system-canary", "prompt-canary", "session-canary"] {
+            assert!(
+                !serialized.contains(canary),
+                "{mode} mode captured {canary}"
+            );
+        }
     }
 }
 
@@ -369,7 +332,7 @@ async fn streamed_messages_upload_one_generation_with_flat_priced_usage() {
             context,
             &headers,
             Bytes::from_static(REQUEST),
-            Route::Anthropic(AnthropicRoute::Messages),
+            Route::AnthropicMessages,
             None,
         )
         .await
@@ -398,10 +361,6 @@ async fn streamed_messages_upload_one_generation_with_flat_priced_usage() {
         "anthropic.messages"
     );
     assert_eq!(metadata["langfuse.gateway.response.id"], "msg_1");
-    assert_eq!(
-        metadata["langfuse.gateway.response.stop_reason"],
-        "end_turn"
-    );
     assert_eq!(
         metadata["langfuse.gateway.upstream.request.id"],
         "req_upstream"

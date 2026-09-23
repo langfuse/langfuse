@@ -893,7 +893,7 @@ async fn anthropic_credential_conflicts_and_failures_use_the_native_error_envelo
 }
 
 #[tokio::test]
-async fn anthropic_capacity_rejections_carry_retry_after_in_the_native_envelope() {
+async fn anthropic_capacity_rejections_use_the_native_envelope() {
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let busy = ProviderTransport::for_test(
         format!("{}/v1", provider.url),
@@ -921,7 +921,6 @@ async fn anthropic_capacity_rejections_carry_retry_after_in_the_native_envelope(
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
-    assert_eq!(response.headers()[header::RETRY_AFTER], "1");
     let body: serde_json::Value = serde_json::from_str(&response.text().await.unwrap()).unwrap();
     assert_eq!(body["error"]["type"], "overloaded_error");
     assert_eq!(provider.calls(), 0);

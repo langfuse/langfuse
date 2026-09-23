@@ -1,8 +1,5 @@
 //! Native provider transports. Requests use only resolved credentials, and every
 //! provider shares one execution lifecycle: admission, bounded send, byte relay.
-pub mod anthropic;
-pub mod openai;
-
 use std::{sync::Arc, time::Duration};
 
 use axum::{
@@ -17,60 +14,73 @@ use tokio::{
     time::Instant,
 };
 
+pub use crate::transport::ProviderError;
 use crate::{
     capture::{ExecutionCapture, RelayOutcome},
     resolution::{ApiFormat, Provider, ProviderCredential, ResolvedRequestContext},
     transport,
 };
-pub use anthropic::AnthropicRoute;
-pub use openai::OpenAiRoute;
 
-pub use crate::transport::ProviderError;
-
-/// One official provider operation. The public path prefix selects the provider;
-/// the route decides method, upstream path, capture and body/query handling.
+/// One official provider operation, relayed without translation. The public path
+/// prefix selects the provider; the route decides method, upstream path, capture
+/// and query handling.
 #[derive(Clone, Copy)]
 pub(crate) enum Route {
-    OpenAi(OpenAiRoute),
-    Anthropic(AnthropicRoute),
+    OpenAiResponses,
+    /// Responses JSON sharing the Responses capture path.
+    OpenAiResponsesCompact,
+    OpenAiModels,
+    AnthropicMessages,
+    /// Returns the native count unchanged; never recorded as billable usage.
+    AnthropicCountTokens,
+    AnthropicModels,
 }
 
 impl Route {
     pub(crate) fn provider(self) -> Provider {
         match self {
-            Self::OpenAi(_) => Provider::OpenAi,
-            Self::Anthropic(_) => Provider::Anthropic,
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiModels => {
+                Provider::OpenAi
+            }
+            Self::AnthropicMessages | Self::AnthropicCountTokens | Self::AnthropicModels => {
+                Provider::Anthropic
+            }
         }
     }
 
+    /// The API format Web resolves for this route; each namespace resolves
+    /// through its provider's single inference connection.
     pub(crate) fn api_format(self) -> ApiFormat {
-        match self {
-            Self::OpenAi(route) => route.api_format(),
-            Self::Anthropic(route) => route.api_format(),
+        match self.provider() {
+            Provider::OpenAi => ApiFormat::OpenAiResponses,
+            Provider::Anthropic => ApiFormat::AnthropicMessages,
         }
     }
 
     pub(crate) fn method(self) -> Method {
         match self {
-            Self::OpenAi(route) => route.method(),
-            Self::Anthropic(route) => route.method(),
+            Self::OpenAiModels | Self::AnthropicModels => Method::GET,
+            _ => Method::POST,
         }
     }
 
     fn path(self) -> &'static str {
         match self {
-            Self::OpenAi(route) => route.path(),
-            Self::Anthropic(route) => route.path(),
+            Self::OpenAiResponses => "/responses",
+            Self::OpenAiResponsesCompact => "/responses/compact",
+            Self::OpenAiModels | Self::AnthropicModels => "/models",
+            Self::AnthropicMessages => "/messages",
+            Self::AnthropicCountTokens => "/messages/count_tokens",
         }
     }
 
     /// Whether the exchange is an inference call recorded as a Langfuse generation.
     /// Catalog listings and token counting relay bytes without customer telemetry.
     pub(crate) fn captures_generation(self) -> bool {
-        match self {
-            Self::OpenAi(route) => route.captures_generation(),
-            Self::Anthropic(route) => route.captures_generation(),
-        }
+        matches!(
+            self,
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::AnthropicMessages
+        )
     }
 
     /// Request query parameters forwarded upstream. Inference routes forward none:
@@ -78,8 +88,8 @@ impl Route {
     /// `anthropic-beta` header, and clients cannot influence routing through it.
     pub(crate) fn forwarded_query_parameters(self) -> &'static [&'static str] {
         match self {
-            Self::Anthropic(AnthropicRoute::Models) => &["limit", "after_id", "before_id"],
-            Self::OpenAi(_) | Self::Anthropic(_) => &[],
+            Self::AnthropicModels => &["limit", "after_id", "before_id"],
+            _ => &[],
         }
     }
 }
@@ -188,15 +198,8 @@ impl ProviderTransport {
         headers: &HeaderMap,
         body: Bytes,
     ) -> Result<Response<Body>, ProviderError> {
-        self.forward_route(
-            permit,
-            context,
-            headers,
-            body,
-            Route::OpenAi(OpenAiRoute::Responses),
-            None,
-        )
-        .await
+        self.forward_route(permit, context, headers, body, Route::OpenAiResponses, None)
+            .await
     }
 
     /// Execute once and stream native status, safe headers and entity bytes.

@@ -1,7 +1,7 @@
 //! Anthropic Messages request, JSON response and SSE usage capture.
 //!
-//! Full mode records the native request content; response content blocks are not
-//! captured, so `output` stays `None` and full-mode output completeness is false.
+//! Request and response content are not captured in either mode, so `input` and
+//! `output` stay `None` and full-mode output completeness is false.
 use super::{
     MAX_CAPTURE_BYTES, MAX_FACT_STRING, bounded_string, facts::ProviderFacts, identity_encoding,
     response::ResponseBody,
@@ -37,7 +37,7 @@ impl AnthropicMessagesCapture {
             && body.len() <= MAX_CAPTURE_BYTES
             && let Ok(Value::Object(request)) = serde_json::from_slice(body)
         {
-            capture.capture_request(request);
+            capture.capture_request(&request);
             capture.request_complete = true;
         }
         capture
@@ -97,13 +97,12 @@ impl AnthropicMessagesCapture {
         self.facts
     }
 
-    fn capture_request(&mut self, mut request: Map<String, Value>) {
+    fn capture_request(&mut self, request: &Map<String, Value>) {
         self.facts.requested_model = request
             .get("model")
             .and_then(Value::as_str)
             .and_then(bounded_string);
         self.facts.model.clone_from(&self.facts.requested_model);
-        request.remove("model");
         for key in [
             "max_tokens",
             "temperature",
@@ -112,38 +111,15 @@ impl AnthropicMessagesCapture {
             "stream",
             "service_tier",
         ] {
-            if let Some(value) = request.remove(key).filter(|v| {
-                self.mode == IngestionMode::Full
-                    || v.is_number()
+            if let Some(value) = request.get(key).filter(|v| {
+                v.is_number()
                     || v.is_boolean()
                     || v.as_str().is_some_and(|s| s.len() <= MAX_FACT_STRING)
             }) {
-                self.facts.model_parameters.insert(key.to_owned(), value);
-            }
-        }
-        if self.mode == IngestionMode::Full {
-            for key in [
-                "stop_sequences",
-                "thinking",
-                "tool_choice",
-                "context_management",
-                "output_config",
-            ] {
-                if let Some(value) = request.remove(key) {
-                    self.facts.model_parameters.insert(key.to_owned(), value);
-                }
-            }
-            // Claude Code stores its own session identifiers here; it is request
-            // metadata rather than prompt content.
-            if let Some(value) = request.remove("metadata") {
                 self.facts
-                    .request_metadata
-                    .insert("metadata".to_owned(), value);
+                    .model_parameters
+                    .insert(key.to_owned(), value.clone());
             }
-            // Preserve `system`, `messages`, `tools` and unknown fields after
-            // projecting configuration.
-            self.facts.input = Some(Value::Object(request));
-            self.facts.input_complete = true;
         }
     }
 
@@ -211,24 +187,17 @@ impl AnthropicMessagesCapture {
     }
 
     fn capture_stop(&mut self, source: &Map<String, Value>) {
-        let Some(stop_reason) = source
-            .get("stop_reason")
-            .and_then(Value::as_str)
-            .and_then(bounded_string)
-        else {
+        let Some(stop_reason) = source.get("stop_reason").and_then(Value::as_str) else {
             return;
         };
         // Truncation by the token budget or the context window is a partial answer.
         self.facts.provider_status = Some(
-            match stop_reason.as_str() {
+            match stop_reason {
                 "max_tokens" | "model_context_window_exceeded" => "incomplete",
                 _ => "completed",
             }
             .to_owned(),
         );
-        self.facts
-            .response_metadata
-            .insert("stop_reason".to_owned(), Value::String(stop_reason));
     }
 
     fn merge_usage(&mut self, usage: &Map<String, Value>) {
