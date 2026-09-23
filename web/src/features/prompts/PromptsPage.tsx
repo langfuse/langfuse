@@ -15,12 +15,7 @@ import { useState } from "react";
 import { AutomationButton } from "@/src/features/automations";
 import { ImportPromptsButtonDialogController } from "@/src/features/prompts/components/ImportPromptsButtonDialogController";
 import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { toast } from "sonner";
 
@@ -131,21 +126,34 @@ export default function PromptsPage() {
           <>
             {projectId && <AutomationButton projectId={projectId} />}
             {hasReadAccess && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={isExporting}>
+              <DropdownMenu
+                disabled={isExporting}
+                placement="bottom-end"
+                items={[
+                  {
+                    type: "item",
+                    id: "latest",
+                    title: "Latest version per prompt",
+                    onClick: () => handleExport("latest"),
+                  },
+                  {
+                    type: "item",
+                    id: "all",
+                    title: "All versions",
+                    onClick: () => handleExport("all"),
+                  },
+                ]}
+              >
+                {({ getTriggerProps }) => (
+                  <Button
+                    variant="outline"
+                    disabled={isExporting}
+                    {...getTriggerProps()}
+                  >
                     <UploadIcon className="mr-1 h-4 w-4" />
                     {isExporting ? "Exporting…" : "Export"}
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleExport("latest")}>
-                    Latest version per prompt
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExport("all")}>
-                    All versions
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
+                )}
               </DropdownMenu>
             )}
             {projectId && (

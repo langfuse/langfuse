@@ -15,13 +15,8 @@ import { Button } from "@/src/components/ui/button";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { Separator } from "@/src/components/ui/separator";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/src/components/ui/dropdown-menu";
-import { BotMessageSquare, ChevronDown, Zap } from "lucide-react";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { BotMessageSquare, Check, ChevronDown, Zap } from "lucide-react";
 import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilities";
 import {
   useIsInAppAgentLauncherVisible,
@@ -322,30 +317,40 @@ export default function RemapEvaluatorPage() {
                             ? "Save & mark legacy inactive"
                             : "Save & delete legacy"}
                         </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
+                        <DropdownMenu
+                          disabled={isLoading}
+                          placement="bottom-end"
+                          items={[
+                            {
+                              type: "item",
+                              id: "mark-inactive",
+                              title: "Save & mark legacy inactive",
+                              icon:
+                                legacyAction === "mark-inactive"
+                                  ? Check
+                                  : undefined,
+                              onClick: () => setLegacyAction("mark-inactive"),
+                            },
+                            {
+                              type: "item",
+                              id: "delete",
+                              title: "Save & delete legacy",
+                              icon:
+                                legacyAction === "delete" ? Check : undefined,
+                              onClick: () => setLegacyAction("delete"),
+                            },
+                          ]}
+                        >
+                          {({ getTriggerProps }) => (
                             <Button
                               type="button"
                               disabled={isLoading}
                               className="mt-3 rounded-l-none rounded-r-md border-l-2"
+                              {...getTriggerProps()}
                             >
                               <ChevronDown className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("mark-inactive")}
-                            >
-                              {legacyAction === "mark-inactive" && "✓ "}
-                              Save & mark legacy inactive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("delete")}
-                            >
-                              {legacyAction === "delete" && "✓ "}
-                              Save & delete legacy
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
+                          )}
                         </DropdownMenu>
                       </div>
                     </div>
