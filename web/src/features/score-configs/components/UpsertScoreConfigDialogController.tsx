@@ -10,7 +10,7 @@ import {
   type CreateConfig,
   type UpdateConfig,
 } from "@/src/features/score-configs/lib/upsertFormTypes";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 
 const createDefaultValues: CreateConfig = {
   dataType: ScoreDataTypeEnum.NUMERIC,
@@ -21,9 +21,11 @@ const createDefaultValues: CreateConfig = {
 
 export function CreateScoreConfigDialogController({
   projectId,
+  onAfterCreate,
   children,
 }: {
   projectId: string;
+  onAfterCreate?: (config: RouterOutputs["scoreConfigs"]["create"]) => void;
   children: (control: {
     disabled: { reason: string } | undefined;
     isSubmitting: boolean;
@@ -51,7 +53,7 @@ export function CreateScoreConfigDialogController({
             mode="create"
             defaultValues={createDefaultValues}
             onSubmit={async (values) => {
-              await mutation.mutateAsync({
+              const config = await mutation.mutateAsync({
                 projectId,
                 ...values,
                 description: values.description ?? null,
@@ -62,6 +64,7 @@ export function CreateScoreConfigDialogController({
               capture("score_configs:create_form_submit", {
                 dataType: values.dataType,
               });
+              onAfterCreate?.(config);
             }}
             onFormSuccess={closeDialog}
             isSubmitting={mutation.isPending}

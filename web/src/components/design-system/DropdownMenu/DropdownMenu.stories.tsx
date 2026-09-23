@@ -50,6 +50,86 @@ export const ManyItems = meta.story({
   },
 });
 
+export const TestSearchBehavior = meta.story({
+  name: "(Test) Search behavior",
+  args: {
+    search: { placeholder: "Search items" },
+    items: [
+      {
+        type: "item",
+        id: "default",
+        title: "Create report",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "hidden",
+        title: "Create config",
+        searchBehavior: "hide",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "always-show",
+        title: "Help",
+        searchBehavior: "always-show",
+        onClick: fn(),
+      },
+      {
+        type: "item",
+        id: "no-results",
+        title: "Add item",
+        searchBehavior: "show-when-no-results",
+        onClick: fn(),
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("button", { name: "Open menu" }));
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search items" }),
+      "   ",
+    );
+    await expect(
+      body.getByRole("menuitem", { name: "Create config" }),
+    ).toBeVisible();
+    await expect(
+      body.getByRole("menuitem", { name: "Add item" }),
+    ).toBeVisible();
+
+    await userEvent.clear(
+      body.getByRole("searchbox", { name: "Search items" }),
+    );
+    await userEvent.type(
+      body.getByRole("searchbox", { name: "Search items" }),
+      "create",
+    );
+
+    await expect(
+      body.getByRole("menuitem", { name: "Create report" }),
+    ).toBeVisible();
+    await expect(
+      body.queryByRole("menuitem", { name: "Create config" }),
+    ).toBeNull();
+    await expect(body.getByRole("menuitem", { name: "Help" })).toBeVisible();
+    await expect(body.queryByRole("menuitem", { name: "Add item" })).toBeNull();
+
+    const search = body.getByRole("searchbox", { name: "Search items" });
+    await userEvent.clear(search);
+    await userEvent.type(search, "missing");
+
+    await expect(
+      body.queryByRole("menuitem", { name: "Create report" }),
+    ).toBeNull();
+    await expect(
+      body.getByRole("menuitem", { name: "Add item" }),
+    ).toBeVisible();
+  },
+});
+
 const getMenuActions = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
   const body = within(canvasElement.ownerDocument.body);

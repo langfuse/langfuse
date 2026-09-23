@@ -1,20 +1,12 @@
 import React, { useEffect, useImperativeHandle, useRef, useState } from "react";
-import Link from "next/link";
-import { Plus, Settings2 } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
+import { ScoreDataTypeEnum, type ScoreConfigDataType } from "@langfuse/shared";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import Header from "@/src/components/layouts/header";
-import { PopoverController } from "@/src/components/ui/popover";
-import {
-  InputCommand,
-  InputCommandEmpty,
-  InputCommandGroup,
-  InputCommandInput,
-  InputCommandItem,
-  InputCommandList,
-} from "@/src/components/ui/input-command";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -27,6 +19,7 @@ import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAna
 import {
   annotationFieldKey,
   getScoreConfigSelection,
+  preferredAnnotationTargets,
 } from "@/src/features/scores/lib/annotationConfigSelection";
 import { useMergedAnnotationScores } from "@/src/features/scores/lib/useMergedAnnotationScores";
 import { prepareAnnotationFormData } from "@/src/features/scores/lib/prepareAnnotationFormData";
@@ -37,6 +30,7 @@ import { useAnnotationKeyboard } from "@/src/features/scores/hooks/useAnnotation
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import { AnnotationScoreRow } from "@/src/features/scores/components/AnnotationScoreRow";
 import { AnnotationSaveStatus } from "@/src/features/scores/components/AnnotationSaveStatus";
+import { CreateScoreConfigDialogController } from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 import type {
   AnnotateFormSchemaType,
   AnnotationScoreSchemaType,
@@ -45,6 +39,13 @@ import type {
   AnnotationForm as AnnotationFormType,
   AnnotationRefreshHandle,
 } from "@/src/features/scores/types";
+
+const scoreDataTypeLabels = {
+  [ScoreDataTypeEnum.NUMERIC]: "Numeric",
+  [ScoreDataTypeEnum.CATEGORICAL]: "Categorical",
+  [ScoreDataTypeEnum.BOOLEAN]: "Boolean",
+  [ScoreDataTypeEnum.TEXT]: "Text",
+} satisfies Record<ScoreConfigDataType, string>;
 
 function AnnotateHeader({
   saveStatus,
@@ -221,89 +222,6 @@ export function AnnotationFormContent({
     (field) =>
       isTextDataType(field.dataType) || isNumericDataType(field.dataType),
   );
-  const addScoreControl =
-    allowManualSelection && isActive ? (
-      <PopoverController
-        align="start"
-        contentClassName="w-64 p-0"
-        disabled={addableOptions.length === 0}
-        modal={false}
-        renderContent={({ closePopover }) => (
-          <InputCommand>
-            <InputCommandInput
-              placeholder="Search scores..."
-              variant="bottom"
-            />
-            <InputCommandList className="max-h-72">
-              <InputCommandEmpty>No scores found.</InputCommandEmpty>
-              <InputCommandGroup>
-                {addableOptions.map((option) => (
-                  <InputCommandItem
-                    key={option.value}
-                    value={option.value}
-                    keywords={[option.label]}
-                    className="cursor-pointer"
-                    onSelect={() => {
-                      closePopover();
-                      const controlledFields = form.getValues("scoreData");
-                      getScoreConfigSelection({
-                        targets,
-                        controlledFields,
-                        insert,
-                        remove,
-                      }).addScore(option.value);
-                    }}
-                  >
-                    {option.label}
-                  </InputCommandItem>
-                ))}
-              </InputCommandGroup>
-            </InputCommandList>
-          </InputCommand>
-        )}
-      >
-        {({ Trigger, disabled }) => (
-          <Trigger asChild>
-            <Button
-              data-add-score
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-xs"
-              disabled={disabled}
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add score
-            </Button>
-          </Trigger>
-        )}
-      </PopoverController>
-    ) : null;
-  const manageScoreConfigsControl = allowManualSelection ? (
-    <Button
-      variant="outline"
-      size="sm"
-      className="bg-accent gap-1.5 text-xs"
-      asChild
-    >
-      <Link
-        href={`/project/${scoreMetadata.projectId}/settings/scores`}
-        target="_blank"
-        onClick={() => {
-          capture("score_configs:manage_configs_item_click", analyticsData);
-        }}
-        onAuxClick={(event) => {
-          if (event.button === 1) {
-            capture("score_configs:manage_configs_item_click", analyticsData);
-          }
-        }}
-      >
-        <Settings2 className="size-3" aria-hidden="true" />
-        Manage score configs
-      </Link>
-    </Button>
-  ) : null;
-
   return (
     <div
       ref={formRootRef}
@@ -316,7 +234,102 @@ export function AnnotationFormContent({
           saveStatus={<AnnotationSaveStatus form={form} actions={actions} />}
           actionButtons={
             <>
-              {addScoreControl}
+              {allowManualSelection && isActive ? (
+                <CreateScoreConfigDialogController
+                  projectId={scoreMetadata.projectId}
+                  onAfterCreate={(config) => {
+                    const target = preferredAnnotationTargets(targets).find(
+                      (target) => target.configControl.allowManualSelection,
+                    );
+                    if (!target) return;
+
+                    const controlledFields = form.getValues("scoreData");
+                    const nextIndex = controlledFields.findIndex(
+                      (field) => field.name.localeCompare(config.name) > 0,
+                    );
+                    insert(
+                      nextIndex < 0 ? controlledFields.length : nextIndex,
+                      {
+                        targetKey: target.key,
+                        id: null,
+                        configId: config.id,
+                        name: config.name,
+                        dataType: config.dataType,
+                        value: null,
+                        stringValue: null,
+                        comment: null,
+                      },
+                    );
+                    target.configControl.setSelectedConfigIds([
+                      ...target.configControl.selectedConfigIds,
+                      config.id,
+                    ]);
+                  }}
+                >
+                  {(createControl) => (
+                    <DropdownMenu
+                      maxHeight="18rem"
+                      search={{ placeholder: "Search scores..." }}
+                      items={[
+                        ...addableOptions.map((option) => ({
+                          type: "item" as const,
+                          id: option.value,
+                          title: `${option.config.name} (${scoreDataTypeLabels[option.config.dataType]})`,
+                          onClick: () => {
+                            const controlledFields =
+                              form.getValues("scoreData");
+                            getScoreConfigSelection({
+                              targets,
+                              controlledFields,
+                              insert,
+                              remove,
+                            }).addScore(option.value);
+                          },
+                        })),
+                        { type: "separator", id: "score-config-actions" },
+                        {
+                          type: "item",
+                          id: "create-score-config",
+                          title: "Add score config",
+                          icon: Plus,
+                          disabled: createControl.disabled,
+                          searchBehavior: "show-when-no-results",
+                          onClick: createControl.openDialog,
+                        },
+                        {
+                          type: "item",
+                          id: "view-score-config-settings",
+                          title: "Score settings",
+                          icon: ExternalLink,
+                          searchBehavior: "hide",
+                          href: `/project/${scoreMetadata.projectId}/settings/scores`,
+                          linkTarget: "_blank",
+                          onAfterNavigate: () => {
+                            capture(
+                              "score_configs:manage_configs_item_click",
+                              analyticsData,
+                            );
+                          },
+                        },
+                      ]}
+                    >
+                      {({ getTriggerProps }) => (
+                        <Button
+                          data-add-score
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 text-xs"
+                          {...getTriggerProps()}
+                        >
+                          <Plus className="size-3.5" aria-hidden="true" />
+                          Add score
+                        </Button>
+                      )}
+                    </DropdownMenu>
+                  )}
+                </CreateScoreConfigDialogController>
+              ) : null}
               {actionButtons}
             </>
           }
@@ -387,9 +400,6 @@ export function AnnotationFormContent({
             ) : null;
           })}
         </div>
-        {manageScoreConfigsControl ? (
-          <div>{manageScoreConfigsControl}</div>
-        ) : null}
         {rowCount > 0 && (
           // This legend only exists to advertise keyboard shortcuts, so hide
           // the whole strip on touch viewports rather than just the kbd
