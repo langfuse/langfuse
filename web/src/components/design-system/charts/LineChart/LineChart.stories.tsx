@@ -15,6 +15,7 @@ type LineChartStoryProps = {
     | "empty"
     | "many-lines"
     | "boundary-points"
+    | "negative-values"
     | "category-short-labels"
     | "category-long-labels"
     | "category-hidden-labels";
@@ -49,6 +50,7 @@ const LineChartDemo = (props: LineChartStoryProps) => {
   }> = data;
   if (props.variant === "many-lines") chartData = manyLinesData;
   if (props.variant === "boundary-points") chartData = boundaryPointData;
+  if (props.variant === "negative-values") chartData = negativeData;
   if (props.variant === "empty") chartData = [];
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
@@ -89,6 +91,11 @@ const data = Array.from({ length: 14 }, (_, index) => ({
 const boundaryPointData = [
   { x: new Date(Date.UTC(2026, 8, 1)), values: { api: 0, worker: null } },
   { x: new Date(Date.UTC(2026, 8, 2)), values: { api: 100, worker: null } },
+];
+
+const negativeData = [
+  { x: new Date(Date.UTC(2026, 8, 1)), values: { api: -8, worker: null } },
+  { x: new Date(Date.UTC(2026, 8, 2)), values: { api: -3, worker: null } },
 ];
 
 const manyLinesSeries: LineChartSeries[] = Array.from(
@@ -157,6 +164,16 @@ export const BoundaryPoints = meta.story({
         (point.ownerSVGElement?.height.baseVal.value ?? 0) - 37,
       );
     }
+  },
+});
+
+export const NegativeValues = meta.story({
+  name: "(Test) Negative Values",
+  args: { variant: "negative-values" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelector("[data-zero-baseline]"),
+    ).toBeInTheDocument();
   },
 });
 
@@ -265,6 +282,7 @@ export const CategoryLongLabels = meta.story({
       "tooltip",
     );
     await expect(tooltip).toHaveTextContent(categoryData[0]?.x ?? "");
+    await expect(tooltip.querySelector("svg")).toBeNull();
   },
 });
 

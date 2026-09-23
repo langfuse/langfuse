@@ -33,7 +33,7 @@ type TooltipData = {
 } & (
   | {
       type: "items";
-      items: Array<TooltipItem & { id: string; color: string }>;
+      items: Array<TooltipItem & { id: string }>;
       emphasizedItemId?: string;
       label?: never;
       value?: never;
@@ -45,7 +45,7 @@ type TooltipData = {
       items?: never;
       label: string;
       value: string;
-      color: string;
+      color?: string;
       details?: Array<Omit<TooltipItem, "color">>;
       emphasizedItemId?: never;
     }
@@ -206,7 +206,7 @@ export function ChartTooltip({
                 <div
                   className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity duration-150 ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
                 >
-                  {item.kind !== "detail" ? (
+                  {item.kind !== "detail" && item.color ? (
                     <svg
                       viewBox="0 0 10 10"
                       className="size-2.5 shrink-0"
@@ -214,9 +214,10 @@ export function ChartTooltip({
                     >
                       <rect width="10" height="10" rx="2" fill={item.color} />
                     </svg>
-                  ) : (
+                  ) : null}
+                  {item.kind === "detail" ? (
                     <span className="w-2.5 shrink-0" />
-                  )}
+                  ) : null}
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-x-3">
                     <span
                       className={`${item.emphasis === "emphasized" ? "text-foreground" : "text-muted-foreground"} truncate`}
