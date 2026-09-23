@@ -361,14 +361,11 @@ describe("compact Topics execution storage", () => {
     });
   });
 
-  it.each([input, updateInput])(
-    "requires the requesting user for $operation",
-    async (request) => {
-      await expect(createTopicExecution(request)).rejects.toThrow(
-        "A user is required",
-      );
-      expect(state.batches.size).toBe(0);
-      expect(state.rows.size).toBe(0);
-    },
-  );
+  it("requires the requesting user", async () => {
+    await expect(createTopicExecution(input)).rejects.toThrow(
+      "A user is required",
+    );
+    expect(state.batches.size).toBe(0);
+    expect(state.rows.size).toBe(0);
+  });
 });

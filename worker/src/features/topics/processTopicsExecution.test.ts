@@ -557,33 +557,6 @@ describe("Topics execution", () => {
     expect(state.resultReads).not.toHaveBeenCalled();
   });
 
-  it("retries assignment from Redis with stable writes and no result reads", async () => {
-    await processSelection("source", 100);
-    await updateSelection("map");
-    state.resultReads.mockReset().mockImplementation(() => {
-      throw new Error("Unexpected ClickHouse result read");
-    });
-    state.assignmentWrites
-      .mockReset()
-      .mockRejectedValueOnce(new Error("Insert acknowledgement lost"));
-    await processSelection("incoming", 1, ["trace100"]);
-    expect(state.executions.get("incoming")?.status).toBe(
-      "completed_with_errors",
-    );
-    expect(state.staged.size).toBe(1);
-    const firstWrite = structuredClone(state.assignmentWrites.mock.calls[0][0]);
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "incoming",
-    });
-    expect(state.executions.get("incoming")?.status).toBe("completed");
-    expect(state.assignmentWrites.mock.calls[1][0]).toEqual(firstWrite);
-    expect(state.staged.size).toBe(0);
-    expect(state.summarize).toHaveBeenCalledTimes(101);
-    expect(state.embed).toHaveBeenCalledTimes(101);
-    expect(state.resultReads).not.toHaveBeenCalled();
-  });
-
   it.each([
     { facetId: "issues", version: 1 },
     { facetId: "facet", version: 2 },
@@ -599,6 +572,11 @@ describe("Topics execution", () => {
         projectId: "project",
         executionId: "source",
       });
+      expect(
+        state.events.filter((event) => event.startsWith("load:")),
+      ).toHaveLength(100);
+      expect(state.summarize).toHaveBeenCalledTimes(200);
+      expect(state.summaries.size).toBe(200);
       state.executions.set(
         "maps",
         execution("maps", 0, "update", [facet, issues]),
@@ -609,13 +587,16 @@ describe("Topics execution", () => {
       });
       state.summarize.mockClear();
       state.embed.mockClear();
-      state.resultReads.mockClear();
+      state.resultReads.mockReset().mockImplementation(() => {
+        throw new Error("Unexpected ClickHouse result read");
+      });
       state.assignments.clear();
       state.executions.set(
         "partial-assignment",
         execution("partial-assignment", 1, "process", [facet, issues]),
       );
       state.assignmentWrites
+        .mockReset()
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(new Error("Insert failed"));
       await processTopicsExecution({
@@ -627,6 +608,13 @@ describe("Topics execution", () => {
           .get("partial-assignment")
           ?.facets.map((f) => f.outcome),
       ).toEqual(["assigned", "failed"]);
+      expect(state.executions.get("partial-assignment")?.status).toBe(
+        "completed_with_errors",
+      );
+      expect(state.staged.size).toBe(2);
+      const failedWrite = structuredClone(
+        state.assignmentWrites.mock.calls[1][0],
+      );
       for (const [id, row] of state.staged) {
         if (
           row.summary.facetId === facet.facetId &&
@@ -644,6 +632,7 @@ describe("Topics execution", () => {
         "completed",
       );
       expect(state.assignments.size).toBe(2);
+      expect(state.assignmentWrites.mock.calls[2][0]).toEqual(failedWrite);
       expect(state.staged.size).toBe(0);
       expect(state.summarize).toHaveBeenCalledTimes(2);
       expect(state.embed).toHaveBeenCalledTimes(2);
@@ -728,23 +717,6 @@ describe("Topics execution", () => {
         usageDetails: {},
       }),
     );
-  });
-
-  it("shares one transcript per trace across facets", async () => {
-    const issues = { ...facet, facetId: "issues" };
-    state.executions.set(
-      "multi",
-      execution("multi", 3, "process", [facet, issues]),
-    );
-    await processTopicsExecution({
-      projectId: "project",
-      executionId: "multi",
-    });
-    expect(
-      state.events.filter((event) => event.startsWith("load:")),
-    ).toHaveLength(3);
-    expect(state.summarize).toHaveBeenCalledTimes(6);
-    expect(state.summaries.size).toBe(6);
   });
 
   it("preserves partially accepted summaries after a provider interruption", async () => {

@@ -107,21 +107,18 @@ describe("Topics facet prompt versions", () => {
     }));
   });
 
-  it("keeps the same version when saving an unchanged prompt", async () => {
-    const version = await createTopicFacetVersion({
+  it("creates an immutable version only when the trimmed prompt changes", async () => {
+    const unchanged = await createTopicFacetVersion({
       projectId: "project-a",
       facetId: "facet-a",
       prompt: " Describe the task. ",
     });
-    expect(version).toMatchObject({
+    expect(unchanged).toMatchObject({
       projectId: "project-a",
       facetId: "facet-a",
       version: 2,
     });
     expect(mocks.create).not.toHaveBeenCalled();
-  });
-
-  it("creates an immutable version only for a changed prompt", async () => {
     const version = await createTopicFacetVersion({
       projectId: "project-a",
       facetId: "facet-a",
@@ -160,7 +157,7 @@ beforeEach(() => {
 });
 
 describe("Topics clustering attempts", () => {
-  it("round-trips the first start time without resetting it on resume", async () => {
+  it("preserves the first start time through resume and completion of an empty map", async () => {
     let stored = runRow();
     mocks.runFind.mockImplementation(async () => stored);
     mocks.runUpdate.mockImplementation(async ({ data }) => {
@@ -182,6 +179,13 @@ describe("Topics clustering attempts", () => {
     expect(resumed.startedAt).toBe(firstStart);
     const cleared = await saveTopicRun({ ...resumed, startedAt: null });
     expect(cleared.startedAt).toBe(firstStart);
+    expect(
+      await saveTopicRun({
+        ...cleared,
+        status: "completed",
+        finishedAt: "2026-09-16T00:03:00.000Z",
+      }),
+    ).toMatchObject({ status: "completed", topics: [], startedAt: firstStart });
   });
 });
 
@@ -232,29 +236,6 @@ describe("Topics serving maps", () => {
     });
   });
 
-  it("loads a project's map definitions without reading its cohort", async () => {
-    const row = runRow({ status: "completed", topicVersionIds: ["topic-a"] });
-    mocks.runFind.mockImplementation(async ({ where }) =>
-      where.projectId === row.projectId && where.id === row.id ? row : null,
-    );
-    const topic = {
-      topicVersionId: "topic-a",
-      projectId: row.projectId,
-      centroid: [1, 0],
-      metadata: {},
-    };
-    mocks.topicFind.mockResolvedValue([topic]);
-    const map = await getTopicRun(row.projectId, row.id);
-    expect(map).toMatchObject({
-      id: row.id,
-      projectId: row.projectId,
-      facetId: row.facetId,
-      facetVersion: 1,
-      topics: [topic],
-    });
-    expect(await getTopicRun("other-project", row.id)).toBeNull();
-  });
-
   it("selects completed maps by facet version then creation time and ID, excluding skipped runs", async () => {
     mocks.runFind.mockResolvedValue(null);
     expect(await getPublishedTopicRun("project-a", "facet-a")).toBeNull();
@@ -270,22 +251,6 @@ describe("Topics serving maps", () => {
         { id: "desc" },
       ],
     });
-  });
-
-  it("allows a completed empty map", async () => {
-    const row = runRow();
-    mocks.runFind.mockResolvedValue(row);
-    mocks.runUpdate.mockImplementation(async ({ data }) => ({
-      ...row,
-      ...data,
-    }));
-    const run = (await getTopicRun("project-a", "run-a"))!;
-    const completed = await saveTopicRun({
-      ...run,
-      status: "completed",
-      finishedAt: "2026-09-16T00:01:00.000Z",
-    });
-    expect(completed).toMatchObject({ status: "completed", topics: [] });
   });
 
   it.each(["completed", "skipped"])(
@@ -352,7 +317,10 @@ describe("Topics immutable definitions and run membership", () => {
       ],
       ["run-b", runRow({ id: "run-b" })],
     ]);
-    mocks.runFind.mockImplementation(async ({ where }) => rows.get(where.id));
+    mocks.runFind.mockImplementation(async ({ where }) => {
+      const row = rows.get(where.id);
+      return row?.projectId === where.projectId ? row : null;
+    });
     mocks.topicFind.mockImplementation(async (_project, ids: string[]) =>
       ids.includes(topic.topicVersionId) ? [topic] : [],
     );
@@ -363,7 +331,14 @@ describe("Topics immutable definitions and run membership", () => {
     });
     const run = (await getTopicRun("project-a", "run-b"))!;
     const saved = await saveTopicRun({ ...run, topics: [topic] });
-    expect(saved.topics).toEqual([topic]);
+    expect(saved).toMatchObject({
+      id: "run-b",
+      projectId: "project-a",
+      facetId: "facet-a",
+      facetVersion: 1,
+      topics: [topic],
+    });
+    expect(await getTopicRun("other-project", "run-b")).toBeNull();
     expect(saved.topics[0].createdByRunId).toBe("run-a");
     expect(mocks.topicWrite).not.toHaveBeenCalled();
     expect((await getTopicRun("project-a", "run-a"))!.topics).toEqual([topic]);

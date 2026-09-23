@@ -155,38 +155,6 @@ describe("Topics project allowlist", () => {
 });
 
 describe("Topics coordinator waiting", () => {
-  it("keeps unchanged polls out of the coordinator and retains unfinished batches", async () => {
-    const job = waitingJob();
-    const run = () =>
-      topicsQueueProcessor(
-        job as unknown as Parameters<typeof topicsQueueProcessor>[0],
-      );
-    await expect(run()).rejects.toBeInstanceOf(DelayedError);
-    expect(mocks.process).not.toHaveBeenCalled();
-    expect(job.updateData).not.toHaveBeenCalled();
-    expect(job.moveToDelayed).toHaveBeenCalledWith(
-      expect.any(Number),
-      "lock-token",
-    );
-
-    mocks.state.mockImplementation(async (_scope, id) =>
-      id === "batch-a" ? "complete" : "pending",
-    );
-    await expect(run()).rejects.toBeInstanceOf(DelayedError);
-    expect(job.data.pendingEmbeddingBatchIds).toEqual(["batch-b"]);
-    expect(mocks.process).not.toHaveBeenCalled();
-
-    mocks.state.mockResolvedValue("complete");
-    await run();
-    expect(mocks.process).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        ...job.data.payload,
-        saveBatchState: expect.any(Function),
-      }),
-    );
-    expect(job.data.pendingEmbeddingBatchIds).toEqual([]);
-  });
-
   it.each(["failed", "missing"])(
     "returns a %s batch to the coordinator for recovery",
     async (state) => {
@@ -211,7 +179,7 @@ describe("Topics coordinator waiting", () => {
     mocks.process.mockImplementationOnce(async ({ saveBatchState }) => {
       await saveBatchState(accepted);
       expect(mocks.progress).toHaveBeenCalledWith("0", accepted);
-      return { pendingEmbeddingBatchIds: ["embedding-batch"] };
+      return { pendingEmbeddingBatchIds: ["batch-a", "batch-b"] };
     });
     const run = () =>
       topicsQueueProcessor(
@@ -219,12 +187,25 @@ describe("Topics coordinator waiting", () => {
       );
     await expect(run()).rejects.toBeInstanceOf(DelayedError);
     expect(job.data.batchState).toBe(accepted);
-    expect(job.data.pendingEmbeddingBatchIds).toEqual(["embedding-batch"]);
+    expect(job.data.pendingEmbeddingBatchIds).toEqual(["batch-a", "batch-b"]);
     expect(mocks.progress).toHaveBeenLastCalledWith("0", accepted);
+    expect(job.moveToDelayed).toHaveBeenCalledWith(
+      expect.any(Number),
+      "lock-token",
+    );
     const progressCalls = mocks.progress.mock.calls.length;
+    const updateCalls = job.updateData.mock.calls.length;
     await expect(run()).rejects.toBeInstanceOf(DelayedError);
     expect(mocks.process).toHaveBeenCalledOnce();
     expect(mocks.progress).toHaveBeenCalledTimes(progressCalls);
+    expect(job.updateData).toHaveBeenCalledTimes(updateCalls);
+
+    mocks.state.mockImplementation(async (_scope, id) =>
+      id === "batch-a" ? "complete" : "pending",
+    );
+    await expect(run()).rejects.toBeInstanceOf(DelayedError);
+    expect(job.data.pendingEmbeddingBatchIds).toEqual(["batch-b"]);
+    expect(mocks.process).toHaveBeenCalledOnce();
 
     mocks.state.mockResolvedValue("complete");
     mocks.process.mockImplementationOnce(
@@ -237,6 +218,7 @@ describe("Topics coordinator waiting", () => {
       },
     );
     await run();
+    expect(job.data.pendingEmbeddingBatchIds).toEqual([]);
     expect(job.data.batchState?.summaries).toEqual(accepted.summaries);
     expect(mocks.progress).toHaveBeenLastCalledWith(
       "0",

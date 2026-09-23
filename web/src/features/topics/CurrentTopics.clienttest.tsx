@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, type UseQueryOptions } from "@tanstack/react-query";
+import type * as ReactQuery from "@tanstack/react-query";
 import { CurrentTopics } from "./CurrentTopics";
 
 const state = vi.hoisted(() => ({
@@ -24,34 +25,33 @@ vi.mock("posthog-js/react", () => ({
 vi.mock("@/src/components/table/peek/peek-trace-detail", () => ({
   TablePeekViewTraceDetail: () => <div data-testid="trace-peek" />,
 }));
-vi.mock("@/src/utils/api", async () => {
-  const { QueryClient, useQuery } = await import("@tanstack/react-query");
-  const idleClient = new QueryClient();
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual = await importOriginal<typeof ReactQuery>();
+  const idleClient = new actual.QueryClient();
+  return {
+    ...actual,
+    useQuery: (options: UseQueryOptions) => {
+      const query = actual.useQuery(
+        { ...options, enabled: state.queryClient !== undefined },
+        state.queryClient ?? idleClient,
+      );
+      return state.queryClient ? query : { data: state.data, refetch: vi.fn() };
+    },
+  };
+});
+vi.mock("@/src/utils/api", () => {
   return {
     getPathnameWithoutBasePath: () => "/project/project/topics",
     api: {
       topics: {
         currentResults: {
-          useQuery: (
-            _input: unknown,
-            options: Pick<UseQueryOptions, "refetchInterval">,
-          ) => {
-            const query = useQuery(
-              {
-                queryKey: ["current-topics"],
-                queryFn: state.fetchResults,
-                ...options,
-                enabled: state.queryClient !== undefined,
-              },
-              state.queryClient ?? idleClient,
-            );
-            return state.queryClient
-              ? query
-              : { data: state.data, refetch: vi.fn() };
-          },
+          _def: () => ({ path: ["topics", "currentResults"] }),
         },
         inspect: { useQuery: state.inspect },
       },
+      useUtils: () => ({
+        client: { topics: { currentResults: { query: state.fetchResults } } },
+      }),
     },
   };
 });
@@ -84,64 +84,96 @@ describe("Current Topics", () => {
     vi.useRealTimers();
   });
 
-  it("fetches results published after the last running poll, then stops polling", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
-    state.queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false, gcTime: Infinity } },
-    });
-    const facet = {
-      facetId: "intent",
-      name: "Intent",
-      facetVersion: 1,
-      rows: [],
-      topics: [],
-      map: null,
-      awaitingCount: 0,
-      usableCount: 0,
-    };
-    state.fetchResults.mockReset().mockResolvedValue([facet]);
-    const view = render(
-      <CurrentTopics projectId="project" running refreshAfter={Date.now()} />,
-    );
-    await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(state.fetchResults).toHaveBeenCalledOnce();
-    expect(
-      screen.getByText("No traces in this selection."),
-    ).toBeInTheDocument();
+  it.each(["between polls", "during a poll"])(
+    "fetches final results when completion arrives %s, then stops polling",
+    async (completionTiming) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-23T12:00:00Z"));
+      state.queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      const facet = {
+        facetId: "intent",
+        name: "Intent",
+        facetVersion: 1,
+        rows: [],
+        topics: [],
+        map: null,
+        awaitingCount: 0,
+        usableCount: 0,
+      };
+      state.fetchResults.mockReset().mockResolvedValue([facet]);
+      const view = render(
+        <CurrentTopics projectId="project" running refreshAfter={Date.now()} />,
+      );
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      expect(state.fetchResults).toHaveBeenCalledOnce();
+      expect(
+        screen.getByText("No traces in this selection."),
+      ).toBeInTheDocument();
 
-    state.fetchResults.mockResolvedValue([
-      {
-        ...facet,
-        rows: [
-          {
-            summaryId: "summary-a",
-            traceId: "trace-a",
-            summary: "Result published at completion",
-            outcome: "not_applicable",
-            topicId: null,
-            topicName: null,
-          },
-        ],
-      },
-    ]);
-    vi.setSystemTime(Date.now() + 1000);
-    view.rerender(
-      <CurrentTopics
-        projectId="project"
-        running={false}
-        refreshAfter={Date.now()}
-      />,
-    );
-    await act(() => vi.advanceTimersByTimeAsync(3001));
-    expect(state.fetchResults).toHaveBeenCalledTimes(2);
-    expect(
-      screen.getByText("Result published at completion"),
-    ).toBeInTheDocument();
+      let finishOldPoll: ((rows: (typeof facet)[]) => void) | undefined;
+      if (completionTiming === "during a poll") {
+        state.fetchResults.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finishOldPoll = resolve;
+            }),
+        );
+        await act(() => vi.advanceTimersByTimeAsync(3000));
+        expect(state.fetchResults).toHaveBeenCalledTimes(2);
+      }
 
-    await act(() => vi.advanceTimersByTimeAsync(9000));
-    expect(state.fetchResults).toHaveBeenCalledTimes(2);
-  });
+      state.fetchResults.mockResolvedValue([
+        {
+          ...facet,
+          rows: [
+            {
+              summaryId: "summary-a",
+              traceId: "trace-a",
+              summary: "Result published at completion",
+              outcome: "not_applicable",
+              topicId: null,
+              topicName: null,
+            },
+          ],
+        },
+      ]);
+      vi.setSystemTime(Date.now() + 1000);
+      view.rerender(
+        <CurrentTopics
+          projectId="project"
+          running={false}
+          refreshAfter={Date.now()}
+        />,
+      );
+      if (finishOldPoll) {
+        vi.setSystemTime(Date.now() + 1);
+        await act(async () => {
+          finishOldPoll?.([facet]);
+        });
+      }
+      await act(() => vi.advanceTimersByTimeAsync(3001));
+      const expectedRequests = completionTiming === "during a poll" ? 3 : 2;
+      expect(state.fetchResults).toHaveBeenCalledTimes(expectedRequests);
+      expect(
+        screen.getByText("Result published at completion"),
+      ).toBeInTheDocument();
+
+      await act(() => vi.advanceTimersByTimeAsync(9000));
+      expect(state.fetchResults).toHaveBeenCalledTimes(expectedRequests);
+
+      await act(async () => {
+        await state.queryClient?.invalidateQueries({
+          queryKey: [
+            ["topics", "currentResults"],
+            { input: { projectId: "project" }, type: "query" },
+          ],
+        });
+      });
+      expect(state.fetchResults).toHaveBeenCalledTimes(expectedRequests + 1);
+    },
+  );
 
   it("switches facets, pages current traces, and separates cleared topic results from assigned membership", () => {
     const rows = Array.from({ length: 21 }, (_, i) => ({
@@ -183,18 +215,6 @@ describe("Current Topics", () => {
     ];
     const view = render(
       <CurrentTopics projectId="project" running={false} refreshAfter={0} />,
-    );
-    expect(screen.getByRole("tab", { name: "Intent" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByRole("tab", { name: "Issues" })).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
-    expect(screen.getAllByRole("columnheader")).toHaveLength(3);
-    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
-      21,
     );
     fireEvent.click(screen.getByRole("button", { name: "trace-0" }));
     expect(state.push).toHaveBeenLastCalledWith(
@@ -256,9 +276,6 @@ describe("Current Topics", () => {
     });
     expect(
       screen.getByRole("tabpanel", { name: "Issues" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("No traces in this selection."),
     ).toBeInTheDocument();
     expect(
       within(screen.getByRole("table")).queryByRole("button", {

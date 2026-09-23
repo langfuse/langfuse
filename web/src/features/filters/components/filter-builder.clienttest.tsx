@@ -23,11 +23,8 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 describe("filter builder change notifications", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-  });
-  it("keeps a new row controlled while choosing its column and entering a value", () => {
+  const scrollIntoView = Element.prototype.scrollIntoView;
+  beforeEach(() => {
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -37,62 +34,35 @@ describe("filter builder change notifications", () => {
       },
     );
     Element.prototype.scrollIntoView = vi.fn();
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    const onChange = vi.fn();
-    render(
-      <InlineFilterBuilder
-        columns={[
-          {
-            id: "userId",
-            name: "User ID",
-            type: "string",
-            internal: "user_id",
-          },
-        ]}
-        columnIdentifier="id"
-        filterState={[]}
-        onChange={onChange}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
-    fireEvent.click(screen.getAllByRole("combobox")[0]);
-    fireEvent.click(screen.getByRole("option", { name: "User ID" }));
-    fireEvent.change(screen.getByPlaceholderText("string"), {
-      target: { value: "user-1" },
-    });
-
-    expect(onChange).toHaveBeenLastCalledWith([
-      {
-        column: "userId",
-        type: "string",
-        operator: "=",
-        value: "user-1",
-        key: undefined,
-      },
-    ]);
-    expect(consoleError).not.toHaveBeenCalled();
+  });
+  afterEach(() => {
+    Element.prototype.scrollIntoView = scrollIntoView;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
   it.each([
     ["inline", InlineFilterBuilder],
     ["popover", PopoverFilterBuilder],
   ] as const)(
-    "%s notifies the parent once per edit, outside React state updaters",
+    "%s keeps new rows controlled and notifies the parent once per edit",
     (kind, Builder) => {
       const onChange = vi.fn();
       const consoleError = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
       function Harness() {
-        const [filters, setFilters] = useState<FilterState>([
-          { column: "name", type: "string", operator: "=", value: "first" },
-        ]);
+        const [filters, setFilters] = useState<FilterState>([]);
         return (
           <Builder
             columns={[
-              { id: "name", name: "Name", type: "string", internal: "name" },
+              {
+                id: "userId",
+                name: "User ID",
+                type: "string",
+                internal: "user_id",
+              },
             ]}
+            columnIdentifier={kind === "inline" ? "id" : undefined}
             filterState={filters}
             onChange={(next: FilterState) => {
               onChange(next);
@@ -110,6 +80,10 @@ describe("filter builder change notifications", () => {
       );
       if (kind === "popover")
         fireEvent.click(screen.getByRole("button", { name: /Filters/ }));
+      else fireEvent.click(screen.getByRole("button", { name: /Add filter/ }));
+      fireEvent.click(screen.getAllByRole("combobox")[0]);
+      fireEvent.click(screen.getByRole("option", { name: "User ID" }));
+      onChange.mockClear();
       fireEvent.change(screen.getByPlaceholderText("string"), {
         target: { value: "second" },
       });
@@ -117,10 +91,16 @@ describe("filter builder change notifications", () => {
         target: { value: "third" },
       });
 
-      expect(onChange.mock.calls.map(([filters]) => filters[0].value)).toEqual([
-        "second",
-        "third",
-      ]);
+      expect(onChange.mock.calls.map(([filters]) => filters)).toEqual(
+        ["second", "third"].map((value) => [
+          {
+            column: kind === "inline" ? "userId" : "User ID",
+            type: "string",
+            operator: "=",
+            value,
+          },
+        ]),
+      );
       expect(consoleError).not.toHaveBeenCalled();
     },
   );

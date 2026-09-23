@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { useRouter } from "next/router";
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import {
@@ -114,6 +115,14 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     typeof router.query.executionId === "string"
       ? router.query.executionId
       : null;
+  const selectedExecution = api.topics.execution.useQuery(
+    { projectId, executionId: executionId ?? "" },
+    {
+      enabled: executionId !== null,
+      refetchInterval: (query) =>
+        !query.state.data || busy(query.state.data.status) ? 1500 : false,
+    },
+  );
   const openExecution = (id: string) => {
     setHistoryOpen(false);
     router.push(
@@ -147,7 +156,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => utils.topics.currentResults.refetch({ projectId })}
+          onClick={() => utils.topics.currentResults.invalidate({ projectId })}
         >
           Refresh results
         </Button>
@@ -196,6 +205,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
                     key={executionId}
                     projectId={projectId}
                     executionId={executionId}
+                    query={selectedExecution}
                     facets={facets.data ?? []}
                     canWrite={canWrite}
                   />
@@ -247,10 +257,14 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
           />
           <CurrentTopics
             projectId={projectId}
-            refreshAfter={executions.dataUpdatedAt}
+            refreshAfter={Math.max(
+              executions.dataUpdatedAt,
+              selectedExecution.dataUpdatedAt,
+            )}
             running={
-              executions.data?.some((execution) => busy(execution.status)) ??
-              false
+              Boolean(
+                executions.data?.some((execution) => busy(execution.status)),
+              ) || busy(selectedExecution.data?.status ?? "")
             }
           />
           {facets.isLoading && <p>Loading facets…</p>}
@@ -377,22 +391,20 @@ function FacetEditor({
 function ExecutionPanel({
   projectId,
   executionId,
+  query,
   facets,
   canWrite,
 }: {
   projectId: string;
   executionId: string;
+  query: UseQueryResult<
+    RouterOutputs["topics"]["execution"],
+    { message: string }
+  >;
   facets: TopicFacet[];
   canWrite: boolean;
 }) {
   const utils = api.useUtils();
-  const query = api.topics.execution.useQuery(
-    { projectId, executionId },
-    {
-      refetchInterval: (state) =>
-        !state.state.data || busy(state.state.data.status) ? 1500 : false,
-    },
-  );
   const retry = api.topics.retry.useMutation({
     onSuccess: () =>
       Promise.all([

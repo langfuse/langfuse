@@ -104,25 +104,6 @@ describe("Topics naming boundary", () => {
     expect(state.call).not.toHaveBeenCalled();
   });
 
-  it("accepts a grounded label and records the naming model usage", async () => {
-    state.call.mockResolvedValue({
-      output: {
-        name: "Invoice assistance",
-        description: "Requests involving subscription invoices.",
-        evidenceSummaryIds: ["member-a"],
-      },
-      usage: { inputTokens: 100, outputTokens: 30 },
-    });
-    const result = await nameTopicGroup(evidence);
-    expect(result.output).toMatchObject({
-      name: "Invoice assistance",
-      evidenceSummaryIds: ["member-a"],
-    });
-    expect(state.call).toHaveBeenCalledTimes(1);
-    expect(state.call.mock.calls[0][0].model.id).toBe("gpt-5.6-luna");
-    expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
-  });
-
   it("names the complete cohort without shortening member summaries", async () => {
     const members = Array.from({ length: 400 }, (_, index) => ({
       id: String(index).padStart(48, "0"),
@@ -136,7 +117,14 @@ describe("Topics naming boundary", () => {
       },
       usage: { inputTokens: 16000, outputTokens: 30 },
     });
-    await nameTopicGroup({ members, contrasts: [] });
+    const result = await nameTopicGroup({ members, contrasts: [] });
+    expect(result.output).toMatchObject({
+      name: "Invoice assistance",
+      evidenceSummaryIds: [members[399].id],
+    });
+    expect(state.call).toHaveBeenCalledOnce();
+    expect(state.call.mock.calls[0][0].model.id).toBe("gpt-5.6-luna");
+    expect(result.costDetails.total).toBeCloseTo(0.003236, 10);
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,
     );

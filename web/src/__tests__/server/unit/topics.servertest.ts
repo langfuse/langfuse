@@ -743,93 +743,6 @@ describe("Topics local execution access and publication", () => {
     expect(mocks.getTopicSummaryCounts).not.toHaveBeenCalled();
   });
 
-  it("allows a viewer to read current results without returning vectors, but forbids execution", async () => {
-    mocks.listTopicFacets.mockResolvedValue([
-      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
-    ]);
-    mocks.getPublishedTopicRun.mockResolvedValue(run);
-    mocks.readLatestTopicAssignments.mockResolvedValue([
-      {
-        summaryId: summary.id,
-        traceId: summary.traceId,
-        summaryProcessedAt: summary.processedAt,
-        topicId: "topic-a",
-        topicVersionId: "topic-version-a",
-      },
-    ]);
-    mocks.getTopicDefinitions.mockResolvedValue([
-      { ...run.topics[0], topicVersionId: "topic-version-a" },
-    ]);
-    const [response] = await caller("VIEWER").currentResults({ projectId });
-    expect(response.rows).toMatchObject([
-      { summaryId: summary.id, outcome: "assigned", topicId: "topic-a" },
-    ]);
-    expect(response.map?.topics).toHaveLength(1);
-    expect(JSON.stringify(response)).not.toContain("embedding");
-    expect(JSON.stringify(response)).not.toContain("centroid");
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
-      projectId,
-      facetId,
-    );
-    expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
-      projectId,
-      facetId,
-    );
-    await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
-      code: "FORBIDDEN",
-    });
-    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
-  });
-
-  it("joins only fresh classifications to complete current summaries", async () => {
-    mocks.listTopicFacets.mockResolvedValue([
-      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
-    ]);
-    mocks.getPublishedTopicRun.mockResolvedValue(run);
-    mocks.getTopicDefinitions.mockResolvedValue([]);
-    const summaries = [
-      summary,
-      { ...summary, id: "stale", traceId: "stale" },
-      {
-        ...summary,
-        id: "terminal",
-        traceId: "terminal",
-        state: "not_applicable",
-      },
-    ];
-    mocks.getLatestFacetSummaries.mockResolvedValue(summaries);
-    mocks.readLatestTopicAssignments.mockResolvedValue(
-      summaries.map((row) => ({
-        summaryId: row.id,
-        traceId: row.traceId,
-        summaryProcessedAt:
-          row.id === "stale" ? "2026-09-15T00:00:00Z" : row.processedAt,
-        topicId: row.id === "terminal" ? "topic-a" : null,
-        distance: 0.2,
-      })),
-    );
-    const [result] = await caller().currentResults({ projectId });
-    expect(result.rows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          summaryId: summary.id,
-          outcome: "outlier",
-          topicId: null,
-        }),
-        expect.objectContaining({
-          summaryId: "stale",
-          outcome: "awaiting_map",
-          topicId: null,
-        }),
-        expect.objectContaining({
-          summaryId: "terminal",
-          outcome: "not_applicable",
-          topicId: null,
-        }),
-      ]),
-    );
-  });
-
   it.each([
     { ...summary, projectId: "foreign-project" },
     { ...summary, id: "other-summary" },
@@ -1018,7 +931,7 @@ describe("Topics facet configuration", () => {
 });
 
 describe("Topics current results", () => {
-  it("uses the current map's name for retained topics even when an older map receives a later assignment", async () => {
+  it("serves current and historical topic names to viewers without exposing vectors", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       {
         id: "intent",
@@ -1039,6 +952,7 @@ describe("Topics current results", () => {
       config: {},
       topics: [
         {
+          ...run.topics[0],
           topicId: "retained",
           name: "Specific refund issues",
           description: "Current description",
@@ -1061,13 +975,14 @@ describe("Topics current results", () => {
     );
     mocks.getTopicDefinitions.mockResolvedValue(
       traces.map((id) => ({
+        ...run.topics[0],
         topicId: id.split("-")[0],
         topicVersionId: id,
         name: `Old ${id}`,
         description: `Historical ${id}`,
       })),
     );
-    const [result] = await caller().currentResults({ projectId });
+    const [result] = await caller("VIEWER").currentResults({ projectId });
     expect(result.topics).toEqual(
       expect.arrayContaining([
         {
@@ -1085,8 +1000,27 @@ describe("Topics current results", () => {
       ]),
     );
     expect(result.rows.find((row) => row.traceId === "retained")).toMatchObject(
-      { topicName: "Old retained" },
+      {
+        summaryId: "summary-retained",
+        outcome: "assigned",
+        topicId: "retained",
+        topicName: "Old retained",
+      },
     );
+    expect(result.map?.topics).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);
+    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
+      projectId,
+      "intent",
+    );
+    expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
+      projectId,
+      "intent",
+    );
+    await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
   it.each([2, 3])(
@@ -1119,7 +1053,8 @@ describe("Topics current results", () => {
         id: "waiting",
         traceId: "trace-c",
       };
-      const latest = [pending, cleared, waiting];
+      const outlier = { ...facetSummary, id: "outlier", traceId: "trace-d" };
+      const latest = [pending, cleared, waiting, outlier];
       mocks.getLatestFacetSummaries.mockImplementation(
         async (_projectId, _facetId, version) =>
           version
@@ -1136,6 +1071,12 @@ describe("Topics current results", () => {
           runId: "map-old",
           assignedAt: "2026-09-16T00:00:00Z",
         },
+        ...[cleared, outlier].map((row) => ({
+          traceId: row.traceId,
+          summaryId: row.id,
+          summaryProcessedAt: row.processedAt,
+          topicId: row === cleared ? "stable-topic" : null,
+        })),
       ]);
       mocks.getTopicDefinitions.mockResolvedValue([
         {
@@ -1157,7 +1098,7 @@ describe("Topics current results", () => {
       expect(result[0]).toMatchObject({
         facetId: "intent",
         awaitingCount: 2,
-        usableCount: configuredVersion === 2 ? 2 : 0,
+        usableCount: configuredVersion === 2 ? 3 : 0,
         topics: [],
         rows: expect.arrayContaining([
           expect.objectContaining({
@@ -1174,6 +1115,11 @@ describe("Topics current results", () => {
           expect.objectContaining({
             traceId: "trace-c",
             outcome: "awaiting_map",
+            topicId: null,
+          }),
+          expect.objectContaining({
+            traceId: "trace-d",
+            outcome: "outlier",
             topicId: null,
           }),
         ]),

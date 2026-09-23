@@ -1,5 +1,10 @@
 import { expect, it } from "vitest";
-import { buildTopicPrototypes, classifyTopic } from "./classifier";
+import type { TopicSummary } from "@langfuse/shared/topics";
+import {
+  buildNamingEvidence,
+  buildTopicPrototypes,
+  classifyTopic,
+} from "./classifier";
 import { runTopicClustering, topicClusterSettings } from "./numeric";
 
 it("fits every member through the native child and builds usable serving prototypes", async () => {
@@ -36,22 +41,45 @@ it("fits every member through the native child and builds usable serving prototy
   }
   expect(result.labels[0]).not.toBe(result.labels[501]);
 
-  const prototypes = buildTopicPrototypes(
-    embeddings.map((embedding, index) => ({ id: String(index), embedding })),
-    result.labels,
-  );
+  const summaries = embeddings.map((embedding, index) => ({
+    id: String(index),
+    summary: `Example ${index}`,
+    embedding,
+  })) as TopicSummary[];
+  const labels = [...result.labels];
+  labels[0] = -1;
+  const prototypes = buildTopicPrototypes(summaries, labels);
+  const persisted = JSON.parse(JSON.stringify(prototypes)) as typeof prototypes;
+  const evidence = buildNamingEvidence(summaries, prototypes);
+  expect(evidence).toHaveLength(2);
+  for (const group of evidence) {
+    expect(group.count).toBeGreaterThan(450);
+    expect(group.members).toHaveLength(group.count);
+    for (const member of group.members)
+      expect(
+        classifyTopic(embeddings[Number(member.id)], persisted).topicId,
+      ).toBe(group.id);
+    for (const contrast of group.contrasts)
+      expect(
+        classifyTopic(embeddings[Number(contrast.id)], persisted).topicId,
+      ).not.toBe(group.id);
+  }
+  expect(classifyTopic(embeddings[0], persisted).topicId).not.toBeNull();
+  expect(
+    classifyTopic([0, 0, 1, ...Array(13).fill(0)], persisted).topicId,
+  ).toBeNull();
   const assignments = [0, 1].map(
     (dimension) =>
       classifyTopic(
         Array.from({ length: 16 }, (_, index) => (index === dimension ? 1 : 0)),
-        prototypes,
+        persisted,
       ).topicId,
   );
   expect(assignments.every((id) => id !== null)).toBe(true);
   expect(new Set(assignments).size).toBe(2);
 }, 30_000);
 
-it("preserves insufficient-data and identical-input outcomes through the worker adapter", async () => {
+it("preserves insufficient-data and proportional-input outcomes through the worker adapter", async () => {
   expect(
     await runTopicClustering([[1, 0]], topicClusterSettings(false)),
   ).toEqual({
@@ -61,7 +89,7 @@ it("preserves insufficient-data and identical-input outcomes through the worker 
   });
   expect(
     await runTopicClustering(
-      Array.from({ length: 31 }, () => [1, 0]),
+      Array.from({ length: 31 }, (_, index) => [index + 1, 0]),
       topicClusterSettings(false, 31),
     ),
   ).toEqual({

@@ -36,11 +36,24 @@ function loadRows(...rows: Partial<typeof row>[]) {
 }
 
 describe("Topics snapshot loader", () => {
-  it("loads complete I/O through a project-scoped latest-version query", async () => {
+  it("loads complete I/O and latest non-empty metadata through a project-scoped query", async () => {
     const result = await loadRows(
-      {},
       {
-        span_id: "earlier",
+        span_id: "newest",
+        session_id: "",
+        environment: "",
+        trace_name: "",
+      },
+      {
+        span_id: "current",
+        session_id: "current-session",
+        trace_name: "Current trace",
+      },
+      {
+        span_id: "older",
+        session_id: "previous-session",
+        environment: "staging",
+        trace_name: "Old trace",
         start_time: "2026-09-15 09:00:00.000",
       },
     );
@@ -56,9 +69,14 @@ describe("Topics snapshot loader", () => {
     });
     expect(result.observations[0].output).toBe("false");
     expect(result.timestamp).toBe("2026-09-15T09:00:00.000Z");
-    expect(result.sessionId).toBe("session");
+    expect(result.sessionId).toBe("current-session");
     expect(result.environment).toBe("production");
-    expect(result.traceName).toBe("Billing requests");
+    expect(result.traceName).toBe("Current trace");
+    expect(result.observations.map((observation) => observation.id)).toEqual([
+      "newest",
+      "current",
+      "older",
+    ]);
   });
 
   it("rejects cross-project rows and refuses oversized snapshots", async () => {
@@ -68,37 +86,6 @@ describe("Topics snapshot loader", () => {
     await expect(
       loadRows({ output: "x".repeat(10 * 1024 * 1024) }),
     ).rejects.toThrow("limit");
-  });
-
-  it("keeps observations while taking the latest non-empty trace metadata", async () => {
-    const result = await loadRows(
-      {
-        span_id: "newest",
-        session_id: "",
-        environment: "",
-        trace_name: "",
-      },
-      {
-        span_id: "current",
-        session_id: "current-session",
-        environment: "production",
-        trace_name: "Current trace",
-      },
-      {
-        span_id: "older",
-        session_id: "previous-session",
-        environment: "staging",
-        trace_name: "Old trace",
-      },
-    );
-    expect(result.sessionId).toBe("current-session");
-    expect(result.environment).toBe("production");
-    expect(result.traceName).toBe("Current trace");
-    expect(result.observations.map((observation) => observation.id)).toEqual([
-      "newest",
-      "current",
-      "older",
-    ]);
   });
 
   it.each([

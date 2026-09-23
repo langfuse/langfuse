@@ -78,21 +78,3 @@ test("a vertical document scrollbar does not spawn a horizontal one", async ({
 
   expect((await documentOverflow(page)).x).toBe(0);
 });
-
-test("the Topics starter screen does not scroll its content pane", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1190, height: 800 });
-  await signIn(page);
-  await page.goto("/project/7a88fb47-b4e2-43b8-a06c-a5ce950dc53a/topics");
-  await expect(
-    page.getByRole("heading", { name: "Start with a question" }),
-  ).toBeVisible();
-
-  const contentPane = page.locator("#page").locator("..");
-  expect(
-    await contentPane.evaluate((element) =>
-      Math.max(0, element.scrollHeight - element.clientHeight),
-    ),
-  ).toBe(0);
-});

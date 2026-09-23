@@ -6,6 +6,9 @@ import TopicsPage from "./TopicsPage";
 const state = vi.hoisted(() => ({
   query: {} as Record<string, string>,
   status: "failed",
+  inHistory: true,
+  executionsUpdatedAt: 100,
+  executionUpdatedAt: 110,
   push: vi.fn(),
   replace: vi.fn(),
   retry: vi.fn(),
@@ -54,10 +57,18 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 }));
 vi.mock("./TopicPipelineForm", () => ({ TopicPipelineForm: () => null }));
 vi.mock("./CurrentTopics", () => ({
-  CurrentTopics: () => (
+  CurrentTopics: ({
+    running,
+    refreshAfter,
+  }: {
+    running: boolean;
+    refreshAfter: number;
+  }) => (
     <input
       aria-label="Current topic selection"
       data-testid="current-topics"
+      data-running={running}
+      data-refresh-after={refreshAfter}
       defaultValue=""
     />
   ),
@@ -79,11 +90,19 @@ vi.mock("@/src/utils/api", () => {
     api: {
       topics: {
         facets: { useQuery: () => ({ data: [] }) },
-        executions: { useQuery: () => ({ data: [execution()] }) },
+        executions: {
+          useQuery: () => ({
+            data: state.inHistory ? [execution()] : [],
+            dataUpdatedAt: state.executionsUpdatedAt,
+          }),
+        },
         initialize: { useMutation: () => ({}) },
         execution: {
           useQuery: () => ({
-            data: execution(),
+            data: state.query.executionId ? execution() : undefined,
+            dataUpdatedAt: state.query.executionId
+              ? state.executionUpdatedAt
+              : 0,
             refetch: state.refetchExecution,
           }),
         },
@@ -93,6 +112,7 @@ vi.mock("@/src/utils/api", () => {
             mutate: (input: unknown) => {
               state.retry(input);
               state.status = "queued";
+              state.executionUpdatedAt = 120;
               onSuccess();
             },
           }),
@@ -109,6 +129,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.query = { ...retainedQuery };
   state.status = "failed";
+  state.inHistory = true;
+  state.executionsUpdatedAt = 100;
+  state.executionUpdatedAt = 110;
   for (const navigate of [state.push, state.replace]) {
     navigate.mockImplementation(({ query }: { query: typeof state.query }) => {
       state.query = query;
@@ -161,8 +184,9 @@ describe("Topics execution history", () => {
     expect(current).toHaveValue("Billing");
   });
 
-  it("retries a failed run from status and refreshes its progress", () => {
+  it("refreshes current results through retry and completion for a selected run outside history", () => {
     state.query.executionId = "execution";
+    state.inHistory = false;
     const view = render(<TopicsPage />);
     const status = screen.getByRole("dialog", { name: "Run status" });
     fireEvent.click(
@@ -177,6 +201,14 @@ describe("Topics execution history", () => {
     expect(within(status).getByRole("status")).toHaveTextContent(
       "Waiting for a worker",
     );
-    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+    const current = screen.getByTestId("current-topics");
+    expect(current).toHaveAttribute("data-running", "true");
+    expect(current).toHaveAttribute("data-refresh-after", "120");
+
+    state.status = "completed";
+    state.executionUpdatedAt = 130;
+    view.rerender(<TopicsPage />);
+    expect(current).toHaveAttribute("data-running", "false");
+    expect(current).toHaveAttribute("data-refresh-after", "130");
   });
 });

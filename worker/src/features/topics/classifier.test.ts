@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildNamingEvidence,
   buildTopicPrototypes,
   classifyTopic,
   normalizeVector,
   retainPopulatedTopics,
 } from "./classifier";
-import type { TopicSummary } from "@langfuse/shared/topics";
 
 describe("Topics original-space classifier", () => {
   it("drops a boundary-only topic when a reused version wins distance ties", () => {
@@ -46,47 +44,6 @@ describe("Topics original-space classifier", () => {
     expect(classifyTopic([0.7, 0.3, 0.11], prototypes)).toMatchObject({
       topicId: null,
     });
-  });
-
-  it("names effective members and preserves assignments through JSON persistence", () => {
-    const summaries = Array.from({ length: 40 }, (_, i) => ({
-      id: `s${i}`,
-      summary: `Example ${i}`,
-      embedding:
-        i < 20 ? [1, Math.sin(i) * 0.03, 0] : [Math.sin(i) * 0.03, 1, 0],
-    })) as TopicSummary[];
-    const labels = summaries.map((_, i) => (i < 20 ? 0 : 1));
-    labels[0] = -1;
-    const prototypes = buildTopicPrototypes(summaries, labels);
-    const persisted = JSON.parse(
-      JSON.stringify(prototypes),
-    ) as typeof prototypes;
-    const evidence = buildNamingEvidence(summaries, prototypes);
-    expect(evidence).toHaveLength(2);
-    for (const group of evidence) {
-      expect(group.count).toBeGreaterThan(15);
-      expect(group.members).toHaveLength(group.count);
-      for (const member of group.members) {
-        const summary = summaries.find((row) => row.id === member.id)!;
-        expect(classifyTopic(summary.embedding, persisted).topicId).toBe(
-          group.id,
-        );
-      }
-      for (const contrast of group.contrasts) {
-        expect(
-          classifyTopic(
-            summaries.find((row) => row.id === contrast.id)!.embedding,
-            persisted,
-          ).topicId,
-        ).not.toBe(group.id);
-      }
-    }
-    expect(classifyTopic([0, 0, 1], prototypes)).toMatchObject({
-      topicId: null,
-    });
-    expect(
-      classifyTopic(summaries[0].embedding, prototypes).topicId,
-    ).not.toBeNull();
   });
 
   it("calibrates with leave-one-out distances and never falls through to a farther topic", () => {

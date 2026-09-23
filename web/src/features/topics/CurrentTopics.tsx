@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Columns2 } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { getQueryKey } from "@trpc/react-query";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -35,14 +37,18 @@ export function CurrentTopics({
   refreshAfter: number;
 }) {
   const [selectedFacetId, setSelectedFacetId] = useState<string>();
-  const result = api.topics.currentResults.useQuery(
-    { projectId },
-    {
-      // Fetch results after the latest execution status response, including completion.
-      refetchInterval: (query) =>
-        running || query.state.dataUpdatedAt < refreshAfter ? 3000 : false,
-    },
-  );
+  const { client } = api.useUtils();
+  const result = useQuery({
+    queryKey: [
+      ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
+      // A completed status needs a new request, even if an older poll is in flight.
+      running ? 0 : refreshAfter,
+    ],
+    queryFn: ({ signal }) =>
+      client.topics.currentResults.query({ projectId }, { signal }),
+    placeholderData: keepPreviousData,
+    refetchInterval: running ? 3000 : false,
+  });
   const selectedFacet = result.data?.some(
     (facet) => facet.facetId === selectedFacetId,
   )

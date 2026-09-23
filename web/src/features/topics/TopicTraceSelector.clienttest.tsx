@@ -299,25 +299,9 @@ describe("Topics trace selection", () => {
     });
   });
 
-  it("selects the full cohort by default and deduplicates pasted IDs", async () => {
+  it("deduplicates pasted IDs without a preview", () => {
     const ids = Array.from({ length: 25 }, (_, i) => `trace-${i}`);
-    mocks.fetch.mockResolvedValue({
-      ...result(...ids.slice(0, 100)),
-      matchedTraceCount: ids.length,
-      selectedTraceCount: ids.length,
-    });
     setup();
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-    await waitFor(() =>
-      expect(selected()).toMatchObject({
-        count: 25,
-        selection: { limit: null },
-      }),
-    );
-    expect(mocks.fetch.mock.calls[0][0].limit).toBeNull();
-    expect(
-      screen.getAllByRole("checkbox", { name: /^Select trace / }),
-    ).toHaveLength(20);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
       button: 0,
       ctrlKey: false,
@@ -329,6 +313,7 @@ describe("Topics trace selection", () => {
     expect(
       screen.getByRole("button", { name: "Trigger topics" }),
     ).not.toBeDisabled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
   it("previews all of the displayed custom dates using an exclusive next-day boundary", async () => {

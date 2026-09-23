@@ -10,8 +10,10 @@ existing local-development and project-access checks still apply.
   while a run's status is open. Execution URL parameters open progress, errors
   and retry controls in the drawer; returning to the run list or closing the
   drawer removes only that parameter. Historical map comparison is not exposed.
-  Current results poll while work runs and refresh after the latest execution
-  status response so completion cannot leave the final output stale.
+  Current results poll while work runs, including a selected run outside recent
+  history. Once idle, a status response selects a fresh results query so an older
+  in-flight poll cannot satisfy completion. The query retains the tRPC prefix
+  for mutation and manual invalidation.
   Configure topics opens a centered dialog; Process traces or Update topics
   submits the retained configuration. Overlay owners stay outside the responsive
   header menu. Facet versions contain only prompts; processing settings and

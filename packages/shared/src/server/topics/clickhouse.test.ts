@@ -304,16 +304,16 @@ describe("Topics summary storage", () => {
     );
   });
 
-  it("batches large trace and summary lookups without dropping any selected IDs", async () => {
+  it("batches scoped trace and summary lookups without dropping any selected IDs", async () => {
     const traceIds = Array.from(
       { length: 1001 },
       (_, index) => `trace-${index}`,
     );
     for (const [filter, column] of [
-      [{ traceIds }, "trace_id"],
-      [{ ids: traceIds }, "id"],
+      [{ traceIds, facetVersion: 1 }, "trace_id"],
+      [{ ids: traceIds, facetVersion: undefined }, "id"],
     ] as const) {
-      await listTopicSummaries("project-a", filter);
+      await listTopicSummaries("project-a", { ...filter, facetId: "facet-a" });
       expect(
         mocks.query.mock.calls.flatMap(([request]) => request.params.ids),
       ).toEqual(traceIds);
@@ -322,9 +322,20 @@ describe("Topics summary storage", () => {
           ([request]) => request.params.ids.length <= 1000,
         ),
       ).toBe(true);
-      expect(mocks.query.mock.calls[0][0].query).toContain(
-        `${column} IN ({ids:Array(String)})`,
-      );
+      for (const [{ query, params }] of mocks.query.mock.calls) {
+        expect(params).toEqual({
+          projectId: "project-a",
+          facetId: "facet-a",
+          ids: expect.any(Array),
+          ...(filter.facetVersion ? { facetVersion: filter.facetVersion } : {}),
+        });
+        expect(query).toContain("project_id = {projectId:String}");
+        expect(query).toContain("facet_id = {facetId:String}");
+        expect(query).toContain(`${column} IN ({ids:Array(String)})`);
+        expect(
+          query.includes("AND facet_version = {facetVersion:UInt32}"),
+        ).toBe(Boolean(filter.facetVersion));
+      }
       mocks.query.mockClear();
     }
     const summaryIds = Array.from(
@@ -347,30 +358,6 @@ describe("Topics summary storage", () => {
       "LIMIT 1 BY project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')",
     );
   });
-
-  it.each([undefined, 1])(
-    "scopes a bounded trace lookup to the project, facet and optional version %s",
-    async (facetVersion) => {
-      await listTopicSummaries("project-a", {
-        facetId: "facet-a",
-        facetVersion,
-        traceIds: ["trace-a"],
-      });
-      const { query, params } = mocks.query.mock.calls[0][0];
-      expect(params).toEqual({
-        projectId: "project-a",
-        facetId: "facet-a",
-        ids: ["trace-a"],
-        ...(facetVersion ? { facetVersion } : {}),
-      });
-      expect(query).toContain("project_id = {projectId:String}");
-      expect(query).toContain("facet_id = {facetId:String}");
-      expect(query).toContain("trace_id IN ({ids:Array(String)})");
-      expect(query.includes("AND facet_version = {facetVersion:UInt32}")).toBe(
-        Boolean(facetVersion),
-      );
-    },
-  );
 
   it.each([
     { traceId: "trace-a", sessionId: null },
@@ -517,6 +504,32 @@ describe("Topics classifications", () => {
       expect(await readLatestTopicAssignments("project-a", "facet-a")).toEqual([
         { ...row, traceName: inserted.trace_name },
       ]);
+      expect(mocks.publishedRuns).toHaveBeenCalledWith({
+        where: {
+          projectId: "project-a",
+          facetId: "facet-a",
+          status: "completed",
+        },
+        select: { id: true },
+      });
+      const { query, params } = mocks.query.mock.calls[0][0];
+      expect(params).toEqual({
+        projectId: "project-a",
+        facetId: "facet-a",
+        publishedRunIds: ["published-run"],
+      });
+      expect(query).toContain(
+        "project_id = {projectId:String} AND facet_id = {facetId:String}",
+      );
+      expect(query).toContain(
+        "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
+      );
+      expect(query).toContain(
+        "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
+      );
+      expect(query).toContain(
+        "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
+      );
     },
   );
 
@@ -558,35 +571,5 @@ describe("Topics classifications", () => {
       expect(query.indexOf(filter)).toBeLessThan(query.indexOf("LIMIT 1 BY"));
     }
     expect(query).not.toContain("length(coordinates)");
-  });
-
-  it("reads the latest published or ad-hoc classification for each source", async () => {
-    await readLatestTopicAssignments("project-a", "facet-a");
-    expect(mocks.publishedRuns).toHaveBeenCalledWith({
-      where: {
-        projectId: "project-a",
-        facetId: "facet-a",
-        status: "completed",
-      },
-      select: { id: true },
-    });
-    const { query, params } = mocks.query.mock.calls[0][0];
-    expect(params).toEqual({
-      projectId: "project-a",
-      facetId: "facet-a",
-      publishedRunIds: ["published-run"],
-    });
-    expect(query).toContain(
-      "project_id = {projectId:String} AND facet_id = {facetId:String}",
-    );
-    expect(query).toContain(
-      "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
-    );
-    expect(query).toContain(
-      "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
-    );
-    expect(query).toContain(
-      "LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')",
-    );
   });
 });

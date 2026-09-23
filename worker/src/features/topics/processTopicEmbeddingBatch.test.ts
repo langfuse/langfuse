@@ -100,7 +100,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("Topics embedding handoff", () => {
-  it("acknowledges combined results while retaining Redis data for assignment", async () => {
+  it("retries combined results from Redis after a failed ClickHouse write", async () => {
     const applicable = summary();
     const nonApplicable: TopicSummary = {
       ...summary("empty"),
@@ -108,17 +108,10 @@ describe("Topics embedding handoff", () => {
       summary: "",
     };
     for (const row of [applicable, nonApplicable]) staged.set(row.id, row);
-    let acknowledge!: () => void;
-    mocks.write.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          acknowledge = resolve;
-        }),
-    );
-    const processing = processTopicEmbeddingBatch(
-      batch(applicable, nonApplicable),
-    );
-    await vi.waitFor(() => expect(mocks.write).toHaveBeenCalledOnce());
+    mocks.write.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
+    await expect(
+      processTopicEmbeddingBatch(batch(applicable, nonApplicable)),
+    ).rejects.toThrow("ClickHouse unavailable");
     expect(mocks.write.mock.calls[0][0]).toMatchObject([
       {
         id: applicable.id,
@@ -145,26 +138,13 @@ describe("Topics embedding handoff", () => {
       },
       { id: nonApplicable.id, state: "not_applicable", embedding: [] },
     ]);
-    expect(mocks.embed).toHaveBeenCalledOnce();
-    acknowledge();
-    await processing;
-    expect(staged.size).toBe(2);
-  });
-
-  it("reuses an embedding after a failed ClickHouse write", async () => {
-    const row = summary();
-    staged.set(row.id, row);
-    mocks.write.mockRejectedValueOnce(new Error("ClickHouse unavailable"));
-    await expect(processTopicEmbeddingBatch(batch(row))).rejects.toThrow(
-      "ClickHouse unavailable",
-    );
-    expect(staged.get(row.id)?.state).toBe("complete");
-    const completed = staged.get(row.id);
-    await processTopicEmbeddingBatch(batch(row));
+    expect(staged.get(applicable.id)?.state).toBe("complete");
+    const completed = structuredClone(mocks.write.mock.calls[0][0]);
+    await processTopicEmbeddingBatch(batch(applicable, nonApplicable));
     expect(mocks.embed).toHaveBeenCalledOnce();
     expect(mocks.write).toHaveBeenCalledTimes(2);
-    expect(mocks.write.mock.calls[1][0]).toEqual([completed]);
-    expect(staged.size).toBe(1);
+    expect(mocks.write.mock.calls[1][0]).toEqual(completed);
+    expect(staged.size).toBe(2);
   });
 
   it("persists the canonical Redis result when embedding attempts overlap", async () => {
@@ -203,12 +183,13 @@ describe("Topics embedding handoff", () => {
   });
 
   it("reports expired payloads as unrecoverable instead of regenerating summaries", async () => {
-    await expect(processTopicEmbeddingBatch(batch(summary()))).rejects.toThrow(
-      UnrecoverableError,
+    const error = await processTopicEmbeddingBatch(batch(summary())).catch(
+      (error: unknown) => error,
     );
-    await expect(processTopicEmbeddingBatch(batch(summary()))).rejects.toThrow(
-      "Start a new execution",
-    );
+    expect(error).toBeInstanceOf(UnrecoverableError);
+    expect(error).toMatchObject({
+      message: expect.stringContaining("Start a new execution"),
+    });
     expect(mocks.embed).not.toHaveBeenCalled();
     expect(mocks.write).not.toHaveBeenCalled();
   });

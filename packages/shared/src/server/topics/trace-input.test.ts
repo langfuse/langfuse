@@ -52,6 +52,12 @@ describe("shared in-memory Topics input", () => {
       { role: "system", content: "Follow the policy." },
       { role: "user", content: "Find my invoice." },
     ];
+    const call = {
+      role: "assistant",
+      tool_calls: [
+        { type: "function", function: { name: "search", arguments: "{}" } },
+      ],
+    };
     const transcript = serializeTraceTranscript(
       prepareTrace([
         {
@@ -86,8 +92,13 @@ describe("shared in-memory Topics input", () => {
           input: [
             ...prompt,
             { role: "assistant", content: "Calling billing." },
+            prompt[1],
           ],
-          output: "Please check the invoice number.",
+          output: [
+            { role: "assistant", content: "Please check the invoice number." },
+            call,
+            call,
+          ],
         },
       ]),
     );
@@ -96,6 +107,7 @@ describe("shared in-memory Topics input", () => {
     expect(transcript.text.match(/Follow the policy/g)).toHaveLength(1);
     expect(transcript.text.match(/Find my invoice/g)).toHaveLength(1);
     expect(transcript.text.match(/Calling billing/g)).toHaveLength(1);
+    expect(transcript.text.match(/\\"name\\":\\"search\\"/g)).toHaveLength(2);
     expect(transcript.text).toContain("TOOL billing");
     expect(transcript.text).toContain("Invoice not found.");
     expect(transcript.text).toContain("Please check the invoice number.");
@@ -131,12 +143,26 @@ describe("shared in-memory Topics input", () => {
           reasoning_content: "PRIVATE_REASONING",
         },
       },
+      {
+        ...observations[0],
+        id: "audio",
+        output: {
+          role: "assistant",
+          content: null,
+          audio: {
+            id: "audio-1",
+            data: "PRIVATE_AUDIO_BYTES",
+            transcript: "Please contact billing support for the refund.",
+          },
+        },
+      },
     ]);
-    const text = JSON.stringify(result.blocks);
+    const text = serializeTraceTranscript(result).text;
     expect(text).not.toContain("PRIVATE_AUDIO");
     expect(text).not.toContain("PRIVATE_REASONING");
     expect(text).not.toContain("PRIVATE_REASONING_TEXT");
     expect(text).toContain("Contact billing.");
+    expect(text).toContain("Please contact billing support for the refund.");
     const response = prepareTrace([
       {
         ...observations[0],
@@ -177,7 +203,7 @@ describe("shared in-memory Topics input", () => {
     ).toBe(true);
   });
 
-  it("retains later requests in large traces", async () => {
+  it("caps escaped JSON in large traces without losing later requests or the final response", async () => {
     const rows = Array.from({ length: 20 }, (_, index) => ({
       ...observations[0],
       id: `span-${String(index).padStart(2, "0")}`,
@@ -187,7 +213,7 @@ describe("shared in-memory Topics input", () => {
           content: index === 19 ? "LATEST_REQUEST_SENTINEL" : "Earlier request",
         },
       ],
-      output: "Large tool result. ".repeat(300),
+      output: index === 19 ? "FINAL_RESPONSE" : '\\"\n🙂'.repeat(8_000),
     }));
     vi.mocked(loadTraceSnapshot).mockResolvedValue(snapshot(rows));
     const large = await loadTopicTranscript({
@@ -198,6 +224,8 @@ describe("shared in-memory Topics input", () => {
     expect(large.transcript.text).toContain("LATEST_REQUEST_SENTINEL");
     const json = JSON.parse(large.transcript.text);
     expect(Array.isArray(json)).toBe(true);
+    expect(json.at(-2).text).toContain("FINAL_RESPONSE");
+    expect(large.transcript.text).toContain("[content omitted]");
     expect(large.transcript.coverage.truncatedBlockCount).toBeGreaterThan(0);
     for (const block of json) {
       expect(block).not.toHaveProperty("observationId");
@@ -209,44 +237,46 @@ describe("shared in-memory Topics input", () => {
     }
   });
 
-  it("caps escaped JSON text without losing the final response", () => {
-    const transcript = serializeTraceTranscript(
-      prepareTrace([
-        {
-          ...observations[0],
-          input: [{ role: "user", content: '\\"\n🙂'.repeat(8_000) }],
-          output: "FINAL_RESPONSE",
-        },
-      ]),
+  it("omits the middle deterministically while preserving boundary evidence and late errors", () => {
+    const rows: TopicsObservation[] = Array.from(
+      { length: 500 },
+      (_, index) => ({
+        ...observations[0],
+        id: `span-${String(index).padStart(3, "0")}`,
+        input:
+          index === 0
+            ? { b: 2, a: 1, request: "FIRST_REQUEST" }
+            : [{ role: "user", content: "Request" }],
+        output: index === 499 ? "FINAL_RESPONSE" : "Response",
+      }),
     );
-    expect(transcript.text.length).toBeLessThanOrEqual(10_000);
-    expect(JSON.parse(transcript.text).at(-2).text).toContain("FINAL_RESPONSE");
-    expect(transcript.text).toContain("[content omitted]");
-    expect(transcript.coverage.truncatedBlockCount).toBeGreaterThan(0);
-  });
-
-  it("omits the middle of very large traces deterministically and declares the gap", () => {
-    const rows = Array.from({ length: 500 }, (_, index) => ({
-      ...observations[0],
-      id: `span-${String(index).padStart(3, "0")}`,
-      input: [
-        { role: "user", content: index === 0 ? "FIRST_REQUEST" : "Request" },
-      ],
-      output: index === 499 ? "FINAL_RESPONSE" : "Response",
-    }));
+    rows[0].output = false;
     const transcript = serializeTraceTranscript(prepareTrace(rows));
     expect(transcript.text.length).toBeLessThanOrEqual(10_000);
     expect(transcript.text).toContain("FIRST_REQUEST");
     expect(transcript.text).toContain("FINAL_RESPONSE");
+    expect(transcript.text).toContain("false");
     expect(
       JSON.parse(transcript.text).some(
         (block: { source?: string }) => block.source === "truncation",
       ),
     ).toBe(true);
     expect(transcript.coverage.omittedBlockCount).toBeGreaterThan(0);
-    expect(serializeTraceTranscript(prepareTrace([...rows].reverse()))).toEqual(
+    const reordered = [
+      { ...rows[0], input: { a: 1, b: 2, request: "FIRST_REQUEST" } },
+      ...rows.slice(1),
+    ].reverse();
+    expect(serializeTraceTranscript(prepareTrace(reordered))).toEqual(
       transcript,
     );
+    const changed = serializeTraceTranscript(
+      prepareTrace([
+        { ...rows[0], level: "ERROR", statusMessage: "Permission denied" },
+        ...rows.slice(1),
+      ]),
+    );
+    expect(changed.text).toContain("Permission denied");
+    expect(changed.text).not.toBe(transcript.text);
   });
 
   it("keeps Gemini finish reasons and omits snake-case inline media in raw tool-call fallback", () => {

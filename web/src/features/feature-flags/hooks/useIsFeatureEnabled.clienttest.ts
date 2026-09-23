@@ -45,34 +45,21 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
-  it("requires explicit Topics opt-in even for admins with experimental features", () => {
+  it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
     mockSession({
       aiGateway: false,
       admin: true,
       enableExperimentalFeatures: true,
     });
-    const { result, rerender } = renderHook(() =>
-      useIsFeatureEnabled("langfuseTopics"),
-    );
-    expect(result.current).toBe(false);
+    const { result, rerender } = renderHook(() => ({
+      aiGateway: useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
+      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+    }));
+    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: false });
 
     mockSession({ aiGateway: false, langfuseTopics: true });
     rerender();
-    expect(result.current).toBe(true);
-  });
-
-  it("does not let admin or experimental-feature overrides enable restricted flags", () => {
-    mockSession({
-      aiGateway: false,
-      admin: true,
-      enableExperimentalFeatures: true,
-    });
-
-    const { result } = renderHook(() =>
-      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-    );
-
-    expect(result.current).toBe(false);
+    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: true });
   });
 
   it("returns the server-resolved organization flag", () => {

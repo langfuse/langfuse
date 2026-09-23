@@ -59,55 +59,6 @@ describe("Topics trace input", () => {
     }
   });
 
-  it("is independent of storage order but changes for late error evidence", () => {
-    const rows = [
-      observation("root", { type: "SPAN", input: { b: 2, a: 1 } }),
-      observation("child", {
-        parentObservationId: "root",
-        output: false,
-      }),
-    ];
-    const first = prepareTrace(rows);
-    const reordered = prepareTrace([
-      rows[1],
-      { ...rows[0], input: { a: 1, b: 2 } },
-    ]);
-    expect(serializeTraceTranscript(first)).toEqual(
-      serializeTraceTranscript(reordered),
-    );
-    expect(serializeTraceTranscript(first).text).toContain("false");
-    const changed = prepareTrace([
-      rows[0],
-      { ...rows[1], level: "ERROR", statusMessage: "Permission denied" },
-    ]);
-    expect(serializeTraceTranscript(changed).text).not.toBe(
-      serializeTraceTranscript(first).text,
-    );
-  });
-
-  it("deduplicates replayed prompts and preserves repeated ID-less tool calls", () => {
-    const user = { role: "user", content: "Search again" };
-    const assistant = { role: "assistant", content: "Found two results" };
-    const call = {
-      role: "assistant",
-      tool_calls: [
-        { type: "function", function: { name: "search", arguments: "{}" } },
-      ],
-    };
-    const prepared = prepareTrace([
-      observation("first", { input: [user], output: [assistant] }),
-      observation("second", {
-        startTime: "2026-09-15T10:00:03.000Z",
-        endTime: "2026-09-15T10:00:04.000Z",
-        input: [user, assistant, user],
-        output: [call, call],
-      }),
-    ]);
-    const input = serializeTraceTranscript(prepared);
-    expect(input.text.match(/Search again/g)).toHaveLength(1);
-    expect(input.text.match(/\\"name\\":\\"search\\"/g)).toHaveLength(2);
-  });
-
   it("keeps parallel branches, emits parent output last, and reports missing parents", () => {
     const prepared = prepareTrace([
       observation("root", { output: "All branches finished" }),
@@ -185,27 +136,5 @@ describe("Topics trace input", () => {
     const input = serializeTraceTranscript(prepared);
     expect(input.text).toContain("deliveryBlocked");
     expect(input.text).not.toContain("PRIVATE_PAYLOAD");
-  });
-
-  it("keeps an existing audio transcript without passing audio bytes to the model", () => {
-    const input = serializeTraceTranscript(
-      prepareTrace([
-        observation("audio", {
-          output: {
-            role: "assistant",
-            content: null,
-            audio: {
-              id: "audio-1",
-              data: "PRIVATE_AUDIO_BYTES",
-              transcript: "Please contact billing support for the refund.",
-            },
-          },
-        }),
-      ]),
-    );
-    expect(input.text).toContain(
-      "Please contact billing support for the refund.",
-    );
-    expect(input.text).not.toContain("PRIVATE_AUDIO_BYTES");
   });
 });
