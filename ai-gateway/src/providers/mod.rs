@@ -1,5 +1,3 @@
-//! Native provider transports. Requests use only resolved credentials, and every
-//! provider shares one execution lifecycle: admission, bounded send, byte relay.
 use std::{sync::Arc, time::Duration};
 
 use axum::{
@@ -21,17 +19,12 @@ use crate::{
     transport,
 };
 
-/// One official provider operation, relayed without translation. The public path
-/// prefix selects the provider; the route decides method, upstream path, capture
-/// and query handling.
 #[derive(Clone, Copy)]
 pub(crate) enum Route {
     OpenAiResponses,
-    /// Responses JSON sharing the Responses capture path.
     OpenAiResponsesCompact,
     OpenAiModels,
     AnthropicMessages,
-    /// Returns the native count unchanged; never recorded as billable usage.
     AnthropicCountTokens,
     AnthropicModels,
 }
@@ -48,8 +41,6 @@ impl Route {
         }
     }
 
-    /// The API format Web resolves for this route; each namespace resolves
-    /// through its provider's single inference connection.
     pub(crate) fn api_format(self) -> ApiFormat {
         match self.provider() {
             Provider::OpenAi => ApiFormat::OpenAiResponses,
@@ -74,8 +65,6 @@ impl Route {
         }
     }
 
-    /// Whether the exchange is an inference call recorded as a Langfuse generation.
-    /// Catalog listings and token counting relay bytes without customer telemetry.
     pub(crate) fn captures_generation(self) -> bool {
         matches!(
             self,
@@ -83,9 +72,6 @@ impl Route {
         )
     }
 
-    /// Request query parameters forwarded upstream. Inference routes forward none:
-    /// the Anthropic SDK's `?beta=true` carries no information beyond the
-    /// `anthropic-beta` header, and clients cannot influence routing through it.
     pub(crate) fn forwarded_query_parameters(self) -> &'static [&'static str] {
         match self {
             Self::AnthropicModels => &["limit", "after_id", "before_id"],
@@ -112,14 +98,12 @@ impl Default for ProviderLimits {
     }
 }
 
-/// An admitted execution. Dropping it releases capacity; there is no waiting queue.
 pub struct RequestPermit {
     _permit: OwnedSemaphorePermit,
     _active: crate::observability::Active,
     deadline: Instant,
 }
 
-/// A pooled client for the official provider endpoints, with one shared execution budget.
 pub struct ProviderTransport {
     client: ClientWithMiddleware,
     capacity: Arc<Semaphore>,
@@ -129,10 +113,6 @@ pub struct ProviderTransport {
 }
 
 impl ProviderTransport {
-    /// Construct the provider transport with bounded admission and transport waits.
-    ///
-    /// # Errors
-    /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
     pub fn new(max_active_requests: usize) -> Result<Self, ProviderError> {
         Self::with_limits(ProviderLimits {
             active: max_active_requests,
@@ -171,10 +151,6 @@ impl ProviderTransport {
         self
     }
 
-    /// Reserve capacity for an authenticated request before reading its body.
-    ///
-    /// # Errors
-    /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
     pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
         let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
             crate::observability::rejected("execution");
@@ -187,10 +163,6 @@ impl ProviderTransport {
         })
     }
 
-    /// Execute an `OpenAI` Responses request; see [`Self::forward_route`].
-    ///
-    /// # Errors
-    /// See [`Self::forward_route`].
     pub async fn forward(
         &self,
         permit: RequestPermit,
@@ -202,13 +174,6 @@ impl ProviderTransport {
             .await
     }
 
-    /// Execute once and stream native status, safe headers and entity bytes.
-    /// The response body owns admission and the trusted context until completion/drop.
-    /// `query` is the already filtered upstream query string, without `?`.
-    ///
-    /// # Errors
-    /// Returns a sanitized error for invalid credentials, transport failures or a
-    /// deadline before response headers arrive. Later failures terminate the body.
     pub(crate) async fn forward_route(
         &self,
         permit: RequestPermit,
@@ -235,7 +200,6 @@ impl ProviderTransport {
             .request(route.method(), self.request_url(route, query))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
-            // Observe plain JSON/SSE while relaying the provider bytes unchanged.
             .header(header::ACCEPT_ENCODING, "identity")
             .header(credential_name, credential);
         if route.method() != Method::GET {
@@ -294,7 +258,6 @@ impl ProviderTransport {
         url
     }
 
-    /// Point every provider at one fake origin so tests can script upstreams.
     #[cfg(test)]
     pub(crate) fn for_test(base_url: String, limits: ProviderLimits) -> Self {
         let mut provider = Self::with_limits(limits).unwrap();
@@ -303,7 +266,6 @@ impl ProviderTransport {
     }
 }
 
-/// The resolved credential in the header position its provider expects.
 fn provider_credential(
     context: &ResolvedRequestContext,
 ) -> Result<(HeaderName, HeaderValue), ProviderError> {
@@ -315,8 +277,6 @@ fn provider_credential(
     Ok((name, value))
 }
 
-/// Keep only the query parameters a route forwards, in their original order and
-/// encoding. Everything else, including unknown keys, is dropped.
 pub(crate) fn forwarded_query(route: Route, query: Option<&str>) -> Option<String> {
     let allowed = route.forwarded_query_parameters();
     let query = query?;

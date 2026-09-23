@@ -200,8 +200,6 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
 }
 
-/// Project native usage into the shape Langfuse ingestion prices for that API.
-/// Each format keeps its own counters; nothing is renamed across providers.
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
         "openai.responses" => openai_usage(usage),
@@ -210,13 +208,6 @@ fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     }
 }
 
-/// Ingestion prices flat integer counters and derives the total by summing them,
-/// which matches Anthropic's semantics: `input_tokens` excludes cached tokens.
-/// Cache writes are split by TTL when the breakdown is present so the 1-hour
-/// price applies; the aggregate `cache_creation_input_tokens` is emitted only
-/// without the breakdown, never alongside it. Nested objects and strings such as
-/// `server_tool_use`, `output_tokens_details` and `service_tier` are dropped
-/// because ingestion cannot price them.
 fn anthropic_usage(usage: &Value) -> Option<Value> {
     let usage = usage.as_object()?;
     let counter = |source: &Map<String, Value>, key: &str| {

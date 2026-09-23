@@ -62,7 +62,6 @@ impl Drop for FakeServer {
     }
 }
 
-/// A valid Web resolution for the official connection of `api_format`.
 pub(crate) fn resolution_response_for(
     api_format: ApiFormat,
     provider_secret: &str,

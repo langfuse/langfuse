@@ -1,7 +1,3 @@
-//! Anthropic Messages request, JSON response and SSE usage capture.
-//!
-//! Request and response content are not captured in either mode, so `input` and
-//! `output` stay `None` and full-mode output completeness is false.
 use super::{
     MAX_CAPTURE_BYTES, MAX_FACT_STRING, bounded_string, facts::ProviderFacts, identity_encoding,
     response::ResponseBody,
@@ -14,8 +10,6 @@ pub(super) struct AnthropicMessagesCapture {
     facts: ProviderFacts,
     mode: IngestionMode,
     body: ResponseBody,
-    /// Native usage merged across the stream. `message_delta` counters are
-    /// cumulative totals that replace the `message_start` values; nothing is summed.
     usage: Option<Map<String, Value>>,
     terminal: bool,
     request_complete: bool,
@@ -159,14 +153,11 @@ impl AnthropicMessagesCapture {
             }
             Some("message_stop") => self.terminal = true,
             Some("error") => self.record_failure(&event),
-            // `ping`, content block boundaries and future event types carry
-            // nothing the usage record needs.
             _ => {}
         }
         false
     }
 
-    /// Facts from a `Message` object: the JSON response or the `message_start` payload.
     fn capture_message(&mut self, message: &Map<String, Value>) {
         for (key, target) in [
             ("id", &mut self.facts.provider_response_id),
@@ -190,7 +181,6 @@ impl AnthropicMessagesCapture {
         let Some(stop_reason) = source.get("stop_reason").and_then(Value::as_str) else {
             return;
         };
-        // Truncation by the token budget or the context window is a partial answer.
         self.facts.provider_status = Some(
             match stop_reason {
                 "max_tokens" | "model_context_window_exceeded" => "incomplete",
@@ -211,7 +201,6 @@ impl AnthropicMessagesCapture {
 
     fn record_failure(&mut self, envelope: &Map<String, Value>) {
         self.facts.provider_status = Some("failed".to_owned());
-        // Provider error messages may echo prompt content, so retain them only in full mode.
         if self.mode != IngestionMode::Full {
             return;
         }

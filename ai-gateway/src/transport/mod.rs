@@ -83,9 +83,6 @@ const COMMON_RESPONSE_HEADERS: &[&str] = &[
 pub(crate) fn request_headers(source: &HeaderMap, api_format: ApiFormat) -> HeaderMap {
     match api_format {
         ApiFormat::OpenAiResponses => selected_headers(source, COMMON_REQUEST_HEADERS, &[]),
-        // Claude Code pairs beta body fields with `anthropic-beta` values and adds
-        // new `anthropic-*` headers between releases; a closed list would break
-        // the next capability. Client credentials never match the prefix.
         ApiFormat::AnthropicMessages => {
             selected_headers(source, COMMON_REQUEST_HEADERS, &["anthropic-"])
         }
@@ -113,9 +110,6 @@ pub(crate) fn response_headers(source: &HeaderMap, api_format: ApiFormat) -> Hea
             .concat(),
             &[],
         ),
-        // Claude Code reads `retry-after`, `x-should-retry` and the unified rate
-        // limit headers to decide whether and when to retry, and `request-id`
-        // appears in its error output.
         ApiFormat::AnthropicMessages => selected_headers(
             source,
             &[

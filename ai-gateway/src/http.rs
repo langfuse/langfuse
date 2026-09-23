@@ -1,4 +1,3 @@
-//! Public provider-native envelopes around the opaque resolve/execute flow.
 use std::{error::Error, sync::Arc, time::Duration};
 
 use axum::{
@@ -19,7 +18,6 @@ use crate::{
     server::GatewayLifecycleState,
 };
 
-/// One request-body limit for every provider; large coding-agent contexts fit.
 const MAX_REQUEST_BYTES: usize = 10 * 1024 * 1024;
 const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_GATEWAY_KEY_BYTES: usize = 8192;
@@ -167,10 +165,6 @@ fn byte_count(len: usize) -> i64 {
     i64::try_from(len).unwrap_or(i64::MAX)
 }
 
-/// The gateway key in the header position native to the API format. `OpenAI`
-/// clients send `Authorization: Bearer`; Anthropic clients send `x-api-key`,
-/// `Authorization: Bearer`, or both. Two different credentials are ambiguous and
-/// rejected rather than guessed.
 fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, InferenceHttpError> {
     let bearer = single_header(headers, header::AUTHORIZATION.as_str())?
         .map(|value| {
@@ -203,7 +197,6 @@ fn gateway_key(headers: &HeaderMap, api_format: ApiFormat) -> Result<&str, Infer
     Ok(key)
 }
 
-/// At most one occurrence of a credential header; a repeated header is rejected.
 fn single_header<'a>(
     headers: &'a HeaderMap,
     name: &str,
@@ -294,8 +287,6 @@ impl InferenceHttpError {
         }
     }
 
-    /// Status, message, and the `OpenAI` error type/code. The Anthropic error type
-    /// is derived from the status because Anthropic's envelope has no code field.
     fn classify(&self) -> (StatusCode, &'static str, &'static str, &'static str) {
         use ResolutionError as R;
         match self {
@@ -411,7 +402,6 @@ impl InferenceHttpError {
     }
 }
 
-/// Anthropic's documented error types for the statuses the gateway itself produces.
 fn anthropic_error_type(status: StatusCode) -> &'static str {
     match status {
         StatusCode::UNAUTHORIZED => "authentication_error",

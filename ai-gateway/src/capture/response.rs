@@ -1,13 +1,10 @@
-//! Bounded response-body inspection shared by the protocol adapters.
 use super::{MAX_CAPTURE_BYTES, identity_encoding, sse::SseDecoder};
 use axum::http::{HeaderMap, header};
 
-/// What the adapter can learn from the upstream body, decided from the response headers.
 pub(super) enum ResponseBody {
     Unknown,
     Json(Vec<u8>),
     Sse(SseDecoder),
-    /// Compressed, unrecognized, or oversized: relayed but not inspected.
     Unavailable,
 }
 
@@ -32,9 +29,6 @@ impl ResponseBody {
         }
     }
 
-    /// Feed relayed bytes. SSE events are handed to `on_event` as they complete;
-    /// JSON accumulates until end of body. Returns `false` once the body exceeded
-    /// the capture budget and became unavailable.
     pub(super) fn push(&mut self, bytes: &[u8], on_event: impl FnMut(&[u8])) -> bool {
         match self {
             Self::Sse(sse) => {

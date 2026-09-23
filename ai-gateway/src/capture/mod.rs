@@ -1,4 +1,3 @@
-//! Best-effort capture around the existing relay lifecycle.
 mod anthropic_messages;
 mod facts;
 mod openai_responses;
@@ -24,7 +23,6 @@ const MAX_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
 
-/// One adapter per native API format; the relay stays shared.
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
     AnthropicMessages(AnthropicMessagesCapture),
