@@ -2,7 +2,7 @@ import { type ComponentProps } from "react";
 import preview from "../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 
-import { ChartTooltip } from "./ChartTooltip";
+import { ChartTooltip } from "../internal/charts/ChartTooltip";
 
 type ChartTooltipController = Parameters<
   ComponentProps<typeof ChartTooltip>["children"]

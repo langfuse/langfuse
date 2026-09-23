@@ -613,7 +613,7 @@ describe("AI SDK request shapes", () => {
     });
   });
 
-  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, maxReasoningTokens", async () => {
+  it("Vertex Gemini: regional host, SA-key project, OAuth bearer, extra headers, maxReasoningTokens", async () => {
     const { request } = await runCompletion({
       modelParams: {
         provider: "vertex",
@@ -623,6 +623,7 @@ describe("AI SDK request shapes", () => {
       },
       apiKey: FAKE_GCP_SERVICE_ACCOUNT_KEY,
       llmConnectionConfig: { location: "us-east5" },
+      extraHeaders: { "X-Vertex-AI-Labels": "eyJ0ZWFtIjoiYSJ9" },
       response: GOOGLE_RESPONSE,
     });
 
@@ -631,6 +632,7 @@ describe("AI SDK request shapes", () => {
       "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/sa-project-123/locations/us-east5/publishers/google/models/gemini-2.5-flash:generateContent",
     );
     expect(request.headers.get("authorization")).toBe("Bearer fake-gcp-token");
+    expect(request.headers.get("x-vertex-ai-labels")).toBe("eyJ0ZWFtIjoiYSJ9");
     const generationConfig = request.body.generationConfig as Record<
       string,
       unknown
