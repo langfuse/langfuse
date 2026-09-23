@@ -324,7 +324,8 @@ async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode()
     assert!(facts.input.is_none());
     assert!(facts.output.is_none());
     let serialized = serde_json::to_string(&facts).unwrap();
-    for canary in ["system-canary", "prompt-canary", "session-canary", "Hel"] {
+    let canaries = ["system-canary", "prompt-canary", "session-canary", "Hel"]; // codespell:ignore hel
+    for canary in canaries {
         assert!(!serialized.contains(canary), "usage mode captured {canary}");
     }
 }
