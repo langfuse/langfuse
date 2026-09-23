@@ -83,14 +83,17 @@ export function BatchActionsTable({
             return <span className="text-muted-foreground">-</span>;
 
           return (
-            <div className="space-y-1">
-              <div className="text-sm">
+            <div className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+              <span className="text-sm">
                 {processedCount} / {totalCount}
-              </div>
+              </span>
               {failedCount > 0 && (
-                <div className="text-destructive text-xs">
+                <span
+                  className="text-destructive truncate text-xs"
+                  title={`${failedCount} failed`}
+                >
                   {failedCount} failed
-                </div>
+                </span>
               )}
             </div>
           );
