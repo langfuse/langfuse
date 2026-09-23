@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProjectAuthedContext } from "@/src/server/api/trpc";
 import type { Prisma, PrismaClient, SkillBlob } from "@langfuse/shared/src/db";
 import type { StorageService } from "@langfuse/shared/src/server";
 import { SkillService } from "@/src/features/skills/server/skill-service";
 import { getSkillStorageClient } from "@/src/features/skills/server/getSkillStorageClient";
+import { auditLog } from "@/src/features/audit-logs/server";
 
 vi.mock("@/src/features/skills/server/getSkillStorageClient", () => ({
   getSkillStorageClient: vi.fn(),
@@ -77,6 +79,19 @@ describe("SkillService storage configuration", () => {
 });
 
 describe("SkillService versions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  function sessionActor(role: "ADMIN" | "MEMBER") {
+    return {
+      session: {
+        user: {
+          admin: false,
+          organizations: [{ projects: [{ id: "project", role }] }],
+        },
+      } as ProjectAuthedContext["session"],
+    };
+  }
+
   function setup() {
     const markdown = Buffer.from(
       "---\nname: test-skill\ndescription: A test skill\n---\nInstructions",
@@ -172,6 +187,19 @@ describe("SkillService versions", () => {
     );
     const findMany = vi.fn().mockResolvedValue(blobs);
     const db = {
+      promptProtectedLabels: { findMany: vi.fn().mockResolvedValue([]) },
+      apiKey: {
+        findUnique: vi.fn().mockResolvedValue({ isInAppAgentKey: false }),
+      },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ id: "user", admin: false }),
+      },
+      organizationMembership: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ id: "membership", role: "MEMBER" }),
+      },
+      projectMembership: { findFirst: vi.fn().mockResolvedValue(null) },
       skillBlob: { findMany, updateMany },
       $transaction: transaction,
       skill: {
@@ -190,7 +218,12 @@ describe("SkillService versions", () => {
       projectId: "project",
       createdBy: "user",
       input: { files },
-      auditActor: { projectId: "project", orgId: "org", apiKeyId: "api-key" },
+      actor: {
+        projectId: "project",
+        orgId: "org",
+        apiKeyId: "api-key",
+        accessLevel: "project" as const,
+      },
     };
     return {
       service,
@@ -209,6 +242,134 @@ describe("SkillService versions", () => {
     };
   }
 
+  it.each(["add", "remove", "delete"] as const)(
+    "rejects a MEMBER attempting to %s a protected label through the service",
+    async (operation) => {
+      const test = setup();
+      test.skill.labels = operation === "add" ? [] : ["production"];
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      test.tx.skill.findMany.mockResolvedValue([test.skill]);
+      test.db.promptProtectedLabels.findMany.mockResolvedValue([
+        { label: "production" },
+      ]);
+      const params = {
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        actor: sessionActor("MEMBER"),
+      };
+
+      await expect(
+        operation === "delete"
+          ? test.service.deleteVersion(params)
+          : test.service.setLabels({
+              ...params,
+              labels: operation === "add" ? ["production"] : [],
+            }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      expect(test.transaction).not.toHaveBeenCalled();
+      expect(test.tx.skill.update).not.toHaveBeenCalled();
+      expect(test.tx.skill.delete).not.toHaveBeenCalled();
+      expect(auditLog).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["setLabels", "deleteVersion"] as const)(
+    "enforces API key creator permissions before %s",
+    async (operation) => {
+      const test = setup();
+      test.skill.labels = ["production"];
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      test.tx.skill.findMany.mockResolvedValue([test.skill]);
+      test.db.promptProtectedLabels.findMany.mockResolvedValue([
+        { label: "production" },
+      ]);
+      test.db.apiKey.findUnique.mockResolvedValue({
+        isInAppAgentKey: true,
+        createdByUserId: "user",
+      });
+      const params = {
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        actor: test.params.actor,
+      };
+      const mutate = () =>
+        operation === "setLabels"
+          ? test.service.setLabels({ ...params, labels: [] })
+          : test.service.deleteVersion(params);
+
+      await expect(mutate()).rejects.toMatchObject({ httpCode: 403 });
+      expect(test.transaction).not.toHaveBeenCalled();
+      expect(auditLog).not.toHaveBeenCalled();
+
+      test.db.projectMembership.findFirst.mockResolvedValue({ role: "ADMIN" });
+      await mutate();
+      expect(test.transaction).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["session", "project-key"] as const)(
+    "allows protected-label mutations by an authorized %s actor",
+    async (kind) => {
+      const test = setup();
+      test.skill.labels = ["production"];
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      test.tx.skill.findMany.mockResolvedValue([test.skill]);
+      test.db.promptProtectedLabels.findMany.mockResolvedValue([
+        { label: "production" },
+      ]);
+      const params = {
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        actor: kind === "session" ? sessionActor("ADMIN") : test.params.actor,
+      };
+
+      await test.service.setLabels({ ...params, labels: [] });
+      await test.service.deleteVersion(params);
+      expect(test.tx.skill.update).toHaveBeenCalledOnce();
+      expect(test.tx.skill.delete).toHaveBeenCalledOnce();
+      expect(test.db.user.findUnique).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    {
+      existing: ["production", "staging", "latest"],
+      next: ["production", "preview"],
+      protected: ["production"],
+    },
+    { existing: ["latest"], next: ["preview"], protected: ["latest"] },
+  ])(
+    "allows unrelated label changes with protected labels $protected",
+    async ({ existing, next, protected: protectedLabels }) => {
+      const test = setup();
+      test.skill.labels = existing;
+      test.tx.skill.findFirst.mockResolvedValue(test.skill);
+      test.tx.skill.findMany.mockResolvedValue([test.skill]);
+      test.db.promptProtectedLabels.findMany.mockResolvedValue(
+        protectedLabels.map((label) => ({ label })),
+      );
+
+      await test.service.setLabels({
+        projectId: "project",
+        name: "test-skill",
+        version: 1,
+        labels: next,
+        actor: sessionActor("MEMBER"),
+      });
+      expect(test.tx.skill.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { labels: { set: [...next, "latest"] } },
+        }),
+      );
+      expect(test.db.promptProtectedLabels.findMany).toHaveBeenCalledWith({
+        where: { projectId: "project" },
+      });
+    },
+  );
+
   it.each(["create", "setLabels", "setTags", "delete"] as const)(
     "waits for the skill mutation lock before reading versions during %s",
     async (operation) => {
@@ -220,7 +381,7 @@ describe("SkillService versions", () => {
         projectId: "project",
         name: "test-skill",
         version: 1,
-        auditActor: test.params.auditActor,
+        actor: test.params.actor,
       };
       const mutations = {
         create: () => test.service.createVersion(test.params),
@@ -428,7 +589,7 @@ describe("SkillService versions", () => {
         name: "test-skill",
         version: 1,
         tags,
-        auditActor: test.params.auditActor,
+        actor: test.params.actor,
       });
 
       expect(versions.map((version) => version.tags)).toEqual([
@@ -472,7 +633,7 @@ describe("SkillService versions", () => {
       name: "test-skill",
       version: 1,
       labels: ["stable"],
-      auditActor: test.params.auditActor,
+      actor: test.params.actor,
     });
 
     expect(test.tx.skill.update).toHaveBeenCalledWith({
@@ -502,7 +663,7 @@ describe("SkillService versions", () => {
         projectId: "project",
         name: "test-skill",
         version: 3,
-        auditActor: test.params.auditActor,
+        actor: test.params.actor,
       });
 
       expect(test.tx.skill.findFirst).toHaveBeenLastCalledWith(
@@ -533,7 +694,7 @@ describe("SkillService versions", () => {
       projectId: "project",
       name: "test-skill",
       version: 1,
-      auditActor: test.params.auditActor,
+      actor: test.params.actor,
     });
 
     expect(test.tx.skill.delete).toHaveBeenCalledOnce();

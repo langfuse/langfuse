@@ -18,6 +18,7 @@ import { Input } from "@/src/components/ui/input";
 import { showErrorToast } from "@/src/features/notifications";
 import {
   buildSkillFileTree,
+  getParentFolderPaths,
   type SkillFileTreeNode,
 } from "@/src/features/skills/components/skillFileTree";
 import { type SkillEditorStore } from "@/src/features/skills/components/skillEditorStore";
@@ -67,14 +68,13 @@ export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
     const parsed = SkillFilePathSchema.safeParse(path);
     if (
       !parsed.success ||
-      name.includes("/") ||
-      name.includes("\\") ||
-      name === "." ||
-      name === ".."
+      (pendingEntry.kind === "folder" && name.includes("/"))
     ) {
       showErrorToast(
         `Invalid ${pendingEntry.kind} name`,
-        "Use a single normalized path segment.",
+        pendingEntry.kind === "folder"
+          ? "Use a single normalized path segment."
+          : "Use a relative file path, such as docs/readme.md.",
       );
       return;
     }
@@ -96,13 +96,13 @@ export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
     }
 
     setSelectedFolder(
-      pendingEntry.kind === "folder" ? path : pendingEntry.parentPath,
+      pendingEntry.kind === "folder" ? path : parentFolder(path),
     );
     setExpandedFolders(
       (current) =>
         new Set([
           ...current,
-          pendingEntry.parentPath,
+          ...getParentFolderPaths([path]),
           ...(pendingEntry.kind === "folder" ? [path] : []),
         ]),
     );
@@ -137,7 +137,7 @@ export function SkillFileExplorer({ store }: { store: SkillEditorStore }) {
           }}
           aria-label={`New ${label} name${parentPath ? ` in ${parentPath}` : ""}`}
           placeholder={
-            pendingEntry.kind === "folder" ? "folder-name" : "file.md"
+            pendingEntry.kind === "folder" ? "folder-name" : "docs/readme.md"
           }
           className="h-7 min-w-0 px-2 font-mono text-xs"
         />

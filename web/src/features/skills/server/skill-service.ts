@@ -26,20 +26,24 @@ import {
   type PrismaClient,
   type SkillBlob,
 } from "@langfuse/shared/src/db";
-import type {
-  ApiAccessScope,
-  StorageService,
-} from "@langfuse/shared/src/server";
+import type { StorageService } from "@langfuse/shared/src/server";
 import type { ProjectAuthedContext } from "@/src/server/api/trpc";
+import type { AuthorizationContext } from "@/src/features/auth/policy/types";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { checkHasProtectedLabels } from "@/src/features/prompts/server/utils/checkHasProtectedLabels";
+import {
+  authorizeProtectedLabelMutation,
+  type ApiKeyProjectContext,
+} from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { getSkillStorageClient } from "./getSkillStorageClient";
 
 const MAX_SKILL_FILE_BYTES = 10 * 1024 * 1024;
 const DOWNLOAD_URL_TTL_SECONDS = 15 * 60;
 
-type SkillAuditActor =
+type SkillActor =
   | Pick<ProjectAuthedContext, "session">
-  | Pick<ApiAccessScope, "apiKeyId" | "orgId" | "projectId">;
+  | (ApiKeyProjectContext & { ctx?: AuthorizationContext });
 
 type SkillWithRelations = Prisma.SkillGetPayload<{
   include: {
@@ -242,7 +246,7 @@ export class SkillService {
     projectId: string;
     createdBy: string;
     input: CreateSkillVersionBody;
-    auditActor: SkillAuditActor;
+    actor: SkillActor;
     target?: { kind: "new" } | { kind: "version"; name: string };
   }) {
     const input = CreateSkillVersionBodySchema.parse(params.input);
@@ -291,7 +295,7 @@ export class SkillService {
         });
         await auditLog(
           {
-            ...params.auditActor,
+            ...params.actor,
             resourceType: "skill",
             action: "setLabel",
             resourceId: latest.id,
@@ -332,7 +336,7 @@ export class SkillService {
       });
       await auditLog(
         {
-          ...params.auditActor,
+          ...params.actor,
           resourceType: "skill",
           action: "create",
           resourceId: skill.id,
@@ -469,9 +473,23 @@ export class SkillService {
     name: string;
     version: number;
     labels: string[];
-    auditActor: SkillAuditActor;
+    actor: SkillActor;
   }) {
     const input = UpdateSkillLabelsBodySchema.parse({ labels: params.labels });
+    const existing = await this.get({
+      projectId: params.projectId,
+      name: params.name,
+      selector: { version: params.version },
+    });
+    const changedLabels = [
+      ...existing.labels.filter((label) => !input.labels.includes(label)),
+      ...input.labels.filter((label) => !existing.labels.includes(label)),
+    ];
+    await this.requireProtectedLabelAccess({
+      projectId: params.projectId,
+      labels: changedLabels,
+      actor: params.actor,
+    });
     const skillId = await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const target = await tx.skill.findFirst({
@@ -510,7 +528,7 @@ export class SkillService {
         });
         await auditLog(
           {
-            ...params.auditActor,
+            ...params.actor,
             resourceType: "skill",
             action: "setLabel",
             resourceId: version.id,
@@ -531,7 +549,7 @@ export class SkillService {
     name: string;
     version: number;
     tags: string[];
-    auditActor: SkillAuditActor;
+    actor: SkillActor;
   }) {
     const input = UpdateSkillTagsBodySchema.parse({ tags: params.tags });
     const skillId = await this.prisma.$transaction(async (tx) => {
@@ -552,7 +570,7 @@ export class SkillService {
       });
       await auditLog(
         {
-          ...params.auditActor,
+          ...params.actor,
           resourceType: "skill",
           action: "setTag",
           resourceId: params.name,
@@ -570,8 +588,18 @@ export class SkillService {
     projectId: string;
     name: string;
     version: number;
-    auditActor: SkillAuditActor;
+    actor: SkillActor;
   }): Promise<void> {
+    const existing = await this.get({
+      projectId: params.projectId,
+      name: params.name,
+      selector: { version: params.version },
+    });
+    await this.requireProtectedLabelAccess({
+      projectId: params.projectId,
+      labels: existing.labels,
+      actor: params.actor,
+    });
     await this.prisma.$transaction(async (tx) => {
       await this.lockSkill(tx, params.projectId, params.name);
       const target = await tx.skill.findFirst({
@@ -585,7 +613,7 @@ export class SkillService {
       if (!target) throw new LangfuseNotFoundError("Skill version not found");
       await auditLog(
         {
-          ...params.auditActor,
+          ...params.actor,
           resourceType: "skill",
           action: "delete",
           resourceId: target.id,
@@ -613,7 +641,7 @@ export class SkillService {
           });
           await auditLog(
             {
-              ...params.auditActor,
+              ...params.actor,
               resourceType: "skill",
               action: "setLabel",
               resourceId: latest.id,
@@ -625,6 +653,42 @@ export class SkillService {
           );
         }
       }
+    });
+  }
+
+  private async requireProtectedLabelAccess(params: {
+    projectId: string;
+    labels: string[];
+    actor: SkillActor;
+  }) {
+    const labelsToCheck = params.labels.filter(
+      (label) => label !== SKILL_LATEST_LABEL,
+    );
+    if ("session" in params.actor) {
+      const { hasProtectedLabels, protectedLabels } =
+        await checkHasProtectedLabels({
+          prisma: this.prisma,
+          projectId: params.projectId,
+          labelsToCheck,
+        });
+      if (hasProtectedLabels) {
+        throwIfNoProjectAccess({
+          session: params.actor.session,
+          projectId: params.projectId,
+          scope: "promptProtectedLabels:CUD",
+          forbiddenErrorMessage: `You do not have permission to mutate protected skill labels: ${protectedLabels.join(", ")}`,
+        });
+      }
+      return;
+    }
+
+    await authorizeProtectedLabelMutation({
+      prisma: this.prisma,
+      context: { ...params.actor, projectId: params.projectId },
+      ctx: params.actor.ctx,
+      labelsToCheck,
+      forbiddenErrorMessage:
+        "You do not have permission to mutate protected skill labels.",
     });
   }
 

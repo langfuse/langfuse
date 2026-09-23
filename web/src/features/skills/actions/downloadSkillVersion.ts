@@ -1,4 +1,6 @@
-import { zip, type Zippable, type ZipOptions } from "fflate";
+import { AsyncZipDeflate, Zip } from "fflate";
+
+const DOWNLOAD_CONCURRENCY = 10;
 
 type DownloadableSkillVersion = {
   createdAt: Date;
@@ -8,32 +10,120 @@ type DownloadableSkillVersion = {
   }>;
 };
 
-type FetchSkillFile = (url: string) => Promise<{
+type FetchSkillFile = (
+  url: string,
+  init: RequestInit,
+) => Promise<{
   ok: boolean;
   status: number;
-  arrayBuffer: () => Promise<ArrayBuffer>;
+  body: ReadableStream<Uint8Array> | null;
 }>;
 
-function createZip(entries: Zippable): Promise<Uint8Array> {
-  return new Promise((resolve, reject) => {
-    zip(entries, { level: 6 }, (error, archive) => {
+async function streamFileToZip(
+  zip: Zip,
+  body: ReadableStream<Uint8Array>,
+  path: string,
+  mtime: Date,
+  signal: AbortSignal,
+) {
+  signal.throwIfAborted();
+  const entry = new AsyncZipDeflate(path, { level: 6 });
+  entry.mtime = mtime;
+  zip.add(entry);
+  const reader = body.getReader();
+  const ondata = entry.ondata;
+  let onAbort: () => void;
+  const finished = new Promise<void>((resolve, reject) => {
+    onAbort = () => reject(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    entry.ondata = (error, chunk, final) => {
+      ondata(error, chunk, final);
       if (error) reject(error);
-      else resolve(archive);
-    });
+      else if (final) resolve();
+    };
   });
+
+  try {
+    await Promise.all([
+      finished,
+      (async () => {
+        while (true) {
+          const { value, done } = await reader.read();
+          signal.throwIfAborted();
+          entry.push(value ?? new Uint8Array(0), done);
+          if (done) return;
+        }
+      })(),
+    ]);
+  } finally {
+    signal.removeEventListener("abort", onAbort!);
+    entry.terminate();
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 
-function saveArchive(archive: Uint8Array, filename: string) {
-  const blobBytes = new Uint8Array(archive.byteLength);
-  blobBytes.set(archive);
-  const url = URL.createObjectURL(
-    new Blob([blobBytes.buffer], { type: "application/zip" }),
-  );
+function saveArchive(archive: Blob, filename: string) {
+  const url = URL.createObjectURL(archive);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function createArchive(
+  skill: DownloadableSkillVersion,
+  downloadFile: (
+    fileId: string,
+    signal: AbortSignal,
+  ) => ReturnType<FetchSkillFile>,
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController();
+    const chunks: BlobPart[] = [];
+    const fail = (error: unknown) => {
+      controller.abort(error);
+      zip.terminate();
+      chunks.length = 0;
+      reject(error);
+    };
+    const zip = new Zip((error, chunk, final) => {
+      if (error) return fail(error);
+      // Blob parts avoid concatenating and copying the entire archive at the end.
+      chunks.push(new Uint8Array(chunk).buffer);
+      if (final) resolve(new Blob(chunks, { type: "application/zip" }));
+    });
+
+    let nextFile = 0;
+    const downloadNext = async () => {
+      while (nextFile < skill.files.length) {
+        controller.signal.throwIfAborted();
+        const file = skill.files[nextFile++]!;
+        const response = await downloadFile(file.id, controller.signal);
+        if (!response.ok) {
+          throw new Error(`Skill file download failed (${response.status})`);
+        }
+        if (!response.body) throw new Error("Skill file download has no body");
+        // Hold the slot until compression finishes, bounding worker input too.
+        await streamFileToZip(
+          zip,
+          response.body,
+          file.path,
+          skill.createdAt,
+          controller.signal,
+        );
+      }
+    };
+    Promise.all(
+      Array.from(
+        { length: Math.min(DOWNLOAD_CONCURRENCY, skill.files.length) },
+        downloadNext,
+      ),
+    )
+      .then(() => zip.end())
+      .catch(fail);
+  });
 }
 
 export async function downloadSkillVersion(params: {
@@ -50,7 +140,7 @@ export async function downloadSkillVersion(params: {
     fileId: string;
   }) => Promise<{ downloadUrl: string }>;
   fetchFile?: FetchSkillFile;
-  saveArchive?: (archive: Uint8Array, filename: string) => void;
+  saveArchive?: (archive: Blob, filename: string) => void;
 }): Promise<{ fileCount: number }> {
   const skill = await params.getVersion({
     projectId: params.projectId,
@@ -58,28 +148,14 @@ export async function downloadSkillVersion(params: {
     version: params.version,
   });
   const fetchFile = params.fetchFile ?? fetch;
-  const entries = Object.fromEntries(
-    await Promise.all(
-      skill.files.map(async (file) => {
-        const { downloadUrl } = await params.getFileDownload({
-          projectId: params.projectId,
-          fileId: file.id,
-        });
-        const response = await fetchFile(downloadUrl);
-        if (!response.ok) {
-          throw new Error(`Skill file download failed (${response.status})`);
-        }
-        const options: ZipOptions = {
-          mtime: skill.createdAt,
-        };
-        return [
-          file.path,
-          [new Uint8Array(await response.arrayBuffer()), options],
-        ] as [string, Zippable[string]];
-      }),
-    ),
-  ) as Zippable;
-  const archive = await createZip(entries);
+  const archive = await createArchive(skill, async (fileId, signal) => {
+    const { downloadUrl } = await params.getFileDownload({
+      projectId: params.projectId,
+      fileId,
+    });
+    signal.throwIfAborted();
+    return fetchFile(downloadUrl, { signal });
+  });
 
   (params.saveArchive ?? saveArchive)(
     archive,

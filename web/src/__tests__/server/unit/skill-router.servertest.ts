@@ -1,20 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
-import type * as SharedDb from "@langfuse/shared/src/db";
+import { ForbiddenError } from "@langfuse/shared";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const mocks = vi.hoisted(() => ({
-  protectedLabels: vi.fn(),
   get: vi.fn(),
   createVersion: vi.fn(),
   setLabels: vi.fn(),
+  setTags: vi.fn(),
   deleteVersion: vi.fn(),
-}));
-
-vi.mock("@langfuse/shared/src/db", async (importOriginal) => ({
-  ...(await importOriginal<typeof SharedDb>()),
-  prisma: { promptProtectedLabels: { findMany: mocks.protectedLabels } },
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
@@ -26,11 +21,15 @@ vi.mock("@/src/features/skills/server/index", () => ({
     get = mocks.get;
     createVersion = mocks.createVersion;
     setLabels = mocks.setLabels;
+    setTags = mocks.setTags;
     deleteVersion = mocks.deleteVersion;
   },
 }));
 
-function createCaller(role: "ADMIN" | "MEMBER", projectId = "project") {
+function createCaller(
+  role: "ADMIN" | "MEMBER" | "VIEWER",
+  projectId = "project",
+) {
   const session: Session = {
     expires: "1",
     user: {
@@ -85,110 +84,76 @@ type Caller = ReturnType<typeof createCaller>;
 const version = { projectId: "project", name: "my-skill", version: 1 };
 const mutations = [
   {
-    name: "add a label",
-    existingLabels: [],
-    mutate: (caller: Caller, label: string) =>
-      caller.setLabels({ ...version, labels: [label] }),
+    name: "set labels",
+    mutate: (caller: Caller) =>
+      caller.setLabels({ ...version, labels: ["production"] }),
     write: mocks.setLabels,
+    params: { ...version, labels: ["production"] },
   },
   {
-    name: "remove a label",
-    existingLabels: ["production"],
-    mutate: (caller: Caller) => caller.setLabels({ ...version, labels: [] }),
-    write: mocks.setLabels,
+    name: "set tags",
+    mutate: (caller: Caller) =>
+      caller.setTags({ ...version, tags: ["example"] }),
+    write: mocks.setTags,
+    params: { ...version, tags: ["example"] },
   },
   {
     name: "delete a version",
-    existingLabels: ["production"],
     mutate: (caller: Caller) => caller.deleteVersion(version),
     write: mocks.deleteVersion,
+    params: version,
   },
 ];
 
-describe("skill mutations sharing prompt protected labels", () => {
+describe("skill mutation router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.protectedLabels.mockImplementation(
-      async ({ where }: { where: { projectId: string } }) =>
-        where.projectId === "project" ? [{ label: "production" }] : [],
-    );
-    mocks.get.mockResolvedValue({ labels: [] });
     mocks.createVersion.mockResolvedValue({ version: 1 });
     mocks.setLabels.mockResolvedValue({ version: 1 });
+    mocks.setTags.mockResolvedValue({ version: 1 });
     mocks.deleteVersion.mockResolvedValue(undefined);
   });
 
   it.each(mutations)(
-    "rejects a MEMBER trying to $name with a protected label",
-    async ({ existingLabels, mutate, write }) => {
-      mocks.get.mockResolvedValue({ labels: existingLabels });
-
-      await expect(
-        mutate(createCaller("MEMBER"), "production"),
-      ).rejects.toMatchObject({
+    "rejects a VIEWER trying to $name",
+    async ({ mutate, write }) => {
+      await expect(mutate(createCaller("VIEWER"))).rejects.toMatchObject({
         code: "FORBIDDEN",
       });
-
       expect(write).not.toHaveBeenCalled();
-      expect(mocks.protectedLabels).toHaveBeenCalledWith({
-        where: { projectId: "project" },
-      });
     },
   );
 
   it.each(mutations)(
-    "allows a project ADMIN to $name with a protected label",
-    async ({ existingLabels, mutate, write }) => {
-      mocks.get.mockResolvedValue({ labels: existingLabels });
+    "passes the authenticated session to the service to $name",
+    async ({ mutate, write, params }) => {
+      await mutate(createCaller("MEMBER"));
 
-      await mutate(createCaller("ADMIN"), "production");
-
-      expect(write).toHaveBeenCalledOnce();
+      expect(write).toHaveBeenCalledExactlyOnceWith({
+        ...params,
+        actor: {
+          session: expect.objectContaining({
+            user: expect.objectContaining({ id: "user" }),
+          }),
+        },
+      });
+      expect(mocks.get).not.toHaveBeenCalled();
     },
   );
 
   it.each(mutations)(
-    "allows a MEMBER to $name with an unprotected label",
-    async ({ existingLabels, mutate, write }) => {
-      mocks.get.mockResolvedValue({
-        labels: existingLabels.map(() => "staging"),
+    "propagates service authorization errors when trying to $name",
+    async ({ mutate, write }) => {
+      write.mockRejectedValueOnce(
+        new ForbiddenError("Protected skill label access denied"),
+      );
+
+      await expect(mutate(createCaller("MEMBER"))).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: "Protected skill label access denied",
       });
-
-      await mutate(createCaller("MEMBER"), "staging");
-
-      expect(write).toHaveBeenCalledOnce();
     },
   );
-
-  it("allows retaining a protected label while changing an unprotected label", async () => {
-    mocks.get.mockResolvedValue({
-      labels: ["production", "staging", "latest"],
-    });
-
-    await createCaller("MEMBER").setLabels({
-      ...version,
-      labels: ["production", "preview"],
-    });
-
-    expect(mocks.setLabels).toHaveBeenCalledWith(
-      expect.objectContaining({ labels: ["production", "preview"] }),
-    );
-  });
-
-  it("does not apply another project's protected labels", async () => {
-    await createCaller("MEMBER", "other-project").setLabels({
-      ...version,
-      projectId: "other-project",
-      labels: ["production"],
-    });
-
-    expect(mocks.protectedLabels).toHaveBeenCalledWith({
-      where: { projectId: "other-project" },
-    });
-    expect(mocks.setLabels).toHaveBeenCalledWith(
-      expect.objectContaining({ projectId: "other-project" }),
-    );
-  });
 
   it("creates without accepting client labels or tags", async () => {
     const input = {
@@ -201,21 +166,26 @@ describe("skill mutations sharing prompt protected labels", () => {
     await createCaller("MEMBER").createVersion(input);
 
     expect(mocks.createVersion).toHaveBeenCalledWith(
-      expect.objectContaining({ target: { kind: "new" } }),
+      expect.objectContaining({
+        target: { kind: "new" },
+        actor: {
+          session: expect.objectContaining({
+            user: expect.objectContaining({ id: "user" }),
+          }),
+        },
+      }),
     );
     const creation = mocks.createVersion.mock.calls[0]?.[0].input;
     expect(creation).not.toHaveProperty("labels");
     expect(creation).not.toHaveProperty("tags");
-    expect(mocks.protectedLabels).not.toHaveBeenCalled();
   });
 
-  it("rejects access to another project before looking up protected labels", async () => {
+  it("rejects access to another project before calling the service", async () => {
     await expect(
       createCaller("ADMIN", "other-project").deleteVersion(version),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 
     expect(mocks.get).not.toHaveBeenCalled();
-    expect(mocks.protectedLabels).not.toHaveBeenCalled();
     expect(mocks.deleteVersion).not.toHaveBeenCalled();
   });
 });

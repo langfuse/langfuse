@@ -31,15 +31,17 @@ export default withMiddlewares({
     responseSchema: SkillVersionSchema,
     successStatusCode: 201,
     rateLimitResource: "public-api",
-    fn: ({ body, auth }) =>
+    fn: ({ body, auth, ctx }) =>
       new SkillService(prisma).createVersion({
         projectId: auth.scope.projectId,
         createdBy: "API",
         input: body,
-        auditActor: {
+        actor: {
           apiKeyId: auth.scope.apiKeyId!,
           orgId: auth.scope.orgId,
           projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+          ctx,
         },
       }),
   }),

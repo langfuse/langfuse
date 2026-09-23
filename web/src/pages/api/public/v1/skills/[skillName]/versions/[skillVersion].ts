@@ -25,16 +25,18 @@ export default withMiddlewares({
     bodySchema: UpdateSkillLabelsBodySchema,
     responseSchema: SkillVersionSchema,
     rateLimitResource: "public-api",
-    fn: ({ query, body, auth }) =>
+    fn: ({ query, body, auth, ctx }) =>
       new SkillService(prisma).setLabels({
         projectId: auth.scope.projectId,
         name: query.skillName,
         version: query.skillVersion,
         labels: body.labels,
-        auditActor: {
+        actor: {
           apiKeyId: auth.scope.apiKeyId!,
           orgId: auth.scope.orgId,
           projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+          ctx,
         },
       }),
   }),
@@ -44,15 +46,17 @@ export default withMiddlewares({
     querySchema: versionQuerySchema,
     responseSchema: DeleteSkillVersionResponseSchema,
     rateLimitResource: "public-api",
-    fn: async ({ query, auth }) => {
+    fn: async ({ query, auth, ctx }) => {
       await new SkillService(prisma).deleteVersion({
         projectId: auth.scope.projectId,
         name: query.skillName,
         version: query.skillVersion,
-        auditActor: {
+        actor: {
           apiKeyId: auth.scope.apiKeyId!,
           orgId: auth.scope.orgId,
           projectId: auth.scope.projectId,
+          accessLevel: auth.scope.accessLevel,
+          ctx,
         },
       });
       return { deleted: true };
