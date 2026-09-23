@@ -4347,3 +4347,84 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
     },
   },
 ];
+
+// https://github.com/langfuse/langfuse/issues/17805 — the OpenAI convention
+// claims this message for its tool_calls. The message-level `thinking` array
+// (Langfuse's own ChatML `ThinkingContentPartSchema`) is still read by the
+// Anthropic convention's sibling-field handler, which runs for every message
+// regardless of which convention claims it; `reasoning_content`
+// (DeepSeek/vLLM/LiteLLM) has no Anthropic equivalent and is read here.
+export const openAiMessageLevelThinkingFixture = {
+  name: "reads message-level thinking and reasoning_content on an OpenAI tool-calling message",
+  spanIO: {
+    input: undefined,
+    output: [
+      {
+        role: "assistant",
+        thinking: [
+          {
+            type: "thinking",
+            content:
+              "User wants the entity details, so call get_entity_details.",
+          },
+        ],
+        content: "",
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: {
+              name: "get_entity_details",
+              arguments: '{"entity_id":"abc"}',
+            },
+          },
+        ],
+      },
+      {
+        role: "assistant",
+        reasoning_content: "Need to check inventory before answering.",
+        content: "We have 3 in stock.",
+      },
+    ],
+    metadata: undefined,
+  },
+  expected: {
+    messages: [
+      {
+        role: "assistant",
+        parts: [
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "User wants the entity details, so call get_entity_details.",
+            },
+          },
+          {
+            type: "tool-call",
+            toolCallId: "call_1",
+            toolName: "get_entity_details",
+            input: { entity_id: "abc" },
+            toolType: "function",
+          },
+        ],
+        source: "output",
+      },
+      {
+        role: "assistant",
+        parts: [
+          { type: "text", text: "We have 3 in stock." },
+          {
+            type: "reasoning",
+            content: {
+              kind: "text",
+              text: "Need to check inventory before answering.",
+            },
+          },
+        ],
+        source: "output",
+      },
+    ],
+    toolDefinitions: [],
+  },
+} satisfies NormalizedIOFixture;

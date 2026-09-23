@@ -381,6 +381,21 @@ function normalizeAudioOutput(
 }
 
 /**
+ * `reasoning_content`: the plain-string reasoning field used by
+ * OpenAI-compatible backends such as DeepSeek/vLLM and gateways like
+ * LiteLLM. (Message-level `thinking[]` — Langfuse's ChatML
+ * `ThinkingContentPartSchema` — is already read by the Anthropic
+ * convention's `collectSiblingParts`, which runs for every message
+ * regardless of which convention claims it.)
+ */
+function openAiThinkingParts(
+  value: Record<string, unknown>,
+): NormalizedMessagePart[] {
+  const reasoningContent = optionalString(value.reasoning_content);
+  return reasoningContent ? [reasoningPart(reasoningContent)] : [];
+}
+
+/**
  * OpenAI message-sibling fields: `refusal`/`audio`, and Responses reasoning
  * items (content[] is collected via the regular parts path; `summary` is a
  * sibling stream collected either way, and the replayable `encrypted_content`
@@ -403,9 +418,26 @@ function openAiCollectSiblingParts(
     parts.push(...openAiReasoningParts(value, baseParts, context));
   }
 
-  return parts.length > 0
-    ? [{ sourceKey: "openai.siblings", slot: "after-tool-calls", parts }]
-    : [];
+  const contributions: SiblingPartContribution[] = [];
+
+  const thinkingParts = openAiThinkingParts(value);
+  if (thinkingParts.length > 0) {
+    contributions.push({
+      sourceKey: "openai.thinking",
+      slot: "after-content",
+      parts: thinkingParts,
+    });
+  }
+
+  if (parts.length > 0) {
+    contributions.push({
+      sourceKey: "openai.siblings",
+      slot: "after-tool-calls",
+      parts,
+    });
+  }
+
+  return contributions;
 }
 
 function openAiReasoningParts(

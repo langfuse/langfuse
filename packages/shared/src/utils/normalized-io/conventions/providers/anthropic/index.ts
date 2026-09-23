@@ -128,7 +128,16 @@ const normalizeAnthropicMcpToolCall: PartHandler = (value) =>
   );
 
 const normalizeAnthropicThinking: PartHandler = (value) =>
-  claimed(reasoningPart(value.thinking, optionalString(value.signature)));
+  // Anthropic's own blocks carry the text under `thinking`; the sibling
+  // `message.thinking[]` field (Langfuse's ChatML `ThinkingContentPartSchema`,
+  // also read by the OpenAI convention's tool-calling messages) carries it
+  // under `content` instead.
+  claimed(
+    reasoningPart(
+      value.thinking ?? value.content,
+      optionalString(value.signature),
+    ),
+  );
 
 const normalizeAnthropicRedactedThinking: PartHandler = (value) => {
   const data = optionalString(value.data);
