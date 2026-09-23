@@ -71,7 +71,6 @@ export function ConnectedAuditLogsTable(props: AuditLogsTableProps) {
             label: "Export",
             icon: <Download className="size-4" />,
             variant: "outline" as const,
-            size: "icon" as const,
             loading: createExport.isPending,
             dropdown: {
               title: "Export",

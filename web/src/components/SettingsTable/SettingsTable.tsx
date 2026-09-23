@@ -29,9 +29,10 @@ import {
 
 export type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
   ? TAction extends ActionButtonProps
-    ? Omit<TAction, "children"> & {
+    ? Omit<TAction, "children" | "size"> & {
         id: string;
         label: string;
+        size?: Exclude<NonNullable<ActionButtonProps["size"]>, "icon">;
         dropdown?: Omit<ComponentProps<typeof DropdownMenu>, "children">;
       }
     : never
