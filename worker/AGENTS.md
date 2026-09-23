@@ -39,6 +39,9 @@
   in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
   records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
+  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
+  `src/features/otel-ingestion/README.md`.
 
 ## Shared Package Imports
 
