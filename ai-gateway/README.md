@@ -284,7 +284,7 @@ guardrails, not measured capacity: tune them independently using load tests for 
 instance resources, request sizes and stream durations. These limits bound work;
 they do not guarantee fairness between clients or tenants.
 
-Other limits are 10 MiB request bodies in both namespaces, 10 seconds to read a request, 5 seconds to
+Other limits are 10 MiB request bodies in both namespaces, 30 seconds to read a request, 5 seconds to
 connect, 120 seconds for provider response headers or an individual upstream read,
 and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
@@ -534,10 +534,24 @@ non-empty `text`, `thinking` or `partial_json`; signatures, citations and pings 
 count. A mid-stream `error` event, or an HTTP error body, marks the generation failed;
 its `type` and `message` are retained only in full mode. Unknown event types are ignored.
 A `stop_reason` of `max_tokens` or `model_context_window_exceeded` sets a `WARNING`
-level. Only scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
-`stream`, `service_tier`, `speed`) are recorded; `speed` selects the fast-mode pricing
-tier. Request and response content are not captured
-in either mode yet, so full-mode output completeness is false and `input`/`output` are null.
+level. Scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
+`stream`, `service_tier`, `speed`) are recorded in both modes; `speed` selects the
+fast-mode pricing tier.
+
+In full mode the input is the native request with `model` and parameters projected
+out: `stop_sequences`, `thinking`, `tool_choice`, `context_management` and
+`output_config` become model parameters and `metadata` (where Claude Code stores its
+session identifiers) becomes `request.metadata`; `system`, `messages`, `tools` and
+unknown fields are kept as sent. The output is the native assistant message
+`{"role":"assistant","content":[...],"stop_reason":...}`. JSON responses contribute
+their `content` array at EOF. Streams rebuild each block from `content_block_start`,
+its deltas and `content_block_stop`: text, thinking and citations are appended, the
+opaque `signature` is kept, and `input_json_delta` fragments are parsed into the tool
+`input` once the block stops. Unlike OpenAI Responses, Anthropic has no completed-item
+event, so these deltas are stitched within the same retained-output budget. Only
+stopped blocks are recorded; an unfinished block, tool input that is not valid JSON, an
+unknown delta type or a block past the budget is left out and makes the output
+partial. Usage mode records neither input nor output.
 
 For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.

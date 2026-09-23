@@ -464,11 +464,8 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
 }
 
 #[tokio::test]
-async fn slow_request_body_and_resolution_have_bounded_waits() {
-    let web = FakeServer::start(|request| async move {
-        if request.headers()[header::AUTHORIZATION] != "Bearer slow-resolution" {
-            return resolution_response("provider");
-        }
+async fn slow_resolution_has_a_bounded_wait() {
+    let web = FakeServer::start(|_| async {
         Response::new(Body::from_stream(stream::pending::<
             Result<&'static str, Infallible>,
         >()))
@@ -476,27 +473,29 @@ async fn slow_request_body_and_resolution_have_bounded_waits() {
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
     let gateway = Gateway::start(Some(inference(&web, &provider))).await;
-    let slow_body = gateway
-        .post()
-        .bearer_auth("key")
-        .body(reqwest::Body::wrap_stream(stream::pending::<
-            Result<&'static str, Infallible>,
-        >()))
-        .send();
-    let slow_resolution = gateway
-        .post()
-        .bearer_auth("slow-resolution")
-        .body("{}")
-        .send();
-    let (body, resolution) = tokio::time::timeout(Duration::from_secs(12), async {
-        tokio::join!(slow_body, slow_resolution)
-    })
+    let resolution = tokio::time::timeout(
+        Duration::from_secs(12),
+        gateway
+            .post()
+            .bearer_auth("slow-resolution")
+            .body("{}")
+            .send(),
+    )
     .await
     .unwrap();
-    assert_eq!(body.unwrap().status(), StatusCode::REQUEST_TIMEOUT);
     assert_eq!(resolution.unwrap().status(), StatusCode::GATEWAY_TIMEOUT);
-    assert_eq!(web.calls(), 2);
+    assert_eq!(web.calls(), 1);
     assert_eq!(provider.calls(), 0);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stalled_request_body_times_out_at_the_read_deadline() {
+    let stalled = Body::from_stream(stream::pending::<Result<&'static str, Infallible>>());
+    let started = tokio::time::Instant::now();
+    let result = read_request_body(stalled).await;
+    assert!(matches!(result, Err(InferenceHttpError::RequestTimeout)));
+    assert_eq!(started.elapsed(), REQUEST_READ_TIMEOUT);
+    assert_eq!(REQUEST_READ_TIMEOUT, Duration::from_secs(30));
 }
 
 #[tokio::test]

@@ -19,7 +19,7 @@ use crate::{
 };
 
 const MAX_REQUEST_BYTES: usize = 10 * 1024 * 1024;
-const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_READ_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_GATEWAY_KEY_BYTES: usize = 8192;
 
 #[derive(Clone)]
