@@ -589,11 +589,7 @@ function TraceNavigationDetailLayout({
           groupRef={groupRef}
           defaultLayout={defaultLayout ?? computedDefaultLayout}
           onLayoutChanged={(layout) => {
-            if (
-              reviewOpen ||
-              appliedReviewMode.current !== reviewOpen
-            )
-              return;
+            if (reviewOpen || appliedReviewMode.current !== reviewOpen) return;
             normalLayout.current = layout;
             onLayoutChanged({
               [RESIZABLE_PANEL_NAVIGATION_ID]:
