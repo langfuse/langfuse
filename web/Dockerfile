@@ -46,6 +46,9 @@ ARG GID=1001
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data. sed is used by entrypoint.sh.
+# wget keeps exec-style container health checks working (e.g. `wget --spider
+# http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
+# which follows the host's FIPS mode like OpenSSL does.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
     --disableexcludes=all \
     module enable nodejs:24 && \
@@ -53,7 +56,7 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
     --disableexcludes=all \
     install nodejs nodejs-full-i18n bash coreutils-single sed \
-    tzdata ca-certificates crypto-policies && \
+    tzdata ca-certificates crypto-policies wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
