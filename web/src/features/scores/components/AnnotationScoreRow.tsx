@@ -337,7 +337,7 @@ export function AnnotationScoreRow({
             </Popover>
           </div>
           {showTarget ? (
-            <Badge variant="outline-solid" size="sm">
+            <Badge variant="outline-solid">
               {target.label}
             </Badge>
           ) : null}

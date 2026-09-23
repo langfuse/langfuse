@@ -53,7 +53,7 @@ export function AnnotationQueueDetails({
       <section className="flex min-w-0 flex-col gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-bold">Score fields</h3>
-          <Badge text={String(scoreConfigs.length)} size="sm" />
+          <Badge text={String(scoreConfigs.length)} />
         </div>
         {scoreConfigs.length === 0 ? (
           <p className="text-muted-foreground text-sm">
@@ -69,7 +69,7 @@ export function AnnotationQueueDetails({
                     <span className="min-w-0 text-sm font-bold wrap-anywhere">
                       {config.name}
                     </span>
-                    {config.isArchived && <Badge text="Archived" size="sm" />}
+                    {config.isArchived && <Badge text="Archived" />}
                   </div>
                   <p className="text-muted-foreground text-xs">
                     {describeScoreField(config)}
