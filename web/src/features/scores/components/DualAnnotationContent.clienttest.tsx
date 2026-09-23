@@ -78,6 +78,10 @@ vi.mock("@/src/utils/api", async () => {
   return {
     api: {
       scoreConfigs: {
+        create: {
+          useMutation: (options: UseMutationOptions) =>
+            useMutation({ ...options, mutationFn: vi.fn() }),
+        },
         all: {
           useQuery: () => ({
             isLoading: mocks.configsLoading,
@@ -218,11 +222,11 @@ describe("unified annotation targets", () => {
     const rendered = renderContent();
     fireEvent.click(screen.getByRole("button", { name: "Add score" }));
     expect(
-      screen.queryByRole("option", { name: /Quality/ }),
+      screen.queryByRole("menuitem", { name: /Quality/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole("option", { name: /Accuracy/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Accuracy/ }));
     expect(screen.getAllByRole("group", { name: "Accuracy" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
     fireEvent.keyDown(
       screen.getByRole("button", { name: "Score actions for Accuracy" }),
       { key: "ArrowDown" },
@@ -397,7 +401,9 @@ describe("unified annotation targets", () => {
                 "combobox",
               );
         fireEvent.click(trigger);
-        expect(await screen.findByRole("listbox")).toBeVisible();
+        expect(
+          await screen.findByRole(control === "picker" ? "menu" : "listbox"),
+        ).toBeVisible();
       }
       rendered.rerenderContent(cloneElement(content, { isActive: false }));
       await waitFor(() => {
@@ -660,7 +666,7 @@ describe("unified annotation targets", () => {
     mocks.create.mockReturnValue(pending.promise);
     renderContent();
     expect(screen.getAllByRole("group", { name: "Quality" })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
     fireEvent.keyDown(
       screen.getByRole("button", { name: "Score actions for Quality" }),
       { key: "ArrowDown" },
@@ -882,7 +888,7 @@ describe("unified annotation targets", () => {
         screen.getByRole("status", { name: "Score save status" }),
       ).toHaveTextContent("Saved"),
     );
-    expect(screen.getByRole("button", { name: "Add score" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add score" })).toBeEnabled();
     const cached = JSON.parse(
       screen.getByLabelText("Cached scores").textContent!,
     );
