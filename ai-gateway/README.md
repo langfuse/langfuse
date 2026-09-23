@@ -1,13 +1,19 @@
 # AI Gateway service
 
-A standalone Rust gateway for `POST /openai/v1/responses`, `POST /openai/v1/responses/compact`,
-and `GET /openai/v1/models`. Web resolves the gateway key to a trusted provider connection;
-Rust relays native JSON or SSE without rewriting provider bytes. Compact uses the same
-Responses capture path. Models listing is a GET proxy of OpenAI's catalog and is not ingested
-as a generation. A bounded capture layer captures request/response facts and
-logs capture completeness at debug level. Each finalized generation is immediately
-uploaded as a Langfuse generation through OTLP. Building and testing need no real
-Web, database or provider credentials.
+A standalone Rust gateway for native provider APIs under two namespaces:
+
+| Namespace | Endpoints | Generation ingested |
+| --- | --- | --- |
+| `/openai/v1` | `POST /responses`, `POST /responses/compact`, `GET /models` | Responses and compact |
+| `/anthropic/v1` | `POST /messages`, `POST /messages/count_tokens`, `GET /models` | Messages |
+
+Web resolves the gateway key to a trusted provider connection for the namespace's API
+format; Rust relays native JSON or SSE without rewriting provider bytes. Models listings
+are GET proxies of the provider catalog and token counting returns the native count;
+neither is ingested as a generation. A bounded capture layer captures request/response
+facts and logs capture completeness at debug level. Each finalized generation is
+immediately uploaded as a Langfuse generation through OTLP. Building and testing need
+no real Web, database or provider credentials.
 
 ## Run locally
 
@@ -205,13 +211,69 @@ response = client.responses.create(model="gpt-4.1-mini", input="Say hello")
 print(response.output_text)
 ```
 
-The gateway forwards inference to official OpenAI v1 paths only: Responses, Responses compact,
-and GET `/models`. It does not retry, follow redirects, or accept client routing overrides.
-Request parsing is best-effort capture only; Web still selects the provider connection.
-Compact `encrypted_content` is relayed unchanged. GET `/models` returns OpenAI's list
-payload as-is, drops request query strings, and does not upload a generation.
-Provider errors retain their status and body. Gateway errors use an OpenAI-style
-`{"error":{"message":"...","type":"...","param":null,"code":"..."}}` envelope.
+### Anthropic Messages and Claude Code
+
+The `/anthropic/v1` namespace serves the Anthropic Messages API. Claude Code treats the
+gateway as the Claude API once `ANTHROPIC_BASE_URL` points at the namespace root; the
+SDK appends `/v1/messages` itself, so the URL has no `/v1` suffix:
+
+```sh
+export ANTHROPIC_BASE_URL=http://localhost:8080/anthropic
+export ANTHROPIC_AUTH_TOKEN=$LANGFUSE_GATEWAY_KEY
+export ANTHROPIC_API_KEY=            # a leftover Anthropic key here conflicts with the token
+claude
+```
+
+`ANTHROPIC_AUTH_TOKEN` arrives as `Authorization: Bearer`, `ANTHROPIC_API_KEY` as
+`x-api-key`; the gateway accepts its key in either position. When both headers are
+present they must carry the same value, otherwise the request is rejected with 401
+rather than guessing which credential the developer meant. Claude Code's
+`x-claude-code-session-id` header groups a session's generations; see the caller
+tracing context below.
+
+```sh
+curl http://localhost:8080/anthropic/v1/messages \
+  -H "x-api-key: $LANGFUSE_GATEWAY_KEY" \
+  -H 'anthropic-version: 2023-06-01' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"claude-sonnet-4-5","max_tokens":64,"messages":[{"role":"user","content":"Say hello"}]}'
+# Add "stream":true and use curl -N for SSE.
+
+curl http://localhost:8080/anthropic/v1/messages/count_tokens \
+  -H "x-api-key: $LANGFUSE_GATEWAY_KEY" \
+  -H 'anthropic-version: 2023-06-01' \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"Say hello"}]}'
+
+curl "http://localhost:8080/anthropic/v1/models?limit=1000" \
+  -H "x-api-key: $LANGFUSE_GATEWAY_KEY" -H 'anthropic-version: 2023-06-01'
+```
+
+Every `anthropic-*` request header is forwarded verbatim, including `anthropic-version`
+and `anthropic-beta`: Claude Code pairs beta body fields with beta header values and
+adds new headers between releases, so the gateway does not allowlist individual
+values. Request bodies, including the `system` array order and `cache_control`
+markers, are relayed byte for byte. On responses `request-id`, `x-should-retry`,
+`anthropic-organization-id` and every `anthropic-ratelimit-*` header are retained
+because the client uses them to decide whether and when to retry and to show usage
+limits. Provider error bodies are relayed unmodified; Claude Code matches on their
+wording to disable rejected capabilities. Model discovery
+(`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`) proxies Anthropic's catalog and
+forwards only the `limit`, `after_id` and `before_id` query parameters.
+
+### Relay rules
+
+The gateway forwards inference to official provider paths only. It does not retry, follow
+redirects, or accept client routing overrides. Request parsing is best-effort capture
+only; Web still selects the provider connection. Compact `encrypted_content` is relayed
+unchanged. Inference routes drop request query strings: the Anthropic SDK's
+`?beta=true` carries nothing beyond the `anthropic-beta` header. Provider errors retain
+their status and body. Gateway errors use the namespace's native envelope:
+`{"error":{"message":"...","type":"...","param":null,"code":"..."}}` for OpenAI and
+`{"type":"error","error":{"type":"...","message":"..."}}` for Anthropic, where the
+error type follows the status (`authentication_error`, `permission_error`,
+`not_found_error`, `request_too_large`, `invalid_request_error`, `overloaded_error`,
+`api_error`).
 
 The gateway authenticates through Web before reserving execution capacity or
 reading the request body. Web resolution uses a separate concurrency budget,
@@ -222,9 +284,9 @@ guardrails, not measured capacity: tune them independently using load tests for 
 instance resources, request sizes and stream durations. These limits bound work;
 they do not guarantee fairness between clients or tenants.
 
-Other limits are 4 MiB request bodies, 10 seconds to read a request, 5 seconds to
+Other limits are 10 MiB request bodies in both namespaces, 10 seconds to read a request, 5 seconds to
 connect, 120 seconds for provider response headers or an individual upstream read,
-and 600 seconds overall from execution admission. Response size is not capped: a single task pumps chunks
+and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
 channel fills. Completion, disconnect and deadline release admission and context;
 the deadline runs even when the downstream stops polling. A failure after headers
@@ -233,13 +295,16 @@ There is no separate downstream stall timeout; a client that stops reading can
 retain execution capacity until the overall deadline. A progress-based downstream
 stall policy is deferred to a separate change.
 
-Only request content type/encoding and accept cross the provider boundary, plus
-the resolved Bearer token. The gateway sets `Accept-Encoding: identity` upstream
-so client compression preferences cannot disable JSON/SSE capture. Response
-content type/encoding, cache control, retry-after, request ID and selected OpenAI
-timing/version/rate-limit
-headers are retained. Cookies, routing overrides, gateway/ingestion credentials,
-hop-by-hop headers and upstream framing are excluded.
+Only request content type/encoding and accept cross the provider boundary, plus the
+resolved credential in its provider's header (`Authorization: Bearer` for OpenAI,
+`x-api-key` for Anthropic) and, for Anthropic, the `anthropic-*` header family. The
+gateway sets `Accept-Encoding: identity` upstream so client compression preferences
+cannot disable JSON/SSE capture. Response content type/encoding, cache control and
+retry-after are retained in both namespaces, plus the request ID and selected OpenAI
+timing/version/rate-limit headers, or Anthropic's `request-id`, `x-should-retry`,
+`anthropic-organization-id` and `anthropic-ratelimit-*` headers. Cookies, routing
+overrides, gateway/ingestion credentials, client `x-claude-code-*` correlation
+headers, hop-by-hop headers and upstream framing are excluded.
 
 ## Langfuse uploads
 
@@ -263,8 +328,10 @@ attribution. Full mode includes the captured input/output; usage mode omits cont
 Completion-start time is emitted only for upstream `text/event-stream` responses,
 on the first nonempty text, reasoning, refusal, tool-input, audio, or partial-image content. JSON responses
 and streams without a captured content delta have no completion-start time or TTFT.
-The exporter projects native OpenAI usage into the receiver's supported shape for
-pricing without duplicating it in metadata. Missing usage is not reported as zero.
+OpenAI Responses usage is projected into the receiver's strict native schema, keeping
+its nested detail counters. Anthropic usage is uploaded exactly as the provider reported
+it; ingestion decides what to price. Usage is not duplicated in metadata. Missing usage
+is not reported as zero.
 
 Gateway metadata uses `langfuse.gateway.*`, grouped by the resource or exchange
 each field describes:
@@ -274,11 +341,11 @@ each field describes:
 | `organization.id`, `project.id`                                                             | Resolved Langfuse organization and ingestion project                        |
 | `api_key.id`, `connection.id`                                                               | Authenticated gateway key and selected Langfuse connection                  |
 | `ingestion.mode`                                                                            | Effective capture mode                                                      |
-| `request.api_format`                                                                        | Native API contract, such as `openai.responses`                             |
+| `request.api_format`                                                                        | Native API contract: `openai.responses` or `anthropic.messages`             |
 | `request.metadata`, `request.prompt_cache_key`, `request.safety_identifier`, `request.user` | Native caller-supplied fields, captured only in full mode                   |
 | `response.id`                                                                               | Native response object's ID                                                 |
 | `response.status_code`                                                                      | HTTP status returned to the caller                                          |
-| `upstream.request.id`                                                                       | Provider request ID received in the upstream `x-request-id` response header |
+| `upstream.request.id`                                                                       | Provider request ID from the upstream `x-request-id` (OpenAI) or `request-id` (Anthropic) header |
 
 `request.id` is reserved for a future gateway-generated request ID and is not
 emitted. The upstream request ID is separate and is omitted when unavailable.
@@ -457,9 +524,22 @@ stored under `langfuse.gateway.request.*` only in full mode.
 In both modes, `usage_details` preserves the provider's entire usage object,
 including nested and unknown fields. The gateway does not rename counters,
 subtract cached tokens, or synthesize totals. Missing usage stays null.
-`api_format` identifies the payload format (`openai.responses` today).
+`api_format` identifies the payload format (`openai.responses` or `anthropic.messages`).
 
-For SSE, only `response.output_item.done` adds output. Terminal Responses events
+For Anthropic Messages, `message_start` supplies the response ID, actual model and the
+usage baseline; `message_delta` supplies `stop_reason` and cumulative usage counters that
+replace the baseline values (nothing is summed across snapshots); `message_stop` is the
+terminal event. `completion_start_ms` is set by the first `content_block_delta` carrying
+non-empty `text`, `thinking` or `partial_json`; signatures, citations and pings do not
+count. A mid-stream `error` event, or an HTTP error body, marks the generation failed;
+its `type` and `message` are retained only in full mode. Unknown event types are ignored.
+A `stop_reason` of `max_tokens` or `model_context_window_exceeded` sets a `WARNING`
+level. Only scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
+`stream`, `service_tier`, `speed`) are recorded; `speed` selects the fast-mode pricing
+tier. Request and response content are not captured
+in either mode yet, so full-mode output completeness is false and `input`/`output` are null.
+
+For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events
 provide model, service tier, status and usage; their repeated output is not copied.
 Deltas are never stitched or retained. A disconnect midway through an item loses
 that unfinished item; already completed items remain in the partial record. Item
@@ -483,12 +563,12 @@ content does not make it false. Request inspection failure does not invalidate a
 fully captured response, and downstream cancellation does not erase completed capture.
 
 The implementation separates shared `ExecutionCapture` lifecycle/timing, the
-`OpenAiResponsesCapture` adapter and bounded `SseDecoder`. A private `ProtocolCapture`
-enum dispatches to the adapter. Finalization hands an owned `InferenceFacts` record
-to telemetry for a safe debug summary and immediate upload. Another provider can supply
-native facts through the same interface without changing the relay. The current
-usage mapping targets OpenAI Responses; no Anthropic adapter is implemented yet.
-Capture and upload run independently of log level; debug emission alone is gated.
+`OpenAiResponsesCapture` and `AnthropicMessagesCapture` adapters, the shared
+`ResponseBody` content-type sniffing and bounded `SseDecoder`. A private
+`ProtocolCapture` enum dispatches to the adapter selected by API format. Finalization
+hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
+immediate upload. Capture and upload run independently of log level; debug emission
+alone is gated.
 
 Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
 1 MiB retained output and 256 output items per execution. The active-request limit
@@ -590,10 +670,7 @@ invalid response, even if Web selected it.
 
 `ProviderConnection::credential()` exposes the secret in its header position
 (`ProviderCredential::Bearer` or `ProviderCredential::XApiKey`) and has no `Debug`
-output. The Anthropic pairing is accepted by the contract ahead of its routes: no
-`/anthropic/v1` endpoint, transport or capture exists yet, so a resolver caller
-requesting `anthropic.messages` today is only the test suite. Ingestion tokens remain
-opaque. Resolution caching, provider execution and telemetry are separate slices.
+output. Ingestion tokens remain opaque. Resolution caching is a separate slice.
 
 ### Verification
 
@@ -632,8 +709,10 @@ cargo test --locked
 - `main.rs`: configuration, logging, signal registration and process exit.
 - `http.rs`: credential extraction, bounded body reads and gateway error envelopes.
 - `inference.rs`: `InferenceService` coordinates resolution, admission and forwarding.
-- `providers/openai.rs`: fixed OpenAI v1 origin, route, provider credentials and admission.
-- `transport/mod.rs`: header allowlists, bounded byte relay and response lifetime.
+- `providers/mod.rs`: `ProviderTransport` with shared admission, the `Route` enum of
+  official operations (method, upstream path, capture, forwarded query) and credential
+  placement.
+- `transport/mod.rs`: per-format header policies, bounded byte relay and response lifetime.
 - `resolution/mod.rs`: trusted base URL configuration and bounded Web HTTP client.
 - `resolution/contracts.rs`: strict Web response validation and immutable execution context.
 - `resolution/signing.rs`: Web v1 HMAC; a literal shared fixture pins byte compatibility.

@@ -36,7 +36,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         ));
     }
     if let Some(usage) = inference.usage_details
-        && let Some(projected) = openai_usage(&usage)
+        && let Some(projected) = usage_projection(facts.api_format, &usage)
     {
         attributes.push(attribute(
             "langfuse.observation.usage_details",
@@ -198,6 +198,14 @@ fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) 
 
 fn attribute(key: &str, value: impl Into<String>) -> Value {
     json!({"key": key, "value": {"stringValue": value.into()}})
+}
+
+fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
+    match api_format {
+        "openai.responses" => openai_usage(usage),
+        "anthropic.messages" => usage.is_object().then(|| usage.clone()),
+        _ => None,
+    }
 }
 
 /// The receiver's native `OpenAI` usage schema is strict at the top level, but
@@ -503,6 +511,44 @@ mod tests {
         let attrs = attributes(&span(facts, &context()));
         assert!(!attrs.contains_key("langfuse.observation.usage_details"));
         assert!(metadata(&attrs).get("native_usage").is_none());
+    }
+
+    fn projected_usage(api_format: &'static str, usage: Value) -> Option<Value> {
+        let mut facts = facts();
+        facts.api_format = api_format;
+        facts.inference.usage_details = Some(usage);
+        let attrs = attributes(&span(facts, &context()));
+        attrs
+            .get("langfuse.observation.usage_details")
+            .map(|value| serde_json::from_str(value.as_str().unwrap()).unwrap())
+    }
+
+    #[test]
+    fn anthropic_usage_is_uploaded_as_native() {
+        let native = json!({
+            "input_tokens": 7, "output_tokens": 445,
+            "cache_creation_input_tokens": 2089, "cache_read_input_tokens": 16399,
+            "cache_creation": {"ephemeral_5m_input_tokens": 2000, "ephemeral_1h_input_tokens": 89},
+            "output_tokens_details": {"thinking_tokens": 300},
+            "server_tool_use": {"web_search_requests": 1},
+            "service_tier": "standard", "inference_geo": null
+        });
+        assert_eq!(
+            projected_usage("anthropic.messages", native.clone()),
+            Some(native)
+        );
+        assert_eq!(
+            projected_usage("anthropic.messages", json!({"input_tokens": 7})),
+            Some(json!({"input_tokens": 7}))
+        );
+        // The Anthropic shape never projects through the OpenAI rules.
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"input_tokens": 7, "output_tokens": 1, "cache_read_input_tokens": 5})
+            ),
+            None
+        );
     }
 
     #[test]
