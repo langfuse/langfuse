@@ -65,7 +65,7 @@ fn text_stream() -> String {
         ),
         event(
             "content_block_delta",
-            json!({"index":0,"delta":{"type":"text_delta","text":"Hel"}}),
+            json!({"index":0,"delta":{"type":"text_delta","text":"Hel"}}), // codespell:ignore
         ),
         event(
             "content_block_delta",
