@@ -118,6 +118,14 @@ const projectRoutes: Route[] = [
     route: "v2/prompts/[promptName]/versions/[promptVersion]",
     methods: ["PATCH"],
   },
+  { route: "v1/skills/index", methods: ["GET", "POST"] },
+  { route: "v1/skills/[skillName]/index", methods: ["GET"] },
+  {
+    route: "v1/skills/[skillName]/versions/[skillVersion]",
+    methods: ["PATCH", "DELETE"],
+  },
+  { route: "v1/skills/blobs/index", methods: ["POST"] },
+  { route: "v1/skills/files/[fileId]/content", methods: ["GET"] },
 ];
 
 // Org and misc routes call shadowAuth directly from the handler body.
