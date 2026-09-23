@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { useExperimentResultsState } from "@/src/features/experiments/hooks/useExperimentResultsState";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -7,11 +8,15 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableActionMenu,
+  type TableAction,
+  TableSelectionManager,
+  useSelectAll,
+} from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
 import {
@@ -37,7 +42,7 @@ import {
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
@@ -54,18 +59,16 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { EXPERIMENT_ITEMS_FIELD_REGISTRY } from "@/src/features/experiments/constants/experimentItemsSearchRegistry";
 import {
   reconcileFilterTargets,
   hasAmbiguousTargetChange,
 } from "@/src/features/experiments/lib/reconcileFilterTargets";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -74,6 +77,7 @@ import {
   type ExperimentOutputData,
   getExperimentColorStyles,
 } from "./types";
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/ui/badge";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
@@ -247,7 +251,7 @@ const formatScoreAggregateValue = (
 ): string => {
   if (!aggregate) return "nothing";
   return aggregate.type === "NUMERIC"
-    ? aggregate.average.toFixed(4)
+    ? aggregate.average.toFixed(2)
     : (aggregate.values[0] ?? "nothing");
 };
 
@@ -315,7 +319,7 @@ const StackedExperimentCell = ({
                 {content}
               </>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <EmptyValue />
             )}
           </div>
         );
@@ -389,7 +393,6 @@ const matchesExpectedOutput = (
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
-    size="sm"
     variant={matches ? "success" : "error"}
     className="mt-0.5 ml-1 shrink-0 font-bold"
   >
@@ -501,7 +504,9 @@ const StackedOutputCell = ({
                 }
               />
             ) : (
-              <span className="text-muted-foreground px-2 py-1">—</span>
+              <span className="px-2 py-1">
+                <EmptyValue />
+              </span>
             )}
           </div>
         );
@@ -524,7 +529,7 @@ export default function ExperimentItemsTable({
   projectId,
   ioRenderMode,
   hideControls = false,
-  settingsSections,
+  toolbarSettings,
 }: ExperimentItemsTableProps) {
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -539,6 +544,7 @@ export default function ExperimentItemsTable({
     hasBaseline,
     comparisonIds,
     allExperimentIds,
+    colorExperimentIds,
     layout,
     diffMode,
     itemVisibility,
@@ -784,7 +790,7 @@ export default function ExperimentItemsTable({
   );
 
   // Use the custom hook for experiment items data fetching
-  const { items, totalCount, dataUpdatedAt, ioLoading } =
+  const { items, totalCount, dataUpdatedAt, ioLoading, isTotalCountLoading } =
     useExperimentItemsTableData({
       projectId,
       baseExperimentId: baselineId,
@@ -844,11 +850,6 @@ export default function ExperimentItemsTable({
       setSelectedRows,
       setSelectAll,
     },
-  );
-
-  const colorExperimentIds = useMemo(
-    () => (hasBaseline ? allExperimentIds : []),
-    [hasBaseline, allExperimentIds],
   );
 
   // A score column that is empty for every item in view is noise, so only keep
@@ -1172,8 +1173,7 @@ export default function ExperimentItemsTable({
                   const scoresData = exp[scoreField] ?? {};
                   const value = scoresData[scoreKey];
 
-                  if (!value)
-                    return <span className="text-muted-foreground">-</span>;
+                  if (!value) return <EmptyValue />;
 
                   const mockRow = {
                     getValue: (key: string) =>
@@ -1930,10 +1930,13 @@ export default function ExperimentItemsTable({
   const pagination = useMemo(
     () => ({
       totalCount: totalCount ?? null,
+      // Without this the footer prints "of 1" for as long as the count query
+      // is in flight behind rows that are already on screen.
+      isTotalCountLoading,
       onChange: setPaginationState,
       state: paginationState,
     }),
-    [paginationState, setPaginationState, totalCount],
+    [isTotalCountLoading, paginationState, setPaginationState, totalCount],
   );
 
   // Compute selected observation IDs for batch evaluation
@@ -2080,12 +2083,7 @@ export default function ExperimentItemsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            // One "Table settings" button for the controls that shape this
-            // table, as on the experiments list — where two buttons plus a
-            // third control in the page header was the inconsistency between
-            // the two surfaces of the same feature.
-            mergeSettingsIntoPopover
-            settingsSections={settingsSections}
+            toolbarSettings={toolbarSettings}
             multiSelect={{
               selectAll,
               setSelectAll,
@@ -2160,6 +2158,7 @@ export default function ExperimentItemsTable({
                   rows={unfilteredRows}
                   scoreRows={matrixScoreRows}
                   experiments={matrixExperiments}
+                  colorExperimentIds={colorExperimentIds}
                   isLoading={items.status === "loading" || isViewLoading}
                   pagination={pagination}
                 />
@@ -2183,6 +2182,7 @@ export default function ExperimentItemsTable({
                   singleLine={ioSingleLine}
                   rows={rows}
                   isLoading={items.status === "loading" || isViewLoading}
+                  ioLoading={ioLoading}
                   rowHeight={rowHeight}
                   showExpectedOutput={showExpectedOutput}
                   pagination={pagination}
@@ -2269,6 +2269,8 @@ export default function ExperimentItemsTable({
             }
             onClose={() => {
               setShowRunEvaluationDialog(false);
+            }}
+            onSuccess={() => {
               setSelectedRows({});
               setSelectAll(false);
             }}

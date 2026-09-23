@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import type { Session } from "next-auth";
@@ -136,7 +137,7 @@ async function prepare(role: Role = Role.OWNER) {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
-      featureFlags: {} as NonNullable<Session["user"]>["featureFlags"],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
         {
           id: org.id,
@@ -181,6 +182,32 @@ async function prepare(role: Role = Role.OWNER) {
 }
 
 describe("AI gateway control plane", () => {
+  it.each([
+    {
+      productUrl: "https://staging.langfuse.com",
+      gatewayUrl: "https://gateway.staging.langfuse.com/v1",
+    },
+    {
+      productUrl: "http://localhost:3000",
+      gatewayUrl: "http://localhost:8080/v1",
+    },
+  ])(
+    "returns the gateway endpoint for $productUrl",
+    async ({ productUrl, gatewayUrl }) => {
+      const { caller, org } = await prepare();
+      const originalNextAuthUrl = env.NEXTAUTH_URL;
+      (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = productUrl;
+
+      try {
+        await expect(
+          caller.aiGateway.getConfig({ orgId: org.id }),
+        ).resolves.toMatchObject({ gatewayBaseUrl: gatewayUrl });
+      } finally {
+        (env as { NEXTAUTH_URL: string }).NEXTAUTH_URL = originalNextAuthUrl;
+      }
+    },
+  );
+
   it("applies the environment-specific organization allowlist", async () => {
     const { caller, org } = await prepare();
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
@@ -190,7 +217,7 @@ describe("AI gateway control plane", () => {
 
     const request = caller.aiGateway.getConfig({ orgId: org.id });
     if (env.NODE_ENV === "development") {
-      await expect(request).resolves.toBeNull();
+      await expect(request).resolves.toMatchObject({ config: null });
     } else {
       await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     }

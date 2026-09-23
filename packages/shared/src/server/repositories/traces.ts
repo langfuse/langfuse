@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -1385,6 +1386,7 @@ export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
     params: {
       traceIds,
     },
+    tags: { surface: "ssr", route: "trace_redirect" },
   });
 
   return records.map((record) => ({

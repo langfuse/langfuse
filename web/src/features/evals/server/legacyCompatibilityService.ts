@@ -91,7 +91,25 @@ function managedTemplateId(key: string) {
   return `${MANAGED_TEMPLATE_ID_PREFIX}${key}`;
 }
 
-function toLegacyManagedTemplate(template: ManagedTemplate) {
+type LegacyManagedTemplate = ManagedTemplate & {
+  evaluator: Exclude<
+    ManagedTemplate["evaluator"],
+    { type: typeof EvalTemplateType.DECISION_MODEL }
+  >;
+};
+
+function isLegacyManagedTemplate(
+  template: ManagedTemplate,
+): template is LegacyManagedTemplate {
+  return template.evaluator.type !== EvalTemplateType.DECISION_MODEL;
+}
+
+function legacyManagedTemplates(): LegacyManagedTemplate[] {
+  const templates: ManagedTemplate[] = MANAGED_TEMPLATES_CATALOG.templates;
+  return templates.filter(isLegacyManagedTemplate);
+}
+
+function toLegacyManagedTemplate(template: LegacyManagedTemplate) {
   const now = new Date(0);
   if (template.evaluator.type === EvalTemplateType.CODE) {
     return {
@@ -203,7 +221,7 @@ type LlmEvaluatorVariableMapping = Extract<
 >["variableMapping"];
 
 function definitionFromManagedTemplate(
-  template: ManagedTemplate,
+  template: LegacyManagedTemplate,
   variableMapping: LlmEvaluatorVariableMapping,
 ): EvaluatorDefinition {
   if (template.evaluator.type === EvalTemplateType.CODE) {
@@ -254,14 +272,28 @@ function evaluatorVersionData(
   const common = {
     createdByUserId,
   };
-  return definition.type === EvalTemplateType.CODE
-    ? {
+  switch (definition.type) {
+    case EvalTemplateType.CODE:
+      return {
         ...common,
         variableMapping: getCodeEvalVariableMapping() as Prisma.InputJsonValue,
         sourceCode: definition.sourceCode,
         sourceCodeLanguage: definition.sourceCodeLanguage,
-      }
-    : {
+      };
+    case EvalTemplateType.DECISION_MODEL:
+      return {
+        ...common,
+        variableMapping:
+          definition.variableMapping === null
+            ? Prisma.DbNull
+            : (definition.variableMapping as Prisma.InputJsonValue),
+        provider: definition.provider,
+        model: definition.model,
+        vars: definition.vars,
+        questions: definition.questions as Prisma.InputJsonValue,
+      };
+    case EvalTemplateType.LLM_AS_JUDGE:
+      return {
         ...common,
         variableMapping:
           definition.variableMapping === null
@@ -278,6 +310,7 @@ function evaluatorVersionData(
         vars: definition.vars,
         outputDefinition: definition.outputDefinition as Prisma.InputJsonValue,
       };
+  }
 }
 
 /**
@@ -290,6 +323,17 @@ function definitionsMatch(a: EvaluatorDefinition, b: EvaluatorDefinition) {
     return (
       a.sourceCode === b.sourceCode &&
       a.sourceCodeLanguage === b.sourceCodeLanguage
+    );
+  }
+  if (
+    a.type === EvalTemplateType.DECISION_MODEL &&
+    b.type === EvalTemplateType.DECISION_MODEL
+  ) {
+    return (
+      isEqual(a.questions, b.questions) &&
+      a.provider === b.provider &&
+      a.model === b.model &&
+      isEqual([...a.vars].sort(), [...b.vars].sort())
     );
   }
   if (
@@ -382,7 +426,7 @@ type ManagedCatalogEntry = {
 };
 
 function runnableManagedCatalog(): ManagedCatalogEntry[] {
-  return MANAGED_TEMPLATES_CATALOG.templates
+  return legacyManagedTemplates()
     .map((template) => ({
       template: toLegacyManagedTemplate(template),
       definition: definitionFromManagedTemplate(template, null),
@@ -871,7 +915,7 @@ export class LegacyEvalCompatibilityService {
   }
 
   listManagedTemplates() {
-    return MANAGED_TEMPLATES_CATALOG.templates
+    return legacyManagedTemplates()
       .map(toLegacyManagedTemplate)
       .filter(isRunnableTemplate);
   }
@@ -895,7 +939,7 @@ export class LegacyEvalCompatibilityService {
   async getTemplate(projectId: string, templateId: string) {
     if (templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       if (!template) return null;
@@ -922,7 +966,7 @@ export class LegacyEvalCompatibilityService {
   }) {
     if (params.templateId.startsWith(MANAGED_TEMPLATE_ID_PREFIX)) {
       const key = params.templateId.slice(MANAGED_TEMPLATE_ID_PREFIX.length);
-      const template = MANAGED_TEMPLATES_CATALOG.templates.find(
+      const template = legacyManagedTemplates().find(
         (candidate) => candidate.key === key,
       );
       return template
@@ -1208,9 +1252,7 @@ export class LegacyEvalCompatibilityService {
           ? params.intent.cloneSourceId.slice(MANAGED_TEMPLATE_ID_PREFIX.length)
           : null;
         const source = key
-          ? MANAGED_TEMPLATES_CATALOG.templates.find(
-              (candidate) => candidate.key === key,
-            )
+          ? legacyManagedTemplates().find((candidate) => candidate.key === key)
           : undefined;
         if (!source) {
           throw new LangfuseNotFoundError(

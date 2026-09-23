@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
 import { DataTable } from "@/src/components/table/data-table";
 import {
@@ -19,8 +20,8 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
 import { EVAL_LOGS_FIELD_REGISTRY } from "@/src/features/evals/constants/tableSearchRegistry";
 import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
 import { useSidebarFilterState } from "@/src/features/filters";
@@ -130,7 +131,7 @@ export default function EvalLogTable({
           return undefined;
         }
         if (typeof value === "number") {
-          return value % 1 === 0 ? value : value.toFixed(4);
+          return <span title={value.toFixed(4)}>{value.toFixed(2)}</span>;
         }
         return value;
       },

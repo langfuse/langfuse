@@ -14,7 +14,7 @@ export function LatencyBadge({
 }) {
   if (latencySeconds == null) return null;
 
-  return <Badge text={`Latency: ${formatIntervalSeconds(latencySeconds)}`} />;
+  return <Badge label="latency" text={formatIntervalSeconds(latencySeconds)} />;
 }
 
 export function TimeToFirstTokenBadge({
@@ -24,39 +24,5 @@ export function TimeToFirstTokenBadge({
 }) {
   if (timeToFirstToken == null) return null;
 
-  return (
-    <Badge
-      text={`Time to first token: ${formatIntervalSeconds(timeToFirstToken)}`}
-    />
-  );
-}
-
-export function EnvironmentBadge({
-  environment,
-}: {
-  environment: string | null | undefined;
-}) {
-  if (!environment) return null;
-
-  return <Badge text={`Env: ${environment}`} />;
-}
-
-export function ReleaseBadge({
-  release,
-}: {
-  release: string | null | undefined;
-}) {
-  if (!release) return null;
-
-  return <Badge text={`Release: ${release}`} />;
-}
-
-export function VersionBadge({
-  version,
-}: {
-  version: string | null | undefined;
-}) {
-  if (!version) return null;
-
-  return <Badge text={`Version: ${version}`} />;
+  return <Badge label="ttft" text={formatIntervalSeconds(timeToFirstToken)} />;
 }

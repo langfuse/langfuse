@@ -1,8 +1,14 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
-import { DropdownMenuController } from "@/src/components/ui/dropdown-menu";
+import {
+  DropdownMenuController,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  type DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { usePersistedWindowIds } from "@/src/features/playground/page/hooks/usePersistedWindowIds";
 import {
   type PlaygroundCache,
@@ -11,6 +17,11 @@ import {
   type PlaygroundTool,
 } from "@/src/features/playground/page/types";
 import { getMessagesFingerprint } from "@/src/features/playground/page/utils/messagesFingerprint";
+import { resolveJumpTargetWindowId } from "@/src/features/playground/page/utils/resolveJumpTargetWindowId";
+import {
+  getWindowState,
+  setWindowState,
+} from "@/src/features/playground/page/storage/windowStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
@@ -32,7 +43,6 @@ import { normalizeInput, normalizeOutput } from "@/src/utils/chatml";
 import { extractTools } from "@/src/utils/chatml/extractTools";
 import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverter";
 import { api } from "@/src/utils/api";
-import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import {
   type MetadataDomainClient,
   type WithStringifiedMetadata,
@@ -42,7 +52,7 @@ import {
   type JumpToPlaygroundAction,
 } from "./JumpToPlaygroundMenu";
 
-type JumpToPlaygroundDropdownMenuControllerProps = (
+export type JumpToPlaygroundSourceProps =
   | {
       source: "prompt";
       prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue };
@@ -58,35 +68,45 @@ type JumpToPlaygroundDropdownMenuControllerProps = (
         output: string | null;
       };
       analyticsEventName: "trace_detail:test_in_playground_button_click";
-    }
-) & {
-  children: (control: {
-    disabled: boolean;
-    title: string;
-    Trigger: Parameters<
-      NonNullable<
-        React.ComponentProps<typeof DropdownMenuController>["children"]
-      >
-    >[0]["Trigger"];
-  }) => React.ReactNode;
-};
+    };
 
-export const JumpToPlaygroundDropdownMenuController = (
-  props: JumpToPlaygroundDropdownMenuControllerProps,
-) => {
+type JumpToPlaygroundDropdownMenuControllerProps =
+  JumpToPlaygroundSourceProps & {
+    variant?: "dropdown" | "submenu";
+    children: (control: {
+      disabled: boolean;
+      title: string;
+      Trigger: typeof DropdownMenuTrigger | typeof DropdownMenuSubTrigger;
+    }) => React.ReactNode;
+  };
+
+export function useJumpToPlayground(
+  props:
+    | Extract<JumpToPlaygroundSourceProps, { source: "prompt" }>
+    | (Omit<
+        Extract<JumpToPlaygroundSourceProps, { source: "generation" }>,
+        "generation"
+      > & {
+        generation:
+          | Extract<
+              JumpToPlaygroundSourceProps,
+              { source: "generation" }
+            >["generation"]
+          | null;
+      }),
+) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = useProjectIdFromURL();
-  const { addWindowWithId, clearAllCache } = usePersistedWindowIds();
+  const { windowIds, addWindowWithId, clearAllCache } = usePersistedWindowIds();
   const [includeOutput, setIncludeOutput] = useState(false);
 
   // Generate a stable window ID based on the source data
   const sourceId =
-    props.source === "prompt" ? props.prompt.id : props.generation.id;
+    props.source === "prompt" ? props.prompt.id : props.generation?.id;
   const stableWindowId = useMemo(() => {
     return `playground-${props.source}-${sourceId}`;
   }, [props.source, sourceId]);
-  const { setPlaygroundCache } = usePlaygroundCache(stableWindowId);
 
   const apiKeys = api.llmApiKey.all.useQuery(
     {
@@ -117,7 +137,7 @@ export const JumpToPlaygroundDropdownMenuController = (
 
   const prompt = props.source === "prompt" ? props.prompt : undefined;
   const generation =
-    props.source === "generation" ? props.generation : undefined;
+    props.source === "generation" ? (props.generation ?? undefined) : undefined;
   const capturedState = useMemo(() => {
     if (prompt) return parsePrompt(prompt);
     if (generation) {
@@ -127,81 +147,117 @@ export const JumpToPlaygroundDropdownMenuController = (
   }, [prompt, generation, modelToProviderMap, includeOutput]);
   const isAvailable = capturedState !== null;
 
-  const handlePlaygroundAction = (action: JumpToPlaygroundAction) => {
-    const useFreshPlayground = action === "fresh";
-    capture(props.analyticsEventName, {
-      playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
-    });
+  const handlePlaygroundAction = useCallback(
+    (action: JumpToPlaygroundAction) => {
+      const useFreshPlayground = action === "fresh";
+      capture(props.analyticsEventName, {
+        playgroundMode: useFreshPlayground ? "fresh" : "add_to_existing",
+      });
 
-    // First, ensure we have state to save
-    if (!capturedState) {
-      console.warn("No captured state available for playground");
-      return;
-    }
-
-    if (useFreshPlayground) {
-      // Clear all existing playground data and reset to single window
-      clearAllCache(stableWindowId);
-    } else {
-      // Add to existing playground
-      const addedWindowId = addWindowWithId(stableWindowId);
-
-      if (!addedWindowId) {
-        console.warn(
-          "Failed to add window to existing playground, maximum windows reached",
-        );
+      // First, ensure we have state to save
+      if (!capturedState) {
+        console.warn("No captured state available for playground");
         return;
       }
-    }
 
-    // Use requestAnimationFrame to ensure the state update has been processed
-    requestAnimationFrame(() => {
-      try {
-        setPlaygroundCache(capturedState);
-        console.log(
-          `Cache saved for existing playground window ${stableWindowId}`,
-        );
+      let targetWindowId = stableWindowId;
 
-        // Navigate after cache is successfully saved
-        router.push(`/project/${projectId}/playground`);
-      } catch (error) {
-        console.error("Failed to save playground cache:", error);
-        // Navigate anyway, but user might not see their data
-        router.push(`/project/${projectId}/playground`);
+      if (useFreshPlayground) {
+        // Clear all existing playground data and reset to single window
+        clearAllCache(stableWindowId);
+      } else {
+        targetWindowId = resolveJumpTargetWindowId({
+          stableWindowId,
+          openWindowIds: windowIds,
+          incomingMessages: capturedState.messages,
+          getCachedMessages: (windowId) => getWindowState(windowId)?.messages,
+        });
+
+        const addedWindowId = addWindowWithId(targetWindowId);
+
+        if (!addedWindowId) {
+          console.warn(
+            "Failed to add window to existing playground, maximum windows reached",
+          );
+          return;
+        }
       }
-    });
-  };
+
+      // Use requestAnimationFrame to ensure the state update has been processed
+      requestAnimationFrame(() => {
+        try {
+          setWindowState(targetWindowId, capturedState);
+          console.log(
+            `Cache saved for existing playground window ${targetWindowId}`,
+          );
+
+          // Navigate after cache is successfully saved
+          router.push(`/project/${projectId}/playground`);
+        } catch (error) {
+          console.error("Failed to save playground cache:", error);
+          // Navigate anyway, but user might not see their data
+          router.push(`/project/${projectId}/playground`);
+        }
+      });
+    },
+    [
+      addWindowWithId,
+      capture,
+      capturedState,
+      clearAllCache,
+      projectId,
+      props.analyticsEventName,
+      router,
+      stableWindowId,
+      windowIds,
+    ],
+  );
 
   const tooltipMessage = isAvailable
     ? "Test in LLM playground"
     : "Test in LLM playground is not available since messages are not in valid ChatML format or tool calls have been used. If you think this is not correct, please open a GitHub issue.";
 
+  const menu =
+    props.source === "prompt" ? (
+      <JumpToPlaygroundMenu
+        source="prompt"
+        onPlaygroundAction={handlePlaygroundAction}
+      />
+    ) : (
+      <JumpToPlaygroundMenu
+        source="generation"
+        includeOutput={includeOutput}
+        onIncludeOutputChange={setIncludeOutput}
+        onPlaygroundAction={handlePlaygroundAction}
+      />
+    );
+  return {
+    disabled: !isAvailable,
+    title: tooltipMessage,
+    menu,
+    includeOutput,
+    setIncludeOutput,
+    handlePlaygroundAction,
+  };
+}
+
+export const JumpToPlaygroundDropdownMenuController = (
+  props: JumpToPlaygroundDropdownMenuControllerProps,
+) => {
+  const control = useJumpToPlayground(props);
+
+  if (props.variant === "submenu") {
+    return (
+      <DropdownMenuSub>
+        {props.children({ ...control, Trigger: DropdownMenuSubTrigger })}
+        <DropdownMenuSubContent>{control.menu}</DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
+  }
+
   return (
-    <DropdownMenuController
-      align="end"
-      renderMenu={() =>
-        props.source === "prompt" ? (
-          <JumpToPlaygroundMenu
-            source="prompt"
-            onPlaygroundAction={handlePlaygroundAction}
-          />
-        ) : (
-          <JumpToPlaygroundMenu
-            source="generation"
-            includeOutput={includeOutput}
-            onIncludeOutputChange={setIncludeOutput}
-            onPlaygroundAction={handlePlaygroundAction}
-          />
-        )
-      }
-    >
-      {({ Trigger }) =>
-        props.children({
-          Trigger,
-          disabled: !isAvailable,
-          title: tooltipMessage,
-        })
-      }
+    <DropdownMenuController align="end" renderMenu={() => control.menu}>
+      {({ Trigger }) => props.children({ ...control, Trigger })}
     </DropdownMenuController>
   );
 };

@@ -1,12 +1,12 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
 // the attribute is absent, empty, or unparsable, which the provisioning logic
@@ -356,31 +356,18 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: authCheck.error,
-      status: 401,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    return res.status(403).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail:
-        "Invalid API key. Organization-scoped API key required for this operation.",
-      status: 403,
-    });
-  }
 
   // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
   // sibling organization admin endpoints (memberships, projects, apiKeys).
@@ -468,6 +455,28 @@ export default async function handler(
   }
 }
 
+// Resolve the caller organization's membership for `userId`. When the user is
+// not a member, write a 404 that never echoes any of the user's attributes and
+// return null.
+async function requireOrgMembership(
+  res: NextApiResponse,
+  orgId: string,
+  userId: string,
+) {
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: { orgId, userId },
+  });
+  if (!orgMembership) {
+    res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found in organization",
+      status: 404,
+    });
+    return null;
+  }
+  return orgMembership;
+}
+
 // GET - Retrieve a specific user
 async function handleGet(
   req: NextApiRequest,
@@ -475,20 +484,9 @@ async function handleGet(
   user: User,
   orgId: string,
 ) {
-  // For GET operations, verify the user is a member of the organization
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      orgId: orgId,
-      userId: user.id,
-    },
-  });
-
-  if (!orgMembership) {
-    return res.status(404).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "User not found in organization",
-      status: 404,
-    });
+  // For GET operations, verify the user is a member of the organization.
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
   }
 
   // Transform to SCIM format
@@ -669,6 +667,14 @@ async function handlePut(
     });
   }
 
+  // A caller may only observe or mutate a user already tied to their
+  // organization. The sole exception is provisioning (active:true), which
+  // legitimately references a global user id in order to add the user.
+  const isProvisioning = body.active === true;
+  if (!isProvisioning && !(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
+
   // Handle active status for provisioning/deprovisioning.
   //
   // `active: true` ensures the user is provisioned. An explicit `roles` value is
@@ -730,6 +736,9 @@ async function handleDelete(
   orgId: string,
   apiKeyId: string,
 ) {
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
   // Deprovision atomically: check + delete in one Serializable txn.
   if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId, user.email))) {
     return;

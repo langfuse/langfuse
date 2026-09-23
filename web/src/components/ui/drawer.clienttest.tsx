@@ -1,36 +1,32 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { vi } from "vitest";
 import {
   Drawer,
   DrawerContent,
   DrawerController,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
-
-function mountOverlayRoot() {
-  const overlayRoot = document.createElement("div");
-  overlayRoot.setAttribute("data-overlay-root", "");
-  for (const layer of [
-    "panel",
-    "agent",
-    "modal",
-    "popover",
-    "tooltip",
-    "toast",
-  ]) {
-    const layerNode = document.createElement("div");
-    layerNode.setAttribute("data-layer", layer);
-    overlayRoot.appendChild(layerNode);
-  }
-  document.body.appendChild(overlayRoot);
-}
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 
 describe("Drawer", () => {
   beforeEach(() => {
-    mountOverlayRoot();
+    vi.useFakeTimers();
   });
 
-  afterEach(() => {
-    document.querySelector("[data-overlay-root]")?.remove();
+  afterEach(async () => {
+    try {
+      cleanup();
+      // Radix restores focus in a timer after the drawer unmounts.
+      await act(() => vi.runOnlyPendingTimersAsync());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("sizes compact bottom drawers to their content instead of a third of the viewport", () => {
@@ -41,6 +37,7 @@ describe("Drawer", () => {
           <button type="button">Email a Support Engineer</button>
         </DrawerContent>
       </Drawer>,
+      { wrapper: LayerProvider },
     );
 
     const drawer = document.querySelector("#compact-drawer");
@@ -79,6 +76,7 @@ describe("Drawer", () => {
             </>
           )}
         </DrawerController>,
+        { wrapper: LayerProvider },
       );
 
       expect(screen.queryByText("Stateful drawer")).not.toBeInTheDocument();
@@ -117,6 +115,7 @@ describe("Drawer", () => {
           </>
         )}
       </DrawerController>,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -124,6 +123,29 @@ describe("Drawer", () => {
 
     expect(screen.getByText("empty")).toBeInTheDocument();
     expect(screen.getByText("open")).toBeInTheDocument();
+  });
+
+  it("opens from initialState without reacting to later changes", () => {
+    const renderController = (initialState: string | undefined) => (
+      <DrawerController<string>
+        initialState={() => initialState}
+        forceDirection="bottom"
+        renderContent={({ state }) => (
+          <DrawerContent>
+            <DrawerTitle>{state}</DrawerTitle>
+          </DrawerContent>
+        )}
+      >
+        {() => null}
+      </DrawerController>
+    );
+    const { rerender } = render(renderController("first"), {
+      wrapper: LayerProvider,
+    });
+
+    expect(screen.getByText("first")).toBeInTheDocument();
+    rerender(renderController("second"));
+    expect(screen.queryByText("second")).not.toBeInTheDocument();
   });
 
   it("ignores stale state replacements after closing", () => {
@@ -152,6 +174,7 @@ describe("Drawer", () => {
           </>
         )}
       </DrawerController>,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open" }));
@@ -178,6 +201,7 @@ describe("Drawer", () => {
           </button>
         )}
       </DrawerController>,
+      { wrapper: LayerProvider },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open" }));

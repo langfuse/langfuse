@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { EventType } from "@ag-ui/core";
 import { Buffer } from "node:buffer";
 import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
@@ -913,6 +914,7 @@ export class InAppAgentInstrumentation {
       ...body,
       userId: this.userId,
       sessionId: this.sessionId,
+      metadata: { ...this.metadata, ...body.metadata },
     });
   }
 

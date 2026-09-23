@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -14,7 +15,7 @@ import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-uti
 import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { type ScoreDataTypeType } from "@langfuse/shared";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;

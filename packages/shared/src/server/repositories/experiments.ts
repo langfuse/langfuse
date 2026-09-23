@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
@@ -1499,6 +1500,16 @@ export const getExperimentItemsBatchIO = async (props: {
     const item = itemMap.get(row.item_id)!;
     const isBaseline =
       baseExperimentId && row.experiment_id === baseExperimentId;
+
+    // The stored text is passed through verbatim, deliberately. A payload that
+    // is the JSON literal `null` and a payload that is the four-character
+    // STRING "null" are byte-identical here: the native experiment path writes
+    // both through stringifyValue, which returns a string unchanged, while the
+    // dataset-run-item path JSON-encodes (so there a string arrives quoted).
+    // One column, two encodings, no way to tell them apart — so guessing would
+    // erase a real value, and in the fallback below it would go further and
+    // substitute a DIFFERENT run's value in its place. Absent payloads are
+    // handled where they are unambiguous, in the cell.
 
     // Use baseline value if available, otherwise first non-null
     if (row.input !== null && (isBaseline || item.input === null)) {

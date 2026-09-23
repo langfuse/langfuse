@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns
@@ -18,7 +19,7 @@ import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, WandSparkles, X } from "lucide-react";
 
-import { Layer } from "@/src/components/ui/layer";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -90,6 +91,22 @@ type LogicalRange = { start: number; end: number };
 
 function textFromRoot(root: HTMLElement): string {
   return (root.textContent ?? "").replace(WORD_JOINER_RE, "");
+}
+
+// IME composition (Korean, Chinese, Japanese) inserts a text node the
+// contenteditable root does not already own. React will not remove that
+// sibling when it later projects a token, so the composed run doubles and
+// state-based delete cannot reach it. Strip those unmanaged nodes after
+// reading textContent — token spans are all ELEMENT_NODE.
+function stripUnmanagedRootChildren(root: HTMLElement): boolean {
+  let removed = false;
+  for (const child of Array.from(root.childNodes)) {
+    if (child.nodeType !== Node.ELEMENT_NODE) {
+      child.remove();
+      removed = true;
+    }
+  }
+  return removed;
 }
 
 function rawOffsetForLogicalOffset(
@@ -363,6 +380,10 @@ export function SearchComposer({
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
+  // Bumped after IME composition so token spans remount instead of keeping
+  // text nodes the IME mutated in place (React skips an update when the
+  // last rendered string is unchanged).
+  const [tokensGeneration, setTokensGeneration] = React.useState(0);
 
   const selectionCollapsed = selectionSnapshot.start === selectionSnapshot.end;
   const caret = selectionSnapshot.end;
@@ -559,10 +580,10 @@ export function SearchComposer({
     setHighlightedOptionId(null);
   }, []);
 
-  // Restore selection after a controlled mutation reprojected the DOM. Runs
-  // before paint so the caret never visibly jumps. External draft changes
-  // (URL nav) leave pendingSelectionRef null and the browser keeps whatever
-  // selection state it had.
+  // Restore selection after a controlled mutation reprojected the DOM, and
+  // after an IME remount of the token spans. Runs before paint so the caret
+  // never visibly jumps. External draft changes (URL nav) leave
+  // pendingSelectionRef null and the browser keeps whatever selection it had.
   React.useLayoutEffect(() => {
     const root = rootRef.current;
     const pending = pendingSelectionRef.current;
@@ -571,7 +592,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft]);
+  }, [draft, tokensGeneration]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -597,8 +618,14 @@ export function SearchComposer({
     const root = rootRef.current;
     if (root === null) return;
     const next = textFromRoot(root);
-    if (next === draftRef.current) return;
     const caretNow = selectionOffsets(root).end;
+    const stripped = stripUnmanagedRootChildren(root);
+    if (next === draftRef.current && !stripped) return;
+    setTokensGeneration((generation) => generation + 1);
+    if (next === draftRef.current) {
+      pendingSelectionRef.current = { start: caretNow, end: caretNow };
+      return;
+    }
     setDraftWithSelection(next, caretNow);
     openAutocompleteAfterEdit();
   }, [draftRef, openAutocompleteAfterEdit, setDraftWithSelection]);
@@ -733,6 +760,9 @@ export function SearchComposer({
         const sel = selectionOffsets(root);
         caretAtEnd =
           sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (stripUnmanagedRootChildren(root)) {
+          setTokensGeneration((generation) => generation + 1);
+        }
         if (text !== storeApi.getState().draft) actions.setDraft(text);
       }
       // The container validates, lowers, and writes the filter state; on failure
@@ -1241,7 +1271,9 @@ export function SearchComposer({
           : null;
   const explainTargetId = explainTarget?.id ?? null;
   const explanation =
-    explainTarget === null ? null : explainSegment(explainTarget, registry);
+    explainTarget === null
+      ? null
+      : explainSegment(explainTarget, registry, draft);
   const explainDeactivatedReason =
     explainTarget === null
       ? null
@@ -1250,7 +1282,9 @@ export function SearchComposer({
   // description regardless of the popover — including the "not applied" note,
   // which the visible tooltip also carries.
   const caretExplanation =
-    caretSegment === null ? null : explainSegment(caretSegment, registry);
+    caretSegment === null
+      ? null
+      : explainSegment(caretSegment, registry, draft);
   const caretDeactivatedReason =
     caretSegment === null
       ? null
@@ -1455,6 +1489,7 @@ export function SearchComposer({
           onMouseOver={onRootMouseOver}
         >
           <ComposerTokens
+            key={tokensGeneration}
             draft={draft}
             showDiagnostics={showTokenDiagnostics}
             scoreTypes={scoreTypes}

@@ -4,6 +4,7 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 export type GatewayModelRow = {
   id: string;
   availableVia: Array<{
+    connectionId: string;
     connectionName: string;
     provider: GatewayProvider;
   }>;
@@ -12,6 +13,8 @@ export type GatewayModelRow = {
 
 function getModelFilterValues(model: GatewayModelRow, column: string) {
   switch (column) {
+    case "connection":
+      return model.availableVia.map((connection) => connection.connectionId);
     case "provider":
       return model.availableVia.map((connection) => connection.provider);
     case "apiFormat":

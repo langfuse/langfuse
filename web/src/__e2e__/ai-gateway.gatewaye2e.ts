@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { createHash, randomBytes } from "node:crypto";
 
 import type { Session } from "next-auth";
@@ -311,7 +312,7 @@ describe("AI gateway live end-to-end", () => {
       async ({ provider, apiFormat, baseUrl, authType }) => {
         await withGatewayApiKey(
           { provider, apiFormat },
-          async ({ secretKey, id: keyId }) => {
+          async ({ secretKey, id: keyId, providerConnectionId }) => {
             const resolveBody = await gatewayControlPlaneRequest({
               path: RESOLVE_PATH,
               apiFormat,
@@ -342,6 +343,7 @@ describe("AI gateway live end-to-end", () => {
                 provider,
                 apiFormat,
               },
+              provider_connection_id: providerConnectionId,
             });
             expect(resolved.ingestion).toMatchObject({
               access_token: expect.stringMatching(/\S/),
@@ -370,7 +372,11 @@ async function withGatewayApiKey(
     provider: GatewayProviderName;
     apiFormat: GatewayApiFormat;
   },
-  run: (key: { secretKey: string; id: string }) => Promise<void>,
+  run: (key: {
+    secretKey: string;
+    id: string;
+    providerConnectionId: string;
+  }) => Promise<void>,
 ) {
   const targetConnectionId = connectionIdsByProvider.get(input.provider);
   if (!targetConnectionId) {
@@ -399,7 +405,11 @@ async function withGatewayApiKey(
       listedKeys.data.some(({ apiKey }) => apiKey.id === gatewayKey.id),
     ).toBe(true);
 
-    await run({ secretKey: gatewayKey.secretKey, id: gatewayKey.id });
+    await run({
+      secretKey: gatewayKey.secretKey,
+      id: gatewayKey.id,
+      providerConnectionId: targetConnectionId,
+    });
   } finally {
     await admin.caller.aiGateway.revokeApiKey({
       orgId: ORGANIZATION_ID,
@@ -485,7 +495,7 @@ async function createGatewayAdmin() {
       id: user.id,
       name: user.name,
       canCreateOrganizations: true,
-      featureFlags: {} as NonNullable<Session["user"]>["featureFlags"],
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [
         {
           id: organization.id,

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { z } from "zod/v4";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
@@ -42,7 +43,7 @@ import {
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
-  singleFilter,
+  singleFilterList,
   type FilterState,
   orderBy,
   paginationZod,
@@ -55,11 +56,12 @@ import {
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
+import { describeVariableMismatch } from "@/src/features/experiments/fns/describeVariableMismatch";
 
 const ExperimentFilterOptions = z.object({
   projectId: z.string(),
-  filter: z.array(singleFilter).nullable(),
+  filter: singleFilterList.nullable(),
   orderBy: orderBy,
   ...paginationZod,
 });
@@ -197,7 +199,7 @@ export const experimentsRouter = createTRPCRouter({
       if (!Boolean(Object.keys(variablesMap).length)) {
         return {
           isValid: false,
-          message: "No dataset item contains any variables.",
+          message: describeVariableMismatch(allVariables),
         };
       }
 
@@ -336,7 +338,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
         limit: z.number().int().min(1).max(50),
       }),
     )
@@ -410,7 +412,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -435,7 +437,7 @@ export const experimentsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         experimentIds: z.array(z.string()),
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -631,7 +633,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),
@@ -770,7 +772,7 @@ export const experimentsRouter = createTRPCRouter({
           .array(
             z.object({
               experimentId: z.string(),
-              filters: z.array(singleFilter),
+              filters: singleFilterList,
             }),
           )
           .nullish(),

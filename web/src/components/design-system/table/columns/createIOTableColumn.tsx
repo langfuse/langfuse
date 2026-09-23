@@ -59,6 +59,7 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
 
   return createTableColumn<TData, TValue>({
     ...options,
+    cellPadding: "none",
     cellBackground: ioCellBackgrounds[variant],
     loadingCell,
     renderCell: (value, context) => {
@@ -71,7 +72,6 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
         cell = value;
       }
 
-      if (cell === undefined) return null;
       if (
         typeof cell === "object" &&
         cell !== null &&
@@ -81,6 +81,9 @@ export function createIOTableColumn<TData extends RowData, TValue = unknown>({
         return loadingCell;
       }
 
+      // An empty `cell` is passed through rather than short-circuited to a
+      // blank: the cell owns what "empty" looks like, so every table that uses
+      // it shows the same placeholder.
       return renderMediaReference ? (
         <IOTableCell
           {...cellProps}

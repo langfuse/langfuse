@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements */
 "use client";
 
@@ -5,7 +6,8 @@ import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer, type LayerName } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
@@ -237,6 +239,8 @@ type DrawerControllerProps<State = void> = Pick<
   | "modal"
   | "shouldScaleBackground"
 > & {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the drawer.
+  initialState?: () => State | undefined;
   onOpenChange?: (open: boolean) => boolean | void;
   children: (control: {
     isOpen: boolean;
@@ -250,6 +254,7 @@ type DrawerControllerProps<State = void> = Pick<
 };
 
 const DrawerController = <State = void,>({
+  initialState,
   children,
   onOpenChange,
   renderContent,
@@ -257,7 +262,10 @@ const DrawerController = <State = void,>({
 }: DrawerControllerProps<State>) => {
   const [controllerState, setControllerState] = React.useState<
     { active: false } | { active: boolean; state: State }
-  >({ active: false });
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
   const closeDrawer = () =>
     setControllerState((currentState) =>
       "state" in currentState

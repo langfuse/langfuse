@@ -30,7 +30,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.10.5 pnpm@12.3.1
+RUN npm install -g turbo@2.11.3 pnpm@12.6.0
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -105,6 +105,33 @@ RUN turbo prune --scope=worker --docker
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS builder
 
 WORKDIR /app
+
+ARG TARGETARCH
+
+# @langfuse/native is a Rust addon (napi-rs) compiled by `turbo run build` for
+# the glibc (`*-unknown-linux-gnu`) target, linked against UBI9's glibc so it
+# loads in the runtime image. gcc provides the linker; tar and gzip unpack the
+# pinned toolchain; patch (with the base image's curl-minimal) prepares the
+# small clickhouse source overlay used by the native encoder.
+RUN dnf -y install --setopt=install_weak_deps=0 gcc tar gzip patch && \
+    dnf clean all
+
+# Pinned standalone Rust installer, the exact channel from
+# packages/native/rust-toolchain.toml (bump the two together), checksum-verified
+# like the dumb-init binary above. Only rustc, cargo and the target's std are
+# needed to build; clippy and rustfmt run outside Docker.
+RUN set -eux; \
+    case "${TARGETARCH:-amd64}" in \
+    amd64) triple=x86_64-unknown-linux-gnu; toolchain_sha256=aa30409afa67bd1ada244cefd82c7980e6a65bc113bb978e934b2413c75e3900 ;; \
+    arm64) triple=aarch64-unknown-linux-gnu; toolchain_sha256=5fbb4282403046d52a4672765c6761a809bf9f33e699b17e6eb7a93ab7770cc3 ;; \
+    *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/rust.tar.gz "https://static.rust-lang.org/dist/rust-1.98.0-${triple}.tar.gz"; \
+    echo "${toolchain_sha256}  /tmp/rust.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/rust.tar.gz -C /tmp; \
+    /tmp/rust-1.98.0-${triple}/install.sh --prefix=/usr/local \
+    --components=rustc,cargo,rust-std-${triple}; \
+    rm -rf /tmp/rust.tar.gz /tmp/rust-1.98.0-${triple}
 
 # First install the dependencies (as they change less often)
 COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml

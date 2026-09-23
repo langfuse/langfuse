@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -17,7 +18,7 @@ import {
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Badge } from "@/src/components/ui/badge";
 import { CodeView, JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
@@ -27,14 +28,11 @@ import {
   PRODUCTION_LABEL,
   PromptType,
 } from "@langfuse/shared";
-import {
-  getPromptTabs,
-  PROMPT_TABS,
-} from "@/src/features/navigation/utils/prompt-tabs";
+import { getPromptTabs, PROMPT_TABS } from "@/src/features/navigation";
 import { PromptHistoryNode } from "./prompt-history";
-import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
+import { JumpToPlaygroundDropdownMenuController } from "@/src/features/playground";
 import { ChatMlArraySchema } from "@/src/components/schemas/ChatMlSchema";
-import LegacyGenerations from "@/src/components/table/use-cases/observations";
+import { ObservationsTable as LegacyGenerations } from "@/src/features/tracing-tables";
 import EventsTable from "@/src/features/events/components/EventsTable";
 import { useReadPath } from "@/src/features/events";
 import {
@@ -55,7 +53,7 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { CreateExperimentsForm } from "@/src/features/experiments";
 import { useMemo, useState } from "react";
 import { showSuccessToast } from "@/src/features/notifications";
 import { DuplicatePromptButton } from "@/src/features/prompts/components/duplicate-prompt";
@@ -67,16 +65,19 @@ import {
   DropdownMenuItem,
 } from "@/src/components/ui/dropdown-menu";
 import { DeletePromptVersion } from "@/src/features/prompts/components/delete-prompt-version";
-import { TagPromptDetailsPopover } from "@/src/features/tag/components/TagPromptDetailsPopover";
+import { TagPromptDetailsPopover } from "@/src/features/tag";
 import { SetPromptVersionLabels } from "@/src/features/prompts/components/SetPromptVersionLabels";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import {
+  CommentDrawerController,
+  getCommentDrawerInitialStateFromUrl,
+} from "@/src/features/comments";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   PromptReferenceProvider,
   renderRichPromptContent,
 } from "@/src/components/ui/PromptReferences";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
-import { createBreadcrumbItems } from "@/src/features/folders/utils";
+import { createBreadcrumbItems } from "@/src/features/folders";
 
 const getPythonCode = (
   name: string,
@@ -366,17 +367,56 @@ export const PromptDetail = ({
               </Link>
             </Button>
           </div>
-          <div className="flex flex-col overflow-y-auto">
-            <PromptHistoryNode
-              prompts={promptHistory.data.promptVersions}
-              currentPromptVersion={prompt.version}
-              setCurrentPromptVersion={(version) => {
-                setCurrentPromptVersion(version);
-                setCurrentPromptLabel(null);
-              }}
-              commentCounts={commentCounts}
-            />
-          </div>
+          <CommentDrawerController
+            projectId={projectId as string}
+            mode="read-only"
+            onCommentChange={() =>
+              utils.prompts.allVersions.invalidate(promptHistoryInput)
+            }
+          >
+            {({ openDrawer }) => {
+              const openPromptComments = (
+                promptId: string,
+                promptVersion: number,
+              ) => {
+                const { label, ...query } = router.query;
+                router.push(
+                  {
+                    pathname: router.pathname,
+                    query: {
+                      ...query,
+                      version: promptVersion,
+                      comments: "open",
+                      commentObjectType: "PROMPT",
+                      commentObjectId: promptId,
+                    },
+                  },
+                  undefined,
+                  { shallow: true },
+                );
+                openDrawer({
+                  type: "comments",
+                  objectId: promptId,
+                  objectType: "PROMPT",
+                });
+              };
+
+              return (
+                <div className="flex flex-col overflow-y-auto">
+                  <PromptHistoryNode
+                    prompts={promptHistory.data.promptVersions}
+                    currentPromptVersion={prompt.version}
+                    setCurrentPromptVersion={(version) => {
+                      setCurrentPromptVersion(version);
+                      setCurrentPromptLabel(null);
+                    }}
+                    openCommentDrawer={openPromptComments}
+                    commentCounts={commentCounts}
+                  />
+                </div>
+              );
+            }}
+          </CommentDrawerController>
         </Command>
         <div className="col-span-2 mt-3 flex max-h-full min-h-0 flex-col md:col-span-3">
           <div className="flex flex-col items-start gap-2">
@@ -474,8 +514,9 @@ export const PromptDetail = ({
                 )}
                 <CommentDrawerController
                   projectId={projectId as string}
-                  objectId={prompt.id}
-                  objectType="PROMPT"
+                  initialState={() =>
+                    getCommentDrawerInitialStateFromUrl(router.query)
+                  }
                   count={getNumberFromMap(commentCounts, prompt.id)}
                   onCommentChange={() =>
                     utils.prompts.allVersions.invalidate(promptHistoryInput)
@@ -486,7 +527,13 @@ export const PromptDetail = ({
                       type="button"
                       variant="outline"
                       disabled={disabled}
-                      onClick={() => openDrawer({ type: "comments" })}
+                      onClick={() =>
+                        openDrawer({
+                          type: "comments",
+                          objectId: prompt.id,
+                          objectType: "PROMPT",
+                        })
+                      }
                       className="gap-1"
                     >
                       {disabled ? (

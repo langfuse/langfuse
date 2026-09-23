@@ -2,10 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import type { FilterState } from "@langfuse/shared";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
-import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import {
+  planCommit,
+  filterStateToQueryText,
+  runSearchBarInvariants,
+  validateQuery,
+} from "@/src/features/search-bar";
+
 import { getTraceFilterConfig } from "./traces-config";
 import { getObservationsFilterConfig } from "./observations-config";
 import {
@@ -28,16 +31,25 @@ for (const registry of registries) {
       });
     });
 
-    it.each([
-      "input:secret",
-      "output:secret",
-      "traceScores.quality:>0.8",
-      "bookmarked:true",
-    ])(
+    it.each(["traceScores.quality:>0.8", "bookmarked:true"])(
       "rejects unsupported filters without changing the query for %s",
       (query) => {
         expect(validateQuery(query, undefined, registry).valid).toBe(false);
         expect(planCommit(query, undefined, registry).status).toBe("invalid");
+      },
+    );
+
+    it.each(["content", "input", "output"] as const)(
+      "searches %s through the existing backend scope",
+      (scope) => {
+        expect(
+          planCommit(`${scope}:refund`, undefined, registry),
+        ).toMatchObject({
+          status: "committed",
+          searchQuery: "refund",
+          searchType: [scope],
+          filters: [],
+        });
       },
     );
 
@@ -175,6 +187,27 @@ describe("embedded tracing scope", () => {
     expect(registry.resolveField("promptName")).toBeNull();
     expect(planCommit("type:GENERATION", undefined, registry).status).toBe(
       "committed",
+    );
+  });
+});
+
+describe("disabled legacy payload search", () => {
+  it.each([
+    tracesFieldRegistry(getTraceFilterConfig(), false),
+    observationsFieldRegistry(getObservationsFilterConfig(), false),
+  ])("offers only supported search lanes for $id", (registry) => {
+    expect(planCommit("refund", undefined, registry)).toMatchObject({
+      status: "committed",
+      searchQuery: "refund",
+      searchType: ["id"],
+    });
+    for (const scope of ["content", "input", "output", "all"]) {
+      expect(planCommit(`${scope}:refund`, undefined, registry).status).toBe(
+        "invalid",
+      );
+    }
+    expect(planCommit("in:content refund", undefined, registry).status).toBe(
+      "invalid",
     );
   });
 });

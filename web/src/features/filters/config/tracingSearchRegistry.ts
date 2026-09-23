@@ -1,6 +1,7 @@
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import {
   fieldRegistryFromColumns,
+  EVENTS_FIELD_REGISTRY,
   type FieldOverlay,
   type FieldRegistry,
 } from "@/src/features/search-bar/lib/fields";
@@ -8,6 +9,7 @@ import {
 function tracingFieldRegistry(
   config: FilterConfig,
   id: "traces" | "observations",
+  allowsFullTextSearch: boolean,
 ): FieldRegistry {
   const exposed = new Set(config.facets.map((facet) => facet.column));
   const fields: Record<string, FieldOverlay> = {
@@ -40,7 +42,23 @@ function tracingFieldRegistry(
       scores: exposed.has("scores_avg"),
       traceScores: false,
       allowFreeText: true,
-      freeTextScopeLabel: "the selected search scope",
+      defaultSearchType: ["id"],
+      freeTextScopeLabel: "IDs, user IDs and names",
+      searchScopes: allowsFullTextSearch
+        ? {
+            ...EVENTS_FIELD_REGISTRY.searchScopes,
+            input: {
+              searchType: ["input"],
+              label: "Input",
+              description: "search only the input payload",
+            },
+            output: {
+              searchType: ["output"],
+              label: "Output",
+              description: "search only the output payload",
+            },
+          }
+        : {},
       recentSearches: true,
       searchExamples:
         id === "traces"
@@ -50,10 +68,16 @@ function tracingFieldRegistry(
   );
 }
 
-export function tracesFieldRegistry(config: FilterConfig): FieldRegistry {
-  return tracingFieldRegistry(config, "traces");
+export function tracesFieldRegistry(
+  config: FilterConfig,
+  allowsFullTextSearch = true,
+): FieldRegistry {
+  return tracingFieldRegistry(config, "traces", allowsFullTextSearch);
 }
 
-export function observationsFieldRegistry(config: FilterConfig): FieldRegistry {
-  return tracingFieldRegistry(config, "observations");
+export function observationsFieldRegistry(
+  config: FilterConfig,
+  allowsFullTextSearch = true,
+): FieldRegistry {
+  return tracingFieldRegistry(config, "observations", allowsFullTextSearch);
 }

@@ -1,14 +1,13 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import {
-  useReadPath,
-  type ResolvedReadPath,
-} from "@/src/features/events/hooks/useReadPath";
+import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
 import Page from "@/src/components/layouts/page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   type ColumnDefinition,
@@ -26,19 +25,25 @@ import {
   MoreVertical,
   PencilIcon,
 } from "lucide-react";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
-  DashboardGrid,
   type DashboardPlacement,
-} from "@/src/features/widgets/components/DashboardGrid";
+  parsePastedWidget,
+  toWidgetCreateFields,
+  type PastedWidgetParseResult,
+  type WidgetExportSource,
+  pushDownForInsertion,
+  useClipboardWidgetProbe,
+} from "@/src/features/widgets";
+import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { InlineEditText } from "@/src/components/design-system/InlineEditText/InlineEditText";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
@@ -55,9 +60,9 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
+import { useEntitlementLimit } from "@/src/features/entitlements";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
+
 import {
   convertSelectedEnvironmentsToFilter,
   useEnvironmentFilter,
@@ -69,24 +74,15 @@ import {
   useDashboardQueryScheduler,
 } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import {
-  parsePastedWidget,
-  toWidgetCreateFields,
-  type PastedWidgetParseResult,
-  type WidgetExportSource,
-} from "@/src/features/widgets/utils/import-export-utils";
-import {
   isPasteablePlacementPayload,
   parseDashboardImport,
   parsePastedPreset,
   type ParsedDashboardImport,
 } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { type PresetPlacement } from "@/src/features/widgets/components/PresetDashboardWidget";
-import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 import { readTextFromClipboard } from "@/src/utils/clipboard";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
-import { Layer } from "@/src/components/ui/layer";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
 import {
   RouteParamsPendingFallback,

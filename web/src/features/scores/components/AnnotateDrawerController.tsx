@@ -1,39 +1,45 @@
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { DrawerController } from "@/src/components/ui/drawer";
+import { DrawerContent, DrawerController } from "@/src/components/ui/drawer";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
-  type AnalyticsData,
   type ScoreTarget,
+  type AnnotationPanelData,
 } from "@/src/features/scores/types";
-import { type ReactNode } from "react";
-import { AnnotateDrawerContent } from "@/src/features/scores/components/AnnotateDrawerContent";
+import { useRef, type ReactNode } from "react";
+import { getAnnotationTargetType } from "@/src/features/scores/lib/annotationAnalytics";
 import { type ScoreDomain } from "@langfuse/shared";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import { AnnotationPanelContent } from "./AnnotationPanelContent";
+import { useTraceReviewPanelOptional } from "@/src/features/traces/contexts/TraceReviewPanelContext";
 
 export type AnnotateDrawerControllerProps<Target extends ScoreTarget> = {
   children: (control: {
     disabled: boolean;
-    openDrawer: (payload: AnnotateDrawerState<Target>) => void;
+    openDrawer: (payload: AnnotateDrawerPayload<Target>) => void;
   }) => ReactNode;
   projectId: string;
 };
 
-type AnnotateDrawerState<Target extends ScoreTarget> = {
-  analyticsData: AnalyticsData;
-  scoreMetadata: {
-    projectId: string;
-    queueId?: string;
-    environment?: string;
-  };
-  scoreTarget: Target;
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-};
+type AnnotateDrawerState = AnnotationPanelData;
+
+type AnnotateDrawerPayload<Target extends ScoreTarget> =
+  Target extends Extract<ScoreTarget, { type: "trace" }>
+    ? Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
+        scoreTarget: Target;
+        scores?: WithStringifiedMetadata<ScoreDomain>[];
+      }
+    : Omit<AnnotateDrawerState, "scoreTarget" | "scores"> & {
+        scoreTarget: Target;
+        scores: WithStringifiedMetadata<ScoreDomain>[];
+      };
 
 export function AnnotateDrawerController<Target extends ScoreTarget>({
   children,
   projectId,
 }: AnnotateDrawerControllerProps<Target>) {
   const capture = usePostHogClientCapture();
+  const reviewPanel = useTraceReviewPanelOptional();
+  const triggerRef = useRef<HTMLElement | null>(null);
   const hasAccess = useHasProjectAccess({
     projectId,
     scope: "scores:CUD",
@@ -41,14 +47,24 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
   const disabled = !hasAccess;
 
   return (
-    <DrawerController<AnnotateDrawerState<Target>>
+    <DrawerController<AnnotateDrawerState>
       renderContent={({ state }) => (
-        <AnnotateDrawerContent
-          analyticsData={state.analyticsData}
-          scoreMetadata={state.scoreMetadata}
-          scoreTarget={state.scoreTarget}
-          scores={state.scores}
-        />
+        <DrawerContent
+          className="[--annotation-surface:var(--modal)]"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            if (triggerRef.current?.isConnected)
+              triggerRef.current.focus({ preventScroll: true });
+          }}
+        >
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-3">
+            <AnnotationPanelContent
+              data={state}
+              actionButtons={null}
+              isActive
+            />
+          </div>
+        </DrawerContent>
       )}
     >
       {({ openDrawer }) =>
@@ -57,13 +73,21 @@ export function AnnotateDrawerController<Target extends ScoreTarget>({
           openDrawer: (payload) => {
             if (disabled) return;
 
-            capture(
-              payload.scores.length
-                ? "score:update_form_open"
-                : "score:create_form_open",
-              payload.analyticsData,
-            );
-            openDrawer(payload);
+            capture("annotation:entry_click", {
+              ...payload.analyticsData,
+              targetType: getAnnotationTargetType(payload.scoreTarget),
+              entryPoint: "annotate_button",
+            });
+            triggerRef.current =
+              document.activeElement instanceof HTMLElement
+                ? document.activeElement
+                : null;
+            if (reviewPanel) {
+              reviewPanel
+                .getState()
+                .actions.rememberTrigger(triggerRef.current);
+              reviewPanel.getState().actions.openAnnotation(payload);
+            } else openDrawer(payload);
           },
         })
       }

@@ -53,7 +53,11 @@ const LABELLED_ROUTES = new Set([
  * do not need the method/path parsing REST routes get. Add one when it gains an
  * SLO or drives a meaningful share of timeouts.
  */
-const LABELLED_BARE_ROUTES = new Set(["events.all", "listObservations"]);
+const LABELLED_BARE_ROUTES = new Set([
+  "events.all",
+  "listObservations",
+  "trace_redirect",
+]);
 
 const OTHER_ROUTE_LABEL = "other";
 
@@ -95,6 +99,8 @@ export type ClickHouseQueryTable =
   | "traces"
   | "observations"
   | "scores"
+  | "dataset_run_items"
+  | "blob_storage_file_log"
   | "other";
 
 /**
@@ -113,6 +119,8 @@ const TABLE_LABEL_PATTERNS: ReadonlyArray<[ClickHouseQueryTable, RegExp]> = [
   ["observations", /\bfrom\s+(?:\w+\.)?observations\b/i],
   ["traces", /\bfrom\s+(?:\w+\.)?traces\b/i],
   ["scores", /\bfrom\s+(?:\w+\.)?scores\b/i],
+  ["dataset_run_items", /\bfrom\s+(?:\w+\.)?dataset_run_items_rmt\b/i],
+  ["blob_storage_file_log", /\bfrom\s+(?:\w+\.)?blob_storage_file_log\b/i],
 ];
 
 const OTHER_TABLE_LABEL = "other" as const;
@@ -124,15 +132,96 @@ export function clickHouseQueryTableLabel(query: string): ClickHouseQueryTable {
   return OTHER_TABLE_LABEL;
 }
 
+/**
+ * Bounded filter-shape label so a timeout can be attributed to the predicate
+ * shape driving it, not just the table. Without it, one `events_full` timeout
+ * cannot be told from another on the metric, and per-shape rates have to be
+ * estimated from ~10%-sampled APM query text. This makes the shape a
+ * first-class, unsampled dimension on both the outcome metric and the query
+ * span.
+ *
+ * One value per query: the shapes are ranked by how strongly each drives scan
+ * cost, and the first match wins, so it adds a single bounded dimension rather
+ * than a boolean per shape. A query carrying several predicates (e.g. a
+ * by-`span_id` lookup that also bounds `trace_id`) is attributed to its
+ * highest-ranked shape.
+ */
+export type ClickHouseQueryShape =
+  | "io_content"
+  | "metadata_content"
+  | "id_or_ilike"
+  | "by_span_id"
+  | "by_trace_id"
+  | "other";
+
+const OTHER_SHAPE_LABEL = "other" as const;
+
+/**
+ * Derived from the query text (like the table label) because threading the
+ * filter shape through every call site is impractical. Patterns match the SQL
+ * the filter compilers emit:
+ *
+ * - `io_content`: a substring/token/prefix/(I)LIKE search over the `input`/
+ *   `output` columns — the largest `events_full` columns and the confirmed
+ *   full-scan class. Anchored to `input`/`output` so a metadata search never
+ *   counts.
+ * - `metadata_content`: the same search family over the `metadata_names`/
+ *   `metadata_values` arrays, distinguished by the array-column suffix and the
+ *   `has(names, key)` / `indexOf(names, key)` key-lookup wrapper. Only filter
+ *   functions are matched (`has`/`position`/`hasAllTokens`/`startsWith`/…), not
+ *   the `mapFromArrays`/`argMax`/`arrayReverse` projection helpers.
+ * - `id_or_ilike`: the OR-of-`ILIKE` id search arm, matched on its distinctive
+ *   `searchString` parameter.
+ * - `by_span_id`: a `span_id = {…}` point lookup (`getObservationById`) or a
+ *   `span_id IN {…}` batch lookup. Ranked above `by_trace_id` so a span lookup
+ *   that also bounds `trace_id` counts as the span lookup.
+ * - `by_trace_id`: a `trace_id IN (…)` / `trace_id IN {…}` / `trace_id = {…}`
+ *   lookup — the unbounded variant is a distinct timeout class. The `IN` form
+ *   appears both parenthesized (inline list) and bare (`{param: Array(...)}`).
+ */
+const IO_CONTENT_FUNCTION_PATTERN =
+  /\b(?:position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken|startswith|endswith)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?(?:input|output)\b/i;
+
+const IO_CONTENT_LIKE_PATTERN =
+  /\b(?:\w+\.)?(?:input|output)\s+(?:not\s+)?i?like\b/i;
+
+const METADATA_CONTENT_PATTERN =
+  /\b(?:has|position(?:caseinsensitive)?|hasalltokens|hasanytokens|hastoken|startswith|endswith)\s*\(\s*(?:lower\s*\(\s*)?(?:\w+\.)?metadata_(?:names|values)\b/i;
+
+const ID_OR_ILIKE_PATTERN = /\bilike\s*\{\s*searchString\b/i;
+
+const BY_SPAN_ID_PATTERN = /\bspan_id\s*=\s*\{|\bspan_id\s+in\s*(?:\(\s*)?\{/i;
+
+const BY_TRACE_ID_PATTERN =
+  /\btrace_id\s*=\s*\{|\btrace_id\s+in\s*(?:\(\s*)?\{/i;
+
+const QUERY_SHAPE_PATTERNS: ReadonlyArray<[ClickHouseQueryShape, RegExp]> = [
+  ["io_content", IO_CONTENT_FUNCTION_PATTERN],
+  ["io_content", IO_CONTENT_LIKE_PATTERN],
+  ["metadata_content", METADATA_CONTENT_PATTERN],
+  ["id_or_ilike", ID_OR_ILIKE_PATTERN],
+  ["by_span_id", BY_SPAN_ID_PATTERN],
+  ["by_trace_id", BY_TRACE_ID_PATTERN],
+];
+
+export function clickHouseQueryShape(query: string): ClickHouseQueryShape {
+  for (const [shape, pattern] of QUERY_SHAPE_PATTERNS) {
+    if (pattern.test(query)) return shape;
+  }
+  return OTHER_SHAPE_LABEL;
+}
+
 export function recordClickHouseQueryOutcome(
   outcome: ClickHouseQueryOutcome,
   tags: NormalizedClickHouseQueryTags,
   table: ClickHouseQueryTable,
+  shape: ClickHouseQueryShape,
 ): void {
   recordIncrement(CLICKHOUSE_QUERY_OUTCOME_METRIC, 1, {
     outcome,
     surface: tags.surface,
     route: clickHouseQueryOutcomeRouteLabel(tags.route),
     table,
+    query_shape: shape,
   });
 }

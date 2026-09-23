@@ -51,6 +51,7 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
   name: "upsertDataset",
   description:
     "Upsert a dataset, a named collection of input and optional expected-output examples for experiments and evaluations.",
+  action: "datasets:CUD",
   baseSchema: UpsertDatasetBaseSchema,
   inputSchema: UpsertDatasetInputSchema,
   handler: async (input, context) =>

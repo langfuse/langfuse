@@ -1,6 +1,7 @@
 import { type CaptureResult, type CaptureOptions } from "posthog-js";
 import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
+import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 
 export const V4_BETA_ENABLED_POSTHOG_PROPERTY = "v4BetaEnabled";
 
@@ -26,8 +27,6 @@ const events = {
     "observation_tree_toggle_scores",
     "observation_tree_toggle_metrics",
     "io_mode_switch",
-    "io_parser_comparison",
-    "io_pretty_format_toggle_group",
     "test_in_playground_button_click",
     "display_mode_switch",
     "download_button_click",
@@ -57,6 +56,30 @@ const events = {
     // Raw download from the JSON-view fallback shown when a field is too large
     // to render in the unvirtualized viewer (LFE-10989).
     "json_view_large_field_download",
+    // Detail-panel tab switch (Preview / Log View / Scores). `tab` is the
+    // target tab, `target` is trace vs observation. Answers whether the Log
+    // View and Scores tabs earn their place.
+    "detail_tab_switch",
+    // Row actions on the Attributes, Model parameters and Metadata tables in
+    // the detail panel: `table` is which of the three, `action` is copy,
+    // include_filter or exclude_filter. Never the key or value text.
+    "attribute_table_action",
+    // Controls used *inside* the Log View tab, so a removal decision can weigh
+    // what people actually do there. `target` is trace vs observation;
+    // `action` is one of (see `LogViewAction` in TraceLogView.tsx):
+    // search_focus (once per focus, not per keystroke), indent_toggle,
+    // milliseconds_toggle, expand_all, collapse_all, row_expand, row_collapse,
+    // copy_json, json_mode_collapse_toggle, and view_mode_switch (the
+    // Formatted/JSON toggle, emitted by the hosting detail views).
+    // Metadata only — never an observation id or the search text.
+    "log_view_interaction",
+    // The JSON-view Beta switch (legacy JSON <-> virtualized json-beta).
+    // `enabled` is the new value. Decides whether json-beta graduates.
+    "json_beta_toggle",
+    // Whole-section collapse chevrons on Input/Output/Metadata/Corrected
+    // Output. `section` is a fixed enum (never content), `collapsed` the new
+    // state. Informs future default-collapsed decisions.
+    "io_section_collapse_toggle",
   ],
   // The shared table peek panel (opened via the `peek` URL param). Props carry
   // `routePattern` (the Next.js route pattern, never a concrete URL) so opens
@@ -115,7 +138,13 @@ const events = {
     "create_form_open",
     "update_comment",
     "delete_comment",
+    "form_abandoned",
+    "value_set",
+    "level_changed",
+    "level_added",
   ],
+  annotation: ["entry_click"],
+  annotation_queues: ["item_added", "item_removed", "manage_click"],
   score_configs: [
     "create_form_submit",
     "update_form_submit",
@@ -444,15 +473,22 @@ type EventName = {
   [Resource in keyof typeof events]: `${Resource}:${(typeof events)[Resource][number]}`;
 }[keyof typeof events];
 
+type EventProperties = AnnotationEventMap & {
+  [E in Exclude<EventName, keyof AnnotationEventMap>]: Record<
+    string,
+    any
+  > | null;
+};
+
 export const usePostHogClientCapture = () => {
   const posthog = usePostHog();
 
   // wrapped posthog.capture function that only allows events that are in the
   // allowlist; stable identity so it is safe in useCallback/useMemo deps
   return useCallback(
-    function capture(
-      eventName: EventName,
-      properties?: Record<string, any> | null,
+    function capture<E extends EventName>(
+      eventName: E,
+      properties?: EventProperties[E],
       options?: CaptureOptions,
     ): CaptureResult | void {
       return posthog.capture(eventName, properties, options);

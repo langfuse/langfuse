@@ -1,6 +1,18 @@
+/* eslint-disable no-nested-ternary */
 import { eventsSearchRegistry } from "../config/eventsSearchRegistry";
-import { useEventsTableSearch } from "../hooks/useEventsTableSearch";
-import { SearchScopeSelect } from "@/src/components/table/SearchScopeSelect";
+import {
+  useEventsSearchBar,
+  buildAiContext,
+  EventsSearchBarRow,
+  filterStateToQueryText,
+  observedScoreNamesFromOptions,
+  toObservedOptions,
+  useSearchBarEnabled,
+  withMetadataPathOptions,
+  useFullTextSearch,
+} from "@/src/features/search-bar";
+
+import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
@@ -54,16 +66,7 @@ import { createStatusTableColumn } from "@/src/components/design-system/table/co
 import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import {
-  buildAiContext,
-  DEFAULT_SEARCH_TYPE,
-  EventsSearchBarRow,
-  filterStateToQueryText,
-  observedScoreNamesFromOptions,
-  toObservedOptions,
-  useSearchBarEnabled,
-  withMetadataPathOptions,
-} from "@/src/features/search-bar";
+
 import { cn } from "@/src/utils/tailwind";
 import { getObservationLevelStatus } from "@/src/components/level-colors";
 import {
@@ -75,7 +78,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   getRowHeightIOCharLimit,
   useRowHeightLocalStorage,
@@ -101,26 +104,28 @@ import {
   useColumnVisibility,
 } from "@/src/features/column-visibility";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  useSelectAll,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -131,12 +136,15 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
 //   type EventsViewMode,
 // } from "@/src/features/events/hooks/useEventsViewMode";
+
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import {
   REFRESH_INTERVALS,
@@ -144,16 +152,17 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  RunEvaluationDialog,
+  AddObservationsToDatasetDialog,
+} from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
-import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
@@ -166,7 +175,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 
 export type EventsTableRow = {
   // Identity fields
@@ -308,6 +317,10 @@ export default function ObservationsEventsTable({
   isolateTableState = false,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
+  const hasBatchExportAccess = useHasProjectAccess({
+    projectId,
+    scope: "batchExports:create",
+  });
   const eventsFilterConfig = useMemo(
     () => getObservationEventsFilterConfig(omittedFilter),
     [omittedFilter],
@@ -501,12 +514,15 @@ export default function ObservationsEventsTable({
   // Facets describe the whole window (see facetStartTimeFilter below); the paged
   // row/count queries take the pinned upper bound instead, so offset paging does
   // not repeat or skip rows while the window keeps taking in newly ingested ones.
-  const { range: rowsDateRange, pinOnLeavingFirstPage } =
-    usePaginationWindowPin(
-      dateRange,
-      limitRows ? 0 : paginationState.page - 1,
-      { enabled: isLiveTailTimeSort(orderByState, "startTime") },
-    );
+  const {
+    range: rowsDateRange,
+    pinOnLeavingFirstPage,
+    resetPin,
+  } = usePaginationWindowPin(
+    dateRange,
+    limitRows ? 0 : paginationState.page - 1,
+    { enabled: isLiveTailTimeSort(orderByState, "startTime") },
+  );
   const dateRangeFilter: FilterState = toStartTimeFilterState(rowsDateRange);
 
   const appRootDefault = useAppRootDefault({
@@ -783,11 +799,10 @@ export default function ObservationsEventsTable({
     commit: searchBarCommit,
     applyFilters: searchBarApplyFilters,
     resetDraft: resetSearchBarDraft,
-  } = useEventsTableSearch({
+  } = useEventsSearchBar({
     projectId,
     tableName: eventsFilterConfig.tableName,
     enabled: searchBarMode,
-    useHostSearchScopes: tableStatePolicy.useHostSearchScopes,
     registry: searchRegistry,
     filterState: queryFilter.searchBarFilterState,
     searchQuery,
@@ -820,9 +835,7 @@ export default function ObservationsEventsTable({
             projectFiltersForSearchBar(state.filters),
             {
               searchQuery: state.searchQuery,
-              searchType: tableStatePolicy.useHostSearchScopes
-                ? DEFAULT_SEARCH_TYPE
-                : searchType,
+              searchType,
             },
             searchRegistry,
           ).text,
@@ -836,7 +849,6 @@ export default function ObservationsEventsTable({
       searchBarStore,
       projectFiltersForSearchBar,
       searchRegistry,
-      tableStatePolicy.useHostSearchScopes,
       searchType,
     ],
   );
@@ -907,6 +919,15 @@ export default function ObservationsEventsTable({
   } = useEventsTableData({
     projectId,
     filterState,
+    tableDataScope: {
+      projectId,
+      filter:
+        externalFilterState ??
+        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
+      searchQuery,
+      searchType,
+      timeRange: externalDateRange ?? timeRange,
+    },
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
@@ -1351,7 +1372,6 @@ export default function ObservationsEventsTable({
           defaultHidden: true,
           enableSorting,
           formatter: (value) => usdFormatter(value),
-          emptyValue: "-",
         }),
         createTextTableColumn<EventsTableRow>({
           accessorFn: (row) =>
@@ -1396,7 +1416,11 @@ export default function ObservationsEventsTable({
 
         return (
           <span>
-            {timeToFirstToken ? formatIntervalSeconds(timeToFirstToken) : "-"}
+            {timeToFirstToken ? (
+              formatIntervalSeconds(timeToFirstToken)
+            ) : (
+              <EmptyValue />
+            )}
           </span>
         );
       },
@@ -1654,6 +1678,12 @@ export default function ObservationsEventsTable({
     currentExpandedFilters: queryFilter.expanded,
     disabled: tableStatePolicy.disableSavedViews,
     allowBackendSystemPresets: true,
+    onViewSelected: () => {
+      resetPin();
+      setPaginationState({ ...paginationState, page: 1 });
+      setSelectedRows({});
+      setSelectAll(false);
+    },
     onViewApplied: (viewState) =>
       resetSearchBarDraft({
         filters: projectFiltersForSearchBar(viewState.filters),
@@ -1798,15 +1828,6 @@ export default function ObservationsEventsTable({
     new Set(
       (queryFilter.explicitFilterState ?? []).map((filter) => filter.column),
     ).size + (searchQuery && searchQuery.trim().length > 0 ? 1 : 0);
-  const searchScope = tableStatePolicy.useHostSearchScopes ? (
-    <SearchScopeSelect
-      searchType={searchType}
-      setSearchType={handleSearchTypeChange}
-      metadataLabel="IDs / Names"
-      fullTextLabel="Full Text"
-      availableSearchTypes={{ content: true, input: true, output: true }}
-    />
-  ) : null;
 
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
@@ -1865,9 +1886,6 @@ export default function ObservationsEventsTable({
                       // padding, so the bar lines up with time range / presets.
                       className="p-0"
                     />
-                    {searchScope && (
-                      <div className="flex justify-end">{searchScope}</div>
-                    )}
                   </div>
                 ) : (
                   // Externally controlled filters retain the host's search input.
@@ -1999,7 +2017,6 @@ export default function ObservationsEventsTable({
                     aiScoreNames={aiScoreNames}
                   />
                 </div>
-                {searchScope}
               </div>
             )}
             {/* Toolbar spanning full width */}
@@ -2061,17 +2078,19 @@ export default function ObservationsEventsTable({
                 showControlsInPageHeader ? undefined : refreshConfig
               }
               actionButtons={[
-                <BatchExportTableButton
-                  {...{
-                    projectId,
-                    filterState,
-                    orderByState,
-                    searchQuery,
-                    searchType,
-                  }}
-                  tableName={BatchExportTableName.Events}
-                  key="batchExport"
-                />,
+                hasBatchExportAccess ? (
+                  <BatchExportTableButton
+                    {...{
+                      projectId,
+                      filterState,
+                      orderByState,
+                      searchQuery,
+                      searchType,
+                    }}
+                    tableName={BatchExportTableName.Events}
+                    key="batchExport"
+                  />
+                ) : null,
                 !chartActive &&
                 (selectedObservationIds.length > 0 || selectAll) ? (
                   <AddTracesToAnnotationQueueDialogController
@@ -2361,6 +2380,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowRunEvaluationDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}
@@ -2370,6 +2391,7 @@ export default function ObservationsEventsTable({
 
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
+          isV4
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
@@ -2382,6 +2404,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowAddToDatasetDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}

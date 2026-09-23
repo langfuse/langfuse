@@ -73,10 +73,12 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS rpm-installer
 # unlinked by today's binary but required the moment an OpenSSL-dependent
 # binary lands, so the validated module is already present. crypto-policies
 # activates the FIPS policy; ca-certificates is the trust store for future
-# outbound TLS.
+# outbound TLS. wget serves the ECS container health command
+# (`sh -c 'wget -qO /dev/null http://localhost:8080/health'`, exercised by
+# scripts/smoke-image.sh); ubi9-micro already provides the shell.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
     --setopt=tsflags=nodocs --disableexcludes=all \
-    install glibc libgcc ca-certificates crypto-policies openssl-libs && \
+    install glibc libgcc ca-certificates crypto-policies openssl-libs wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
@@ -100,6 +102,8 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${MICRO_BASE_IMAGE} AS runtime
 
 COPY --from=rpm-installer /mnt/rootfs /
 COPY --from=builder /app/target/release/ai-gateway /usr/local/bin/ai-gateway
+ARG BUILD_ID
+ENV BUILD_ID=$BUILD_ID
 
 # The gateway handles SIGTERM itself with a bounded drain (see
 # scripts/smoke-image.sh), so no init process is needed.

@@ -11,13 +11,13 @@ import {
   getWidgetImportFilterConfig,
   normalizeStoredWidgetFiltersForEditor,
   partitionStoredUiTableFiltersToView,
-} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+} from "@/src/features/dashboard";
 import startCase from "lodash/startCase";
 import {
   ChartConfigSchema,
   DimensionSchema,
   MetricSchema,
-  singleFilter,
+  singleFilterList,
   type FilterState,
 } from "@langfuse/shared";
 import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
@@ -47,7 +47,7 @@ const widgetImportBaseSchema = z
     view: views,
     dimensions: z.array(DimensionSchema),
     metrics: z.array(widgetMetricSchema),
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
     chartType: dashboardWidgetChartTypeSchema,
     chartConfig: ChartConfigSchema,
     minVersion: z.number().int().optional(),

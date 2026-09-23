@@ -1015,6 +1015,7 @@ model EvaluatorVersion {
   outputDefinition   Json?                        @map("output_definition")
   sourceCode         String?                      @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvaluatorSourceCodeLanguage? @map("source_code_language")
+  questions          Json?
 
   @@unique([evaluatorId, version(sort: Desc)])
   @@map("evaluator_versions")
@@ -1023,6 +1024,7 @@ model EvaluatorVersion {
 enum EvalTemplateType {
   LLM_AS_JUDGE
   CODE
+  DECISION_MODEL
 }
 
 enum EvalTemplateSourceCodeLanguage {

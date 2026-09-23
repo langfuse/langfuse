@@ -197,7 +197,7 @@ export function SplashScreen({
                   {step.badge}
                 </div>
                 {step.description && (
-                  <p className="text-muted-foreground text-sm leading-6">
+                  <p className="text-muted-foreground text-sm">
                     {step.description}
                   </p>
                 )}

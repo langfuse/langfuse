@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { planCommit, runSearchBarInvariants } from "@/src/features/search-bar";
+
 import {
   filterGatewayModels,
   type GatewayModelRow,
@@ -12,12 +12,24 @@ import {
 const models: GatewayModelRow[] = [
   {
     id: "model-small",
-    availableVia: [{ connectionName: "Primary", provider: "OPENAI" }],
+    availableVia: [
+      {
+        connectionId: "connection-primary",
+        connectionName: "Primary",
+        provider: "OPENAI",
+      },
+    ],
     apiFormats: ["OpenAI Responses", "OpenAI Chat Completions"],
   },
   {
     id: "model-large",
-    availableVia: [{ connectionName: "Secondary", provider: "ANTHROPIC" }],
+    availableVia: [
+      {
+        connectionId: "connection-secondary",
+        connectionName: "Secondary",
+        provider: "ANTHROPIC",
+      },
+    ],
     apiFormats: ["Anthropic Messages"],
   },
 ];

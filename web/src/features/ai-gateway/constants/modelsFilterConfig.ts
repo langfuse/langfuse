@@ -1,8 +1,15 @@
 import type { ColumnDefinition } from "@langfuse/shared";
-import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import type { FilterConfig } from "@/src/features/filters";
 import { providerLabels } from "./providerLabels";
 
 const filterColumns: ColumnDefinition[] = [
+  {
+    name: "Provider credentials",
+    id: "connection",
+    type: "arrayOptions",
+    internal: "connection",
+    options: [],
+  },
   {
     name: "Provider",
     id: "provider",
@@ -25,8 +32,13 @@ const filterColumns: ColumnDefinition[] = [
 export const gatewayModelsFilterConfig: FilterConfig = {
   tableName: "gateway-models",
   columnDefinitions: filterColumns,
-  defaultExpanded: ["provider", "apiFormat"],
+  defaultExpanded: ["connection", "provider", "apiFormat"],
   facets: [
+    {
+      type: "categorical",
+      column: "connection",
+      label: "Provider credentials",
+    },
     { type: "categorical", column: "provider", label: "Provider" },
     { type: "categorical", column: "apiFormat", label: "API format" },
   ],

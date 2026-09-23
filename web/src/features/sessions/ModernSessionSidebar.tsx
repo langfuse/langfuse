@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -36,9 +37,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { InlineFilterState } from "@/src/features/filters";
+import {
+  ComposerTokens,
+  filterStateToQueryText,
+} from "@/src/features/search-bar";
+
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 
@@ -665,7 +669,8 @@ export function ModernSessionSidebar(
                   virtualItem={virtualItem}
                   virtualizer={virtualizer}
                 >
-                  {gap !== null &&
+                  {search.trim() === "" &&
+                  gap !== null &&
                   gap !== undefined &&
                   gap >= IDLE_GAP_THRESHOLD_SECONDS ? (
                     <div className="my-0.5 mb-2 flex items-center bg-[repeating-linear-gradient(315deg,hsl(var(--foreground)/0.07)_0_1px,transparent_1px_5px)] px-3 py-[5px]">
