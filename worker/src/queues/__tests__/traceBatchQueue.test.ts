@@ -13,6 +13,8 @@ import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { NodeSDK, tracing } from "@opentelemetry/sdk-node";
 import {
   getCurrentSpan,
+  convertObservation,
+  createObservation,
   getTraceBatchEventStream,
   logger,
   QueueJobs,
@@ -25,6 +27,7 @@ import {
 import { env } from "../../env";
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
+import { recordTraceBatchTranscript } from "../../features/traceBatching/traceBatchTranscript";
 import {
   recordTraceBatchActiveReads,
   traceBatchQueueProcessor,
@@ -80,6 +83,188 @@ afterEach(() => {
 });
 
 describe("trace batch queue", () => {
+  it("measures history, current turn, threads and deduplicated tool responses", async () => {
+    const history = [
+      { role: "user", content: "earlier question" },
+      { role: "assistant", content: "earlier answer" },
+    ];
+    const question = { role: "user", content: "current question" };
+    const call = {
+      role: "assistant",
+      content: null,
+      tool_calls: [
+        {
+          id: "call",
+          type: "function",
+          function: { name: "lookup", arguments: "{}" },
+        },
+      ],
+    };
+    const observation = (
+      id: string,
+      input: unknown,
+      output: unknown,
+      type: "GENERATION" | "TOOL" = "GENERATION",
+    ) =>
+      convertObservation(
+        createObservation({
+          id,
+          trace_id: "trace",
+          project_id: "project",
+          type,
+          name: type === "TOOL" ? "lookup" : "generation",
+          start_time: `2026-01-01T12:00:0${id}.000Z`,
+          input: JSON.stringify(input),
+          output: JSON.stringify(output),
+        }),
+      );
+    await recordTraceBatchTranscript([
+      observation("1", [...history, question], call),
+      observation("2", {}, "tool payload", "TOOL"),
+      observation(
+        "3",
+        [
+          ...history,
+          question,
+          call,
+          { role: "tool", tool_call_id: "call", content: "tool payload" },
+        ],
+        "current answer",
+      ),
+      observation(
+        "4",
+        [{ role: "user", content: "independent question" }],
+        "independent answer",
+      ),
+    ]);
+    const estimates = vi
+      .mocked(tokenCountAsync)
+      .mock.calls.map(([params]) => params);
+    expect(estimates).toHaveLength(4);
+    const [full, current, historyOnly, tools] = estimates.map(({ text }) =>
+      JSON.stringify(text),
+    );
+    expect(full.split("tool payload")).toHaveLength(2);
+    expect(current).not.toContain("earlier question");
+    expect(current).toContain("current question");
+    expect(current).toContain("independent question");
+    expect(historyOnly).toContain("earlier question");
+    expect(historyOnly).not.toContain("current question");
+    expect(tools.split("tool payload")).toHaveLength(2);
+    expect(tools).not.toContain("current question");
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_thread_count",
+      2,
+    );
+    for (const [index, suffix] of [
+      "tokens",
+      "current_turn_tokens",
+      "history_tokens",
+      "tool_response_tokens",
+    ].entries()) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}`,
+        tokenCount(estimates[index]),
+        { tokenizer: "o200k_base" },
+      );
+    }
+    const span = exporter.getFinishedSpans()[0];
+    let phaseTotal = 0;
+    for (const phase of ["normalization", "matching"]) {
+      const duration = span.attributes[
+        `langfuse.trace_batch.transcript_assembly_${phase}_duration_ms`
+      ] as number;
+      expect(duration).toBeGreaterThanOrEqual(0);
+      phaseTotal += duration;
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_batch.transcript_assembly_phase_duration_ms",
+        duration,
+        { phase },
+      );
+    }
+    expect(phaseTotal).toBeLessThanOrEqual(
+      span.attributes[
+        "langfuse.trace_batch.transcript_assembly_duration_ms"
+      ] as number,
+    );
+  });
+
+  it("counts unmatched tool results without counting adjacent user text", async () => {
+    await recordTraceBatchTranscript([
+      convertObservation(
+        createObservation({
+          type: "GENERATION",
+          trace_id: "trace",
+          input: JSON.stringify([
+            {
+              role: "user",
+              content: [
+                { type: "text", text: "Please explain this result" },
+                {
+                  type: "tool_result",
+                  tool_use_id: "unmatched",
+                  content: "tool payload",
+                },
+              ],
+            },
+          ]),
+          output: "Answer",
+        }),
+      ),
+    ]);
+    const estimates = vi.mocked(tokenCountAsync).mock.calls;
+    expect(estimates).toHaveLength(2);
+    expect(JSON.stringify(estimates[1][0].text)).toContain("tool payload");
+    expect(JSON.stringify(estimates[1][0].text)).not.toContain(
+      "Please explain",
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_history_tokens",
+      0,
+      { tokenizer: "o200k_base" },
+    );
+  });
+
+  it.each(["unavailable", "failed"])(
+    "retains the full estimate when a breakdown is %s",
+    async (outcome) => {
+      vi.mocked(tokenCountAsync).mockResolvedValueOnce(100);
+      if (outcome === "unavailable")
+        vi.mocked(tokenCountAsync).mockResolvedValueOnce(undefined);
+      else
+        vi.mocked(tokenCountAsync).mockRejectedValueOnce(
+          new Error("tokenizer failed"),
+        );
+      await recordTraceBatchTranscript([
+        convertObservation(
+          createObservation({
+            type: "GENERATION",
+            trace_id: "trace",
+            input: JSON.stringify([
+              { role: "assistant", content: "history" },
+              { role: "user", content: "question" },
+            ]),
+            output: "answer",
+          }),
+        ),
+      ]);
+      const span = exporter.getFinishedSpans()[0];
+      expect(span.attributes["langfuse.trace_batch.transcript_tokens"]).toBe(
+        100,
+      );
+      expect(span.attributes).not.toHaveProperty(
+        "langfuse.trace_batch.transcript_current_turn_tokens",
+      );
+      expect(span.attributes["langfuse.trace_batch.token_estimation"]).toBe(
+        outcome,
+      );
+      expect(recordIncrement).toHaveBeenCalledWith(
+        `langfuse.trace_batch.token_estimation_${outcome}`,
+        1,
+      );
+    },
+  );
+
   it.each([false, true])(
     "overlaps one tokenization with streaming, bounds pending work and drains it (stream fails: %s)",
     async (streamFails) => {
@@ -283,6 +468,17 @@ describe("trace batch queue", () => {
       "langfuse.trace_batch.transcript_tokens",
       0,
       { tokenizer: "o200k_base" },
+    );
+    for (const suffix of ["current_turn", "history", "tool_response"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}_tokens`,
+        0,
+        { tokenizer: "o200k_base" },
+      );
+    }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_thread_count",
+      0,
     );
     for (const hasTranscript of ["true", "false"]) {
       expect(recordDistribution).toHaveBeenCalledWith(
