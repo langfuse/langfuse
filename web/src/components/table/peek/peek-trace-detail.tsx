@@ -3,7 +3,6 @@ import { useRouter } from "next/router";
 import { useRef } from "react";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import {
   TablePeekView,
   shouldClosePeekAfterDelete,
@@ -65,7 +64,7 @@ export const TablePeekViewTraceDetail = (
   return (
     <TablePeekView
       {...tablePeekViewProps}
-      title={traceDetailTitle(trace.data, traceId)}
+      title={traceId}
       actions={
         actionProps ? <TraceDetailActions {...actionProps} /> : undefined
       }
