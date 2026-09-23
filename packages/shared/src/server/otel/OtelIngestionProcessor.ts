@@ -3242,19 +3242,24 @@ export class OtelIngestionProcessor {
     attributes: Record<string, unknown>,
     startTimeISO?: string,
   ): string | null {
-    try {
-      const value = attributes[
-        LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
-      ] as any;
+    const value = attributes[
+      LangfuseOtelSpanAttributes.OBSERVATION_COMPLETION_START_TIME
+    ] as any;
 
-      if (isValidDateString(value)) return value;
+    // Only a string can be a timestamp or a double-encoded one. Spans without
+    // the attribute used to reach JSON.parse(undefined), which throws, and a
+    // thrown-and-caught exception per span is not free.
+    if (typeof value === "string") {
+      try {
+        if (isValidDateString(value)) return value;
 
-      // Older SDKs have double stringified timestamps that need JSON parsing
-      // "\"2025-10-01T08:45:26.112648Z\""
-      const parsed = JSON.parse(value);
-      if (isValidDateString(parsed)) return parsed;
-    } catch {
-      // Fallthrough
+        // Older SDKs have double stringified timestamps that need JSON parsing
+        // "\"2025-10-01T08:45:26.112648Z\""
+        const parsed = JSON.parse(value);
+        if (isValidDateString(parsed)) return parsed;
+      } catch {
+        // Fallthrough
+      }
     }
 
     // Vercel AI SDK
