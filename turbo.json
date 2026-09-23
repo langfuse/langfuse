@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
+  "cacheMaxSize": "7.5GB",
   "globalDependencies": [".env"],
   "globalEnv": [
     "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
