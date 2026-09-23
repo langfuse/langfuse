@@ -56,9 +56,10 @@ function AnnotateHeader({
   description?: string;
 }) {
   return (
-    <div>
+    <div className="relative">
       <Header
         title="Annotate"
+        titleClassName="text-foreground text-[16px] leading-6"
         help={
           description
             ? {
@@ -70,7 +71,7 @@ function AnnotateHeader({
         }
         actionButtons={actionButtons}
       />
-      <div className="-mt-1 flex h-4 items-center justify-end overflow-hidden pr-1">
+      <div className="pointer-events-none absolute top-full right-1 flex h-4 items-center overflow-hidden">
         {saveStatus}
       </div>
     </div>
@@ -220,49 +221,102 @@ export function AnnotationFormContent({
     (field) =>
       isTextDataType(field.dataType) || isNumericDataType(field.dataType),
   );
+  const addScoreControl =
+    allowManualSelection && isActive ? (
+      <PopoverController
+        align="start"
+        contentClassName="w-64 p-0"
+        disabled={addableOptions.length === 0}
+        modal={false}
+        renderContent={({ closePopover }) => (
+          <InputCommand>
+            <InputCommandInput
+              placeholder="Search scores..."
+              variant="bottom"
+            />
+            <InputCommandList className="max-h-72">
+              <InputCommandEmpty>No scores found.</InputCommandEmpty>
+              <InputCommandGroup>
+                {addableOptions.map((option) => (
+                  <InputCommandItem
+                    key={option.value}
+                    value={option.value}
+                    keywords={[option.label]}
+                    className="cursor-pointer"
+                    onSelect={() => {
+                      closePopover();
+                      const controlledFields = form.getValues("scoreData");
+                      getScoreConfigSelection({
+                        targets,
+                        controlledFields,
+                        insert,
+                        remove,
+                      }).addScore(option.value);
+                    }}
+                  >
+                    {option.label}
+                  </InputCommandItem>
+                ))}
+              </InputCommandGroup>
+            </InputCommandList>
+          </InputCommand>
+        )}
+      >
+        {({ Trigger, disabled }) => (
+          <Trigger asChild>
+            <Button
+              data-add-score
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              disabled={disabled}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add score
+            </Button>
+          </Trigger>
+        )}
+      </PopoverController>
+    ) : null;
+  const manageScoreConfigsControl = allowManualSelection ? (
+    <Button
+      variant="outline"
+      size="sm"
+      className="bg-accent gap-1.5 text-xs"
+      asChild
+    >
+      <Link
+        href={`/project/${scoreMetadata.projectId}/settings/scores`}
+        target="_blank"
+        onClick={() => {
+          capture("score_configs:manage_configs_item_click", analyticsData);
+        }}
+        onAuxClick={(event) => {
+          if (event.button === 1) {
+            capture("score_configs:manage_configs_item_click", analyticsData);
+          }
+        }}
+      >
+        <Settings2 className="size-3" aria-hidden="true" />
+        Manage score configs
+      </Link>
+    </Button>
+  ) : null;
 
   return (
     <div
       ref={formRootRef}
       data-annotation-form
       tabIndex={-1}
-      className="ph-no-capture mx-auto w-full space-y-4 overflow-y-auto p-1 md:max-h-full"
+      className="ph-no-capture mx-auto w-full space-y-2 overflow-y-auto p-1 md:max-h-full"
     >
-      <div className="sticky top-0 z-10 flex flex-col gap-4 rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
+      <div className="sticky top-0 z-10 flex flex-col rounded-sm bg-[hsl(var(--annotation-surface,var(--background)))] pb-2">
         <AnnotateHeader
           saveStatus={<AnnotationSaveStatus form={form} actions={actions} />}
           actionButtons={
             <>
-              {allowManualSelection ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="bg-accent gap-1.5 text-xs"
-                  asChild
-                >
-                  <Link
-                    href={`/project/${scoreMetadata.projectId}/settings/scores`}
-                    target="_blank"
-                    onClick={() => {
-                      capture(
-                        "score_configs:manage_configs_item_click",
-                        analyticsData,
-                      );
-                    }}
-                    onAuxClick={(event) => {
-                      if (event.button === 1) {
-                        capture(
-                          "score_configs:manage_configs_item_click",
-                          analyticsData,
-                        );
-                      }
-                    }}
-                  >
-                    <Settings2 className="size-3" aria-hidden="true" />
-                    Manage score configs
-                  </Link>
-                </Button>
-              ) : null}
+              {addScoreControl}
               {actionButtons}
             </>
           }
@@ -333,65 +387,8 @@ export function AnnotationFormContent({
             ) : null;
           })}
         </div>
-        {allowManualSelection && isActive ? (
-          <div>
-            <PopoverController
-              align="start"
-              contentClassName="w-64 p-0"
-              disabled={addableOptions.length === 0}
-              modal={false}
-              renderContent={({ closePopover }) => (
-                <InputCommand>
-                  <InputCommandInput
-                    placeholder="Search scores..."
-                    variant="bottom"
-                  />
-                  <InputCommandList className="max-h-72">
-                    <InputCommandEmpty>No scores found.</InputCommandEmpty>
-                    <InputCommandGroup>
-                      {addableOptions.map((option) => (
-                        <InputCommandItem
-                          key={option.value}
-                          value={option.value}
-                          keywords={[option.label]}
-                          className="cursor-pointer"
-                          onSelect={() => {
-                            closePopover();
-                            const controlledFields =
-                              form.getValues("scoreData");
-                            getScoreConfigSelection({
-                              targets,
-                              controlledFields,
-                              insert,
-                              remove,
-                            }).addScore(option.value);
-                          }}
-                        >
-                          {option.label}
-                        </InputCommandItem>
-                      ))}
-                    </InputCommandGroup>
-                  </InputCommandList>
-                </InputCommand>
-              )}
-            >
-              {({ Trigger, disabled }) => (
-                <Trigger asChild>
-                  <Button
-                    data-add-score
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    disabled={disabled}
-                  >
-                    <Plus className="size-3.5" aria-hidden="true" />
-                    Add score
-                  </Button>
-                </Trigger>
-              )}
-            </PopoverController>
-          </div>
+        {manageScoreConfigsControl ? (
+          <div>{manageScoreConfigsControl}</div>
         ) : null}
         {rowCount > 0 && (
           // This legend only exists to advertise keyboard shortcuts, so hide
