@@ -66,7 +66,15 @@ export function createUserTableColumn<
         cell = { type: "user", user: value };
       }
 
-      if (!cell) return null;
+      if (!cell) {
+        const placeholder = nullValue ?? emptyValue;
+        if (!placeholder) return null;
+        return (
+          <span className="block w-full truncate" title={placeholder}>
+            {placeholder}
+          </span>
+        );
+      }
       if (cell.type === "loading") return loadingCell;
 
       return (

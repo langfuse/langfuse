@@ -104,8 +104,8 @@ export function AuditLogsTable({
             getCell: (value) => value || undefined,
             singleLine: rowHeight === "s",
           }),
-          createButtonTableColumn<AuditLogRow, string>({
-            accessorKey: "id",
+          createButtonTableColumn<AuditLogRow, AuditLogRow["id"]>({
+            accessorFn: (row) => row.id,
             id: "compare",
             header: "Compare",
             size: 96,
@@ -125,11 +125,16 @@ export function AuditLogsTable({
             columnVisibilityKey={`${tableName}ColumnVisibility`}
             columnOrderKey={`${tableName}ColumnOrder`}
             data={data}
-            loadingRowCount={pagination.state.pageSize}
+            loadingRowCount={Math.min(pagination.state.pageSize, 8)}
             rowHeight={rowHeight}
             pagination={pagination}
             rowHeightControl={{ rowHeight, onRowHeightChange }}
             toolbarActions={toolbarActions}
+            toolbarNotice={
+              toolbarActions?.length
+                ? "Note: Filters are not applied to audit log exports. All audit logs for this project will be exported."
+                : undefined
+            }
           />
         );
       }}

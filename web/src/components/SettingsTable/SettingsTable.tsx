@@ -56,6 +56,7 @@ export type SettingsTableProps<TData extends object> = Omit<
   };
   filters?: SettingsTableFilter[];
   toolbarActions?: SettingsTableToolbarAction[];
+  toolbarNotice?: string;
   rowHeightControl?: {
     rowHeight: RowHeight;
     onRowHeightChange: (height: RowHeight) => void;
@@ -70,6 +71,7 @@ export function SettingsTable<TData extends object>({
   search,
   filters,
   toolbarActions,
+  toolbarNotice,
   rowHeightControl,
   pagination,
   ...tableProps
@@ -208,6 +210,10 @@ export function SettingsTable<TData extends object>({
             ))}
           </div>
         </div>
+      )}
+
+      {toolbarNotice && (
+        <p className="text-muted-foreground text-xs">{toolbarNotice}</p>
       )}
 
       <SettingsTableCard>
