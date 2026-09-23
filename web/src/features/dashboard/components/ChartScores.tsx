@@ -25,7 +25,6 @@ import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hook
 const SCORES_CHART_CONFIG = {
   type: "LINE_TIME_SERIES",
   show_data_point_dots: false,
-  subtle_fill: true,
 } as const;
 
 export function ChartScores(props: {

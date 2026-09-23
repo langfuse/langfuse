@@ -51,6 +51,47 @@ export const ManyBins = meta.story({
   },
 });
 
+const denseBins = Array.from({ length: 100 }, (_, index) => ({
+  label: `Bin ${index + 1}`,
+  value: index + 1,
+}));
+
+export const NarrowBins = meta.story({
+  name: "(Test) Narrow Bins Remain Visible",
+  args: { data: denseBins },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[240px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const bars = within(canvasElement).getAllByRole("graphics-symbol");
+    await expect(bars).toHaveLength(100);
+    for (const bar of bars) {
+      await expect(Number(bar.getAttribute("width"))).toBeGreaterThan(0);
+    }
+  },
+});
+
+export const InsufficientSpace = meta.story({
+  name: "(Test) Insufficient Space For Bins",
+  args: { data: denseBins },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[100px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("Insufficient space")).toBeInTheDocument();
+    await expect(canvas.queryAllByRole("graphics-symbol")).toHaveLength(0);
+  },
+});
+
 export const NormalDistribution = meta.story({
   args: {
     data: Array.from({ length: 31 }, (_, index) => {

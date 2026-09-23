@@ -115,6 +115,17 @@ export function BarChartCore({
                   );
                 }
 
+                if (barSpacing === "histogram" && xScale.bandwidth() < 1) {
+                  return (
+                    <div className="text-muted-foreground absolute inset-0 flex items-center justify-center p-4 text-center">
+                      Insufficient space
+                    </div>
+                  );
+                }
+
+                const histogramInset =
+                  barSpacing === "histogram" && xScale.bandwidth() >= 3 ? 1 : 0;
+
                 return (
                   <ChartTooltip>
                     {({ activeIndex, getReferenceProps }) => (
@@ -169,13 +180,11 @@ export function BarChartCore({
                               {datum.value !== null &&
                               Number.isFinite(datum.value) ? (
                                 <rect
-                                  x={x + (barSpacing === "histogram" ? 1 : 0)}
+                                  x={x + histogramInset}
                                   y={barTop}
-                                  width={Math.max(
-                                    0,
-                                    xScale.bandwidth() -
-                                      (barSpacing === "histogram" ? 2 : 0),
-                                  )}
+                                  width={
+                                    xScale.bandwidth() - histogramInset * 2
+                                  }
                                   height={Math.max(1, barHeight)}
                                   rx={
                                     barSpacing === "histogram"
