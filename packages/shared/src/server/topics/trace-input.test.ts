@@ -8,6 +8,11 @@ import {
 } from "./transcript";
 
 vi.mock("./load-trace", () => ({ loadTraceSnapshot: vi.fn() }));
+vi.mock("tiktoken", () => {
+  throw new Error(
+    "Shared transcript assembly must not load the worker tokenizer",
+  );
+});
 
 const observations: TopicsObservation[] = [
   {

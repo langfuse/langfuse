@@ -7,7 +7,6 @@ import {
   LLMAdapter,
   logger,
 } from "@langfuse/shared/src/server";
-import { countTopicTokens } from "@langfuse/shared/topics/server";
 import {
   TOPICS_SUMMARY_MODEL,
   TOPICS_EMBEDDING_MODEL,
@@ -22,6 +21,15 @@ import {
 } from "./provider-error";
 
 export const TOPICS_NAMING_MODEL = "gpt-5.6-luna";
+
+function countTopicTokens(value: string): number {
+  const encoding = get_encoding("o200k_base");
+  try {
+    return encoding.encode(value, "all", []).length;
+  } finally {
+    encoding.free();
+  }
+}
 
 const summarySchema = z.object({
   summary: z.string(),

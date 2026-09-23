@@ -14,9 +14,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
   createLLMOutput: (schema: unknown) => schema,
   generateLLMText: (...args: unknown[]) => state.call(...args),
 }));
-vi.mock("@langfuse/shared/topics/server", () => ({
-  countTopicTokens: (text: string) => Math.ceil(text.length / 4),
-}));
 
 import { nameTopicGroup, summarizeTopicTrace } from "./models";
 import { topicProcessingConfigSchema } from "@langfuse/shared/topics";

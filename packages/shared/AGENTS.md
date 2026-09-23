@@ -72,6 +72,7 @@
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
     payloads through assignment and save terminal job state before cleanup.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
+    Token counting and its WASM dependency belong to worker model calls.
   - `LANGFUSE_TOPICS_ENABLED` defaults to false and gates deployment availability,
     including cleanup. Processing also requires `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`
     (empty by default); reads/configuration remain feature-flag/RBAC controlled.

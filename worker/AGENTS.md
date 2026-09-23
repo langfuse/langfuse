@@ -26,6 +26,7 @@
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Transcript assembly is shared with web through `loadTopicTranscript`.
+  Token counting and its WASM dependency stay in `src/features/topics/models.ts`.
 - OTEL event processing:
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation

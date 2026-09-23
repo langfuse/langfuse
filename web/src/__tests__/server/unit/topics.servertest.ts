@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   readTopicSummaries: vi.fn(),
   readTopicMapAssignments: vi.fn(),
   loadTopicTranscript: vi.fn(),
+  isTopicsEnabled: vi.fn(),
   isTopicsProjectEnabled: vi.fn(),
   enqueueTopicExecution: vi.fn(),
   getTopicExecutionQueueState: vi.fn(),
@@ -160,6 +161,7 @@ const summary = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.queryClickhouse.mockResolvedValue([]);
+  mocks.isTopicsEnabled.mockReturnValue(true);
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
   mocks.getTopicFacetVersion.mockResolvedValue({
     facetId,
