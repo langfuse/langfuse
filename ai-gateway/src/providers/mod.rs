@@ -113,6 +113,8 @@ pub struct ProviderTransport {
 }
 
 impl ProviderTransport {
+    /// # Errors
+    /// Returns [`ProviderError::Configuration`] when the HTTPS client cannot be initialized.
     pub fn new(max_active_requests: usize) -> Result<Self, ProviderError> {
         Self::with_limits(ProviderLimits {
             active: max_active_requests,
@@ -151,6 +153,8 @@ impl ProviderTransport {
         self
     }
 
+    /// # Errors
+    /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
     pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
         let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
             crate::observability::rejected("execution");
@@ -163,6 +167,8 @@ impl ProviderTransport {
         })
     }
 
+    /// # Errors
+    /// See [`Self::forward_route`].
     pub async fn forward(
         &self,
         permit: RequestPermit,
