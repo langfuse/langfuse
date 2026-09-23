@@ -18,6 +18,7 @@ import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
   getSdkInfoFromResourceSpans,
+  needsLegacyIngestionRepresentation,
   isLangfuseSdkTraffic,
   isOrgPastOtelDirectWriteCutoff,
   otelIngestionQueueProcessorBuilder,
@@ -645,5 +646,43 @@ describe("getSdkInfoFromResourceSpans (legacy fallback)", () => {
     },
   ])("$label", ({ input, expected }) => {
     expect(getSdkInfoFromResourceSpans(input)).toEqual(expected);
+  });
+});
+
+describe("needsLegacyIngestionRepresentation", () => {
+  it("builds the representation whenever legacy tables are written", () => {
+    expect(
+      needsLegacyIngestionRepresentation({
+        writesToLegacyTables: true,
+        forceDirectWrite: true,
+        headerBasedDirectWrite: true,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    { forceDirectWrite: true, headerBasedDirectWrite: false },
+    { forceDirectWrite: false, headerBasedDirectWrite: true },
+    { forceDirectWrite: true, headerBasedDirectWrite: true },
+  ])(
+    "skips it when legacy tables are skipped and the write path is already direct (%o)",
+    (directSignals) => {
+      expect(
+        needsLegacyIngestionRepresentation({
+          writesToLegacyTables: false,
+          ...directSignals,
+        }),
+      ).toBe(false);
+    },
+  );
+
+  it("builds it when the direct decision still needs the scope fallback", () => {
+    expect(
+      needsLegacyIngestionRepresentation({
+        writesToLegacyTables: false,
+        forceDirectWrite: false,
+        headerBasedDirectWrite: false,
+      }),
+    ).toBe(true);
   });
 });
