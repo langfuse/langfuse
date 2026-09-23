@@ -630,8 +630,6 @@ export function CreateLLMApiKeyForm({
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
-      // Switching an existing TypeSafe connection back to TypeSafe must clear
-      // the stored gateway URL, which `undefined` ("unchanged") would not.
       baseURL:
         values.baseURL ||
         (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
