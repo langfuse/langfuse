@@ -222,6 +222,66 @@ describe("MediaRetentionCleaner", () => {
       expect(allDeletedPaths).toContain(media.bucketPath);
     });
 
+    it("preserves old media reused by a recent trace", async () => {
+      await drainExpiredMedia();
+      mockDeleteFiles.mockClear();
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+
+      const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+      const media = await createTestMedia(projectId, oldDate);
+      const oldTraceId = randomUUID();
+      const recentTraceId = randomUUID();
+      await prisma.traceMedia.createMany({
+        data: [
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: media.id,
+            traceId: oldTraceId,
+            field: "input",
+            createdAt: oldDate,
+          },
+          {
+            id: randomUUID(),
+            projectId,
+            mediaId: media.id,
+            traceId: recentTraceId,
+            field: "input",
+          },
+        ],
+      });
+
+      await new MediaRetentionCleaner().processBatch();
+
+      const deletedPaths = mockDeleteFiles.mock.calls.flatMap(
+        (call) => call[0] as string[],
+      );
+      expect(deletedPaths).not.toContain(media.bucketPath);
+      await expect(
+        prisma.traceMedia.findMany({
+          select: { traceId: true },
+          where: { projectId, mediaId: media.id },
+        }),
+      ).resolves.toEqual([{ traceId: recentTraceId }]);
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: media.id } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        findExpiredMediaBatchByProjectId({
+          projectId,
+          cutoffDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          limit: 2,
+        }),
+      ).resolves.toEqual([]);
+    });
+
     it("cleans expired links, preserves recent links, and drains the project", async () => {
       await drainExpiredMedia();
       mockDeleteFiles.mockClear();

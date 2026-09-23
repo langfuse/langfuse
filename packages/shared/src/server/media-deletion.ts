@@ -31,6 +31,20 @@ const expiredMediaWorkCondition = (params: {
         AND dim.media_id = m.id
         AND dim.dataset_item_valid_from IS NOT NULL
     )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM trace_media tm
+      WHERE tm.project_id = ${params.projectId}
+        AND tm.media_id = m.id
+        AND tm.created_at > ${params.cutoffDate}
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM observation_media om
+      WHERE om.project_id = ${params.projectId}
+        AND om.media_id = m.id
+        AND om.created_at > ${params.cutoffDate}
+    )
     OR EXISTS (
       SELECT 1
       FROM trace_media tm
@@ -172,7 +186,7 @@ export async function deleteMediaLinkRowsByProjectId(params: {
 /**
  * Delete media files from S3 first, then from PostgreSQL.
  * S3 is deleted first to avoid orphaned files if PG deletion succeeds but S3 fails.
- * A link cutoff preserves recent links when retention keeps dataset-protected media.
+ * A link cutoff preserves media still referenced within the retention window.
  * Returns the number of media files deleted.
  */
 export async function deleteMediaFiles(params: {
@@ -211,8 +225,34 @@ export async function deleteMediaFiles(params: {
     const datasetAssociatedMediaIds = new Set(
       datasetAssociatedMedia.map((media) => media.mediaId),
     );
+    const [recentTraceLinks, recentObservationLinks] = linkCleanupCutoffDate
+      ? await Promise.all([
+          prisma.traceMedia.groupBy({
+            by: ["mediaId"],
+            where: {
+              projectId,
+              mediaId: { in: mediaIds },
+              createdAt: { gt: linkCleanupCutoffDate },
+            },
+          }),
+          prisma.observationMedia.groupBy({
+            by: ["mediaId"],
+            where: {
+              projectId,
+              mediaId: { in: mediaIds },
+              createdAt: { gt: linkCleanupCutoffDate },
+            },
+          }),
+        ])
+      : [[], []];
+    const recentlyLinkedMediaIds = new Set([
+      ...recentTraceLinks.map((link) => link.mediaId),
+      ...recentObservationLinks.map((link) => link.mediaId),
+    ]);
     const deletableBatch = batch.filter(
-      (f) => !datasetAssociatedMediaIds.has(f.id),
+      (f) =>
+        !datasetAssociatedMediaIds.has(f.id) &&
+        !recentlyLinkedMediaIds.has(f.id),
     );
     const deletableMediaIds = deletableBatch.map((f) => f.id);
     const linkCleanupFilter = linkCleanupCutoffDate
