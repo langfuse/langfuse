@@ -38,6 +38,10 @@ export const WithTrailingIcon = meta.story({
   },
 });
 
+export const Small = meta.story({
+  args: { text: "DEBUG", size: "sm" },
+});
+
 export const VariantMatrix = meta.story({
   parameters: {
     controls: {

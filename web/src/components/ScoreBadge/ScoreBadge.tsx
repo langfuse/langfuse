@@ -57,11 +57,14 @@ export const ScoreBadge = <
   name,
   scores,
   showLevels,
+  compact,
 }: {
   name: string;
   scores: T[];
   /** Render this group's level tags when the selection mixes score levels. */
   showLevels?: boolean;
+  /** Tree rows use the small badge size. */
+  compact?: boolean;
 }) => {
   const projectId = useProjectIdFromURL();
 
@@ -74,7 +77,7 @@ export const ScoreBadge = <
       {levels.map((level) => (
         <ScoreTag key={level} level={level} />
       ))}
-      <BadgeShell>
+      <BadgeShell size={compact ? "sm" : undefined}>
         <span
           aria-hidden
           className="bg-dark-yellow size-1.25 shrink-0 rounded-[1px]"
