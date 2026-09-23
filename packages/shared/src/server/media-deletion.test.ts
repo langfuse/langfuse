@@ -8,13 +8,15 @@ const mocks = vi.hoisted(() => ({
   deleteObservationLinks: vi.fn().mockResolvedValue({ count: 0 }),
   deleteDatasetLinks: vi.fn().mockResolvedValue({ count: 0 }),
   deleteMedia: vi.fn().mockResolvedValue({ count: 0 }),
-  transaction: vi.fn(async (operations: Promise<unknown>[]) =>
-    Promise.all(operations),
-  ),
+  lockedMedia: vi
+    .fn()
+    .mockResolvedValue([{ id: "media-1", bucketPath: "media/media-1.png" }]),
+  transaction: vi.fn(),
 }));
 
-vi.mock("../db", () => ({
-  prisma: {
+vi.mock("../db", () => {
+  const tx = {
+    $queryRaw: mocks.lockedMedia,
     datasetItemMedia: {
       findMany: mocks.datasetLinks,
       deleteMany: mocks.deleteDatasetLinks,
@@ -28,9 +30,10 @@ vi.mock("../db", () => ({
       deleteMany: mocks.deleteObservationLinks,
     },
     media: { deleteMany: mocks.deleteMedia },
-    $transaction: mocks.transaction,
-  },
-}));
+  };
+  mocks.transaction.mockImplementation(async (callback) => callback(tx));
+  return { prisma: { ...tx, $transaction: mocks.transaction } };
+});
 
 import { deleteMediaFiles } from "./media-deletion";
 
@@ -47,6 +50,7 @@ it("keeps expired media while a recent trace still references it", async () => {
 
   expect(deletedCount).toBe(0);
   expect(deleteFiles).not.toHaveBeenCalled();
+  expect(mocks.lockedMedia).toHaveBeenCalledOnce();
   expect(mocks.traceLinks).toHaveBeenCalledWith(
     expect.objectContaining({
       where: expect.objectContaining({ createdAt: { gt: cutoffDate } }),

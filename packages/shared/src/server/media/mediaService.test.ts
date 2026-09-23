@@ -40,6 +40,7 @@ const CONTENT_BYTES = Buffer.from("test-image");
 describe("uploadMediaForTrace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.queryRaw.mockResolvedValue([{ mediaExists: true }]);
   });
 
   it("creates, links, and uploads a new media asset", async () => {
@@ -159,6 +160,35 @@ describe("uploadMediaForTrace", () => {
     );
     expect(mocks.executeRaw).not.toHaveBeenCalled();
     expect(mocks.uploadFile).not.toHaveBeenCalled();
+  });
+
+  it("uploads again when a reused media row was deleted before linking", async () => {
+    mocks.findUnique.mockResolvedValue({
+      id: "n-vgG9Qb-2loPinXEdit_8",
+      uploadHttpStatus: 200,
+      contentType: MediaContentType.PNG,
+    });
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ mediaExists: false }])
+      .mockResolvedValueOnce([{ mediaExists: true }]);
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.update.mockResolvedValue({});
+    mocks.uploadFile.mockResolvedValue(undefined);
+
+    const result = await uploadMediaForTrace({
+      projectId: "project-id",
+      traceId: "trace-id",
+      field: "input",
+      contentType: MediaContentType.PNG,
+      contentBytes: CONTENT_BYTES,
+      mediaBucket: "media-bucket",
+      mediaPrefix: "media/",
+      origin: MediaAssociationOrigin.INGESTION_MEDIA_EXTRACTION,
+    });
+
+    expect(result.outcome).toBe("uploaded");
+    expect(mocks.uploadFile).toHaveBeenCalledOnce();
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it("links trace media when no observation id is provided", async () => {

@@ -3,7 +3,7 @@ import chunk from "lodash/chunk";
 
 import { prisma } from "../db";
 
-const BATCH_SIZE = 10_000;
+const BATCH_SIZE = 100;
 
 interface MediaFileRef {
   id: string;
@@ -202,7 +202,7 @@ export async function deleteMediaFiles(params: {
     return 0;
   }
 
-  // Process in batches to stay under PostgreSQL's 32,767 bind variable limit.
+  // Keep row locks and storage calls bounded per transaction.
   // S3 is deleted before PG per batch to avoid orphaned storage files.
   // All callers target expired or soft-deleted media with retry semantics,
   // so partial failure self-heals on retry (S3 deletes are idempotent).
@@ -211,95 +211,115 @@ export async function deleteMediaFiles(params: {
 
   for (const batch of chunks) {
     const mediaIds = batch.map((f) => f.id);
-    // Only a claimed association (validFrom set) protects media; pending rows
-    // (null validFrom) don't, so abandoned uploads are reclaimed by retention.
-    const datasetAssociatedMedia = await prisma.datasetItemMedia.findMany({
-      select: { mediaId: true },
-      where: {
-        projectId,
-        mediaId: { in: mediaIds },
-        datasetItemValidFrom: { not: null },
-      },
-      distinct: ["mediaId"],
-    });
-    const datasetAssociatedMediaIds = new Set(
-      datasetAssociatedMedia.map((media) => media.mediaId),
-    );
-    const [recentTraceLinks, recentObservationLinks] = linkCleanupCutoffDate
-      ? await Promise.all([
-          prisma.traceMedia.groupBy({
-            by: ["mediaId"],
-            where: {
-              projectId,
-              mediaId: { in: mediaIds },
-              createdAt: { gt: linkCleanupCutoffDate },
-            },
-          }),
-          prisma.observationMedia.groupBy({
-            by: ["mediaId"],
-            where: {
-              projectId,
-              mediaId: { in: mediaIds },
-              createdAt: { gt: linkCleanupCutoffDate },
-            },
-          }),
-        ])
-      : [[], []];
-    const recentlyLinkedMediaIds = new Set([
-      ...recentTraceLinks.map((link) => link.mediaId),
-      ...recentObservationLinks.map((link) => link.mediaId),
-    ]);
-    const deletableBatch = batch.filter(
-      (f) =>
-        !datasetAssociatedMediaIds.has(f.id) &&
-        !recentlyLinkedMediaIds.has(f.id),
-    );
-    const deletableMediaIds = deletableBatch.map((f) => f.id);
-    const linkCleanupFilter = linkCleanupCutoffDate
-      ? {
-          OR: [
-            { mediaId: { in: deletableMediaIds } },
-            { createdAt: { lte: linkCleanupCutoffDate } },
-          ],
+    deletedCount += await prisma.$transaction(
+      async (tx) => {
+        // Link insertion locks the same rows, so no new reference can arrive
+        // between this check and S3 deletion.
+        const lockedMedia = await tx.$queryRaw<MediaFileRef[]>(Prisma.sql`
+        SELECT m.id, m.bucket_path AS "bucketPath"
+        FROM media m
+        WHERE m.project_id = ${projectId}
+          AND m.id IN (${Prisma.join(mediaIds)})
+          ${
+            linkCleanupCutoffDate
+              ? Prisma.sql`AND m.created_at <= ${linkCleanupCutoffDate}`
+              : Prisma.empty
+          }
+        ORDER BY m.id
+        FOR UPDATE OF m
+      `);
+        if (lockedMedia.length === 0) return 0;
+
+        const lockedIds = lockedMedia.map((f) => f.id);
+        // Only a claimed association (validFrom set) protects media; pending
+        // rows do not, so abandoned uploads are reclaimed by retention.
+        const datasetAssociatedMedia = await tx.datasetItemMedia.findMany({
+          select: { mediaId: true },
+          where: {
+            projectId,
+            mediaId: { in: lockedIds },
+            datasetItemValidFrom: { not: null },
+          },
+          distinct: ["mediaId"],
+        });
+        const datasetAssociatedMediaIds = new Set(
+          datasetAssociatedMedia.map((media) => media.mediaId),
+        );
+        const [recentTraceLinks, recentObservationLinks] = linkCleanupCutoffDate
+          ? await Promise.all([
+              tx.traceMedia.groupBy({
+                by: ["mediaId"],
+                where: {
+                  projectId,
+                  mediaId: { in: lockedIds },
+                  createdAt: { gt: linkCleanupCutoffDate },
+                },
+              }),
+              tx.observationMedia.groupBy({
+                by: ["mediaId"],
+                where: {
+                  projectId,
+                  mediaId: { in: lockedIds },
+                  createdAt: { gt: linkCleanupCutoffDate },
+                },
+              }),
+            ])
+          : [[], []];
+        const recentlyLinkedMediaIds = new Set([
+          ...recentTraceLinks.map((link) => link.mediaId),
+          ...recentObservationLinks.map((link) => link.mediaId),
+        ]);
+        const deletableBatch = lockedMedia.filter(
+          (f) =>
+            !datasetAssociatedMediaIds.has(f.id) &&
+            !recentlyLinkedMediaIds.has(f.id),
+        );
+        const deletableMediaIds = deletableBatch.map((f) => f.id);
+        const linkCleanupFilter = linkCleanupCutoffDate
+          ? {
+              OR: [
+                { mediaId: { in: deletableMediaIds } },
+                { createdAt: { lte: linkCleanupCutoffDate } },
+              ],
+            }
+          : {};
+
+        if (deletableBatch.length > 0) {
+          await storageClient.deleteFiles(
+            deletableBatch.map((f) => f.bucketPath),
+          );
         }
-      : {};
-
-    if (deletableBatch.length > 0) {
-      await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
-    }
-    await prisma.$transaction([
-      prisma.traceMedia.deleteMany({
-        where: {
-          projectId,
-          mediaId: { in: mediaIds },
-          ...linkCleanupFilter,
-        },
-      }),
-      prisma.observationMedia.deleteMany({
-        where: {
-          projectId,
-          mediaId: { in: mediaIds },
-          ...linkCleanupFilter,
-        },
-      }),
-      // Sweep leftover pending rows for the deleted media (claimed rows can't
-      // exist for deletable media).
-      prisma.datasetItemMedia.deleteMany({
-        where: {
-          projectId,
-          mediaId: { in: deletableMediaIds },
-          datasetItemValidFrom: null,
-        },
-      }),
-      prisma.media.deleteMany({
-        where: {
-          id: { in: deletableMediaIds },
-          projectId,
-        },
-      }),
-    ]);
-
-    deletedCount += deletableBatch.length;
+        await tx.traceMedia.deleteMany({
+          where: {
+            projectId,
+            mediaId: { in: lockedIds },
+            ...linkCleanupFilter,
+          },
+        });
+        await tx.observationMedia.deleteMany({
+          where: {
+            projectId,
+            mediaId: { in: lockedIds },
+            ...linkCleanupFilter,
+          },
+        });
+        await tx.datasetItemMedia.deleteMany({
+          where: {
+            projectId,
+            mediaId: { in: deletableMediaIds },
+            datasetItemValidFrom: null,
+          },
+        });
+        await tx.media.deleteMany({
+          where: {
+            id: { in: deletableMediaIds },
+            projectId,
+          },
+        });
+        return deletableBatch.length;
+      },
+      { timeout: 120_000 },
+    );
   }
 
   return deletedCount;

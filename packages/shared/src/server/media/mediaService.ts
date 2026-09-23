@@ -115,53 +115,50 @@ export async function linkMediaToTraceOrObservation(params: {
   mediaId: string;
   field: string;
   origin: MediaAssociationOrigin;
-}): Promise<void> {
+}): Promise<boolean> {
   const { projectId, traceId, observationId, mediaId, field, origin } = params;
 
   if (observationId) {
-    await prisma.$queryRaw`
-      INSERT INTO "observation_media" (
-        "id",
-        "project_id",
-        "trace_id",
-        "observation_id",
-        "media_id",
-        "field",
-        "origin"
+    const rows = await prisma.$queryRaw<{ mediaExists: boolean }[]>`
+      WITH locked_media AS MATERIALIZED (
+        SELECT "id" FROM "media"
+        WHERE "project_id" = ${projectId} AND "id" = ${mediaId}
+        FOR KEY SHARE
+      ), inserted AS (
+        INSERT INTO "observation_media" (
+          "id", "project_id", "trace_id", "observation_id", "media_id", "field", "origin"
+        )
+        SELECT ${randomUUID()}, ${projectId}, ${traceId}, ${observationId},
+          "id", ${field}, ${origin}::"MediaAssociationOrigin"
+        FROM locked_media
+        WHERE true
+        ON CONFLICT DO NOTHING
+        RETURNING "id"
       )
-      VALUES (
-        ${randomUUID()},
-        ${projectId},
-        ${traceId},
-        ${observationId},
-        ${mediaId},
-        ${field},
-        ${origin}::"MediaAssociationOrigin"
-      )
-      ON CONFLICT DO NOTHING
+      SELECT EXISTS(SELECT 1 FROM locked_media) AS "mediaExists"
     `;
-    return;
+    return rows[0]?.mediaExists ?? false;
   }
 
-  await prisma.$queryRaw`
-    INSERT INTO "trace_media" (
-      "id",
-      "project_id",
-      "trace_id",
-      "media_id",
-      "field",
-      "origin"
+  const rows = await prisma.$queryRaw<{ mediaExists: boolean }[]>`
+    WITH locked_media AS MATERIALIZED (
+      SELECT "id" FROM "media"
+      WHERE "project_id" = ${projectId} AND "id" = ${mediaId}
+      FOR KEY SHARE
+    ), inserted AS (
+      INSERT INTO "trace_media" (
+        "id", "project_id", "trace_id", "media_id", "field", "origin"
+      )
+      SELECT ${randomUUID()}, ${projectId}, ${traceId}, "id", ${field},
+        ${origin}::"MediaAssociationOrigin"
+      FROM locked_media
+      WHERE true
+      ON CONFLICT DO NOTHING
+      RETURNING "id"
     )
-    VALUES (
-      ${randomUUID()},
-      ${projectId},
-      ${traceId},
-      ${mediaId},
-      ${field},
-      ${origin}::"MediaAssociationOrigin"
-    )
-    ON CONFLICT DO NOTHING
+    SELECT EXISTS(SELECT 1 FROM locked_media) AS "mediaExists"
   `;
+  return rows[0]?.mediaExists ?? false;
 }
 
 export type UploadMediaForTraceResult = {
@@ -219,7 +216,7 @@ export async function uploadMediaForTrace(params: {
       existingMedia.uploadHttpStatus === 201) &&
     existingMedia.contentType === contentType
   ) {
-    await linkMediaToTraceOrObservation({
+    const linked = await linkMediaToTraceOrObservation({
       projectId,
       traceId,
       observationId,
@@ -227,7 +224,7 @@ export async function uploadMediaForTrace(params: {
       field,
       origin,
     });
-    return { mediaId: existingMedia.id, outcome: "reused" };
+    if (linked) return { mediaId: existingMedia.id, outcome: "reused" };
   }
 
   const bucketPath = getMediaBucketPath({
@@ -294,7 +291,7 @@ export async function uploadMediaForTrace(params: {
     throw error;
   }
 
-  await linkMediaToTraceOrObservation({
+  const linked = await linkMediaToTraceOrObservation({
     projectId,
     traceId,
     observationId,
@@ -302,6 +299,11 @@ export async function uploadMediaForTrace(params: {
     field,
     origin,
   });
+  if (!linked) {
+    throw new InternalServerError(
+      `Media asset ${mediaId} not found after upload`,
+    );
+  }
 
   recordIncrement("langfuse.media.upload_http_status", 1, {
     status_code: 200,
