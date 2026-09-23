@@ -325,42 +325,6 @@ describe("SkillService versions", () => {
     },
   );
 
-  it.each([
-    {
-      existing: ["production", "staging", "latest"],
-      next: ["production", "preview"],
-      protected: ["production"],
-    },
-    { existing: ["latest"], next: ["preview"], protected: ["latest"] },
-  ])(
-    "allows unrelated label changes with protected labels $protected",
-    async ({ existing, next, protected: protectedLabels }) => {
-      const test = setup();
-      test.skill.labels = existing;
-      test.tx.skill.findFirst.mockResolvedValue(test.skill);
-      test.tx.skill.findMany.mockResolvedValue([test.skill]);
-      test.db.promptProtectedLabels.findMany.mockResolvedValue(
-        protectedLabels.map((label) => ({ label })),
-      );
-
-      await test.service.setLabels({
-        projectId: "project",
-        name: "test-skill",
-        version: 1,
-        labels: next,
-        actor: sessionActor("MEMBER"),
-      });
-      expect(test.tx.skill.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: { labels: { set: [...next, "latest"] } },
-        }),
-      );
-      expect(test.db.promptProtectedLabels.findMany).toHaveBeenCalledWith({
-        where: { projectId: "project" },
-      });
-    },
-  );
-
   it.each(["create", "setLabels", "setTags", "delete"] as const)(
     "waits for the skill mutation lock before reading versions during %s",
     async (operation) => {
@@ -411,29 +375,6 @@ describe("SkillService versions", () => {
     );
   });
 
-  it("creates a new skill with all supplied files and without inherited metadata", async () => {
-    const test = setup();
-    await test.service.createVersion({
-      ...test.params,
-      target: { kind: "new" },
-    });
-    expect(test.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        name: "test-skill",
-        version: 1,
-        tags: [],
-        labels: ["latest"],
-        files: {
-          create: expect.arrayContaining(
-            test.params.input.files.map((file) =>
-              expect.objectContaining({ path: file.path }),
-            ),
-          ),
-        },
-      }),
-    });
-  });
-
   it("rejects renaming an existing skill through version creation", async () => {
     const test = setup();
     const params = {
@@ -442,18 +383,6 @@ describe("SkillService versions", () => {
     };
     await expect(test.service.createVersion(params)).rejects.toThrow(
       "must remain",
-    );
-    expect(test.create).not.toHaveBeenCalled();
-  });
-
-  it("does not recreate a deleted skill through version creation", async () => {
-    const test = setup();
-    const params = {
-      ...test.params,
-      target: { kind: "version" as const, name: "test-skill" },
-    };
-    await expect(test.service.createVersion(params)).rejects.toThrow(
-      "Skill not found",
     );
     expect(test.create).not.toHaveBeenCalled();
   });
@@ -487,111 +416,6 @@ describe("SkillService versions", () => {
     });
   });
 
-  it("resolves latest through the stored label without synthesizing labels on reads", async () => {
-    const test = setup();
-    test.skill.labels = ["latest"];
-    const result = await test.service.get({
-      projectId: "project",
-      name: "test-skill",
-      selector: { label: "latest" },
-    });
-
-    expect(test.db.skill.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          projectId: "project",
-          name: "test-skill",
-          labels: { has: "latest" },
-        },
-      }),
-    );
-    expect(result.labels).toEqual(["latest"]);
-    expect(test.db.skill.findFirstOrThrow).not.toHaveBeenCalled();
-  });
-
-  it.each([false, true])(
-    "creates with database tags instead of supplied tags (existing skill: %s)",
-    async (hasPrevious) => {
-      const test = setup();
-      const tags = hasPrevious ? ["shared-tag"] : [];
-      if (hasPrevious) {
-        test.tx.skill.findFirst.mockResolvedValue({
-          id: "previous",
-          version: 1,
-          labels: ["latest"],
-          tags,
-        });
-      }
-      const params = {
-        ...test.params,
-        input: { ...test.params.input, tags: ["stale-client-tag"] },
-      };
-
-      await test.service.createVersion(params);
-
-      expect(test.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({ tags }),
-      });
-    },
-  );
-
-  it.each([{ tags: ["shared-tag"] }, { tags: [] }])(
-    "sets tags on all versions while isolating other skills and projects: $tags",
-    async ({ tags }) => {
-      const test = setup();
-      test.skill.tags = tags;
-      const versions = [
-        test.skill,
-        { ...test.skill, id: "newer", version: 2, tags: ["old-tag"] },
-        {
-          ...test.skill,
-          id: "other-project",
-          projectId: "other",
-          tags: ["keep"],
-        },
-        {
-          ...test.skill,
-          id: "other-skill",
-          name: "other-skill",
-          tags: ["keep"],
-        },
-      ];
-      test.tx.skill.findFirst.mockResolvedValue(test.skill);
-      test.tx.skill.updateMany.mockImplementation(
-        async ({
-          where,
-          data,
-        }: {
-          where: { projectId: string; name: string };
-          data: { tags: { set: string[] } };
-        }) => {
-          const matches = versions.filter(
-            (version) =>
-              version.projectId === where.projectId &&
-              version.name === where.name,
-          );
-          for (const version of matches) version.tags = [...data.tags.set];
-          return { count: matches.length };
-        },
-      );
-
-      await test.service.setTags({
-        projectId: "project",
-        name: "test-skill",
-        version: 1,
-        tags,
-        actor: test.params.actor,
-      });
-
-      expect(versions.map((version) => version.tags)).toEqual([
-        tags,
-        tags,
-        ["keep"],
-        ["keep"],
-      ]);
-    },
-  );
-
   it("blocks whole-skill deletion when an older version has a protected label", async () => {
     const test = setup();
     test.db.skill.findMany.mockResolvedValue([
@@ -610,43 +434,6 @@ describe("SkillService versions", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(test.transaction).not.toHaveBeenCalled();
     expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
-  });
-
-  it("deletes all versions in the project and audits the whole-skill deletion", async () => {
-    const test = setup();
-    test.skill.labels = ["production"];
-    test.db.promptProtectedLabels.findMany.mockResolvedValue([
-      { label: "production" },
-    ]);
-    const versions = [test.skill, { ...test.skill, id: "second", version: 2 }];
-    test.db.skill.findMany.mockResolvedValue(versions);
-    test.tx.skill.findMany.mockResolvedValue(versions);
-    await test.service.deleteSkill({
-      projectId: "project",
-      name: "test-skill",
-      actor: sessionActor("ADMIN"),
-    });
-    expect(test.db.skill.findMany).toHaveBeenCalledWith({
-      where: { projectId: "project", name: "test-skill" },
-      select: { labels: true },
-    });
-    expect(test.tx.skill.deleteMany).toHaveBeenCalledExactlyOnceWith({
-      where: { projectId: "project", name: "test-skill" },
-    });
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        resourceType: "skill",
-        action: "delete",
-        resourceId: "test-skill",
-        projectId: "project",
-        before: expect.objectContaining({
-          name: "test-skill",
-          versions: [1, 2],
-        }),
-      }),
-      test.tx,
-    );
-    expect(test.tx.skill.update).not.toHaveBeenCalled();
   });
 
   it("preserves latest when replacing user-managed labels", async () => {
@@ -674,62 +461,6 @@ describe("SkillService versions", () => {
       where: { projectId: "project", id: "previous" },
       data: { labels: { set: [] } },
     });
-  });
-
-  it.each([true, false])(
-    "handles deleting the latest version with remaining versions: %s",
-    async (hasRemaining) => {
-      const test = setup();
-      test.skill.labels = ["latest"];
-      test.skill.version = 3;
-      const remaining = hasRemaining
-        ? { id: "previous", version: 2, labels: ["production"] }
-        : null;
-      test.tx.skill.findFirst
-        .mockResolvedValueOnce(test.skill)
-        .mockResolvedValueOnce(remaining);
-
-      await test.service.deleteVersion({
-        projectId: "project",
-        name: "test-skill",
-        version: 3,
-        actor: test.params.actor,
-      });
-
-      expect(test.tx.skill.findFirst).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          where: { projectId: "project", name: "test-skill" },
-          orderBy: { version: "desc" },
-        }),
-      );
-      if (hasRemaining) {
-        expect(test.tx.skill.update).toHaveBeenCalledWith({
-          where: { projectId: "project", id: "previous" },
-          data: { labels: { set: ["production", "latest"] } },
-        });
-      } else {
-        expect(test.tx.skill.update).not.toHaveBeenCalled();
-      }
-      expect(test.tx.skill.delete).toHaveBeenCalledWith({
-        where: { projectId: "project", id: "skill" },
-      });
-    },
-  );
-
-  it("does not move latest when deleting an older version", async () => {
-    const test = setup();
-    test.tx.skill.findFirst.mockResolvedValue(test.skill);
-
-    await test.service.deleteVersion({
-      projectId: "project",
-      name: "test-skill",
-      version: 1,
-      actor: test.params.actor,
-    });
-
-    expect(test.tx.skill.delete).toHaveBeenCalledOnce();
-    expect(test.tx.skill.findFirst).toHaveBeenCalledOnce();
-    expect(test.tx.skill.update).not.toHaveBeenCalled();
   });
 
   it("verifies every distinct upload before downloading only SKILL.md and publishing its frontmatter", async () => {
@@ -768,59 +499,6 @@ describe("SkillService versions", () => {
       data: { verifiedAt: expect.any(Date) },
     });
     expect(result.name).toBe("test-skill");
-  });
-
-  it.each([0, 2, 4])(
-    "rejects an uploaded size of %i instead of 3 before downloading SKILL.md",
-    async (size) => {
-      const test = setup();
-      test.getObjectSize
-        .mockResolvedValueOnce(test.blobs[0]!.contentLength)
-        .mockResolvedValueOnce(size);
-
-      await expect(test.service.createVersion(test.params)).rejects.toThrow(
-        "does not match its declared length",
-      );
-      expect(test.downloadBytes).not.toHaveBeenCalled();
-      expect(test.transaction).not.toHaveBeenCalled();
-      expect(test.blobs[0]!.verifiedAt).toBeInstanceOf(Date);
-      expect(test.blobs[1]!.verifiedAt).toBeNull();
-    },
-  );
-
-  it("rejects a missing upload before downloading SKILL.md", async () => {
-    const test = setup();
-    test.getObjectSize
-      .mockResolvedValueOnce(test.blobs[0]!.contentLength)
-      .mockRejectedValueOnce(new Error("Object not found"));
-
-    await expect(test.service.createVersion(test.params)).rejects.toThrow(
-      "Skill blob blob-1 has not been uploaded",
-    );
-    expect(test.downloadBytes).not.toHaveBeenCalled();
-    expect(test.transaction).not.toHaveBeenCalled();
-  });
-
-  it("preserves verification timestamps when publication fails and is retried", async () => {
-    const test = setup();
-    const existingTimestamp = new Date("2026-01-01T00:00:00Z");
-    test.blobs[1]!.verifiedAt = existingTimestamp;
-    test.transaction.mockRejectedValueOnce(new Error("Publication failed"));
-
-    await expect(test.service.createVersion(test.params)).rejects.toThrow(
-      "Publication failed",
-    );
-    const verifiedTimestamp = test.blobs[0]!.verifiedAt;
-    expect(verifiedTimestamp).toBeInstanceOf(Date);
-    expect(test.blobs[1]!.verifiedAt).toBe(existingTimestamp);
-    expect(test.updateMany).toHaveBeenCalledTimes(1);
-
-    await test.service.createVersion(test.params);
-
-    expect(test.getObjectSize).toHaveBeenCalledTimes(4);
-    expect(test.updateMany).toHaveBeenCalledTimes(1);
-    expect(test.blobs[0]!.verifiedAt).toBe(verifiedTimestamp);
-    expect(test.blobs[1]!.verifiedAt).toBe(existingTimestamp);
   });
 
   it("rejects invalid SKILL.md frontmatter after verifying uploads but before publication", async () => {

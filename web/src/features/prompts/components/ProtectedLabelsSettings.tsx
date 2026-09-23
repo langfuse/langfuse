@@ -13,6 +13,7 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useHasEntitlement } from "@/src/features/entitlements";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
@@ -54,6 +55,7 @@ export default function ProtectedLabelsSettings({
     scope: "promptProtectedLabels:CUD",
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
+  const skillsEnabled = useIsFeatureEnabled("skills", { projectId });
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -113,7 +115,7 @@ export default function ProtectedLabelsSettings({
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from prompts and skills.
+          labels from {skillsEnabled ? "prompts and skills" : "prompts"}.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (

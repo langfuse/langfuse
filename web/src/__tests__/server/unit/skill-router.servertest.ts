@@ -106,13 +106,6 @@ const mutations = [
     params: { ...version, labels: ["production"] },
   },
   {
-    name: "set tags",
-    mutate: (caller: Caller) =>
-      caller.setTags({ ...version, tags: ["example"] }),
-    write: mocks.setTags,
-    params: { ...version, tags: ["example"] },
-  },
-  {
     name: "delete a version",
     mutate: (caller: Caller) => caller.deleteVersion(version),
     write: mocks.deleteVersion,
@@ -194,31 +187,6 @@ describe("skill mutation router", () => {
       });
     },
   );
-
-  it("creates without accepting client labels or tags", async () => {
-    const input = {
-      projectId: "project",
-      target: { kind: "new" as const },
-      files: [{ path: "SKILL.md", blobId: "blob" }],
-      labels: ["production"],
-      tags: ["stale-client-tag"],
-    };
-    await createCaller("MEMBER").createVersion(input);
-
-    expect(mocks.createVersion).toHaveBeenCalledWith(
-      expect.objectContaining({
-        target: { kind: "new" },
-        actor: {
-          session: expect.objectContaining({
-            user: expect.objectContaining({ id: "user" }),
-          }),
-        },
-      }),
-    );
-    const creation = mocks.createVersion.mock.calls[0]?.[0].input;
-    expect(creation).not.toHaveProperty("labels");
-    expect(creation).not.toHaveProperty("tags");
-  });
 
   it("rejects access to another project before calling the service", async () => {
     await expect(

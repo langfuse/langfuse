@@ -7,6 +7,7 @@ import {
   LangfuseNotFoundError,
   ListSkillsResponseSchema,
   MAX_SKILL_FILES,
+  MAX_SKILL_FILE_BYTES,
   PrepareSkillUploadsResponseSchema,
   SKILL_LATEST_LABEL,
   SKILL_PRODUCTION_LABEL,
@@ -21,6 +22,7 @@ import {
   type FilterState,
   type PrepareSkillUploadsBody,
   type SkillSelector,
+  DOWNLOAD_URL_TTL_SECONDS,
 } from "@langfuse/shared";
 import {
   Prisma,
@@ -38,9 +40,6 @@ import {
   type ApiKeyProjectContext,
 } from "@/src/features/prompts/server/utils/authorizeProtectedLabelMutation";
 import { getSkillStorageClient } from "./getSkillStorageClient";
-
-const MAX_SKILL_FILE_BYTES = 10 * 1024 * 1024;
-const DOWNLOAD_URL_TTL_SECONDS = 15 * 60;
 
 type SkillActor =
   | Pick<ProjectAuthedContext, "session">
