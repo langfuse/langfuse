@@ -132,6 +132,51 @@ describe("createTypeSafeDecisionModelClient", () => {
     },
   );
 
+  it("translates the pinned canonical model into OpenRouter's slug and passes custom IDs through", async () => {
+    const fetchImpl = vi.fn().mockImplementation(async () =>
+      jsonResponse({
+        model: "typesafe/jev-1.13-20260917",
+        answers: { refund: { type: "noul", noul: 0.5 } },
+      }),
+    );
+    const singleQuestion = {
+      state: request.state,
+      questions: { refund: request.questions.refund },
+    };
+
+    await createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-1.13.0",
+      upstream: "openrouter",
+      fetchImpl,
+    }).evaluate(singleQuestion);
+    await createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "typesafe/jev-custom",
+      upstream: "openrouter",
+      fetchImpl,
+    }).evaluate(singleQuestion);
+
+    const sentModels = fetchImpl.mock.calls.map(
+      ([, init]) => JSON.parse((init as RequestInit).body as string).model,
+    );
+    expect(sentModels).toEqual(["jev-1.13", "typesafe/jev-custom"]);
+  });
+
+  it("rejects a canonical model the upstream does not serve before any request", () => {
+    const fetchImpl = vi.fn();
+
+    expect(() =>
+      createTypeSafeDecisionModelClient({
+        apiKey: "sk-test",
+        model: "jev-1.13.0",
+        upstream: "vercel-ai-gateway",
+        fetchImpl,
+      }),
+    ).toThrow('Model "jev-1.13.0" is not available through Vercel AI Gateway.');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("tolerates the extra routing fields gateways add to the TypeSafe response", async () => {
     // OpenRouter returns its own id/provider and a cost inside usage; the model
     // is the resolved OpenRouter slug rather than the requested alias.

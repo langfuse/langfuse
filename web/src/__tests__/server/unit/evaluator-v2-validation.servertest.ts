@@ -18,7 +18,14 @@ vi.mock("@/src/features/evals/server/isCodeEvalEnabled", () => ({
     mocks.isCodeEvalSourceCodeLanguageSupported,
 }));
 
-import { assertEvaluatorConfigurationValid } from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
+import {
+  DefaultEvalModelService,
+  LLMAdapter,
+} from "@langfuse/shared/src/server";
+import {
+  assertEvaluatorConfigurationValid,
+  getDecisionModelConfigurationError,
+} from "@/src/features/evals/v2/server/evaluators/evaluatorValidation";
 import {
   CreateEvaluatorSchema,
   ListEvaluatorsSchema,
@@ -139,6 +146,47 @@ describe("evaluator configuration validation", () => {
     expect(
       mocks.getEvaluatorDefinitionConfigurationError,
     ).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a decision model the connection's upstream cannot serve", async () => {
+    const connection = (model: string) =>
+      ({
+        valid: true as const,
+        config: {
+          provider: "jev-vercel",
+          model,
+          apiKey: {
+            adapter: LLMAdapter.TypeSafe,
+            config: { upstream: "vercel-ai-gateway" },
+          },
+        },
+      }) as never;
+    const spy = vi
+      .spyOn(DefaultEvalModelService, "fetchValidModelConfig")
+      .mockResolvedValueOnce(connection("jev-1.13.0"))
+      .mockResolvedValueOnce(connection("jev-latest"));
+
+    try {
+      await expect(
+        getDecisionModelConfigurationError({
+          projectId: "project-id",
+          name: "Readiness",
+          definition: { provider: "jev-vercel", model: "jev-1.13.0" },
+        }),
+      ).resolves.toContain(
+        'Model "jev-1.13.0" is not available through Vercel AI Gateway',
+      );
+
+      await expect(
+        getDecisionModelConfigurationError({
+          projectId: "project-id",
+          name: "Readiness",
+          definition: { provider: "jev-vercel", model: "jev-latest" },
+        }),
+      ).resolves.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   // The schema is the only boundary that can see a caller-supplied mapping:

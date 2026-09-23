@@ -14,9 +14,9 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   DEFAULT_TYPESAFE_UPSTREAM,
   TYPESAFE_UPSTREAM_DEFINITIONS,
-  TYPESAFE_UPSTREAMS,
   TypeSafeUpstreamSchema,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  getDecisionModelDefaultModels,
   isDecisionModelAdapter,
   resolveTypeSafeUpstream,
 } from "@langfuse/shared";
@@ -42,8 +42,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -843,27 +843,23 @@ export function CreateLLMApiKeyForm({
                       <FormLabel>Upstream</FormLabel>
                       <FormDescription>
                         Provider that serves the Jev decision model. OpenRouter
-                        and Vercel AI Gateway expose TypeSafe&apos;s API, so the
-                        request format stays the same and only the API key and
-                        model names change.
+                        and Vercel AI Gateway expose TypeSafe&apos;s API, so
+                        only the API key changes.
                       </FormDescription>
                       <FormControl>
-                        <SelectInput
+                        <TypeSafeUpstreamCards
                           aria-label="Upstream"
-                          placeholder="Select an upstream"
                           value={field.value}
-                          options={TYPESAFE_UPSTREAMS.map((upstream) => ({
-                            value: upstream,
-                            label:
-                              TYPESAFE_UPSTREAM_DEFINITIONS[upstream].label,
-                          }))}
                           onValueChange={field.onChange}
                         />
                       </FormControl>
                       <FormDescription>
-                        Default models:{" "}
+                        Models:{" "}
                         <code className="bg-muted rounded px-1 py-0.5">
-                          {typeSafeUpstreamDefinition.models.join(", ")}
+                          {getDecisionModelDefaultModels({
+                            adapter: LLMAdapter.TypeSafe,
+                            config: { upstream: currentTypeSafeUpstream },
+                          }).join(", ")}
                         </code>
                         .{" "}
                         <a

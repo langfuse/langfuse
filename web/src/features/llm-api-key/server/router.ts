@@ -205,12 +205,13 @@ async function testLLMConnection(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (isDecisionModelAdapter(params.adapter)) {
+      // Canonical defaults are translated per upstream, so they are the
+      // reliable probe; custom names are raw upstream IDs and only a fallback.
       const model =
-        params.customModels?.[0] ??
         getDecisionModelDefaultModels({
           adapter: params.adapter,
           config: params.config,
-        })[0];
+        })[0] ?? params.customModels?.[0];
       if (!model) throw Error("No model found");
 
       return await testDecisionModelConnection({

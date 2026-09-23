@@ -51,7 +51,7 @@ export function TypeSafeUpstreamCards({
       {...rootProps}
       value={value}
       onValueChange={(next) => onValueChange(next as TypeSafeUpstream)}
-      className="grid grid-cols-3 gap-2"
+      className="grid gap-2 sm:grid-cols-3"
     >
       {TYPESAFE_UPSTREAMS.map((upstream) => {
         const { label } = TYPESAFE_UPSTREAM_DEFINITIONS[upstream];

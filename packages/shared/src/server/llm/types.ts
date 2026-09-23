@@ -475,8 +475,6 @@ export type TypeSafeUpstreamDefinition = {
   label: string;
   /** Base URL the `@ai-sdk/typesafe-ai` provider appends `/systemone` to. */
   baseURL: string;
-  /** Model IDs the upstream resolves for Jev, most generic alias first. */
-  models: readonly string[];
   apiKeyLabel: string;
   docsUrl: string;
 };
@@ -488,21 +486,18 @@ export const TYPESAFE_UPSTREAM_DEFINITIONS: Record<
   typesafe: {
     label: "TypeSafe",
     baseURL: "https://api.typesafe.ai/v1",
-    models: ["jev-1.13.0", "jev-latest"],
     apiKeyLabel: "TypeSafe API key",
     docsUrl: "https://docs.typesafe.ai/api",
   },
   "vercel-ai-gateway": {
     label: "Vercel AI Gateway",
     baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
-    models: ["typesafe-ai/jev", "typesafe-ai/jev-latest"],
     apiKeyLabel: "Vercel AI Gateway API key",
     docsUrl: "https://vercel.com/docs/ai-gateway/sdks-and-apis/typesafe",
   },
   openrouter: {
     label: "OpenRouter",
     baseURL: "https://openrouter.ai/api/v1",
-    models: ["jev-1.13", "jev-latest"],
     apiKeyLabel: "OpenRouter API key",
     docsUrl: "https://openrouter.ai/docs/guides/community/typesafe-sdk",
   },
@@ -520,21 +515,65 @@ export function resolveTypeSafeUpstream(config: unknown): TypeSafeUpstream {
   return parsed.success ? parsed.data.upstream : DEFAULT_TYPESAFE_UPSTREAM;
 }
 
-export const typeSafeModels = TYPESAFE_UPSTREAM_DEFINITIONS.typesafe.models;
+/**
+ * Langfuse stores TypeSafe's own model IDs everywhere (connection defaults,
+ * evaluator definitions) and translates them for the upstream at request time,
+ * so an evaluator keeps working when its connection moves between upstreams.
+ * Both gateways accept TypeSafe's bare aliases; only the pinned version is
+ * named differently (OpenRouter) or not offered at all (Vercel AI Gateway).
+ */
+export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
+
+const TYPESAFE_MODEL_ID_BY_UPSTREAM: Record<
+  (typeof typeSafeModels)[number],
+  Record<TypeSafeUpstream, string | null>
+> = {
+  "jev-1.13.0": {
+    typesafe: "jev-1.13.0",
+    "vercel-ai-gateway": null,
+    openrouter: "jev-1.13",
+  },
+  "jev-latest": {
+    typesafe: "jev-latest",
+    "vercel-ai-gateway": "jev-latest",
+    openrouter: "jev-latest",
+  },
+};
+
+function isCanonicalTypeSafeModel(
+  model: string,
+): model is (typeof typeSafeModels)[number] {
+  return (typeSafeModels as readonly string[]).includes(model);
+}
 
 /**
- * Default model IDs offered by a decision-model connection. Unlike text
- * adapters, the list depends on the connection's upstream because each gateway
- * names Jev differently.
+ * Translates a canonical Jev model ID into the ID the upstream expects.
+ * Returns `null` when the upstream does not serve that model. IDs outside the
+ * canonical list (custom model names) pass through untouched so a connection
+ * can still address any raw upstream model.
+ */
+export function resolveTypeSafeModelId(
+  model: string,
+  upstream: TypeSafeUpstream,
+): string | null {
+  return isCanonicalTypeSafeModel(model)
+    ? TYPESAFE_MODEL_ID_BY_UPSTREAM[model][upstream]
+    : model;
+}
+
+/**
+ * Default model IDs offered by a decision-model connection: the canonical Jev
+ * IDs the connection's upstream can serve.
  */
 export function getDecisionModelDefaultModels(connection: {
   adapter: string;
   config?: unknown;
 }): readonly string[] {
   if (connection.adapter !== LLMAdapter.TypeSafe) return [];
-  return TYPESAFE_UPSTREAM_DEFINITIONS[
-    resolveTypeSafeUpstream(connection.config)
-  ].models;
+  const upstream = resolveTypeSafeUpstream(connection.config);
+  return typeSafeModels.filter(
+    (model) => resolveTypeSafeModelId(model, upstream) !== null,
+  );
 }
 
 export type AnthropicModel = (typeof anthropicModels)[number];
