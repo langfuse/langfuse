@@ -14,12 +14,8 @@ type ChipScore = WithStringifiedMetadata<ScoreDomain> | LastUserScore;
 
 const MAX_VISIBLE_SCORE_GROUPS = 2;
 
-/**
- * Bucket scores by name, the way the badges group them. Exported so a caller that
- * has to RESERVE room for these badges buckets them identically — two copies of
- * the grouping rule are two chances to price a chip that never renders.
- */
-const groupScoresByName = <T extends ChipScore>(
+/** Bucket scores by name, the way the badges group them. */
+export const groupScoresByName = <T extends ChipScore>(
   scores: T[],
 ): Record<string, T[]> =>
   scores.reduce<Record<string, T[]>>((groups, score) => {
