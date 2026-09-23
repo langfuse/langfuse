@@ -227,6 +227,7 @@ const DEFAULT_RETRY_SETTINGS: FireQueryRetrySettings = {
 interface FireQueryOptions {
   query: string;
   queryId: string;
+  startedAt?: string;
   params?: Record<string, unknown>;
   /**
    * Which attempt this is for the chunk (0-based). Only selects the
@@ -241,13 +242,14 @@ interface FireQueryOptions {
 }
 
 /**
- * Fires a long-running ClickHouse query, confirms it's tracked in
- * system.processes, then aborts the HTTP connection so the query continues
- * server-side and we poll for completion via pollQueryStatus.
+ * Fires a long-running ClickHouse query and checks whether it is tracked, then
+ * aborts the HTTP connection so the query continues server-side. If verification
+ * is unavailable, the scheduler keeps observing the same query via pollQueryStatus.
  */
 async function fireQuery({
   query,
   queryId,
+  startedAt,
   params,
   attemptNumber = 0,
   retrySettings = DEFAULT_RETRY_SETTINGS,
@@ -323,27 +325,44 @@ async function fireQuery({
       : new Error(String(earlyError));
   }
 
+  let status: QueryStatus;
   try {
-    const status = await pollQueryStatus(queryId);
+    status = await pollQueryStatus(queryId, startedAt);
     if (status === "not_found") {
       await sleep(retryWaitMs);
-      const retryStatus = await pollQueryStatus(queryId);
-      if (retryStatus === "not_found") {
-        throw new Error(`Query ${queryId} failed to start on server`);
-      }
+      status = await pollQueryStatus(queryId, startedAt);
     }
   } catch (error) {
-    logger.error(
-      `${logPrefix} Error verifying query ${queryId} started`,
+    // The INSERT may still be running. Retain its queryId and occupied slot;
+    // the scheduler retries observation without submitting another INSERT.
+    logger.warn(
+      `${logPrefix} Unable to verify query ${queryId}, will continue tracking`,
       error,
     );
-    throw error;
+    return;
+  } finally {
+    abortController.abort();
+  }
+  if (status === "not_found") {
+    throw new Error(`Query ${queryId} failed to start on server`);
   }
 
   logger.info(
-    `${logPrefix} Query ${queryId} confirmed running, aborting HTTP connection`,
+    `${logPrefix} Query ${queryId} is ${status}, HTTP connection aborted`,
   );
-  abortController.abort();
+}
+
+async function getFailedQueryError(
+  todo: BaseChunkTodo,
+  logPrefix: string,
+): Promise<string> {
+  const fallback = `Query ${todo.queryId} failed (error details unavailable)`;
+  try {
+    return (await getQueryError(todo.queryId!, todo.startedAt)) || fallback;
+  } catch (error) {
+    logger.warn(`${logPrefix} ${fallback}: error-detail lookup failed`, error);
+    return fallback;
+  }
 }
 
 // ============================================================================
@@ -355,11 +374,12 @@ async function fireQuery({
  * queryId. Updates each todo in-place with the recovered status.
  * Usually, persisted afterwards by a state update, i.e. relies on mutating behaviour
  * outside the function.
- * Returns the subset that ClickHouse still reports as running so the caller
- * can keep tracking them.
+ * Returns running queries and queries whose status could not be observed so the
+ * caller keeps their concurrency slots occupied until a terminal result is known.
  */
 async function recoverInProgressTodos<T extends BaseChunkTodo>(
   todos: T[],
+  applyFailure: (todo: T, error: string) => void,
   logPrefix = "[Backfill]",
 ): Promise<T[]> {
   const inProgress = todos.filter(
@@ -374,19 +394,15 @@ async function recoverInProgressTodos<T extends BaseChunkTodo>(
 
   for (const todo of inProgress) {
     try {
-      const status = await pollQueryStatus(todo.queryId!);
+      const status = await pollQueryStatus(todo.queryId!, todo.startedAt);
 
       if (status === "completed") {
         todo.status = "completed";
         todo.completedAt = new Date().toISOString();
         logger.info(`${logPrefix} Recovered chunk ${todo.id} as completed`);
       } else if (status === "failed") {
-        todo.status = "pending";
-        todo.retryCount = (todo.retryCount || 0) + 1;
-        const error = await getQueryError(todo.queryId!);
-        logger.warn(
-          `${logPrefix} Recovered chunk ${todo.id} as failed, will retry: ${error}`,
-        );
+        const error = await getFailedQueryError(todo, logPrefix);
+        applyFailure(todo, error);
       } else if (status === "running") {
         logger.info(
           `${logPrefix} Recovered chunk ${todo.id} as still running (query ${todo.queryId}), will continue tracking`,
@@ -400,12 +416,11 @@ async function recoverInProgressTodos<T extends BaseChunkTodo>(
         );
       }
     } catch (error) {
-      logger.error(
-        `${logPrefix} Error during recovery polling for chunk ${todo.id}, resetting to pending`,
+      logger.warn(
+        `${logPrefix} Error during recovery polling for chunk ${todo.id}, will continue tracking query ${todo.queryId}`,
         error,
       );
-      todo.status = "pending";
-      todo.queryId = undefined;
+      stillRunning.push(todo);
     }
   }
 
@@ -612,8 +627,10 @@ export abstract class ChunkedClickhouseBackfillMigration<
     // Phase 2: re-attach to queries left running by a previous worker
     const stillRunning = await recoverInProgressTodos(
       state.todos,
+      (todo, error) => this.applyChunkFailure(todo, error, config),
       this.logPrefix,
     );
+    state.activeQueries = stillRunning.map((todo) => todo.queryId!);
     await this.updateState(state);
 
     // Phase 2.5: reset failed chunks to pending if --retry-failed was passed
@@ -700,7 +717,7 @@ export abstract class ChunkedClickhouseBackfillMigration<
     for (const [queryId, todo] of [...active]) {
       let status: QueryStatus;
       try {
-        status = await pollQueryStatus(queryId);
+        status = await pollQueryStatus(queryId, todo.startedAt);
       } catch (error) {
         logger.warn(
           `${this.logPrefix} Error polling query ${queryId} for chunk ${todo.id}, will retry on next poll cycle`,
@@ -710,9 +727,6 @@ export abstract class ChunkedClickhouseBackfillMigration<
       }
 
       if (status === "running") continue;
-
-      active.delete(queryId);
-      state.activeQueries = state.activeQueries.filter((q) => q !== queryId);
 
       if (status === "completed") {
         const verificationError = await this.verifyCompletedChunk(todo);
@@ -733,11 +747,13 @@ export abstract class ChunkedClickhouseBackfillMigration<
       } else {
         const error =
           status === "failed"
-            ? await getQueryError(queryId)
+            ? await getFailedQueryError(todo, this.logPrefix)
             : "Query not found in query_log";
         this.applyChunkFailure(todo, error, config);
       }
 
+      active.delete(queryId);
+      state.activeQueries = state.activeQueries.filter((q) => q !== queryId);
       await this.updateState(state);
     }
   }
@@ -767,13 +783,14 @@ export abstract class ChunkedClickhouseBackfillMigration<
         await fireQuery({
           query,
           queryId: next.queryId,
+          startedAt: next.startedAt,
           params,
           attemptNumber: next.retryCount || 0,
           logPrefix: this.logPrefix,
         });
         active.set(next.queryId, next);
         logger.info(
-          `${this.logPrefix} Started chunk ${next.id} with query ${next.queryId}`,
+          `${this.logPrefix} Tracking chunk ${next.id} with query ${next.queryId}`,
         );
       } catch (err) {
         logger.error(
