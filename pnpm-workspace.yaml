@@ -5,6 +5,31 @@ packages:
   - "ai-gateway"
   - "packages/**"
   - "ee"
+# Consolidate compatible versions during writable installs; frozen installs keep the lockfile.
+autoDedupe: true
+# These private product packages are versioned together by release-it.
+versioning:
+  fixed:
+    - [langfuse, web, worker]
+# Bound competing Rust jobs across worktrees sharing pnpm's state directory.
+# Keep persistent dev servers and the outer Turbo commands outside this group.
+concurrencyGroups:
+  langfuse-rust: 1
+tasks:
+  "rust:build":
+    concurrencyGroup: langfuse-rust
+  "rust:build:dev":
+    concurrencyGroup: langfuse-rust
+  "rust:build:debug":
+    concurrencyGroup: langfuse-rust
+  "rust:typecheck":
+    concurrencyGroup: langfuse-rust
+  "rust:lint":
+    concurrencyGroup: langfuse-rust
+  "rust:lint:fix":
+    concurrencyGroup: langfuse-rust
+  "rust:test":
+    concurrencyGroup: langfuse-rust
 catalog:
   "@aws-sdk/client-cloudwatch": 3.1074.0
   "@aws-sdk/client-eventbridge": 3.1074.0
@@ -135,12 +160,12 @@ patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
   # Still unfixed upstream as of 1.1.19; remove once Radix guards focusFirst.
-  '@radix-ui/react-roving-focus@1.1.11': patches/@radix-ui__react-roving-focus@1.1.11.patch
+  "@radix-ui/react-roving-focus@1.1.11": patches/@radix-ui__react-roving-focus@1.1.11.patch
   # Select typeahead schedules nextItem.ref.current.focus() in a setTimeout.
   # If the item unmounts before the timeout (dynamic option lists, closing the
   # menu, a sibling field remounting items), the ref is null and throws.
   # Fixed upstream in 2.3.7; remove this patch when we bump.
-  '@radix-ui/react-select@2.2.6': patches/@radix-ui__react-select@2.2.6.patch
+  "@radix-ui/react-select@2.2.6": patches/@radix-ui__react-select@2.2.6.patch
   next-auth@4.24.15: patches/next-auth@4.24.15.patch
   # The document-level drag handlers crash when a panel group unmounts
   # mid-drag: setPointerCapture on the detached separator throws

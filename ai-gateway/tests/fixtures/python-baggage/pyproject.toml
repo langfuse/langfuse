@@ -1,0 +1,12 @@
+[project]
+name = "langfuse-gateway-baggage-fixture"
+version = "0.0.0"
+requires-python = "==3.14.3"
+dependencies = [
+  "langfuse==4.15.0",
+  "opentelemetry-api==1.40.0",
+  "opentelemetry-sdk==1.40.0",
+]
+
+[tool.uv]
+package = false

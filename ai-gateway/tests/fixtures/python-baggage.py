@@ -1,4 +1,4 @@
-"""Regenerate with Langfuse 4.15.0 and opentelemetry-api/sdk 1.40.0 installed."""
+"""Regenerate with the pinned environment documented in python-baggage/README.md."""
 
 import importlib.metadata
 import json
