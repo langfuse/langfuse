@@ -5,17 +5,23 @@ import { Check } from "lucide-react";
 import type { ComponentPropsWithoutRef } from "react";
 import { TYPESAFE_UPSTREAMS, type TypeSafeUpstream } from "@langfuse/shared";
 
-type TypeSafeUpstreamId = TypeSafeUpstream["id"];
+type TypeSafeUpstreamSelection = TypeSafeUpstream["id"] | "custom";
 
-const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamId, string> = {
+const UPSTREAM_OPTIONS: { id: TypeSafeUpstreamSelection; label: string }[] = [
+  ...TYPESAFE_UPSTREAMS,
+  { id: "custom", label: "Custom" },
+];
+
+const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamSelection, string> = {
   typesafe: "Direct connection, billed by TypeSafe.",
   "vercel-ai-gateway": "Routed and billed through your AI Gateway.",
   openrouter: "Routed and billed through OpenRouter.",
+  custom: "Any other endpoint that implements TypeSafe's API.",
 };
 
 type TypeSafeUpstreamCardsProps = {
-  value: TypeSafeUpstreamId;
-  onValueChange: (value: TypeSafeUpstreamId) => void;
+  value: TypeSafeUpstreamSelection;
+  onValueChange: (value: TypeSafeUpstreamSelection) => void;
 } & Pick<
   ComponentPropsWithoutRef<typeof RadioGroupPrimitive.Root>,
   "aria-describedby" | "aria-label" | "aria-labelledby" | "disabled" | "id"
@@ -34,10 +40,10 @@ export function TypeSafeUpstreamCards({
     <RadioGroupPrimitive.Root
       {...rootProps}
       value={value}
-      onValueChange={(next) => onValueChange(next as TypeSafeUpstreamId)}
-      className="grid gap-2 sm:grid-cols-3"
+      onValueChange={(next) => onValueChange(next as TypeSafeUpstreamSelection)}
+      className="grid gap-2 sm:grid-cols-2"
     >
-      {TYPESAFE_UPSTREAMS.map(({ id, label }) => {
+      {UPSTREAM_OPTIONS.map(({ id, label }) => {
         return (
           <RadioGroupPrimitive.Item
             key={id}

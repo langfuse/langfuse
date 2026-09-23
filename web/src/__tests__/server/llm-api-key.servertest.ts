@@ -337,46 +337,54 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].config).toEqual({});
   });
 
-  it("should store a preset upstream as the base URL of a decision-model connection", async () => {
-    await caller.llmApiKey.create({
-      projectId,
-      secretKey: "sk-or-test",
-      provider: "jev-via-openrouter",
-      adapter: LLMAdapter.TypeSafe,
-      baseURL: "https://openrouter.ai/api/v1",
-    });
-
-    const { data: llmApiKeys } = await caller.llmApiKey.all({
-      projectId,
-      includeDecisionModels: true,
-    });
-
-    expect(llmApiKeys).toHaveLength(1);
-    expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
-  });
-
-  it.each(["https://example.com/v1", "https://api.typesafe.ai/v1"])(
-    "should reject decision-model connections with the non-preset base URL %s",
+  it.each(["https://openrouter.ai/api/v1", "https://example.com/v1"])(
+    "should store %s as the base URL of a decision-model connection",
     async (baseURL) => {
-      await expect(
-        caller.llmApiKey.create({
-          projectId,
-          secretKey: "sk-test",
-          provider: "jev-custom-url",
-          adapter: LLMAdapter.TypeSafe,
-          baseURL,
-        }),
-      ).rejects.toThrow(
-        "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
-      );
+      await caller.llmApiKey.create({
+        projectId,
+        secretKey: "sk-test",
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL,
+      });
 
       const { data: llmApiKeys } = await caller.llmApiKey.all({
         projectId,
         includeDecisionModels: true,
       });
-      expect(llmApiKeys).toHaveLength(0);
+
+      expect(llmApiKeys).toHaveLength(1);
+      expect(llmApiKeys[0].baseURL).toBe(baseURL);
     },
   );
+
+  it("should block moving a decision-model connection to a blocked base URL", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-typesafe",
+      provider: "jev",
+      adapter: LLMAdapter.TypeSafe,
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev" },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "jev",
+        adapter: LLMAdapter.TypeSafe,
+        secretKey: "sk-new",
+        baseURL: "http://169.254.169.254/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL");
+
+    const unchangedKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: existingKey.id, projectId },
+    });
+    expect(unchangedKey.baseURL).toBeNull();
+  });
 
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({

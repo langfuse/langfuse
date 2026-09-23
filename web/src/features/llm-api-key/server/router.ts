@@ -26,7 +26,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  findTypeSafeUpstream,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -110,17 +109,9 @@ type TestLLMConnectionParams = {
 
 function assertDecisionModelConnectionInput(input: {
   adapter: LLMAdapter;
-  baseURL?: string | null;
   extraHeaders?: Record<string, string | null | undefined> | null;
 }) {
   if (!isDecisionModelAdapter(input.adapter)) return;
-  if (!findTypeSafeUpstream(input.baseURL)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        "Decision-model connections only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs.",
-    });
-  }
   if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
     throw new TRPCError({
       code: "BAD_REQUEST",

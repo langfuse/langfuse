@@ -109,6 +109,10 @@ const createFormSchema = (params: {
         ),
       adapter: z.enum(LLMAdapter),
       baseURL: z.union([z.literal(""), z.url()]),
+      typeSafeUpstream: z.enum([
+        ...TYPESAFE_UPSTREAMS.map((upstream) => upstream.id),
+        "custom",
+      ]),
       withDefaultModels: z.boolean(),
       customModels: z.array(z.object({ value: z.string().min(1) })),
       awsAccessKeyId: z.string().optional(),
@@ -252,6 +256,16 @@ const createFormSchema = (params: {
         message: "API Base URL is required for Azure connections.",
         path: ["baseURL"],
       },
+    )
+    .refine(
+      (data) =>
+        data.adapter !== LLMAdapter.TypeSafe ||
+        data.typeSafeUpstream !== "custom" ||
+        hasText(data.baseURL),
+      {
+        message: "API Base URL is required for a custom upstream.",
+        path: ["baseURL"],
+      },
     );
 
 interface CreateLLMApiKeyFormProps {
@@ -334,6 +348,8 @@ export function CreateLLMApiKeyForm({
             baseURL:
               existingKey.baseURL ??
               getCustomizedBaseURL(existingKey.adapter as LLMAdapter),
+            typeSafeUpstream:
+              findTypeSafeUpstream(existingKey.baseURL)?.id ?? "custom",
             withDefaultModels: existingKey.withDefaultModels,
             customModels: existingKey.customModels.map((value) => ({ value })),
             extraHeaders:
@@ -365,6 +381,7 @@ export function CreateLLMApiKeyForm({
             provider: "",
             secretKey: "",
             baseURL: getCustomizedBaseURL(defaultAdapter),
+            typeSafeUpstream: "typesafe",
             withDefaultModels: true,
             customModels: [],
             extraHeaders: [],
@@ -382,8 +399,14 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
-  const currentTypeSafeUpstream =
-    findTypeSafeUpstream(form.watch("baseURL")) ?? TYPESAFE_UPSTREAMS[0];
+  const currentTypeSafeUpstream = form.watch("typeSafeUpstream");
+  const currentTypeSafePreset = TYPESAFE_UPSTREAMS.find(
+    (upstream) => upstream.id === currentTypeSafeUpstream,
+  );
+  const existingCustomTypeSafeBaseURL =
+    existingKey?.baseURL && !findTypeSafeUpstream(existingKey.baseURL)
+      ? existingKey.baseURL
+      : "";
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -713,6 +736,7 @@ export function CreateLLMApiKeyForm({
                         "baseURL",
                         getCustomizedBaseURL(value as LLMAdapter),
                       );
+                      form.setValue("typeSafeUpstream", "typesafe");
                     }
                     field.onChange(value as LLMAdapter);
                   }}
@@ -795,7 +819,7 @@ export function CreateLLMApiKeyForm({
               {currentAdapter === LLMAdapter.TypeSafe && (
                 <FormField
                   control={form.control}
-                  name="baseURL"
+                  name="typeSafeUpstream"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
@@ -807,14 +831,19 @@ export function CreateLLMApiKeyForm({
                       <FormControl>
                         <TypeSafeUpstreamCards
                           aria-label="Upstream"
-                          value={currentTypeSafeUpstream.id}
-                          onValueChange={(id) =>
-                            field.onChange(
-                              TYPESAFE_UPSTREAMS.find(
-                                (upstream) => upstream.id === id,
-                              )?.baseURL ?? "",
-                            )
-                          }
+                          value={field.value}
+                          onValueChange={(id) => {
+                            field.onChange(id);
+                            const preset = TYPESAFE_UPSTREAMS.find(
+                              (upstream) => upstream.id === id,
+                            );
+                            form.setValue(
+                              "baseURL",
+                              preset
+                                ? (preset.baseURL ?? "")
+                                : existingCustomTypeSafeBaseURL,
+                            );
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -822,6 +851,29 @@ export function CreateLLMApiKeyForm({
                   )}
                 />
               )}
+
+              {currentAdapter === LLMAdapter.TypeSafe &&
+                currentTypeSafeUpstream === "custom" && (
+                  <FormField
+                    control={form.control}
+                    name="baseURL"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>API Base URL</FormLabel>
+                        <FormDescription>
+                          {"Langfuse sends requests to <base URL>/systemone."}
+                        </FormDescription>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="https://your-gateway.example.com/v1"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
               {currentAdapter === LLMAdapter.Bedrock ? (
@@ -1199,8 +1251,9 @@ export function CreateLLMApiKeyForm({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>
-                        {currentAdapter === LLMAdapter.TypeSafe
-                          ? currentTypeSafeUpstream.apiKeyLabel
+                        {currentAdapter === LLMAdapter.TypeSafe &&
+                        currentTypeSafePreset
+                          ? currentTypeSafePreset.apiKeyLabel
                           : "API Key"}
                       </FormLabel>
                       <FormDescription>

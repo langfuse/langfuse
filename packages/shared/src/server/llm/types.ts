@@ -475,9 +475,10 @@ export const googleAIStudioModels = [
 export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 
 /**
- * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
- * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
- * the AI SDK provider then defaults to.
+ * Preset providers that serve Jev through TypeSafe's `/v1/systemone` API. A
+ * TypeSafe connection stores a gateway's `baseURL` (a preset or any other
+ * TypeSafe-compatible endpoint), or none for TypeSafe itself, which the AI SDK
+ * provider then defaults to.
  */
 export const TYPESAFE_UPSTREAMS = [
   {
