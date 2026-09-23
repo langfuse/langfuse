@@ -7,7 +7,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
-import type { useInternalViewMode } from "../hooks/useInternalViewMode";
+import { useInternalViewMode } from "../hooks/useInternalViewMode";
 import { InternalFeatureBadge } from "./InternalFeatureBadge";
 
 export function InternalViewModeDialog({

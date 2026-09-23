@@ -109,12 +109,15 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
 });
 
 describe("userAccountRouter.setViewMode", () => {
+  const testEnv = env as {
+    LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: typeof env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  };
   const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
   beforeEach(() => {
-    env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
   });
   afterEach(() => {
-    env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
   });
 
   it("persists only the external override and preserves other preferences", async () => {
