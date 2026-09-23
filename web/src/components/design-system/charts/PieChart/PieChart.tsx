@@ -5,7 +5,7 @@ import { scaleOrdinal } from "d3-scale";
 import { arc, pie, type PieArcDatum } from "d3-shape";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
-import { ChartTooltip } from "@/src/components/design-system/charts/ChartTooltip";
+import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 import { chartColors } from "@/src/components/design-system/charts/chartColors";
 import { cn } from "@/src/utils/tailwind";
 
