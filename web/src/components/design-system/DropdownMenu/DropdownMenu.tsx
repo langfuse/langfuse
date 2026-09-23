@@ -174,6 +174,7 @@ type DropdownMenuProps = {
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
+  description?: string;
 };
 
 function DropdownMenu(props: DropdownMenuProps) {
@@ -194,6 +195,7 @@ function DropdownMenu(props: DropdownMenuProps) {
 function DropdownMenuNode({
   ariaLabel,
   children,
+  description,
   disabled = false,
   items,
   maxHeight = "15rem",
@@ -319,7 +321,7 @@ function DropdownMenuNode({
                 refs.setFloating(element);
                 register(element);
               }}
-              className={menuVariants()}
+              className={menuVariants({ className: description && "w-80" })}
               style={{ ...floatingStyles, maxHeight }}
               {...getFloatingProps({ onScroll: recompute })}
               {...(ariaLabel || title
@@ -332,6 +334,11 @@ function DropdownMenuNode({
               {title ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b px-3 py-2.5 text-sm font-bold">
                   {title}
+                  {description && (
+                    <p className="text-muted-foreground mt-1 text-xs font-normal">
+                      {description}
+                    </p>
+                  )}
                 </div>
               ) : null}
               {search ? (
