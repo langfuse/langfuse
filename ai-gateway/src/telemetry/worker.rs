@@ -1,0 +1,181 @@
+//! The delivery actor: routes admitted spans into project batches and uploads them.
+use std::sync::Arc;
+
+use opentelemetry::trace::TraceContextExt;
+use tokio::{
+    sync::{Semaphore, mpsc},
+    task::JoinSet,
+    time::Instant,
+};
+use tracing::Instrument;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+
+use super::{
+    Grant, Stats,
+    batch::{Batches, Flush, Pending},
+    otlp::Uploader,
+};
+
+pub(super) enum Message {
+    Record(Grant, Pending),
+    /// Admission closes behind this message; everything queued before it is still delivered.
+    Shutdown(Instant),
+}
+
+pub(super) async fn run_worker(
+    mut queue: mpsc::Receiver<Message>,
+    mut batches: Batches,
+    mut uploads: Uploads,
+) {
+    let deadline = loop {
+        let due = batches.next_due();
+        tokio::select! {
+            message = queue.recv() => match message {
+                Some(Message::Record(grant, item)) => {
+                    uploads.start_flushes(batches.push_record(grant, item, Instant::now()));
+                }
+                Some(Message::Shutdown(deadline)) => break deadline,
+                None => break Instant::now(),
+            },
+            () = sleep_until_due(due) => uploads.start_flushes(batches.take_due(Instant::now())),
+        }
+    };
+    queue.close();
+    while let Some(message) = queue.recv().await {
+        if let Message::Record(grant, item) = message {
+            uploads.start_flushes(batches.push_record(grant, item, Instant::now()));
+        }
+    }
+    uploads.start_flushes(batches.take_all());
+    uploads.drain_until(deadline).await;
+}
+
+async fn sleep_until_due(due: Option<Instant>) {
+    match due {
+        Some(due) => tokio::time::sleep_until(due).await,
+        None => std::future::pending().await,
+    }
+}
+
+/// In-flight uploads. Each flush becomes a task immediately and waits for an upload
+/// slot there, so a slow ingestion endpoint never stalls batching or shutdown.
+pub(super) struct Uploads {
+    uploader: Arc<Uploader>,
+    slots: Arc<Semaphore>,
+    tasks: JoinSet<()>,
+    stats: Arc<Stats>,
+}
+
+impl Uploads {
+    pub fn new(uploader: Uploader, slots: usize, stats: Arc<Stats>) -> Self {
+        Self {
+            uploader: Arc::new(uploader),
+            slots: Arc::new(Semaphore::new(slots)),
+            tasks: JoinSet::new(),
+            stats,
+        }
+    }
+
+    fn start_flushes(&mut self, flushes: Vec<Flush>) {
+        for flush in flushes {
+            self.start_flush(flush);
+        }
+    }
+
+    fn start_flush(&mut self, flush: Flush) {
+        // Reap completed handles on submission so the task registry stays bounded.
+        while self.tasks.try_join_next().is_some() {}
+        let receipt = Receipt::new(flush.items.len(), self.stats.clone());
+        let span = tracing::info_span!(
+            parent: None,
+            "telemetry.batch",
+            otel.kind = "internal",
+            gateway.telemetry.records = i64::try_from(flush.items.len()).unwrap_or(i64::MAX)
+        );
+        for item in &flush.items {
+            if item.link.is_valid() {
+                span.add_link(item.link.clone());
+            }
+        }
+        let uploader = self.uploader.clone();
+        let slots = self.slots.clone();
+        self.tasks.spawn(
+            async move {
+                let Ok(_slot) = slots.acquire_owned().await else {
+                    return;
+                };
+                let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
+                match uploader.export(&flush.grant, &spans).await {
+                    Ok(()) => receipt.settle_accepted(),
+                    Err(error) => receipt.settle_failed(error.reason()),
+                }
+            }
+            .instrument(span),
+        );
+    }
+
+    /// Finish in-flight uploads, aborting whatever is still running at `deadline`.
+    async fn drain_until(mut self, deadline: Instant) {
+        loop {
+            match tokio::time::timeout_at(deadline, self.tasks.join_next()).await {
+                Ok(Some(_)) => {}
+                Ok(None) => break,
+                Err(_) => {
+                    self.tasks.abort_all();
+                    while self.tasks.join_next().await.is_some() {}
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/// Settles the outcome of one upload's records. Records whose upload never settles
+/// (aborted at the shutdown deadline) are counted as dropped.
+struct Receipt {
+    records: u64,
+    stats: Arc<Stats>,
+    settled: bool,
+}
+
+impl Receipt {
+    fn new(records: usize, stats: Arc<Stats>) -> Self {
+        Self {
+            records: u64::try_from(records).unwrap_or(u64::MAX),
+            stats,
+            settled: false,
+        }
+    }
+
+    fn settle_accepted(mut self) {
+        self.settled = true;
+        self.stats.record_accepted(self.records);
+        tracing::debug!(records = self.records, "gateway telemetry accepted");
+    }
+
+    fn settle_failed(mut self, reason: &'static str) {
+        self.settled = true;
+        if self.stats.record_failed(self.records, reason) {
+            // Error categories contain no URLs, credentials, response bodies or content.
+            let context = tracing::Span::current().context();
+            let span = context.span();
+            let context = span.span_context();
+            tracing::warn!(
+                trace_id = %context.trace_id(),
+                span_id = %context.span_id(),
+                reason,
+                records = self.records,
+                failed = self.stats.failed.load(std::sync::atomic::Ordering::Relaxed),
+                "gateway telemetry upload failed"
+            );
+        }
+    }
+}
+
+impl Drop for Receipt {
+    fn drop(&mut self) {
+        if !self.settled {
+            self.stats.record_dropped(self.records, "shutdown");
+        }
+    }
+}

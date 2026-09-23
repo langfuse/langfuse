@@ -6,9 +6,10 @@ use std::{
 use axum::http::{HeaderValue, header};
 use reqwest::{Client, Url};
 use reqwest_middleware::ClientWithMiddleware;
+use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::DeliveryContext;
+use super::Grant;
 use crate::resolution::{ControlPlaneConfig, ResolutionError, signing};
 
 const INGESTION_PATH: &str = "/api/public/otel/v1/traces";
@@ -67,12 +68,8 @@ impl Uploader {
         })
     }
 
-    /// A collection allows project batching without changing the HTTP transport.
-    pub async fn export(
-        &self,
-        grant: &DeliveryContext,
-        spans: &[Value],
-    ) -> Result<(), ExportError> {
+    /// Uploads one project's spans in a single OTLP request authorized by `grant`.
+    pub async fn export(&self, grant: &Grant, spans: &[impl Serialize]) -> Result<(), ExportError> {
         let payload = json!({"resourceSpans": [{
             "resource": {"attributes": [{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}]},
             "scopeSpans": [{"scope": {"name": "langfuse-ai-gateway", "version": env!("CARGO_PKG_VERSION")}, "spans": spans}]

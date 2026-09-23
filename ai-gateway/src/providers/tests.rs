@@ -389,7 +389,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         })
         .await;
         let telemetry =
-            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
         let upstream = FakeServer::start(move |_| async move {
             let body = if close_before_eof {
                 Body::from_stream(
@@ -483,7 +483,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         })
         .await;
         let telemetry =
-            Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+            Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
         let dropped = Arc::new(Notify::new());
         let upstream = stalled_provider(dropped).await;
         let relay = ProviderTransport::for_test(
@@ -573,7 +573,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     })
     .await;
     let telemetry =
-        Telemetry::new(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap()).unwrap();
+        Telemetry::for_test(&ControlPlaneConfig::new(&sink.url, "service-key").unwrap());
     let upstream = FakeServer::start(|request| async move {
         let uri = request.uri().to_string();
         let method = request.method().clone();

@@ -325,10 +325,11 @@ async fn generation_context_is_isolated_from_operational_spans_and_outbound_head
 type SpanData = opentelemetry_sdk::trace::SpanData;
 
 /// Every phase between the caller's headers and the last body byte has a span in
-/// the server trace, so a waterfall shows no unattributed wall time.
+/// the server trace, so a waterfall shows no unattributed wall time. Batched
+/// ingestion runs in its own trace, linked back to each request it carries.
 fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
     let named = |name: &str| spans.iter().find(|span| span.name == name).unwrap();
-    assert_eq!(spans.len(), 8);
+    assert_eq!(spans.len(), 9);
     for (name, parent) in [
         ("resolution", server),
         ("resolver", named("resolution")),
@@ -336,7 +337,6 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
         ("request.capture", server),
         ("provider.headers", server),
         ("provider.stream", server),
-        ("ingestion", server),
     ] {
         let child = named(name);
         assert_eq!(
@@ -351,6 +351,27 @@ fn assert_phase_spans(spans: &[SpanData], server: &SpanData) {
             "{name}"
         );
     }
+    let batch = named("telemetry.batch");
+    assert_eq!(batch.parent_span_id, opentelemetry::trace::SpanId::INVALID);
+    assert_ne!(
+        batch.span_context.trace_id(),
+        server.span_context.trace_id()
+    );
+    assert_eq!(
+        batch
+            .links
+            .iter()
+            .map(|link| link.span_context.clone())
+            .collect::<Vec<_>>(),
+        std::slice::from_ref(&server.span_context)
+    );
+    assert_attribute(batch, "gateway.telemetry.records", 1i64);
+    let ingestion = named("ingestion");
+    assert_eq!(ingestion.parent_span_id, batch.span_context.span_id());
+    assert_eq!(
+        ingestion.span_context.trace_id(),
+        batch.span_context.trace_id()
+    );
     let request_bytes = i64::try_from(GENERATION_REQUEST.len()).unwrap();
     assert_attribute(server, "http.request.body.size", request_bytes);
     assert_attribute(server, "gateway.outcome", "eof");

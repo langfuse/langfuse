@@ -12,8 +12,8 @@ format; Rust relays native JSON or SSE without rewriting provider bytes. Models 
 are GET proxies of the provider catalog and token counting returns the native count;
 neither is ingested as a generation. A bounded capture layer captures request/response
 facts and logs capture completeness at debug level. Each finalized generation is
-immediately uploaded as a Langfuse generation through OTLP. Building and testing need
-no real Web, database or provider credentials.
+uploaded as a Langfuse generation through OTLP, batched per project. Building and
+testing need no real Web, database or provider credentials.
 
 ## Run locally
 
@@ -138,7 +138,10 @@ has no unattributed wall time:
 | `request.capture` | Parsing the request for inference telemetry; CPU-bound and proportional to `http.request.body.size` |
 | `provider.headers` | The provider HTTP send through response headers, including connection setup |
 | `provider.stream` | Relaying the provider body to the caller until the relay is finalized; `http.response.body.size`, `gateway.chunks`, `gateway.outcome`, and an error status on timeout or transport failure |
-| `ingestion` | The inference-telemetry upload, scheduled after the relay finishes |
+
+Inference-telemetry uploads carry records from many requests, so each runs in its
+own trace: a root `telemetry.batch` span with `gateway.telemetry.records` and a span
+link to every request it carries, and an `ingestion` client span for the HTTP send.
 
 `reqwest-tracing` instruments resolver, provider-header, and ingestion requests.
 Each request starts a fresh operational trace, independent of incoming trace IDs,
@@ -308,14 +311,20 @@ headers, hop-by-hop headers and upstream framing are excluded.
 
 ## Langfuse uploads
 
-When inference is configured, each finalized execution starts one background POST
-to the Web base URL's `/api/public/otel/v1/traces` endpoint. The client response and
-provider admission never wait for ingestion. There is no batching, waiting queue,
-retry, or durable delivery. A successful upload acknowledges ingestion acceptance;
-storage and cost processing still happen asynchronously in Langfuse.
+When inference is configured, each finalized execution is mapped to a generation
+span and queued without waiting. A single delivery worker groups spans by project
+and POSTs each batch to the Web base URL's `/api/public/otel/v1/traces` endpoint
+when it reaches 100 spans or 4 MiB, after a one-second linger, 30 seconds before its
+grant expires, when more than 256 projects have open batches (the batch due soonest
+goes first), or at shutdown. The client response and provider admission never wait
+for ingestion. There is no retry or durable delivery. A successful upload
+acknowledges ingestion acceptance; storage and cost processing still happen
+asynchronously in Langfuse.
 
-The original resolver-issued project grant authenticates the upload, together with
-a fresh gateway HMAC signature over that grant. The uploader uses the existing Web
+A resolver-issued project grant authenticates the upload, together with a fresh
+gateway HMAC signature over that grant. Web authorizes a grant by its organization
+and project alone, so a batch uses the latest-expiring grant among its records;
+ingestion mode is already applied while mapping each span. The uploader uses the existing Web
 URL and service key, preserves deployment prefixes, disables redirects and proxies,
 and never sends the provider credential or the client's gateway key to ingestion.
 Ingestion JWTs stay outside serializable capture facts and debug logs. Expired grants
@@ -369,25 +378,26 @@ with the available HTTP status in its status message. Full mode also includes a
 bounded provider error code/message; usage mode omits these details because provider
 errors may echo request content.
 
-Provisional upload limits are 32 concurrent tasks, 4 MiB serialized facts per record,
-16 MiB total retained serialized-fact/credential bytes, 8 MiB encoded payloads, and
+Provisional upload limits are 32 concurrent uploads, 1024 queued records, 4 MiB
+serialized span and credentials per record, 16 MiB total retained span/credential
+bytes, 8 MiB encoded payloads, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
 timeout and a five-second total timeout, shortened to the grant's remaining lifetime.
 Capacity exhaustion, oversized payloads, auth/HTTP errors, rejected OTLP spans, and
-transport failures are reported without changing inference results. Sanitized logs
+transport failures are reported per record without changing inference results; one
+failed upload fails every record in its batch. Sanitized logs
 record failures/drops; shutdown reports accepted, failed and dropped counts.
 
-SIGTERM marks the gateway unready, drains inference, then finishes uploads within
-the remaining shared shutdown budget. At the deadline, unfinished uploads are
+SIGTERM marks the gateway unready, drains inference, then flushes open batches and
+finishes uploads within the remaining shared shutdown budget. At the deadline, unfinished uploads are
 cancelled and counted as drops. Process crashes or forced shutdown can lose telemetry;
 these records are not a durable accounting ledger.
 
-`telemetry/mod.rs` owns admission and task lifecycle, `telemetry/mapping.rs` maps facts,
-and `telemetry/otlp.rs` owns encoding and HTTP delivery. The uploader already accepts
-a span collection; future project batching can replace immediate scheduling while
-retaining each execution's original attribution/content policy and selecting a valid
-compatible grant. Capture and provider byte forwarding do not need to change.
+`telemetry/mod.rs` owns admission and shutdown, `telemetry/mapping.rs` maps facts,
+`telemetry/batch.rs` is the pure per-project grouping and flush policy,
+`telemetry/worker.rs` is the delivery actor that owns batches and upload tasks, and
+`telemetry/otlp.rs` owns encoding and HTTP delivery.
 
 ## Caller tracing context
 
@@ -567,7 +577,7 @@ The implementation separates shared `ExecutionCapture` lifecycle/timing, the
 `ResponseBody` content-type sniffing and bounded `SseDecoder`. A private
 `ProtocolCapture` enum dispatches to the adapter selected by API format. Finalization
 hands an owned `InferenceFacts` record to telemetry for a safe debug summary and
-immediate upload. Capture and upload run independently of log level; debug emission
+batched upload. Capture and upload run independently of log level; debug emission
 alone is gated.
 
 Capture is limited to 1 MiB request inspection, 1 MiB JSON/SSE event inspection,
