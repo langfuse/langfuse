@@ -69,6 +69,7 @@ import {
 } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
+import { TraceDetailTabMenu } from "../TraceDetailTabMenu";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -286,43 +287,57 @@ export function TraceDetailView({
           {/* Tabs section */}
           <TabsBar
             value={selectedTab}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className="@container/detailtabs flex min-h-0 flex-1 flex-col overflow-hidden"
             onValueChange={handleTabChange}
           >
             {/* Hide the tabs bar when only Preview remains. */}
             {showTabsBar && (
               <TooltipProvider>
-                <TabsBarList>
-                  <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
-                  {showMessagesTab && (
-                    <TabsBarTrigger value="messages" className="gap-1">
-                      Messages <InternalFeatureBadge />
-                    </TabsBarTrigger>
-                  )}
-                  {showLogViewTab && (
-                    <TabsBarTrigger value="log">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>Log View</span>
-                        </TooltipTrigger>
-                        <TooltipContent className="text-xs">
-                          {isLogViewVirtualized
-                            ? `Shows all ${observations.length} observations with virtualization enabled.`
-                            : "Shows all observations concatenated. Great for quickly scanning through them."}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TabsBarTrigger>
-                  )}
-                  {showScoresTab && (
-                    <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
-                  )}
+                <TabsBarList className="shrink-0">
+                  <div className="shrink-0 @min-[680px]/detailtabs:hidden">
+                    <TraceDetailTabMenu
+                      selectedTab={selectedTab}
+                      onSelect={handleTabChange}
+                      tabs={[
+                        "preview",
+                        ...(showMessagesTab ? ["messages" as const] : []),
+                        ...(showLogViewTab ? ["log" as const] : []),
+                        ...(showScoresTab ? ["scores" as const] : []),
+                      ]}
+                    />
+                  </div>
+                  <div className="hidden h-full shrink-0 @min-[680px]/detailtabs:contents">
+                    <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                    {showMessagesTab && (
+                      <TabsBarTrigger value="messages" className="gap-1">
+                        Messages <InternalFeatureBadge />
+                      </TabsBarTrigger>
+                    )}
+                    {showLogViewTab && (
+                      <TabsBarTrigger value="log">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>Log View</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="text-xs">
+                            {isLogViewVirtualized
+                              ? `Shows all ${observations.length} observations with virtualization enabled.`
+                              : "Shows all observations concatenated. Great for quickly scanning through them."}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TabsBarTrigger>
+                    )}
+                    {showScoresTab && (
+                      <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
+                    )}
+                  </div>
 
                   {/* View toggle (Formatted/JSON) - show for preview and log tabs when pretty view available */}
                   {/* JSON views are disabled for virtualized log view (large traces) */}
                   {(selectedTab === "log" ||
                     (selectedTab === "preview" && isPrettyViewAvailable)) && (
                     <>
-                      <div className="ml-auto h-fit px-2 py-0.5">
+                      <div className="ml-auto h-fit shrink-0 px-2 py-0.5">
                         <Tabs
                           value={
                             selectedTab === "log" && isLogViewVirtualized

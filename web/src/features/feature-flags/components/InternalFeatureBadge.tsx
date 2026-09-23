@@ -4,7 +4,7 @@ export function InternalFeatureBadge() {
   return (
     <Badge
       variant="outline"
-      className="border-orange-300 bg-orange-50 text-orange-800 dark:border-orange-700 dark:bg-orange-950 dark:text-orange-200"
+      className="shrink-0 border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-500/50 dark:bg-orange-500/20 dark:text-orange-300"
     >
       Internal
     </Badge>

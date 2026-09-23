@@ -5,10 +5,12 @@ import {
   DialogTitle,
   DialogDescription,
   DialogBody,
+  DialogFooter,
+  DialogClose,
 } from "@/src/components/ui/dialog";
-import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Button } from "@/src/components/ui/button";
 import { useInternalViewMode } from "../hooks/useInternalViewMode";
-import { InternalFeatureBadge } from "./InternalFeatureBadge";
 
 export function InternalViewModeDialog({
   open,
@@ -23,28 +25,35 @@ export function InternalViewModeDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>View mode</DialogTitle>
-          <DialogDescription>
-            External mode hides internal-only features. Permissions and feature
-            preview settings stay unchanged.
-          </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <ToggleGroup
-            type="single"
-            value={viewMode.mode}
-            disabled={viewMode.saving}
-            aria-label="View mode"
-            onValueChange={(mode) => {
-              if (mode === "INTERNAL" || mode === "EXTERNAL")
-                viewMode.setMode(mode);
-            }}
-          >
-            <ToggleGroupItem value="INTERNAL" className="gap-2">
-              Internal <InternalFeatureBadge />
-            </ToggleGroupItem>
-            <ToggleGroupItem value="EXTERNAL">External</ToggleGroupItem>
-          </ToggleGroup>
+          <DialogDescription className="m-0 leading-relaxed">
+            Internal view includes unreleased features for the Langfuse team.
+            Switch it off for the external view. Permissions and feature preview
+            settings stay unchanged.
+          </DialogDescription>
+          <div className="flex items-center gap-4 py-2">
+            <label
+              htmlFor="internal-view-mode"
+              className="flex cursor-pointer items-center gap-2 text-sm"
+            >
+              Internal view
+            </label>
+            <Switch
+              id="internal-view-mode"
+              checked={viewMode.mode === "INTERNAL"}
+              disabled={viewMode.saving}
+              onCheckedChange={(enabled) =>
+                viewMode.setMode(enabled ? "INTERNAL" : "EXTERNAL")
+              }
+            />
+          </div>
         </DialogBody>
+        <DialogFooter className="p-4">
+          <DialogClose asChild>
+            <Button variant="ghost">Close</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
