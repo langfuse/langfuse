@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -38,6 +38,8 @@ export type SettingsTableProps<TData extends object> = Omit<
     placeholder: string;
     onChange: (value: string) => void;
   };
+  /** Controls rendered next to the search input, e.g. filter selects. */
+  filters?: ReactNode;
   toolbarActions?: SettingsTableToolbarAction[];
   pagination?: PaginationBarProps;
 };
@@ -47,6 +49,7 @@ export function SettingsTable<TData extends object>({
   columnOrderKey,
   columnVisibilityKey,
   search,
+  filters,
   toolbarActions,
   pagination,
   ...tableProps
@@ -68,30 +71,33 @@ export function SettingsTable<TData extends object>({
       ? search.value
       : searchDraft.value;
 
-  const hasToolbar = Boolean(search || columnVisibilityKey || toolbarActions);
+  const hasToolbar = Boolean(
+    search || filters || columnVisibilityKey || toolbarActions,
+  );
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
       {hasToolbar && (
         <div className="flex items-center justify-between gap-2">
-          {search ? (
-            <div className="w-full max-w-sm">
-              <SearchInput
-                value={searchValue}
-                placeholder={search.placeholder}
-                onChange={(value) => {
-                  setSearchDraft({ value, committedValue: search.value });
-                  if (value === "") search.onChange("");
-                }}
-                onSubmit={(value) => {
-                  setSearchDraft({ value, committedValue: value });
-                  search.onChange(value);
-                }}
-              />
-            </div>
-          ) : (
-            <div />
-          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            {search && (
+              <div className="w-full max-w-sm">
+                <SearchInput
+                  value={searchValue}
+                  placeholder={search.placeholder}
+                  onChange={(value) => {
+                    setSearchDraft({ value, committedValue: search.value });
+                    if (value === "") search.onChange("");
+                  }}
+                  onSubmit={(value) => {
+                    setSearchDraft({ value, committedValue: value });
+                    search.onChange(value);
+                  }}
+                />
+              </div>
+            )}
+            {filters}
+          </div>
 
           <div className="flex items-center gap-2">
             {columnVisibilityKey && (

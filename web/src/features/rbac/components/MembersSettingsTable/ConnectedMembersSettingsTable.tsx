@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { StringParam, useQueryParam, withDefault } from "use-query-params";
+import {
+  ArrayParam,
+  StringParam,
+  useQueryParam,
+  withDefault,
+} from "use-query-params";
+import { type Role } from "@langfuse/shared";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -12,6 +18,7 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import type { RouterOutput } from "@/src/utils/types";
@@ -65,6 +72,9 @@ export function ConnectedMembersSettingsTable({
     withDefault(StringParam, null),
   );
 
+  const [rolesParam, setRolesParam] = useQueryParam("roles", ArrayParam);
+  const roles = (rolesParam ?? []).filter(isRole);
+
   const [paginationState, setPaginationState] = useSessionStorage(
     project
       ? `projectMembers_${project.id}_pagination`
@@ -84,6 +94,7 @@ export function ConnectedMembersSettingsTable({
     {
       orgId,
       searchQuery: searchQuery ?? undefined,
+      roles,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -94,6 +105,7 @@ export function ConnectedMembersSettingsTable({
     {
       projectId: project?.id ?? "NOT ENABLED",
       searchQuery: searchQuery ?? undefined,
+      roles,
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
     },
@@ -277,6 +289,16 @@ export function ConnectedMembersSettingsTable({
             value: searchQuery ?? "",
             onChange: (value) => setSearchQuery(value || null),
           }}
+          roleFilter={{
+            value: roles,
+            onChange: (value) => {
+              setRolesParam(value.length > 0 ? value : null);
+              setPaginationState((previous) => ({
+                pageIndex: 0,
+                pageSize: previous.pageSize,
+              }));
+            },
+          }}
           toolbarActions={[
             {
               id: "add-member",
@@ -300,6 +322,10 @@ export function ConnectedMembersSettingsTable({
       )}
     </CreateProjectMemberDialogController>
   );
+}
+
+function isRole(value: string | null): value is Role {
+  return value !== null && Object.hasOwn(orderedRoles, value);
 }
 
 function convertToTableRow(

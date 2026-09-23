@@ -7,7 +7,12 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  paginationZod,
+  type Prisma,
+  type PrismaClient,
+  Role,
+} from "@langfuse/shared";
 import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -21,14 +26,36 @@ import {
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
   searchQuery: z.string().optional(),
+  roles: z.array(z.enum(Role)).optional(),
   ...paginationZod,
 });
 
 const projectLevelMemberQuery = z.object({
   projectId: z.string(),
   searchQuery: z.string().optional(),
+  roles: z.array(z.enum(Role)).optional(),
   ...paginationZod,
 });
+
+/**
+ * In a project, a member's effective role is their project role if one is
+ * set, otherwise their organization role.
+ */
+function roleFilter(
+  roles: Role[],
+  projectId: string | undefined,
+): Prisma.OrganizationMembershipWhereInput {
+  if (!projectId) return { role: { in: roles } };
+  return {
+    OR: [
+      { ProjectMemberships: { some: { projectId, role: { in: roles } } } },
+      {
+        role: { in: roles },
+        ProjectMemberships: { none: { projectId } },
+      },
+    ],
+  };
+}
 
 async function getMembers(
   prisma: PrismaClient,
@@ -37,50 +64,62 @@ async function getMembers(
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
   showAllOrgMembers = true,
 ) {
-  // Build common where clause to ensure consistency between findMany and count queries
-  const whereClause = {
-    orgId: query.orgId,
-    // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
-    ...("projectId" in query && !showAllOrgMembers
-      ? {
-          // either org level role or project level role
-          OR: [
-            {
+  const projectId = "projectId" in query ? query.projectId : undefined;
+  const conditions: Prisma.OrganizationMembershipWhereInput[] = [];
+
+  // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
+  if (projectId && !showAllOrgMembers) {
+    conditions.push({
+      // either org level role or project level role
+      OR: [
+        {
+          role: {
+            not: Role.NONE,
+          },
+        },
+        {
+          ProjectMemberships: {
+            some: {
+              projectId,
               role: {
                 not: Role.NONE,
               },
             },
-            {
-              ProjectMemberships: {
-                some: {
-                  projectId: query.projectId,
-                  role: {
-                    not: Role.NONE,
-                  },
-                },
-              },
-            },
-          ],
-        }
-      : {}),
-    ...(query.searchQuery && {
+          },
+        },
+      ],
+    });
+  }
+
+  if (query.searchQuery) {
+    conditions.push({
       user: {
         OR: [
           {
             name: {
               contains: query.searchQuery,
-              mode: "insensitive" as const,
+              mode: "insensitive",
             },
           },
           {
             email: {
               contains: query.searchQuery,
-              mode: "insensitive" as const,
+              mode: "insensitive",
             },
           },
         ],
       },
-    }),
+    });
+  }
+
+  if (query.roles?.length) {
+    conditions.push(roleFilter(query.roles, projectId));
+  }
+
+  // Build common where clause to ensure consistency between findMany and count queries
+  const whereClause: Prisma.OrganizationMembershipWhereInput = {
+    orgId: query.orgId,
+    AND: conditions,
   };
 
   const orgMemberships = await prisma.organizationMembership.findMany({

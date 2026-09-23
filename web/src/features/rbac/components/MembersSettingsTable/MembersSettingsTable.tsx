@@ -3,6 +3,7 @@ import { Trash } from "lucide-react";
 import { type Role } from "@langfuse/shared";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { type PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import {
   SettingsTable,
@@ -33,6 +34,13 @@ import {
 import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
+
+const formatRoleLabel = (role: Role) =>
+  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
+const roleFilterOptions = (Object.keys(orderedRoles) as Role[])
+  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
+  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
 
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
@@ -68,6 +76,10 @@ type MembersSettingsTableProps = Pick<
     value: string;
     onChange: (value: string) => void;
   };
+  roleFilter: {
+    value: Role[];
+    onChange: (roles: Role[]) => void;
+  };
   toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
@@ -86,6 +98,7 @@ export function MembersSettingsTable({
   onUpdateOrgRole,
   onUpdateProjectRole,
   search,
+  roleFilter,
   toolbarActions,
   pagination,
   ...tableProps
@@ -284,6 +297,23 @@ export function MembersSettingsTable({
         placeholder: "Search name or email",
         onChange: search.onChange,
       }}
+      filters={
+        <div className="w-44 shrink-0">
+          <MultiSelectInput
+            aria-label={project ? "Filter by project role" : "Filter by role"}
+            value={roleFilter.value}
+            options={roleFilterOptions}
+            onValueChange={roleFilter.onChange}
+            placeholder="All roles"
+            selectedLabel={roleFilter.value
+              .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
+              .map(formatRoleLabel)
+              .join(", ")}
+            searchPlaceholder="Search roles..."
+            emptyMessage="No roles found."
+          />
+        </div>
+      }
       toolbarActions={toolbarActions}
       pagination={pagination}
       {...tableProps}
