@@ -457,16 +457,7 @@ export default async function handler(
 
 // Resolve the caller organization's membership for `userId`. When the user is
 // not a member, write a 404 that never echoes any of the user's attributes and
-// return null. The body must not carry email, name, or timestamps: that (a
-// cross-organization user disclosure via PUT) is the issue this guard closes.
-//
-// The `detail` deliberately keeps the "in organization" wording rather than
-// collapsing into the dispatcher's plain "User not found". A legitimate SCIM
-// client needs to tell "this account exists, provision it into your org" apart
-// from "this id is wrong", and the residual signal it leaks — that some
-// account exists somewhere on the instance for an already-known, opaque cuid —
-// is existence-only and cannot be meaningfully closed here anyway (an
-// `active:true` PUT is itself an existence probe for the same id).
+// return null.
 async function requireOrgMembership(
   res: NextApiResponse,
   orgId: string,
@@ -678,11 +669,7 @@ async function handlePut(
 
   // A caller may only observe or mutate a user already tied to their
   // organization. The sole exception is provisioning (active:true), which
-  // legitimately references a global user id in order to add the user. For
-  // every other request shape (active omitted, or active:false) we must
-  // respond exactly as we would for a nonexistent user — otherwise PUT would
-  // disclose another organization's user (their email and account timestamps)
-  // or silently no-op a cross-tenant deprovision.
+  // legitimately references a global user id in order to add the user.
   const isProvisioning = body.active === true;
   if (!isProvisioning && !(await requireOrgMembership(res, orgId, user.id))) {
     return;
@@ -749,9 +736,6 @@ async function handleDelete(
   orgId: string,
   apiKeyId: string,
 ) {
-  // A cross-organization DELETE must be indistinguishable from deleting a
-  // nonexistent user, and must never silently no-op against a user in another
-  // organization. Gate on membership before touching the deprovision path.
   if (!(await requireOrgMembership(res, orgId, user.id))) {
     return;
   }

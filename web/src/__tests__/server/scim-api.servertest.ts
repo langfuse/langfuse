@@ -1494,12 +1494,6 @@ describe("SCIM API", () => {
     });
   });
 
-  // Regression tests for cross-organization user disclosure via Users/{id}.
-  // The dispatcher resolves the target user globally by internal id, so every
-  // method must still refuse to disclose a user's attributes (email, name,
-  // timestamps) or silently mutate membership when the caller's organization
-  // has no membership for that user. Provisioning (active:true) is the sole
-  // path allowed to reference a not-yet-member user, in order to add them.
   describe("Cross-organization isolation (Users/{id})", () => {
     const createdUserIds: string[] = [];
 
@@ -1528,7 +1522,7 @@ describe("SCIM API", () => {
       }
     });
 
-    it("GET on an out-of-org user is a 404 that leaks no user attributes", async () => {
+    it("GET on an out-of-org user is a 404", async () => {
       const outsider = await createNonMemberUser();
 
       const nonMember = await makeAPICall<{
@@ -1552,7 +1546,7 @@ describe("SCIM API", () => {
       expect(nonMember.body.meta).toBeUndefined();
     });
 
-    it("PUT with active omitted does not disclose an out-of-org user's email", async () => {
+    it("PUT with active omitted returns 404 for an out-of-org user", async () => {
       const outsider = await createNonMemberUser();
 
       const result = await makeAPICall<{ detail: string; userName?: string }>(
@@ -1590,7 +1584,7 @@ describe("SCIM API", () => {
       expect(result.body.userName).toBeUndefined();
     });
 
-    it("PUT active:true still provisions a user who is not yet a member", async () => {
+    it("PUT active:true provisions a user who is not yet a member", async () => {
       const outsider = await createNonMemberUser();
 
       const result = await makeZodVerifiedAPICall(
@@ -1614,7 +1608,7 @@ describe("SCIM API", () => {
       expect(memberships[0].role).toBe("MEMBER");
     });
 
-    it("DELETE on an out-of-org user is a 404, not a silent noop", async () => {
+    it("DELETE on an out-of-org user is a 404", async () => {
       const outsider = await createNonMemberUser();
 
       const result = await makeAPICall<{ detail: string }>(
