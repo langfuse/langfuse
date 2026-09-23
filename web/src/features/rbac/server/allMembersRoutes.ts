@@ -64,6 +64,8 @@ async function getMembers(
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
   showAllOrgMembers = true,
 ) {
+  if (!query.orgId) throw Error("Org ID required to get members");
+  
   const projectId = "projectId" in query ? query.projectId : undefined;
   const conditions: Prisma.OrganizationMembershipWhereInput[] = [];
 
