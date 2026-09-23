@@ -11,6 +11,7 @@
 ## tRPC
 
 - Query: `skills.all`
+- Query: `skills.filterOptions`
 - Query: `skills.byName`
 - Query: `skills.fileDownload`
 - Query: `skills.allVersions`
@@ -19,6 +20,7 @@
 - Mutation: `skills.setLabels`
 - Mutation: `skills.setTags`
 - Mutation: `skills.deleteVersion`
+- Mutation: `skills.deleteSkill`
 
 ## MCP
 

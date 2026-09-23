@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
   setLabels: vi.fn(),
   setTags: vi.fn(),
   deleteVersion: vi.fn(),
+  deleteSkill: vi.fn(),
+  list: vi.fn(),
+  filterOptions: vi.fn(),
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
@@ -23,6 +26,9 @@ vi.mock("@/src/features/skills/server/index", () => ({
     setLabels = mocks.setLabels;
     setTags = mocks.setTags;
     deleteVersion = mocks.deleteVersion;
+    deleteSkill = mocks.deleteSkill;
+    list = mocks.list;
+    filterOptions = mocks.filterOptions;
   },
 }));
 
@@ -83,6 +89,13 @@ function createCaller(
 type Caller = ReturnType<typeof createCaller>;
 const version = { projectId: "project", name: "my-skill", version: 1 };
 const mutations = [
+  {
+    name: "delete a whole skill",
+    mutate: (caller: Caller) =>
+      caller.deleteSkill({ projectId: "project", name: "my-skill" }),
+    write: mocks.deleteSkill,
+    params: { projectId: "project", name: "my-skill" },
+  },
   {
     name: "set labels",
     mutate: (caller: Caller) =>
@@ -187,5 +200,28 @@ describe("skill mutation router", () => {
 
     expect(mocks.get).not.toHaveBeenCalled();
     expect(mocks.deleteVersion).not.toHaveBeenCalled();
+  });
+
+  it("rejects deleting a whole skill in another project", async () => {
+    await expect(
+      createCaller("ADMIN", "other-project").deleteSkill({
+        projectId: "project",
+        name: "my-skill",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.deleteSkill).not.toHaveBeenCalled();
+  });
+
+  it("scopes filter options to the authenticated project", async () => {
+    await createCaller("VIEWER").filterOptions({ projectId: "project" });
+    expect(mocks.filterOptions).toHaveBeenCalledExactlyOnceWith({
+      projectId: "project",
+    });
+    await expect(
+      createCaller("ADMIN", "other-project").filterOptions({
+        projectId: "project",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.filterOptions).toHaveBeenCalledOnce();
   });
 });

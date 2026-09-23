@@ -176,6 +176,7 @@ describe("SkillService versions", () => {
         update: vi.fn(),
         updateMany: vi.fn(),
         delete: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
         create,
       },
     };
@@ -617,6 +618,63 @@ describe("SkillService versions", () => {
       }),
     );
     expect(result.data[0]?.labels).toEqual(["production", "latest"]);
+  });
+
+  it("blocks whole-skill deletion when an older version has a protected label", async () => {
+    const test = setup();
+    test.db.skill.findMany.mockResolvedValue([
+      { ...test.skill, labels: ["latest"], version: 2 },
+      { ...test.skill, labels: ["production"] },
+    ]);
+    test.db.promptProtectedLabels.findMany.mockResolvedValue([
+      { label: "production" },
+    ]);
+    await expect(
+      test.service.deleteSkill({
+        projectId: "project",
+        name: "test-skill",
+        actor: sessionActor("MEMBER"),
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(test.transaction).not.toHaveBeenCalled();
+    expect(test.tx.skill.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("deletes all versions in the project and audits the whole-skill deletion", async () => {
+    const test = setup();
+    test.skill.labels = ["production"];
+    test.db.promptProtectedLabels.findMany.mockResolvedValue([
+      { label: "production" },
+    ]);
+    const versions = [test.skill, { ...test.skill, id: "second", version: 2 }];
+    test.db.skill.findMany.mockResolvedValue(versions);
+    test.tx.skill.findMany.mockResolvedValue(versions);
+    await test.service.deleteSkill({
+      projectId: "project",
+      name: "test-skill",
+      actor: sessionActor("ADMIN"),
+    });
+    expect(test.db.skill.findMany).toHaveBeenCalledWith({
+      where: { projectId: "project", name: "test-skill" },
+      select: { labels: true },
+    });
+    expect(test.tx.skill.deleteMany).toHaveBeenCalledExactlyOnceWith({
+      where: { projectId: "project", name: "test-skill" },
+    });
+    expect(auditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceType: "skill",
+        action: "delete",
+        resourceId: "test-skill",
+        projectId: "project",
+        before: expect.objectContaining({
+          name: "test-skill",
+          versions: [1, 2],
+        }),
+      }),
+      test.tx,
+    );
+    expect(test.tx.skill.update).not.toHaveBeenCalled();
   });
 
   it("preserves latest when replacing user-managed labels", async () => {

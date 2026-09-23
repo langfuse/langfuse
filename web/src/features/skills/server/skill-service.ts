@@ -18,6 +18,7 @@ import {
   UpdateSkillTagsBodySchema,
   type CreateSkillVersionBody,
   type ListSkillsQuery,
+  type FilterState,
   type PrepareSkillUploadsBody,
   type SkillSelector,
 } from "@langfuse/shared";
@@ -389,9 +390,35 @@ export class SkillService {
     });
   }
 
-  async list(params: { projectId: string; input: ListSkillsQuery }) {
+  async list(params: {
+    projectId: string;
+    input: ListSkillsQuery & { search?: string; filter?: FilterState };
+  }) {
+    const filters = await this.listFilterConditions(
+      params.projectId,
+      params.input.filter ?? [],
+    );
     const where: Prisma.SkillWhereInput = {
       projectId: params.projectId,
+      ...(filters.length ? { AND: filters } : {}),
+      ...(params.input.search
+        ? {
+            OR: [
+              {
+                name: {
+                  contains: params.input.search,
+                  mode: "insensitive" as const,
+                },
+              },
+              {
+                description: {
+                  contains: params.input.search,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          }
+        : {}),
       ...(params.input.name ? { name: params.input.name } : {}),
       ...(params.input.tag ? { tags: { has: params.input.tag } } : {}),
       ...(params.input.label ? { labels: { has: params.input.label } } : {}),
@@ -466,6 +493,65 @@ export class SkillService {
         totalPages: Math.ceil(totalItems / params.input.limit),
       },
     });
+  }
+
+  private async listFilterConditions(projectId: string, filters: FilterState) {
+    return Promise.all(
+      filters.map(async (filter): Promise<Prisma.SkillWhereInput> => {
+        if (
+          filter.type !== "arrayOptions" ||
+          (filter.column !== "labels" && filter.column !== "tags")
+        ) {
+          throw new InvalidRequestError(
+            `Unsupported skill filter: ${filter.column} (${filter.type})`,
+          );
+        }
+        if (!filter.value.length) return {};
+        const versions = await this.prisma.skill.findMany({
+          where: { projectId, [filter.column]: { hasSome: filter.value } },
+          select: { name: true, labels: true, tags: true },
+        });
+        // Labels can belong to different versions of the same skill.
+        const valuesByName = new Map<string, Set<string>>();
+        for (const version of versions) {
+          const values = valuesByName.get(version.name) ?? new Set<string>();
+          for (const value of version[filter.column]) values.add(value);
+          valuesByName.set(version.name, values);
+        }
+        const names = [...valuesByName]
+          .filter(
+            ([, values]) =>
+              filter.operator !== "all of" ||
+              filter.value.every((value) => values.has(value)),
+          )
+          .map(([name]) => name);
+        return {
+          name:
+            filter.operator === "none of" ? { notIn: names } : { in: names },
+        };
+      }),
+    );
+  }
+
+  async filterOptions(params: { projectId: string }) {
+    const versions = await this.prisma.skill.findMany({
+      where: { projectId: params.projectId },
+      select: { name: true, labels: true, tags: true },
+    });
+    const optionsFor = (column: "labels" | "tags") => {
+      const namesByValue = new Map<string, Set<string>>();
+      for (const version of versions) {
+        for (const value of version[column]) {
+          const names = namesByValue.get(value) ?? new Set<string>();
+          names.add(version.name);
+          namesByValue.set(value, names);
+        }
+      }
+      return [...namesByValue]
+        .map(([value, names]) => ({ value, count: names.size }))
+        .sort((a, b) => a.value.localeCompare(b.value));
+    };
+    return { labels: optionsFor("labels"), tags: optionsFor("tags") };
   }
 
   async setLabels(params: {
@@ -582,6 +668,50 @@ export class SkillService {
       return target.id;
     });
     return this.getById({ projectId: params.projectId, skillId });
+  }
+
+  async deleteSkill(params: {
+    projectId: string;
+    name: string;
+    actor: SkillActor;
+  }): Promise<void> {
+    const where = { projectId: params.projectId, name: params.name };
+    const existing = await this.prisma.skill.findMany({
+      where,
+      select: { labels: true },
+    });
+    if (!existing.length) throw new LangfuseNotFoundError("Skill not found");
+    await this.requireProtectedLabelAccess({
+      projectId: params.projectId,
+      labels: [...new Set(existing.flatMap(({ labels }) => labels))],
+      actor: params.actor,
+    });
+    await this.prisma.$transaction(async (tx) => {
+      await this.lockSkill(tx, params.projectId, params.name);
+      const versions = await tx.skill.findMany({
+        where,
+        select: { version: true, labels: true, tags: true },
+        orderBy: { version: "asc" },
+      });
+      if (!versions.length) throw new LangfuseNotFoundError("Skill not found");
+      await auditLog(
+        {
+          ...params.actor,
+          resourceType: "skill",
+          action: "delete",
+          resourceId: params.name,
+          projectId: params.projectId,
+          before: {
+            name: params.name,
+            versions: versions.map(({ version }) => version),
+            labels: [...new Set(versions.flatMap(({ labels }) => labels))],
+            tags: versions.at(-1)?.tags,
+          },
+        },
+        tx,
+      );
+      await tx.skill.deleteMany({ where });
+    });
   }
 
   async deleteVersion(params: {

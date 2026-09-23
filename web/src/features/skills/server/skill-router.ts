@@ -8,6 +8,7 @@ import {
   SkillNameSchema,
   UpdateSkillLabelsBodySchema,
   UpdateSkillTagsBodySchema,
+  singleFilterList,
 } from "@langfuse/shared";
 import {
   createTRPCRouter,
@@ -20,7 +21,16 @@ const projectInput = z.object({ projectId: z.string() });
 
 export const skillRouter = createTRPCRouter({
   all: protectedProjectProcedure
-    .input(projectInput.and(ListSkillsQuerySchema))
+    .input(
+      projectInput
+        .extend({
+          search: z.string().max(1000).optional(),
+          filter: singleFilterList
+            .refine((filters) => filters.length <= 50, "Too many filters")
+            .optional(),
+        })
+        .and(ListSkillsQuerySchema),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -31,6 +41,32 @@ export const skillRouter = createTRPCRouter({
         projectId: input.projectId,
         input,
       });
+    }),
+
+  filterOptions: protectedProjectProcedure
+    .input(projectInput)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "skills:read",
+      });
+      return new SkillService(prisma).filterOptions(input);
+    }),
+
+  deleteSkill: protectedProjectProcedure
+    .input(projectInput.extend({ name: SkillNameSchema }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "skills:CUD",
+      });
+      await new SkillService(prisma).deleteSkill({
+        ...input,
+        actor: { session: ctx.session },
+      });
+      return { deleted: true };
     }),
 
   byName: protectedProjectProcedure
