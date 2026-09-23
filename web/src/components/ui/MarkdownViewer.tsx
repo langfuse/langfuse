@@ -35,7 +35,7 @@ import {
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/resizable-image";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -568,14 +568,6 @@ export function MarkdownView({
             handleOnCopy={handleOnCopy}
             hoverRevealControls
             controlButtons={controlButtons}
-            collapseControl={
-              shouldBeCollapsible
-                ? {
-                    isCollapsed,
-                    onToggle: () => toggleCollapsed("header"),
-                  }
-                : undefined
-            }
           />
         </>
       ) : null}

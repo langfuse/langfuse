@@ -3,7 +3,6 @@ import { assertUnreachable } from "@langfuse/shared";
 export const featurePreviewFlags = [
   "modernSession",
   "sessionTimeline",
-  "normalizedIoPreview",
 ] as const;
 
 export type FeaturePreviewFlag = (typeof featurePreviewFlags)[number];
@@ -30,6 +29,20 @@ type RestrictedFlag = (typeof restrictedFlags)[number];
 export const isRestrictedFlag = (flag: string): flag is RestrictedFlag =>
   restrictedFlags.some((restrictedFlag) => restrictedFlag === flag);
 
+/**
+ * Internal surfaces share one user preference, separate from customer previews.
+ * The preference never grants access to users without internal eligibility.
+ */
+export const INTERNAL_FEATURE_FLAG = "internalFeatures" as const;
+
+export type UserFeatureFlag =
+  | PersonalFeaturePreviewFlag
+  | typeof INTERNAL_FEATURE_FLAG;
+
+export const isInternalFlag = (
+  flag: string,
+): flag is typeof INTERNAL_FEATURE_FLAG => flag === INTERNAL_FEATURE_FLAG;
+
 export const isFeaturePreviewFlag = (
   flag: string,
 ): flag is FeaturePreviewFlag =>
@@ -42,7 +55,6 @@ export const filterFeaturePreviewFlags = (
 export const featurePreviewLabels = {
   modernSession: "Compact Session View",
   sessionTimeline: "Session Timeline",
-  normalizedIoPreview: "Improved Message Rendering",
   langfuseTopics: "Langfuse Topics",
 } satisfies Record<PersonalFeaturePreviewFlag, string>;
 
@@ -58,16 +70,13 @@ export const isFeaturePreviewAvailable = (
     return context.v4BetaEnabled;
   }
 
-  if (flag === "normalizedIoPreview") {
-    return true;
-  }
-
   return assertUnreachable(flag);
 };
 
 export const availableFlags = [
   ...personalFeaturePreviewFlags,
   ...restrictedFlags,
+  INTERNAL_FEATURE_FLAG,
   "searchBar",
   "templateFlag",
   "excludeClickhouseRead",

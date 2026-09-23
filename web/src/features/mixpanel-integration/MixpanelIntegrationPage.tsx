@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/src/components/ui/tooltip";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   mixpanelIntegrationFormSchema,
   MIXPANEL_REGIONS,
@@ -34,21 +34,22 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+
 // Shared export-source UI adapters; policy in export-source-policy.ts.
 import {
   buildExportSourceContext,
   getExportSourceFieldState,
   getExportSourceUnavailableMessage,
   isExportSourceSelectable,
-} from "@/src/features/analytics-integrations/exportSource";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
+  IntegrationSettingsSkeleton,
+} from "@/src/features/analytics-integrations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
-import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useMemo } from "react";

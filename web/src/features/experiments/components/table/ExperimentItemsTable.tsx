@@ -8,11 +8,15 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
+import { RunEvaluationDialog } from "@/src/features/batch-actions";
 import { LightbulbIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableActionMenu,
+  type TableAction,
+  TableSelectionManager,
+  useSelectAll,
+} from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
 import {
@@ -38,7 +42,7 @@ import {
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/data-table-column-visibility-filter";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
 import {
   useColumnOrder,
@@ -55,7 +59,7 @@ import { createIdTableColumn } from "@/src/components/design-system/table/column
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { ExperimentGridView } from "./ExperimentGridView";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
@@ -65,8 +69,6 @@ import {
   reconcileFilterTargets,
   hasAmbiguousTargetChange,
 } from "@/src/features/experiments/lib/reconcileFilterTargets";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import { useExperimentItemsTableData } from "../../hooks/useExperimentItemsTableData";
 import {
   type ExperimentItemsTableRow,
@@ -391,7 +393,6 @@ const matchesExpectedOutput = (
 
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <Badge
-    size="sm"
     variant={matches ? "success" : "error"}
     className="mt-0.5 ml-1 shrink-0 font-bold"
   >
@@ -2268,6 +2269,8 @@ export default function ExperimentItemsTable({
             }
             onClose={() => {
               setShowRunEvaluationDialog(false);
+            }}
+            onSuccess={() => {
               setSelectedRows({});
               setSelectAll(false);
             }}

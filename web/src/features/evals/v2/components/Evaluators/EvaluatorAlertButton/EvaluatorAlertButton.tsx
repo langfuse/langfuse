@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   Plus,
 } from "lucide-react";
+import type { EvalTemplateType } from "@langfuse/shared";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
@@ -45,7 +46,7 @@ type EvaluatorAlertButtonProps = {
   | {
       scope: "evaluator";
       evaluatorId: string;
-      evaluatorType: "LLM_AS_JUDGE" | "CODE";
+      evaluatorType: EvalTemplateType;
       scoreDataType?: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
     }
   | { scope: "allEvaluators" }
@@ -327,7 +328,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
               {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
-              <Badge variant="secondary" size="sm" className="ml-1 shrink-0">
+              <Badge variant="secondary" className="ml-1 shrink-0">
                 {alertCount}
               </Badge>
             ) : null}

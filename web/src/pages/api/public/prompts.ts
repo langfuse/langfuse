@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
-import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { createPromptForApi } from "@/src/features/prompts/server";
 import {
   createAuthedProjectAPIRoute,
   withMiddlewares,

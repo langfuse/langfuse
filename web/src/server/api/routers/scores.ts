@@ -1,8 +1,12 @@
 import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
+import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  composeAggregateScoreKey,
+  isNumericDataType,
+  isTraceScore,
+} from "@/src/features/scores/server";
 import {
   getDateFromOption,
   SelectedTimeOptionSchema,
@@ -62,14 +66,10 @@ import {
   validateConfigAgainstBody,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { createBatchActionJob } from "@/src/features/table/server";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
-import {
-  isNumericDataType,
-  isTraceScore,
-} from "@/src/features/scores/lib/helpers";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 const ScoreFilterOptions = z.object({

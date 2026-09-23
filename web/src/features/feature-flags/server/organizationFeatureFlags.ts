@@ -9,7 +9,8 @@ import {
   filterFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
-  type PersonalFeaturePreviewFlag,
+  type UserFeatureFlag,
+  INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
 import {
   getFeaturePreviewOptOutFlag,
@@ -37,7 +38,7 @@ type FeaturePreviewOverrideChange = {
 
 const getFeaturePreviewOverrideState = (
   flags: string[],
-  flag: PersonalFeaturePreviewFlag,
+  flag: UserFeatureFlag,
 ): FeaturePreviewOverrideState => {
   if (flags.includes(getFeaturePreviewOptOutFlag(flag))) return "disabled";
   if (flags.includes(flag)) return "enabled";
@@ -169,7 +170,7 @@ async function setUserFeaturePreviewInTransaction({
 }: {
   tx: Prisma.TransactionClient;
   userId: string;
-  flag: PersonalFeaturePreviewFlag;
+  flag: UserFeatureFlag;
   enabled: boolean;
 }): Promise<FeaturePreviewOverrideChange> {
   const rows = await tx.$queryRaw<
@@ -186,7 +187,7 @@ async function setUserFeaturePreviewInTransaction({
   const user = rows[0];
   if (!user) throw new LangfuseNotFoundError("User not found");
 
-  const affectedFlags: PersonalFeaturePreviewFlag[] = [flag];
+  const affectedFlags: UserFeatureFlag[] = [flag];
   if (flag === "sessionTimeline" && enabled) {
     affectedFlags.push("modernSession");
   }
@@ -202,7 +203,10 @@ async function setUserFeaturePreviewInTransaction({
       ),
   );
   if (enabled) {
-    nextFeatureFlags.push(...affectedFlags);
+    // Internal features default on; only their opt-out needs persistence.
+    nextFeatureFlags.push(
+      ...affectedFlags.filter((flag) => flag !== INTERNAL_FEATURE_FLAG),
+    );
   } else {
     nextFeatureFlags.push(...affectedFlags.map(getFeaturePreviewOptOutFlag));
   }
@@ -233,7 +237,7 @@ export async function setUserFeaturePreview({
 }: {
   prisma: PrismaClient;
   userId: string;
-  flag: PersonalFeaturePreviewFlag;
+  flag: UserFeatureFlag;
   enabled: boolean;
 }): Promise<FeaturePreviewOverrideChange> {
   return withSerializableRetry(prisma, (tx) =>

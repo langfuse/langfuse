@@ -13,9 +13,9 @@ import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ProjectScope } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { showSuccessToast } from "@/src/features/notifications";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
 export type DeleteButtonProps = {

@@ -47,6 +47,12 @@ export type VersionUpdateStore = {
   getServerSnapshot: () => boolean;
   /** Feed a build id from a server response; safe on every response, any value. */
   reportObservedBuildId: (observedBuildId: string | null | undefined) => void;
+  /**
+   * True once this tab has seen a build id that differs from the running
+   * bundle. Independent of the banner's 48 h / debounce / dismiss gates —
+   * those withhold a *prompt*, not the fact of supersession.
+   */
+  hasObservedVersionMismatch: () => boolean;
   /** Hide until a never-seen build id arrives; persists the 24 h suppression. */
   dismiss: () => void;
   /**
@@ -230,6 +236,9 @@ export function createVersionUpdateStore(
       }
       // Responses are the clock ticks that mature staleness / expire windows.
       emitChange();
+    },
+    hasObservedVersionMismatch() {
+      return updateAvailable;
     },
     dismiss() {
       dismissed = true;

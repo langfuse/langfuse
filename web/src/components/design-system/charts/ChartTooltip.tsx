@@ -10,6 +10,7 @@ import {
   useFloating,
 } from "@floating-ui/react";
 import {
+  Fragment,
   useLayoutEffect,
   useState,
   type FocusEvent,
@@ -19,18 +20,43 @@ import {
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
+type TooltipItem = {
+  label: string;
+  value: string;
+  color?: string;
+};
+
+type TooltipData = {
+  index: number;
+  heading?: string;
+  focusPoint?: { x: number; y: number };
+} & (
+  | {
+      type: "items";
+      items: Array<TooltipItem & { id: string; color: string }>;
+      emphasizedItemId?: string;
+      label?: never;
+      value?: never;
+      color?: never;
+      details?: never;
+    }
+  | {
+      type: "primary";
+      items?: never;
+      label: string;
+      value: string;
+      color: string;
+      details?: Array<Omit<TooltipItem, "color">>;
+      emphasizedItemId?: never;
+    }
+);
+
 export function ChartTooltip({
   children,
 }: {
   children: (controller: {
     activeIndex: number | undefined;
-    getReferenceProps: (data: {
-      index: number;
-      label: string;
-      value: string;
-      color: string;
-      details?: { label: string; value: string }[];
-    }) => {
+    getReferenceProps: (data: TooltipData) => {
       onPointerEnter: (event: PointerEvent<SVGElement>) => void;
       onPointerMove: (event: PointerEvent<SVGElement>) => void;
       onPointerLeave: () => void;
@@ -39,16 +65,13 @@ export function ChartTooltip({
     };
   }) => ReactNode;
 }) {
-  const [activeTooltip, setActiveTooltip] = useState<{
-    index: number;
-    label: string;
-    value: string;
-    color: string;
-    details?: { label: string; value: string }[];
-    reference: SVGElement;
-    clientPoint?: { x: number; y: number };
-    placement: "left" | "right";
-  }>();
+  const [activeTooltip, setActiveTooltip] = useState<
+    TooltipData & {
+      reference: SVGElement;
+      clientPoint?: { x: number; y: number };
+      placement: "left" | "right";
+    }
+  >();
 
   useLayoutEffect(() => {
     if (activeTooltip && !activeTooltip.reference.isConnected) {
@@ -71,13 +94,7 @@ export function ChartTooltip({
     y: activeTooltip?.clientPoint?.y,
   });
 
-  const getReferenceProps = (data: {
-    index: number;
-    label: string;
-    value: string;
-    color: string;
-    details?: { label: string; value: string }[];
-  }) => {
+  const getReferenceProps = (data: TooltipData) => {
     const showAtPointer = (event: PointerEvent<SVGElement>) => {
       const { clientX, clientY, currentTarget } = event;
       const chartBounds =
@@ -99,15 +116,28 @@ export function ChartTooltip({
       onPointerLeave: () => setActiveTooltip(undefined),
       onFocus: (event: FocusEvent<SVGElement>) => {
         const sliceBounds = event.currentTarget.getBoundingClientRect();
-        const chartBounds =
-          event.currentTarget.ownerSVGElement?.getBoundingClientRect();
+        const svg = event.currentTarget.ownerSVGElement;
+        const chartBounds = svg?.getBoundingClientRect();
+        const focusPoint = svg?.createSVGPoint();
+        if (focusPoint && data.focusPoint) {
+          focusPoint.x = data.focusPoint.x;
+          focusPoint.y = data.focusPoint.y;
+        }
+        const screenMatrix = svg?.getScreenCTM();
+        const transformedFocusPoint =
+          focusPoint && data.focusPoint && screenMatrix
+            ? focusPoint.matrixTransform(screenMatrix)
+            : undefined;
+        const referenceX =
+          transformedFocusPoint?.x ?? sliceBounds.left + sliceBounds.width / 2;
         setActiveTooltip({
           ...data,
           reference: event.currentTarget,
+          clientPoint: transformedFocusPoint
+            ? { x: transformedFocusPoint.x, y: transformedFocusPoint.y }
+            : undefined,
           placement:
-            chartBounds &&
-            sliceBounds.left + sliceBounds.width / 2 <
-              chartBounds.left + chartBounds.width / 2
+            chartBounds && referenceX < chartBounds.left + chartBounds.width / 2
               ? "left"
               : "right",
         });
@@ -115,6 +145,41 @@ export function ChartTooltip({
       onBlur: () => setActiveTooltip(undefined),
     };
   };
+
+  const tooltipRows: Array<
+    TooltipItem & {
+      id: string;
+      emphasis: "default" | "emphasized" | "dimmed";
+      kind: "peer" | "primary" | "detail";
+    }
+  > = [];
+  if (activeTooltip?.type === "items") {
+    for (const item of activeTooltip.items) {
+      let emphasis: "default" | "emphasized" | "dimmed" = "dimmed";
+      if (activeTooltip.emphasizedItemId === undefined) emphasis = "default";
+      else if (activeTooltip.emphasizedItemId === item.id) {
+        emphasis = "emphasized";
+      }
+      tooltipRows.push({ ...item, emphasis, kind: "peer" });
+    }
+  } else if (activeTooltip?.type === "primary") {
+    tooltipRows.push({
+      id: "primary",
+      label: activeTooltip.label,
+      value: activeTooltip.value,
+      color: activeTooltip.color,
+      emphasis: "default",
+      kind: "primary",
+    });
+    tooltipRows.push(
+      ...(activeTooltip.details ?? []).map((item, index) => ({
+        ...item,
+        id: `detail-${index}`,
+        emphasis: "default" as const,
+        kind: "detail" as const,
+      })),
+    );
+  }
 
   return (
     <>
@@ -127,46 +192,46 @@ export function ChartTooltip({
             className="border-border/50 bg-background pointer-events-none z-50 grid min-w-32 gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl"
             style={floatingStyles}
           >
-            <div className="flex items-center gap-2">
-              <svg
-                viewBox="0 0 10 10"
-                className="size-2.5 shrink-0"
-                aria-hidden="true"
-              >
-                <rect
-                  width="10"
-                  height="10"
-                  rx="2"
-                  fill={activeTooltip.color}
-                />
-              </svg>
-              <div className="flex min-w-0 flex-1 items-center justify-between gap-x-3 leading-tight">
-                <span
-                  className="text-muted-foreground truncate"
-                  title={activeTooltip.label}
-                >
-                  {activeTooltip.label}
-                </span>
-                <span className="text-foreground shrink-0 font-mono font-bold whitespace-nowrap tabular-nums">
-                  {activeTooltip.value}
-                </span>
+            {activeTooltip.heading ? (
+              <div className="text-foreground font-bold">
+                {activeTooltip.heading}
               </div>
-            </div>
-            {activeTooltip.details?.map((detail, index) => (
-              <div
-                key={`${detail.label}-${index}`}
-                className="flex min-w-0 items-center justify-between gap-x-3 pl-4 leading-tight"
-              >
-                <span
-                  className="text-muted-foreground truncate"
-                  title={detail.label}
+            ) : null}
+            {tooltipRows.map((item, index) => (
+              <Fragment key={item.id}>
+                {item.kind === "detail" &&
+                tooltipRows[index - 1]?.kind !== "detail" ? (
+                  <div role="separator" className="border-border/50 border-t" />
+                ) : null}
+                <div
+                  className={`flex min-w-0 items-center gap-2 leading-tight transition-opacity duration-150 ${item.emphasis === "dimmed" ? "opacity-30" : "opacity-100"}`}
                 >
-                  {detail.label}
-                </span>
-                <span className="text-foreground shrink-0 font-mono whitespace-nowrap tabular-nums">
-                  {detail.value}
-                </span>
-              </div>
+                  {item.kind !== "detail" ? (
+                    <svg
+                      viewBox="0 0 10 10"
+                      className="size-2.5 shrink-0"
+                      aria-hidden="true"
+                    >
+                      <rect width="10" height="10" rx="2" fill={item.color} />
+                    </svg>
+                  ) : (
+                    <span className="w-2.5 shrink-0" />
+                  )}
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-x-3">
+                    <span
+                      className={`${item.emphasis === "emphasized" ? "text-foreground" : "text-muted-foreground"} truncate`}
+                      title={item.label}
+                    >
+                      {item.label}
+                    </span>
+                    <span
+                      className={`text-foreground shrink-0 font-mono whitespace-nowrap tabular-nums ${item.kind === "detail" ? "" : "font-bold"}`}
+                    >
+                      {item.value}
+                    </span>
+                  </div>
+                </div>
+              </Fragment>
             ))}
           </div>
         </FloatingPortal>

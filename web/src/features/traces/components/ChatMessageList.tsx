@@ -16,7 +16,7 @@ import {
   type ChatMlMessage,
   shouldRenderMessageForContentMode,
 } from "@/src/features/traces/fns/chatMessageUtils";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { type IOPreviewContentMode } from "@/src/features/traces/components/IOPreview/IOPreview";
 
 const COLLAPSE_THRESHOLD = 3;

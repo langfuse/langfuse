@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];

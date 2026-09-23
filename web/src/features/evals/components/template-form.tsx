@@ -36,10 +36,10 @@ import {
 } from "@langfuse/shared";
 import router from "next/router";
 import { ModelParameters } from "@/src/components/ModelParameters";
-import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
+import { PromptVariableListPreview } from "@/src/features/prompts";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
-import { useModelParams } from "@/src/features/playground/page/hooks/useModelParams";
+import { useModelParams } from "@/src/features/playground";
 import { showSuccessToast } from "@/src/features/notifications";
 import {
   getDefaultOutputDefinitionFormValues,
@@ -260,10 +260,13 @@ const InnerEvalTemplateForm = (props: {
     defaultValues: {
       name:
         props.existingEvalTemplateName ?? props.preFilledFormValues?.name ?? "",
+      // The legacy editor only knows LLM and code templates.
       type:
         templateTypeSelectorMode === "code-only"
           ? EvalTemplateType.CODE
-          : (props.preFilledFormValues?.type ?? EvalTemplateType.LLM_AS_JUDGE),
+          : props.preFilledFormValues?.type === EvalTemplateType.CODE
+            ? EvalTemplateType.CODE
+            : EvalTemplateType.LLM_AS_JUDGE,
       prompt: props.preFilledFormValues?.prompt ?? undefined,
       variables: props.preFilledFormValues?.vars ?? [],
       sourceCode: props.preFilledFormValues?.sourceCode

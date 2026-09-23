@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
 import Link from "next/link";
@@ -12,7 +12,7 @@ import {
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 
 interface DatasetItemEntryPointRowProps {
@@ -78,6 +78,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -113,7 +114,9 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
@@ -135,6 +138,9 @@ export const DatasetItemsOnboarding = ({
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />

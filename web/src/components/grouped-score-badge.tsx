@@ -96,20 +96,16 @@ export const GroupedScoreBadges = <T extends ChipScore>({
       {visibleScores.map(([name, scores]) => (
         <ScoreBadge
           key={name}
+          compact={compact}
           name={name}
           scores={scores}
-          compact={compact}
           showLevels={showLevels}
         />
       ))}
       {Boolean(hiddenScores.length) && (
         <Popover>
           <PopoverTrigger asChild>
-            <BadgeShell
-              asChild
-              color="neutral"
-              size={compact ? "sm" : "default"}
-            >
+            <BadgeShell asChild size={compact ? "sm" : undefined}>
               <button
                 type="button"
                 className={cn(

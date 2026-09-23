@@ -98,24 +98,21 @@ function SelectInputInner<V extends string>(
               disabled={node.disabled}
             >
               <InputDropdown.OptionContent
+                type="checkmark"
+                checked={value === node.value}
                 label={
                   <SelectPrimitive.ItemText>
                     {node.label}
                   </SelectPrimitive.ItemText>
                 }
                 title={node.disabled ? node.disabledReason : node.label}
-                indicator={
-                  <SelectPrimitive.ItemIndicator>
-                    <InputDropdown.CheckIndicator checked />
-                  </SelectPrimitive.ItemIndicator>
-                }
               />
             </SelectPrimitive.SelectItem>
           </InputDropdown.Option>
         </React.Fragment>
       );
     },
-    [],
+    [value],
   );
 
   return (
@@ -147,7 +144,7 @@ function SelectInputInner<V extends string>(
           <SelectPrimitive.Content position="popper" sideOffset={4}>
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
-              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
               <ChevronUp className="size-4" />
             </SelectPrimitive.ScrollUpButton>
@@ -169,7 +166,7 @@ function SelectInputInner<V extends string>(
             </InputDropdown.List>
             <SelectPrimitive.ScrollDownButton
               aria-label="Scroll down"
-              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 items-center justify-center duration-300 [animation-delay:.5s]"
+              className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 bottom-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"
             >
               <ChevronDown className="size-4" />
             </SelectPrimitive.ScrollDownButton>

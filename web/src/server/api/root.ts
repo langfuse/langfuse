@@ -54,7 +54,6 @@ import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalM
 import { slackRouter } from "@/src/features/slack/server/router";
 import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
-import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
@@ -127,7 +126,6 @@ export const appRouter = createTRPCRouter({
   monitors: monitorsRouter,
   slack: slackRouter,
   supportRouter: supportRouter,
-  surveys: surveysRouter,
   onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   searchBar: searchBarRouter,

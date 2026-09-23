@@ -40,7 +40,7 @@ import {
 } from "@/src/features/column-visibility";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import { TableSelectionManager } from "@/src/features/table";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useSidebarFilterState } from "@/src/features/filters";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
@@ -58,10 +58,7 @@ import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "../fns/evaluators/evaluatorScoresUrl";
-import {
-  EVALS_V2_TABS,
-  getEvalsV2Tabs,
-} from "@/src/features/navigation/utils/evals-v2-tabs";
+import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
 import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import {
@@ -77,7 +74,7 @@ import {
 import type { GalleryTemplate } from "../types/templateGallery";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 
@@ -227,9 +224,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary" size="sm">
-                    Project default
-                  </Badge>
+                  <Badge variant="secondary">Project default</Badge>
                 ) : null,
             }
           : facet,

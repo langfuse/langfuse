@@ -19,13 +19,7 @@ import {
 import { buildPresetExport } from "@/src/features/dashboard/utils/dashboard-import-export";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 /**
  * A "preset" dashboard placement: renders a registered curated component by
@@ -169,14 +163,15 @@ export function PresetDashboardWidget({
       metricsVersion,
       schedulerId,
       syncId: dashboardId,
-      // Most presets stretch to their fixed tile. Score Analytics is measured
-      // by the grid because each selected score adds another chart row.
-      className: "min-h-full",
+      // Fixed presets need a definite height so their flex children can grow.
+      // Score Analytics is measured because each selected score adds a row.
+      className: heightBehavior.mode === "content" ? "min-h-full" : "h-full",
     };
   }, [
     dashboardId,
     dateRange,
     filterState,
+    heightBehavior.mode,
     metricsVersion,
     projectId,
     schedulerId,
@@ -240,46 +235,58 @@ export function PresetDashboardWidget({
       </div>
       {/* The menu (copy) stays available on read-only surfaces like Home —
           only the edit affordances (drag, delete) are gated. */}
-      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-data-[state=open]:flex">
+      <div className="bg-background/95 absolute top-2 right-2 z-10 hidden items-center gap-2 rounded-md border px-1.5 py-1 shadow-sm group-hover:flex has-aria-expanded:flex">
         {!readOnly && (hasCUDAccess || isLockedEditable) && (
           <GripVerticalIcon
             size={16}
             className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:block"
           />
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <DropdownMenu
+          placement="bottom-end"
+          items={[
+            {
+              type: "item",
+              id: "copy",
+              title: "Copy card",
+              icon: CopyIcon,
+              onClick: handleCopyToClipboard,
+            },
+            ...(onDuplicatePreset
+              ? [
+                  {
+                    type: "item" as const,
+                    id: "clone",
+                    title: "Clone",
+                    icon: CopyPlusIcon,
+                    onClick: () => onDuplicatePreset(placement),
+                  },
+                ]
+              : []),
+            ...(!readOnly && (hasCUDAccess || isLockedEditable)
+              ? [
+                  { id: "delete-separator", type: "separator" as const },
+                  {
+                    type: "item" as const,
+                    id: "delete",
+                    title: "Delete",
+                    icon: TrashIcon,
+                    variant: "destructive" as const,
+                    onClick: handleDelete,
+                  },
+                ]
+              : []),
+          ]}
+        >
+          {({ getTriggerProps }) => (
             <button
               className="text-muted-foreground hover:text-foreground"
               aria-label="Widget actions"
+              {...getTriggerProps()}
             >
               <MoreVerticalIcon size={16} />
             </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleCopyToClipboard}>
-              <CopyIcon className="mr-2 h-4 w-4" />
-              Copy card
-            </DropdownMenuItem>
-            {onDuplicatePreset && (
-              <DropdownMenuItem onClick={() => onDuplicatePreset(placement)}>
-                <CopyPlusIcon className="mr-2 h-4 w-4" />
-                Clone
-              </DropdownMenuItem>
-            )}
-            {!readOnly && (hasCUDAccess || isLockedEditable) && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={handleDelete}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <TrashIcon className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
+          )}
         </DropdownMenu>
       </div>
     </div>

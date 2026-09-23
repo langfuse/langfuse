@@ -6,7 +6,7 @@
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ExternalLinkIcon, PlusCircle } from "lucide-react";
 import Link from "next/link";
-import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialog";
+import { UpsertModelFormDialog } from "@/src/features/models";
 
 export function ModelBadge({
   model,

@@ -136,7 +136,6 @@ export const ExperimentGridView = ({
             {useExperimentColors && (
               <Badge
                 variant="outline"
-                size="sm"
                 className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
               >
                 {isBaseline ? "Baseline" : "Comp"}

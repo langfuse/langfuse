@@ -78,7 +78,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   getRowHeightIOCharLimit,
   useRowHeightLocalStorage,
@@ -107,23 +107,25 @@ import { BatchExportTableButton } from "@/src/components/BatchExportTableButton"
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { BreakdownTooltip } from "@/src/features/traces";
 import { InfoIcon, LightbulbIcon } from "lucide-react";
-import { ProvidedModelNameCell } from "@/src/features/models/components/ProvidedModelNameCell";
+import { ProvidedModelNameCell } from "@/src/features/models";
 import { type RowSelectionState } from "@tanstack/react-table";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import {
   demoteViewOnUserFilterEdit,
   type ExplicitFilterStateChange,
 } from "@/src/features/events/lib/demoteViewOnUserFilterEdit";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { type TableAction } from "@/src/features/table/types";
+import {
+  TableSelectionManager,
+  useSelectAll,
+  TableActionMenu,
+  type TableAction,
+} from "@/src/features/table";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { useEventsTableData } from "@/src/features/events/hooks/useEventsTableData";
@@ -134,12 +136,15 @@ import {
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+
 // Disabled for now because perhaps confusing
 // import {
 //   useEventsViewMode,
 //   type EventsViewMode,
 // } from "@/src/features/events/hooks/useEventsViewMode";
+
 // import { EventsViewModeToggle } from "@/src/features/events/components/EventsViewModeToggle";
+
 // import { useObservationCountCheck } from "@/src/features/events/hooks/useObservationCountCheck";
 import {
   REFRESH_INTERVALS,
@@ -147,16 +152,17 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
-import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
-import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import {
+  RunEvaluationDialog,
+  AddObservationsToDatasetDialog,
+} from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
-import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
-import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import {
   chartFilterExclusionReason,
@@ -169,7 +175,7 @@ import {
   useObservedMetadataPaths,
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
 
 export type EventsTableRow = {
   // Identity fields
@@ -2374,6 +2380,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowRunEvaluationDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}
@@ -2383,6 +2391,7 @@ export default function ObservationsEventsTable({
 
       {showAddToDatasetDialog && (
         <AddObservationsToDatasetDialog
+          isV4
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
@@ -2395,6 +2404,8 @@ export default function ObservationsEventsTable({
           totalCount={totalCount ?? 0}
           onClose={() => {
             setShowAddToDatasetDialog(false);
+          }}
+          onSuccess={() => {
             setSelectedRows({});
             setSelectAll(false);
           }}

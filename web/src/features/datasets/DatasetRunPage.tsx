@@ -2,19 +2,14 @@ import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
 import { DeleteDatasetRunDialogController } from "@/src/features/datasets/components/DeleteDatasetRunDialogController";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages";
 import { api } from "@/src/utils/api";
 import { Columns3, MoreVertical, Trash } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   SidePanel,
   SidePanelContent,
@@ -23,8 +18,10 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import {
+  useExperimentAccess,
+  singleRunToExperimentsUrl,
+} from "@/src/features/experiments";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
 function DatasetRunLegacy() {
@@ -91,18 +88,29 @@ function DatasetRunLegacy() {
               redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
             >
               {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
+                <DropdownMenu
+                  items={[
+                    {
+                      type: "item",
+                      id: "delete",
+                      title: "Delete",
+                      icon: Trash,
+                      disabled: disabled
+                        ? { reason: "Missing permission to delete this run" }
+                        : undefined,
+                      onClick: openDialog,
+                    },
+                  ]}
+                >
+                  {({ getTriggerProps }) => (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      {...getTriggerProps()}
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem disabled={disabled} onSelect={openDialog}>
-                      <Trash className="h-4 w-4" />
-                      <span>Delete</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                  )}
                 </DropdownMenu>
               )}
             </DeleteDatasetRunDialogController>
