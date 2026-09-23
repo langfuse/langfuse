@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -29,9 +30,13 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSessionForRequest: authMocks.getServerAuthSessionForRequest,
 }));
 
-vi.mock("@/src/features/entitlements/server/hasEntitlement", () => ({
-  hasEntitlement: entitlementMocks.hasEntitlement,
-}));
+vi.mock("@/src/features/entitlements/server", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    hasEntitlement: entitlementMocks.hasEntitlement,
+  };
+});
 
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
@@ -352,7 +357,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: false,
-      featureFlags: {},
+      featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)
           ? [

@@ -3,6 +3,7 @@ import Header from "@/src/components/layouts/header";
 import { Button } from "@/src/components/ui/button";
 import { ConnectedMembershipInvitesSettingsTable } from "@/src/features/rbac/components/MembershipInvitesSettingsTable/ConnectedMembershipInvitesSettingsTable";
 import { ConnectedMembersSettingsTable } from "@/src/features/rbac/components/MembersSettingsTable/ConnectedMembersSettingsTable";
+import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import RenameOrganization from "@/src/features/organizations/components/RenameOrganization";
 import { DeleteOrganizationDialogController } from "@/src/features/organizations/components/DeleteOrganizationDialogController";
@@ -10,21 +11,20 @@ import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { SettingsDangerZone } from "@/src/components/SettingsDangerZone";
 import { BillingSettings } from "@/src/ee/features/billing/components/BillingSettings";
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { SSOSettings } from "@/src/ee/features/sso-settings/components/SSOSettings";
+import { SSOSettings } from "@/src/ee/features/sso-settings";
 import { isCloudPlan } from "@langfuse/shared";
-import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
 import AIFeatureSwitch from "@/src/features/organizations/components/AIFeatureSwitch";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
 import { env } from "@/src/env.mjs";
-import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage";
-import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import {
   GatewayApiKeysPage,
   GatewayConfigurationPage,

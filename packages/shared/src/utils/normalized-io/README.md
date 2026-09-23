@@ -212,6 +212,7 @@ or the fixture documents it.
   on` input, assistant on output) with the raw string preserved as senderName.
   The parser does not correlate role strings with known tool names, so such
   turns surface as regular messages, not tool turns.
+- Bare message inputs (for example, `{ role, content, ... }`) do not retain unrecognized sibling fields in `additionalInput`; these remain available in raw `span.input`.
 
 ### Intentional losses
 

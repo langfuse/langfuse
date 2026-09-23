@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   Card,
   CardContent,
@@ -19,7 +19,7 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import Generations from "@/src/features/tracing-tables/observations/ObservationsTable";
+import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
 import Page from "@/src/components/layouts/page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "lucide-react";
 import {

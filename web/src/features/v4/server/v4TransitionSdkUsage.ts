@@ -14,7 +14,7 @@ import {
   queryClickhouse,
   type IngestionSdkAttributionStatus,
 } from "@langfuse/shared/src/server";
-import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { getSdkVersionCapabilityStatus } from "@/src/features/sdk-version/server";
 import { getExperimentPostUsageByProject } from "@/src/features/v4/server/v4TransitionQueryLogUsage";
 import {
   getV4TransitionDetectionWindow,

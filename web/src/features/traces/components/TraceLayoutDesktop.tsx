@@ -11,6 +11,8 @@ import {
 import {
   useState,
   useEffect,
+  useLayoutEffect,
+  useRef,
   useMemo,
   createContext,
   useContext,
@@ -21,6 +23,7 @@ import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { TraceReviewLayout } from "./TraceReviewLayout";
 import { resolveEffectiveWidthFraction } from "@/src/components/table/peek/store/peekPanelStore";
 
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
@@ -135,6 +138,7 @@ function isPanelCollapsedInLayout(
 
 // Context for sharing panel state with compound components
 interface TraceLayoutDesktopContext {
+  reviewOpen: boolean;
   isNavigationPanelCollapsed: boolean;
   setIsNavigationPanelCollapsed: (collapsed: boolean) => void;
   panelRef: React.RefObject<PanelImperativeHandle | null>;
@@ -170,16 +174,48 @@ export function useDesktopLayoutContextOptional() {
   return useContext(LayoutContext);
 }
 
-export function TraceLayoutDesktop({
-  children,
-  groupId,
-  defaultNavigationCollapsed,
-  expandDetailOnMount,
-}: {
+type TraceLayoutDesktopProps = {
   children: ReactNode;
   groupId: string;
   defaultNavigationCollapsed: boolean;
   expandDetailOnMount: boolean;
+  reviewOpen: boolean;
+  reviewPanel: ReactNode;
+};
+
+export function TraceLayoutDesktop(props: TraceLayoutDesktopProps) {
+  const { reviewPanel, ...layoutProps } = props;
+  return (
+    <TraceReviewLayout open={props.reviewOpen} review={reviewPanel}>
+      {({ collapsed, toggle }) => (
+        <TraceNavigationDetailLayout
+          {...layoutProps}
+          reviewNavigationCollapsed={collapsed}
+          toggleReviewNavigation={toggle}
+        />
+      )}
+    </TraceReviewLayout>
+  );
+}
+
+function TraceNavigationDetailLayout({
+  children,
+  groupId,
+  defaultNavigationCollapsed,
+  expandDetailOnMount,
+  reviewOpen,
+  reviewNavigationCollapsed,
+  toggleReviewNavigation,
+}: Pick<
+  TraceLayoutDesktopProps,
+  | "children"
+  | "groupId"
+  | "defaultNavigationCollapsed"
+  | "expandDetailOnMount"
+  | "reviewOpen"
+> & {
+  reviewNavigationCollapsed: boolean;
+  toggleReviewNavigation: () => void;
 }) {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
@@ -271,6 +307,56 @@ export function TraceLayoutDesktop({
   // expand()+resize() imperatives (those validate against a momentarily stale
   // store and silently no-op on a narrow peek).
   const groupRef = useGroupRef();
+  const normalLayout = useRef(defaultLayout ?? computedDefaultLayout);
+  const appliedReviewMode = useRef(false);
+  // Synchronize the panel library after its constraints register. Normal
+  // navigation sizes remain separate from the temporary review layout.
+  useLayoutEffect(() => {
+    let cancelled = false;
+    let outerFrame = 0;
+    let innerFrame = 0;
+    const element = document.getElementById(groupId);
+    const applyLayout = () => {
+      const group = groupRef.current;
+      if (cancelled || !group) return;
+      if (reviewOpen) {
+        const width = element?.clientWidth ?? 0;
+        if (!width) return;
+        const navigationWidth = reviewNavigationCollapsed
+          ? COLLAPSED_PANEL_PX
+          : Math.max(
+              NAVIGATION_PANEL_MIN_PX,
+              Math.min(340, width - DETAIL_PANEL_MIN_PX),
+            );
+        const navigationPercent = (navigationWidth / width) * 100;
+        group.setLayout({
+          [RESIZABLE_PANEL_NAVIGATION_ID]: navigationPercent,
+          [RESIZABLE_PANEL_PREVIEW_ID]: 100 - navigationPercent,
+        });
+      } else if (appliedReviewMode.current && normalLayout.current) {
+        group.setLayout(normalLayout.current);
+      }
+      appliedReviewMode.current = reviewOpen;
+    };
+    if (reviewOpen) queueMicrotask(applyLayout);
+    // The outer split must finish expanding before the library validates the
+    // restored percentages against the inner panel's minimum widths.
+    else if (appliedReviewMode.current) {
+      outerFrame = requestAnimationFrame(() => {
+        innerFrame = requestAnimationFrame(applyLayout);
+      });
+    }
+    const observer = reviewOpen
+      ? new ResizeObserver(() => queueMicrotask(applyLayout))
+      : null;
+    if (element) observer?.observe(element);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(outerFrame);
+      cancelAnimationFrame(innerFrame);
+      observer?.disconnect();
+    };
+  }, [reviewOpen, reviewNavigationCollapsed, groupRef, groupId]);
 
   // Which collapsed panel a click asked to open, awaiting room. We pin the group
   // (below) for it, let React commit the wider min-width to the DOM, then run
@@ -314,6 +400,10 @@ export function TraceLayoutDesktop({
   // mins + horizontal scroll); on a wide peek it's a true 50/50.
   useEffect(() => {
     if (!pendingExpand) return;
+    if (reviewOpen) {
+      setPendingExpand(null);
+      return;
+    }
     const target = pendingExpand;
     let innerRaf = 0;
     const outerRaf = requestAnimationFrame(() => {
@@ -383,12 +473,12 @@ export function TraceLayoutDesktop({
       cancelAnimationFrame(outerRaf);
       cancelAnimationFrame(innerRaf);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingExpand]);
+  }, [pendingExpand, reviewOpen, groupRef, panelRef, detailPanelRef, groupId]);
 
   // Guarded so it's a no-op (not a resize) when already open — safe to call on
   // every row click, which is how re-selecting the same node reopens it.
   const expandDetailPanel = () => {
+    if (reviewOpen) return;
     if (!detailPanelRef.current?.isCollapsed()) return;
     setPendingExpand("detail");
   };
@@ -426,6 +516,10 @@ export function TraceLayoutDesktop({
   // a too-narrow peek scrolls horizontally rather than collapsing the detail
   // panel (LFE-10550).
   const handleTogglePanel = () => {
+    if (reviewOpen) {
+      toggleReviewNavigation();
+      return;
+    }
     if (!panelRef.current) return;
 
     if (panelRef.current.isCollapsed()) {
@@ -451,16 +545,23 @@ export function TraceLayoutDesktop({
   }, [isTimelineView]);
 
   const contextValue: TraceLayoutDesktopContext = {
-    isNavigationPanelCollapsed,
+    reviewOpen,
+    isNavigationPanelCollapsed: reviewOpen
+      ? reviewNavigationCollapsed
+      : isNavigationPanelCollapsed,
     setIsNavigationPanelCollapsed,
     panelRef,
     handleTogglePanel,
     shouldPulseToggle,
     detailPanelRef,
-    isDetailPanelCollapsed,
+    isDetailPanelCollapsed: reviewOpen ? false : isDetailPanelCollapsed,
     setIsDetailPanelCollapsed,
     expandDetailPanel,
   };
+  const pinNavigation = reviewOpen
+    ? !reviewNavigationCollapsed
+    : bothPanelsOpen;
+  const minimumGroupWidth = BOTH_PANELS_MIN_WIDTH_PX;
 
   return (
     <LayoutContext.Provider value={contextValue}>
@@ -477,12 +578,18 @@ export function TraceLayoutDesktop({
           id={groupId}
           groupRef={groupRef}
           defaultLayout={defaultLayout ?? computedDefaultLayout}
-          onLayoutChanged={onLayoutChanged}
-          className={bothPanelsOpen ? undefined : "min-w-0"}
+          onLayoutChanged={(layout) => {
+            if (reviewOpen || appliedReviewMode.current !== reviewOpen) return;
+            normalLayout.current = layout;
+            onLayoutChanged({
+              [RESIZABLE_PANEL_NAVIGATION_ID]:
+                layout[RESIZABLE_PANEL_NAVIGATION_ID]!,
+              [RESIZABLE_PANEL_PREVIEW_ID]: layout[RESIZABLE_PANEL_PREVIEW_ID]!,
+            });
+          }}
+          className={pinNavigation ? undefined : "min-w-0"}
           style={
-            bothPanelsOpen
-              ? { minWidth: `${BOTH_PANELS_MIN_WIDTH_PX}px` }
-              : undefined
+            pinNavigation ? { minWidth: `${minimumGroupWidth}px` } : undefined
           }
         >
           {children}
@@ -502,35 +609,45 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
 }: {
   children: ReactNode;
 }) {
-  const { setIsNavigationPanelCollapsed, panelRef } = useLayoutContext();
+  const {
+    setIsNavigationPanelCollapsed,
+    panelRef,
+    reviewOpen,
+    isNavigationPanelCollapsed,
+  } = useLayoutContext();
+  const collapsedForReview = reviewOpen && isNavigationPanelCollapsed;
 
   return (
     <Panel
       id={RESIZABLE_PANEL_NAVIGATION_ID}
       panelRef={panelRef}
-      collapsible={true}
+      collapsible={!reviewOpen}
       collapsedSize="40px"
-      minSize={`${NAVIGATION_PANEL_MIN_PX}px`}
+      minSize={collapsedForReview ? "40px" : `${NAVIGATION_PANEL_MIN_PX}px`}
+      maxSize={collapsedForReview ? "40px" : "100%"}
       // SSR/no-width fallback only — the computed percentage `defaultLayout`
       // on the Group drives the real default split. Detail carries no default
       // so it fills the remainder.
       defaultSize="40%"
       onResize={() => {
+        if (reviewOpen) return;
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
       }}
     >
-      {children}
+      <div className="h-full">{children}</div>
     </Panel>
   );
 };
 
 // Compound component: Resize handle
 TraceLayoutDesktop.ResizeHandle = function ResizeHandle() {
-  const { handleTogglePanel } = useLayoutContext();
+  const { handleTogglePanel, reviewOpen, isNavigationPanelCollapsed } =
+    useLayoutContext();
 
   return (
     <Separator
       id={RESIZABLE_PANEL_HANDLE_ID}
+      disabled={reviewOpen && isNavigationPanelCollapsed}
       className="bg-border relative w-px transition-colors duration-200 after:absolute after:inset-y-0 after:left-0 after:w-1 after:bg-blue-200 after:opacity-0 after:transition-opacity after:duration-200 hover:after:opacity-100 active:after:opacity-100"
       onDoubleClick={handleTogglePanel}
     />
@@ -548,6 +665,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
     setIsDetailPanelCollapsed,
     isDetailPanelCollapsed,
     expandDetailPanel,
+    reviewOpen,
   } = useLayoutContext();
 
   return (
@@ -559,10 +677,11 @@ TraceLayoutDesktop.DetailPanel = function Detail({
     <Panel
       id={RESIZABLE_PANEL_PREVIEW_ID}
       panelRef={detailPanelRef}
-      collapsible={true}
+      collapsible={!reviewOpen}
       collapsedSize="40px"
       minSize={`${DETAIL_PANEL_MIN_PX}px`}
       onResize={() => {
+        if (reviewOpen) return;
         setIsDetailPanelCollapsed(
           detailPanelRef.current?.isCollapsed() ?? false,
         );
@@ -571,10 +690,15 @@ TraceLayoutDesktop.DetailPanel = function Detail({
       {/* Keep the detail content MOUNTED while collapsed (just hidden), so its
           scroll position, local state, and in-progress comment/annotation
           drafts survive a collapse → expand round-trip. */}
-      <div className={cn("h-full w-full", isDetailPanelCollapsed && "hidden")}>
+      <div
+        className={cn(
+          "h-full w-full",
+          !reviewOpen && isDetailPanelCollapsed && "hidden",
+        )}
+      >
         {children}
       </div>
-      {isDetailPanelCollapsed && (
+      {!reviewOpen && isDetailPanelCollapsed && (
         <div className="flex h-full w-full flex-col items-center p-2">
           <Button
             variant="ghost"

@@ -1,5 +1,5 @@
 import Header from "@/src/components/layouts/header";
-import { ScoreConfigsTable } from "@/src/features/score-configs/ScoreConfigsTable";
+import { ConnectedScoreConfigsTable } from "@/src/features/score-configs/ScoreConfigsTable/ConnectedScoreConfigsTable";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
   return (
@@ -17,7 +17,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
         </a>{" "}
         in your project. Please note that all score configs are immutable.
       </p>
-      <ScoreConfigsTable projectId={projectId} />
+      <ConnectedScoreConfigsTable projectId={projectId} />
     </div>
   );
 }

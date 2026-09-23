@@ -10,7 +10,7 @@ import {
 } from "@/src/features/public-api/types/llm-connections";
 import { encrypt } from "@langfuse/shared/encryption";
 import { getDisplaySecretKey } from "@/src/features/llm-api-key/server/router";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   InvalidRequestError,
   BEDROCK_USE_DEFAULT_CREDENTIALS,

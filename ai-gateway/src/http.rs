@@ -76,7 +76,7 @@ async fn handle_openai(
         .ok_or(InferenceHttpError::Unavailable)?;
     let gateway_key = gateway_key(request.headers())?.to_owned();
     let (permit, context) = inference
-        .resolve_and_admit(&gateway_key)
+        .resolve_and_admit(&gateway_key, route.api_format())
         .await
         .map_err(|error| match error {
             RequestPreparationError::Resolution(error) => InferenceHttpError::Resolution(error),

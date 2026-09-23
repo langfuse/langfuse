@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary */
 import { Check, ChevronDown, TriangleAlert, Unlink } from "lucide-react";
-import type {
-  EvalTemplateType,
-  ObservationVariableMapping,
+import {
+  type EvalTemplateType,
+  type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { memo, type ReactNode, useState } from "react";
 import { useStore } from "zustand";

@@ -11,10 +11,12 @@ import {
   Table,
   type TableProps,
 } from "@/src/components/design-system/table/Table";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { cn } from "@/src/utils/tailwind";
 import {
   useColumnOrder,
   useColumnVisibility,
@@ -25,6 +27,15 @@ type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
     ? Omit<TAction, "children"> & { id: string; label: string }
     : never
   : never;
+
+type SettingsTableFilter = {
+  id: string;
+  label: string;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  value: string[];
+  onChange: (value: string[]) => void;
+};
 
 export type SettingsTableProps<TData extends object> = Omit<
   TableProps<TData>,
@@ -38,8 +49,9 @@ export type SettingsTableProps<TData extends object> = Omit<
     placeholder: string;
     onChange: (value: string) => void;
   };
+  filters?: SettingsTableFilter[];
   toolbarActions?: SettingsTableToolbarAction[];
-  pagination: PaginationBarProps;
+  pagination?: PaginationBarProps;
 };
 
 export function SettingsTable<TData extends object>({
@@ -47,6 +59,7 @@ export function SettingsTable<TData extends object>({
   columnOrderKey,
   columnVisibilityKey,
   search,
+  filters,
   toolbarActions,
   pagination,
   ...tableProps
@@ -68,32 +81,62 @@ export function SettingsTable<TData extends object>({
       ? search.value
       : searchDraft.value;
 
-  const hasToolbar = Boolean(search || columnVisibilityKey || toolbarActions);
+  const hasFilters = Boolean(filters?.length);
+  const hasToolbar = Boolean(
+    search || hasFilters || columnVisibilityKey || toolbarActions,
+  );
 
   return (
     <div className="flex min-h-0 flex-col gap-2">
       {hasToolbar && (
-        <div className="flex items-center justify-between gap-2">
-          {search ? (
-            <div className="w-full max-w-sm">
-              <SearchInput
-                value={searchValue}
-                placeholder={search.placeholder}
-                onChange={(value) => {
-                  setSearchDraft({ value, committedValue: search.value });
-                  if (value === "") search.onChange("");
-                }}
-                onSubmit={(value) => {
-                  setSearchDraft({ value, committedValue: value });
-                  search.onChange(value);
-                }}
-              />
-            </div>
-          ) : (
-            <div />
+        <div
+          className={cn(
+            "flex items-center justify-between gap-2",
+            hasFilters && "flex-wrap",
           )}
+        >
+          <div
+            className={cn(
+              "flex flex-1 items-center gap-2",
+              hasFilters ? "min-w-72" : "min-w-0",
+            )}
+          >
+            {search && (
+              <div className="w-full max-w-sm min-w-0">
+                <SearchInput
+                  value={searchValue}
+                  placeholder={search.placeholder}
+                  onChange={(value) => {
+                    setSearchDraft({ value, committedValue: search.value });
+                    if (value === "") search.onChange("");
+                  }}
+                  onSubmit={(value) => {
+                    setSearchDraft({ value, committedValue: value });
+                    search.onChange(value);
+                  }}
+                />
+              </div>
+            )}
+            {filters?.map((filter) => (
+              <div key={filter.id} className="w-44 shrink-0">
+                <MultiSelectInput
+                  aria-label={`Filter by ${filter.label.toLowerCase()}`}
+                  value={filter.value}
+                  options={filter.options}
+                  onValueChange={filter.onChange}
+                  placeholder={filter.placeholder}
+                  selectedLabel={filter.options
+                    .filter((option) => filter.value.includes(option.value))
+                    .map((option) => option.label)
+                    .join(", ")}
+                  searchPlaceholder="Search..."
+                  emptyMessage="No options found."
+                />
+              </div>
+            ))}
+          </div>
 
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
             {columnVisibilityKey && (
               <DataTableColumnVisibilityFilter
                 columns={columns}
@@ -123,7 +166,7 @@ export function SettingsTable<TData extends object>({
           onColumnOrderChange={setColumnOrder}
           {...tableProps}
         />
-        <PaginationBar {...pagination} />
+        {pagination && <PaginationBar {...pagination} />}
       </SettingsTableCard>
     </div>
   );

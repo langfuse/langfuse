@@ -4,6 +4,7 @@ import { type ComponentPropsWithoutRef, type ReactNode } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { cn } from "@/src/utils/tailwind";
+import { Checkbox } from "../../Checkbox/Checkbox";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
@@ -81,14 +82,17 @@ function List({ ...props }: SlottedProps) {
 
 function Option({
   highlight,
+  checked,
   ...props
 }: SlottedProps & {
   highlight: "aria-selected" | "focus";
+  checked?: boolean;
 }) {
   return (
     <Slot
+      data-checked={checked}
       className={cn(
-        "relative flex w-full cursor-default items-center rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none",
+        "relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
         highlight === "aria-selected"
           ? "aria-selected:bg-accent aria-selected:text-accent-foreground"
           : "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
@@ -102,12 +106,14 @@ function OptionContent({
   label,
   secondaryLabel,
   title,
-  indicator,
+  type,
+  checked,
 }: {
   label: ReactNode;
   secondaryLabel?: string;
   title: string;
-  indicator: ReactNode;
+  type: "checkbox" | "checkmark";
+  checked: boolean;
 }) {
   return (
     <>
@@ -117,21 +123,31 @@ function OptionContent({
           <span className="text-muted-foreground ml-1">{secondaryLabel}</span>
         )}
       </span>
-      <span className="flex size-3.5 shrink-0 items-center justify-center">
-        {indicator}
+      <span
+        className={cn(
+          "pointer-events-none flex size-3.5 shrink-0 items-center justify-center",
+          type === "checkbox" && "order-first",
+        )}
+      >
+        {type === "checkbox" ? (
+          <Checkbox
+            checked={checked}
+            size="sm"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        ) : (
+          <Check
+            aria-hidden="true"
+            className={cn("size-4", checked ? "opacity-100" : "opacity-0")}
+          />
+        )}
       </span>
     </>
   );
 }
 
-function CheckIndicator({ checked }: { checked: boolean }) {
-  return (
-    <Check className={cn("size-4", checked ? "opacity-100" : "opacity-0")} />
-  );
-}
-
 export const InputDropdown = {
-  CheckIndicator,
   Content,
   Empty,
   List,

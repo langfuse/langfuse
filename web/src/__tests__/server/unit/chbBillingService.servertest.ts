@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => ({ env: mocks.env }));
 
-vi.mock("@/src/features/audit-logs/auditLog", () => ({
+vi.mock("@/src/features/audit-logs/server", () => ({
   auditLog: mocks.auditLog,
 }));
 
