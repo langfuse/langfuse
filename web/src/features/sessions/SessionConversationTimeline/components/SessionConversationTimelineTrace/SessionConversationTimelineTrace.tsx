@@ -909,7 +909,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}

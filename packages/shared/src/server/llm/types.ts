@@ -474,6 +474,41 @@ export const googleAIStudioModels = [
 
 export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 
+/**
+ * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
+ * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
+ * the AI SDK provider then defaults to.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  {
+    id: "typesafe",
+    label: "TypeSafe",
+    baseURL: null,
+    apiKeyLabel: "TypeSafe API key",
+  },
+  {
+    id: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    apiKeyLabel: "Vercel AI Gateway API key",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKeyLabel: "OpenRouter API key",
+  },
+] as const;
+
+export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
+
+export function findTypeSafeUpstream(
+  baseURL: string | null | undefined,
+): TypeSafeUpstream | undefined {
+  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  return TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL);
+}
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {

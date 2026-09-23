@@ -109,6 +109,12 @@ it("renders a compact bar chart whose values cross zero", () => {
     />,
   );
 
-  expect(container.querySelectorAll(".recharts-bar-rectangle")).toHaveLength(2);
+  expect(container.querySelectorAll('[role="graphics-symbol"]')).toHaveLength(
+    2,
+  );
+  expect(container.querySelector("[data-zero-baseline]")).toHaveAttribute(
+    "stroke-width",
+    "1.5",
+  );
   expect(screen.getByText("0")).toBeInTheDocument();
 });

@@ -146,6 +146,7 @@ async function testDecisionModelEvaluator(params: {
     const client = createTypeSafeDecisionModelClient({
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
+      baseURL: modelConfig.config.apiKey.baseURL,
     });
     const execution = await executeDecisionModelEvaluator({
       variables: params.variables,

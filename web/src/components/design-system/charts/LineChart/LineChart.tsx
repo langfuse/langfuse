@@ -1,12 +1,14 @@
 "use client";
 
-import { useId, useMemo, useState, type PointerEvent } from "react";
+import { useMemo, useState, type PointerEvent } from "react";
 import { scaleLinear, scalePoint, scaleUtc } from "d3-scale";
 import { line } from "d3-shape";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
-import { ChartLegend } from "@/src/components/design-system/charts/ChartLegend";
-import { ChartTooltip } from "@/src/components/design-system/charts/ChartTooltip";
+import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
+import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
+import { ChartLegend } from "@/src/components/design-system/internal/charts/ChartLegend";
+import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
 
 type LineChartValues = {
   values: Record<string, number | null>;
@@ -84,14 +86,8 @@ type NormalizedDatum = LineChartValues & {
   x: Date | string;
 };
 
-const LEFT_MARGIN = 64;
-const TOP_MARGIN = 10;
-const RIGHT_MARGIN = 16;
 const APPROX_TIME_TICK_WIDTH = 64;
-const APPROX_CHARACTER_WIDTH = 7;
 const CATEGORY_TICK_GAP = 16;
-const APPROX_Y_TICK_HEIGHT = 28;
-const DEFAULT_Y_TICK_COUNT = 5;
 const SERIES_HOVER_DISTANCE = 10;
 const MAX_VISIBLE_POINT_RADIUS = 5;
 const defaultValueFormatter = (value: number) => value.toLocaleString();
@@ -253,18 +249,19 @@ const normalizeLineChartData = (
 const getThresholdRegions = (
   threshold: LineChartThreshold,
   y: number,
+  top: number,
   plotHeight: number,
 ) => {
   const epsilon = Math.max(plotHeight * 0.01, 2);
-  if (threshold.region === "above") return [[TOP_MARGIN, y - TOP_MARGIN]];
+  if (threshold.region === "above") return [[top, y - top]];
   if (threshold.region === "below") {
-    return [[y, TOP_MARGIN + plotHeight - y]];
+    return [[y, top + plotHeight - y]];
   }
   if (threshold.region === "equal") return [[y - epsilon, epsilon * 2]];
   if (threshold.region === "not-equal") {
     return [
-      [TOP_MARGIN, y - epsilon - TOP_MARGIN],
-      [y + epsilon, TOP_MARGIN + plotHeight - y - epsilon],
+      [top, y - epsilon - top],
+      [y + epsilon, top + plotHeight - y - epsilon],
     ];
   }
   return [];
@@ -296,13 +293,25 @@ export function LineChart(props: LineChartProps) {
       <div className="min-h-0 flex-1">
         <ChartContainer>
           {({ width, height }) => (
-            <LineChartContent
-              {...props}
-              series={configuredSeries}
-              onActiveSeriesChange={setActiveSeriesId}
+            <CartesianLayout
               width={width}
               height={height}
-            />
+              showXAxisLabels={
+                props.xAxis.type !== "category" ||
+                props.xAxis.labels !== "hidden"
+              }
+            >
+              {(layout) => (
+                <LineChartContent
+                  {...props}
+                  {...layout}
+                  series={configuredSeries}
+                  onActiveSeriesChange={setActiveSeriesId}
+                  width={width}
+                  height={height}
+                />
+              )}
+            </CartesianLayout>
           )}
         </ChartContainer>
       </div>
@@ -367,6 +376,14 @@ function LineChartContent(
     onActiveSeriesChange: (seriesId: string | undefined) => void;
     width: number;
     height: number;
+    measuredPlot: { left: number; top: number; width: number; height: number };
+    maxYTicks: number;
+    plotForTicks: (labels: string[]) => {
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+    };
   },
 ) {
   const {
@@ -381,55 +398,21 @@ function LineChartContent(
     width,
     height,
     xAxis,
+    measuredPlot,
+    maxYTicks,
+    plotForTicks,
   } = props;
   const [hoveredIndex, setHoveredIndex] = useState<number>();
   const [hoveredSeriesId, setHoveredSeriesId] = useState<string>();
-  const activeLabelGradientId = useId();
-  const bottomMargin =
-    xAxis.type === "category" && xAxis.labels === "hidden" ? 12 : 32;
-  const plotWidth = Math.max(0, width - LEFT_MARGIN - RIGHT_MARGIN);
-  const plotHeight = Math.max(0, height - TOP_MARGIN - bottomMargin);
+  const showXAxisLabels =
+    xAxis.type !== "category" || xAxis.labels !== "hidden";
+  const plotHeight = measuredPlot.height;
   const yRangePadding = Math.min(MAX_VISIBLE_POINT_RADIUS, plotHeight / 2);
-  const maxYTicks = Math.min(
-    DEFAULT_Y_TICK_COUNT,
-    Math.max(3, Math.floor(plotHeight / APPROX_Y_TICK_HEIGHT)),
-  );
 
   const data = useMemo<NormalizedDatum[]>(
     () => normalizeLineChartData(props.data, props.xAxis.type),
     [props.data, props.xAxis.type],
   );
-
-  const categoryScale = useMemo(
-    () =>
-      scalePoint<string>()
-        .domain(data.map((datum) => datum.key))
-        .range([LEFT_MARGIN, LEFT_MARGIN + plotWidth])
-        .padding(data.length > 1 ? 0 : 0.5),
-    [data, plotWidth],
-  );
-  const timeScale = useMemo(() => {
-    const timestamps = data.map((datum) =>
-      datum.x instanceof Date ? datum.x.getTime() : Number.NaN,
-    );
-    let min = Math.min(...timestamps);
-    let max = Math.max(...timestamps);
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      min = 0;
-      max = 1;
-    }
-    return scaleUtc()
-      .domain([new Date(min), new Date(max)])
-      .range([LEFT_MARGIN, LEFT_MARGIN + plotWidth]);
-  }, [data, plotWidth]);
-  const getX = (datum: NormalizedDatum) =>
-    datum.x instanceof Date
-      ? timeScale(datum.x)
-      : (categoryScale(datum.key) ?? LEFT_MARGIN);
-  const getXFromKey = (key: string) =>
-    xAxis.type === "time"
-      ? timeScale(new Date(Number(key)))
-      : (categoryScale(key) ?? LEFT_MARGIN);
 
   const yScale = useMemo(() => {
     const values = data.flatMap((datum) =>
@@ -451,16 +434,61 @@ function LineChartContent(
       min -= padding;
       max += padding;
     }
+    if (min < 0) max = Math.max(0, max);
     return scaleLinear()
       .domain([min, max])
       .nice(maxYTicks)
       .range([
-        TOP_MARGIN + plotHeight - yRangePadding,
-        TOP_MARGIN + yRangePadding,
+        measuredPlot.top + plotHeight - yRangePadding,
+        measuredPlot.top + yRangePadding,
       ]);
-  }, [data, maxYTicks, plotHeight, series, thresholds, yRangePadding]);
+  }, [
+    data,
+    maxYTicks,
+    measuredPlot.top,
+    plotHeight,
+    series,
+    thresholds,
+    yRangePadding,
+  ]);
 
   const yTicks = yScale.ticks(maxYTicks);
+  const plot = plotForTicks(yTicks.map(valueFormatter));
+  const LEFT_MARGIN = plot.left;
+  const TOP_MARGIN = plot.top;
+  const plotWidth = plot.width;
+
+  const categoryScale = useMemo(
+    () =>
+      scalePoint<string>()
+        .domain(data.map((datum) => datum.key))
+        .range([LEFT_MARGIN, LEFT_MARGIN + plotWidth])
+        .padding(data.length > 1 ? 0 : 0.5),
+    [LEFT_MARGIN, data, plotWidth],
+  );
+  const timeScale = useMemo(() => {
+    const timestamps = data.map((datum) =>
+      datum.x instanceof Date ? datum.x.getTime() : Number.NaN,
+    );
+    let min = Math.min(...timestamps);
+    let max = Math.max(...timestamps);
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      min = 0;
+      max = 1;
+    }
+    return scaleUtc()
+      .domain([new Date(min), new Date(max)])
+      .range([LEFT_MARGIN, LEFT_MARGIN + plotWidth]);
+  }, [LEFT_MARGIN, data, plotWidth]);
+  const getX = (datum: NormalizedDatum) =>
+    datum.x instanceof Date
+      ? timeScale(datum.x)
+      : (categoryScale(datum.key) ?? LEFT_MARGIN);
+  const getXFromKey = (key: string) =>
+    xAxis.type === "time"
+      ? timeScale(new Date(Number(key)))
+      : (categoryScale(key) ?? LEFT_MARGIN);
+
   const maxXTicks = Math.max(2, Math.floor(plotWidth / APPROX_TIME_TICK_WIDTH));
   const firstX = data[0]?.x;
   const lastX = data[data.length - 1]?.x;
@@ -489,24 +517,12 @@ function LineChartContent(
             x: timeScale(value),
             label: xAxis.tickFormatter?.(value) ?? value.toLocaleDateString(),
           }))
-      : data.map((datum) => {
-          const label =
-            xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x);
-          const availableWidth =
-            plotWidth / Math.max(1, data.length) - CATEGORY_TICK_GAP;
-          const maxCharacters = Math.max(
-            1,
-            Math.floor(availableWidth / APPROX_CHARACTER_WIDTH),
-          );
-          return {
-            key: datum.key,
-            x: getX(datum),
-            label:
-              label.length > maxCharacters
-                ? `${label.slice(0, Math.max(0, maxCharacters - 1))}…`
-                : label,
-          };
-        });
+      : data.map((datum) => ({
+          key: datum.key,
+          x: getX(datum),
+          label: xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x),
+          maxWidth: plotWidth / Math.max(1, data.length) - CATEGORY_TICK_GAP,
+        }));
   const activeKey =
     hoveredIndex === undefined ? sync?.activeKey : data[hoveredIndex]?.key;
   const activeDatum = data.find((datum) => datum.key === activeKey);
@@ -529,7 +545,7 @@ function LineChartContent(
   const visibleXTicks = activeXAxisTick
     ? [
         ...xTicks.filter((tick) => tick.key !== activeXAxisTick.key),
-        activeXAxisTick,
+        { ...activeXAxisTick, maxWidth: undefined },
       ].sort((left, right) => left.x - right.x)
     : xTicks;
   const formatXTooltip = (datum: NormalizedDatum) => {
@@ -577,6 +593,9 @@ function LineChartContent(
     setHoveredSeriesId(nearestSeriesId);
     if (!hasConfiguredEmphasis) onActiveSeriesChange(nearestSeriesId);
   };
+  const hasDistinctColors = series.some(
+    (item) => item.color !== series[0]?.color,
+  );
   const hasConfiguredEmphasis = series.some(
     (item) => item.emphasis && item.emphasis !== "default",
   );
@@ -597,74 +616,41 @@ function LineChartContent(
   return (
     <ChartTooltip>
       {({ activeIndex, getReferenceProps }) => (
-        <svg
+        <CartesianChart
           width={width}
           height={height}
-          role="group"
-          aria-label={ariaLabel}
-          className="block overflow-visible"
+          ariaLabel={ariaLabel}
+          plot={plot}
+          yTicks={yTicks}
+          y={yScale}
+          valueFormatter={valueFormatter}
+          categoryBoundaries={xAxis.type === "category"}
+          zeroY={
+            yScale.domain()[1] >= 0 &&
+            data.some((datum) =>
+              series.some((item) => (datum.values[item.id] ?? 0) < 0),
+            )
+              ? yScale(0)
+              : undefined
+          }
+          xAxis={
+            showXAxisLabels
+              ? {
+                  ticks: visibleXTicks,
+                  activeKey,
+                  showCategoryTicks: xAxis.type === "category",
+                }
+              : undefined
+          }
         >
-          <defs>
-            <linearGradient id={activeLabelGradientId} x1="0" x2="1">
-              <stop
-                offset="0"
-                stopColor="hsl(var(--background))"
-                stopOpacity="0"
-              />
-              <stop offset="0.2" stopColor="hsl(var(--background))" />
-              <stop offset="0.8" stopColor="hsl(var(--background))" />
-              <stop
-                offset="1"
-                stopColor="hsl(var(--background))"
-                stopOpacity="0"
-              />
-            </linearGradient>
-          </defs>
-          {/* Point endpoint labels into the plot so their centered text boxes
-              do not overflow its top or bottom edge. */}
-          {yTicks.map((tick: number, index) => (
-            <g key={tick}>
-              <line
-                x1={LEFT_MARGIN}
-                x2={LEFT_MARGIN + plotWidth}
-                y1={yScale(tick)}
-                y2={yScale(tick)}
-                stroke="hsl(var(--chart-grid))"
-              />
-              <text
-                x={LEFT_MARGIN - 8}
-                y={yScale(tick)}
-                textAnchor="end"
-                dominantBaseline={(() => {
-                  if (yTicks.length === 1) return "middle";
-                  if (index === 0) return "text-after-edge";
-                  if (index === yTicks.length - 1) return "text-before-edge";
-                  return "middle";
-                })()}
-                fill="hsl(var(--muted-foreground))"
-                fontSize={12}
-              >
-                {valueFormatter(tick)}
-              </text>
-            </g>
-          ))}
-
-          {xAxis.type === "category"
-            ? [LEFT_MARGIN, LEFT_MARGIN + plotWidth].map((x) => (
-                <line
-                  key={`boundary-${x}`}
-                  x1={x}
-                  x2={x}
-                  y1={TOP_MARGIN}
-                  y2={TOP_MARGIN + plotHeight}
-                  stroke="hsl(var(--chart-grid))"
-                />
-              ))
-            : null}
-
           {thresholds.map((threshold, index) => {
             const y = yScale(threshold.value);
-            const regions = getThresholdRegions(threshold, y, plotHeight);
+            const regions = getThresholdRegions(
+              threshold,
+              y,
+              TOP_MARGIN,
+              plotHeight,
+            );
             return (
               <g key={`${threshold.value}-${index}`}>
                 {regions.map(([regionY, regionHeight], regionIndex) => (
@@ -782,83 +768,6 @@ function LineChartContent(
             />
           ) : null}
 
-          {xAxis.type === "category" && xAxis.labels !== "hidden"
-            ? data.map((datum) => (
-                <line
-                  key={`category-tick-${datum.key}`}
-                  data-category-tick=""
-                  x1={getX(datum)}
-                  x2={getX(datum)}
-                  y1={TOP_MARGIN + plotHeight}
-                  y2={TOP_MARGIN + plotHeight + 4}
-                  stroke="hsl(var(--muted-foreground))"
-                  aria-hidden="true"
-                />
-              ))
-            : null}
-
-          {!(xAxis.type === "category" && xAxis.labels === "hidden")
-            ? visibleXTicks
-                .map((tick, index) => ({ tick, index }))
-                .sort(
-                  (left, right) =>
-                    Number(left.tick.key === activeKey) -
-                    Number(right.tick.key === activeKey),
-                )
-                .map(({ tick, index }) => {
-                  const active = tick.key === activeKey;
-                  // Point endpoint labels into the plot so their text boxes do
-                  // not overflow the chart's left or right edge.
-                  let textAnchor: "start" | "middle" | "end" = "middle";
-                  if (visibleXTicks.length > 1 && index === 0) {
-                    textAnchor = "start";
-                  } else if (
-                    visibleXTicks.length > 1 &&
-                    index === visibleXTicks.length - 1
-                  ) {
-                    textAnchor = "end";
-                  }
-                  const activeLabelWidth =
-                    tick.label.length * APPROX_CHARACTER_WIDTH + 40;
-                  let activeLabelX = tick.x - activeLabelWidth / 2;
-                  if (textAnchor === "start") activeLabelX = tick.x - 20;
-                  if (textAnchor === "end") {
-                    activeLabelX = tick.x - activeLabelWidth + 20;
-                  }
-                  return (
-                    <g key={tick.key}>
-                      {active ? (
-                        <rect
-                          data-active-x-axis-label-background=""
-                          x={activeLabelX}
-                          y={TOP_MARGIN + plotHeight + 4}
-                          width={activeLabelWidth}
-                          height={17}
-                          rx={2}
-                          fill={`url(#${activeLabelGradientId})`}
-                        />
-                      ) : null}
-                      <text
-                        data-x-axis-label=""
-                        data-active-x-axis-label={active ? "" : undefined}
-                        x={tick.x}
-                        y={TOP_MARGIN + plotHeight + 16}
-                        textAnchor={textAnchor}
-                        fill={
-                          active
-                            ? "hsl(var(--foreground))"
-                            : "hsl(var(--muted-foreground))"
-                        }
-                        fontSize={12}
-                        fontWeight={active ? 700 : undefined}
-                      >
-                        {tick.label}
-                      </text>
-                    </g>
-                  );
-                })
-            : null}
-
           {data.map((datum, index) => {
             const currentX = getX(datum);
             const left =
@@ -882,7 +791,7 @@ function LineChartContent(
               id: item.id,
               label: item.label,
               value: valueFormatter(value),
-              color: item.color,
+              color: hasDistinctColors ? item.color : undefined,
             }));
             const referenceProps = getReferenceProps({
               type: "items",
@@ -967,7 +876,7 @@ function LineChartContent(
               </g>
             );
           })}
-        </svg>
+        </CartesianChart>
       )}
     </ChartTooltip>
   );

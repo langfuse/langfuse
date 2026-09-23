@@ -361,6 +361,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
       const client = createTypeSafeDecisionModelClient({
         apiKey: decryptedSecretKey,
         model: params.modelConfig.model,
+        baseURL: typeof apiKey.baseURL === "string" ? apiKey.baseURL : null,
       });
 
       return client.evaluate(params.request);

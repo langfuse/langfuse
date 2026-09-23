@@ -8,6 +8,8 @@
 // preview. available-flags is also on the server door for server callers
 // (rule 10). Pages stay off this door.
 export { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+export { useInternalFeaturesEnabled } from "./hooks/useInternalFeaturesEnabled";
+export { InternalFeatureBadge } from "./components/InternalFeatureBadge";
 export {
   featurePreviewLabels,
   type FeaturePreviewFlag,

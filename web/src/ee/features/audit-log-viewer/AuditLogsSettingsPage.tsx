@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { AuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable";
+import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasProjectAccess } from "@/src/features/rbac";
 
@@ -25,7 +25,7 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
       </Alert.Description>
     </Alert>
   ) : (
-    <AuditLogsTable scope="project" projectId={props.projectId} />
+    <ConnectedAuditLogsTable scope="project" projectId={props.projectId} />
   );
 
   return (
