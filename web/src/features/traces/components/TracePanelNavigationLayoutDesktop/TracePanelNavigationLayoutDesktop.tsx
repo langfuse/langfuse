@@ -15,6 +15,7 @@ import { useDesktopLayoutContext } from "../TraceLayoutDesktop";
 import { TracePanelNavigationHeader } from "../TracePanelNavigationHeader/TracePanelNavigationHeader";
 import { TracePanelNavigationHiddenNotice } from "./components/TracePanelNavigationHiddenNotice";
 import { TraceTruncationNotice } from "@/src/features/traces/components/TraceTruncationNotice";
+import { cn } from "@/src/utils/tailwind";
 
 export function TracePanelNavigationLayoutDesktop({
   children,
@@ -31,13 +32,17 @@ export function TracePanelNavigationLayoutDesktop({
         onTogglePanel={handleTogglePanel}
         shouldPulseToggle={shouldPulseToggle}
       />
-      {!isNavigationPanelCollapsed && (
-        <>
-          <TraceTruncationNotice />
-          <TracePanelNavigationHiddenNotice />
-          <div className="flex-1 overflow-hidden">{children}</div>
-        </>
-      )}
+      <div
+        className={cn(
+          "min-h-0 flex-1 flex-col",
+          isNavigationPanelCollapsed ? "hidden" : "flex",
+        )}
+        inert={isNavigationPanelCollapsed}
+      >
+        <TraceTruncationNotice />
+        <TracePanelNavigationHiddenNotice />
+        <div className="flex-1 overflow-hidden">{children}</div>
+      </div>
     </div>
   );
 }

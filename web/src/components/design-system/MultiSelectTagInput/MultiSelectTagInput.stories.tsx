@@ -102,6 +102,71 @@ export const ManySelected = meta.story({
   ),
 });
 
+export const MultipleSelected = meta.story({
+  args: {
+    value: ["option-1", "option-3"],
+    options,
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+    selectAllLabel: "Select All",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
+export const SecondaryLabels = meta.story({
+  args: {
+    value: ["legacy-rating", "quality"],
+    options: [
+      {
+        value: "legacy-rating",
+        label: "Legacy rating",
+        secondaryLabel: "Archived",
+        showSecondaryLabelInTag: true,
+        disabled: true,
+      },
+      { value: "quality", label: "Quality", secondaryLabel: "(current)" },
+      { value: "accuracy", label: "Accuracy" },
+    ],
+    onValueChange: fn(),
+    placeholder: "Choose scores",
+    searchPlaceholder: "Search scores...",
+    emptyMessage: "No scores found.",
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <div className="w-[640px] max-w-full">
+        <MultiSelectTagInput
+          {...args}
+          value={value}
+          onValueChange={(newValue) => {
+            setValue(newValue);
+            args.onValueChange(newValue);
+          }}
+        />
+      </div>
+    );
+  },
+});
+
 export const TestRemovesTag = meta.story({
   name: "(Test) Removes Tag",
   args: {
@@ -201,5 +266,30 @@ export const TestOverflowBadgePlacement = meta.story({
         Math.abs(clearRightGap - expectedClearRightGap),
       ).toBeLessThanOrEqual(0.5);
     });
+  },
+});
+
+export const TestKeepsDisabledTagsWhenClearing = meta.story({
+  name: "(Test) Keeps Disabled Tags When Clearing",
+  args: {
+    value: ["option-1", "option-2", "option-3"],
+    options: options.map((option) => ({
+      ...option,
+      disabled: option.value === "option-1",
+    })),
+    onValueChange: fn(),
+    placeholder: "Select options",
+    searchPlaceholder: "Search options...",
+    emptyMessage: "No options found.",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: "Remove Option 1" }),
+    ).toBeDisabled();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Clear selection" }),
+    );
+    await expect(args.onValueChange).toHaveBeenCalledWith(["option-1"]);
   },
 });

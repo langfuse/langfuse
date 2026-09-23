@@ -2,8 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 import { GATEWAY_MODELS_FIELD_REGISTRY } from "@/src/features/ai-gateway/constants/modelsSearchRegistry";
-import { planCommit } from "@/src/features/search-bar/lib/commit";
-import { runSearchBarInvariants } from "@/src/features/search-bar/lib/searchBarInvariants";
+import { planCommit, runSearchBarInvariants } from "@/src/features/search-bar";
+
 import {
   filterGatewayModels,
   type GatewayModelRow,

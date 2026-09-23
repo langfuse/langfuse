@@ -109,17 +109,27 @@ const SidePanel = ({
         {!isControlled && (
           <div className="border-l px-1 pt-2">
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Show details"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
             </SheetTrigger>
           </div>
         )}
-        <SheetContent>
-          <SheetHeader>
+        <SheetContent className="flex flex-col overflow-hidden">
+          <SheetHeader className="shrink-0">
             <SheetTitle>{mobileTitle}</SheetTitle>
           </SheetHeader>
-          <div className="mt-2 flex h-full w-full flex-col gap-2">
+          <div
+            className={cn(
+              "flex min-h-0 w-full flex-1 flex-col gap-2",
+              scrollable ? "overflow-y-auto" : "overflow-hidden",
+            )}
+          >
             {children}
           </div>
         </SheetContent>

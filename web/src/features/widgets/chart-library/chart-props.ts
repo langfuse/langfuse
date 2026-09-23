@@ -129,6 +129,10 @@ export interface ChartProps {
    * vertical time marker on all of them. (LFE-10549)
    */
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
   subtleFill?: boolean;

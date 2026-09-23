@@ -19,7 +19,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 

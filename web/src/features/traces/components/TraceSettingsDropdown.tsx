@@ -143,7 +143,7 @@ export function TraceViewOptionsMenuItems() {
           className="px-2 py-1"
         >
           <div className="flex w-full items-center justify-between">
-            <span className="mr-2">Show Cost/Tokens</span>
+            <span className="mr-2">Show Cost</span>
             <Switch
               size="sm"
               checked={showCostTokens}

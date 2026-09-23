@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
-import { ExperimentFormatSetting } from "@/src/features/experiments/components/ExperimentFormatSetting";
+import { ExperimentFormatSetting } from "@/src/features/experiments";
 import {
   DataTableToolbar,
   type MultiSelect,

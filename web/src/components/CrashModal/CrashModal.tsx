@@ -49,10 +49,17 @@ export const CrashModal = ({
           </div>
         ) : null}
 
-        {showReturnHome ? (
-          <Button asChild className="mt-6">
-            <Link href="/">Return home</Link>
-          </Button>
+        {!statusCode || showReturnHome ? (
+          <div className="mt-6 flex flex-wrap gap-3">
+            {!statusCode ? (
+              <Button onClick={() => window.location.reload()}>Reload</Button>
+            ) : null}
+            {showReturnHome ? (
+              <Button asChild variant={!statusCode ? "secondary" : "default"}>
+                <Link href="/">Return home</Link>
+              </Button>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </div>

@@ -14,7 +14,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/src/components/ui/select";
-import type { CloudRegion } from "@/src/features/organizations/cloudRegions";
+import type { CloudRegion } from "@/src/features/organizations";
 
 export function CloudRegionPicker({
   regions,

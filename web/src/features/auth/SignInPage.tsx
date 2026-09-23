@@ -42,11 +42,11 @@ import {
   isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/spinner";
 
@@ -137,11 +137,13 @@ type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 export function SSOButtons({
   authProviders,
   action = "sign in",
+  callbackUrl,
   lastUsedMethod,
   onProviderSelect,
 }: {
   authProviders: PageProps["authProviders"];
   action?: string;
+  callbackUrl?: string;
   lastUsedMethod?: NextAuthProvider | null;
   onProviderSelect?: (provider: NextAuthProvider) => void;
 }) {
@@ -154,6 +156,7 @@ export function SSOButtons({
     ([name, enabled]) => enabled && name !== "sso", // sso is just a flag, not an actual provider
   );
   const hasMultipleAuthMethods = availableProviders.length > 1;
+  const signInOptions = callbackUrl ? { callbackUrl } : undefined;
 
   const handleSignIn = (provider: NextAuthProvider) => {
     setProviderSigningIn(provider);
@@ -162,7 +165,7 @@ export function SSOButtons({
     // Notify parent component about provider selection
     onProviderSelect?.(provider);
 
-    signIn(provider)
+    (signInOptions ? signIn(provider, signInOptions) : signIn(provider))
       .then(() => {
         // do not reset loadingProvider here, as the page will reload
       })
@@ -337,7 +340,7 @@ export function SSOButtons({
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "keycloak" });
                   onProviderSelect?.("keycloak");
-                  signIn("keycloak");
+                  signIn("keycloak", signInOptions);
                 }}
                 loading={providerSigningIn === "keycloak"}
                 showLastUsedBadge={
@@ -353,7 +356,7 @@ export function SSOButtons({
                   onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    signIn("workos", undefined, {
+                    signIn("workos", signInOptions, {
                       connection: (
                         authProviders.workos as { connectionId: string }
                       ).connectionId,
@@ -373,7 +376,7 @@ export function SSOButtons({
                   onClick={() => {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    signIn("workos", undefined, {
+                    signIn("workos", signInOptions, {
                       organization: (
                         authProviders.workos as { organizationId: string }
                       ).organizationId,
@@ -397,7 +400,7 @@ export function SSOButtons({
                     if (organization) {
                       capture("sign_in:button_click", { provider: "workos" });
                       onProviderSelect?.("workos");
-                      signIn("workos", undefined, {
+                      signIn("workos", signInOptions, {
                         organization,
                       });
                     }
@@ -417,7 +420,7 @@ export function SSOButtons({
                     if (connection) {
                       capture("sign_in:button_click", { provider: "workos" });
                       onProviderSelect?.("workos");
-                      signIn("workos", undefined, {
+                      signIn("workos", signInOptions, {
                         connection,
                       });
                     }
@@ -737,7 +740,10 @@ export default function SignInPage({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        signIn(providerId);
+        signIn(
+          providerId,
+          targetPath ? { callbackUrl: targetPath } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -910,6 +916,7 @@ export default function SignInPage({
             ) : null}
             <SSOButtons
               authProviders={authProviders}
+              callbackUrl={targetPath}
               lastUsedMethod={lastUsedAuthMethod}
               onProviderSelect={setLastUsedAuthMethod}
             />

@@ -220,9 +220,8 @@ MCP server catalog.
 
 - Canonical shared docs:
   - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
+- Root discovery symlink: `AGENTS.md` -> `.agents/AGENTS.md`
+- Folder instructions: `AGENTS.md` in the directory they describe
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
@@ -240,6 +239,10 @@ MCP server catalog.
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
 - Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
+
+Use a harness that reads `AGENTS.md` directly. For Claude Code, upgrade to
+2.1.277 or later and see the compatibility notes in `.agents/README.md`.
+Folder instructions need no `CLAUDE.md` copy or symlink.
 
 When you change the shared MCP setup:
 
@@ -269,12 +272,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 

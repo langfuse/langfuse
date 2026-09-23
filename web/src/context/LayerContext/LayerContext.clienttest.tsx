@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { LayerProvider, useLayerContainer } from "./LayerContext";
@@ -9,7 +9,18 @@ function LayerContainerProbe() {
 }
 
 describe("LayerProvider", () => {
-  it("provides ordered body-level containers to portals", async () => {
+  it("resolves layer containers on the first client render", () => {
+    render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+
+    expect(screen.getByText("modal")).toBeInTheDocument();
+    expect(screen.queryByText("missing")).toBeNull();
+  });
+
+  it("provides ordered body-level containers to portals", () => {
     render(
       <LayerProvider>
         <LayerContainerProbe />
@@ -19,7 +30,7 @@ describe("LayerProvider", () => {
       </LayerProvider>,
     );
 
-    await waitFor(() => expect(screen.getByText("modal")).toBeInTheDocument());
+    expect(screen.getByText("modal")).toBeInTheDocument();
     expect(screen.getByText("Portaled content").parentElement).toHaveAttribute(
       "data-layer",
       "toast",

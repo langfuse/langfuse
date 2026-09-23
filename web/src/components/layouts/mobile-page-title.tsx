@@ -18,6 +18,7 @@ import {
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { MoreHorizontal } from "lucide-react";
+import { useRef, useState } from "react";
 
 /**
  * The page-specific block for the minimal-chrome mobile shell. Rendered between
@@ -50,6 +51,17 @@ export const MobilePageTitle = ({
     breadcrumbBadges,
     tabsProps,
   } = headerProps;
+
+  const [isMenuOpen, setMenuOpen] = useState(false);
+  const restoreFocus = useRef(true);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = (options?: { handoffFocus?: boolean }) => {
+    restoreFocus.current = !options?.handoffFocus;
+    setMenuOpen(false);
+    if (options?.handoffFocus) {
+      menuTriggerRef.current?.focus({ preventScroll: true });
+    }
+  };
 
   return (
     <div className="bg-background border-b px-3 pt-2 pb-3">
@@ -123,25 +135,41 @@ export const MobilePageTitle = ({
             nodes as-is. Either way the actions' own dialogs/drawers portal
             through the layer system, so they keep working from the popover. */}
         {(actionButtonsMenu || actionButtonsRight || actionButtonsLeft) && (
-          <Popover>
+          <Popover
+            open={isMenuOpen}
+            onOpenChange={(open) => {
+              if (open) restoreFocus.current = true;
+              setMenuOpen(open);
+            }}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="outline"
                 size="icon"
+                ref={menuTriggerRef}
                 aria-label="More actions"
                 className="ml-auto shrink-0"
               >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-auto min-w-44 p-1">
+            <PopoverContent
+              align="end"
+              className="w-auto min-w-44 p-1"
+              onCloseAutoFocus={(event) => {
+                if (!restoreFocus.current) event.preventDefault();
+                restoreFocus.current = true;
+              }}
+            >
               <div className="flex flex-col items-stretch gap-0.5">
-                {actionButtonsMenu ?? (
-                  <>
-                    {actionButtonsRight}
-                    {actionButtonsLeft}
-                  </>
-                )}
+                {typeof actionButtonsMenu === "function"
+                  ? actionButtonsMenu({ closeMenu })
+                  : (actionButtonsMenu ?? (
+                      <>
+                        {actionButtonsRight}
+                        {actionButtonsLeft}
+                      </>
+                    ))}
               </div>
             </PopoverContent>
           </Popover>

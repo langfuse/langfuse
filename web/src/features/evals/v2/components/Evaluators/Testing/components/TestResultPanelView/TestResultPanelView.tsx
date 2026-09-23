@@ -3,6 +3,10 @@ import { Clock, Coins } from "lucide-react";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import {
+  DecisionModelResultView,
+  type DecisionModelQuestionResult,
+} from "@/src/features/evals/v2/components/Evaluators/DecisionModel/DecisionModelResultView/DecisionModelResultView";
 import { usdFormatter } from "@/src/utils/numbers";
 
 export type TestResultPanelState =
@@ -22,7 +26,13 @@ export type TestResultPanelState =
         value: string;
         comment: string | null;
       }>;
-    };
+    }
+  | { status: "decision-success"; results: DecisionModelQuestionResult[] };
+
+export type TestResultPanelTitle =
+  | "LLM Output"
+  | "Code Output"
+  | "Decision Model Output";
 
 /** One measurement of the test call in the header strip. */
 function ResultStat({
@@ -53,7 +63,7 @@ function TestResultHeader({
   onRawOpenChange,
   traceActions,
 }: {
-  title: "LLM Output" | "Code Output";
+  title: TestResultPanelTitle;
   durationMs: number | null;
   estimatedCostUsd: number | null;
   rawOpen: boolean;
@@ -207,6 +217,9 @@ const RESULT_VIEWS: {
     <LlmResultView score={score} reasoning={reasoning} />
   ),
   "code-success": ({ scores }) => <CodeResultView scores={scores} />,
+  "decision-success": ({ results }) => (
+    <DecisionModelResultView results={results} />
+  ),
 };
 
 function renderResult<Status extends TestResultPanelState["status"]>(
@@ -231,7 +244,7 @@ export function TestResultPanelView({
   traceActions,
   rerunAction,
 }: {
-  title: "LLM Output" | "Code Output";
+  title: TestResultPanelTitle;
   result: TestResultPanelState;
   durationMs: number | null;
   estimatedCostUsd: number | null;
