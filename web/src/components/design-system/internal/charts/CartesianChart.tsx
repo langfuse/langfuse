@@ -53,12 +53,14 @@ function ChartXAxis({
   ticks,
   activeKey,
   y,
+  width,
   showCategoryTicks = false,
   alignment = "endpoints",
 }: {
   ticks: { key: string; x: number; label: string; maxWidth?: number }[];
   activeKey?: string;
   y: number;
+  width: number;
   showCategoryTicks?: boolean;
   alignment?: "endpoints" | "center";
 }) {
@@ -119,11 +121,25 @@ function ChartXAxis({
               !active && maxCharacters && tick.label.length > maxCharacters
                 ? `${tick.label.slice(0, Math.max(0, maxCharacters - 1))}…`
                 : tick.label;
-            const activeLabelWidth = tick.label.length * characterWidth + 96;
-            let activeLabelX = tick.x - activeLabelWidth / 2;
-            if (textAnchor === "start") activeLabelX = tick.x - 48;
-            if (textAnchor === "end")
-              activeLabelX = tick.x - activeLabelWidth + 48;
+            const activeLabelWidth = Math.min(
+              width - 16,
+              tick.label.length * characterWidth + 96,
+            );
+            const activeLabelX = Math.max(
+              8,
+              Math.min(
+                width - 8 - activeLabelWidth,
+                tick.x - activeLabelWidth / 2,
+              ),
+            );
+            const activeTextWidth = Math.min(
+              width - 32,
+              tick.label.length * characterWidth,
+            );
+            const activeTextX = Math.max(
+              16 + activeTextWidth / 2,
+              Math.min(width - 16 - activeTextWidth / 2, tick.x),
+            );
 
             return (
               <g key={tick.key}>
@@ -141,9 +157,16 @@ function ChartXAxis({
                 <text
                   data-x-axis-label=""
                   data-active-x-axis-label={active ? "" : undefined}
-                  x={tick.x}
+                  x={active ? activeTextX : tick.x}
                   y={y + 16}
-                  textAnchor={textAnchor}
+                  textAnchor={active ? "middle" : textAnchor}
+                  textLength={
+                    active &&
+                    tick.label.length * characterWidth > activeTextWidth
+                      ? activeTextWidth
+                      : undefined
+                  }
+                  lengthAdjust="spacingAndGlyphs"
                   fill={
                     active
                       ? "hsl(var(--foreground))"
@@ -272,6 +295,7 @@ export function CartesianChart({
           ticks={xAxis.ticks}
           activeKey={xAxis.activeKey}
           y={plot.top + plot.height}
+          width={width}
           showCategoryTicks={xAxis.showCategoryTicks}
           alignment={xAxis.alignment}
         />

@@ -159,9 +159,10 @@ export const BoundaryPoints = meta.story({
     await expect(points).toHaveLength(2);
     for (const point of points) {
       const y = Number(point.getAttribute("cy"));
-      await expect(y).toBeGreaterThanOrEqual(15);
-      await expect(y).toBeLessThanOrEqual(
-        (point.ownerSVGElement?.height.baseVal.value ?? 0) - 37,
+      const radius = Number(point.getAttribute("r"));
+      await expect(y).toBeGreaterThanOrEqual(radius);
+      await expect(y + radius).toBeLessThanOrEqual(
+        point.ownerSVGElement?.height.baseVal.value ?? 0,
       );
     }
   },

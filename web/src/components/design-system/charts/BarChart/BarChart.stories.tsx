@@ -12,7 +12,7 @@ const data = [
 const meta = preview.meta({
   component: BarChart,
   parameters: { layout: "fullscreen" },
-  args: { data, zeroBaseline: true },
+  args: { data },
   decorators: [
     (Story) => (
       <div className="h-dvh w-full">
@@ -23,6 +23,16 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const PositiveBaseline = meta.story({
+  name: "(Test) Positive Baseline",
+  play: async ({ canvasElement }) => {
+    const bars = within(canvasElement).getAllByRole("graphics-symbol");
+    const smallestBar = bars[0];
+    if (!smallestBar) throw new Error("Bar not found");
+    await expect(Number(smallestBar.getAttribute("height"))).toBeGreaterThan(1);
+  },
+});
 
 export const KeyboardFocus = meta.story({
   name: "(Test) Keyboard Focus",
@@ -113,11 +123,10 @@ export const CompactLegend = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByTitle("production-evaluation-run-Alpha-with-a-long-name"),
-    ).toBeVisible();
-    await expect(
-      canvas.queryAllByText("production-evaluation-run-Beta-with-a-long-name"),
-    ).toHaveLength(1);
+      canvas
+        .getAllByTitle("production-evaluation-run-Alpha-with-a-long-name")
+        .some((item) => !item.closest('[aria-hidden="true"]')),
+    ).toBe(true);
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]"),
     ).toHaveLength(0);
@@ -162,6 +171,41 @@ export const LongLabels = meta.story({
     await expect(
       canvasElement.querySelector("[data-active-x-axis-label-background]"),
     ).toBeInTheDocument();
+  },
+});
+
+export const EdgeLabels = meta.story({
+  name: "(Test) Edge Labels",
+  args: {
+    data: [
+      { label: "production-evaluation-run-Alpha-with-a-long-name", value: 12 },
+      { label: "production-evaluation-run-Beta-with-a-long-name", value: 24 },
+    ],
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[300px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    for (const bar of within(canvasElement).getAllByRole("graphics-symbol")) {
+      await userEvent.hover(bar);
+      const label = canvasElement.querySelector<SVGTextElement>(
+        "[data-active-x-axis-label]",
+      );
+      const background = canvasElement.querySelector<SVGRectElement>(
+        "[data-active-x-axis-label-background]",
+      );
+      if (!label || !background) throw new Error("Active label not found");
+      const chartWidth = label.ownerSVGElement?.width.baseVal.value ?? 0;
+      for (const element of [label, background]) {
+        const bounds = element.getBBox();
+        await expect(bounds.x).toBeGreaterThanOrEqual(0);
+        await expect(bounds.x + bounds.width).toBeLessThanOrEqual(chartWidth);
+      }
+    }
   },
 });
 

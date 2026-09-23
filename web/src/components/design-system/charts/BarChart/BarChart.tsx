@@ -34,7 +34,7 @@ export function BarChart({
   color = "hsl(var(--chart-1))",
   variant = "default",
   hideXAxisLabels = false,
-  zeroBaseline = false,
+  zeroBaseline = true,
   ariaLabel = "Bar chart",
   legend,
 }: BarChartProps) {
