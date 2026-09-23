@@ -20,6 +20,10 @@ export function SkillVersionHistory(
           createdAt: Date;
         }>;
         selectedVersion: number;
+        hasMore: boolean;
+        isLoadingMore: boolean;
+        loadMoreError: boolean;
+        onLoadMore: () => void;
         dirty: boolean;
         onSelect: (version: number) => Promise<void>;
       },
@@ -161,6 +165,25 @@ export function SkillVersionHistory(
                 )
               : null}
           </Timeline>
+          {props.kind === "versions" && props.hasMore ? (
+            <div className="flex flex-col gap-2 pt-2">
+              {props.loadMoreError ? (
+                <p role="alert" className="text-destructive text-xs">
+                  Could not load older versions. Please try again.
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={props.isLoadingMore}
+                loading={props.isLoadingMore}
+                onClick={props.onLoadMore}
+              >
+                Load older versions
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </aside>

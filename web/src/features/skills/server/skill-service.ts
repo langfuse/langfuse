@@ -159,6 +159,35 @@ export class SkillService {
     this.bucketName = storageConfig.bucketName;
   }
 
+  async skillVersions(params: {
+    projectId: string;
+    name: string;
+    limit: number;
+    cursor?: number | null;
+  }) {
+    const versions = await this.prisma.skill.findMany({
+      where: {
+        projectId: params.projectId,
+        name: params.name,
+        ...(params.cursor != null ? { version: { lt: params.cursor } } : {}),
+      },
+      orderBy: { version: "desc" },
+      take: params.limit + 1,
+      select: {
+        version: true,
+        labels: true,
+        commitMessage: true,
+        createdAt: true,
+      },
+    });
+    const hasMore = versions.length > params.limit;
+    const items = versions.slice(0, params.limit);
+    return {
+      items,
+      nextCursor: hasMore ? items.at(-1)?.version : undefined,
+    };
+  }
+
   async prepareUploads(params: {
     projectId: string;
     createdBy: string;
@@ -251,7 +280,7 @@ export class SkillService {
     target?: { kind: "new" } | { kind: "version"; name: string };
   }) {
     const input = CreateSkillVersionBodySchema.parse(params.input);
-    const verifiedBlobs = await this.getAndVerifyBlobs({
+    const verifiedBlobs = await this.verifyBlobs({
       projectId: params.projectId,
       blobIds: input.files.map(({ blobId }) => blobId),
     });
@@ -865,7 +894,7 @@ export class SkillService {
     return skill;
   }
 
-  private async getAndVerifyBlobs(params: {
+  private async verifyBlobs(params: {
     projectId: string;
     blobIds: string[];
   }): Promise<SkillBlob[]> {

@@ -99,24 +99,21 @@ export const skillRouter = createTRPCRouter({
       return new SkillService(prisma).getFileDownload(input);
     }),
 
-  allVersions: protectedProjectProcedure
-    .input(projectInput.extend({ name: SkillNameSchema }))
+  skillVersions: protectedProjectProcedure
+    .input(
+      projectInput.extend({
+        name: SkillNameSchema,
+        limit: z.number().int().min(1).max(100).default(20),
+        cursor: z.number().int().positive().nullish(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
         scope: "skills:read",
       });
-      return ctx.prisma.skill.findMany({
-        where: { projectId: input.projectId, name: input.name },
-        orderBy: { version: "desc" },
-        select: {
-          version: true,
-          labels: true,
-          commitMessage: true,
-          createdAt: true,
-        },
-      });
+      return new SkillService(prisma).skillVersions(input);
     }),
 
   prepareUploads: protectedProjectProcedure

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   deleteSkill: vi.fn(),
   list: vi.fn(),
   filterOptions: vi.fn(),
+  skillVersions: vi.fn(),
 }));
 
 vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
@@ -29,6 +30,7 @@ vi.mock("@/src/features/skills/server/index", () => ({
     deleteSkill = mocks.deleteSkill;
     list = mocks.list;
     filterOptions = mocks.filterOptions;
+    skillVersions = mocks.skillVersions;
   },
 }));
 
@@ -125,6 +127,31 @@ describe("skill mutation router", () => {
     mocks.setLabels.mockResolvedValue({ version: 1 });
     mocks.setTags.mockResolvedValue({ version: 1 });
     mocks.deleteVersion.mockResolvedValue(undefined);
+  });
+
+  it("validates bounded version history and checks project access", async () => {
+    const caller = createCaller("VIEWER");
+    const input = { projectId: "project", name: "my-skill" };
+    await caller.skillVersions(input);
+    expect(mocks.skillVersions).toHaveBeenCalledExactlyOnceWith({
+      ...input,
+      limit: 20,
+    });
+
+    for (const pagination of [
+      { limit: 0 },
+      { limit: 101 },
+      { cursor: 0 },
+      { cursor: 1.5 },
+    ]) {
+      await expect(
+        caller.skillVersions({ ...input, ...pagination }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+    await expect(
+      createCaller("ADMIN", "other-project").skillVersions(input),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(mocks.skillVersions).toHaveBeenCalledOnce();
   });
 
   it.each(mutations)(

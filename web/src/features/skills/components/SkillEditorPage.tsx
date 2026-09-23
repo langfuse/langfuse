@@ -113,9 +113,10 @@ export function ExistingSkillPage() {
     },
   );
 
-  const history = api.skills.allVersions.useQuery(
-    { projectId: projectId ?? "", name: skillName },
+  const history = api.skills.skillVersions.useInfiniteQuery(
+    { projectId: projectId ?? "", name: skillName, limit: 20 },
     {
+      getNextPageParam: (page) => page.nextCursor,
       enabled: Boolean(projectId && skillName),
       refetchOnWindowFocus: false,
     },
@@ -150,7 +151,11 @@ export function ExistingSkillPage() {
         metadataOptions={getMetadataOptions(catalog.data?.data ?? [])}
         history={{
           kind: "versions",
-          versions: history.data,
+          versions: history.data.pages.flatMap((page) => page.items),
+          hasMore: history.hasNextPage,
+          isLoadingMore: history.isFetchingNextPage,
+          loadMoreError: history.isFetchNextPageError,
+          onLoadMore: () => history.fetchNextPage(),
           selectedVersion: skill.data.version,
           onSelect: async (selectedVersion) => {
             await router.push({
@@ -163,7 +168,7 @@ export function ExistingSkillPage() {
           await Promise.all([
             utils.skills.all.invalidate(),
             utils.skills.byName.invalidate(),
-            utils.skills.allVersions.invalidate(),
+            utils.skills.skillVersions.invalidate(),
           ]);
           await router.push({
             pathname: router.pathname,

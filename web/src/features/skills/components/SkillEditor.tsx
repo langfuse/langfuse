@@ -73,6 +73,10 @@ export function SkillEditor({
           createdAt: Date;
         }>;
         selectedVersion: number;
+        hasMore: boolean;
+        isLoadingMore: boolean;
+        loadMoreError: boolean;
+        onLoadMore: () => void;
         onSelect: (version: number) => Promise<void>;
       };
   metadataOptions: { labels: string[]; tags: string[] };
@@ -192,7 +196,7 @@ export function SkillEditor({
           Promise.all([
             utils.skills.all.invalidate(),
             utils.skills.byName.invalidate(),
-            utils.skills.allVersions.invalidate(),
+            utils.skills.skillVersions.invalidate(),
           ]),
       });
       showSuccessToast({
@@ -223,7 +227,7 @@ export function SkillEditor({
           Promise.all([
             utils.skills.all.invalidate(),
             utils.skills.byName.invalidate(),
-            utils.skills.allVersions.invalidate(),
+            utils.skills.skillVersions.invalidate(),
           ]),
       });
       showSuccessToast({
@@ -387,13 +391,7 @@ export function SkillEditor({
       </PageHeaderActionsPortal>
       <div className="flex min-h-[720px] flex-1 flex-col overflow-hidden border-t md:min-h-[560px] md:flex-row">
         {history.kind === "versions" ? (
-          <SkillVersionHistory
-            kind="versions"
-            versions={history.versions}
-            selectedVersion={history.selectedVersion}
-            dirty={dirty}
-            onSelect={history.onSelect}
-          />
+          <SkillVersionHistory {...history} dirty={dirty} />
         ) : (
           <SkillVersionHistory kind="new" />
         )}

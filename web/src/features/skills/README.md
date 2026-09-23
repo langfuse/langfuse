@@ -14,7 +14,7 @@
 - Query: `skills.filterOptions`
 - Query: `skills.byName`
 - Query: `skills.fileDownload`
-- Query: `skills.allVersions`
+- Query: `skills.skillVersions`
 - Mutation: `skills.prepareUploads`
 - Mutation: `skills.createVersion`
 - Mutation: `skills.setLabels`
