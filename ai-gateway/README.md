@@ -535,7 +535,8 @@ count. A mid-stream `error` event, or an HTTP error body, marks the generation f
 its `type` and `message` are retained only in full mode. Unknown event types are ignored.
 A `stop_reason` of `max_tokens` or `model_context_window_exceeded` sets a `WARNING`
 level. Only scalar model parameters (`max_tokens`, `temperature`, `top_p`, `top_k`,
-`stream`, `service_tier`) are recorded. Request and response content are not captured
+`stream`, `service_tier`, `speed`) are recorded; `speed` selects the fast-mode pricing
+tier. Request and response content are not captured
 in either mode yet, so full-mode output completeness is false and `input`/`output` are null.
 
 For OpenAI Responses SSE, only `response.output_item.done` adds output. Terminal Responses events

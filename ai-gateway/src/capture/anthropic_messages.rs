@@ -104,6 +104,7 @@ impl AnthropicMessagesCapture {
             "top_k",
             "stream",
             "service_tier",
+            "speed",
         ] {
             if let Some(value) = request.get(key).filter(|v| {
                 v.is_number()

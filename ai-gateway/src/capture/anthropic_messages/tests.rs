@@ -15,7 +15,7 @@ use std::{
     time::Duration,
 };
 
-const REQUEST: &[u8] = br#"{"model":"claude-sonnet-4-5","max_tokens":32000,"temperature":1,"stream":true,"system":[{"type":"text","text":"system-canary","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"prompt-canary"}],"tools":[{"name":"Bash","input_schema":{"type":"object"}}],"thinking":{"type":"adaptive"},"tool_choice":{"type":"auto"},"metadata":{"user_id":"{\"session_id\":\"session-canary\"}"},"future_field":{"kept":true}}"#;
+const REQUEST: &[u8] = br#"{"model":"claude-sonnet-4-5","max_tokens":32000,"temperature":1,"stream":true,"speed":"fast","system":[{"type":"text","text":"system-canary","cache_control":{"type":"ephemeral"}}],"messages":[{"role":"user","content":"prompt-canary"}],"tools":[{"name":"Bash","input_schema":{"type":"object"}}],"thinking":{"type":"adaptive"},"tool_choice":{"type":"auto"},"metadata":{"user_id":"{\"session_id\":\"session-canary\"}"},"future_field":{"kept":true}}"#;
 
 fn captured(execution: &ExecutionCapture) -> &AnthropicMessagesCapture {
     let ProtocolCapture::AnthropicMessages(capture) = execution.protocol.as_ref().unwrap() else {
@@ -243,7 +243,7 @@ async fn only_scalar_parameters_are_recorded_and_content_is_never_captured() {
         let facts = &captured(&observer).facts;
         assert_eq!(
             facts.model_parameters,
-            json!({"max_tokens":32000,"temperature":1,"stream":true})
+            json!({"max_tokens":32000,"temperature":1,"stream":true,"speed":"fast"})
                 .as_object()
                 .cloned()
                 .unwrap()
