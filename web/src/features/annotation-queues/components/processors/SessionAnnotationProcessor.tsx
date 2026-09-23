@@ -21,7 +21,7 @@ import { Card } from "@/src/components/ui/card";
 import { useReadPath } from "@/src/features/events";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
+import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "lucide-react";
 
@@ -285,6 +285,7 @@ export const SessionAnnotationProcessor: React.FC<
   const rightPanel = (
     <AnnotationDrawerSection
       item={item}
+      isV4={isV4}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,

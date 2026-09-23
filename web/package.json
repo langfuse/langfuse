@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "4.38.0",
+  "version": "4.42.0",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -118,7 +118,9 @@
     "core-js": "^3.38.1",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.2",
+    "d3-scale": "^4.0.2",
     "d3-selection": "^3.0.0",
+    "d3-shape": "^3.2.0",
     "d3-zoom": "^3.0.0",
     "date-fns": "^3.6.0",
     "dd-trace": "5.109.0",
@@ -194,6 +196,8 @@
     "@types/chroma-js": "^3.1.2",
     "@types/cors": "^2.8.19",
     "@types/d3-selection": "^3.0.11",
+    "@types/d3-scale": "^4.0.9",
+    "@types/d3-shape": "^3.2.0",
     "@types/d3-zoom": "^3.0.8",
     "@types/lodash": "^4.17.24",
     "@types/node": "24.3.0",

@@ -114,6 +114,14 @@ export type PromptsMetaResponse = {
 };
 
 const getPromptsFilterCondition = (params: GetPromptsMetaType) => {
+  if (params.filter !== undefined) {
+    return tableColumnsToSqlFilterAndPrefix(
+      params.filter,
+      promptsTableCols,
+      "prompts",
+    );
+  }
+
   const { name, version, label, tag, fromUpdatedAt, toUpdatedAt } = params;
   const filters: FilterState = [];
 

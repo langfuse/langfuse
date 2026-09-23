@@ -4,8 +4,8 @@
  * the lifecycle helpers directly, because the contracts worth protecting are
  * the ones a browser can actually reach.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -196,7 +196,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,
@@ -1372,7 +1372,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,

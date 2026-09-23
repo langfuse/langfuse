@@ -24,15 +24,17 @@ import { EvaluatorVersionHistorySheet } from "../components/Evaluators/Evaluator
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
@@ -48,8 +50,8 @@ import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
 import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useProject } from "@/src/features/projects";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
@@ -108,6 +110,22 @@ export function getEvaluatorVersionDefinition(
     NormalizedEvaluatorDefinition,
     { type: "LLM_AS_JUDGE" }
   >;
+
+  if (version.type === "DECISION_MODEL") {
+    type DecisionModelDefinition = Extract<
+      NormalizedEvaluatorDefinition,
+      { type: "DECISION_MODEL" }
+    >;
+    return {
+      type: version.type,
+      questions: version.questions as DecisionModelDefinition["questions"],
+      provider: version.provider ?? "",
+      model: version.model ?? "",
+      vars: version.vars,
+      variableMapping:
+        version.variableMapping as DecisionModelDefinition["variableMapping"],
+    };
+  }
 
   return {
     type: version.type,
@@ -181,14 +199,15 @@ export function EvaluatorSetupPage(
     projectId,
     evaluatorId: initialEvaluator?.id ?? null,
   });
-  const scoreDataType = initialEvaluator
-    ? initialEvaluator.definition.type === "LLM_AS_JUDGE"
-      ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
-          .dataType
-      : getFirstCodeEvaluatorScoreDataType(
+  const scoreDataType =
+    initialEvaluator?.definition.type === "CODE"
+      ? getFirstCodeEvaluatorScoreDataType(
           initialEvaluator.definition.sourceCode,
         )
-    : undefined;
+      : initialEvaluator?.definition.type === "LLM_AS_JUDGE"
+        ? toScoreOutputFormState(initialEvaluator.definition.outputDefinition)
+            .dataType
+        : undefined;
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -296,13 +315,14 @@ export function EvaluatorSetupPage(
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
     promptMessages:
-      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
+      initialEvaluator?.type === "CODE" ? null : version.promptMessages,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
     vars: version.vars,
     variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
+    questions: version.questions,
     createdByUser: version.createdByUser,
   }));
 
@@ -362,9 +382,17 @@ export function EvaluatorSetupPage(
 
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
-    return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, promptMessages: state.promptMessages }
-      : { type: state.type, sourceCode: state.sourceCode };
+    switch (state.type) {
+      case "LLM_AS_JUDGE":
+        return { type: state.type, promptMessages: state.promptMessages };
+      case "CODE":
+        return { type: state.type, sourceCode: state.sourceCode };
+      case "DECISION_MODEL":
+        return {
+          type: state.type,
+          questions: draftsToQuestions(state.questions) ?? [],
+        };
+    }
   };
 
   const generateNameSuggestion = async () => {
@@ -426,7 +454,7 @@ export function EvaluatorSetupPage(
   const setStepOpen = (step: number, open: boolean) => {
     const state = evaluatorSetupStore.getState();
     state.actions.setStepOpen(step, open);
-    const isNameStep = step === (state.type === "LLM_AS_JUDGE" ? 3 : 2);
+    const isNameStep = step === getEvaluatorNameStep(state.type);
     if (
       nameAIAssistanceAvailable &&
       open &&
@@ -574,7 +602,11 @@ export function EvaluatorSetupPage(
         type: state.type,
         defaultVariableMapping: observationVariableMappingList
           .catch([])
-          .parse(definition.variableMapping),
+          .parse(
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.variableMapping
+              : undefined,
+          ),
         sampleFilter: state.sampleFilter,
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,

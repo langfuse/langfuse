@@ -37,9 +37,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { InlineFilterState } from "@/src/features/filters";
+import {
+  ComposerTokens,
+  filterStateToQueryText,
+} from "@/src/features/search-bar";
+
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 

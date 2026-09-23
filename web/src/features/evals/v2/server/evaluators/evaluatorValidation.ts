@@ -4,6 +4,10 @@ import {
   InvalidRequestError,
   observationVariableMappingList,
 } from "@langfuse/shared";
+import {
+  DefaultEvalModelService,
+  isDecisionModelAdapter,
+} from "@langfuse/shared/src/server";
 import { getEvaluatorDefinitionConfigurationError } from "@/src/features/evals/server/evaluator-preflight";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import {
@@ -117,6 +121,15 @@ export async function assertEvaluatorConfigurationValid(params: {
     return;
   }
 
+  if (params.definition.type === EvalTemplateType.DECISION_MODEL) {
+    await assertDecisionModelDefinitionValid({
+      projectId: params.projectId,
+      name: params.name,
+      definition: params.definition,
+    });
+    return;
+  }
+
   const promptMessagesValidationError = getPromptMessagesValidationError(
     params.definition.promptMessages,
   );
@@ -138,6 +151,22 @@ export async function assertEvaluatorConfigurationValid(params: {
     });
   }
 
+  if (params.definition.provider !== null) {
+    const connection = await DefaultEvalModelService.fetchValidModelConfig(
+      params.projectId,
+      params.definition.provider,
+      params.definition.model ?? undefined,
+    );
+    if (
+      connection.valid &&
+      isDecisionModelAdapter(connection.config.apiKey.adapter)
+    ) {
+      throw new EvaluatorModelConfigurationError(
+        `Connection "${params.definition.provider}" is a decision-model connection and cannot be used for LLM-as-a-judge. Choose a text-generation model or switch the evaluator type to decision model.`,
+      );
+    }
+  }
+
   const error = await getEvaluatorDefinitionConfigurationError({
     projectId: params.projectId,
     template: {
@@ -149,5 +178,46 @@ export async function assertEvaluatorConfigurationValid(params: {
       outputDefinition: params.definition.outputDefinition,
     },
   });
+  if (error) throw new EvaluatorModelConfigurationError(error);
+}
+
+export async function getDecisionModelConfigurationError(params: {
+  projectId: string;
+  name: string;
+  definition: Pick<
+    Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>,
+    "provider" | "model"
+  >;
+}): Promise<string | null> {
+  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+    params.projectId,
+    params.definition.provider,
+    params.definition.model,
+  );
+  if (!modelConfig.valid) {
+    return `No decision-model connection found for evaluator "${params.name}". ${modelConfig.error}. Add a TypeSafe connection under Settings → LLM Connections (/project/${params.projectId}/settings/llm-connections) first.`;
+  }
+  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+    return `Connection "${params.definition.provider}" is not a decision-model connection. Decision-model evaluators need a TypeSafe connection.`;
+  }
+  return null;
+}
+
+async function assertDecisionModelDefinitionValid(params: {
+  projectId: string;
+  name: string;
+  definition: Extract<EvaluatorDefinition, { type: "DECISION_MODEL" }>;
+}) {
+  if (params.definition.vars.length === 0) {
+    throw new InvalidRequestError(
+      "Decision-model evaluators need at least one state field",
+    );
+  }
+  assertCompleteEvaluatorVariableMapping({
+    promptVariables: params.definition.vars,
+    variableMapping: params.definition.variableMapping,
+  });
+
+  const error = await getDecisionModelConfigurationError(params);
   if (error) throw new EvaluatorModelConfigurationError(error);
 }

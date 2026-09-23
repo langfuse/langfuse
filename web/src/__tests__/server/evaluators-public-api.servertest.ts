@@ -19,7 +19,7 @@ import {
   LlmAsJudgeEvaluator,
   PublicApiError,
 } from "@/src/features/public-api";
-import { toApiReadMappings } from "@/src/features/public-api/server/evaluation/evaluationAdapters";
+import { toApiReadMappings } from "@/src/features/public-api/server";
 
 describe("stable evaluators public API", () => {
   it("creates evaluators", async () => {

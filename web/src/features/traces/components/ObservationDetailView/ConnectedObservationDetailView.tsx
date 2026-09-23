@@ -42,17 +42,18 @@ import {
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-} from "@/src/features/comments/CommentDrawerController";
+  useCommentedPaths,
+} from "@/src/features/comments";
 import { useRouter } from "next/router";
-import ScoresTable from "@/src/features/scores/ScoresTable";
-import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { ScoresTable } from "@/src/features/scores";
+import { getMostRecentCorrection } from "@/src/features/corrections";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
 import {
@@ -63,7 +64,6 @@ import {
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { api } from "@/src/utils/api";
 
 // Extracted components
@@ -400,6 +400,7 @@ export function ConnectedObservationDetailView({
                 ) : null}
 
                 {(selectedTab === "log" ||
+                  selectedTab === "attributes" ||
                   (selectedTab === "preview" && isPrettyViewAvailable)) && (
                   <>
                     <div className="ml-auto h-fit px-2 py-0.5">
@@ -434,7 +435,7 @@ export function ConnectedObservationDetailView({
                                     value="json"
                                     size="sm"
                                     disabled
-                                    label="JSON"
+                                    label="Raw"
                                   />
                                 </span>
                               </HoverCardTrigger>
@@ -444,7 +445,7 @@ export function ConnectedObservationDetailView({
                                 sideOffset={8}
                               >
                                 <p className="font-bold">
-                                  JSON view unavailable
+                                  Raw view unavailable
                                 </p>
                                 <p className="text-muted-foreground mt-1">
                                   Disabled for traces with{" "}
@@ -457,12 +458,13 @@ export function ConnectedObservationDetailView({
                               </HoverCardContent>
                             </HoverCard>
                           ) : (
-                            <Tabs.Trigger value="json" size="sm" label="JSON" />
+                            <Tabs.Trigger value="json" size="sm" label="Raw" />
                           )}
                         </Tabs.List>
                       </Tabs>
                     </div>
                     {selectedViewTab === "json" &&
+                      selectedTab !== "attributes" &&
                       !(selectedTab === "log" && isLogViewVirtualized) && (
                         <div className="mr-1 flex items-center gap-1.5">
                           <Switch

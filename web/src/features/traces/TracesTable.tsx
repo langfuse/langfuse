@@ -17,7 +17,10 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createTokenUsageTableColumn } from "@/src/components/design-system/table/columns/createTokenUsageTableColumn";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import {
+  useColumnVisibility,
+  useColumnOrder,
+} from "@/src/features/column-visibility";
 import { api } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { type RouterOutput } from "@/src/utils/types";
@@ -38,8 +41,8 @@ import {
 import {
   detailPageListKeys,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+} from "@/src/features/navigate-detail-pages";
+import { useOrderByState } from "@/src/features/orderBy";
 import {
   type FilterState,
   type ObservationLevelType,
@@ -65,16 +68,17 @@ import {
 } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
-import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import { InfoIcon, Trash2 } from "lucide-react";
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
-import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
-import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type TableAction } from "@/src/features/table/types";
+import { useHasEntitlement } from "@/src/features/entitlements";
+import {
+  TableActionMenu,
+  useSelectAll,
+  TableSelectionManager,
+  type TableAction,
+} from "@/src/features/table";
+import { showSuccessToast } from "@/src/features/notifications";
 import {
   LevelCountsDisplay,
   type LevelCount,
@@ -83,13 +87,13 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
-} from "@/src/features/filters/hooks/useSidebarFilterState";
-import {
   getTraceFilterConfig,
   type TraceOmittableFilterColumn,
-} from "@/src/features/filters/config/traces-config";
-import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
-import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+  buildSidebarFilterSessionContextId,
+  sortOptionValues,
+  tracesFieldRegistry,
+} from "@/src/features/filters";
+
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -99,7 +103,7 @@ import {
   toObservedOptions,
   useFullTextSearch,
 } from "@/src/features/search-bar";
-import { tracesFieldRegistry } from "@/src/features/filters/config/tracingSearchRegistry";
+
 import { type TableDateRange } from "@/src/utils/date-range-utils";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import {
@@ -108,10 +112,9 @@ import {
 } from "@/src/components/table/utils/refresh-intervals";
 import { TableHeaderControls } from "@/src/components/table/table-header-controls";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
-import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues/components/AddTracesToAnnotationQueueDialogController";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useScoreColumns, scoreFilters } from "@/src/features/scores";
+import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 
@@ -186,6 +189,7 @@ function TracesTableInternal({
 }: TracesTableProps & {
   openDeleteTraceDialog: (traceId: string) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const peekContext = usePeekTableState();
   const hasTraceDeleteAccess = useHasProjectAccess({
     projectId,
@@ -610,7 +614,18 @@ function TracesTableInternal({
   });
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "TraceTable",
+          targetType: "trace",
+          objectType: "TRACE",
+          queueCount: 1,
+          isV4: false,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Traces added to queue",
         description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,
