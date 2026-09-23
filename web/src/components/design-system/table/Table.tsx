@@ -45,6 +45,7 @@ export interface TableProps<TData> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
+  rowHeight?: "s" | "m" | "l";
 }
 
 export function Table<TData extends object>({
@@ -61,6 +62,7 @@ export function Table<TData extends object>({
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
+  rowHeight,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -149,7 +151,7 @@ export function Table<TData extends object>({
                       key={header.id}
                       aria-sort={ariaSort}
                       className={cn(
-                        "group bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold first:pl-2",
+                        "group bg-background text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
                         column.headerClassName,
                         column.hideBelowMd && "hidden md:table-cell",
                       )}
@@ -253,7 +255,11 @@ export function Table<TData extends object>({
               Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
                 <tr
                   key={`loading-row-${rowIndex}`}
-                  className="h-12"
+                  className={cn(
+                    "h-12",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
+                  )}
                   aria-hidden="true"
                 >
                   {visibleColumns.map((column, columnIndex) => {
@@ -262,7 +268,10 @@ export function Table<TData extends object>({
                       <td
                         key={column.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.columnDef.cellPadding === "none"
+                            ? "p-0"
+                            : "p-2",
                           column.columnDef.cellClassName,
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
@@ -304,6 +313,8 @@ export function Table<TData extends object>({
                   key={row.id}
                   className={cn(
                     "hover:bg-accent h-12 transition-colors",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
@@ -323,12 +334,20 @@ export function Table<TData extends object>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div
+                          className={cn(
+                            "flex min-w-0 items-center overflow-hidden",
+                            rowHeight === "s" && "h-8",
+                            rowHeight === "m" && "h-20",
+                            rowHeight === "l" && "h-60",
+                          )}
+                        >
                           {flexRender(column.cell, cell.getContext())}
                         </div>
                       </td>
