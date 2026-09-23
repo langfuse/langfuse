@@ -18,9 +18,12 @@ The tests start with decoded OTLP resource spans and call `processOtelEvents`,
 the same function used by the queue. They exercise event normalization, media
 transformation, enrichment, overflow handling, and the real ClickHouse writer.
 External service responses and uploads are supplied by test doubles. Each run
-creates a uniquely named Memory table from `events_full`, reads persisted rows
-back, and drops the table during cleanup. Inserts are restricted to this test
-destination.
+creates a uniquely named Memory table from `events_full` and uses the production
+writer singleton. An insert-only adapter forwards the normal insert parameters
+and substitutes the temporary table only for `EventsFull`. The helper shuts
+down the writer before reading persisted rows. Cleanup clears the test's
+singleton references so each sequential replay starts with the normal writer
+settings and a fresh interval timer, then drops the table.
 
 The Memory table exercises ClickHouse types, column defaults, and serialization.
 Production MergeTree deduplication and materialized views are outside this run.
