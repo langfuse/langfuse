@@ -1494,6 +1494,144 @@ describe("SCIM API", () => {
     });
   });
 
+  // Regression tests for cross-organization user disclosure via Users/{id}.
+  // The dispatcher resolves the target user globally by internal id, so every
+  // method must still refuse to observe or mutate a user who is not a member of
+  // the caller's organization, and must not reveal whether such a user exists
+  // at all. Provisioning (active:true) is the sole path allowed to reference a
+  // not-yet-member user, in order to add them.
+  describe("Cross-organization isolation (Users/{id})", () => {
+    const createdUserIds: string[] = [];
+
+    // A user that exists on the instance but is NOT a member of the caller's
+    // organization (seed-org-id) — i.e. a user belonging to some other org.
+    const createNonMemberUser = async () => {
+      const user = await prisma.user.create({
+        data: {
+          email: `outsider.${randomUUID().substring(0, 8)}@othercorp.example`,
+          name: "Outside Org User",
+        },
+      });
+      createdUserIds.push(user.id);
+      return user;
+    };
+
+    afterEach(async () => {
+      if (createdUserIds.length > 0) {
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: { in: createdUserIds } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: createdUserIds } },
+        });
+        createdUserIds.length = 0;
+      }
+    });
+
+    it("GET returns a 404 indistinguishable from a nonexistent user", async () => {
+      const outsider = await createNonMemberUser();
+
+      const nonMember = await makeAPICall<{
+        detail: string;
+        userName?: string;
+      }>(
+        "GET",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      const nonExistent = await makeAPICall<{ detail: string }>(
+        "GET",
+        `/api/public/scim/Users/${randomUUID()}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(nonMember.status).toBe(404);
+      expect(nonExistent.status).toBe(404);
+      // "exists in another org" and "does not exist anywhere" must look
+      // identical, so the endpoint is not an instance-wide existence oracle.
+      expect(nonMember.body.detail).toBe(nonExistent.body.detail);
+      // Nothing about the out-of-org user leaks.
+      expect(nonMember.body.userName).toBeUndefined();
+    });
+
+    it("PUT with active omitted does not disclose an out-of-org user's email", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"] },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+      expect(result.body.detail).toContain("User not found");
+
+      // No membership was created as a side effect.
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(0);
+    });
+
+    it("PUT active:false on an out-of-org user is a 404, not a silent noop", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: false,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+    });
+
+    it("PUT active:true still provisions a user who is not yet a member", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeZodVerifiedAPICall(
+        ScimUserSchema,
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: true,
+          roles: ["MEMBER"],
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200,
+      );
+
+      expect(result.status).toBe(200);
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(1);
+      expect(memberships[0].role).toBe("MEMBER");
+    });
+
+    it("DELETE on an out-of-org user is a 404, not a silent noop", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string }>(
+        "DELETE",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+    });
+  });
+
   // SCIM provisioning is gated behind the `admin-api` entitlement, matching the
   // sibling organization admin REST endpoints (memberships, projects, apiKeys).
   // Plans without that entitlement (e.g. Hobby) must be rejected before any

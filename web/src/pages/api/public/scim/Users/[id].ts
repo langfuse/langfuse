@@ -455,6 +455,31 @@ export default async function handler(
   }
 }
 
+// Resolve the caller organization's membership for `userId`. When the user is
+// not a member, write a 404 whose body is deliberately identical to the "no
+// such user anywhere on the instance" 404 emitted by the dispatcher, and
+// return null. Keeping the two responses indistinguishable stops the endpoint
+// from being used as a cross-tenant existence oracle (telling an account that
+// exists in another organization apart from one that does not exist at all).
+async function requireOrgMembership(
+  res: NextApiResponse,
+  orgId: string,
+  userId: string,
+) {
+  const orgMembership = await prisma.organizationMembership.findFirst({
+    where: { orgId, userId },
+  });
+  if (!orgMembership) {
+    res.status(404).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "User not found",
+      status: 404,
+    });
+    return null;
+  }
+  return orgMembership;
+}
+
 // GET - Retrieve a specific user
 async function handleGet(
   req: NextApiRequest,
@@ -462,20 +487,9 @@ async function handleGet(
   user: User,
   orgId: string,
 ) {
-  // For GET operations, verify the user is a member of the organization
-  const orgMembership = await prisma.organizationMembership.findFirst({
-    where: {
-      orgId: orgId,
-      userId: user.id,
-    },
-  });
-
-  if (!orgMembership) {
-    return res.status(404).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: "User not found in organization",
-      status: 404,
-    });
+  // For GET operations, verify the user is a member of the organization.
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
   }
 
   // Transform to SCIM format
@@ -656,6 +670,18 @@ async function handlePut(
     });
   }
 
+  // A caller may only observe or mutate a user already tied to their
+  // organization. The sole exception is provisioning (active:true), which
+  // legitimately references a global user id in order to add the user. For
+  // every other request shape (active omitted, or active:false) we must
+  // respond exactly as we would for a nonexistent user — otherwise PUT would
+  // disclose another organization's user (their email and account timestamps)
+  // or silently no-op a cross-tenant deprovision.
+  const isProvisioning = body.active === true;
+  if (!isProvisioning && !(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
+
   // Handle active status for provisioning/deprovisioning.
   //
   // `active: true` ensures the user is provisioned. An explicit `roles` value is
@@ -717,6 +743,12 @@ async function handleDelete(
   orgId: string,
   apiKeyId: string,
 ) {
+  // A cross-organization DELETE must be indistinguishable from deleting a
+  // nonexistent user, and must never silently no-op against a user in another
+  // organization. Gate on membership before touching the deprovision path.
+  if (!(await requireOrgMembership(res, orgId, user.id))) {
+    return;
+  }
   // Deprovision atomically: check + delete in one Serializable txn.
   if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId, user.email))) {
     return;
