@@ -11,12 +11,15 @@ import type { useInternalViewMode } from "../hooks/useInternalViewMode";
 import { InternalFeatureBadge } from "./InternalFeatureBadge";
 
 export function InternalViewModeDialog({
-  viewMode,
+  open,
+  onOpenChange,
 }: {
-  viewMode: ReturnType<typeof useInternalViewMode>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
+  const viewMode = useInternalViewMode();
   return (
-    <Dialog open={viewMode.open} onOpenChange={viewMode.setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>View mode</DialogTitle>

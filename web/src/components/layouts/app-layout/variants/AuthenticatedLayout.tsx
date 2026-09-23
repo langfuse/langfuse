@@ -342,8 +342,11 @@ export function AuthenticatedLayout({
                 <InAppAgentWindowHost />
               </SidebarInset>
             </div>
-            {internalViewModeOpen && (
-              <InternalViewModeDialog viewMode={internalViewMode} />
+            {internalViewMode.available && (
+              <InternalViewModeDialog
+                open={internalViewModeOpen}
+                onOpenChange={setInternalViewModeOpen}
+              />
             )}
             {hasFeaturePreviews ? (
               <ControlledFeaturePreviewModal
