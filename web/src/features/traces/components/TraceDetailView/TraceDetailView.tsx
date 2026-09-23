@@ -63,6 +63,12 @@ import { TraceLogView } from "../TraceLogView/TraceLogView";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import { ScoresTable } from "@/src/features/scores";
 import { getMostRecentCorrection } from "@/src/features/corrections";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 
 export interface TraceDetailViewProps {
   trace: Omit<WithStringifiedMetadata<TraceDomain>, "input" | "output"> & {
@@ -86,10 +92,15 @@ export function TraceDetailView({
   const router = useRouter();
   // Tab and view state from URL (via SelectionContext)
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
-  // `attributes` is observation-only; Radix renders nothing for a value with
-  // no Content, which blanks the panel.
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessagesTab = internalFeaturesEnabled && isV4;
+  // Unsupported tabs fall back to Preview instead of rendering an empty panel.
   const selectedTab =
-    globalSelectedTab === "attributes" ? "preview" : globalSelectedTab;
+    globalSelectedTab === "attributes" ||
+    (globalSelectedTab === "messages" && !showMessagesTab)
+      ? "preview"
+      : globalSelectedTab;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
@@ -218,7 +229,7 @@ export function TraceDetailView({
   const showScoresTab = isAuthenticatedAndProjectMember && !isAnnotationMode;
 
   // Hide entire tabs bar when only Preview tab remains (cleaner annotation mode UI)
-  const showTabsBar = showLogViewTab || showScoresTab;
+  const showTabsBar = showLogViewTab || showScoresTab || showMessagesTab;
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -278,11 +289,16 @@ export function TraceDetailView({
             className="flex min-h-0 flex-1 flex-col overflow-hidden"
             onValueChange={handleTabChange}
           >
-            {/* Hide entire tabs bar when only Preview tab remains (annotation mode) */}
+            {/* Hide the tabs bar when only Preview remains. */}
             {showTabsBar && (
               <TooltipProvider>
                 <TabsBarList>
                   <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                  {showMessagesTab && (
+                    <TabsBarTrigger value="messages" className="gap-1">
+                      Messages <InternalFeatureBadge />
+                    </TabsBarTrigger>
+                  )}
                   {showLogViewTab && (
                     <TabsBarTrigger value="log">
                       <Tooltip>
@@ -387,6 +403,15 @@ export function TraceDetailView({
                   )}
                 </TabsBarList>
               </TooltipProvider>
+            )}
+
+            {selectedTab === "messages" && (
+              <TabsBarContent
+                value="messages"
+                className="mt-0 min-h-0 flex-1 overflow-auto"
+              >
+                <TraceMessagesView />
+              </TabsBarContent>
             )}
 
             {/* Preview tab content */}
