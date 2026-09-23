@@ -14,7 +14,6 @@ import { createSecureLlmFetch } from "../secureLlmFetch";
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
-  /** TypeSafe-compatible base URL; defaults to TypeSafe's own API. */
   baseURL?: string | null;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {

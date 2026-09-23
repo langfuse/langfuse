@@ -814,21 +814,6 @@ export function CreateLLMApiKeyForm({
                           }
                         />
                       </FormControl>
-                      <FormDescription>
-                        Default models:{" "}
-                        <code className="bg-muted rounded px-1 py-0.5">
-                          {typeSafeModels.join(", ")}
-                        </code>
-                        .{" "}
-                        <a
-                          href={currentTypeSafeUpstream.docsUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 underline hover:text-blue-800"
-                        >
-                          {currentTypeSafeUpstream.label} docs
-                        </a>
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -955,7 +940,7 @@ export function CreateLLMApiKeyForm({
                                     : "Enter Bedrock API key"
                                   : undefined
                               }
-                              autoComplete="new-password"
+                              autoComplete="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1035,7 +1020,7 @@ export function CreateLLMApiKeyForm({
                                         : "Enter AWS secret access key"
                                     : undefined
                                 }
-                                autoComplete="new-password"
+                                autoComplete="off"
                               />
                             </FormControl>
                             <FormMessage />
