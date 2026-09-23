@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import {
   ActionButton,
   type ActionButtonProps,
@@ -11,6 +11,7 @@ import {
   Table,
   type TableProps,
 } from "@/src/components/design-system/table/Table";
+import { MultiSelectInput } from "@/src/components/design-system/MultiSelectInput/MultiSelectInput";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { SettingsTableCard } from "@/src/components/layouts/settings-table-card";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
@@ -27,6 +28,15 @@ type SettingsTableToolbarAction = ActionButtonProps extends infer TAction
     : never
   : never;
 
+type SettingsTableFilter = {
+  id: string;
+  label: string;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  value: string[];
+  onChange: (value: string[]) => void;
+};
+
 export type SettingsTableProps<TData extends object> = Omit<
   TableProps<TData>,
   "columns"
@@ -39,8 +49,7 @@ export type SettingsTableProps<TData extends object> = Omit<
     placeholder: string;
     onChange: (value: string) => void;
   };
-  /** Controls rendered next to the search input, e.g. filter selects. */
-  filters?: ReactNode;
+  filters?: SettingsTableFilter[];
   toolbarActions?: SettingsTableToolbarAction[];
   pagination?: PaginationBarProps;
 };
@@ -72,8 +81,9 @@ export function SettingsTable<TData extends object>({
       ? search.value
       : searchDraft.value;
 
+  const hasFilters = Boolean(filters?.length);
   const hasToolbar = Boolean(
-    search || filters || columnVisibilityKey || toolbarActions,
+    search || hasFilters || columnVisibilityKey || toolbarActions,
   );
 
   return (
@@ -82,13 +92,13 @@ export function SettingsTable<TData extends object>({
         <div
           className={cn(
             "flex items-center justify-between gap-2",
-            filters && "flex-wrap",
+            hasFilters && "flex-wrap",
           )}
         >
           <div
             className={cn(
               "flex flex-1 items-center gap-2",
-              filters ? "min-w-72" : "min-w-0",
+              hasFilters ? "min-w-72" : "min-w-0",
             )}
           >
             {search && (
@@ -107,7 +117,23 @@ export function SettingsTable<TData extends object>({
                 />
               </div>
             )}
-            {filters}
+            {filters?.map((filter) => (
+              <div key={filter.id} className="w-44 shrink-0">
+                <MultiSelectInput
+                  aria-label={`Filter by ${filter.label.toLowerCase()}`}
+                  value={filter.value}
+                  options={filter.options}
+                  onValueChange={filter.onChange}
+                  placeholder={filter.placeholder}
+                  selectedLabel={filter.options
+                    .filter((option) => filter.value.includes(option.value))
+                    .map((option) => option.label)
+                    .join(", ")}
+                  searchPlaceholder="Search..."
+                  emptyMessage="No options found."
+                />
+              </div>
+            ))}
           </div>
 
           <div className="ml-auto flex items-center gap-2">
