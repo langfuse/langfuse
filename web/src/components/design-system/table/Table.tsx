@@ -45,6 +45,7 @@ export interface TableProps<TData> {
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
   onColumnOrderChange?: OnChangeFn<ColumnOrderState>;
+  rowHeight?: "s" | "m" | "l";
 }
 
 export function Table<TData extends object>({
@@ -61,6 +62,7 @@ export function Table<TData extends object>({
   onColumnVisibilityChange,
   columnOrder,
   onColumnOrderChange,
+  rowHeight,
 }: TableProps<TData>) {
   const tableColumns = useMemo<ColumnDef<TData>[]>(() => {
     if (!actions) return columns;
@@ -253,7 +255,11 @@ export function Table<TData extends object>({
               Array.from({ length: loadingRowCount }).map((_, rowIndex) => (
                 <tr
                   key={`loading-row-${rowIndex}`}
-                  className="h-12"
+                  className={cn(
+                    "h-12",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
+                  )}
                   aria-hidden="true"
                 >
                   {visibleColumns.map((column, columnIndex) => {
@@ -304,6 +310,8 @@ export function Table<TData extends object>({
                   key={row.id}
                   className={cn(
                     "hover:bg-accent h-12 transition-colors",
+                    rowHeight === "m" && "h-24",
+                    rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
@@ -328,7 +336,14 @@ export function Table<TData extends object>({
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
                       >
-                        <div className="flex min-w-0 items-center overflow-hidden">
+                        <div
+                          className={cn(
+                            "flex min-w-0 items-center overflow-hidden",
+                            rowHeight === "s" && "h-8",
+                            rowHeight === "m" && "h-20",
+                            rowHeight === "l" && "h-60",
+                          )}
+                        >
                           {flexRender(column.cell, cell.getContext())}
                         </div>
                       </td>

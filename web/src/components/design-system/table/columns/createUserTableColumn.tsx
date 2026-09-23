@@ -1,20 +1,13 @@
-/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 
-import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
-import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  UserTableCell,
+  type UserTableColumnValue,
+} from "@/src/components/design-system/table/components/UserTableCell/UserTableCell";
 import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
-
-type UserTableColumnValue = {
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
-  id?: string | null;
-};
 
 type UserTableColumnPresentation = { variant: "avatar" } | { variant: "text" };
 type UserTableColumnCell =
@@ -48,15 +41,9 @@ export function createUserTableColumn<
       context: CellContext<TData, TValue | null | undefined>,
     ) => UserTableColumnCell;
   }) {
-  const loadingCell =
-    variant === "avatar" ? (
-      <div className="flex w-full min-w-0 items-center space-x-2">
-        <Skeleton className="h-7 w-7 shrink-0 rounded-full" />
-        <Skeleton className="h-4 max-w-24 min-w-12 flex-1" />
-      </div>
-    ) : (
-      <Skeleton className="h-4 w-1/2" />
-    );
+  const loadingCell = (
+    <UserTableCell variant="loading" presentation={variant} />
+  );
 
   return createTableColumn<TData, TValue>({
     ...options,
@@ -79,37 +66,15 @@ export function createUserTableColumn<
         cell = { type: "user", user: value };
       }
 
-      if (!cell) {
-        const placeholder = nullValue ?? emptyValue;
-        return placeholder ? (
-          <span className="block w-full truncate" title={placeholder}>
-            {placeholder}
-          </span>
-        ) : null;
-      }
+      if (!cell) return null;
       if (cell.type === "loading") return loadingCell;
 
-      const { name, email, image, id } = cell.user;
-      const label =
-        name ?? email ?? id ?? emptyValue ?? EMPTY_VALUE_PLACEHOLDER;
-      if (variant === "text") {
-        return (
-          <span className="block truncate" title={label}>
-            {label}
-          </span>
-        );
-      }
-
       return (
-        <div
-          className="flex min-w-0 items-center space-x-2"
-          title={email ?? label}
-        >
-          <Avatar size="md" src={image ?? undefined} displayName={label} />
-          <span className="truncate" title={email ?? label}>
-            {label}
-          </span>
-        </div>
+        <UserTableCell
+          user={cell.user}
+          variant={variant}
+          emptyValue={emptyValue}
+        />
       );
     },
   });
