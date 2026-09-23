@@ -328,7 +328,7 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
               {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
-              <Badge variant="secondary" size="sm" className="ml-1 shrink-0">
+              <Badge variant="secondary" className="ml-1 shrink-0">
                 {alertCount}
               </Badge>
             ) : null}

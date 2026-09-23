@@ -41,7 +41,7 @@ export function TraceHeader() {
 
   return (
     <div className="shrink-0 border-b px-3 py-2">
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
@@ -54,8 +54,6 @@ export function TraceHeader() {
           aggregatedMetrics.usageDetails &&
           hasBreakdown(aggregatedMetrics.usageDetails) && (
             <UsageBadge
-              inputUsage={aggregatedMetrics.inputUsage}
-              outputUsage={aggregatedMetrics.outputUsage}
               totalUsage={aggregatedMetrics.totalUsage}
               usageDetails={aggregatedMetrics.usageDetails}
             />

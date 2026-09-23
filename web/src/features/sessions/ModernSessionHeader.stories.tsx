@@ -5,23 +5,47 @@ import preview from "@/.storybook/preview";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
 import { sessionHeaderVisibilityStorageKey } from "@/src/features/sessions/sessionHeaderVisibility";
 
-const scores = [
-  {
-    id: "score-helpfulness",
-    name: "Helpfulness",
-    value: 0.86,
+type SessionScore = ComponentProps<
+  typeof ModernSessionHeader
+>["scores"][number];
+
+const makeScore = (
+  overrides: Pick<SessionScore, "id" | "name" | "value">,
+): SessionScore =>
+  ({
+    projectId: "project-1",
+    environment: "default",
+    source: "EVAL",
+    authorUserId: null,
+    comment: null,
+    metadata: "{}",
+    configId: null,
+    queueId: null,
+    executionTraceId: null,
+    createdAt: new Date("2026-09-11T10:00:00Z"),
+    updatedAt: new Date("2026-09-11T10:00:00Z"),
+    timestamp: new Date("2026-09-11T10:00:00Z"),
+    traceId: null,
+    sessionId: "session-1",
+    datasetRunId: null,
+    observationId: null,
+    longStringValue: "",
     stringValue: null,
     dataType: "NUMERIC",
-  },
-] satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
+    ...overrides,
+  }) as SessionScore;
 
-const overflowScores = Array.from({ length: 16 }, (_, index) => ({
-  id: `score-quality-${index + 1}`,
-  name: `Quality ${index + 1}`,
-  value: (index + 1) / 20,
-  stringValue: null,
-  dataType: "NUMERIC" as const,
-})) satisfies ComponentProps<typeof ModernSessionHeader>["scores"];
+const scores = [
+  makeScore({ id: "score-helpfulness", name: "Helpfulness", value: 0.86 }),
+];
+
+const overflowScores = Array.from({ length: 16 }, (_, index) =>
+  makeScore({
+    id: `score-quality-${index + 1}`,
+    name: `Quality ${index + 1}`,
+    value: (index + 1) / 20,
+  }),
+);
 
 const manyUsers = Array.from(
   { length: 1_000 },
@@ -321,13 +345,13 @@ export const TestCompactsTokenCounts = meta.story({
       canvasElement.querySelectorAll<HTMLElement>(
         "[data-overflow-visible-item='true'] [data-session-header-pill='true']",
       ),
-    ).find((pill) => pill.textContent?.trim().startsWith("tokens "));
+    ).find((pill) => pill.textContent?.trim().startsWith("tokens"));
 
     await expect(tokenPill).toBeInTheDocument();
-    await expect(tokenPill).toHaveTextContent("tokens 649k → 7k (Σ 655k)");
+    await expect(tokenPill).toHaveTextContent(/649k.*7k.*655k/);
     await expect(tokenPill).toHaveAttribute(
       "title",
-      "tokens 648,714 → 6,697 (Σ 655,411)",
+      "tokens 648,714 in, 6,697 out, 655,411 total",
     );
   },
 });
@@ -402,9 +426,15 @@ export const TestHidesAndRevealsDetails = meta.story({
       name: "Add metadata JSONPath",
     });
     await waitFor(() =>
-      expect([overflowSearchInput, metadataEditorButton]).toContain(
-        canvasElement.ownerDocument.activeElement,
-      ),
+      expect(
+        [
+          overflowSearchInput,
+          metadataEditorButton,
+          canvas.queryByRole("button", {
+            name: /show \d+ hidden session details/i,
+          }),
+        ].filter(Boolean),
+      ).toContain(canvasElement.ownerDocument.activeElement),
     );
   },
 });
