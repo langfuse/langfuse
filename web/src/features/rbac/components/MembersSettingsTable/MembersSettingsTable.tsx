@@ -34,6 +34,13 @@ import Link from "next/link";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 
+const formatRoleLabel = (role: Role) =>
+  role.charAt(0).toUpperCase() + role.slice(1).toLowerCase();
+
+const roleFilterOptions = (Object.keys(orderedRoles) as Role[])
+  .toSorted((a, b) => orderedRoles[b] - orderedRoles[a])
+  .map((role) => ({ value: role, label: formatRoleLabel(role) }));
+
 export type MembersSettingsTableRow = {
   user: { image: string | null; name: string | null };
   email: string | null;
@@ -68,6 +75,10 @@ type MembersSettingsTableProps = Pick<
     value: string;
     onChange: (value: string) => void;
   };
+  roleFilter: {
+    value: Role[];
+    onChange: (roles: Role[]) => void;
+  };
   toolbarActions: SettingsTableProps<MembersSettingsTableRow>["toolbarActions"];
   pagination: PaginationBarProps;
 };
@@ -86,6 +97,7 @@ export function MembersSettingsTable({
   onUpdateOrgRole,
   onUpdateProjectRole,
   search,
+  roleFilter,
   toolbarActions,
   pagination,
   ...tableProps
@@ -284,6 +296,21 @@ export function MembersSettingsTable({
         placeholder: "Search name or email",
         onChange: search.onChange,
       }}
+      filters={[
+        {
+          id: "roles",
+          label: project ? "Project role" : "Role",
+          placeholder: "All roles",
+          options: roleFilterOptions,
+          value: roleFilter.value,
+          onChange: (values) =>
+            roleFilter.onChange(
+              roleFilterOptions
+                .map((option) => option.value)
+                .filter((role) => values.includes(role)),
+            ),
+        },
+      ]}
       toolbarActions={toolbarActions}
       pagination={pagination}
       {...tableProps}

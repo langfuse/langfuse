@@ -56,14 +56,21 @@ type BadgeTableColumnOptions<TData extends RowData> =
 
 export function createBadgeTableColumn<TData extends RowData>({
   getBadge,
+  nullValue,
   range,
   ...options
-}: BadgeTableColumnOptions<TData>) {
+}: BadgeTableColumnOptions<TData> & { nullValue?: string }) {
   return createTableColumn<TData, string>({
     ...options,
     loadingCell: <Skeleton className="h-5 w-16 shrink-0 rounded-sm" />,
     renderCell: (value, context) => {
-      if (!value) return null;
+      if (!value) {
+        return nullValue ? (
+          <span className="block w-full truncate" title={nullValue}>
+            {nullValue}
+          </span>
+        ) : null;
+      }
 
       const badge =
         range === "semantic" || range === "decorative"

@@ -3,13 +3,13 @@
  *
  * Contains:
  * - Title row with ItemBadge, observation name, options menu
- * - Action buttons (Add to, Score, Comment)
+ * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, latency, environment, cost, usage, model, etc.)
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef } from "react";
 import {
   type ObservationType,
   isGenerationLike,
@@ -18,10 +18,7 @@ import {
 } from "@langfuse/shared";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { ItemBadge } from "@/src/components/ItemBadge";
-import {
-  AnnotateDrawerController,
-  DualAnnotationContent,
-} from "@/src/features/scores";
+import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import {
@@ -33,6 +30,7 @@ import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDeta
 import {
   CostBadge,
   UsageBadge,
+  hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
@@ -58,17 +56,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTrigger,
-} from "@/src/components/ui/drawer";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { cn } from "@/src/utils/tailwind";
@@ -114,6 +102,12 @@ export const ObservationDetailViewHeader = memo(
   }: ObservationDetailViewHeaderProps) {
     const { isAnnotationMode } = useViewPreferences();
     const isMobile = useIsMobile();
+    const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
+    const commentActionLabel = commentCount ? "Comments" : "Comment";
+    const mobileCommentActionLabel =
+      commentCount && !commentDrawerControl.disabled
+        ? `${commentActionLabel} (${commentCount})`
+        : commentActionLabel;
     const { isV4: isV4Enabled } = useReadPath();
     const { trace, serverScores } = useTraceData();
 
@@ -123,16 +117,9 @@ export const ObservationDetailViewHeader = memo(
       [serverScores],
     );
 
-    // Access check for annotation drawer
-    const hasAnnotationAccess = useHasProjectAccess({
-      projectId,
-      scope: "scores:CUD",
-    });
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
-    const inputUsage = observation.inputUsage;
-    const outputUsage = observation.outputUsage;
     const evaluatorId = resolveEvaluatorIdMetadata(
       observationWithIO?.metadata ?? observation.metadata,
     );
@@ -198,189 +185,156 @@ export const ObservationDetailViewHeader = memo(
             >
               {observation.name || observation.id}
             </span>
-            {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
-                full-width labeled rows, next to the `⋮` utility menu. */}
             {isMobile && (
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    aria-label="More actions"
-                    className="ml-auto shrink-0"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  align="end"
-                  // forceMount + hide-when-closed: CommentDrawerController lives in
-                  // here, and its deep-link auto-open effect (?comments=open) and
-                  // controlled inline-selection flow only work while mounted. A
-                  // default Popover unmounts its content when closed (the default
-                  // state), silently breaking both. Keep it mounted, just hidden.
-                  forceMount
-                  className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
-                >
-                  {observationWithIO && (
-                    <ConnectedTraceObservationAddToDropdownMenuController
-                      projectId={projectId}
-                      traceId={traceId}
-                      variant="observation"
-                      observationId={observation.id}
-                      input={observationWithIO.input}
-                      output={observationWithIO.output}
-                      metadata={observationWithIO.metadata}
-                      generation={
-                        isGenerationLike(observationWithIO.type)
-                          ? observationWithIO
-                          : undefined
-                      }
-                    >
-                      {({ getTriggerProps }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full justify-start gap-2 font-normal"
-                          {...getTriggerProps()}
-                        >
-                          <PlusIcon className="h-4 w-4" />
-                          <span>Add to</span>
-                          <ChevronDown className="ml-auto h-3 w-3" />
-                        </Button>
-                      )}
-                    </ConnectedTraceObservationAddToDropdownMenuController>
-                  )}
-                  {!isAnnotationMode && (
-                    <>
-                      {isV4Enabled ? (
-                        <Drawer
-                          key={"annotation-drawer-menu-" + observation.id}
-                        >
-                          <DrawerTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={!hasAnnotationAccess}
-                              className="w-full justify-start gap-2 font-normal"
-                            >
-                              {!hasAnnotationAccess ? (
-                                <LockIcon className="h-3 w-3" />
-                              ) : (
-                                <SquarePen className="h-4 w-4" />
-                              )}
-                              <span className="text-sm">Score</span>
-                            </Button>
-                          </DrawerTrigger>
-                          <DrawerContent className="p-3">
-                            <DualAnnotationContent
-                              projectId={projectId}
-                              traceId={traceId}
-                              observationId={observation.id}
-                              traceEnvironment={trace.environment}
-                              observationEnvironment={observation.environment}
-                              observationScores={observationScores}
-                              traceScores={traceScores}
-                            />
-                          </DrawerContent>
-                        </Drawer>
-                      ) : (
-                        <AnnotateDrawerController projectId={projectId}>
-                          {({ disabled, openDrawer }) => (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={disabled}
-                              className="w-full justify-start gap-2 font-normal"
-                              onClick={() =>
-                                openDrawer({
-                                  scoreTarget: {
-                                    type: "trace",
-                                    traceId,
-                                    observationId: observation.id,
-                                  },
-                                  scores: observationScores,
-                                  analyticsData: {
-                                    type: "trace",
-                                    source: "TraceDetail",
-                                  },
-                                  scoreMetadata: {
-                                    projectId,
-                                    environment: observation.environment,
-                                  },
-                                })
-                              }
-                            >
-                              {disabled ? (
-                                <LockIcon className="h-3 w-3" />
-                              ) : (
-                                <SquarePen className="h-4 w-4" />
-                              )}
-                              <span className="text-sm">Score</span>
-                            </Button>
-                          )}
-                        </AnnotateDrawerController>
-                      )}
-                    </>
-                  )}
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={commentDrawerControl.disabled}
-                    onClick={commentDrawerControl.openDrawer}
-                    className="w-full justify-start gap-2 font-normal"
-                  >
-                    {commentDrawerControl.disabled ? (
-                      <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                    ) : (
-                      <MessageSquare className="h-4 w-4" />
-                    )}
-                    <span className="text-sm">Comment</span>
-                    {!commentDrawerControl.disabled && commentCount ? (
-                      <ActionButtonCountBadge count={commentCount} />
-                    ) : null}
-                  </Button>
-                </PopoverContent>
-              </Popover>
-            )}
-            {isMobile && (
-              <ConnectedDetailHeaderActionsMenuController
-                idItems={[
-                  { id: traceId, name: "Trace ID" },
-                  { id: observation.id, name: "Observation ID" },
-                ]}
-                observationType={observation.type}
+              <ConnectedTraceObservationAddToDropdownMenuController
+                analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                 projectId={projectId}
-                observation={
-                  isV4Enabled
-                    ? {
-                        id: observation.id,
-                        traceId,
-                        startTime: observation.startTime,
-                      }
+                traceId={traceId}
+                variant="observation"
+                observationId={observation.id}
+                input={observationWithIO?.input ?? null}
+                output={observationWithIO?.output ?? null}
+                metadata={observationWithIO?.metadata ?? null}
+                generation={
+                  observationWithIO && isGenerationLike(observationWithIO.type)
+                    ? observationWithIO
                     : undefined
                 }
-                spanName={observation.name ?? ""}
-                webCallout={{
-                  traceId,
-                  observationId: observation.id,
-                  sessionId: observation.sessionId ?? null,
-                }}
-              >
-                {({ getTriggerProps }) => (
-                  <Button
-                    aria-label="Options"
-                    className="shrink-0"
-                    size="icon"
-                    title="Options"
-                    variant="secondary"
-                    {...getTriggerProps()}
-                  >
-                    <EllipsisVertical className="h-4 w-4" />
-                  </Button>
+                renderMenu={(addToItems) => (
+                  <AnnotateDrawerController projectId={projectId}>
+                    {({ disabled: annotationDisabled, openDrawer }) => (
+                      <ConnectedDetailHeaderActionsMenuController
+                        idItems={[
+                          { id: traceId, name: "Trace ID" },
+                          { id: observation.id, name: "Observation ID" },
+                        ]}
+                        observationType={observation.type}
+                        projectId={projectId}
+                        observation={
+                          isV4Enabled
+                            ? {
+                                id: observation.id,
+                                traceId,
+                                startTime: observation.startTime,
+                              }
+                            : undefined
+                        }
+                        spanName={observation.name ?? ""}
+                        webCallout={{
+                          traceId,
+                          observationId: observation.id,
+                          sessionId: observation.sessionId ?? null,
+                        }}
+                        renderMenu={(utilityItems) => (
+                          <DropdownMenu
+                            placement="bottom-end"
+                            maxHeight="min(24rem, calc(100dvh - 2rem))"
+                            items={[
+                              ...(!isAnnotationMode
+                                ? [
+                                    {
+                                      type: "item" as const,
+                                      id: "annotate",
+                                      title: "Annotate",
+                                      icon: annotationDisabled
+                                        ? LockIcon
+                                        : SquarePen,
+                                      disabled: annotationDisabled
+                                        ? {
+                                            reason:
+                                              "You don't have permission to annotate.",
+                                          }
+                                        : undefined,
+                                      onClick: () => {
+                                        mobileActionsTriggerRef.current?.focus({
+                                          preventScroll: true,
+                                        });
+                                        openDrawer({
+                                          scoreTarget: {
+                                            type: "trace",
+                                            traceId,
+                                            observationId: observation.id,
+                                          },
+                                          scores: observationScores,
+                                          companionTrace: isV4Enabled
+                                            ? {
+                                                environment: trace.environment,
+                                                scores: traceScores,
+                                              }
+                                            : undefined,
+                                          analyticsData: {
+                                            type: "trace",
+                                            source: "TraceDetail",
+                                            isV4: isV4Enabled,
+                                          },
+                                          scoreMetadata: {
+                                            projectId,
+                                            environment:
+                                              observation.environment,
+                                          },
+                                        });
+                                      },
+                                    },
+                                  ]
+                                : []),
+                              {
+                                type: "item",
+                                id: "comments",
+                                title: mobileCommentActionLabel,
+                                icon: commentDrawerControl.disabled
+                                  ? MessageSquareOff
+                                  : MessageSquare,
+                                disabled: commentDrawerControl.disabled
+                                  ? {
+                                      reason:
+                                        "You don't have permission to comment.",
+                                    }
+                                  : undefined,
+                                onClick: () => {
+                                  mobileActionsTriggerRef.current?.focus({
+                                    preventScroll: true,
+                                  });
+                                  commentDrawerControl.openDrawer();
+                                },
+                              },
+                              ...(observationWithIO
+                                ? [
+                                    {
+                                      type: "submenu" as const,
+                                      id: "add-to",
+                                      title: "Add to",
+                                      icon: PlusIcon,
+                                      items: addToItems,
+                                    },
+                                  ]
+                                : []),
+                              {
+                                id: "review-actions-separator",
+                                type: "separator",
+                              },
+                              ...utilityItems,
+                            ]}
+                          >
+                            {({ getTriggerProps }) => (
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                aria-label="More actions"
+                                className="ml-auto shrink-0"
+                                {...getTriggerProps({
+                                  ref: mobileActionsTriggerRef,
+                                })}
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </DropdownMenu>
+                        )}
+                      />
+                    )}
+                  </AnnotateDrawerController>
                 )}
-              </ConnectedDetailHeaderActionsMenuController>
+              />
             )}
           </div>
           {/* Action buttons (desktop inline cluster) */}
@@ -388,6 +342,7 @@ export const ObservationDetailViewHeader = memo(
             <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
               {observationWithIO && (
                 <ConnectedTraceObservationAddToDropdownMenuController
+                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
                   projectId={projectId}
                   key={observation.id}
                   traceId={traceId}
@@ -417,71 +372,49 @@ export const ObservationDetailViewHeader = memo(
                 </ConnectedTraceObservationAddToDropdownMenuController>
               )}
               {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-              {!isAnnotationMode &&
-                (isV4Enabled ? (
-                  <Drawer key={"annotation-drawer-" + observation.id}>
-                    <DrawerTrigger asChild>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={!hasAnnotationAccess}
-                      >
-                        {!hasAnnotationAccess ? (
-                          <LockIcon className="mr-1.5 h-3 w-3" />
-                        ) : (
-                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        <span>Score</span>
-                      </Button>
-                    </DrawerTrigger>
-                    <DrawerContent className="p-3">
-                      <DualAnnotationContent
-                        projectId={projectId}
-                        traceId={traceId}
-                        observationId={observation.id}
-                        traceEnvironment={trace.environment}
-                        observationEnvironment={observation.environment}
-                        observationScores={observationScores}
-                        traceScores={traceScores}
-                      />
-                    </DrawerContent>
-                  </Drawer>
-                ) : (
-                  <AnnotateDrawerController projectId={projectId}>
-                    {({ disabled, openDrawer }) => (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={disabled}
-                        onClick={() =>
-                          openDrawer({
-                            scoreTarget: {
-                              type: "trace",
-                              traceId,
-                              observationId: observation.id,
-                            },
-                            scores: observationScores,
-                            analyticsData: {
-                              type: "trace",
-                              source: "TraceDetail",
-                            },
-                            scoreMetadata: {
-                              projectId,
-                              environment: observation.environment,
-                            },
-                          })
-                        }
-                      >
-                        {disabled ? (
-                          <LockIcon className="mr-1.5 h-3 w-3" />
-                        ) : (
-                          <SquarePen className="mr-1.5 h-3.5 w-3.5" />
-                        )}
-                        <span>Score</span>
-                      </Button>
-                    )}
-                  </AnnotateDrawerController>
-                ))}
+              {!isAnnotationMode && (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled, openDrawer }) => (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={disabled}
+                      onClick={() =>
+                        openDrawer({
+                          scoreTarget: {
+                            type: "trace",
+                            traceId,
+                            observationId: observation.id,
+                          },
+                          scores: observationScores,
+                          companionTrace: isV4Enabled
+                            ? {
+                                environment: trace.environment,
+                                scores: traceScores,
+                              }
+                            : undefined,
+                          analyticsData: {
+                            type: "trace",
+                            source: "TraceDetail",
+                            isV4: isV4Enabled,
+                          },
+                          scoreMetadata: {
+                            projectId,
+                            environment: observation.environment,
+                          },
+                        })
+                      }
+                    >
+                      {disabled ? (
+                        <LockIcon className="mr-1.5 h-3 w-3" />
+                      ) : (
+                        <SquarePen className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      <span>Annotate</span>
+                    </Button>
+                  )}
+                </AnnotateDrawerController>
+              )}
               <Button
                 type="button"
                 variant="secondary"
@@ -495,7 +428,7 @@ export const ObservationDetailViewHeader = memo(
                 ) : (
                   <>
                     <MessageSquare className="h-3.5 w-3.5" />
-                    <span>Comment</span>
+                    <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
                     ) : null}
@@ -581,19 +514,17 @@ export const ObservationDetailViewHeader = memo(
               )}
               {subtreeMetrics
                 ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
+                  subtreeMetrics.usageDetails &&
+                  hasBreakdown(subtreeMetrics.usageDetails) && (
                     <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
                       totalUsage={subtreeMetrics.totalUsage}
                       usageDetails={subtreeMetrics.usageDetails}
                     />
                   )
                 : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
+                  observation.usageDetails &&
+                  hasBreakdown(observation.usageDetails) && (
                     <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
                       totalUsage={totalUsage}
                       usageDetails={observation.usageDetails}
                     />
@@ -607,10 +538,7 @@ export const ObservationDetailViewHeader = memo(
                 />
               )}
               {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge
-                  level={observation.level}
-                  size="default"
-                />
+                <ObservationLevelBadge level={observation.level} />
               )}
               {observation.promptId && (
                 <PromptBadge

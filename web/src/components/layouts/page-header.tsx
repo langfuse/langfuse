@@ -1,12 +1,12 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import {
   getItemTypeLabels,
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
-import { TextChip } from "@/src/components/TextChip";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
@@ -49,8 +49,13 @@ export type PageHeaderProps = {
    * `layout="menu"` variant of their actions here (mirrors the table peek's
    * `actionsMenu`). When omitted, the mobile header falls back to folding the
    * inline `actionButtonsRight`/`actionButtonsLeft` nodes as-is. Desktop
-   * `PageHeader` ignores this. */
-  actionButtonsMenu?: React.ReactNode;
+   * `PageHeader` ignores this. The render callback can hand off focus through the stable menu trigger
+   * before opening another panel, without delayed trigger focus restoration. */
+  actionButtonsMenu?:
+    | ReactNode
+    | ((control: {
+        closeMenu: (options?: { handoffFocus?: boolean }) => void;
+      }) => ReactNode);
   help?: { description: React.ReactNode; href?: string; className?: string };
   titleTooltip?: string;
   itemType?: LangfuseItemType;
@@ -163,11 +168,9 @@ const PageHeader = ({
           >
             {/* Left side content */}
             <div className="flex grow flex-wrap items-center md:grow-0">
-              <div className="mr-2 flex items-center gap-1">
+              <div className="mr-2 flex items-center gap-1.5">
                 {itemType && (
-                  <div className="flex items-center">
-                    <TextChip text={getItemTypeLabels(itemType).displayLabel} />
-                  </div>
+                  <Badge text={getItemTypeLabels(itemType).displayLabel} />
                 )}
                 <div className="relative inline-block max-w-md md:max-w-none">
                   {/* Explicit color: the SidebarProvider shell sets

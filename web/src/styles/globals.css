@@ -166,25 +166,29 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
 
-  /* Text styles: each size token carries its canonical weight, so `text-*`
-     alone yields a complete style (one weight per token — the design-system
-     rule). Weights reference the font-relative weight roles above; heavier
-     text opts in via `font-bold` (the bold role) — never a raw number.
-     Any other weight utility is drift (the theme-lab tool samples drift
-     per token). */
-  --text-xs: 0.725rem;
+  /* Text styles: each size token carries its size (whole pixels at a 16px
+     root), line-height and canonical weight, so `text-*` alone yields a
+     complete style. Heavier text opts in via `font-bold`, never a raw number. */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: calc(18 / 12);
   --text-xs--font-weight: var(--font-weight-regular);
-  --text-sm: 0.825rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: calc(20 / 13);
   --text-sm--font-weight: var(--font-weight-regular);
-  --text-base: 0.9rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.5;
   --text-base--font-weight: var(--font-weight-regular);
-  --text-lg: 1.1rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.35;
   --text-lg--font-weight: var(--font-weight-regular);
-  --text-xl: 1.2rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.3;
   --text-xl--font-weight: var(--font-weight-regular);
-  --text-2xl: 1.3rem;
+  --text-2xl: 1.375rem;
+  --text-2xl--line-height: 1.25;
   --text-2xl--font-weight: var(--font-weight-regular);
   --text-3xl: 1.5rem;
+  --text-3xl--line-height: 1.25;
   --text-3xl--font-weight: var(--font-weight-regular);
 
   --animate-rainbow: rainbow var(--speed, 2s) infinite linear;
@@ -289,9 +293,9 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    /* Text between body and muted: slate-700. Content that is not a heading
+    /* Text between body and muted: slate-600. Content that is not a heading
        and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 25% 27%;
+    --foreground-secondary: 215 19% 35%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */

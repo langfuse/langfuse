@@ -13,6 +13,7 @@ import { LatencyBadge } from "@/src/features/traces/components/ObservationMetada
 import {
   CostBadge,
   UsageBadge,
+  hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
@@ -40,7 +41,7 @@ export function TraceHeader() {
 
   return (
     <div className="shrink-0 border-b px-3 py-2">
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-1.5">
         <LatencyBadge latencySeconds={trace.latency ?? null} />
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
@@ -50,10 +51,9 @@ export function TraceHeader() {
             />
           )}
         {aggregatedMetrics.hasGenerationLike &&
-          aggregatedMetrics.usageDetails && (
+          aggregatedMetrics.usageDetails &&
+          hasBreakdown(aggregatedMetrics.usageDetails) && (
             <UsageBadge
-              inputUsage={aggregatedMetrics.inputUsage}
-              outputUsage={aggregatedMetrics.outputUsage}
               totalUsage={aggregatedMetrics.totalUsage}
               usageDetails={aggregatedMetrics.usageDetails}
             />

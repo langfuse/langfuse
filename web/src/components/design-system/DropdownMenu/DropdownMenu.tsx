@@ -33,7 +33,7 @@ import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
-  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 overflow-y-auto rounded-md border shadow-md outline-hidden",
+  "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
 );
 
 const menuBodyVariants = cva(
@@ -96,18 +96,40 @@ type MenuAction =
   | { href: string; onClick?: never }
   | { href?: never; onClick: () => void };
 
+type DropdownMenuItemAction =
+  | {
+      href: string;
+      linkTarget?: "_blank";
+      onClick?: never;
+      onAfterNavigate?: () => void;
+    }
+  | {
+      href?: never;
+      linkTarget?: never;
+      onClick: () => void;
+      onAfterNavigate?: never;
+    };
+
+type SearchBehavior =
+  | "default"
+  | "hide"
+  | "always-show"
+  | "show-when-no-results";
+
 type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
+  tooltip?: string;
   icon?: LucideIcon;
+  searchBehavior?: SearchBehavior;
   type: "item";
   variant?: "default" | "destructive";
   secondaryAction?: MenuAction & {
     ariaLabel: string;
     icon: LucideIcon;
   };
-} & MenuAction;
+} & DropdownMenuItemAction;
 
 type DropdownMenuCheckboxItem = {
   checked: boolean;
@@ -116,6 +138,7 @@ type DropdownMenuCheckboxItem = {
   id: string;
   title: string;
   icon?: LucideIcon;
+  searchBehavior?: SearchBehavior;
   onCheckedChange: (checked: boolean) => void;
   type: "checkbox";
 };
@@ -126,6 +149,7 @@ type DropdownMenuSubmenu = {
   title: string;
   icon?: LucideIcon;
   items: DropdownMenuItemDefinition[];
+  searchBehavior?: SearchBehavior;
   search?: { placeholder: string };
   type: "submenu";
 };
@@ -207,7 +231,7 @@ function DropdownMenuNode({
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },
     placement,
-    middleware: [offset(4), flip(), shift({ padding: 8 })],
+    middleware: [offset(4), flip(), shift({ padding: 8, crossAxis: true })],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
@@ -237,10 +261,21 @@ function DropdownMenuNode({
   const visibleItems = React.useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
     if (!search || !normalizedQuery) return items;
+    const hasDefaultMatch = items.some((item) => {
+      if (item.type === "separator" || item.type === "loading") return false;
+      if (item.searchBehavior && item.searchBehavior !== "default")
+        return false;
+      return item.title.toLocaleLowerCase().includes(normalizedQuery);
+    });
 
     return items.filter((item) => {
       if (item.type === "separator") return false;
       if (item.type === "loading") return true;
+      if (item.searchBehavior === "hide") return false;
+      if (item.searchBehavior === "always-show") return true;
+      if (item.searchBehavior === "show-when-no-results") {
+        return !hasDefaultMatch;
+      }
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
   }, [items, search, searchQuery]);
@@ -554,7 +589,7 @@ function DropdownMenuNode({
                       role="menuitem"
                       tabIndex={activeIndex === index ? 0 : -1}
                       aria-disabled={item.disabled ? "true" : undefined}
-                      title={item.disabled?.reason}
+                      title={item.disabled?.reason ?? item.tooltip}
                       ref={(element) => {
                         listRef.current[index] = element;
                       }}
@@ -586,6 +621,12 @@ function DropdownMenuNode({
                         <Link
                           data-primary-action=""
                           href={item.href}
+                          target={item.linkTarget}
+                          rel={
+                            item.linkTarget === "_blank"
+                              ? "noopener"
+                              : undefined
+                          }
                           aria-disabled={item.disabled ? "true" : undefined}
                           tabIndex={item.disabled ? -1 : undefined}
                           className={primaryActionVariants()}
@@ -595,6 +636,10 @@ function DropdownMenuNode({
                               return;
                             }
                             tree?.events.emit("click");
+                            item.onAfterNavigate?.();
+                          }}
+                          onAuxClick={(event) => {
+                            if (event.button === 1) item.onAfterNavigate?.();
                           }}
                         >
                           {ItemIcon ? (

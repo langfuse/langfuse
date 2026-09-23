@@ -13,6 +13,8 @@ import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
   setUserFeaturePreview,
+  hasInternalAccess,
+  INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/server";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 
@@ -78,6 +80,34 @@ async function checkUserCanBeDeleted(
 }
 
 export const userAccountRouter = createTRPCRouter({
+  setViewMode: authenticatedProcedure
+    .input(z.object({ mode: z.enum(["INTERNAL", "EXTERNAL"]) }))
+    .mutation(async ({ input, ctx }) => {
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session.user.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        }) ||
+        !canEnableFeaturePreviews
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Internal view mode requires ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+        });
+      }
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId: ctx.session.user.id,
+        flag: INTERNAL_FEATURE_FLAG,
+        enabled: input.mode === "INTERNAL",
+      });
+      return { success: true };
+    }),
   checkCanDelete: authenticatedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     return checkUserCanBeDeleted(userId, ctx.prisma);

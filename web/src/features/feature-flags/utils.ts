@@ -7,11 +7,11 @@ import {
   isFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   type FeaturePreviewAvailabilityContext,
-  type FeaturePreviewFlag,
+  type UserFeatureFlag,
 } from "./available-flags";
 import { type Flags } from "./types";
 
-export const getFeaturePreviewOptOutFlag = (flag: FeaturePreviewFlag) =>
+export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
 /**
@@ -52,10 +52,9 @@ export const parseFlags = (
       return;
     }
 
-    // Internal flags are decided per session by `hasInternalAccess`, never
-    // by stored flags.
+    // Stored preference does not grant internal access.
     if (isInternalFlag(flag)) {
-      parsedFlags[flag] = false;
+      parsedFlags[flag] = !dbFlags.includes(getFeaturePreviewOptOutFlag(flag));
       return;
     }
 

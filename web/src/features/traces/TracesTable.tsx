@@ -189,6 +189,7 @@ function TracesTableInternal({
 }: TracesTableProps & {
   openDeleteTraceDialog: (traceId: string) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const peekContext = usePeekTableState();
   const hasTraceDeleteAccess = useHasProjectAccess({
     projectId,
@@ -613,7 +614,18 @@ function TracesTableInternal({
   });
 
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "TraceTable",
+          targetType: "trace",
+          objectType: "TRACE",
+          queueCount: 1,
+          isV4: false,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Traces added to queue",
         description: `Selected traces will be added to queue "${data.queueName}". This may take a minute.`,

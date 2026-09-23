@@ -1434,5 +1434,118 @@ Task text: {{task_text}}`,
         },
       },
     },
+    {
+      key: "topic-decision-model",
+      name: "Assign Input Topic",
+      categories: ["classifier", "recommended"],
+      icon: "tags",
+      description:
+        "Assigns the input to one of your topics with a calibrated probability for each option, in one fast decision-model call.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "DECISION_MODEL",
+        questions: [
+          {
+            id: "topic",
+            type: "choice",
+            scoreName: "topic",
+            instructions:
+              "Which topic best matches the user's primary goal in `input`? Replace the options below with your own taxonomy before use.",
+            options: [
+              {
+                value: "support",
+                description: "Asks for product help or troubleshooting.",
+              },
+              {
+                value: "billing",
+                description:
+                  "Asks about invoices, pricing, payments, or subscriptions.",
+              },
+              {
+                value: "technical",
+                description: "Asks technical implementation questions.",
+              },
+              {
+                value: "sales",
+                description:
+                  "Asks about purchase, trial, demo, or enterprise fit.",
+              },
+              {
+                value: "feedback",
+                description: "Shares feature feedback or product suggestions.",
+              },
+              {
+                value: "other",
+                description: "Does not reasonably fit any topic above.",
+              },
+            ],
+          },
+        ],
+        state: [{ key: "input", defaultMapping: { field: "input" } }],
+      },
+    },
+    {
+      key: "out-of-scope-decision-model",
+      name: "Flag Out-of-Scope Request",
+      categories: ["conversation"],
+      icon: "shield",
+      description:
+        "Returns the probability that the user's request falls outside what the assistant is meant to handle.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "DECISION_MODEL",
+        questions: [
+          {
+            id: "out_of_scope",
+            type: "noul",
+            scoreName: "out_of_scope",
+            instructions:
+              "Does `input` ask for something outside the assistant's role or supported scope, judging from how the assistant presents itself in `output`?",
+            criteria: {
+              true: "The request concerns an unrelated task, another product, or a personal favor the assistant is not meant to handle.",
+              false:
+                "The request is about the assistant's product or role, even if phrased vaguely or partially answerable.",
+            },
+          },
+        ],
+        state: [
+          { key: "input", defaultMapping: { field: "input" } },
+          { key: "output", defaultMapping: { field: "output" } },
+        ],
+      },
+    },
+    {
+      key: "frustration-decision-model",
+      name: "Rate Customer Frustration",
+      categories: ["conversation"],
+      icon: "frown",
+      description:
+        "Rates how frustrated the user sounds along levels you describe, from calm to ready to leave.",
+      maintainer: "langfuse",
+      evaluator: {
+        type: "DECISION_MODEL",
+        questions: [
+          {
+            id: "frustration",
+            type: "score",
+            scoreName: "customer_frustration",
+            instructions: "How frustrated is the user in `input`?",
+            levels: [
+              { description: "Calm, neutral, or friendly." },
+              { description: "Mildly annoyed but civil." },
+              {
+                description:
+                  "Clearly frustrated: repeating themselves, complaining, or using sharp language.",
+              },
+              {
+                description:
+                  "Angry: insulting, threatening to leave, or demanding escalation.",
+              },
+            ],
+          },
+        ],
+        state: [{ key: "input", defaultMapping: { field: "input" } }],
+      },
+    },
   ],
 } satisfies ManagedTemplatesCatalog;

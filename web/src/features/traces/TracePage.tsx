@@ -6,7 +6,6 @@ import { TraceDetailActions } from "@/src/features/traces/components/TraceDetail
 import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
-import { traceDetailTitle } from "@/src/features/traces/fns/traceDetailTitle";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
@@ -93,7 +92,7 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: traceDetailTitle(trace.data) ?? trace.data.id,
+        title: trace.data.id,
         itemType: "TRACE",
         breadcrumb: [
           {

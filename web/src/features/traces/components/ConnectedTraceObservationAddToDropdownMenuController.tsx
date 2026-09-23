@@ -1,7 +1,12 @@
 import { AnnotationQueueObjectType, type Prisma } from "@langfuse/shared";
 import { Database, ListPlus, PlusIcon, Terminal } from "lucide-react";
 import { useSession } from "next-auth/react";
-import { type ComponentProps, useCallback, useMemo } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useCallback,
+  useMemo,
+} from "react";
 
 import {
   DropdownMenu,
@@ -16,6 +21,8 @@ import {
   useJumpToPlayground,
 } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { type AnalyticsData } from "@/src/features/scores/types";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import type { MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";
 
@@ -29,30 +36,42 @@ type QueueRemoval = {
   queueName: string;
 };
 
-type ConnectedTraceObservationAddToDropdownMenuControllerProps = {
-  projectId: string;
-  input: Prisma.JsonValue | null;
-  output: Prisma.JsonValue | null;
-  metadata: MetadataDomainClient;
-  children: ComponentProps<typeof DropdownMenu>["children"];
-} & (
+type MenuPresentation =
   | {
-      variant: "trace";
-      traceId: string;
-      observationId?: never;
-      generation?: never;
+      children: ComponentProps<typeof DropdownMenu>["children"];
+      renderMenu?: never;
     }
   | {
-      variant: "observation";
-      traceId: string;
-      observationId: string;
-      generation?: PlaygroundGeneration;
-    }
-);
+      children?: never;
+      renderMenu: (items: DropdownMenuItemDefinition[]) => ReactNode;
+    };
+
+type ConnectedTraceObservationAddToDropdownMenuControllerProps =
+  MenuPresentation & {
+    projectId: string;
+    input: Prisma.JsonValue | null;
+    output: Prisma.JsonValue | null;
+    metadata: MetadataDomainClient;
+    analyticsData: Pick<AnalyticsData, "source" | "isV4">;
+  } & (
+      | {
+          variant: "trace";
+          traceId: string;
+          observationId?: never;
+          generation?: never;
+        }
+      | {
+          variant: "observation";
+          traceId: string;
+          observationId: string;
+          generation?: PlaygroundGeneration;
+        }
+    );
 
 export function ConnectedTraceObservationAddToDropdownMenuController(
   props: ConnectedTraceObservationAddToDropdownMenuControllerProps,
 ) {
+  const capture = usePostHogClientCapture();
   const objectId =
     props.variant === "observation" ? props.observationId : props.traceId;
   const objectType =
@@ -92,10 +111,19 @@ export function ConnectedTraceObservationAddToDropdownMenuController(
                   loading={removeFromQueueMutation.isPending}
                   error={removeFromQueueMutation.error?.message}
                   onConfirm={async ({ itemId }) => {
-                    await removeFromQueueMutation.mutateAsync({
+                    const result = await removeFromQueueMutation.mutateAsync({
                       projectId: props.projectId,
                       itemIds: [itemId],
                     });
+                    if (result.deletedCount > 0) {
+                      capture("annotation_queues:item_removed", {
+                        ...props.analyticsData,
+                        type: "trace",
+                        targetType: props.variant,
+                        objectType,
+                        queueCount: 1,
+                      });
+                    }
                     await utils.annotationQueues.byObjectId.invalidate({
                       projectId: props.projectId,
                       objectId,
@@ -132,8 +160,10 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   input,
   output,
   metadata,
+  analyticsData,
   generation,
   children,
+  renderMenu,
   createDatasetDisabled,
   createQueueDisabled,
   openDatasetDialog,
@@ -152,6 +182,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   openQueueDialog: () => void;
   openRemoveQueueDialog: (queueRemoval: QueueRemoval) => void;
 }) {
+  const capture = usePostHogClientCapture();
   const session = useSession();
   const objectId = variant === "observation" ? observationId : traceId;
   const objectType =
@@ -195,12 +226,21 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     async (queueId: string, queueName: string, itemId?: string) => {
       try {
         if (!itemId) {
-          await addToQueueMutation.mutateAsync({
+          const result = await addToQueueMutation.mutateAsync({
             projectId,
             objectIds: [objectId],
             objectType,
             queueId,
           });
+          if (result.createdCount > 0) {
+            capture("annotation_queues:item_added", {
+              ...analyticsData,
+              type: "trace",
+              targetType: variant,
+              objectType,
+              queueCount: 1,
+            });
+          }
         } else {
           openRemoveQueueDialog({ itemId, queueName });
           return;
@@ -217,11 +257,14 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     },
     [
       addToQueueMutation,
+      analyticsData,
+      capture,
       objectId,
       objectType,
       openRemoveQueueDialog,
       projectId,
       utils.annotationQueues,
+      variant,
     ],
   );
 
@@ -312,7 +355,11 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
                 type: "item" as const,
                 id: dataset.id,
                 title: dataset.name,
-                onClick: () =>
+                onClick: () => {
+                  capture("dataset_item:new_from_trace_form_open", {
+                    object: variant,
+                    ...analyticsData,
+                  });
                   openDatasetItemDialog({
                     traceId,
                     observationId,
@@ -320,7 +367,8 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
                     output,
                     metadata,
                     datasetId: dataset.id,
-                  }),
+                  });
+                },
               })),
               ...((datasets.data?.length ?? 0) === 0
                 ? [
@@ -390,6 +438,9 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
 
     return items;
   }, [
+    analyticsData,
+    capture,
+    variant,
     createDatasetDisabled,
     createQueueDisabled,
     datasets.data,
@@ -414,6 +465,8 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
     setIncludeOutput,
     traceId,
   ]);
+
+  if (renderMenu) return renderMenu(items);
 
   return (
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">

@@ -56,6 +56,7 @@ export const AnnotationQueuesItem = ({
       }}
     >
       <AnnotationQueueItemPage
+        key={JSON.stringify([projectId, annotationQueueId])}
         projectId={projectId}
         annotationQueueId={annotationQueueId}
         queryItemId={itemId}

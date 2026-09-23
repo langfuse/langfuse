@@ -2255,7 +2255,7 @@ export const UseObservationFilters = meta.story({
       page.getByRole("menuitem", { name: "Annotate" }),
     ).toBeInTheDocument();
     await expect(
-      page.getByRole("menuitem", { name: "Add comment" }),
+      page.getByRole("menuitem", { name: "Comments" }),
     ).toBeInTheDocument();
     await expect(
       page.getByRole("menuitem", { name: "Add to dataset" }),

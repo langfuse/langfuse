@@ -11,6 +11,7 @@ import {
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  isDecisionModelAdapter,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
 import { z } from "zod";
@@ -275,9 +276,11 @@ export function CreateLLMApiKeyForm({
   const existingKeys = api.llmApiKey.all.useQuery(
     {
       projectId: projectId as string,
+      includeDecisionModels: true,
     },
     { enabled: Boolean(projectId) },
   );
+  const adapterOptions = Object.values(LLMAdapter);
 
   const mutCreateLlmApiKey = api.llmApiKey.create.useMutation({
     onSuccess: () => utils.llmApiKey.invalidate(),
@@ -711,9 +714,11 @@ export function CreateLLMApiKeyForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    {Object.values(LLMAdapter).map((provider) => (
+                    {adapterOptions.map((provider) => (
                       <SelectItem value={provider} key={provider}>
-                        {provider}
+                        {isDecisionModelAdapter(provider)
+                          ? `${provider} (experimental)`
+                          : provider}
                       </SelectItem>
                     ))}
                     {mode === "create" && (

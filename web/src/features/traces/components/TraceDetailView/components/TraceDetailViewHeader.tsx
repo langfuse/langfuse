@@ -3,14 +3,15 @@
  *
  * Contains:
  * - Title row with ItemBadge, trace name, options menu
- * - Action buttons (Add to, Score, Comment)
+ * - Action buttons (Add to, Annotate, Comment)
  * - Metadata badges (timestamp, environment, release, version, target trace)
  * - Trace-level score chips
  *
  * Memoized to prevent unnecessary re-renders when tab state changes.
  */
 
-import { memo } from "react";
+import { memo, useRef } from "react";
+import { useReadPath } from "@/src/features/events";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -43,11 +44,7 @@ import {
   PlusIcon,
   SquarePen,
 } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { cn } from "@/src/utils/tailwind";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 
@@ -76,7 +73,14 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
   commentDrawerControl,
 }: TraceDetailViewHeaderProps) {
   const { isAnnotationMode } = useViewPreferences();
+  const { isV4 } = useReadPath();
   const isMobile = useIsMobile();
+  const mobileActionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const commentActionLabel = commentCount ? "Comments" : "Comment";
+  const mobileCommentActionLabel =
+    commentCount && !commentDrawerControl.disabled
+      ? `${commentActionLabel} (${commentCount})`
+      : commentActionLabel;
   const targetTraceId =
     trace.environment === LangfuseInternalTraceEnvironment.LLMJudge
       ? resolveEvalExecutionMetadata(parsedMetadata)
@@ -99,136 +103,153 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
           >
             {trace.name || trace.id}
           </span>
-          <ConnectedDetailHeaderActionsMenuController
-            idItems={[{ id: trace.id, name: "Trace ID" }]}
-            projectId={projectId}
-            webCallout={{
-              traceId: trace.id,
-              sessionId: trace.sessionId ?? null,
-            }}
-          >
-            {({ getTriggerProps }) => (
-              <Button
-                aria-label="Options"
-                className="mt-0.5 shrink-0"
-                size="icon-xs"
-                title="Options"
-                variant="ghost"
-                {...getTriggerProps()}
-              >
-                <EllipsisVertical className="h-4 w-4" />
-              </Button>
-            )}
-          </ConnectedDetailHeaderActionsMenuController>
-          {/* Mobile: collapse the action-button cluster into a `⋯` overflow of
-              full-width labeled rows, next to the `⋮` utility menu. */}
-          {isMobile && (
-            <Popover>
-              <PopoverTrigger asChild>
+          {!isMobile && (
+            <ConnectedDetailHeaderActionsMenuController
+              idItems={[{ id: trace.id, name: "Trace ID" }]}
+              projectId={projectId}
+              webCallout={{
+                traceId: trace.id,
+                sessionId: trace.sessionId ?? null,
+              }}
+            >
+              {({ getTriggerProps }) => (
                 <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="More actions"
-                  className="ml-auto shrink-0"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                align="end"
-                // forceMount + hide-when-closed: CommentDrawerController lives in
-                // here, and its deep-link auto-open effect (?comments=open) and
-                // controlled inline-selection flow only work while mounted. A
-                // default Popover unmounts its content when closed (the default
-                // state), silently breaking both. Keep it mounted, just hidden.
-                forceMount
-                className="flex w-auto min-w-44 flex-col gap-0.5 p-1 data-[state=closed]:hidden"
-              >
-                <ConnectedTraceObservationAddToDropdownMenuController
-                  projectId={projectId}
-                  traceId={trace.id}
-                  variant="trace"
-                  input={trace.input}
-                  output={trace.output}
-                  metadata={trace.metadata}
-                >
-                  {({ getTriggerProps }) => (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full justify-start gap-2 font-normal"
-                      {...getTriggerProps()}
-                    >
-                      <PlusIcon className="h-4 w-4" />
-                      <span>Add to</span>
-                      <ChevronDown className="ml-auto h-3 w-3" />
-                    </Button>
-                  )}
-                </ConnectedTraceObservationAddToDropdownMenuController>
-                {!isAnnotationMode && (
-                  <>
-                    <AnnotateDrawerController projectId={projectId}>
-                      {({ disabled, openDrawer }) => (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={disabled}
-                          className="w-full justify-start gap-2 font-normal"
-                          onClick={() =>
-                            openDrawer({
-                              scoreTarget: {
-                                type: "trace",
-                                traceId: trace.id,
-                              },
-                              scores: traceScores,
-                              analyticsData: {
-                                type: "trace",
-                                source: "TraceDetail",
-                              },
-                              scoreMetadata: {
-                                projectId,
-                                environment: trace.environment,
-                              },
-                            })
-                          }
-                        >
-                          {disabled ? (
-                            <LockIcon className="h-3 w-3" />
-                          ) : (
-                            <SquarePen className="h-4 w-4" />
-                          )}
-                          <span className="text-sm">Score</span>
-                        </Button>
-                      )}
-                    </AnnotateDrawerController>
-                  </>
-                )}
-                <Button
-                  type="button"
+                  aria-label="Options"
+                  className="mt-0.5 shrink-0"
+                  size="icon-xs"
+                  title="Options"
                   variant="ghost"
-                  size="sm"
-                  disabled={commentDrawerControl.disabled}
-                  onClick={commentDrawerControl.openDrawer}
-                  className="w-full justify-start gap-2 font-normal"
+                  {...getTriggerProps()}
                 >
-                  {commentDrawerControl.disabled ? (
-                    <MessageSquareOff className="text-muted-foreground h-4 w-4" />
-                  ) : (
-                    <MessageSquare className="h-4 w-4" />
-                  )}
-                  <span className="text-sm">Comment</span>
-                  {!commentDrawerControl.disabled && commentCount ? (
-                    <ActionButtonCountBadge count={commentCount} />
-                  ) : null}
+                  <EllipsisVertical className="h-4 w-4" />
                 </Button>
-              </PopoverContent>
-            </Popover>
+              )}
+            </ConnectedDetailHeaderActionsMenuController>
+          )}
+          {isMobile && (
+            <ConnectedTraceObservationAddToDropdownMenuController
+              analyticsData={{ source: "TraceDetail", isV4 }}
+              projectId={projectId}
+              traceId={trace.id}
+              variant="trace"
+              input={trace.input}
+              output={trace.output}
+              metadata={trace.metadata}
+              renderMenu={(addToItems) => (
+                <AnnotateDrawerController projectId={projectId}>
+                  {({ disabled: annotationDisabled, openDrawer }) => (
+                    <ConnectedDetailHeaderActionsMenuController
+                      idItems={[{ id: trace.id, name: "Trace ID" }]}
+                      projectId={projectId}
+                      webCallout={{
+                        traceId: trace.id,
+                        sessionId: trace.sessionId ?? null,
+                      }}
+                      renderMenu={(utilityItems) => (
+                        <DropdownMenu
+                          placement="bottom-end"
+                          maxHeight="min(24rem, calc(100dvh - 2rem))"
+                          items={[
+                            ...(!isAnnotationMode
+                              ? [
+                                  {
+                                    type: "item" as const,
+                                    id: "annotate",
+                                    title: "Annotate",
+                                    icon: annotationDisabled
+                                      ? LockIcon
+                                      : SquarePen,
+                                    disabled: annotationDisabled
+                                      ? {
+                                          reason:
+                                            "You don't have permission to annotate.",
+                                        }
+                                      : undefined,
+                                    onClick: () => {
+                                      mobileActionsTriggerRef.current?.focus({
+                                        preventScroll: true,
+                                      });
+                                      openDrawer({
+                                        scoreTarget: {
+                                          type: "trace",
+                                          traceId: trace.id,
+                                        },
+                                        scores: traceScores,
+                                        analyticsData: {
+                                          type: "trace",
+                                          source: "TraceDetail",
+                                          isV4,
+                                        },
+                                        scoreMetadata: {
+                                          projectId,
+                                          environment: trace.environment,
+                                        },
+                                      });
+                                    },
+                                  },
+                                ]
+                              : []),
+                            {
+                              type: "item",
+                              id: "comments",
+                              title: mobileCommentActionLabel,
+                              icon: commentDrawerControl.disabled
+                                ? MessageSquareOff
+                                : MessageSquare,
+                              disabled: commentDrawerControl.disabled
+                                ? {
+                                    reason:
+                                      "You don't have permission to comment.",
+                                  }
+                                : undefined,
+                              onClick: () => {
+                                mobileActionsTriggerRef.current?.focus({
+                                  preventScroll: true,
+                                });
+                                commentDrawerControl.openDrawer();
+                              },
+                            },
+                            {
+                              type: "submenu" as const,
+                              id: "add-to",
+                              title: "Add to",
+                              icon: PlusIcon,
+                              items: addToItems,
+                            },
+                            {
+                              id: "review-actions-separator",
+                              type: "separator",
+                            },
+                            ...utilityItems,
+                          ]}
+                        >
+                          {({ getTriggerProps }) => (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              aria-label="More actions"
+                              className="ml-auto shrink-0"
+                              {...getTriggerProps({
+                                ref: mobileActionsTriggerRef,
+                              })}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </DropdownMenu>
+                      )}
+                    />
+                  )}
+                </AnnotateDrawerController>
+              )}
+            />
           )}
         </div>
         {/* Action buttons (desktop inline cluster) */}
         {!isMobile && (
           <div className="flex h-full flex-wrap content-start items-start justify-start gap-0.5 @2xl:mr-1 @2xl:justify-end">
             <ConnectedTraceObservationAddToDropdownMenuController
+              analyticsData={{ source: "TraceDetail", isV4 }}
               projectId={projectId}
               traceId={trace.id}
               variant="trace"
@@ -267,6 +288,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                         analyticsData: {
                           type: "trace",
                           source: "TraceDetail",
+                          isV4,
                         },
                         scoreMetadata: {
                           projectId,
@@ -280,7 +302,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
                     ) : (
                       <SquarePen className="mr-1.5 h-3.5 w-3.5" />
                     )}
-                    <span>Score</span>
+                    <span>Annotate</span>
                   </Button>
                 )}
               </AnnotateDrawerController>
@@ -298,7 +320,7 @@ export const TraceDetailViewHeader = memo(function TraceDetailViewHeader({
               ) : (
                 <>
                   <MessageSquare className="h-3.5 w-3.5" />
-                  <span>Comment</span>
+                  <span>{commentActionLabel}</span>
                   {!!commentCount ? (
                     <ActionButtonCountBadge count={commentCount} />
                   ) : null}

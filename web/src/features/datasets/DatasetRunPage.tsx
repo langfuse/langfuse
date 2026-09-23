@@ -9,12 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   SidePanel,
   SidePanelContent,
@@ -93,18 +88,29 @@ function DatasetRunLegacy() {
               redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
             >
               {({ disabled, openDialog }) => (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon">
+                <DropdownMenu
+                  items={[
+                    {
+                      type: "item",
+                      id: "delete",
+                      title: "Delete",
+                      icon: Trash,
+                      disabled: disabled
+                        ? { reason: "Missing permission to delete this run" }
+                        : undefined,
+                      onClick: openDialog,
+                    },
+                  ]}
+                >
+                  {({ getTriggerProps }) => (
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      {...getTriggerProps()}
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem disabled={disabled} onSelect={openDialog}>
-                      <Trash className="h-4 w-4" />
-                      <span>Delete</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
+                  )}
                 </DropdownMenu>
               )}
             </DeleteDatasetRunDialogController>
