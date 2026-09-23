@@ -26,9 +26,7 @@ async fn invalid_credentials_are_rejected_before_admission_or_body_reads() {
             ..ProviderLimits::default()
         },
     );
-    let permit = provider_client
-        .try_admit(ApiFormat::OpenAiResponses)
-        .unwrap();
+    let permit = provider_client.try_admit().unwrap();
     let gateway = Gateway::start(Some(InferenceService::for_test(
         web.control_plane(),
         provider_client,
@@ -904,7 +902,7 @@ async fn anthropic_capacity_rejections_carry_retry_after_in_the_native_envelope(
             ..ProviderLimits::default()
         },
     );
-    let _held = busy.try_admit(ApiFormat::AnthropicMessages).unwrap();
+    let _held = busy.try_admit().unwrap();
     let web = FakeServer::start(|_| async {
         resolution_response_for(ApiFormat::AnthropicMessages, "provider-anthropic")
     })

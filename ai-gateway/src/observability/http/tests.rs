@@ -1,5 +1,4 @@
 use super::*;
-use crate::resolution::ApiFormat;
 use crate::{
     inference::InferenceService,
     providers::{ProviderLimits, ProviderTransport},
@@ -196,7 +195,7 @@ async fn provider_http_errors_are_traced_without_changing_the_response() {
         let recording = Recording::start();
         let response = provider
             .forward(
-                provider.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+                provider.try_admit().unwrap(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(b"{}"),

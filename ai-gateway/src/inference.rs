@@ -99,7 +99,7 @@ impl InferenceService {
         };
         let permit = self
             .provider
-            .try_admit(api_format)
+            .try_admit()
             .map_err(RequestPreparationError::Provider)?;
         Ok((permit, context))
     }

@@ -86,7 +86,7 @@ async fn sends_the_x_api_key_credential_and_forwards_the_open_anthropic_header_f
             .await;
     let response = relay
         .forward_route(
-            relay.try_admit(ApiFormat::AnthropicMessages).unwrap(),
+            relay.try_admit().unwrap(),
             context,
             &headers(
                 &[
@@ -188,7 +188,7 @@ async fn count_tokens_relays_the_body_and_models_forwards_only_pagination() {
         let query = forwarded_query(route, query);
         let response = relay
             .forward_route(
-                relay.try_admit(ApiFormat::AnthropicMessages).unwrap(),
+                relay.try_admit().unwrap(),
                 context,
                 &headers(&[("content-type", "application/json")]),
                 Bytes::from(body),
@@ -240,11 +240,11 @@ fn openai_and_anthropic_admissions_draw_from_one_execution_budget() {
             ..ProviderLimits::default()
         },
     );
-    let held = relay.try_admit(ApiFormat::OpenAiResponses).unwrap();
-    assert!(relay.try_admit(ApiFormat::AnthropicMessages).is_err());
+    let held = relay.try_admit().unwrap();
+    assert!(relay.try_admit().is_err());
     drop(held);
-    let held = relay.try_admit(ApiFormat::AnthropicMessages).unwrap();
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_err());
+    let held = relay.try_admit().unwrap();
+    assert!(relay.try_admit().is_err());
     drop(held);
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
 }

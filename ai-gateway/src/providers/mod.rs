@@ -87,10 +87,6 @@ impl Route {
 pub(crate) struct ProviderLimits {
     pub active: usize,
     pub execution_timeout: Duration,
-    /// Deadline for Anthropic Messages streams. Long thinking turns exceed the
-    /// default; the value leaves one minute of the 15-minute ingestion grant for
-    /// the telemetry upload after the stream ends.
-    pub messages_execution_timeout: Duration,
     pub headers_timeout: Duration,
     pub read_timeout: Duration,
 }
@@ -100,18 +96,8 @@ impl Default for ProviderLimits {
         Self {
             active: 128,
             execution_timeout: Duration::from_secs(600),
-            messages_execution_timeout: Duration::from_mins(14),
             headers_timeout: Duration::from_secs(120),
             read_timeout: Duration::from_secs(120),
-        }
-    }
-}
-
-impl ProviderLimits {
-    fn execution_timeout(&self, api_format: ApiFormat) -> Duration {
-        match api_format {
-            ApiFormat::OpenAiResponses => self.execution_timeout,
-            ApiFormat::AnthropicMessages => self.messages_execution_timeout,
         }
     }
 }
@@ -179,7 +165,7 @@ impl ProviderTransport {
     ///
     /// # Errors
     /// Returns [`ProviderError::Busy`] immediately when all execution slots are occupied.
-    pub fn try_admit(&self, api_format: ApiFormat) -> Result<RequestPermit, ProviderError> {
+    pub fn try_admit(&self) -> Result<RequestPermit, ProviderError> {
         let permit = self.capacity.clone().try_acquire_owned().map_err(|_| {
             crate::observability::rejected("execution");
             ProviderError::Busy
@@ -187,7 +173,7 @@ impl ProviderTransport {
         Ok(RequestPermit {
             _permit: permit,
             _active: crate::observability::Active::new("execution"),
-            deadline: Instant::now() + self.limits.execution_timeout(api_format),
+            deadline: Instant::now() + self.limits.execution_timeout,
         })
     }
 

@@ -91,7 +91,7 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
     }
     let response = relay
         .forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &headers,
             Bytes::from_static(REQUEST),
@@ -114,7 +114,7 @@ async fn preserves_opaque_bytes_and_isolates_request_and_response_headers() {
         to_bytes(response.into_body(), 1024).await.unwrap(),
         RESPONSE
     );
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
     assert_eq!(upstream.calls(), 1);
 }
 
@@ -138,7 +138,7 @@ async fn preserves_provider_failures_without_retries_or_redirects() {
         let relay = provider(&upstream, 1);
         let response = relay
             .forward(
-                relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+                relay.try_admit().unwrap(),
                 resolved_request_context("provider-secret").await,
                 &HeaderMap::new(),
                 Bytes::new(),
@@ -180,7 +180,7 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
     let relay = provider(&upstream, 1);
     let response = relay
         .forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
@@ -197,17 +197,14 @@ async fn streams_sse_incrementally_and_holds_admission_until_eof() {
             .unwrap(),
         "data: first\n\n"
     );
-    assert!(matches!(
-        relay.try_admit(ApiFormat::OpenAiResponses),
-        Err(ProviderError::Busy)
-    ));
+    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     release.notify_one();
     let mut remaining = Vec::new();
     while let Some(chunk) = body.next().await {
         remaining.extend_from_slice(&chunk.unwrap());
     }
     assert_eq!(remaining, b"data: [DONE]\n\n");
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -230,13 +227,13 @@ async fn simultaneous_requests_keep_provider_credentials_and_bodies_isolated() {
     let headers = HeaderMap::new();
     let (alice, bob) = tokio::join!(
         relay.forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             alice,
             &headers,
             Bytes::from_static(b"alice-body")
         ),
         relay.forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             bob,
             &headers,
             Bytes::from_static(b"bob-body")
@@ -283,7 +280,7 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
     let relay = provider(&upstream, 1);
     let response = relay
         .forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
@@ -292,12 +289,9 @@ async fn dropping_downstream_cancels_upstream_and_releases_admission() {
         .unwrap();
     let mut body = response.into_body().into_data_stream();
     assert_eq!(body.next().await.unwrap().unwrap(), "first");
-    assert!(matches!(
-        relay.try_admit(ApiFormat::OpenAiResponses),
-        Err(ProviderError::Busy)
-    ));
+    assert!(matches!(relay.try_admit(), Err(ProviderError::Busy)));
     drop(body);
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
     tokio::time::timeout(Duration::from_secs(1), dropped.notified())
         .await
         .expect("upstream body should be dropped on cancellation");
@@ -319,14 +313,14 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     );
     let response = relay
         .forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),
         )
         .await;
     assert!(matches!(response, Err(ProviderError::Timeout)));
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
 
     let dropped = Arc::new(Notify::new());
     let upstream = stalled_provider(dropped.clone()).await;
@@ -340,7 +334,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let context = resolved_request_context("provider-secret").await;
     let response = relay
         .forward(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             context,
             &HeaderMap::new(),
             Bytes::new(),
@@ -354,7 +348,7 @@ async fn deadlines_bound_headers_and_stalled_bodies_without_exposing_transport_d
     let error = to_bytes(response.into_body(), 1024).await.unwrap_err();
     assert!(!error.to_string().contains(&upstream.url));
     assert!(!error.to_string().contains("provider-secret"));
-    assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+    assert!(relay.try_admit().is_ok());
 }
 
 #[tokio::test]
@@ -426,7 +420,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         ]);
         let response = relay
             .forward(
-                relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+                relay.try_admit().unwrap(),
                 resolved_request_context_with_mode("provider-secret", "full").await,
                 &headers,
                 Bytes::from_static(br#"{"model":"requested","input":"hello"}"#),
@@ -447,7 +441,7 @@ async fn completed_json_and_sse_upload_once_without_waiting_for_ingestion() {
         }
         drop(body);
         assert_eq!(forwarded, native.as_bytes());
-        assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+        assert!(relay.try_admit().is_ok());
         let payload = tokio::time::timeout(Duration::from_secs(1), received.recv())
             .await
             .unwrap()
@@ -501,7 +495,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
         let context = resolved_request_context("provider-secret").await;
         let response = relay
             .forward(
-                relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+                relay.try_admit().unwrap(),
                 context,
                 &HeaderMap::new(),
                 Bytes::from_static(br#"{"model":"requested","input":"prompt-canary"}"#),
@@ -521,7 +515,7 @@ async fn cancelled_and_timed_out_executions_upload_after_provider_context_is_rel
             .await
             .unwrap()
             .unwrap();
-        assert!(relay.try_admit(ApiFormat::OpenAiResponses).is_ok());
+        assert!(relay.try_admit().is_ok());
         assert!(!payload.to_string().contains("prompt-canary"));
         let attrs = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
             .as_array()
@@ -603,7 +597,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     let relay = provider(&upstream, 1).with_telemetry(telemetry.clone());
     let compact = relay
         .forward_route(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::from_static(COMPACT),
@@ -626,7 +620,7 @@ async fn compact_posts_compact_path_and_models_get_skips_ingestion() {
     );
     let models = relay
         .forward_route(
-            relay.try_admit(ApiFormat::OpenAiResponses).unwrap(),
+            relay.try_admit().unwrap(),
             resolved_request_context("provider-secret").await,
             &HeaderMap::new(),
             Bytes::new(),

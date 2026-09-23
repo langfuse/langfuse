@@ -286,9 +286,7 @@ they do not guarantee fairness between clients or tenants.
 
 Other limits are 10 MiB request bodies in both namespaces, 10 seconds to read a request, 5 seconds to
 connect, 120 seconds for provider response headers or an individual upstream read,
-and 600 seconds overall from execution admission (14 minutes for Anthropic Messages,
-leaving one minute of the 15-minute ingestion grant for the upload after a long
-thinking turn). Response size is not capped: a single task pumps chunks
+and 600 seconds overall from execution admission in both namespaces. Response size is not capped: a single task pumps chunks
 through a one-slot channel, with chunks at most 64 KiB. It stops reading when that
 channel fills. Completion, disconnect and deadline release admission and context;
 the deadline runs even when the downstream stops polling. A failure after headers

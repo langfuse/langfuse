@@ -365,7 +365,7 @@ async fn streamed_messages_upload_one_generation_with_flat_priced_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.try_admit(ApiFormat::AnthropicMessages).unwrap(),
+            provider.try_admit().unwrap(),
             context,
             &headers,
             Bytes::from_static(REQUEST),
