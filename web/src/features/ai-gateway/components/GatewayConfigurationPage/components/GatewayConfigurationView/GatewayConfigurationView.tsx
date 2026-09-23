@@ -196,7 +196,7 @@ export function GatewayConfigurationView({
                 </div>
                 <div>
                   <p className="text-sm font-bold">{option.title}</p>
-                  <p className="text-muted-foreground mt-0.5 text-xs leading-4">
+                  <p className="text-muted-foreground mt-0.5 text-xs">
                     {option.description}
                   </p>
                 </div>
