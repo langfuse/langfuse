@@ -1,7 +1,7 @@
 /**
  * TraceMessagesView - the trace as a conversation transcript
  *
- * Internal preview behind the `traceMessages` flag. Renders the transcript
+ * Internal preview available in Internal view mode. Renders the transcript
  * assembled server-side from the trace's generations and tools with the same
  * message components as the formatted IO view: replayed conversation history
  * first, then the current turn with links to the observations that emitted it.
