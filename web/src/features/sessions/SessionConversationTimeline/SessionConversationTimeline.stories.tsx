@@ -2800,6 +2800,90 @@ export const ToolWithNestedObservation = meta.story({
   },
 });
 
+export const CodingAgentSubagentTurn = meta.story({
+  name: "(Test) Coding Agent Subagent Turn Inside Tool",
+  args: {
+    ...loadedArgs,
+    traces: [
+      {
+        trace: { ...trace, observationCount: 6 },
+        turnNumber: 1,
+        observations: [
+          nestedObservation({
+            id: "coding-agent-turn",
+            parentObservationId: null,
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 0,
+          }),
+          nestedObservation({
+            id: "spawn-reviewer",
+            parentObservationId: "coding-agent-turn",
+            type: "TOOL",
+            input: { task: "Review the new search endpoint" },
+            output: { summary: "Found one missing test" },
+            offset: 1,
+          }),
+          nestedObservation({
+            id: "reviewer-turn",
+            parentObservationId: "spawn-reviewer",
+            type: "AGENT",
+            input: null,
+            output: null,
+            offset: 2,
+          }),
+          nestedObservation({
+            id: "reviewer-analysis",
+            parentObservationId: "reviewer-turn",
+            type: "GENERATION",
+            input: "Review the search endpoint",
+            output: "I will inspect the handler and its tests.",
+            offset: 3,
+          }),
+          nestedObservation({
+            id: "read-search-tests",
+            parentObservationId: "reviewer-turn",
+            type: "TOOL",
+            input: { path: "search.test.ts" },
+            output: { cases: 3 },
+            offset: 4,
+          }),
+          nestedObservation({
+            id: "reviewer-summary",
+            parentObservationId: "reviewer-turn",
+            type: "GENERATION",
+            input: null,
+            output: "Add a test for an empty search query.",
+            offset: 5,
+          }),
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvasElement.querySelector(
+        '[data-session-observation-id="spawn-reviewer"]',
+      ),
+    ).toBeInTheDocument();
+
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show 2 generations, tools: read-search-tests, and 1 agent",
+      }),
+    );
+    await expect(canvas.getByText("reviewer-turn")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", {
+        name: "Show 2 generations and tools: read-search-tests",
+      }),
+    );
+    await expect(canvas.getByText("read-search-tests")).toBeInTheDocument();
+  },
+});
+
 export const GenerationToolDataOnly = meta.story({
   name: "(Test) Generation Tool Data Only",
   args: toolShapeArgs({
