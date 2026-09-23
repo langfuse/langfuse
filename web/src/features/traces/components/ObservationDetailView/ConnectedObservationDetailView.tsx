@@ -400,6 +400,7 @@ export function ConnectedObservationDetailView({
                 ) : null}
 
                 {(selectedTab === "log" ||
+                  selectedTab === "attributes" ||
                   (selectedTab === "preview" && isPrettyViewAvailable)) && (
                   <>
                     <div className="ml-auto h-fit px-2 py-0.5">
@@ -434,7 +435,7 @@ export function ConnectedObservationDetailView({
                                     value="json"
                                     size="sm"
                                     disabled
-                                    label="JSON"
+                                    label="Raw"
                                   />
                                 </span>
                               </HoverCardTrigger>
@@ -444,7 +445,7 @@ export function ConnectedObservationDetailView({
                                 sideOffset={8}
                               >
                                 <p className="font-bold">
-                                  JSON view unavailable
+                                  Raw view unavailable
                                 </p>
                                 <p className="text-muted-foreground mt-1">
                                   Disabled for traces with{" "}
@@ -457,12 +458,13 @@ export function ConnectedObservationDetailView({
                               </HoverCardContent>
                             </HoverCard>
                           ) : (
-                            <Tabs.Trigger value="json" size="sm" label="JSON" />
+                            <Tabs.Trigger value="json" size="sm" label="Raw" />
                           )}
                         </Tabs.List>
                       </Tabs>
                     </div>
                     {selectedViewTab === "json" &&
+                      selectedTab !== "attributes" &&
                       !(selectedTab === "log" && isLogViewVirtualized) && (
                         <div className="mr-1 flex items-center gap-1.5">
                           <Switch
