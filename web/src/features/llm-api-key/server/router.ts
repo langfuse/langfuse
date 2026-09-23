@@ -608,6 +608,8 @@ export const llmApiKeyRouter = createTRPCRouter({
           });
         }
 
+        assertDecisionModelConnectionInput(input);
+
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
         const baseURL = input.baseURL ?? existingKey.baseURL;
