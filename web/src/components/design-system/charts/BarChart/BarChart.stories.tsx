@@ -58,7 +58,9 @@ export const KeyboardFocus = meta.story({
     } finally {
       copy.mockRestore();
     }
-    await expect(tooltip.querySelector("svg")).toBeNull();
+    await expect(
+      tooltip.querySelector("svg.lucide-check")?.parentElement,
+    ).toHaveClass("visible");
     await expect(firstBar).toHaveAttribute("fill", "hsl(var(--chart-1))");
     await expect(
       canvas.getByRole("graphics-symbol", { name: "Beta: 24" }),
@@ -88,6 +90,13 @@ export const CategoryHoverArea = meta.story({
       "tooltip",
     );
     await expect(tooltip).toHaveTextContent("Alpha");
+    const copy = spyOn(navigator.clipboard, "writeText").mockResolvedValue();
+    try {
+      await userEvent.click(area);
+      await expect(copy).toHaveBeenCalledWith("Alpha");
+    } finally {
+      copy.mockRestore();
+    }
   },
 });
 

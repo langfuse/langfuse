@@ -201,7 +201,10 @@ export const WithCopyHint = meta.story({
       "Click or press Enter to copy label",
     );
     await expect(hint).toBeVisible();
-    await expect(hint).toHaveClass("border-t", "text-muted-foreground/70");
+    await expect(hint.parentElement).toHaveClass(
+      "border-t",
+      "text-muted-foreground/70",
+    );
     await expect(
       Number.parseFloat(getComputedStyle(hint).fontSize),
     ).toBeLessThan(Number.parseFloat(getComputedStyle(tooltip).fontSize));

@@ -195,6 +195,7 @@ export function BarChartCore({
                             heading: tooltipHeading?.(datum.label),
                             color: hasDistinctColors ? barColor : undefined,
                             hint: "Click or press Enter to copy label",
+                            copyLabel: datum.label,
                           };
                           const { onPointerLeave, ...referenceProps } =
                             getReferenceProps(tooltipData);
@@ -232,10 +233,7 @@ export function BarChartCore({
                                     tabIndex={0}
                                     aria-label={`${datum.label}: ${valueFormatter(datum.value)}`}
                                     className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
-                                    {...getReferenceProps({
-                                      ...tooltipData,
-                                      copyLabel: datum.label,
-                                    })}
+                                    {...getReferenceProps(tooltipData)}
                                     onPointerLeave={undefined}
                                   />
                                 </>

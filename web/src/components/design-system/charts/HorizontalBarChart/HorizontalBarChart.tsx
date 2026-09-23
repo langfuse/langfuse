@@ -164,6 +164,7 @@ export function HorizontalBarChart({
                         ? (datum.color ?? color)
                         : undefined,
                       hint: "Click or press Enter to copy label",
+                      copyLabel: datum.label,
                     };
                     const { onPointerLeave, ...referenceProps } =
                       getReferenceProps(tooltipData);
@@ -207,10 +208,7 @@ export function HorizontalBarChart({
                           tabIndex={0}
                           aria-label={`${datum.label}: ${formattedValue}`}
                           className="outline-hidden focus-visible:outline-2 focus-visible:outline-offset-2"
-                          {...getReferenceProps({
-                            ...tooltipData,
-                            copyLabel: datum.label,
-                          })}
+                          {...getReferenceProps(tooltipData)}
                           onPointerLeave={undefined}
                         />
                         <text

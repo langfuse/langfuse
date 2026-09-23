@@ -1,5 +1,5 @@
 import preview from "../../../../../.storybook/preview";
-import { expect, spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 
 import { HorizontalBarChart } from "./HorizontalBarChart";
 
@@ -96,7 +96,9 @@ export const LayoutAndCopy = meta.story({
     await expect(tooltip).toHaveTextContent(
       "Click or press Enter to copy label",
     );
-    await expect(tooltip.querySelector("svg")).toBeNull();
+    await expect(
+      tooltip.querySelector("svg.lucide-check")?.parentElement,
+    ).toHaveClass("invisible");
     await expect(bars[0]).toHaveAttribute(
       "fill",
       expect.stringContaining("20%"),
@@ -112,6 +114,8 @@ export const LayoutAndCopy = meta.story({
       bar.focus();
       await userEvent.keyboard("{Enter}");
       await expect(copy).toHaveBeenCalledTimes(2);
+      await userEvent.click(hoverArea);
+      await expect(copy).toHaveBeenCalledTimes(3);
     } finally {
       copy.mockRestore();
     }
@@ -285,8 +289,10 @@ export const TinyBarsBesideOutlier = meta.story({
     );
     const large = canvas.getByRole("graphics-symbol", { name: "n/a: $101.21" });
     large.focus();
-    await expect(label).toHaveAttribute("fill", expect.stringContaining("40%"));
-    await expect(value).toHaveAttribute("fill", expect.stringContaining("40%"));
+    await waitFor(() => {
+      expect(label).toHaveAttribute("fill", expect.stringContaining("40%"));
+      expect(value).toHaveAttribute("fill", expect.stringContaining("40%"));
+    });
   },
 });
 
