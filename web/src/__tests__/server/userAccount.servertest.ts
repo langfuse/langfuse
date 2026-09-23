@@ -8,7 +8,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/server";
+import {
+  getFeaturePreviewOptOutFlag,
+  INTERNAL_FEATURE_FLAG,
+} from "@/src/features/feature-flags/server";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
@@ -105,6 +108,44 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 });
 
+describe("userAccountRouter.setViewMode", () => {
+  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
+  beforeEach(() => {
+    env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
+  });
+  afterEach(() => {
+    env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
+  });
+
+  it("persists only the external override and preserves other preferences", async () => {
+    const { caller, userId } = await createCaller({
+      admin: true,
+      featureFlags: ["modernSession"],
+    });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual([
+      "modernSession",
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    ]);
+    await caller.userAccount.setViewMode({ mode: "INTERNAL" });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["modernSession"]);
+  });
+
+  it("does not allow ordinary users to select internal mode", async () => {
+    const { caller } = await createCaller();
+    await expect(
+      caller.userAccount.setViewMode({ mode: "INTERNAL" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+});
+
 describe("userAccountRouter.signOutAllSessions", () => {
   it("advances the user's session revocation timestamp", async () => {
     const { caller, userId } = await createCaller();
@@ -156,6 +197,7 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
+  admin = false,
 }: {
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
@@ -164,6 +206,7 @@ async function createCaller({
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
+  admin?: boolean;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -232,7 +275,7 @@ async function createCaller({
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
-      admin: false,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

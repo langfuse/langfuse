@@ -35,8 +35,19 @@ import {
 } from "@/src/components/ui/jsonViewPreference";
 
 // Valid tab values for detail view
-export type DetailTab = "preview" | "attributes" | "log" | "scores";
-const VALID_TABS: DetailTab[] = ["preview", "attributes", "log", "scores"];
+export type DetailTab =
+  | "preview"
+  | "attributes"
+  | "log"
+  | "scores"
+  | "messages";
+const VALID_TABS: DetailTab[] = [
+  "preview",
+  "attributes",
+  "log",
+  "scores",
+  "messages",
+];
 const DEFAULT_TAB: DetailTab = "preview";
 
 // Valid view preference values
@@ -81,6 +92,7 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
     StringParam,
   );
   const [tabParam, setTabParam] = useQueryParam("traceTab", StringParam);
+  const [legacyView, setLegacyView] = useQueryParam("view", StringParam);
   const [prefParam, setPrefParam] = useQueryParam("pref", StringParam);
 
   // Get localStorage default for view preference
@@ -91,9 +103,10 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Validate and provide defaults for tab
+  const defaultTab = legacyView === "messages" ? "messages" : DEFAULT_TAB;
   const selectedTab: DetailTab = VALID_TABS.includes(tabParam as DetailTab)
     ? (tabParam as DetailTab)
-    : DEFAULT_TAB;
+    : defaultTab;
 
   // Map localStorage JsonViewPreference to ViewPref format
   const localStorageViewPref: ViewPref = isPrettyLikeJsonView(
@@ -109,9 +122,10 @@ export function SelectionProvider({ children }: SelectionProviderProps) {
 
   const setSelectedTab = useCallback(
     (tab: DetailTab) => {
+      if (legacyView === "messages") setLegacyView(null);
       setTabParam(tab === DEFAULT_TAB ? null : tab);
     },
-    [setTabParam],
+    [setTabParam, legacyView, setLegacyView],
   );
 
   const setViewPref = useCallback(

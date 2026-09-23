@@ -78,6 +78,11 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
+import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
 import { ObservationAttributesTab } from "./ObservationAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -105,6 +110,8 @@ export function ConnectedObservationDetailView({
 
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const showMessagesTab = internalFeaturesEnabled && isV4Enabled;
   const {
     observations,
     roots,
@@ -177,11 +184,13 @@ export function ConnectedObservationDetailView({
 
   // "log" is v4-only and needs observations; everything else falls back to preview.
   const selectedTab = useMemo(() => {
+    if (globalSelectedTab === "messages" && showMessagesTab)
+      return "messages" as const;
     if (globalSelectedTab === "scores") return "scores" as const;
     if (globalSelectedTab === "attributes") return "attributes" as const;
     if (globalSelectedTab === "log" && showLogViewTab) return "log" as const;
     return "preview" as const;
-  }, [globalSelectedTab, showLogViewTab]);
+  }, [globalSelectedTab, showLogViewTab, showMessagesTab]);
 
   const refreshTraceScores = useCallback(() => {
     utils.traces.byIdWithObservationsAndScores.invalidate({
@@ -380,6 +389,11 @@ export function ConnectedObservationDetailView({
             <TooltipProvider>
               <TabsBarList>
                 <TabsBarTrigger value="preview">Preview</TabsBarTrigger>
+                {showMessagesTab && (
+                  <TabsBarTrigger value="messages" className="gap-1">
+                    Messages <InternalFeatureBadge />
+                  </TabsBarTrigger>
+                )}
                 <TabsBarTrigger value="attributes">Attributes</TabsBarTrigger>
                 {showScoresTab ? (
                   <TabsBarTrigger value="scores">Scores</TabsBarTrigger>
@@ -480,6 +494,14 @@ export function ConnectedObservationDetailView({
               </TabsBarList>
             </TooltipProvider>
 
+            {selectedTab === "messages" && (
+              <TabsBarContent
+                value="messages"
+                className="mt-0 min-h-0 flex-1 overflow-auto"
+              >
+                <TraceMessagesView />
+              </TabsBarContent>
+            )}
             <TabsBarContent
               value="preview"
               className="mt-0 flex max-h-full min-h-0 w-full flex-1"
