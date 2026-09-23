@@ -140,27 +140,23 @@ describe("trace batch queue", () => {
     const estimates = vi
       .mocked(tokenCountAsync)
       .mock.calls.map(([params]) => params);
-    expect(estimates).toHaveLength(4);
-    const [full, current, historyOnly, tools] = estimates.map(({ text }) =>
+    expect(estimates).toHaveLength(2);
+    const [current, historyOnly] = estimates.map(({ text }) =>
       JSON.stringify(text),
     );
-    expect(full.split("tool payload")).toHaveLength(2);
+    expect(current.split("tool payload")).toHaveLength(2);
     expect(current).not.toContain("earlier question");
     expect(current).toContain("current question");
     expect(current).toContain("independent question");
     expect(historyOnly).toContain("earlier question");
     expect(historyOnly).not.toContain("current question");
-    expect(tools.split("tool payload")).toHaveLength(2);
-    expect(tools).not.toContain("current question");
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_thread_count",
       2,
     );
     for (const [index, suffix] of [
-      "tokens",
       "current_turn_tokens",
       "history_tokens",
-      "tool_response_tokens",
     ].entries()) {
       expect(recordDistribution).toHaveBeenCalledWith(
         `langfuse.trace_batch.transcript_${suffix}`,
@@ -168,7 +164,23 @@ describe("trace batch queue", () => {
         { tokenizer: "o200k_base" },
       );
     }
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_message_tokens",
+      tokenCount(estimates[0])! + tokenCount(estimates[1])!,
+      { tokenizer: "o200k_base" },
+    );
     const span = exporter.getFinishedSpans()[0];
+    const toolCharacters = JSON.stringify({
+      type: "text",
+      text: "tool payload",
+    }).length;
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tool_response_characters",
+      toolCharacters,
+    );
+    expect(
+      span.attributes["langfuse.trace_batch.transcript_content_characters"],
+    ).toBeGreaterThan(toolCharacters);
     let phaseTotal = 0;
     for (const phase of ["normalization", "matching"]) {
       const duration = span.attributes[
@@ -212,11 +224,24 @@ describe("trace batch queue", () => {
         }),
       ),
     ]);
-    const estimates = vi.mocked(tokenCountAsync).mock.calls;
-    expect(estimates).toHaveLength(2);
-    expect(JSON.stringify(estimates[1][0].text)).toContain("tool payload");
-    expect(JSON.stringify(estimates[1][0].text)).not.toContain(
-      "Please explain",
+    expect(tokenCountAsync).toHaveBeenCalledTimes(1);
+    const toolCharacters = JSON.stringify({
+      type: "tool-result",
+      toolCallId: "unmatched",
+      output: "tool payload",
+    }).length;
+    const totalCharacters =
+      toolCharacters +
+      JSON.stringify({ type: "text", text: "Please explain this result" })
+        .length +
+      JSON.stringify({ type: "text", text: "Answer" }).length;
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_tool_response_characters",
+      toolCharacters,
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.transcript_content_characters",
+      totalCharacters,
     );
     expect(recordDistribution).toHaveBeenCalledWith(
       "langfuse.trace_batch.transcript_history_tokens",
@@ -226,7 +251,7 @@ describe("trace batch queue", () => {
   });
 
   it.each(["unavailable", "failed"])(
-    "retains the full estimate when a breakdown is %s",
+    "retains current-turn tokens and character counts but omits the sum when history is %s",
     async (outcome) => {
       vi.mocked(tokenCountAsync).mockResolvedValueOnce(100);
       if (outcome === "unavailable")
@@ -249,12 +274,18 @@ describe("trace batch queue", () => {
         ),
       ]);
       const span = exporter.getFinishedSpans()[0];
-      expect(span.attributes["langfuse.trace_batch.transcript_tokens"]).toBe(
-        100,
+      expect(
+        span.attributes["langfuse.trace_batch.transcript_current_turn_tokens"],
+      ).toBe(100);
+      expect(span.attributes).not.toHaveProperty(
+        "langfuse.trace_batch.transcript_history_tokens",
       );
       expect(span.attributes).not.toHaveProperty(
-        "langfuse.trace_batch.transcript_current_turn_tokens",
+        "langfuse.trace_batch.transcript_message_tokens",
       );
+      expect(
+        span.attributes["langfuse.trace_batch.transcript_content_characters"],
+      ).toBeGreaterThan(0);
       expect(span.attributes["langfuse.trace_batch.token_estimation"]).toBe(
         outcome,
       );
@@ -354,7 +385,7 @@ describe("trace batch queue", () => {
         expect(spans).toHaveLength(streamFails ? 2 : 3);
         expect(spans[0].attributes).toMatchObject({
           "langfuse.trace.id": "a",
-          "langfuse.trace_batch.transcript_tokens": 100,
+          "langfuse.trace_batch.transcript_message_tokens": 100,
         });
         expect(spans[1].attributes).toMatchObject({
           "langfuse.trace.id": "b",
@@ -362,7 +393,7 @@ describe("trace batch queue", () => {
         });
         expect(spans[1].status.code).toBe(SpanStatusCode.UNSET);
         expect(spans[1].attributes).not.toHaveProperty(
-          "langfuse.trace_batch.transcript_tokens",
+          "langfuse.trace_batch.transcript_message_tokens",
         );
         expect(
           spans[1].attributes["langfuse.trace_batch.transcript_characters"],
@@ -460,20 +491,26 @@ describe("trace batch queue", () => {
       expect(serializedTranscript.split(content)).toHaveLength(2);
     }
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.transcript_tokens",
+      "langfuse.trace_batch.transcript_message_tokens",
       tokenCount(estimates[0][0]),
       { tokenizer: "o200k_base" },
     );
     expect(recordDistribution).toHaveBeenCalledWith(
-      "langfuse.trace_batch.transcript_tokens",
+      "langfuse.trace_batch.transcript_message_tokens",
       0,
       { tokenizer: "o200k_base" },
     );
-    for (const suffix of ["current_turn", "history", "tool_response"]) {
+    for (const suffix of ["current_turn", "history"]) {
       expect(recordDistribution).toHaveBeenCalledWith(
         `langfuse.trace_batch.transcript_${suffix}_tokens`,
         0,
         { tokenizer: "o200k_base" },
+      );
+    }
+    for (const suffix of ["content", "tool_response"]) {
+      expect(recordDistribution).toHaveBeenCalledWith(
+        `langfuse.trace_batch.transcript_${suffix}_characters`,
+        0,
       );
     }
     expect(recordDistribution).toHaveBeenCalledWith(
@@ -497,10 +534,10 @@ describe("trace batch queue", () => {
         "langfuse.trace.id": "shared-trace",
         "langfuse.trace_batch.observation_count": 2,
         "langfuse.trace_batch.has_transcript": index === 0,
-        "langfuse.trace_batch.transcript_tokens":
+        "langfuse.trace_batch.transcript_message_tokens":
           index === 0 ? tokenCount(estimates[0][0]) : 0,
         "langfuse.trace_batch.transcript_characters":
-          index === 0 ? serializedTranscript.length : 0,
+          index === 0 ? expect.any(Number) : 0,
         "langfuse.trace_batch.transcript_assembly_duration_ms":
           expect.any(Number),
       });
