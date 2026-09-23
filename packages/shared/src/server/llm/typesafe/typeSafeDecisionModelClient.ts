@@ -14,10 +14,12 @@ import { createSecureLlmFetch } from "../secureLlmFetch";
 export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
+  baseURL?: string | null;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
   const provider = createTypeSafeAi({
     apiKey: params.apiKey,
+    baseURL: params.baseURL ?? undefined,
     fetch:
       params.fetchImpl ??
       createSecureLlmFetch({ logContext: "TypeSafe decision model" }),

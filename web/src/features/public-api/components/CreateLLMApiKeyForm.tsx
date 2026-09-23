@@ -10,7 +10,9 @@ import {
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
+  TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  findTypeSafeUpstream,
   isDecisionModelAdapter,
 } from "@langfuse/shared";
 import { ChevronDown, PlusIcon, TrashIcon } from "lucide-react";
@@ -26,6 +28,7 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import {
   Select,
   SelectContent,
@@ -34,6 +37,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { TypeSafeUpstreamCards } from "@/src/features/llm-api-key/components/TypeSafeUpstreamCards/TypeSafeUpstreamCards";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -378,6 +382,8 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const currentTypeSafeUpstream =
+    findTypeSafeUpstream(form.watch("baseURL")) ?? TYPESAFE_UPSTREAMS[0];
   const isKeepingCurrentBedrockAuthMethod =
     mode === "update" &&
     currentAdapter === LLMAdapter.Bedrock &&
@@ -624,7 +630,11 @@ export function CreateLLMApiKeyForm({
       secretKey: secretKey ?? "",
       provider: values.provider,
       adapter: values.adapter,
-      baseURL: values.baseURL || undefined,
+      baseURL:
+        values.baseURL ||
+        (mode === "update" && currentAdapter === LLMAdapter.TypeSafe
+          ? null
+          : undefined),
       withDefaultModels: isCustomModelsRequired(currentAdapter)
         ? false
         : values.withDefaultModels,
@@ -781,6 +791,38 @@ export function CreateLLMApiKeyForm({
                 )}
               />
 
+              {/* Decision-model upstream: which gateway serves Jev */}
+              {currentAdapter === LLMAdapter.TypeSafe && (
+                <FormField
+                  control={form.control}
+                  name="baseURL"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Upstream</FormLabel>
+                      <FormDescription>
+                        Provider that serves the Jev decision model. OpenRouter
+                        and Vercel AI Gateway expose TypeSafe&apos;s API, so
+                        only the API key changes.
+                      </FormDescription>
+                      <FormControl>
+                        <TypeSafeUpstreamCards
+                          aria-label="Upstream"
+                          value={currentTypeSafeUpstream.id}
+                          onValueChange={(id) =>
+                            field.onChange(
+                              TYPESAFE_UPSTREAMS.find(
+                                (upstream) => upstream.id === id,
+                              )?.baseURL ?? "",
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
               {currentAdapter === LLMAdapter.Bedrock ? (
                 <>
@@ -891,9 +933,8 @@ export function CreateLLMApiKeyForm({
                             )}
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
-                              type="password"
                               placeholder={
                                 mode === "update"
                                   ? isKeepingCurrentBedrockAuthMethod &&
@@ -902,8 +943,7 @@ export function CreateLLMApiKeyForm({
                                     : "Enter Bedrock API key"
                                   : undefined
                               }
-                              autoComplete="new-password"
-                              data-1p-ignore
+                              autoComplete="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -971,9 +1011,8 @@ export function CreateLLMApiKeyForm({
                               )}
                             </FormLabel>
                             <FormControl>
-                              <Input
+                              <PasswordInput
                                 {...field}
-                                type="password"
                                 placeholder={
                                   mode === "update"
                                     ? isUsingDefaultAwsCredentialsForCurrentAuthMethod
@@ -984,8 +1023,7 @@ export function CreateLLMApiKeyForm({
                                         : "Enter AWS secret access key"
                                     : undefined
                                 }
-                                autoComplete="new-password"
-                                data-1p-ignore
+                                autoComplete="off"
                               />
                             </FormControl>
                             <FormMessage />
@@ -1097,7 +1135,7 @@ export function CreateLLMApiKeyForm({
                             </pre>
                           </FormDescription>
                           <FormControl>
-                            <Input
+                            <PasswordInput
                               {...field}
                               placeholder={
                                 mode === "update"
@@ -1105,8 +1143,6 @@ export function CreateLLMApiKeyForm({
                                   : '{"type": "service_account", ...}'
                               }
                               autoComplete="off"
-                              spellCheck="false"
-                              autoCapitalize="off"
                             />
                           </FormControl>
                           <FormMessage />
@@ -1162,14 +1198,18 @@ export function CreateLLMApiKeyForm({
                   name="secretKey"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>API Key</FormLabel>
+                      <FormLabel>
+                        {currentAdapter === LLMAdapter.TypeSafe
+                          ? currentTypeSafeUpstream.apiKeyLabel
+                          : "API Key"}
+                      </FormLabel>
                       <FormDescription>
                         {isLangfuseCloud
                           ? "Your API keys are stored encrypted on our servers."
                           : "Your API keys are stored encrypted in your database."}
                       </FormDescription>
                       <FormControl>
-                        <Input
+                        <PasswordInput
                           {...field}
                           placeholder={
                             mode === "update"
@@ -1177,8 +1217,6 @@ export function CreateLLMApiKeyForm({
                               : undefined
                           }
                           autoComplete="off"
-                          spellCheck="false"
-                          autoCapitalize="off"
                         />
                       </FormControl>
                       <FormMessage />
