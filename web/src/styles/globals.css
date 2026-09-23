@@ -293,9 +293,9 @@
 
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    /* Text between body and muted: slate-700. Content that is not a heading
+    /* Text between body and muted: slate-600. Content that is not a heading
        and not a label, e.g. JSON values. */
-    --foreground-secondary: 215 25% 27%;
+    --foreground-secondary: 215 19% 35%;
     /* Faintest text tier: placeholders, disabled, hints — one step below
        muted-foreground (langfuse.com/docs has the same 4th step). NOTE: ~2.8:1
        on white — flagged in review, kept per design preference for now. */

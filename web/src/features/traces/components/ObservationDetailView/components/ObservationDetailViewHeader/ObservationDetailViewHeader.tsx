@@ -30,6 +30,7 @@ import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDeta
 import {
   CostBadge,
   UsageBadge,
+  hasBreakdown,
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { resolveObservationCostSource } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/costSource";
 import { ModelBadge } from "@/src/features/traces/components/ObservationDetailView/components/ModelBadge";
@@ -119,8 +120,6 @@ export const ObservationDetailViewHeader = memo(
     // Format cost and usage values
     const totalCost = observation.totalCost;
     const totalUsage = observation.totalUsage;
-    const inputUsage = observation.inputUsage;
-    const outputUsage = observation.outputUsage;
     const evaluatorId = resolveEvaluatorIdMetadata(
       observationWithIO?.metadata ?? observation.metadata,
     );
@@ -515,19 +514,17 @@ export const ObservationDetailViewHeader = memo(
               )}
               {subtreeMetrics
                 ? subtreeMetrics.hasGenerationLike &&
-                  subtreeMetrics.usageDetails && (
+                  subtreeMetrics.usageDetails &&
+                  hasBreakdown(subtreeMetrics.usageDetails) && (
                     <UsageBadge
-                      inputUsage={subtreeMetrics.inputUsage}
-                      outputUsage={subtreeMetrics.outputUsage}
                       totalUsage={subtreeMetrics.totalUsage}
                       usageDetails={subtreeMetrics.usageDetails}
                     />
                   )
                 : isGenerationLike(observation.type) &&
-                  observation.usageDetails && (
+                  observation.usageDetails &&
+                  hasBreakdown(observation.usageDetails) && (
                     <UsageBadge
-                      inputUsage={inputUsage}
-                      outputUsage={outputUsage}
                       totalUsage={totalUsage}
                       usageDetails={observation.usageDetails}
                     />
@@ -541,10 +538,7 @@ export const ObservationDetailViewHeader = memo(
                 />
               )}
               {observation.level !== "DEFAULT" && (
-                <ObservationLevelBadge
-                  level={observation.level}
-                  size="default"
-                />
+                <ObservationLevelBadge level={observation.level} />
               )}
               {observation.promptId && (
                 <PromptBadge
