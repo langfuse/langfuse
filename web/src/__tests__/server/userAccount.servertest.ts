@@ -145,7 +145,7 @@ describe("userAccountRouter.setViewMode", () => {
     const { caller } = await createCaller();
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
 });
 
