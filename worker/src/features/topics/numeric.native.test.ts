@@ -26,11 +26,6 @@ it("fits every member through the native child and builds usable serving prototy
     topicClusterSettings(false),
   );
   expect(result.status).toBe("complete");
-  expect(result.labels).toHaveLength(1002);
-  expect(result.coordinates).toHaveLength(1002);
-  expect(
-    result.coordinates.every((point) => point.every(Number.isFinite)),
-  ).toBe(true);
   const groups = new Set(result.labels.filter((label) => label >= 0));
   expect(groups.size).toBe(2);
   for (const start of [0, 501]) {

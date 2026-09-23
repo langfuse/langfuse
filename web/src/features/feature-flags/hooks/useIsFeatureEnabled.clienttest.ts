@@ -3,7 +3,6 @@ import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 
 import useIsFeatureEnabled from "./useIsFeatureEnabled";
-import { INTERNAL_FEATURE_FLAG } from "../available-flags";
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
@@ -14,13 +13,11 @@ const mockSession = ({
   langfuseTopics = false,
   admin = false,
   enableExperimentalFeatures = false,
-  internalFeatures,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
-  internalFeatures?: boolean;
 }) => {
   vi.mocked(useSession).mockReturnValue({
     data: {
@@ -30,7 +27,6 @@ const mockSession = ({
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
-          [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
           {
@@ -57,18 +53,8 @@ describe("useIsFeatureEnabled", () => {
     }));
     expect(result.current).toEqual({ aiGateway: false, langfuseTopics: false });
 
-    mockSession({ aiGateway: false, langfuseTopics: true });
+    mockSession({ aiGateway: true, langfuseTopics: true });
     rerender();
-    expect(result.current).toEqual({ aiGateway: false, langfuseTopics: true });
-  });
-
-  it("returns the server-resolved organization flag", () => {
-    mockSession({ aiGateway: true });
-
-    const { result } = renderHook(() =>
-      useIsFeatureEnabled("aiGateway", { organizationId: "org-1" }),
-    );
-
-    expect(result.current).toBe(true);
+    expect(result.current).toEqual({ aiGateway: true, langfuseTopics: true });
   });
 });

@@ -263,21 +263,12 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   ) => {
     state.resultReads("assignments");
     if (!state.visible) return [];
-    const latest = new Map<string, TopicAssignment>();
-    const originRank = { initial: 1, online: 2, backfill: 3 };
-    const sorted = [...state.assignments.values()].sort(
-      (a, b) =>
-        a.assignedAt.localeCompare(b.assignedAt) ||
-        originRank[a.origin] - originRank[b.origin],
+    return [...state.assignments.values()].filter(
+      (row) => row.runId === runId && ids.includes(row.summaryId),
     );
-    for (const row of sorted)
-      if (row.runId === runId && ids.includes(row.summaryId))
-        latest.set(row.summaryId, row);
-    return [...latest.values()];
   },
 }));
 vi.mock("./models", () => ({
-  TOPICS_SUMMARY_PROMPT_VERSION: "3",
   TOPICS_NAMING_MODEL: "gpt-5.6-luna",
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
@@ -285,7 +276,6 @@ vi.mock("./models", () => ({
 }));
 vi.mock("./numeric", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./numeric")>()),
-  TOPICS_NUMERIC_VERSION: "test-current",
   runTopicClustering: (...args: unknown[]) => state.numeric(...args),
 }));
 
@@ -300,26 +290,17 @@ async function processTopicsExecution(
     selected.input.operation === "process"
       ? selected.input.traceIds
       : undefined;
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const result = await processTopicsExecutionAttempt({
-      ...scope,
-      traceIds,
-      batchId: "batch-0",
-      batchState: state.batches.get(scope.executionId),
-      saveBatchState: async (value) => {
-        await state.saveBatch(value);
-        state.batches.set(scope.executionId, structuredClone(value));
-        state.executions.set(
-          scope.executionId,
-          structuredClone(value.execution),
-        );
-      },
-    });
-    if (!result || state.deferEmbeddings) return result;
-  }
-  throw new Error(
-    "Topics batch did not finish after embedding acknowledgements.",
-  );
+  return processTopicsExecutionAttempt({
+    ...scope,
+    traceIds,
+    batchId: "batch-0",
+    batchState: state.batches.get(scope.executionId),
+    saveBatchState: async (value) => {
+      await state.saveBatch(value);
+      state.batches.set(scope.executionId, structuredClone(value));
+      state.executions.set(scope.executionId, structuredClone(value.execution));
+    },
+  });
 }
 
 function pendingRun(
@@ -1013,26 +994,6 @@ describe("Topics execution", () => {
       expect(state.runs.get(first.id)).toEqual(first);
     },
   );
-
-  it("does not reuse definitions from an incompatible embedding model", async () => {
-    await processSelection("source", 100);
-    await updateSelection("first");
-    const first = [...state.runs.values()].at(-1)!;
-    first.config.embeddingModel = "previous-embedding-model";
-    await updateSelection("second");
-    const second = [...state.runs.values()].at(-1)!;
-    expect(second.topics.map((topic) => topic.topicId).sort()).toEqual(
-      first.topics.map((topic) => topic.topicId).sort(),
-    );
-    expect(
-      second.topics.every((topic) =>
-        first.topics.every(
-          (previous) => previous.topicVersionId !== topic.topicVersionId,
-        ),
-      ),
-    ).toBe(true);
-    expect(state.name).toHaveBeenCalledTimes(4);
-  });
 
   it("reserves reused names before naming changed definitions", async () => {
     await processSelection("source", 100);

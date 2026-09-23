@@ -578,46 +578,21 @@ describe("batched evaluation version selection", () => {
 
 describe("batch action history", () => {
   it("keeps Topics processing records behind the Topics API", async () => {
-    const rows = [
-      {
-        id: "evaluation",
-        projectId,
-        userId: "user-id",
-        actionType: "observation-run-batched-evaluation",
-      },
-      {
-        id: "topics",
-        projectId,
-        userId: "user-id",
-        actionType: "topics",
-      },
-      {
-        id: "other-project",
-        projectId: "other-project",
-        userId: "user-id",
-        actionType: "observation-run-batched-evaluation",
-      },
-    ];
-    type Where = {
-      projectId: string;
-      id?: string;
-      actionType?: { not: string };
+    const row = {
+      id: "evaluation",
+      projectId,
+      userId: "user-id",
+      actionType: "observation-run-batched-evaluation",
     };
-    const matching = ({ where }: { where: Where }) =>
-      rows.filter(
-        (row) =>
-          row.projectId === where.projectId &&
-          (!where.id || row.id === where.id) &&
-          (!where.actionType || row.actionType !== where.actionType.not),
-      );
+    const batchAction = {
+      findMany: vi.fn().mockResolvedValue([row]),
+      count: vi.fn().mockResolvedValue(1),
+      findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValue(row),
+    };
     const caller = batchActionRouter.createCaller({
       ...createInnerTRPCContext({ session, headers: {} }),
       prisma: {
-        batchAction: {
-          findMany: vi.fn(async (args) => matching(args)),
-          count: vi.fn(async (args) => matching(args).length),
-          findUnique: vi.fn(async (args) => matching(args)[0] ?? null),
-        },
+        batchAction,
         user: { findMany: vi.fn(async () => []) },
       } as unknown as PrismaClient,
     });
@@ -625,11 +600,20 @@ describe("batch action history", () => {
     const history = await caller.all({ projectId, limit: 10, page: 0 });
     expect(history.batchActions.map((row) => row.id)).toEqual(["evaluation"]);
     expect(history.totalCount).toBe(1);
+    const where = { projectId, actionType: { not: "topics" } };
+    for (const query of [batchAction.findMany, batchAction.count])
+      expect(query).toHaveBeenCalledWith(expect.objectContaining({ where }));
     await expect(
       caller.byId({ projectId, batchActionId: "topics" }),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "topics" } }),
+    );
     await expect(
       caller.byId({ projectId, batchActionId: "evaluation" }),
     ).resolves.toMatchObject({ id: "evaluation" });
+    expect(batchAction.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ...where, id: "evaluation" } }),
+    );
   });
 });

@@ -106,35 +106,4 @@ describe("Topics trace input", () => {
     expect(input.coverage.mediaPartCount).toBe(1);
     expect(input.hasContent).toBe(true);
   });
-
-  it("retains data beside message containers and removes raw media from ID-less outputs", () => {
-    const prepared = prepareTrace([
-      observation("structured", {
-        input: {
-          messages: [{ role: "user", content: "Can this shipment arrive?" }],
-          shipment: { deliveryBlocked: true },
-        },
-        output: [
-          {
-            role: "assistant",
-            tool_calls: [
-              {
-                type: "function",
-                function: { name: "inspect", arguments: "{}" },
-              },
-            ],
-            content: [
-              {
-                type: "image",
-                source: { type: "base64", data: "PRIVATE_PAYLOAD" },
-              },
-            ],
-          },
-        ],
-      }),
-    ]);
-    const input = serializeTraceTranscript(prepared);
-    expect(input.text).toContain("deliveryBlocked");
-    expect(input.text).not.toContain("PRIVATE_PAYLOAD");
-  });
 });

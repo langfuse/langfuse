@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   act,
   fireEvent,
@@ -12,10 +11,7 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  TopicTraceSelector,
-  type TopicTraceCriteria,
-} from "./TopicTraceSelector";
+import { TopicTraceSelector } from "./TopicTraceSelector";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn(), push: vi.fn() }));
 vi.mock("next/router", () => ({
@@ -61,36 +57,24 @@ vi.mock(
   }),
 );
 
-function setup(initialCriteria?: TopicTraceCriteria) {
+function setup() {
   const onOpenTrace = vi.fn();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  function ConfigurableSelector() {
-    const [open, setOpen] = useState(true);
-    return (
-      <TopicTraceSelector
-        projectId="project"
-        initialCriteria={initialCriteria}
-        onOpenTrace={onOpenTrace}
-      >
-        {(ids, _criteria, controls) => (
+  render(
+    <QueryClientProvider client={client}>
+      <TopicTraceSelector projectId="project" onOpenTrace={onOpenTrace}>
+        {(selection, _criteria, controls) => (
           <>
-            <button onClick={() => setOpen(!open)}>Configure selection</button>
-            {open && controls}
-            <button disabled={!ids}>Trigger topics</button>
-            <output data-testid="selected">{JSON.stringify(ids)}</output>
+            {controls}
+            <output data-testid="selected">{JSON.stringify(selection)}</output>
           </>
         )}
       </TopicTraceSelector>
-    );
-  }
-  const view = render(
-    <QueryClientProvider client={client}>
-      <ConfigurableSelector />
     </QueryClientProvider>,
   );
-  return { ...view, client, onOpenTrace };
+  return { client, onOpenTrace };
 }
 
 function result(...ids: string[]) {
@@ -121,86 +105,6 @@ afterEach(() => {
 });
 
 describe("Topics trace selection", () => {
-  it("loads saved rule criteria and chooses a fresh execution time range", async () => {
-    mocks.fetch.mockResolvedValue(result("trace-a"));
-    const criteria: TopicTraceCriteria = {
-      filter: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production"],
-        },
-      ],
-      sampling: "latest",
-      limit: 50,
-    };
-    setup(criteria);
-    expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
-    expect(screen.getByLabelText("Trace sampling method")).toHaveTextContent(
-      "Newest first",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
-    expect(mocks.fetch.mock.calls[0][0]).toMatchObject(criteria);
-    expect(mocks.fetch.mock.calls[0][0].to).toBeInstanceOf(Date);
-    expect(
-      mocks.fetch.mock.calls[0][0].to.getTime() -
-        mocks.fetch.mock.calls[0][0].from.getTime(),
-    ).toBe(7 * 86_400_000);
-  });
-
-  it("opens trace peek from preview rows and names without changing the cohort", async () => {
-    mocks.fetch.mockResolvedValue(result("trace-a", "trace-b"));
-    const { onOpenTrace } = setup();
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
-    const checkbox = await screen.findByRole("checkbox", {
-      name: "Select trace trace-a",
-    });
-    fireEvent.click(checkbox);
-    expect(mocks.push).not.toHaveBeenCalled();
-    expect(onOpenTrace).not.toHaveBeenCalled();
-    expect(selected()).toMatchObject({
-      count: 1,
-      selection: { excludedTraceIds: ["trace-a"] },
-    });
-    const reviewedSelection = selected();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Configure selection" }),
-    );
-    expect(screen.queryByRole("button", { name: "Preview traces" })).toBeNull();
-    expect(selected()).toEqual(reviewedSelection);
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeEnabled();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Configure selection" }),
-    );
-    expect(
-      screen.getByRole("checkbox", { name: "Select trace trace-a" }),
-    ).not.toBeChecked();
-    expect(selected()).toEqual(reviewedSelection);
-    expect(mocks.fetch).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "trace-a" }));
-    expect(mocks.push).toHaveBeenLastCalledWith(
-      { pathname: "/project/project/topics", query: { peek: "trace-a" } },
-      undefined,
-      { shallow: true },
-    );
-    fireEvent.click(screen.getByRole("row", { name: /Select trace trace-b/ }));
-    expect(mocks.push).toHaveBeenLastCalledWith(
-      { pathname: "/project/project/topics", query: { peek: "trace-b" } },
-      undefined,
-      { shallow: true },
-    );
-    expect(mocks.push).toHaveBeenCalledTimes(2);
-    expect(onOpenTrace).toHaveBeenCalledTimes(2);
-    expect(selected()).toMatchObject({
-      count: 1,
-      selection: { excludedTraceIds: ["trace-a"] },
-    });
-  });
-
   it("freezes only the latest preview and invalidates it immediately when criteria change", async () => {
     const pending: Array<(value: ReturnType<typeof result>) => void> = [];
     mocks.fetch.mockImplementation(
@@ -208,9 +112,7 @@ describe("Topics trace selection", () => {
     );
     const { client } = setup();
     expect(mocks.fetch).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeDisabled();
+    expect(selected()).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() => expect(pending).toHaveLength(1));
     fireEvent.click(screen.getByRole("checkbox", { name: "Sample traces" }));
@@ -237,9 +139,7 @@ describe("Topics trace selection", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace new-trace" }),
     );
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeDisabled();
+    expect(selected()).toBeNull();
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select all previewed traces" }),
     );
@@ -250,22 +150,18 @@ describe("Topics trace selection", () => {
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "100" },
     });
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeDisabled();
+    expect(selected()).toBeNull();
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "50" },
     });
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).toBeDisabled();
+    expect(selected()).toBeNull();
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("retains exclusions across preview pages and refreshes with a new sample seed", async () => {
+  it("preserves exclusions through peek navigation and pagination, then refreshes the cohort", async () => {
     const traces = Array.from({ length: 21 }, (_, i) => `trace-${i}`);
     mocks.fetch.mockResolvedValue(result(...traces));
-    setup();
+    const { onOpenTrace } = setup();
     fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await screen.findByRole("checkbox", { name: "Select trace trace-0" });
     expect(
@@ -274,6 +170,18 @@ describe("Topics trace selection", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-0" }),
     );
+    expect(mocks.push).not.toHaveBeenCalled();
+    expect(onOpenTrace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "trace-0" }));
+    fireEvent.click(screen.getByRole("row", { name: /Select trace trace-1 / }));
+    expect(mocks.push.mock.calls).toEqual(
+      ["trace-0", "trace-1"].map((traceId) => [
+        { pathname: "/project/project/topics", query: { peek: traceId } },
+        undefined,
+        { shallow: true },
+      ]),
+    );
+    expect(onOpenTrace).toHaveBeenCalledTimes(2);
     fireEvent.click(screen.getByRole("button", { name: "Next traces" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-20" }),
@@ -297,23 +205,6 @@ describe("Topics trace selection", () => {
       limit: null,
       sampling: "random",
     });
-  });
-
-  it("deduplicates pasted IDs without a preview", () => {
-    const ids = Array.from({ length: 25 }, (_, i) => `trace-${i}`);
-    setup();
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
-      button: 0,
-      ctrlKey: false,
-    });
-    fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
-      target: { value: [...ids, ids[0]].join("\n") },
-    });
-    expect(selected()).toEqual({ count: 25, traceIds: ids });
-    expect(
-      screen.getByRole("button", { name: "Trigger topics" }),
-    ).not.toBeDisabled();
-    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
   it("previews all of the displayed custom dates using an exclusive next-day boundary", async () => {

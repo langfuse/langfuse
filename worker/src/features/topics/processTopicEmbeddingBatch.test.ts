@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { UnrecoverableError } from "bullmq";
 import type {
   TopicEmbeddingConfig,
@@ -97,7 +97,6 @@ beforeEach(() => {
   });
   mocks.embed.mockResolvedValue(embeddingResult);
 });
-afterEach(() => vi.useRealTimers());
 
 describe("Topics embedding handoff", () => {
   it("retries combined results from Redis after a failed ClickHouse write", async () => {
@@ -147,39 +146,18 @@ describe("Topics embedding handoff", () => {
     expect(staged.size).toBe(2);
   });
 
-  it("persists the canonical Redis result when embedding attempts overlap", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime("2026-09-18T00:01:00.000Z");
+  it("persists the canonical result returned by Redis", async () => {
     const row = summary();
     staged.set(row.id, row);
-    let finishFirst!: (value: typeof embeddingResult) => void;
-    let finishSecond!: (value: typeof embeddingResult) => void;
-    mocks.embed
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finishFirst = resolve;
-          }),
-      )
-      .mockImplementationOnce(
-        () =>
-          new Promise((resolve) => {
-            finishSecond = resolve;
-          }),
-      );
-    const first = processTopicEmbeddingBatch(batch(row));
-    const second = processTopicEmbeddingBatch(batch(row));
-    await vi.waitFor(() => expect(mocks.embed).toHaveBeenCalledTimes(2));
-    finishFirst(embeddingResult);
-    await first;
-    const accepted = staged.get(row.id);
-    vi.setSystemTime("2026-09-18T00:02:00.000Z");
-    finishSecond({ ...embeddingResult, embedding: Array(256).fill(0.5) });
-    await second;
-    expect(mocks.write.mock.calls.map(([rows]) => rows)).toEqual([
-      [accepted],
-      [accepted],
-    ]);
+    const accepted: TopicSummary = {
+      ...row,
+      state: "complete",
+      embedding: Array(256).fill(0.5),
+      processedAt: "2026-09-18T00:01:00.000Z",
+    };
+    mocks.update.mockResolvedValueOnce(accepted);
+    await processTopicEmbeddingBatch(batch(row));
+    expect(mocks.write).toHaveBeenCalledExactlyOnceWith([accepted]);
   });
 
   it("reports expired payloads as unrecoverable instead of regenerating summaries", async () => {

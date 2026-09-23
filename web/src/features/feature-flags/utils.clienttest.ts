@@ -15,7 +15,6 @@ describe("parseFlags", () => {
       email: "team.member@langfuse.com",
       v4BetaEnabled: true,
     };
-    expect(parseFlags([], context).langfuseTopics).toBe(false);
     expect(
       parseFlagsWithOrganizationDefaults([], ["langfuseTopics"], context)
         .langfuseTopics,

@@ -126,19 +126,13 @@ describe("trace deletion", () => {
       {
         project_id: projectId,
         trace_id: retainedTraceId,
+        session_id: traceId,
         facet_id: "intent",
         facet_version: 1,
       },
       {
         project_id: otherProjectId,
         trace_id: traceId,
-        facet_id: "intent",
-        facet_version: 1,
-      },
-      {
-        project_id: projectId,
-        trace_id: "",
-        session_id: traceId,
         facet_id: "intent",
         facet_version: 1,
       },
@@ -183,20 +177,19 @@ describe("trace deletion", () => {
           WHERE project_id IN ({projectIds: Array(String)})`,
         params: { projectIds: [projectId, otherProjectId] },
       });
-      expect(remaining).toHaveLength(3);
+      expect(remaining).toHaveLength(2);
       expect(remaining).toEqual(
         expect.arrayContaining([
           {
             project_id: projectId,
             trace_id: retainedTraceId,
-            session_id: "",
+            session_id: traceId,
           },
           {
             project_id: otherProjectId,
             trace_id: traceId,
             session_id: "",
           },
-          { project_id: projectId, trace_id: "", session_id: traceId },
         ]),
       );
     }

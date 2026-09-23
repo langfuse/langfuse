@@ -106,7 +106,7 @@ const assignmentFixture: TopicAssignment = {
   summaryId: summaryFixture.id,
   summaryProcessedAt: summaryFixture.processedAt,
   coordinates: null,
-  runId: null,
+  runId: "published-run",
   topicId: null,
   topicVersionId: null,
   distance: null,
@@ -448,9 +448,14 @@ describe("Topics classifications", () => {
       expect(discoveryQuery.query).toContain(filter);
   });
 
-  it("batches assignment rows without dropping any results", async () => {
+  it("batches valid assignments without dropping results and rejects invalid references", async () => {
     const rows = Array.from({ length: 10_001 }, (_, index) => {
-      const row = { ...assignmentFixture, traceId: `trace-${index}` };
+      const row = {
+        ...assignmentFixture,
+        traceId: `trace-${index}`,
+        topicId: "topic-a",
+        topicVersionId: "topic-v1",
+      };
       row.summaryId = topicSummaryId(row);
       return row;
     });
@@ -463,13 +468,25 @@ describe("Topics classifications", () => {
         request.values.map((row: { trace_id: string }) => row.trace_id),
       ),
     ).toEqual(rows.map((row) => row.traceId));
+    expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
+      clustering_run_id: "published-run",
+      topic_id: "topic-a",
+      topic_version_id: "topic-v1",
+    });
+    for (const invalid of [
+      { topicId: "topic-a" },
+      { runId: null, coordinates: [0, 0] },
+    ] satisfies Partial<TopicAssignment>[])
+      await expect(
+        writeTopicAssignments([{ ...assignmentFixture, ...invalid }]),
+      ).rejects.toThrow("Invalid Topics assignment");
   });
 
   it.each([
     { traceId: "trace-a", sessionId: "session-a" },
     { traceId: null, sessionId: "session-a" },
   ] as const)(
-    "roundtrips an ad-hoc outlier's source metadata and summary timestamp: %j",
+    "serializes and reads a published map outlier's source metadata and summary timestamp: %j",
     async (source) => {
       const row: TopicAssignment = { ...assignmentFixture, ...source };
       row.summaryId = topicSummaryId(row);
@@ -480,7 +497,7 @@ describe("Topics classifications", () => {
         session_id: row.sessionId ?? "",
         environment: row.environment,
         trace_name: row.traceId ? row.traceName : "",
-        clustering_run_id: "",
+        clustering_run_id: "published-run",
         topic_id: "",
         topic_version_id: "",
         summary_processed_at: row.summaryProcessedAt,
@@ -492,7 +509,6 @@ describe("Topics classifications", () => {
           traceId: row.traceId ?? "",
           sessionId: row.sessionId ?? "",
           traceName: inserted.trace_name,
-          runId: "",
           topicId: "",
           topicVersionId: "",
           coordinates: [],
@@ -532,27 +548,6 @@ describe("Topics classifications", () => {
       );
     },
   );
-
-  it("allows ad-hoc topic classifications without a clustering run", async () => {
-    const row: TopicAssignment = {
-      ...assignmentFixture,
-      topicId: "topic-a",
-      topicVersionId: "topic-v1",
-    };
-    await writeTopicAssignments([row]);
-    expect(mocks.insert.mock.calls[0][0].values[0]).toMatchObject({
-      clustering_run_id: "",
-      topic_id: "topic-a",
-      topic_version_id: "topic-v1",
-    });
-    for (const invalid of [
-      { topicVersionId: null },
-      { coordinates: [0, 0] },
-    ] satisfies Partial<TopicAssignment>[])
-      await expect(
-        writeTopicAssignments([{ ...row, ...invalid }]),
-      ).rejects.toThrow("Invalid Topics assignment");
-  });
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
     await readTopicMapAssignments("project-a", "run-a");

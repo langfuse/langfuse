@@ -1,78 +1,160 @@
-import type { ReactNode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TopicFacet } from "@langfuse/shared/topics";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import type { TopicFacet, TopicRule } from "@langfuse/shared/topics";
 import { TopicPipelineForm } from "./TopicPipelineForm";
-import type {
-  TopicTraceCriteria,
-  TopicTraceSelection,
-} from "./TopicTraceSelector";
 
-const selection = vi.hoisted(() => ({
-  value: null as TopicTraceSelection | null,
-  criteria: null as TopicTraceCriteria | null,
-  initialCriteria: undefined as TopicTraceCriteria | undefined,
+const mocks = vi.hoisted(() => ({
+  preview: vi.fn(),
+  trigger: vi.fn(),
+  saveRule: vi.fn(),
+  onTriggered: vi.fn(),
 }));
-const trigger = vi.hoisted(() => vi.fn());
-const saveRule = vi.hoisted(() => vi.fn());
 const rule = {
   id: "rule",
   projectId: "project",
   name: "Production intents",
-  filter: [],
-  sampling: "latest" as const,
+  filter: [
+    {
+      column: "environment",
+      type: "stringOptions",
+      operator: "any of",
+      value: ["production"],
+    },
+  ],
+  sampling: "latest",
   limit: 50,
   facetIds: ["intent"],
-};
-vi.mock("./TopicTraceSelector", () => ({
-  TopicTraceSelector: ({
-    children,
-    initialCriteria,
-  }: {
-    children: (
-      value: TopicTraceSelection | null,
-      criteria: TopicTraceCriteria | null,
-      controls: ReactNode,
-    ) => ReactNode;
-    initialCriteria?: TopicTraceCriteria;
-  }) => {
-    selection.initialCriteria = initialCriteria;
-    return children(selection.value, selection.criteria, null);
-  },
-}));
+  updatedAt: "2026-09-16T00:00:00Z",
+} satisfies TopicRule;
 vi.mock("@/src/utils/api", () => ({
   api: {
     topics: {
+      previewTraces: {
+        useQuery: (input: unknown, options: object) =>
+          useQuery({
+            queryKey: ["preview", input],
+            queryFn: () => mocks.preview(input),
+            ...options,
+          }),
+      },
       summaryCounts: {
         useQuery: () => ({
-          data: [
-            { facetId: "intent", facetVersion: 2, count: 120 },
-            { facetId: "issues", facetVersion: 2, count: 0 },
-          ],
+          data: [{ facetId: "intent", facetVersion: 2, count: 120 }],
         }),
       },
       rules: { useQuery: () => ({ data: [rule] }) },
       saveRule: {
         useMutation: () => ({
-          mutate: saveRule,
+          mutate: mocks.saveRule,
           isPending: false,
           reset: vi.fn(),
         }),
       },
       trigger: {
-        useMutation: () => ({ mutateAsync: trigger, isPending: false }),
+        useMutation: () => ({ mutateAsync: mocks.trigger, isPending: false }),
       },
     },
-    useUtils: () => ({
-      topics: {
-        summaryCounts: { invalidate: vi.fn() },
-      },
-    }),
+    useUtils: () => ({ topics: { summaryCounts: { invalidate: vi.fn() } } }),
   },
 }));
+vi.mock("@/src/components/table/peek/hooks/usePeekNavigation", () => ({
+  usePeekNavigation: () => ({ openPeek: vi.fn() }),
+}));
+vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
+  useEventsFilterOptions: () => ({
+    filterOptions: {},
+    isFilterOptionsPending: false,
+  }),
+}));
+vi.mock("@/src/features/search-bar", () => ({
+  TableSearchBar: () => null,
+  toObservedOptions: () => ({}),
+  fieldRegistryFromColumns: () => ({ fields: [] }),
+}));
+vi.mock(
+  "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder",
+  () => ({ ObservationFilterBuilder: () => null }),
+);
+
+const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
+  id: name.toLowerCase(),
+  projectId: "project",
+  name,
+  description: "",
+  versions: [2, 1].map((version) => ({
+    projectId: "project",
+    facetId: name.toLowerCase(),
+    version,
+    prompt: `Describe ${name}`,
+    createdAt: "2026-09-16T00:00:00Z",
+  })),
+}));
+const latestFacets = facets.map((facet) => ({ facetId: facet.id, version: 2 }));
+function setup() {
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <TopicPipelineForm
+        projectId="project"
+        facets={facets}
+        canWrite
+        onTriggered={mocks.onTriggered}
+        facetEditor={null}
+        render={(actions, configuration) => (
+          <>
+            {actions}
+            {configuration}
+          </>
+        )}
+      />
+    </QueryClientProvider>,
+  );
+}
+const click = (name: string | RegExp) =>
+  fireEvent.click(screen.getByRole("button", { name }));
+const processButton = () =>
+  screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ });
+async function choose(label: string, option: string) {
+  fireEvent.keyDown(screen.getByLabelText(label), { key: "ArrowDown" });
+  fireEvent.keyDown(await screen.findByRole("option", { name: option }), {
+    key: "Enter",
+  });
+}
+async function submit(name: string | RegExp) {
+  const count = mocks.trigger.mock.calls.length;
+  click(name);
+  await waitFor(() =>
+    expect(mocks.onTriggered).toHaveBeenCalledTimes(count + 1),
+  );
+  return mocks.trigger.mock.calls.at(-1)![0];
+}
+async function preview() {
+  click("Preview traces");
+  await screen.findByRole("checkbox", { name: "Select trace trace-a" });
+}
 
 const scrollIntoView = HTMLElement.prototype.scrollIntoView;
 beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.trigger.mockResolvedValue({ id: "execution" });
+  mocks.preview.mockResolvedValue({
+    matchedTraceCount: 2,
+    selectedTraceCount: 2,
+    traces: ["trace-a", "trace-b"].map((id) => ({
+      id,
+      name: id,
+      timestamp: new Date(),
+      environment: "production",
+    })),
+  });
   HTMLElement.prototype.scrollIntoView = vi.fn();
   vi.stubGlobal(
     "ResizeObserver",
@@ -88,228 +170,134 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("Topics pipeline selection handoff", () => {
-  it("requires a reviewed selection, sends its exact IDs and all facets, and blocks an invalidated selection", async () => {
-    const facets: TopicFacet[] = ["Intent", "Issues"].map((name) => ({
-      id: name.toLowerCase(),
-      projectId: "project",
-      name,
-      description: "",
-      versions: [2, 1].map((version) => ({
-        projectId: "project",
-        facetId: name.toLowerCase(),
-        version,
-        prompt: `Describe ${name}`,
-        createdAt: "2026-09-16T00:00:00Z",
-      })),
-    }));
-    const onTriggered = vi.fn();
-    const props = {
-      projectId: "project",
-      facets,
-      canWrite: true,
-      onTriggered,
-      facetEditor: null,
-      render: (actions: ReactNode, configuration: ReactNode) => (
-        <>
-          {actions}
-          {configuration}
-        </>
-      ),
-    };
-    selection.value = null;
-    selection.criteria = null;
-    trigger.mockResolvedValue({ id: "execution" });
-    const view = render(<TopicPipelineForm {...props} />);
-    expect(
-      screen
-        .getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-    selection.value = {
-      traceIds: ["trace-with/custom-id", "second-trace"],
-      count: 2,
-    };
-    view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    fireEvent.keyDown(screen.getByLabelText("Embedding dimensions"), {
-      key: "ArrowDown",
-    });
-    fireEvent.click(screen.getByRole("option", { name: "512" }));
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
-    );
-    await waitFor(() => expect(onTriggered).toHaveBeenCalledWith("execution"));
-    expect(trigger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        operation: "process",
-        reuseExistingSummaries: false,
-        projectId: "project",
-        traceIds: ["trace-with/custom-id", "second-trace"],
-        facets: [
-          { facetId: "intent", version: 2 },
-          { facetId: "issues", version: 2 },
-        ],
-        embeddingConfig: {
-          embeddingModel: "cohere.embed-v4:0",
-          embeddingDimensions: 512,
-        },
-      }),
-    );
-    selection.value = {
-      count: 10000,
-      selection: {
-        filter: [],
-        from: new Date("2026-09-15T00:00:00Z"),
-        to: new Date("2026-09-16T00:00:00Z"),
-        limit: null,
-        sampling: "random",
-        seed: "preview-seed",
-        excludedTraceIds: ["excluded-trace"],
-      },
-    };
-    view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    const reuse = screen.getByRole("checkbox", {
-      name: "Reuse stored summaries",
-    });
-    fireEvent.click(reuse);
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
-    );
-    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(2));
-    expect(trigger.mock.calls[1][0]).toMatchObject({
-      selection: selection.value.selection,
-      reuseExistingSummaries: true,
-    });
-    expect(trigger.mock.calls[1][0]).not.toHaveProperty("traceIds");
-    expect(trigger.mock.calls[1][0]).not.toHaveProperty("minimumTraceCount");
-    expect(trigger.mock.calls[1][0]).not.toHaveProperty("exploratory");
-    selection.value = null;
-    view.rerender(<TopicPipelineForm {...props} />);
-    expect(
-      screen
-        .getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ })
-        .hasAttribute("disabled"),
-    ).toBe(true);
-
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    fireEvent.keyDown(screen.getByLabelText("Version for Intent"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(await screen.findByRole("option", { name: "v1" }), {
-      key: "Enter",
-    });
-    expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v1");
-    // Reusing filters selects stable facets and resets their versions to the latest.
-    fireEvent.keyDown(screen.getByLabelText("Saved configuration"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(await screen.findByRole("option", { name: rule.name }), {
-      key: "Enter",
-    });
-    expect(selection.initialCriteria).toEqual({
-      filter: rule.filter,
-      sampling: rule.sampling,
-      limit: rule.limit,
-    });
-    expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
-    expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
-    selection.criteria = selection.initialCriteria!;
-    selection.value = {
-      count: 50,
-      selection: {
-        ...selection.criteria,
-        from: new Date("2026-09-15T00:00:00Z"),
-        to: new Date("2026-09-16T00:00:00Z"),
-        seed: "rule-preview",
-        excludedTraceIds: [],
-      },
-    };
-    view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.keyDown(screen.getByLabelText("Embedding dimensions"), {
-      key: "ArrowDown",
-    });
-    fireEvent.click(screen.getByRole("option", { name: "256" }));
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
-    );
-    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(3));
-    expect(trigger.mock.calls[2][0]).toMatchObject({
-      ruleId: rule.id,
-      facets: [{ facetId: "intent", version: 2 }],
-      embeddingConfig: { embeddingDimensions: 256 },
-    });
-
-    selection.criteria = { ...selection.criteria, limit: 25 };
-    selection.value = {
-      count: 25,
-      selection: { ...selection.value.selection, limit: 25 },
-    };
-    view.rerender(<TopicPipelineForm {...props} />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /^Process (?:[\d,]+ )?traces$/ }),
-    );
-    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(4));
-    expect(trigger.mock.calls[3][0]).not.toHaveProperty("ruleId");
-    expect(saveRule).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Configure topics" }));
-    fireEvent.click(screen.getByRole("button", { name: "Update rule" }));
-    expect(saveRule).toHaveBeenCalledWith({
-      projectId: "project",
-      id: rule.id,
-      name: rule.name,
-      ...selection.criteria,
-      facetIds: ["intent"],
-    });
-    fireEvent.keyDown(screen.getByLabelText("Saved configuration"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Custom configuration" }),
-      { key: "Enter" },
-    );
-    expect(selection.initialCriteria).toBeUndefined();
-    expect(screen.getByRole("checkbox", { name: "Intent" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Issues" })).toBeChecked();
-
-    // Updating topics consumes stored summaries without a selected trace batch.
-    fireEvent.keyDown(screen.getByLabelText("Pipeline operation"), {
-      key: "ArrowDown",
-    });
-    fireEvent.keyDown(
-      await screen.findByRole("option", { name: "Update topics" }),
-      { key: "Enter" },
-    );
-    expect(screen.queryByLabelText("Saved configuration")).toBeNull();
-    expect(
-      screen.queryByRole("checkbox", { name: "Reuse stored summaries" }),
-    ).toBeNull();
-    fireEvent.change(screen.getByLabelText("Minimum traces for clustering"), {
-      target: { value: "30" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    fireEvent.click(screen.getByRole("button", { name: "Update topics" }));
-    await waitFor(() => expect(trigger).toHaveBeenCalledTimes(5));
-    expect(trigger.mock.calls[4][0]).toMatchObject({
-      operation: "update",
-      facets: [
-        { facetId: "intent", version: 2 },
-        { facetId: "issues", version: 2 },
-      ],
-      embeddingConfig: { embeddingDimensions: 256 },
-      minimumTraceCount: 30,
-      exploratory: false,
-    });
-    expect(trigger.mock.calls[4][0]).not.toHaveProperty("traceIds");
-    expect(trigger.mock.calls[4][0]).not.toHaveProperty("selection");
-    expect(trigger.mock.calls[4][0]).not.toHaveProperty("ruleId");
-    expect(trigger.mock.calls[4][0]).not.toHaveProperty(
-      "reuseExistingSummaries",
-    );
+it("processes pasted IDs and reviewed rule selections, invalidating edited criteria until reviewed again", async () => {
+  setup();
+  expect(processButton()).toBeDisabled();
+  click("Configure topics");
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Paste IDs" }), {
+    button: 0,
+    ctrlKey: false,
   });
+  fireEvent.change(screen.getByLabelText("Trace IDs or links"), {
+    target: {
+      value: "trace-with/custom-id\nsecond-trace\ntrace-with/custom-id",
+    },
+  });
+  await choose("Embedding dimensions", "512");
+  click("Done");
+  expect(await submit(/^Process 2 traces$/)).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "process",
+    traceIds: ["trace-with/custom-id", "second-trace"],
+    facets: latestFacets,
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 512,
+    },
+    reuseExistingSummaries: false,
+  });
+  expect(mocks.preview).not.toHaveBeenCalled();
+
+  click("Configure topics");
+  await choose("Version for Intent", "v1");
+  expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v1");
+  await choose("Saved configuration", rule.name);
+  expect(screen.getByLabelText("Version for Intent")).toHaveTextContent("v2");
+  expect(screen.getByRole("checkbox", { name: "Issues" })).not.toBeChecked();
+  expect(screen.getByLabelText("Maximum traces")).toHaveValue(50);
+  await preview();
+  const request = mocks.preview.mock.calls[0][0];
+  expect(request).toMatchObject({
+    filter: rule.filter,
+    limit: 50,
+    sampling: "latest",
+    from: expect.any(Date),
+    to: expect.any(Date),
+    seed: expect.any(String),
+  });
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Select trace trace-b" }),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Reuse stored summaries" }),
+  );
+  click("trace-a");
+  expect(screen.queryByRole("dialog")).toBeNull();
+  const selection = {
+    filter: rule.filter,
+    from: request.from,
+    to: request.to,
+    limit: 50,
+    sampling: "latest",
+    seed: request.seed,
+    excludedTraceIds: ["trace-b"],
+  };
+  expect(await submit(/^Process 1 traces$/)).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "process",
+    selection,
+    ruleId: rule.id,
+    facets: [{ facetId: "intent", version: 2 }],
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 512,
+    },
+    reuseExistingSummaries: true,
+  });
+
+  click("Configure topics");
+  fireEvent.change(screen.getByLabelText("Maximum traces"), {
+    target: { value: "25" },
+  });
+  click("Done");
+  expect(processButton()).toBeDisabled();
+  click("Configure topics");
+  await preview();
+  click("Done");
+  const changed = await submit(/^Process 2 traces$/);
+  expect(changed.selection).toMatchObject({ limit: 25, excludedTraceIds: [] });
+  expect(changed).not.toHaveProperty("ruleId");
+  expect(mocks.saveRule).not.toHaveBeenCalled();
+  click("Configure topics");
+  click("Update rule");
+  expect(mocks.saveRule).toHaveBeenCalledExactlyOnceWith({
+    id: rule.id,
+    projectId: rule.projectId,
+    name: rule.name,
+    filter: rule.filter,
+    sampling: rule.sampling,
+    facetIds: rule.facetIds,
+    limit: 25,
+  });
+});
+
+it("updates topics from stored summaries without a trace selection or process-only options", async () => {
+  setup();
+  click("Configure topics");
+  await choose("Saved configuration", rule.name);
+  await choose("Saved configuration", "Custom configuration");
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Reuse stored summaries" }),
+  );
+  await choose("Pipeline operation", "Update topics");
+  await choose("Embedding dimensions", "256");
+  fireEvent.change(screen.getByLabelText("Minimum traces for clustering"), {
+    target: { value: "30" },
+  });
+  click("Done");
+  expect(await submit("Update topics")).toEqual({
+    projectId: "project",
+    requestId: expect.any(String),
+    operation: "update",
+    facets: latestFacets,
+    embeddingConfig: {
+      embeddingModel: "cohere.embed-v4:0",
+      embeddingDimensions: 256,
+    },
+    minimumTraceCount: 30,
+    exploratory: false,
+  });
+  expect(mocks.preview).not.toHaveBeenCalled();
 });

@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { test, expect } from "vitest";
 import { parseTraceInput } from "./parse-trace-input";
 
