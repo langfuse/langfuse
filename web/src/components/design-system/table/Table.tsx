@@ -151,7 +151,7 @@ export function Table<TData extends object>({
                       key={header.id}
                       aria-sort={ariaSort}
                       className={cn(
-                        "group bg-background text-muted-foreground relative h-10 border-b p-1 text-left align-middle font-bold first:pl-2",
+                        "group bg-background text-muted-foreground relative h-10 border-b p-2 text-left align-middle font-bold",
                         column.headerClassName,
                         column.hideBelowMd && "hidden md:table-cell",
                       )}
@@ -268,7 +268,10 @@ export function Table<TData extends object>({
                       <td
                         key={column.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.columnDef.cellPadding === "none"
+                            ? "p-0"
+                            : "p-2",
                           column.columnDef.cellClassName,
                           column.columnDef.hideBelowMd &&
                             "hidden md:table-cell",
@@ -331,7 +334,8 @@ export function Table<TData extends object>({
                       <td
                         key={cell.id}
                         className={cn(
-                          "h-full overflow-hidden border-b p-2 align-middle text-xs whitespace-nowrap first:pl-2",
+                          "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
+                          column.cellPadding === "none" ? "p-0" : "p-2",
                           column.cellClassName,
                           column.hideBelowMd && "hidden md:table-cell",
                         )}
