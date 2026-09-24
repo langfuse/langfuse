@@ -3,6 +3,7 @@
 import { scaleBand, scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { INACTIVE_CHART_COLOR_STRENGTH } from "@/src/components/design-system/charts/constants";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
 import { CartesianLayout } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import {
@@ -169,7 +170,10 @@ export function BarChartCore({
                             colorStrength = active ? 60 : 30;
                           }
                           if (activeIndex !== undefined && !active) {
-                            colorStrength = variant === "subtle" ? 15 : 20;
+                            colorStrength =
+                              variant === "subtle"
+                                ? 15
+                                : INACTIVE_CHART_COLOR_STRENGTH;
                           }
                           const fill =
                             colorStrength === 100
