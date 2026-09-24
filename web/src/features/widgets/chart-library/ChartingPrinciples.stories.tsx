@@ -592,7 +592,6 @@ export const AreaGaps = meta.story({
         <AreaChartTimeSeries
           data={buildGappedData(staggeredGapSeries)}
           missingValue="gap"
-          subtleFill
           metricFormatter={msFormatter}
         />
       </ExampleCard>
@@ -604,7 +603,6 @@ export const AreaGaps = meta.story({
         <AreaChartTimeSeries
           data={buildGappedData(twoEras)}
           missingValue="zero"
-          subtleFill
         />
       </ExampleCard>
     </div>

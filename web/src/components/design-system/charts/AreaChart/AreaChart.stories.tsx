@@ -112,7 +112,10 @@ function AreaChartDemo({
     );
   }
 
-  let chartData = data;
+  let chartData: {
+    x: Date;
+    values: { api: number | null; worker: number | null };
+  }[] = data;
   if (scenario === "gaps") chartData = gaps;
   else if (scenario === "negative") {
     chartData = data.map((datum, index) => ({
