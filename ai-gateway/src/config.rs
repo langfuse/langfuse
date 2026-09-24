@@ -49,7 +49,7 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS")?.as_deref(),
         )?;
         config.telemetry_buffer_bytes = telemetry_buffer_bytes(
-            read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES")?.as_deref(),
         )?;
         if let Some(web_url) =
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.filter(|url| !url.is_empty())
@@ -162,16 +162,16 @@ fn concurrency_limit(
 }
 
 fn telemetry_buffer_bytes(value: Option<&str>) -> Result<usize, GatewayConfigError> {
+    const MIB: usize = 1024 * 1024;
     let Some(value) = value else {
         return Ok(crate::telemetry::DEFAULT_RETAINED_BYTES);
     };
     value
         .parse::<usize>()
         .ok()
-        .filter(|mebibytes| (4..=4096).contains(mebibytes))
-        .map(|mebibytes| mebibytes * 1024 * 1024)
+        .filter(|bytes| (4 * MIB..=4096 * MIB).contains(bytes))
         .ok_or(GatewayConfigError(
-            "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB must be an integer from 4 to 4096",
+            "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)",
         ))
 }
 
@@ -337,26 +337,29 @@ mod tests {
     }
 
     #[test]
-    fn telemetry_buffer_is_read_in_mebibytes_within_bounds() {
+    fn telemetry_buffer_is_read_in_bytes_within_bounds() {
         assert_eq!(telemetry_buffer_bytes(None).unwrap(), 64 * 1024 * 1024);
-        assert_eq!(telemetry_buffer_bytes(Some("4")).unwrap(), 4 * 1024 * 1024);
-        assert_eq!(
-            telemetry_buffer_bytes(Some("4096")).unwrap(),
-            4096 * 1024 * 1024
-        );
+        for value in [4_194_304, 67_108_864, 4_294_967_296] {
+            assert_eq!(
+                telemetry_buffer_bytes(Some(&value.to_string())).unwrap(),
+                value
+            );
+        }
         for value in [
             "",
             "0",
-            "3",
-            "4097",
+            "64",
+            "4194303",
+            "4294967297",
             "-1",
             "1.5",
+            "64MiB",
             "secret-that-must-not-appear",
         ] {
             let error = telemetry_buffer_bytes(Some(value)).err().unwrap();
             assert_eq!(
                 error.to_string(),
-                "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB must be an integer from 4 to 4096"
+                "LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES must be an integer from 4194304 (4 MiB) to 4294967296 (4 GiB)"
             );
         }
     }

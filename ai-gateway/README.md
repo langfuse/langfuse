@@ -79,7 +79,7 @@ do not load dotenv files:
 | `LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS` | `10`           | Integer from 1 to 300                              |
 | `LANGFUSE_AI_GATEWAY_MAX_ACTIVE_REQUESTS` | `128` | Positive integer up to Tokio's semaphore capacity; authenticated requests per instance |
 | `LANGFUSE_AI_GATEWAY_MAX_CONCURRENT_RESOLUTIONS` | `128` | Positive integer up to Tokio's semaphore capacity; concurrent Web resolutions per instance |
-| `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB` | `64` | Integer from 4 to 4096; span and credential bytes an instance holds for upload before dropping new records |
+| `LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES` | `67108864` (64 MiB) | Integer from 4194304 (4 MiB) to 4294967296 (4 GiB); span and credential bytes an instance holds for upload before dropping new records |
 
 The gateway shares `LANGFUSE_LOG_LEVEL` with Web and worker. Values are lowercase;
 `fatal` maps to Rust's `error` level and therefore includes ordinary error logs.
@@ -395,7 +395,7 @@ errors may echo request content.
 
 Provisional upload limits are 32 concurrent uploads, 1024 queued records, 4 MiB
 serialized span and credentials per record, 64 MiB total retained span/credential
-bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_MIB`), 8 MiB of OTLP JSON per
+bytes by default (`LANGFUSE_AI_GATEWAY_TELEMETRY_BUFFER_BYTES`), 8 MiB of OTLP JSON per
 payload before gzip compression, and
 64 KiB ingestion responses. Serialization and mapping have additional bounded memory
 overhead; these byte budgets are not an RSS limit. Uploads have a two-second connect
