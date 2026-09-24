@@ -206,7 +206,7 @@ describe("DataRetentionProcessingJob", () => {
         select: { id: true },
       });
       expect(conversations.map(({ id }) => id).sort()).toEqual(
-        [recentId, runningId, recentLegacyId].sort(),
+        [recentId, runningId, staleId, legacyId, recentLegacyId].sort(),
       );
       expect(
         await prisma.inAppAgentRun.count({
@@ -228,12 +228,12 @@ describe("DataRetentionProcessingJob", () => {
         await prisma.inAppAgentRun.count({
           where: { projectId, conversationId: legacyId },
         }),
-      ).toBe(0);
+      ).toBe(1);
       expect(
         await prisma.inAppAgentRun.count({
           where: { projectId, conversationId: staleId },
         }),
-      ).toBe(0);
+      ).toBe(1);
     } finally {
       await prisma.inAppAgentConversation.deleteMany({
         where: { projectId, id: { in: ids } },

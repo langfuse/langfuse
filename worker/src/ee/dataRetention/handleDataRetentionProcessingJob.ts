@@ -13,12 +13,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import { Prisma } from "@prisma/client";
-import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
-import {
-  classifyStaleRun,
-  cleanupTerminalRunMcpApiKeys,
-} from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { cleanupTerminalRunMcpApiKeys } from "@langfuse/shared/in-app-agent/server/runLifecycle";
 import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { env, v4WritesToEventsTable } from "../../env";
 
@@ -82,41 +77,8 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     });
     if (conversations.length === 0) break;
     for (const { id } of conversations) {
-      const unfinishedRuns = await prisma.inAppAgentRun.findMany({
-        where: { projectId, conversationId: id, finishedAt: null },
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          claimedAt: true,
-          heartbeatAt: true,
-          finishedAt: true,
-        },
-      });
-      for (const run of unfinishedRuns) {
-        const failure = classifyStaleRun(run, Date.now());
-        if (!failure && !(run.status === null && run.createdAt < cutoffDate)) {
-          continue;
-        }
-
-        await prisma.inAppAgentRun.updateMany({
-          where: {
-            id: run.id,
-            projectId,
-            status: run.status,
-            finishedAt: null,
-            claimedAt: run.claimedAt,
-            heartbeatAt: run.heartbeatAt,
-          },
-          data: {
-            status: InAppAgentRunStatus.FAILED,
-            finishedAt: new Date(),
-            request: Prisma.DbNull,
-            errorCode: failure?.errorCode ?? null,
-            errorMessage: failure?.errorMessage ?? null,
-          },
-        });
-      }
+      // worker/src/features/in-app-agent-integrity-runner/index.ts classifies stale runs in the background;
+      // unfinished runs block deletion until then.
       await cleanupTerminalRunMcpApiKeys({
         prisma,
         projectId,
