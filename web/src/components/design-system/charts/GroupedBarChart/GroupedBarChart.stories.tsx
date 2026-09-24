@@ -133,7 +133,18 @@ export const ManyBuckets = meta.story({
     ).toHaveLength(100);
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]").length,
-    ).toBeLessThan(60);
+    ).toBe(0);
+    const svg = canvasElement.querySelector(
+      "svg[aria-label='Grouped bar chart']",
+    );
+    const hoverArea = svg?.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!svg || !hoverArea) throw new Error("Chart plot not found");
+    await expect(
+      Number(hoverArea.getAttribute("y")) +
+        Number(hoverArea.getAttribute("height")),
+    ).toBe(Number(svg.getAttribute("height")) - 12);
   },
 });
 

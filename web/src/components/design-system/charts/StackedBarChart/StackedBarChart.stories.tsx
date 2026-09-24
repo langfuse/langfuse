@@ -28,6 +28,36 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const NoRoomForLabels = meta.story({
+  args: {
+    data: Array.from({ length: 20 }, (_, index) => ({
+      key: `A very long category label that cannot fit on the x axis ${index}`,
+      values: { api: 12, worker: 8 },
+    })),
+  },
+  decorators: [
+    (Story) => (
+      <div className="h-40 w-[320px]">
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const svg = canvasElement.querySelector(
+      "svg[aria-label='Stacked bar chart']",
+    );
+    const hoverArea = svg?.querySelector<SVGRectElement>(
+      'rect[fill="transparent"]',
+    );
+    if (!svg || !hoverArea) throw new Error("Chart plot not found");
+    await expect(svg.querySelectorAll("[data-x-axis-label]")).toHaveLength(0);
+    await expect(
+      Number(hoverArea.getAttribute("y")) +
+        Number(hoverArea.getAttribute("height")),
+    ).toBe(Number(svg.getAttribute("height")) - 12);
+  },
+});
+
 export const StackingAndTooltip = meta.story({
   name: "(Test) Stacking and Tooltip",
   play: async ({ canvasElement }) => {

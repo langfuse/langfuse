@@ -272,6 +272,15 @@ export const FullyTruncatedLabels = meta.story({
     await expect(
       canvasElement.querySelectorAll("[data-x-axis-label]"),
     ).toHaveLength(0);
+    const svg = canvasElement.querySelector("svg[aria-label='Bar chart']");
+    const hoverArea = canvasElement.querySelector<SVGRectElement>(
+      "[data-bar-hover-area]",
+    );
+    if (!svg || !hoverArea) throw new Error("Chart plot not found");
+    await expect(
+      Number(hoverArea.getAttribute("y")) +
+        Number(hoverArea.getAttribute("height")),
+    ).toBe(Number(svg.getAttribute("height")) - 12);
     await expect(
       canvasElement.querySelectorAll("[data-category-tick]"),
     ).toHaveLength(20);

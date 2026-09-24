@@ -106,7 +106,7 @@ function SingleBarChart({
                   max,
                 );
                 const domainPadding = Math.max(Math.abs(domainMin) * 0.1, 1);
-                const plotHeight = measuredPlot.height;
+                let plotHeight = measuredPlot.height;
                 const yScale = scaleLinear()
                   .domain(
                     domainMin === domainMax
@@ -116,7 +116,7 @@ function SingleBarChart({
                   .nice(maxYTicks)
                   .range([measuredPlot.top + plotHeight, measuredPlot.top]);
                 const yTicks = yScale.ticks(maxYTicks);
-                const plot = plotForTicks(yTicks.map(valueFormatter));
+                let plot = plotForTicks(yTicks.map(valueFormatter));
                 const leftMargin = plot.left;
                 const plotWidth = plot.width;
                 const xScale = createBarBandScale(
@@ -125,15 +125,28 @@ function SingleBarChart({
                   plotWidth,
                   barSpacing,
                 );
-                const baseline = yScale(
-                  zeroBaseline || min < 0 ? 0 : (yScale.domain()[0] ?? 0),
-                );
                 const xTicks = data.map((datum, index) => ({
                   key: String(index),
                   x: (xScale(index) ?? leftMargin) + xScale.bandwidth() / 2,
                   label: datum.label,
                   maxWidth: xScale.bandwidth() - 8,
                 }));
+                if (
+                  !hideXAxisLabels &&
+                  (xTicks.length === 0 ||
+                    xTicks.every(
+                      (tick) =>
+                        Math.floor(tick.maxWidth / 7) <= 1 &&
+                        tick.label.length > 1,
+                    ))
+                ) {
+                  plot = plotForTicks(yTicks.map(valueFormatter), false);
+                  plotHeight = plot.height;
+                  yScale.range([plot.top + plotHeight, plot.top]);
+                }
+                const baseline = yScale(
+                  zeroBaseline || min < 0 ? 0 : (yScale.domain()[0] ?? 0),
+                );
 
                 if (
                   width <= 0 ||
@@ -406,7 +419,7 @@ function MultiSeriesBarChart({
                     measuredPlot.top,
                   ]);
                 const yTicks = y.ticks(maxYTicks);
-                const plot = plotForTicks(yTicks.map(valueFormatter));
+                let plot = plotForTicks(yTicks.map(valueFormatter));
                 const x = createBarBandScale(
                   data.length,
                   plot.left,
@@ -492,6 +505,10 @@ function MultiSeriesBarChart({
                   previousTickRight = center + labelWidth / 2;
                   xTicks.push({ key: datum.key, x: center, label });
                 });
+                if (!hideXAxisLabels && xTicks.length === 0) {
+                  plot = plotForTicks(yTicks.map(valueFormatter), false);
+                  y.range([plot.top + plot.height, plot.top]);
+                }
 
                 if (
                   width <= 0 ||

@@ -62,7 +62,7 @@ export function CartesianLayout({
   children: (layout: {
     measuredPlot: CartesianPlot;
     maxYTicks: number;
-    plotForTicks: (labels: string[]) => CartesianPlot;
+    plotForTicks: (labels: string[], showLabels?: boolean) => CartesianPlot;
   }) => ReactNode;
 }) {
   const measuredPlot = getCartesianLayout({
@@ -74,11 +74,11 @@ export function CartesianLayout({
   return children({
     measuredPlot,
     maxYTicks: getCartesianTickCount(measuredPlot.height),
-    plotForTicks: (yTickLabels) =>
+    plotForTicks: (yTickLabels, showLabels = showXAxisLabels) =>
       getCartesianLayout({
         width,
         height,
-        showXAxisLabels,
+        showXAxisLabels: showLabels,
         yTickLabels,
       }),
   });
