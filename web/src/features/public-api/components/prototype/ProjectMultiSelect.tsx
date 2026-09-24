@@ -1,7 +1,7 @@
 // PROTOTYPE — throwaway. Project scope picker shared by the create-form variants.
 
 import { useState } from "react";
-import { Building2, Check, ChevronsUpDown, FolderGit2, X } from "lucide-react";
+import { Building2, Check, ChevronDown, FolderGit2, X } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import { Input } from "@/src/components/ui/input";
@@ -119,7 +119,7 @@ export const ProjectMultiSelect = ({
                 ))
               )}
             </div>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </div>
         </Trigger>
       )}
