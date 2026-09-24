@@ -32,6 +32,10 @@ import {
   variantHoverMeta,
 } from "@/src/features/public-api/components/prototype-permissions/VariantHover";
 import {
+  VariantSingleDialog,
+  variantSingleDialogMeta,
+} from "@/src/features/public-api/components/prototype-permissions/VariantSingleDialog";
+import {
   VariantSplit,
   variantSplitMeta,
 } from "@/src/features/public-api/components/prototype-permissions/VariantSplit";
@@ -41,6 +45,7 @@ const variantMetas: VariantMeta[] = [
   variantDisclosureMeta,
   variantSplitMeta,
   variantDialogMeta,
+  variantSingleDialogMeta,
 ];
 
 const ApiKeyPermissionsPrototypePage = () => {
@@ -66,6 +71,7 @@ const ApiKeyPermissionsPrototypePage = () => {
         {current === "B" && <VariantDisclosure {...shared} />}
         {current === "C" && <VariantSplit {...shared} />}
         {current === "D" && <VariantDialog {...shared} />}
+        {current === "E" && <VariantSingleDialog {...shared} />}
         <StateInspector draft={draft} />
       </div>
       <PrototypeSwitcher variants={variantMetas} current={current} />

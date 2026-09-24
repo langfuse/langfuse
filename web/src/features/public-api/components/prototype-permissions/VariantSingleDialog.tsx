@@ -1,0 +1,121 @@
+// PROTOTYPE — throwaway. Variant E: role dropdown whose "View N permissions"
+// link opens a popup showing the selected role's nested permission list.
+
+import {
+  DialogBody,
+  DialogController,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
+import { ScrollArea } from "@/src/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import {
+  type ApiKeyDraft,
+  type PresetKey,
+  type ProjectOption,
+  presetIcons,
+  presets,
+} from "../prototype/permissionCatalog";
+import { KeyFormShell } from "./KeyFormShell";
+import { RolePermissionList, rolePermissionCount } from "./rolePermissions";
+
+/** variantSingleDialogMeta labels the single-role popup variant in the switcher. */
+export const variantSingleDialogMeta = { key: "E", name: "Single-role popup" };
+
+const roles = presets.filter((p) => p.key !== "custom");
+
+/** VariantSingleDialog renders the role dropdown with a popup for the selected role's permissions. */
+export const VariantSingleDialog = ({
+  projects,
+  draft,
+  setDraft,
+}: {
+  projects: ProjectOption[];
+  draft: ApiKeyDraft;
+  setDraft: (draft: ApiKeyDraft) => void;
+}) => (
+  <KeyFormShell projects={projects} draft={draft} setDraft={setDraft}>
+    <Select
+      value={draft.preset}
+      onValueChange={(value) =>
+        setDraft({ ...draft, preset: value as ApiKeyDraft["preset"] })
+      }
+    >
+      <SelectTrigger className="h-auto" disableValueLineClamp>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {roles.map((p) => {
+          const Icon = presetIcons[p.key];
+          return (
+            <SelectItem
+              key={p.key}
+              value={p.key}
+              className="pl-2 [&>span[data-checkmark]]:hidden"
+            >
+              <div className="flex items-start gap-2 text-left">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="flex flex-col">
+                  <span className="font-bold">{p.label}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {p.description}
+                  </span>
+                </div>
+              </div>
+            </SelectItem>
+          );
+        })}
+      </SelectContent>
+    </Select>
+    <PermissionsDialog preset={draft.preset} />
+  </KeyFormShell>
+);
+
+const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
+  const meta = presets.find((p) => p.key === preset);
+  const Icon = presetIcons[preset];
+  if (!meta) return null;
+  return (
+    <DialogController
+      size="default"
+      closeOnInteractionOutside={true}
+      renderContent={() => (
+        <>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Icon className="h-4 w-4" />
+              {meta.label}
+              <span className="text-muted-foreground ml-auto text-xs font-normal">
+                {rolePermissionCount(preset)} permissions
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="p-0">
+            <ScrollArea className="max-h-[70vh]">
+              <div className="px-5 py-4">
+                <RolePermissionList preset={preset} />
+              </div>
+            </ScrollArea>
+          </DialogBody>
+        </>
+      )}
+    >
+      {({ Trigger }) => (
+        <Trigger asChild>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground w-fit text-xs underline"
+          >
+            View {rolePermissionCount(preset)} permissions
+          </button>
+        </Trigger>
+      )}
+    </DialogController>
+  );
+};
