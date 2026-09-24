@@ -9,11 +9,16 @@ import {
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
+  redis,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
-import { classifyStaleRun } from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import {
+  classifyStaleRun,
+  cleanupTerminalRunMcpApiKeys,
+} from "@langfuse/shared/in-app-agent/server/runLifecycle";
+import { deleteInAppAgentMcpApiKeyFromDb } from "@langfuse/shared/src/server/auth/apiKeys";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { env, v4WritesToEventsTable } from "../../env";
 
@@ -97,7 +102,12 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
         });
         for (const run of unfinishedRuns) {
           const failure = classifyStaleRun(run, Date.now());
-          if (!failure) continue;
+          if (
+            !failure &&
+            !(run.status === null && run.createdAt < cutoffDate)
+          ) {
+            continue;
+          }
 
           await tx.inAppAgentRun.updateMany({
             where: {
@@ -111,8 +121,8 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
             data: {
               status: InAppAgentRunStatus.FAILED,
               finishedAt: new Date(),
-              errorCode: failure.errorCode,
-              errorMessage: failure.errorMessage,
+              errorCode: failure?.errorCode ?? null,
+              errorMessage: failure?.errorMessage ?? null,
             },
           });
         }
@@ -136,14 +146,6 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
               },
             })
           : { count: 0 };
-        await tx.inAppAgentRun.deleteMany({
-          where: {
-            projectId,
-            conversationId: id,
-            finishedAt: { lt: cutoffDate },
-            events: { none: {} },
-          },
-        });
         await tx.inAppAgentRun.updateMany({
           where: {
             projectId,
@@ -167,6 +169,28 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
           },
         });
         return deleted.count;
+      });
+      await cleanupTerminalRunMcpApiKeys({
+        prisma,
+        projectId,
+        conversationId: id,
+        deleteApiKey: async (apiKeyId) => {
+          await deleteInAppAgentMcpApiKeyFromDb({
+            prisma,
+            id: apiKeyId,
+            projectId,
+            redis,
+          });
+        },
+      });
+      await prisma.inAppAgentRun.deleteMany({
+        where: {
+          projectId,
+          conversationId: id,
+          finishedAt: { lt: cutoffDate },
+          mcpApiKeyId: null,
+          events: { none: {} },
+        },
       });
     }
     lastConversationId = conversations.at(-1)?.id;

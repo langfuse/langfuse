@@ -636,6 +636,49 @@ describe("createAgUiStream", () => {
     };
   };
 
+  it("includes retention guidance in model-facing instructions", async () => {
+    const { createAgUiStream } = await import("./agent");
+    adapterEvents.items = [
+      {
+        type: EventType.RUN_FINISHED,
+        threadId: "conversation-1",
+        runId: "run-pruned",
+      },
+    ];
+    const stream = await createAgUiStream({
+      input: {
+        threadId: "conversation-1",
+        runId: "run-pruned",
+        messages: [{ id: "message-1", role: "user", content: "hello" }],
+        tools: [],
+        context: [],
+        state: null,
+        forwardedProps: {},
+      },
+      signal: new AbortController().signal,
+      options: {
+        model: testBedrockModel("test-model"),
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+          toolPolicy: defaultInAppAgentToolPolicy,
+        },
+        redirectAction: { projectId: "project-1", isV4Enabled: false },
+        langfuseClient: {
+          getPrompt: promptMocks.getPrompt,
+        } as unknown as Langfuse,
+        useLocalPrompt: false,
+        historyPruned: true,
+      },
+    });
+    await readStream(stream);
+
+    expect(readAgentInstructions(getLastAgentConfig())).toContain(
+      "Earlier events in this conversation were removed by data retention.",
+    );
+  });
+
   it("uses the shared Bedrock default-credential auth", async () => {
     const { createAmazonBedrock } = await import("ai-sdk-amazon-bedrock-v4");
 

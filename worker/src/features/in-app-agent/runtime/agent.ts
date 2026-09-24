@@ -315,6 +315,7 @@ type CreateAgUiStreamOptions = {
   sandbox?: InAppAgentSandbox;
   /** Adds a run instruction telling the model its earlier workspace files are gone. */
   sandboxWorkspaceWasReset?: boolean;
+  historyPruned?: boolean;
 };
 
 export async function createAgUiStream(params: {
@@ -328,22 +329,26 @@ export async function createAgUiStream(params: {
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
   ).toString("base64")}`;
-  const { instructions, prompt } = await getSystemPromptInstructions({
-    langfuseClient: params.options.langfuseClient,
-    useLocalPrompt: params.options.useLocalPrompt,
-    variables: {
-      redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-      sandboxFilesystem: formatSandboxContext(params.options.sandbox),
-      sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
-        (environment) => `"${environment}"`,
-      ).join(", "),
-      // Older managed prompt versions still interpolate these slots.
-      // Keep them empty so they do not leak into the cached system prefix.
-      currentDate: "",
-      screenContext: "",
-      userContext: "",
-    },
-  });
+  const { instructions: baseInstructions, prompt } =
+    await getSystemPromptInstructions({
+      langfuseClient: params.options.langfuseClient,
+      useLocalPrompt: params.options.useLocalPrompt,
+      variables: {
+        redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        sandboxFilesystem: formatSandboxContext(params.options.sandbox),
+        sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
+          (environment) => `"${environment}"`,
+        ).join(", "),
+        // Older managed prompt versions still interpolate these slots.
+        // Keep them empty so they do not leak into the cached system prefix.
+        currentDate: "",
+        screenContext: "",
+        userContext: "",
+      },
+    });
+  const instructions = params.options.historyPruned
+    ? `${baseInstructions}\n\nEarlier events in this conversation were removed by data retention. Only the remaining history is available; do not assume you know the missing content.`
+    : baseInstructions;
   const instrumentation = createInAppAgentInstrumentation({
     input: params.input,
     tracing: params.options.langfuseTracing
@@ -1190,7 +1195,6 @@ async function createMastraAdapter(params: {
         return result;
       },
     });
-
     if (errors.langfuse) {
       throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
     }

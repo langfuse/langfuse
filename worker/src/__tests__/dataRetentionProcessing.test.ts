@@ -23,6 +23,7 @@ import { Job } from "bullmq";
 import { appendRunEvents } from "@langfuse/shared/in-app-agent/server/persistence";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { EventType } from "@ag-ui/core";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
 
 describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
@@ -65,6 +66,8 @@ describe("DataRetentionProcessingJob", () => {
     const staleId = randomUUID();
     const eventlessStaleId = randomUUID();
     const legacyId = randomUUID();
+    const expiredKeyRunId = randomUUID();
+    const keyIds: string[] = [];
     const ids = [
       expiredId,
       recentId,
@@ -80,6 +83,19 @@ describe("DataRetentionProcessingJob", () => {
     });
 
     try {
+      const staleKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+      });
+      const expiredKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+      });
+      keyIds.push(staleKey.id, expiredKey.id);
       await prisma.inAppAgentConversation.createMany({
         data: [
           {
@@ -127,6 +143,7 @@ describe("DataRetentionProcessingJob", () => {
             createdAt: expiredAt,
             claimedAt: expiredAt,
             heartbeatAt: expiredAt,
+            mcpApiKeyId: staleKey.id,
           },
           {
             id: eventlessStaleRunId,
@@ -145,6 +162,14 @@ describe("DataRetentionProcessingJob", () => {
             status: null,
             createdAt: expiredAt,
             request: { message: "expired legacy request" },
+          },
+          {
+            id: expiredKeyRunId,
+            projectId,
+            conversationId: expiredId,
+            createdAt: expiredAt,
+            finishedAt: expiredAt,
+            mcpApiKeyId: expiredKey.id,
           },
         ],
       });
@@ -195,6 +220,17 @@ describe("DataRetentionProcessingJob", () => {
           conversationId: staleId,
           runId: staleRunId,
           sequenceNumber: 4,
+          type: "test",
+          event: {},
+          createdAt: expiredAt,
+        },
+      });
+      await prisma.inAppAgentEvent.create({
+        data: {
+          projectId,
+          conversationId: legacyId,
+          runId: legacyRunId,
+          sequenceNumber: 3,
           type: "test",
           event: {},
           createdAt: expiredAt,
@@ -260,7 +296,30 @@ describe("DataRetentionProcessingJob", () => {
         await prisma.inAppAgentRun.findUnique({
           where: { id_projectId: { id: legacyRunId, projectId } },
         }),
-      ).toMatchObject({ status: null, request: null });
+      ).toMatchObject({ status: InAppAgentRunStatus.FAILED, request: null });
+      expect(
+        await prisma.inAppAgentEvent.count({
+          where: { projectId, conversationId: legacyId },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.inAppAgentConversation.findUnique({
+          where: { id_projectId: { id: legacyId, projectId } },
+        }),
+      ).toMatchObject({ prunedEventCursor: 3 });
+      expect(await prisma.apiKey.count({ where: { id: { in: keyIds } } })).toBe(
+        0,
+      );
+      expect(
+        await prisma.inAppAgentRun.findUnique({
+          where: { id_projectId: { id: expiredKeyRunId, projectId } },
+        }),
+      ).toBeNull();
+      expect(
+        await prisma.inAppAgentRun.findUnique({
+          where: { id_projectId: { id: staleRunId, projectId } },
+        }),
+      ).toMatchObject({ mcpApiKeyId: null });
 
       const nextRunId = randomUUID();
       await prisma.inAppAgentRun.create({
@@ -296,6 +355,7 @@ describe("DataRetentionProcessingJob", () => {
       await prisma.inAppAgentConversation.deleteMany({
         where: { projectId, id: { in: ids } },
       });
+      await prisma.apiKey.deleteMany({ where: { id: { in: keyIds } } });
       await prisma.project.update({
         where: { id: projectId },
         data: { retentionDays: null },

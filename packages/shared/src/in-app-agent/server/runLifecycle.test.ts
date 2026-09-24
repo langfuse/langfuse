@@ -267,6 +267,7 @@ describe("in-app agent run lifecycle races", () => {
         create: vi.fn().mockResolvedValue({}),
       },
       inAppAgentConversation: {
+        findUniqueOrThrow: vi.fn().mockResolvedValue({ prunedEventCursor: 7 }),
         update: vi.fn().mockResolvedValue({}),
       },
     };
@@ -294,6 +295,9 @@ describe("in-app agent run lifecycle races", () => {
     expect(metricMocks.recordRunTerminalOutcome).toHaveBeenCalledWith({
       status: InAppAgentRunStatus.FAILED,
       errorCode: InAppAgentRunErrorCode.QUEUE_TIMEOUT,
+    });
+    expect(tx.inAppAgentEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sequenceNumber: 8 }),
     });
   });
 
