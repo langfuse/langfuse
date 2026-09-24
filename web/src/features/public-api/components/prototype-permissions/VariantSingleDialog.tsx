@@ -145,12 +145,12 @@ const PermissionsPopup = ({
             <DialogHeader variant="action">
               <DialogTitle className="flex items-center gap-2 text-lg">
                 <Icon className="mt-px h-4 w-4 shrink-0" />
-                <span>{meta.label} Permissions</span>
+                <span>{meta.label}</span>
                 <Badge
                   variant="tertiary"
                   className="shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
                 >
-                  {rolePermissionCount(role)}
+                  {rolePermissionCount(role)} Permissions
                 </Badge>
               </DialogTitle>
             </DialogHeader>
