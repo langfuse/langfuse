@@ -97,10 +97,13 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
               <span>{meta.label}</span>
               <Badge
                 variant="secondary"
-                className="text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-xs font-normal tabular-nums"
+                className="shrink-0 rounded-full px-2 py-0.5 text-xs font-normal tabular-nums"
               >
-                {rolePermissionCount(preset)} permissions
+                {rolePermissionCount(preset)}
               </Badge>
+              <span className="text-muted-foreground text-xs font-normal">
+                permissions
+              </span>
             </DialogTitle>
           </DialogHeader>
           <DialogBody className="p-0">
