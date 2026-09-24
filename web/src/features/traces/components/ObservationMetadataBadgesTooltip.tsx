@@ -9,7 +9,7 @@ import {
   type CostSource,
   type PriceSource,
 } from "@/src/features/traces/components/BreakdownTooltip";
-import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
+import { usdFormatter, numberFormatter } from "@/src/utils/numbers";
 import { InfoIcon } from "lucide-react";
 
 export function CostBadge({
@@ -23,6 +23,9 @@ export function CostBadge({
   priceSource?: PriceSource;
   costSource?: CostSource;
 }) {
+  if (!hasBreakdown(costDetails)) {
+    return <Badge text={usdFormatter(totalCost)} />;
+  }
   return (
     <BreakdownTooltip
       details={costDetails}
@@ -30,33 +33,36 @@ export function CostBadge({
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge text={usdFormatter(totalCost)} trailingIcon={InfoIcon} />
+      <Badge
+        label="cost"
+        text={usdFormatter(totalCost)}
+        trailingIcon={InfoIcon}
+      />
     </BreakdownTooltip>
   );
 }
 
+/** A breakdown of nothing but zeros has nothing to say. */
+export const hasBreakdown = (details: Record<string, number>) =>
+  Object.values(details).some((value) => value > 0);
+
 export function UsageBadge({
-  inputUsage,
-  outputUsage,
   totalUsage,
   usageDetails,
 }: {
-  inputUsage: number;
-  outputUsage: number;
   totalUsage: number;
   usageDetails: Record<string, number>;
 }) {
-  const tokenText = formatTokenCounts(
-    inputUsage,
-    outputUsage,
-    totalUsage,
-    true,
-  );
+  const tokenText = totalUsage > 0 ? numberFormatter(totalUsage, 0) : undefined;
+
+  if (tokenText && !hasBreakdown(usageDetails)) {
+    return <Badge text={tokenText} />;
+  }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
       {tokenText ? (
-        <Badge text={tokenText} trailingIcon={InfoIcon} />
+        <Badge label="tokens" text={tokenText} trailingIcon={InfoIcon} />
       ) : (
         <BadgeShell aria-label="View usage breakdown">
           <InfoIcon aria-hidden className="size-3" />

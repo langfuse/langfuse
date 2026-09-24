@@ -18,12 +18,14 @@ const ORG = "org_1";
 const PRJ = "prj_1";
 const OTHER_PRJ = "prj_2";
 const USER = "user_1";
+const ORGANIZATION_CREATED_AT = new Date("2026-09-16T00:00:00.000Z");
 
 const orgRow = (
   over: Partial<OrganizationWithProjects> = {},
 ): OrganizationWithProjects =>
   ({
     id: ORG,
+    createdAt: ORGANIZATION_CREATED_AT,
     cloudConfig: null,
     cloudFreeTierUsageThresholdState: null,
     projects: [{ id: PRJ }, { id: OTHER_PRJ }],
@@ -106,13 +108,22 @@ describe("presentation rides in the input", () => {
 });
 
 describe("expansion table: scope PROJECT, privateKey", () => {
-  it("grants the full project vocabulary over the bound project only", async () => {
+  it("grants the project vocabulary less project administration over the bound project only", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: apiKey(),
     });
     expect(authorize(ctx, "prompts:read", { projectId: PRJ }).success).toBe(
       true,
+    );
+    expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
+      true,
+    );
+    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
+      false,
+    );
+    expect(authorize(ctx, "project:update", { projectId: PRJ }).success).toBe(
+      false,
     );
     expect(
       authorize(ctx, "prompts:read", { projectId: OTHER_PRJ }).success,
@@ -128,14 +139,21 @@ describe("expansion table: scope PROJECT, privateKey", () => {
 });
 
 describe("expansion table: scope ORGANIZATION, privateKey", () => {
-  it("grants the full org vocabulary and project:read across org projects", async () => {
+  it("grants the org vocabulary plus project administration over its own projects only", async () => {
     const ctx = await contextFor({
       authorization: "privateKey",
       apiKey: orgKey(),
     });
+    expect(authorize(ctx, "projects:read", { orgId: ORG }).success).toBe(true);
     expect(authorize(ctx, "project:read", { projectId: PRJ }).success).toBe(
       true,
     );
+    expect(authorize(ctx, "apiKeys:CUD", { projectId: PRJ }).success).toBe(
+      true,
+    );
+    expect(
+      authorize(ctx, "project:read", { projectId: "prj_foreign" }).success,
+    ).toBe(false);
     expect(authorize(ctx, "traces:read", { projectId: PRJ }).success).toBe(
       false,
     );
@@ -159,6 +177,18 @@ describe("attribution", () => {
     expect(
       ctx.principal.kind === "apiKey" && ctx.principal.isInAppAgentKey,
     ).toBe(true);
+  });
+
+  it("carries the organization creation time", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    const org =
+      ctx.principal.kind === "apiKey" ? ctx.principal.organizations[0] : null;
+    expect(org?.organizationCreatedAt).toBe(
+      ORGANIZATION_CREATED_AT.toISOString(),
+    );
   });
 });
 

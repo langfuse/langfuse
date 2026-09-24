@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { type MediaReturnType } from "@/src/features/media/validation";
+import { type MediaReturnType } from "@/src/features/media";
 import { CorrectedOutputField } from "./components/CorrectedOutputField";
 import { LargeJsonFieldFallback } from "./components/LargeJsonFieldFallback";
 import {
@@ -27,6 +27,7 @@ export interface IOPreviewJSONSimpleProps {
   media?: MediaReturnType[];
   hideOutput?: boolean;
   hideInput?: boolean;
+  hideMetadata?: boolean;
   observationId?: string;
   projectId: string;
   traceId: string;
@@ -70,6 +71,7 @@ export function IOPreviewJSONSimple({
   hideIfNull = false,
   hideOutput = false,
   hideInput = false,
+  hideMetadata = false,
   media,
   inputExpanded,
   outputExpanded,
@@ -127,7 +129,8 @@ export function IOPreviewJSONSimple({
     !hideInput && (inputTooLarge || !(hideIfNull && !effectiveInput));
   const showOutput =
     !hideOutput && (outputTooLarge || !(hideIfNull && !effectiveOutput));
-  const showMetadata = metadataTooLarge || !(hideIfNull && !effectiveMetadata);
+  const showMetadata =
+    !hideMetadata && (metadataTooLarge || !(hideIfNull && !effectiveMetadata));
 
   const downloadName = observationId ?? traceId;
 

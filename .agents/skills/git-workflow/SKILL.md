@@ -94,5 +94,8 @@ operations.
   or the GitHub "Latest release" badge. At the next major GA (v5), repeat
   the flip: move the gate to `refs/tags/v5` on `main`, then disable it and
   set `makeLatest: false` on the new `v4` maintenance branch.
+- The ECS deployment workflow includes `ai-gateway` only for staging: pushes
+  to `main` and manual staging deployments. Its image builds from `ai-gateway/`
+  with `BUILD_ID` set to the commit SHA; production deployments exclude it.
 - Do not change release/versioning flow without updating this skill and the
   impacted package guides.

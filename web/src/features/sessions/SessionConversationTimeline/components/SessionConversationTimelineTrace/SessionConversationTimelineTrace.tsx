@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useMemo, useState } from "react";
 import {
   ChevronDown,
@@ -14,6 +15,7 @@ import {
   type ParsedSessionTimelineObservation,
   type PreparedSessionTimelineItem,
   type PreparedSessionTimelineMessages,
+  type SessionTimelineObservation,
 } from "@/src/features/sessions/SessionConversationTimeline/fns/prepareSessionTimelineObservations";
 import { SessionTimelineContentMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineContentMessage/SessionTimelineContentMessage";
 import { SessionTimelineSystemMessage } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTimelineSystemMessage/SessionTimelineSystemMessage";
@@ -36,6 +38,7 @@ import { type RouterOutputs } from "@/src/utils/api";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { getLevelColors } from "@/src/components/level-colors";
+import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
 type EventObservationIO = RouterOutputs["events"]["batchIO"][number];
@@ -43,6 +46,10 @@ export type SessionObservation = Omit<
   EventObservation,
   "input" | "output" | "metadata" | "traceId"
 > &
+  Omit<
+    SessionTimelineObservation,
+    "input" | "output" | "metadata" | "traceId"
+  > &
   Pick<EventObservationIO, "input" | "output" | "metadata"> & {
     traceId: string;
     inputTruncated?: boolean;
@@ -122,10 +129,15 @@ function SessionTimelineStatusIndicator({
   );
 }
 
-const toPreviewText = (value: unknown) =>
-  typeof value === "string"
-    ? value
-    : (JSON.stringify(value, undefined, 2) ?? String(value));
+const toPreviewText = (value: unknown) => {
+  const text =
+    typeof value === "string"
+      ? value
+      : (JSON.stringify(value, undefined, 2) ?? String(value));
+  // Match PrettyJsonView / SessionObservationIO: decode \uXXXX so truncated
+  // previews show CJK and other non-ASCII characters instead of raw escapes.
+  return decodeUnicodeEscapesOnly(text, true);
+};
 
 const hasPreviewValue = (value: unknown) =>
   value !== null && value !== undefined && value !== "";
@@ -149,7 +161,7 @@ function SessionObservationActionsMenuContent({
         disabled={actions.comment.disabled}
         onSelect={() => actions.comment.onSelect(observation)}
       >
-        Add comment
+        Comments
       </DropdownMenuItem>
       <DropdownMenuItem
         disabled={actions.addToDataset.disabled}
@@ -897,7 +909,8 @@ function LoadedSessionConversationTimeline({
                   }
                   onOpenInTraceView={() => onOpenObservation(observation.id)}
                 />
-              ) : !isToolStart && !isEmptyEnd ? (
+              ) : !isEmptyEnd &&
+                (observation.type !== "TOOL" || phase !== "end") ? (
                 <SessionTimelineObservation
                   observation={observation}
                   parsed={parsed}

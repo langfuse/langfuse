@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SelectInput } from "./SelectInput";
 
@@ -89,6 +89,26 @@ export const WithLongText = meta.story({
       <SelectInput {...args} />
     </div>
   ),
+});
+
+export const Empty = meta.story({
+  name: "(Test) Empty",
+  args: {
+    value: "",
+    placeholder: "Select a model",
+    options: [],
+    emptyMessage: "No models available.",
+    onValueChange: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+    await waitFor(() =>
+      expect(body.getByText("No models available.")).toBeVisible(),
+    );
+  },
 });
 
 export const TestKeyboardSelection = meta.story({

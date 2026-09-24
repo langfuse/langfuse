@@ -89,6 +89,7 @@ const TraceRow = React.memo(
                 </div>
               </Link>
               <SessionTraceActionButtons
+                isV4={false}
                 projectId={projectId}
                 traceId={trace.id}
                 timestamp={new Date(trace.timestamp)}

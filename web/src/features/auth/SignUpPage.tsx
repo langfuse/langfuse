@@ -11,7 +11,6 @@ import { Input } from "@/src/components/ui/input";
 import { signupSchema } from "@/src/features/auth/lib/signupSchema";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
-import Head from "next/head";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -27,15 +26,16 @@ import {
   type PageProps,
 } from "@/src/features/auth/SignInPage";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { reportError } from "@/src/utils/reportError";
 import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
+import { getDemoTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
@@ -161,7 +161,10 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        signIn(providerId);
+        signIn(
+          providerId,
+          targetPath ? { callbackUrl: targetPath } : undefined,
+        );
         return; // stop further execution – page redirect expected
       }
 
@@ -210,14 +213,20 @@ function StandardSignupFlow({
         return;
       }
 
+      let callbackUrl =
+        targetPath ??
+        (isLangfuseCloud
+          ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
+          : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`);
+      const demoTargetPath = getDemoTargetPath(targetPath);
+      if (isLangfuseCloud && demoTargetPath) {
+        callbackUrl = `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding?targetPath=${encodeURIComponent(demoTargetPath)}`;
+      }
+
       await signIn<"credentials">("credentials", {
         email: values.email,
         password: values.password,
-        callbackUrl:
-          targetPath ??
-          (isLangfuseCloud
-            ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
-            : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
+        callbackUrl,
       });
     } catch {
       setFormError("An error occurred. Please try again.");
@@ -307,6 +316,7 @@ function StandardSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -321,6 +331,14 @@ function VerifiedSignupFlow({
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+  const queryTargetPath = router.query.targetPath as string | undefined;
+  const targetPath = queryTargetPath
+    ? getSafeRedirectPath(queryTargetPath)
+    : undefined;
+  const demoTargetPath = getDemoTargetPath(targetPath);
+  const setupPasswordPath = demoTargetPath
+    ? `/auth/setup-password?targetPath=${encodeURIComponent(demoTargetPath)}`
+    : "/auth/setup-password";
 
   const [formError, setFormError] = useState<string | null>(null);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
@@ -362,7 +380,7 @@ function VerifiedSignupFlow({
       // Send OTP email via NextAuth email provider
       const signInRes = await signIn("email", {
         email: values.email,
-        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/setup-password`,
+        callbackUrl: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}${setupPasswordPath}`,
         redirect: false,
       });
 
@@ -380,7 +398,7 @@ function VerifiedSignupFlow({
         PASSWORD_SETUP_EMAIL_STORAGE_KEY,
         values.email.toLowerCase(),
       );
-      await router.push("/auth/setup-password");
+      await router.push(setupPasswordPath);
     } catch {
       setFormError("An error occurred. Please try again.");
     }
@@ -442,6 +460,7 @@ function VerifiedSignupFlow({
       <SSOButtons
         authProviders={authProviders}
         action="sign up"
+        callbackUrl={targetPath}
         lastUsedMethod={lastUsedAuthMethod}
         onProviderSelect={setLastUsedAuthMethod}
       />
@@ -455,18 +474,10 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Head>
-        <title>Sign up | Langfuse</title>
-        <meta
-          name="description"
-          content="Create an account, no credit card required."
-          key="desc"
-        />
-      </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="mx-auto w-fit">
-            <LangfuseIcon />
+            <LangfuseIcon alt="" />
           </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
             Create new account
@@ -498,7 +509,7 @@ function SignupFooter() {
       Already have an account?{" "}
       <Link
         href={`/auth/sign-in${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
-        className="text-link hover:text-link-hover leading-6 font-bold"
+        className="text-link hover:text-link-hover font-bold"
       >
         Sign in
       </Link>

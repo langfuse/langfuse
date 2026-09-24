@@ -1,10 +1,7 @@
+/* eslint-disable no-nested-ternary */
 import { cva } from "class-variance-authority";
 
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { cn } from "@/src/utils/tailwind";
 
@@ -98,33 +95,29 @@ export interface ScoreTagProps {
 export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   if (compact) {
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
+      <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
+        {({ getTriggerProps }) => (
           <span
+            {...getTriggerProps()}
             role="img"
             aria-label={SCORE_LEVEL_DESCRIPTIONS[level]}
             className={cn(scoreDotVariants({ level }))}
           />
-        </TooltipTrigger>
-        <TooltipContent className="text-xs">
-          {SCORE_LEVEL_DESCRIPTIONS[level]}
-        </TooltipContent>
+        )}
       </Tooltip>
     );
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge
-          color={scoreTagColors[level]}
-          size="sm"
-          text={SCORE_LEVEL_LABELS[level]}
-        />
-      </TooltipTrigger>
-      <TooltipContent className="text-xs">
-        {SCORE_LEVEL_DESCRIPTIONS[level]}
-      </TooltipContent>
+    <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
+      {({ getTriggerProps }) => (
+        <span {...getTriggerProps()}>
+          <Badge
+            color={scoreTagColors[level]}
+            text={SCORE_LEVEL_LABELS[level]}
+          />
+        </span>
+      )}
     </Tooltip>
   );
 };

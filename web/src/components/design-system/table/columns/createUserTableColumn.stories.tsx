@@ -21,6 +21,7 @@ const avatarColumns = [
     header: "User",
     variant: "avatar",
     emptyValue: "Unknown",
+    nullValue: "—",
     getUser: (user, { row }) => {
       if (row.original.isUserLoading) return { type: "loading" };
       if (!user) return undefined;

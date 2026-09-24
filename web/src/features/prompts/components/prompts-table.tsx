@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useMemo } from "react";
 import {
   normalizeOrderByForTable,
@@ -12,27 +13,34 @@ import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-l
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { createFolderKeyTableColumn } from "@/src/components/design-system/table/columns/createFolderKeyTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
 import { DeletePrompt } from "@/src/features/prompts/components/delete-prompt";
 import { DeleteFolder } from "@/src/features/prompts/components/delete-folder";
 import { DuplicateFolder } from "@/src/features/prompts/components/duplicate-folder";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { TagPromptPopover } from "@/src/features/tag/components/TagPromptPopover";
+import { TagPromptPopover } from "@/src/features/tag";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   promptFilterConfig,
   useQueryFilterState,
   useSidebarFilterState,
 } from "@/src/features/filters";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { useOrderByState } from "@/src/features/orderBy";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
-import { useFolderPagination } from "@/src/features/folders/hooks/useFolderPagination";
-import { buildFullPath } from "@/src/features/folders/utils";
-import { FolderBreadcrumb } from "@/src/features/folders/components/FolderBreadcrumb";
+import {
+  useFullTextSearch,
+  TableSearchBar,
+  toObservedOptions,
+} from "@/src/features/search-bar";
+
+import {
+  useFolderPagination,
+  buildFullPath,
+  FolderBreadcrumb,
+} from "@/src/features/folders";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
@@ -43,8 +51,7 @@ import {
 } from "@/src/features/column-visibility";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
-import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+
 import { PROMPTS_FIELD_REGISTRY } from "@/src/features/prompts/constants/promptsSearchRegistry";
 
 type PromptTableRow = {

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, {
   useCallback,
   useMemo,
@@ -12,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronRight, Menu } from "lucide-react";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import {
   closestCenter,
@@ -417,7 +418,11 @@ export function DataTableColumnVisibilityFilter<TData, TValue>({
   );
 
   const { count, total } = calculateColumnCounts(columns, columnVisibility);
-  const columnIdsOrder = columnOrder ?? columns.map((col) => col.accessorKey);
+  // Shape-checked, not just nullish-checked: ~30 tables share this picker and
+  // a persisted order can come back as anything.
+  const columnIdsOrder = Array.isArray(columnOrder)
+    ? columnOrder
+    : columns.map((col) => col.accessorKey);
   const isColumnOrderingEnabled = !!setColumnOrder;
   const hasOrderChanges =
     isColumnOrderingEnabled &&

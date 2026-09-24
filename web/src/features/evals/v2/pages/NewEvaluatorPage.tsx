@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useRouter } from "next/router";
 import { EvalTemplateTypeEnum } from "@langfuse/shared";
 
@@ -8,7 +9,9 @@ import { EvaluatorSetupPage } from "./EvaluatorSetupPage";
 function requestedEvaluatorType(value: string | string[] | undefined) {
   return value === EvalTemplateTypeEnum.CODE
     ? EvalTemplateTypeEnum.CODE
-    : EvalTemplateTypeEnum.LLM_AS_JUDGE;
+    : value === EvalTemplateTypeEnum.DECISION_MODEL
+      ? EvalTemplateTypeEnum.DECISION_MODEL
+      : EvalTemplateTypeEnum.LLM_AS_JUDGE;
 }
 
 export default function NewEvaluatorPage() {

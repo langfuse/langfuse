@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
@@ -88,12 +89,6 @@ export function ConnectedModernSessionBodyTimeline({
   const baseFilters: FilterState = [
     ...filterState,
     {
-      column: "sessionId",
-      type: "string",
-      operator: "=",
-      value: sessionId,
-    },
-    {
       column: "startTime",
       type: "datetime",
       operator: ">=",
@@ -163,9 +158,10 @@ export function ConnectedModernSessionBodyTimeline({
 
   const observationQueries = api.useQueries((t) =>
     queryDescriptors.map((descriptor) =>
-      t.events.all(
+      t.events.sessionAll(
         {
           projectId,
+          sessionId,
           filter: descriptor.traceIds
             ? [
                 ...baseFilters,
@@ -197,7 +193,7 @@ export function ConnectedModernSessionBodyTimeline({
   >();
   const timelineObservationsByTraceId = new Map<
     string,
-    RouterOutputs["events"]["all"]["observations"]
+    RouterOutputs["events"]["sessionAll"]["observations"]
   >();
   const observationIdsByTraceId = new Map<string, Set<string>>();
   const traceIdsWithMatchingTraceLevelIO = new Set<string>();
@@ -409,7 +405,7 @@ export function ConnectedModernSessionBodyTimeline({
   };
 
   return (
-    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden lg:grid-cols-[clamp(200px,24vw,296px)_minmax(0,1fr)] lg:grid-rows-1">
+    <div className="bg-background relative grid min-h-0 flex-1 grid-rows-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-4 overflow-hidden @3xl/session-workspace:grid-cols-[clamp(200px,24cqw,296px)_minmax(0,1fr)] @3xl/session-workspace:grid-rows-1">
       {tracesState.type === "loading" ? (
         <ModernSessionSidebar state="loading" />
       ) : (

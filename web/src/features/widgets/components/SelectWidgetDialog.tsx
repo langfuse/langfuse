@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
@@ -26,8 +27,10 @@ import {
 } from "@/src/features/dashboard/components/home-preset-registry";
 import { useReadPath } from "@/src/features/events";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { InAppAgentWidgetComposer } from "@/src/features/in-app-agent/components/InAppAgentWidgetComposer";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import {
+  InAppAgentWidgetComposer,
+  useInAppAiAgent,
+} from "@/src/features/in-app-agent";
 
 export type WidgetItem = {
   id: string;

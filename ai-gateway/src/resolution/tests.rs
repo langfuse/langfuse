@@ -54,17 +54,21 @@ impl FakeWeb {
         Self { url, calls, task }
     }
 
-    fn resolver(&self) -> Resolver {
-        self.resolver_with_limits(Duration::from_secs(2), 256 * 1024)
+    fn control_plane(&self) -> ControlPlaneClient {
+        self.control_plane_with_limits(Duration::from_secs(2), 256 * 1024)
     }
 
-    fn resolver_with_limits(&self, timeout: Duration, max_response_bytes: usize) -> Resolver {
-        let mut config = ResolverConfig::new(&self.url, SERVICE_KEY).unwrap();
-        config.limits = Limits {
+    fn control_plane_with_limits(
+        &self,
+        timeout: Duration,
+        max_response_bytes: usize,
+    ) -> ControlPlaneClient {
+        let mut config = ControlPlaneConfig::new(&self.url, SERVICE_KEY).unwrap();
+        config.limits = ResolutionLimits {
             timeout,
             max_response_bytes,
         };
-        Resolver::new(config).unwrap()
+        ControlPlaneClient::new(config).unwrap()
     }
 
     fn calls(&self) -> usize {
@@ -120,15 +124,16 @@ async fn signs_the_exact_key_and_sends_only_the_api_format() {
     }).await;
 
     let context = web
-        .resolver()
+        .control_plane()
         .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
         .await
         .unwrap();
     assert_eq!(context.connection().id(), "connection-1");
-    assert_eq!(
-        context.connection().provider_token(),
-        "private-provider-token"
-    );
+    assert_eq!(context.connection().provider(), Provider::OpenAi);
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::Bearer("private-provider-token")
+    ));
     assert_eq!(context.attribution().project_id(), "project-1");
     assert_eq!(
         context.attribution().provider_connection_id(),
@@ -165,15 +170,15 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
         })
         .await;
         let error = web
-            .resolver()
+            .control_plane()
             .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
             .await
             .unwrap_err();
         assert!(match status {
-            401 => matches!(error, ResolveError::Authentication),
-            403 => matches!(error, ResolveError::Forbidden),
-            404 => matches!(error, ResolveError::NoRoute),
-            _ => matches!(error, ResolveError::Unavailable),
+            401 => matches!(error, ResolutionError::Authentication),
+            403 => matches!(error, ResolutionError::Forbidden),
+            404 => matches!(error, ResolutionError::NoRoute),
+            _ => matches!(error, ResolutionError::Unavailable),
         });
         assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
         assert_eq!(web.calls(), 1);
@@ -197,7 +202,7 @@ async fn never_follows_redirects_with_credentials() {
     })
     .await;
     assert!(
-        web.resolver()
+        web.control_plane()
             .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
             .await
             .is_err()
@@ -223,10 +228,10 @@ async fn rejects_oversized_declared_and_chunked_responses() {
         })
         .await;
         let result = web
-            .resolver_with_limits(Duration::from_secs(2), 128)
+            .control_plane_with_limits(Duration::from_secs(2), 128)
             .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
             .await;
-        assert!(matches!(result, Err(ResolveError::ResponseTooLarge)));
+        assert!(matches!(result, Err(ResolutionError::ResponseTooLarge)));
         assert_eq!(web.calls(), 1);
     }
 }
@@ -250,12 +255,12 @@ async fn deadline_covers_response_headers_and_body() {
         .await;
         let result = tokio::time::timeout(
             Duration::from_millis(500),
-            web.resolver_with_limits(Duration::from_millis(30), 256 * 1024)
+            web.control_plane_with_limits(Duration::from_millis(30), 256 * 1024)
                 .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME),
         )
         .await
         .expect("resolver must enforce its deadline");
-        assert!(matches!(result, Err(ResolveError::Timeout)));
+        assert!(matches!(result, Err(ResolutionError::Timeout)));
         assert_eq!(web.calls(), 1);
     }
 }
@@ -265,10 +270,10 @@ async fn malformed_credentials_never_reach_web() {
     let web = FakeWeb::start(|_| async { response(success("project-1", "provider-token")) }).await;
     for key in ["", "has space", "has\r\nheader", "has\ttab"] {
         let result = web
-            .resolver()
+            .control_plane()
             .resolve_at(key, ApiFormat::OpenAiResponses, NOW_TIME)
             .await;
-        assert!(matches!(result, Err(ResolveError::InvalidCredential)));
+        assert!(matches!(result, Err(ResolutionError::InvalidCredential)));
     }
     assert_eq!(web.calls(), 0);
 }
@@ -283,14 +288,14 @@ async fn rejects_a_grant_that_expires_while_resolving_across_a_second_boundary()
     })
     .await;
     let result = web
-        .resolver()
+        .control_plane()
         .resolve_at(
             GATEWAY_KEY,
             ApiFormat::OpenAiResponses,
             NOW_TIME + Duration::from_millis(900),
         )
         .await;
-    assert!(matches!(result, Err(ResolveError::InvalidResponse)));
+    assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
 }
 
 #[tokio::test]
@@ -307,18 +312,134 @@ async fn concurrent_resolutions_keep_credentials_and_contexts_isolated() {
         }
     })
     .await;
-    let resolver = web.resolver();
+    let control_plane = web.control_plane();
     let (alice, bob) = tokio::join!(
-        resolver.resolve_at("gw_test_alice", ApiFormat::OpenAiResponses, NOW_TIME),
-        resolver.resolve_at("gw_test_bob", ApiFormat::OpenAiResponses, NOW_TIME),
+        control_plane.resolve_at("gw_test_alice", ApiFormat::OpenAiResponses, NOW_TIME),
+        control_plane.resolve_at("gw_test_bob", ApiFormat::OpenAiResponses, NOW_TIME),
     );
     let alice = alice.unwrap();
     let bob = bob.unwrap();
     assert_eq!(alice.attribution().project_id(), "project-alice");
-    assert_eq!(alice.connection().provider_token(), "token-alice");
+    assert!(matches!(
+        alice.connection().credential(),
+        ProviderCredential::Bearer("token-alice")
+    ));
     assert_eq!(bob.attribution().project_id(), "project-bob");
-    assert_eq!(bob.connection().provider_token(), "token-bob");
+    assert!(matches!(
+        bob.connection().credential(),
+        ProviderCredential::Bearer("token-bob")
+    ));
     assert_eq!(web.calls(), 2);
+}
+
+fn anthropic_success(provider_key: &str) -> Value {
+    let mut body = success("project-1", "unused");
+    body["connection"] = json!({
+        "id": "connection-anthropic",
+        "provider": "anthropic",
+        "api_format": "anthropic.messages",
+        "base_url": "https://api.anthropic.com/v1",
+        "auth": {"type": "x-api-key", "header": "x-api-key", "value": provider_key}
+    });
+    body["attribution"]["provider_connection_id"] = json!("connection-anthropic");
+    body
+}
+
+#[tokio::test]
+async fn resolves_anthropic_messages_with_the_native_credential_scheme() {
+    let web = FakeWeb::start(|request| async move {
+        assert_eq!(
+            to_bytes(request.into_body(), 1024).await.unwrap(),
+            r#"{"apiFormat":"anthropic.messages"}"#
+        );
+        response(anthropic_success("private-anthropic-key"))
+    })
+    .await;
+
+    let context = web
+        .control_plane()
+        .resolve_at(GATEWAY_KEY, ApiFormat::AnthropicMessages, NOW_TIME)
+        .await
+        .unwrap();
+    assert_eq!(context.connection().id(), "connection-anthropic");
+    assert_eq!(context.connection().provider(), Provider::Anthropic);
+    assert_eq!(
+        context.connection().api_format(),
+        ApiFormat::AnthropicMessages
+    );
+    assert_eq!(
+        context.connection().base_url(),
+        "https://api.anthropic.com/v1"
+    );
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::XApiKey("private-anthropic-key")
+    ));
+    assert!(
+        !format!("{context:?}").contains("private-anthropic-key"),
+        "execution context leaked the provider key"
+    );
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn rejects_connections_whose_provider_format_origin_and_credential_disagree() {
+    // Web returned an Anthropic connection for an OpenAI Responses request, or the
+    // OpenAI connection with Anthropic's credential scheme.
+    assert_invalid_context_for(
+        anthropic_success("provider-key"),
+        ApiFormat::OpenAiResponses,
+    )
+    .await;
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["auth"] =
+        json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key"});
+    assert_invalid_context_for(body, ApiFormat::OpenAiResponses).await;
+
+    // Every single-field deviation from the official Anthropic pairing.
+    let mutations = [
+        ("/connection/provider", json!("openai")),
+        ("/connection/api_format", json!("openai.responses")),
+        ("/connection/base_url", json!("https://api.openai.com/v1")),
+        ("/connection/base_url", json!("http://api.anthropic.com/v1")),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com.attacker.example/v1"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com/v1/"),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "Bearer", "token": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "header": "authorization", "value": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "value": "provider-key"}),
+        ),
+        (
+            "/connection/auth",
+            json!({"type": "x-api-key", "header": "x-api-key", "value": "provider-key", "token": "extra"}),
+        ),
+        ("/connection/auth/value", json!("")),
+        ("/connection/auth/value", json!("bad\r\nheader")),
+    ];
+    for (pointer, value) in mutations {
+        let mut body = anthropic_success("provider-key");
+        *body.pointer_mut(pointer).unwrap() = value;
+        assert_invalid_context_for(body, ApiFormat::AnthropicMessages).await;
+    }
+    // A valid OpenAI connection never satisfies an Anthropic request either.
+    assert_invalid_context_for(
+        success("project-1", "provider-token"),
+        ApiFormat::AnthropicMessages,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -380,16 +501,20 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
 }
 
 async fn assert_invalid_context(body: Value) {
+    assert_invalid_context_for(body, ApiFormat::OpenAiResponses).await;
+}
+
+async fn assert_invalid_context_for(body: Value, api_format: ApiFormat) {
     let web = FakeWeb::start(move |_| {
         let body = body.clone();
         async move { response(body) }
     })
     .await;
     let result = web
-        .resolver()
-        .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
+        .control_plane()
+        .resolve_at(GATEWAY_KEY, api_format, NOW_TIME)
         .await;
-    assert!(matches!(result, Err(ResolveError::InvalidResponse)));
+    assert!(matches!(result, Err(ResolutionError::InvalidResponse)));
     assert_eq!(web.calls(), 1);
 }
 
@@ -400,11 +525,11 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
     })
     .await;
     let error = web
-        .resolver()
+        .control_plane()
         .resolve_at(GATEWAY_KEY, ApiFormat::OpenAiResponses, NOW_TIME)
         .await
         .unwrap_err();
-    assert!(matches!(error, ResolveError::InvalidResponse));
+    assert!(matches!(error, ResolutionError::InvalidResponse));
     assert!(!format!("{error:?} {error}").contains("private-provider-secret"));
 }
 
@@ -412,8 +537,8 @@ async fn rejects_malformed_json_without_exposing_response_contents() {
 fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
     for key in ["", " \n\t"] {
         assert!(matches!(
-            ResolverConfig::new("https://web.example", key),
-            Err(ResolveError::Configuration)
+            ControlPlaneConfig::new("https://web.example", key),
+            Err(ResolutionError::Configuration)
         ));
     }
     for url in [
@@ -424,8 +549,8 @@ fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
         "https://web.example#fragment",
     ] {
         assert!(matches!(
-            ResolverConfig::new(url, SERVICE_KEY),
-            Err(ResolveError::Configuration)
+            ControlPlaneConfig::new(url, SERVICE_KEY),
+            Err(ResolutionError::Configuration)
         ));
     }
     for url in [
@@ -433,6 +558,6 @@ fn web_configuration_rejects_unsafe_or_ambiguous_urls() {
         "http://127.0.0.1:3000",
         "http://[::1]:3000",
     ] {
-        assert!(ResolverConfig::new(url, SERVICE_KEY).is_ok());
+        assert!(ControlPlaneConfig::new(url, SERVICE_KEY).is_ok());
     }
 }

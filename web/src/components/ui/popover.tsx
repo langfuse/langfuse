@@ -5,10 +5,8 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 
 import { cn } from "@/src/utils/tailwind";
-import {
-  stopScrollPropagation,
-  useLayerContainer,
-} from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
 
 const Popover = PopoverPrimitive.Root;
 
@@ -18,7 +16,9 @@ const PopoverAnchor = PopoverPrimitive.Anchor;
 
 const PopoverContent = React.forwardRef<
   React.ComponentRef<typeof PopoverPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content>
+  React.ComponentPropsWithoutRef<typeof PopoverPrimitive.Content> & {
+    portalContainer?: HTMLElement | null;
+  }
 >(
   (
     {
@@ -28,6 +28,7 @@ const PopoverContent = React.forwardRef<
       forceMount,
       onWheel,
       onTouchMove,
+      portalContainer,
       ...props
     },
     ref,
@@ -42,7 +43,10 @@ const PopoverContent = React.forwardRef<
     // need mounted-but-hidden content (e.g. a child whose effect must keep running
     // while the popover is closed). Undefined for everyone else → default behavior.
     return (
-      <PopoverPrimitive.Portal container={container} forceMount={forceMount}>
+      <PopoverPrimitive.Portal
+        container={portalContainer ?? container}
+        forceMount={forceMount}
+      >
         <PopoverPrimitive.Content
           ref={ref}
           align={align}

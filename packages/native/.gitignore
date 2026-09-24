@@ -1,0 +1,8 @@
+# Cargo build output
+target/
+
+# Generated Cargo overlay for the pinned clickhouse source patch
+.cargo/
+
+# Platform-specific binaries produced by `napi build`
+*.node

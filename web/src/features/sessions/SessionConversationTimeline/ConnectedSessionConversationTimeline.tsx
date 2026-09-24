@@ -8,16 +8,17 @@ import {
 } from "@/src/features/sessions/SessionConversationTimeline/SessionConversationTimeline";
 import { type SessionObservation } from "@/src/features/sessions/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
-import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { AnnotateDrawerController } from "@/src/features/scores";
+import { CommentDrawerController } from "@/src/features/comments";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
+import { showErrorToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, sendAsPostOption, type RouterOutputs } from "@/src/utils/api";
 
 const BATCH_IO_SIZE = 50;
 
-type EventObservation = RouterOutputs["events"]["all"]["observations"][number];
+type EventObservation =
+  RouterOutputs["events"]["sessionAll"]["observations"][number];
 type SessionBatchIOQueryResult = {
   data: RouterOutputs["events"]["sessionBatchIO"] | undefined;
   isError: boolean;
@@ -240,6 +241,7 @@ export function ConnectedSessionConversationTimeline({
                           analyticsData: {
                             type: "trace",
                             source: "SessionDetail",
+                            isV4: true,
                           },
                           scoreMetadata: {
                             projectId,
