@@ -56,7 +56,7 @@ export const KeyFormShell = ({
           <Label htmlFor="name">Name</Label>
           <Input
             id="name"
-            placeholder="This name will be used to identify the key in your account."
+            placeholder="e.g. Production server"
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
           />
@@ -65,11 +65,13 @@ export const KeyFormShell = ({
           <Label htmlFor="description">Description (optional)</Label>
           <Textarea
             id="description"
+            rows={2}
             placeholder="What is this key used for?"
             value={draft.description}
             onChange={(e) =>
               setDraft({ ...draft, description: e.target.value })
             }
+            className="min-h-0 resize-none"
           />
         </div>
         <div className="flex flex-col gap-1.5">
