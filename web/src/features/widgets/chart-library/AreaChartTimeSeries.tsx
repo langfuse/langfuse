@@ -40,7 +40,7 @@ export function AreaChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
-}: ChartProps) {
+}: Omit<ChartProps, "subtleFill">) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
     () =>
@@ -56,6 +56,9 @@ export function AreaChartTimeSeries({
     [data, allDimensions],
   );
   const dimensions = visibleSeries.visible;
+  const hasNonTimestampBucket = groupedData.some(
+    (datum) => !parseChartTimestamp(datum.time_dimension),
+  );
   const timeAxis = useMemo(
     () =>
       prepareTimeAxis(
@@ -103,7 +106,7 @@ export function AreaChartTimeSeries({
     };
   }
   const chart =
-    timeAxis.mode === "category" ? (
+    timeAxis.mode === "category" || hasNonTimestampBucket ? (
       <DesignSystemAreaChart
         data={chartData}
         series={chartSeries}
@@ -114,8 +117,14 @@ export function AreaChartTimeSeries({
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
-          tickFormatter: (value) => timeAxis.formatTick(value),
-          tooltipFormatter: (value) => timeAxis.formatTooltip(value),
+          tickFormatter: (value) =>
+            hasNonTimestampBucket && timeAxis.mode !== "category"
+              ? value
+              : timeAxis.formatTick(value),
+          tooltipFormatter: (value) =>
+            hasNonTimestampBucket && timeAxis.mode !== "category"
+              ? value
+              : timeAxis.formatTooltip(value),
         }}
       />
     ) : (

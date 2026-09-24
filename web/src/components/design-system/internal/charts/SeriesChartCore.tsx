@@ -532,6 +532,10 @@ function LineChartContent(
   const maxXTicks = Math.max(2, Math.floor(plotWidth / APPROX_TIME_TICK_WIDTH));
   const firstX = data[0]?.x;
   const lastX = data[data.length - 1]?.x;
+  const categoryTickStep = Math.max(
+    1,
+    Math.ceil((80 * Math.max(1, data.length - 1)) / Math.max(1, plotWidth)),
+  );
   const xTicks =
     xAxis.type === "time"
       ? [
@@ -558,12 +562,24 @@ function LineChartContent(
             label:
               xAxis.tickFormatter?.(value) ?? defaultTimeTickFormatter(value),
           }))
-      : data.map((datum) => ({
-          key: datum.key,
-          x: getX(datum),
-          label: xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x),
-          maxWidth: plotWidth / Math.max(1, data.length) - CATEGORY_TICK_GAP,
-        }));
+      : data.flatMap((datum, index) =>
+          index % categoryTickStep === 0
+            ? [
+                {
+                  key: datum.key,
+                  x: getX(datum),
+                  label:
+                    xAxis.tickFormatter?.(String(datum.x)) ?? String(datum.x),
+                  maxWidth: Math.max(
+                    0,
+                    (plotWidth * categoryTickStep) /
+                      Math.max(1, data.length - 1) -
+                      CATEGORY_TICK_GAP,
+                  ),
+                },
+              ]
+            : [],
+        );
   const activeKey =
     hoveredIndex === undefined ? sync?.activeKey : data[hoveredIndex]?.key;
   const activeDatum = data.find((datum) => datum.key === activeKey);

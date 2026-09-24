@@ -2,6 +2,7 @@ import preview from "../../../../../.storybook/preview";
 import { expect, userEvent, within } from "storybook/test";
 import { AreaChart } from "./AreaChart";
 import { type LineChartLegend } from "../LineChart/LineChart";
+import { AreaChartTimeSeries } from "@/src/features/widgets/chart-library/AreaChartTimeSeries";
 
 const series = [
   { id: "api", label: "API", color: "#3a3dee" },
@@ -25,7 +26,15 @@ const gaps = [
 ];
 
 type StoryProps = {
-  scenario?: "single" | "time" | "stacked" | "gaps" | "negative" | "category";
+  scenario?:
+    | "single"
+    | "time"
+    | "stacked"
+    | "gaps"
+    | "negative"
+    | "category"
+    | "denseCategory"
+    | "mixedBuckets";
   connectNulls?: boolean;
   legend?: LineChartLegend;
 };
@@ -35,6 +44,29 @@ function AreaChartDemo({
   connectNulls,
   legend,
 }: StoryProps) {
+  if (scenario === "mixedBuckets") {
+    return (
+      <AreaChartTimeSeries
+        data={[
+          { time_dimension: "2026-09-01", dimension: "api", metric: 12 },
+          { time_dimension: "2026-09-02", dimension: "api", metric: 18 },
+          { time_dimension: "Unknown", dimension: "api", metric: 7 },
+        ]}
+      />
+    );
+  }
+  if (scenario === "denseCategory") {
+    return (
+      <AreaChart
+        data={Array.from({ length: 80 }, (_, index) => ({
+          x: `Category ${index}`,
+          values: { api: index },
+        }))}
+        series={series.slice(0, 1)}
+        xAxis={{ type: "category" }}
+      />
+    );
+  }
   if (scenario === "category") {
     return (
       <AreaChart
@@ -87,6 +119,27 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+export const DenseCategories = meta.story({
+  args: { scenario: "denseCategory" },
+  play: async ({ canvasElement }) => {
+    const labels = canvasElement.querySelectorAll('[data-x-axis-label=""]');
+    await expect(labels.length).toBeGreaterThan(1);
+    await expect(labels.length).toBeLessThan(80);
+    await expect(labels[0]).toHaveTextContent("Category");
+  },
+});
+
+export const MixedBuckets = meta.story({
+  args: { scenario: "mixedBuckets" },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole("graphics-symbol", {
+        name: /Unknown.*7/,
+      }),
+    ).toBeInTheDocument();
+  },
+});
 
 export const OverlappingAreas = meta.story({
   name: "(Test) Overlapping Areas",
