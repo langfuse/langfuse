@@ -26,7 +26,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  findTypeSafeUpstream,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -108,37 +107,18 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
-function assertDecisionModelConnectionInput(input: {
-  adapter: LLMAdapter;
-  baseURL?: string | null;
-  extraHeaders?: Record<string, string | null | undefined> | null;
-}) {
-  if (!isDecisionModelAdapter(input.adapter)) return;
-  if (!findTypeSafeUpstream(input.baseURL)) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message:
-        "Decision-model connections only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs.",
-    });
-  }
-  if (input.extraHeaders && Object.keys(input.extraHeaders).length > 0) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Decision-model connections do not support extra headers.",
-    });
-  }
-}
-
 async function testDecisionModelConnection(params: {
   secretKey: string;
   model: string;
   baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const client = createTypeSafeDecisionModelClient({
       apiKey: params.secretKey,
       model: params.model,
       baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
     });
     await client.evaluate({
       state: { message: "Hello, is anyone there?" },
@@ -175,6 +155,7 @@ async function testLLMConnection(
         secretKey: params.secretKey,
         model,
         baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
       });
     }
 
@@ -274,8 +255,6 @@ export const llmApiKeyRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "llmApiKeys:create",
         });
-
-        assertDecisionModelConnectionInput(input);
 
         await validateBaseURLForWrite({
           baseURL: input.baseURL,
@@ -511,8 +490,6 @@ export const llmApiKeyRouter = createTRPCRouter({
         scope: "llmApiKeys:create",
       });
 
-      assertDecisionModelConnectionInput(input);
-
       if (input.baseURL) {
         try {
           await validateLlmConnectionBaseURL(input.baseURL);
@@ -559,8 +536,6 @@ export const llmApiKeyRouter = createTRPCRouter({
             message: "API key not found",
           });
         }
-
-        assertDecisionModelConnectionInput(input);
 
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
@@ -653,8 +628,6 @@ export const llmApiKeyRouter = createTRPCRouter({
             message: "Provider and adapter cannot be changed",
           });
         }
-
-        assertDecisionModelConnectionInput(input);
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);

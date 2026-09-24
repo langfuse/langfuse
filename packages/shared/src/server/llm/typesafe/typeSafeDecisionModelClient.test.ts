@@ -134,6 +134,48 @@ describe("createTypeSafeDecisionModelClient", () => {
     },
   );
 
+  it("posts to a custom base URL with the connection's extra headers", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        model: "jev",
+        answers: { refund: { type: "noul", noul: 0.5 } },
+      }),
+    );
+
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "https://llm-proxy.example.com/typesafe/v1/",
+      extraHeaders: { "x-team": "evals" },
+      fetchImpl,
+    });
+    await client.evaluate({
+      state: request.state,
+      questions: { refund: request.questions.refund },
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://llm-proxy.example.com/typesafe/v1/systemone");
+    const headers = new Headers(init.headers);
+    expect(headers.get("x-team")).toBe("evals");
+    expect(headers.get("authorization")).toBe("Bearer sk-test");
+  });
+
+  it("blocks a custom base URL that points at an internal address", async () => {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "http://169.254.169.254/v1",
+    });
+
+    await expect(
+      client.evaluate({
+        state: request.state,
+        questions: { refund: request.questions.refund },
+      }),
+    ).rejects.toMatchObject({ name: "LLMValidationError" });
+  });
+
   it("tolerates the extra routing fields gateways add to the TypeSafe response", async () => {
     // OpenRouter returns its own id/provider and a cost inside usage; the model
     // is the resolved OpenRouter slug rather than the requested alias.

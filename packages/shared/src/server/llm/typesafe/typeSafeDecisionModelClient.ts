@@ -15,11 +15,13 @@ export function createTypeSafeDecisionModelClient(params: {
   apiKey: string;
   model: string;
   baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
   fetchImpl?: typeof fetch;
 }): DecisionModelClient {
   const provider = createTypeSafeAi({
     apiKey: params.apiKey,
     baseURL: params.baseURL ?? undefined,
+    headers: params.extraHeaders,
     fetch:
       params.fetchImpl ??
       createSecureLlmFetch({ logContext: "TypeSafe decision model" }),

@@ -477,7 +477,9 @@ export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
 /**
  * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
  * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
- * the AI SDK provider then defaults to.
+ * the AI SDK provider then defaults to. Presets only prefill the base URL; a
+ * `custom` connection stores any base URL the provider appends `/systemone`
+ * to.
  */
 export const TYPESAFE_UPSTREAMS = [
   {
@@ -498,15 +500,24 @@ export const TYPESAFE_UPSTREAMS = [
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyLabel: "OpenRouter API key",
   },
+  {
+    id: "custom",
+    label: "Custom",
+    baseURL: null,
+    apiKeyLabel: "API key",
+  },
 ] as const;
 
 export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
 
-export function findTypeSafeUpstream(
+export function resolveTypeSafeUpstream(
   baseURL: string | null | undefined,
-): TypeSafeUpstream | undefined {
+): TypeSafeUpstream {
   if (!baseURL) return TYPESAFE_UPSTREAMS[0];
-  return TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL);
+  return (
+    TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
+    TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
+  );
 }
 
 export type AnthropicModel = (typeof anthropicModels)[number];

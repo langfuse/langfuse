@@ -355,28 +355,53 @@ describe("llmApiKey.all RPC", () => {
     expect(llmApiKeys[0].baseURL).toBe("https://openrouter.ai/api/v1");
   });
 
-  it.each(["https://example.com/v1", "https://api.typesafe.ai/v1"])(
-    "should reject decision-model connections with the non-preset base URL %s",
-    async (baseURL) => {
-      await expect(
-        caller.llmApiKey.create({
-          projectId,
-          secretKey: "sk-test",
-          provider: "jev-custom-url",
-          adapter: LLMAdapter.TypeSafe,
-          baseURL,
-        }),
-      ).rejects.toThrow(
-        "only support the TypeSafe, Vercel AI Gateway, and OpenRouter base URLs",
-      );
+  it("should store a custom base URL and encrypted extra headers on a decision-model connection", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-via-proxy",
+      adapter: LLMAdapter.TypeSafe,
+      baseURL: "https://example.com/typesafe/v1",
+      extraHeaders: { "x-team": "evals" },
+    });
 
-      const { data: llmApiKeys } = await caller.llmApiKey.all({
+    const storedKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev-via-proxy" },
+    });
+    expect(storedKey.baseURL).toBe("https://example.com/typesafe/v1");
+    expect(storedKey.extraHeaderKeys).toEqual(["x-team"]);
+    expect(JSON.parse(decrypt(storedKey.extraHeaders!))).toEqual({
+      "x-team": "evals",
+    });
+  });
+
+  it("should block decision-model connections with an internal custom base URL", async () => {
+    await expect(
+      caller.llmApiKey.create({
         projectId,
-        includeDecisionModels: true,
-      });
-      expect(llmApiKeys).toHaveLength(0);
-    },
-  );
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).rejects.toThrow("Invalid base URL: Blocked hostname detected");
+
+    await expect(
+      caller.llmApiKey.test({
+        projectId,
+        secretKey: "sk-test",
+        provider: "jev-internal",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "http://localhost:8080/v1",
+      }),
+    ).resolves.toMatchObject({ success: false });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+      includeDecisionModels: true,
+    });
+    expect(llmApiKeys).toHaveLength(0);
+  });
 
   it("should require a new secret key when moving a decision-model connection to another upstream", async () => {
     await caller.llmApiKey.create({
