@@ -93,7 +93,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
         <>
           <DialogHeader variant="action">
             <DialogTitle className="flex items-center gap-2 text-lg">
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{meta.label} Permissions</span>
               <Badge
                 variant="tertiary"
