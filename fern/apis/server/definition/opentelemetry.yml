@@ -111,13 +111,13 @@ types:
     docs: Individual span representing a unit of work or operation
     properties:
       traceId:
-        type: optional<string>
+        type: optional<unknown>
         docs: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
       spanId:
-        type: optional<string>
+        type: optional<unknown>
         docs: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
       parentSpanId:
-        type: optional<string>
+        type: optional<unknown>
         docs: Parent span ID if this is a child span
       name:
         type: optional<string>
@@ -126,11 +126,11 @@ types:
         type: optional<integer>
         docs: Span kind (1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
       startTimeUnixNano:
-        type: optional<string>
-        docs: Start time in nanoseconds since Unix epoch (64-bit value serialized as a string in JSON)
+        type: optional<unknown>
+        docs: Start time in nanoseconds since Unix epoch
       endTimeUnixNano:
-        type: optional<string>
-        docs: End time in nanoseconds since Unix epoch (64-bit value serialized as a string in JSON)
+        type: optional<unknown>
+        docs: End time in nanoseconds since Unix epoch
       attributes:
         type: optional<list<OtelAttribute>>
         docs: Span attributes including Langfuse-specific attributes (langfuse.observation.*)
