@@ -189,8 +189,11 @@ describe("session review workspace", () => {
 
     await waitFor(() => {
       const reviewSizes = groupRef.current.setLayout.mock.calls
-        .map((call: [{ review: number }]) => call[0].review)
-        .filter((review: number) => review > 0);
+        .map((call) => {
+          const layout: { review?: number } = call[0] ?? {};
+          return layout.review ?? 0;
+        })
+        .filter((review) => review > 0);
       expect(reviewSizes.at(-1)).toBe(32);
     });
   });
