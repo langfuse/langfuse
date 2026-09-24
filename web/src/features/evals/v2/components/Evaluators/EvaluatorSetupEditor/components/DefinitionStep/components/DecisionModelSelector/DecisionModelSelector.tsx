@@ -53,7 +53,7 @@ export function DecisionModelSelector({
       ? [...connectionOptions, selectedOption]
       : connectionOptions;
 
-  if (connections.isSuccess && connectionOptions.length === 0) {
+  if (connections.isSuccess && options.length === 0) {
     return (
       <Button type="button" variant="outline" onClick={onConfigureProviders}>
         Add a TypeSafe connection
