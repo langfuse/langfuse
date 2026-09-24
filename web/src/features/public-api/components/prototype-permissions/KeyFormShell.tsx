@@ -35,7 +35,7 @@ export const KeyFormShell = ({
   children: ReactNode;
 }) => (
   <div className="bg-muted flex justify-center rounded-lg border p-6 sm:p-10">
-    <Card className="w-full max-w-[33.05rem] shadow-2xl">
+    <Card className="w-full max-w-[26.44rem] shadow-2xl">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="flex items-center gap-2">
