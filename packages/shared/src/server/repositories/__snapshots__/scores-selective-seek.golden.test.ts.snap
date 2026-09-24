@@ -74,7 +74,32 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       ],
     },
     "route": "unknown",
-    "sql": "SELECT
+    "sql": "WITH
+    latest AS
+    (
+        SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+        FROM scores AS s
+        WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
+            SELECT DISTINCT
+                s.project_id,
+                toDate(s.timestamp),
+                s.name,
+                s.id
+            FROM scores AS s
+            WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+        ))
+        GROUP BY
+            s.project_id,
+            toDate(s.timestamp),
+            s.name,
+            s.id
+    )
+SELECT
     s.id,
     s.project_id,
     s.environment,
@@ -106,40 +131,14 @@ FROM
 (
     SELECT s.*
     FROM scores AS s
-    INNER JOIN
-    (
+    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
         SELECT
-            s.project_id AS latest_project_id,
-            toDate(s.timestamp) AS latest_date,
-            s.name AS latest_name,
-            s.id AS latest_id,
-            max(s.event_ts) AS latest_event_ts
-        FROM scores AS s
-        WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
-            SELECT DISTINCT
-                s.project_id,
-                toDate(s.timestamp),
-                s.name,
-                s.id
-            FROM scores AS s
-            WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
-        ))
-        GROUP BY
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-    ) AS latest ON (
-        s.project_id = latest.latest_project_id
-    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
-    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
-        SELECT DISTINCT
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-        FROM scores AS s
-        WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
+            latest_project_id,
+            latest_date,
+            latest_name,
+            latest_id,
+            latest_event_ts
+        FROM latest
     ))
     LIMIT 1 BY
         s.project_id,
@@ -219,7 +218,24 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
       "param4": "0.5",
     },
     "route": "unknown",
-    "sql": "SELECT
+    "sql": "WITH
+    latest AS
+    (
+        SELECT
+            s.project_id AS latest_project_id,
+            toDate(s.timestamp) AS latest_date,
+            s.name AS latest_name,
+            s.id AS latest_id,
+            max(s.event_ts) AS latest_event_ts
+        FROM scores AS s
+        WHERE s.project_id = {param1:String}
+        GROUP BY
+            s.project_id,
+            toDate(s.timestamp),
+            s.name,
+            s.id
+    )
+SELECT
     s.id,
     s.project_id,
     s.environment,
@@ -251,25 +267,15 @@ FROM
 (
     SELECT s.*
     FROM scores AS s
-    INNER JOIN
-    (
+    WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
         SELECT
-            s.project_id AS latest_project_id,
-            toDate(s.timestamp) AS latest_date,
-            s.name AS latest_name,
-            s.id AS latest_id,
-            max(s.event_ts) AS latest_event_ts
-        FROM scores AS s
-        WHERE s.project_id = {param1:String}
-        GROUP BY
-            s.project_id,
-            toDate(s.timestamp),
-            s.name,
-            s.id
-    ) AS latest ON (
-        s.project_id = latest.latest_project_id
-    ) AND (toDate(s.timestamp) = latest.latest_date) AND (s.name = latest.latest_name) AND (s.id = latest.latest_id) AND (s.event_ts = latest.latest_event_ts)
-    WHERE s.project_id = {param1:String}
+            latest_project_id,
+            latest_date,
+            latest_name,
+            latest_id,
+            latest_event_ts
+        FROM latest
+    ))
     LIMIT 1 BY
         s.project_id,
         toDate(s.timestamp),

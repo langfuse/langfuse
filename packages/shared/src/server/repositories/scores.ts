@@ -1684,19 +1684,19 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
   // version instead of FINAL: both paths group on the sorting key and keep the
   // latest event_ts. The count path collapses columns with one argMax pass. The
-  // rows path needs every (incl. wide Map/String) column, so it groups only to
-  // find each key's max(event_ts), then INNER JOINs back to scores on the full
-  // key + that event_ts to hydrate the whole latest row. Both sides of that join
-  // carry innerScanWhere (project scope + coarse date prune + selective seek),
-  // so the wide-column hydration scan is pruned to the same rows as the group-by,
-  // not the whole table. A LIMIT 1 BY inside the dedup subquery collapses the
-  // rare case where two raw rows share a key's max event_ts (the equality join
-  // would emit both) to one row — before any outer filter runs, so a filter can
-  // never resurrect a tied row the retained one would have excluded.
+  // rows path needs every (incl. wide Map/String) column, so the `latest` CTE
+  // groups to each key's max(event_ts), and the hydration scan reselects the raw
+  // rows whose (project_id, toDate(timestamp), name, id, event_ts) tuple is in
+  // that CTE. The tuple's leading columns are the sorting key, so the IN prunes
+  // the wide-column scan to the deduped keys via the primary index. A LIMIT 1 BY
+  // then collapses the rare case where two raw rows share a key's max event_ts —
+  // before any outer filter runs, so a filter can never resurrect a tied row the
+  // retained one would have excluded.
   //
-  // The GROUP BY runs in sort-key order on a narrow projection, and wide columns
-  // are read only for the deduped keys the join hydrates, so the only sort left
-  // is the outer ORDER BY over the already-deduped set.
+  // The seek/date/project restriction (innerScanWhere) lives only inside the CTE.
+  // ClickHouse re-executes a CTE body per reference, so the hydration reuses the
+  // CTE's *output* via the tuple IN rather than repeating innerScanWhere — the
+  // selective-seek scan runs once, not once per side of a join.
   //
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
   // trace_id are all mutable across a score's versions, so filtering raw rows
@@ -1706,11 +1706,25 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   //   filter-then-dedup -> v1 kept        (WRONG)
   //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
   //
-  // So every filter and the trace join runs AFTER dedup. The inner scan carries
+  // So every filter and the trace join runs AFTER dedup. The CTE scan carries
   // only a coarse toDate(timestamp) prune (see innerDatePruneQuery): whole
   // buckets are kept or dropped, so the latest is never lost pre-dedup. Dedup
   // granularity is the full sorting key, so different toDate(timestamp) buckets
   // of one id stay distinct — matching FINAL.
+  const latestCte = `latest AS (
+        SELECT
+          s.project_id AS latest_project_id,
+          toDate(s.timestamp) AS latest_date,
+          s.name AS latest_name,
+          s.id AS latest_id,
+          max(s.event_ts) AS latest_event_ts
+        FROM scores s
+        ${innerScanWhere}
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+      )`;
+  const rowsWithClause = tracesCTEClause
+    ? `${tracesCTEClause},\n      ${latestCte}`
+    : `WITH ${latestCte}`;
   const query =
     props.select === "count"
       ? `
@@ -1732,29 +1746,23 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${outerWhereClause}
     `
       : `
-      ${tracesCTEClause}
+      ${rowsWithClause}
       SELECT
           ${rowSelect}
       FROM (
         SELECT s.*
         FROM scores s
-        INNER JOIN (
+        WHERE s.project_id = {projectId: String}
+        ${innerDatePruneQuery ? `AND ${innerDatePruneQuery}` : ""}
+        AND (s.project_id, toDate(s.timestamp), s.name, s.id, s.event_ts) IN (
           SELECT
-            s.project_id AS latest_project_id,
-            toDate(s.timestamp) AS latest_date,
-            s.name AS latest_name,
-            s.id AS latest_id,
-            max(s.event_ts) AS latest_event_ts
-          FROM scores s
-          ${innerScanWhere}
-          GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
-        ) latest
-          ON s.project_id = latest.latest_project_id
-          AND toDate(s.timestamp) = latest.latest_date
-          AND s.name = latest.latest_name
-          AND s.id = latest.latest_id
-          AND s.event_ts = latest.latest_event_ts
-        ${innerScanWhere}
+            latest_project_id,
+            latest_date,
+            latest_name,
+            latest_id,
+            latest_event_ts
+          FROM latest
+        )
         LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ) s
       ${eventsJoin}
