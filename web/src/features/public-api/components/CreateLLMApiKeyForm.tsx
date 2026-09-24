@@ -12,7 +12,6 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
-  getTypeSafeBaseURLError,
   isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
@@ -869,20 +868,16 @@ export function CreateLLMApiKeyForm({
                       <FormItem>
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
-                          Base URL of a TypeSafe-compatible API, including its
-                          version path such as <code>/v1</code>. Langfuse
-                          appends <code>/systemone</code>, so{" "}
-                          <code>https://llm-proxy.example.com/typesafe/v1</code>{" "}
-                          sends requests to{" "}
+                          Base URL of a TypeSafe-compatible API, e.g.
                           <code>
-                            https://llm-proxy.example.com/typesafe/v1/systemone
+                            https://gateway.example.com/typesafe/v1
                           </code>
                           .
                         </FormDescription>
                         <FormControl>
                           <Input
                             {...field}
-                            placeholder="https://your-gateway.example.com/v1"
+                            placeholder="https://gateway.example.com/v1"
                           />
                         </FormControl>
                         <FormMessage />
