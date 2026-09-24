@@ -429,10 +429,10 @@ function MultiSeriesBarChart({
                   const label = tickFormatter(datum.key);
                   const center = (x(index) ?? plot.left) + x.bandwidth() / 2;
                   if (layout === "grouped") {
-                    // Keep complete labels when bands are narrow rather than
-                    // rendering an ellipsis for every category.
-                    const labelWidth = label.length * 7;
+                    const maxWidth = Math.max(0, x.bandwidth() - 16);
+                    const labelWidth = Math.min(label.length * 7, maxWidth);
                     if (
+                      maxWidth < 14 ||
                       center - labelWidth / 2 < previousTickRight + 16 ||
                       center + labelWidth / 2 > width - 8
                     ) {
@@ -442,6 +442,7 @@ function MultiSeriesBarChart({
                       key: datum.key,
                       x: center,
                       label,
+                      maxWidth,
                     });
                     previousTickRight = center + labelWidth / 2;
                     return;
@@ -533,22 +534,6 @@ function MultiSeriesBarChart({
                               }
                         }
                       >
-                        {activeIndex >= 0 && activeIndex < data.length ? (
-                          <line
-                            data-active-reference-line=""
-                            x1={
-                              (x(activeIndex) ?? plot.left) + x.bandwidth() / 2
-                            }
-                            x2={
-                              (x(activeIndex) ?? plot.left) + x.bandwidth() / 2
-                            }
-                            y1={plot.top}
-                            y2={plot.top + plot.height}
-                            stroke="hsl(var(--muted-foreground))"
-                            strokeDasharray="3 3"
-                            aria-hidden="true"
-                          />
-                        ) : null}
                         {data.map((datum, index) => {
                           const left = x(index);
                           if (left === undefined) return null;
@@ -683,50 +668,68 @@ function MultiSeriesBarChart({
                                   colorStrength === 100
                                     ? item.color
                                     : `color-mix(in srgb, ${item.color} ${colorStrength}%, hsl(var(--background)))`;
+                                const sharedBarProps = {
+                                  fill,
+                                  role: "graphics-symbol" as const,
+                                  tabIndex: 0,
+                                  "aria-label": `${item.label}: ${valueFormatter(value)}`,
+                                  className:
+                                    "outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2",
+                                  ...referenceProps,
+                                  onPointerEnter: (
+                                    event: React.PointerEvent<SVGElement>,
+                                  ) => {
+                                    referenceProps.onPointerEnter(event);
+                                    setHoveredIndex(index);
+                                    sync?.onActiveKeyChange(datum.key);
+                                  },
+                                  onPointerMove: (
+                                    event: React.PointerEvent<SVGElement>,
+                                  ) => {
+                                    referenceProps.onPointerMove(event);
+                                    setHoveredIndex(index);
+                                    sync?.onActiveKeyChange(datum.key);
+                                  },
+                                  onFocus: (
+                                    event: React.FocusEvent<SVGElement>,
+                                  ) => {
+                                    referenceProps.onFocus(event);
+                                    setHoveredIndex(index);
+                                    sync?.onActiveKeyChange(datum.key);
+                                  },
+                                  onPointerLeave: () => {
+                                    referenceProps.onPointerLeave();
+                                    setHoveredIndex(undefined);
+                                    sync?.onActiveKeyChange(undefined);
+                                  },
+                                  onBlur: () => {
+                                    referenceProps.onBlur();
+                                    setHoveredIndex(undefined);
+                                    sync?.onActiveKeyChange(undefined);
+                                  },
+                                };
+                                if (layout === "stacked") {
+                                  return (
+                                    <rect
+                                      key={item.id}
+                                      x={barLeft}
+                                      y={top}
+                                      width={barWidth}
+                                      height={barHeight}
+                                      clipPath={
+                                        value === 0
+                                          ? undefined
+                                          : `url(#${clipId}-${value >= 0 ? "positive" : "negative"}-${index})`
+                                      }
+                                      {...sharedBarProps}
+                                    />
+                                  );
+                                }
                                 return (
                                   <path
                                     key={item.id}
-                                    d={
-                                      layout === "grouped"
-                                        ? barPath
-                                        : `M ${barLeft} ${top} h ${barWidth} v ${barHeight} h ${-barWidth} Z`
-                                    }
-                                    clipPath={
-                                      layout === "grouped" || value === 0
-                                        ? undefined
-                                        : `url(#${clipId}-${value >= 0 ? "positive" : "negative"}-${index})`
-                                    }
-                                    fill={fill}
-                                    role="graphics-symbol"
-                                    tabIndex={0}
-                                    aria-label={`${item.label}: ${valueFormatter(value)}`}
-                                    className="outline-hidden transition-[fill] duration-150 focus-visible:outline-2 focus-visible:outline-offset-2"
-                                    {...referenceProps}
-                                    onPointerEnter={(event) => {
-                                      referenceProps.onPointerEnter(event);
-                                      setHoveredIndex(index);
-                                      sync?.onActiveKeyChange(datum.key);
-                                    }}
-                                    onPointerMove={(event) => {
-                                      referenceProps.onPointerMove(event);
-                                      setHoveredIndex(index);
-                                      sync?.onActiveKeyChange(datum.key);
-                                    }}
-                                    onFocus={(event) => {
-                                      referenceProps.onFocus(event);
-                                      setHoveredIndex(index);
-                                      sync?.onActiveKeyChange(datum.key);
-                                    }}
-                                    onPointerLeave={() => {
-                                      referenceProps.onPointerLeave();
-                                      setHoveredIndex(undefined);
-                                      sync?.onActiveKeyChange(undefined);
-                                    }}
-                                    onBlur={() => {
-                                      referenceProps.onBlur();
-                                      setHoveredIndex(undefined);
-                                      sync?.onActiveKeyChange(undefined);
-                                    }}
+                                    d={barPath}
+                                    {...sharedBarProps}
                                   />
                                 );
                               })}
