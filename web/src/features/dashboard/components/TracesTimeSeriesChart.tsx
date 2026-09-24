@@ -27,6 +27,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -38,6 +39,10 @@ export const TracesAndObservationsTimeSeriesChart = ({
   metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
   const isV2 = metricsVersion === "v2";
 
@@ -220,6 +225,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                       // the card headline. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      sync={sync}
                       // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
                       missingValue="zero"
                     />

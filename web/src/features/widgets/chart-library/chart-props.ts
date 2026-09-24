@@ -124,9 +124,8 @@ export interface ChartProps {
    */
   maxVisibleSeries?: number;
   /**
-   * Shared sync group: charts on the same dashboard timeline that pass the same
-   * `syncId` show a synced hover crosshair + tooltip — hovering one moves the
-   * vertical time marker on all of them. (LFE-10549)
+   * Recharts sync group for chart types that still use Recharts. Design-system
+   * charts use `sync` to share their active key instead. (LFE-10549)
    */
   syncId?: string;
   sync?: {
