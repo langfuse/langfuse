@@ -148,7 +148,7 @@ const PermissionsPopup = ({
                 <span>{meta.label}</span>
                 <Badge
                   variant="tertiary"
-                  className="ml-1 shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
+                  className="ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
                 >
                   {rolePermissionCount(role)} Permissions
                 </Badge>
