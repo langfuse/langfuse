@@ -102,9 +102,15 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
     s.is_deleted,
     s.event_ts,
     length(mapKeys(s.metadata)) > 0 AS has_metadata
-FROM
+FROM scores AS s
+INNER JOIN
 (
-    SELECT *
+    SELECT
+        s.project_id AS project_id,
+        toDate(s.timestamp) AS date,
+        s.name AS name,
+        s.id AS id,
+        max(s.event_ts) AS event_ts
     FROM scores AS s
     WHERE (s.project_id = {param1:String}) AND ((s.project_id, toDate(s.timestamp), s.name, s.id) IN (
         SELECT DISTINCT
@@ -115,15 +121,21 @@ FROM
         FROM scores AS s
         WHERE (s.project_id = {param1:String}) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
     ))
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY
+    GROUP BY
         s.project_id,
         toDate(s.timestamp),
         s.name,
         s.id
-) AS s
+) AS latest ON (
+    s.project_id = latest.project_id
+) AND (toDate(s.timestamp) = latest.date) AND (s.name = latest.name) AND (s.id = latest.id) AND (s.event_ts = latest.event_ts)
 WHERE (s.data_type IN ({param4:Array(String)})) AND (project_id = {param2:String}) AND (s.trace_id = {param3:String})
-ORDER BY s.timestamp DESC",
+ORDER BY s.timestamp DESC
+LIMIT 1 BY
+    s.project_id,
+    toDate(s.timestamp),
+    s.name,
+    s.id",
   },
 ]
 `;
@@ -222,20 +234,32 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
     s.is_deleted,
     s.event_ts,
     length(mapKeys(s.metadata)) > 0 AS has_metadata
-FROM
+FROM scores AS s
+INNER JOIN
 (
-    SELECT *
+    SELECT
+        s.project_id AS project_id,
+        toDate(s.timestamp) AS date,
+        s.name AS name,
+        s.id AS id,
+        max(s.event_ts) AS event_ts
     FROM scores AS s
     WHERE s.project_id = {param1:String}
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY
+    GROUP BY
         s.project_id,
         toDate(s.timestamp),
         s.name,
         s.id
-) AS s
+) AS latest ON (
+    s.project_id = latest.project_id
+) AND (toDate(s.timestamp) = latest.date) AND (s.name = latest.name) AND (s.id = latest.id) AND (s.event_ts = latest.event_ts)
 WHERE (s.data_type IN ({param2:Array(String)})) AND (project_id = {param3:String}) AND (s.value > {param4:Decimal64(12)})
-ORDER BY s.timestamp DESC",
+ORDER BY s.timestamp DESC
+LIMIT 1 BY
+    s.project_id,
+    toDate(s.timestamp),
+    s.name,
+    s.id",
   },
 ]
 `;

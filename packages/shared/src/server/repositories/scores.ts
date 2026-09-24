@@ -1682,9 +1682,17 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 
   // ── Dedup without FINAL ───────────────────────────────────────────────────
   // Reads dedup the ReplacingMergeTree by reconstructing each score's latest
-  // version instead of FINAL: the count path via one argMax pass grouped on the
-  // sorting key, the rows path via ORDER BY event_ts DESC + LIMIT 1 BY that same
-  // key (keeps the whole latest row).
+  // version instead of FINAL: both paths group on the sorting key and keep the
+  // latest event_ts. The count path collapses columns with one argMax pass. The
+  // rows path needs every (incl. wide Map/String) column, so it groups only to
+  // find each key's max(event_ts), then INNER JOINs back to scores on the full
+  // key + that event_ts to hydrate the whole latest row. A trailing LIMIT 1 BY
+  // collapses the rare case where two raw rows share a key's max event_ts (the
+  // equality join would emit both) back to a single row.
+  //
+  // The GROUP BY runs in sort-key order on a narrow projection, and wide columns
+  // are read only for the deduped keys the join hydrates, so the only sort left
+  // is the outer ORDER BY over the already-deduped set.
   //
   // Rule: filter AFTER dedup, never before. value / comment / timestamp /
   // trace_id are all mutable across a score's versions, so filtering raw rows
@@ -1694,11 +1702,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
   //   filter-then-dedup -> v1 kept        (WRONG)
   //   dedup-then-filter -> 0.1 excluded   (matches FINAL)
   //
-  // So every filter and the trace join runs in the OUTER query. The inner scan
-  // carries only a coarse toDate(timestamp) prune (see innerDatePruneQuery):
-  // whole buckets are kept or dropped, so the latest is never lost pre-dedup.
-  // Dedup granularity is the full sorting key, so different toDate(timestamp)
-  // buckets of one id stay distinct — matching FINAL.
+  // So every filter and the trace join runs AFTER dedup. The inner scan carries
+  // only a coarse toDate(timestamp) prune (see innerDatePruneQuery): whole
+  // buckets are kept or dropped, so the latest is never lost pre-dedup. Dedup
+  // granularity is the full sorting key, so different toDate(timestamp) buckets
+  // of one id stay distinct — matching FINAL.
   const query =
     props.select === "count"
       ? `
@@ -1723,16 +1731,27 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       ${tracesCTEClause}
       SELECT
           ${rowSelect}
-      FROM (
-        SELECT *
+      FROM scores s
+      INNER JOIN (
+        SELECT
+          s.project_id AS project_id,
+          toDate(s.timestamp) AS date,
+          s.name AS name,
+          s.id AS id,
+          max(s.event_ts) AS event_ts
         FROM scores s
         ${innerScanWhere}
-        ORDER BY s.event_ts DESC
-        LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
-      ) s
+        GROUP BY s.project_id, toDate(s.timestamp), s.name, s.id
+      ) latest
+        ON s.project_id = latest.project_id
+        AND toDate(s.timestamp) = latest.date
+        AND s.name = latest.name
+        AND s.id = latest.id
+        AND s.event_ts = latest.event_ts
       ${eventsJoin}
       ${outerWhereClause}
       ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitionsFromEvents)}
+      LIMIT 1 BY s.project_id, toDate(s.timestamp), s.name, s.id
       ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
     `;
 
