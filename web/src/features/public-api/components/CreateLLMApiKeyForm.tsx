@@ -869,10 +869,7 @@ export function CreateLLMApiKeyForm({
                         <FormLabel>Custom base URL</FormLabel>
                         <FormDescription>
                           Base URL of a TypeSafe-compatible API, e.g.
-                          <code>
-                            https://gateway.example.com/typesafe/v1
-                          </code>
-                          .
+                          <code>https://gateway.example.com/typesafe/v1</code>.
                         </FormDescription>
                         <FormControl>
                           <Input
