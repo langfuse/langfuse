@@ -14,9 +14,9 @@ import type { PrismaClient } from "@langfuse/shared/src/db";
 import type { Session } from "next-auth";
 
 const RELATED_TRACE_LIMIT = 50;
-// Query one extra row per project chunk to detect truncation without loading
-// every match across large orgs. This is a navigation aid, not a globally
-// exhaustive top-N query across all chunks.
+// One extra row per chunk detects truncation while bounding query results.
+// Each chunk's earliest 51 rows suffice for the global earliest 50 by timestamp:
+// any omitted row has at least 51 rows no later than it in its own chunk.
 const RELATED_TRACE_QUERY_LIMIT = RELATED_TRACE_LIMIT + 1;
 const RELATED_TRACE_PROJECT_BATCH_SIZE = 250;
 const RELATED_TRACE_PROJECT_BATCH_CONCURRENCY = 3;
