@@ -1124,6 +1124,102 @@ describe("isDenylistedNoiseEvent", () => {
     });
   });
 
+  describe("L. drops Safari WKWebView window.webkit.messageHandlers", () => {
+    // Real shape (LANGFUSE-628 / LANGFUSE-5SG): Safari 26.5. Injected
+    // WKWebView / Safari-extension JS reads `window.webkit.messageHandlers`
+    // on focus / rAF. Desktop Safari has no native bridge, so WebKit
+    // throws. Sentry's addEventListener / requestAnimationFrame wrap
+    // captures it. Langfuse never calls this API.
+    const safariWebkitMessageHandlersEvent = (
+      value: string,
+      mechanismType = "auto.browser.browserapierrors.addEventListener",
+      frames?: { filename: string; function?: string }[],
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value,
+              mechanism: { type: mechanismType, handled: false },
+              ...(frames
+                ? {
+                    stacktrace: {
+                      frames: frames.map((frame) => ({
+                        filename: frame.filename,
+                        function: frame.function ?? "?",
+                      })),
+                    },
+                  }
+                : {}),
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops the LANGFUSE-628 WebKit messageHandlers TypeError", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariWebkitMessageHandlersEvent(
+            "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the LANGFUSE-5SG requestAnimationFrame wrap", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariWebkitMessageHandlersEvent(
+            "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+            "auto.browser.browserapierrors.requestAnimationFrame",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the null WebKit variant and a trailing period", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariWebkitMessageHandlersEvent(
+            "null is not an object (evaluating 'window.webkit.messageHandlers').",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a named native-handler access", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          safariWebkitMessageHandlersEvent(
+            "undefined is not an object (evaluating 'window.webkit.messageHandlers.nativeApp')",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops the same wording when bundled vendor chunks are on the stack", () => {
+      // 628's throw is captured while Radix FocusScope calls element.focus(),
+      // so beforeSend sees /_next/ frames for react-dom / radix / sentry.
+      // Those frames are not the access — do not keep the event.
+      expect(
+        isDenylistedNoiseEvent(
+          safariWebkitMessageHandlersEvent(
+            "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+            "auto.browser.browserapierrors.addEventListener",
+            [
+              {
+                filename:
+                  "https://us.cloud.langfuse.com/_next/static/chunks/pages/project/[projectId]/sessions/[sessionId]-abc.js",
+                function: "commitPassiveMountOnFiber",
+              },
+            ],
+          ),
+        ),
+      ).toBe(true);
+    });
+  });
+
   // The heart of the safety contract: prove that real / similar-looking errors
   // are NOT dropped. If any of these regress to `true`, a real bug would be
   // hidden from Sentry.
@@ -1750,6 +1846,89 @@ describe("isDenylistedNoiseEvent", () => {
             {
               type: "TypeError",
               value: "undefined is not an object (evaluating 'addMore.click')",
+              mechanism: {
+                type: "auto.core.capture_console",
+                handled: true,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(consoleCaptured)).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes window.webkit.messageHandlers", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Bridge failed: undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+              mechanism: {
+                type: "auto.browser.browserapierrors.addEventListener",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps a different WebKit evaluating TypeError on window.webkit", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value: "undefined is not an object (evaluating 'window.webkit')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps Chromium's generic undefined.messageHandlers TypeError", () => {
+      const event = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "Cannot read properties of undefined (reading 'messageHandlers')",
+              mechanism: {
+                type: "auto.browser.global_handlers.onerror",
+                handled: false,
+              },
+            },
+          ],
+        },
+      } as ErrorEvent;
+      expect(isDenylistedNoiseEvent(event)).toBe(false);
+    });
+
+    it("keeps an app-captured messageHandlers TypeError (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
+            "TypeError",
+          ),
+        ),
+      ).toBe(false);
+      const consoleCaptured = {
+        exception: {
+          values: [
+            {
+              type: "TypeError",
+              value:
+                "undefined is not an object (evaluating 'window.webkit.messageHandlers')",
               mechanism: {
                 type: "auto.core.capture_console",
                 handled: true,
