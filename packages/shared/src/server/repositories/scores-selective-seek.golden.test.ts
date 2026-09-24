@@ -82,6 +82,10 @@ const environmentNoneOf = (values: string[]): FilterState => [
   },
 ];
 
+const traceNameEq = (value: string): FilterState => [
+  { column: "traceName", type: "string", operator: "=", value },
+];
+
 const resetCaptures = () => {
   recorder.captured.length = 0;
 };
@@ -195,6 +199,18 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
     it("ineligible (value range): rows", async () => {
       const q = await captureRowsSql(valueGt(0.5));
       expect(normalizeCapturedQueries([q])).toMatchSnapshot();
+    });
+  });
+
+  // A trace filter joins the traces CTE (alias `e`), which also exposes id and
+  // name. The rows projection must alias s.id / s.name so ClickHouse does not
+  // qualify the output columns (s.id / s.name), which the row mapper cannot read.
+  describe("trace filter joins traces and aliases colliding columns", () => {
+    it("rows: traceName = ", async () => {
+      const q = await captureRowsSql(traceNameEq("root"));
+      expect(q.query).toContain("JOIN traces e");
+      expect(q.query).toContain("s.id AS id");
+      expect(q.query).toContain("s.name AS name");
     });
   });
 });

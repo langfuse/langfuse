@@ -1604,11 +1604,14 @@ const getScoresUiGenericFromEvents = async <T>(props: {
       : `LEFT ANY JOIN traces e ON s.trace_id = e.id`
     : "";
 
+  // id and name are aliased because the traces CTE (joined as `e`) also exposes
+  // id and name: without the alias ClickHouse qualifies the output columns as
+  // s.id / s.name to disambiguate, and the row mapper reads bare id / name.
   const rowSelect = `
-        s.id,
+        s.id AS id,
         s.project_id,
         s.environment,
-        s.name,
+        s.name AS name,
         s.value,
         s.string_value,
         s.timestamp,

@@ -78,10 +78,10 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
 FROM
 (
     SELECT
-        s.id,
+        s.id AS id,
         s.project_id,
         s.environment,
-        s.name,
+        s.name AS name,
         s.value,
         s.string_value,
         s.timestamp,
@@ -214,10 +214,10 @@ exports[`scores selective-seek: emitted SQL > full SQL text (one representative 
 FROM
 (
     SELECT
-        s.id,
+        s.id AS id,
         s.project_id,
         s.environment,
-        s.name,
+        s.name AS name,
         s.value,
         s.string_value,
         s.timestamp,
