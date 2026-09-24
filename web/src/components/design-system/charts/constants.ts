@@ -8,3 +8,5 @@ export const chartColors = [
   "#82cb15",
   "#ec4699",
 ] as const;
+
+export const INACTIVE_CHART_COLOR_STRENGTH = 20;
