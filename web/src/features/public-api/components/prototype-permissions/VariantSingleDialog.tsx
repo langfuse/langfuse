@@ -66,7 +66,7 @@ export const VariantSingleDialog = ({
               <SelectItem
                 key={p.key}
                 value={p.key}
-                className="pl-2 [&>span[data-checkmark]]:hidden"
+                className="pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
               >
                 <div className="flex w-full items-start gap-2 text-left">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0" />
