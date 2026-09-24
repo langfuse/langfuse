@@ -7,7 +7,7 @@ CREATE TABLE "skills" (
     "created_by" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL,
-    "frontmatter" JSON NOT NULL DEFAULT '{}',
+    "frontmatter" JSONB NOT NULL DEFAULT '{}',
     "version" INTEGER NOT NULL,
     "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "labels" TEXT[] DEFAULT ARRAY[]::TEXT[],

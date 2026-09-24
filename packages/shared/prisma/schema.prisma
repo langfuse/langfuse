@@ -855,7 +855,7 @@ model Skill {
   createdBy     String      @map("created_by")
   name          String
   description   String
-  frontmatter   Json        @default("{}") @db.Json
+  frontmatter   Json        @default("{}")
   version       Int
   tags          String[]    @default([])
   labels        String[]    @default([])
