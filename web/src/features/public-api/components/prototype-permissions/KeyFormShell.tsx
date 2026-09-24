@@ -2,7 +2,7 @@
 // variants; each variant supplies its own Permissions control as children.
 
 import { type ReactNode } from "react";
-import { KeyRound, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -37,12 +37,7 @@ export const KeyFormShell = ({
     <Card className="w-full max-w-[26.44rem] shadow-2xl">
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="flex items-center gap-2.5">
-            <span className="border-border text-muted-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full border">
-              <KeyRound className="h-4 w-4" />
-            </span>
-            Create a new API key
-          </CardTitle>
+          <CardTitle>Create a new API key</CardTitle>
           <Button
             variant="ghost"
             size="icon"
