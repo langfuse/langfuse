@@ -1,8 +1,7 @@
-// PROTOTYPE — throwaway. Variant E: role dropdown where each option has a
-// permission-count button that opens a popup of that role's permission list.
+// PROTOTYPE — throwaway. Variant E: role dropdown showing each role's permission
+// count, with a "View N permissions" link below opening a popup for the role.
 
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -47,19 +46,11 @@ export const VariantSingleDialog = ({
   draft: ApiKeyDraft;
   setDraft: (draft: ApiKeyDraft) => void;
 }) => {
-  const [selectOpen, setSelectOpen] = useState(false);
   const [popupRole, setPopupRole] = useState<PresetKey | null>(null);
-
-  const openPopup = (role: PresetKey) => {
-    setSelectOpen(false);
-    setPopupRole(role);
-  };
 
   return (
     <KeyFormShell projects={projects} draft={draft} setDraft={setDraft}>
       <Select
-        open={selectOpen}
-        onOpenChange={setSelectOpen}
         value={draft.preset}
         onValueChange={(value) =>
           setDraft({ ...draft, preset: value as ApiKeyDraft["preset"] })
@@ -85,34 +76,30 @@ export const VariantSingleDialog = ({
                       {p.description}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onPointerUp={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      openPopup(p.key);
-                    }}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex shrink-0 items-center gap-1.5 self-center rounded-md px-1.5 py-1"
-                  >
+                  <span className="text-muted-foreground ml-auto flex shrink-0 items-center gap-1 self-center">
                     <Badge
                       variant="tertiary"
-                      className="rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
+                      className="rounded-full px-1.5 py-0 text-[0.6rem] font-bold tabular-nums"
                     >
                       {rolePermissionCount(p.key)}
                     </Badge>
-                    <span className="text-[0.65rem] font-bold tracking-wider uppercase">
+                    <span className="text-[0.55rem] font-bold tracking-wider uppercase">
                       Permissions
                     </span>
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
+                  </span>
                 </div>
               </SelectItem>
             );
           })}
         </SelectContent>
       </Select>
+      <button
+        type="button"
+        onClick={() => setPopupRole(draft.preset)}
+        className="text-muted-foreground hover:text-foreground w-fit text-xs underline"
+      >
+        View {rolePermissionCount(draft.preset)} permissions
+      </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
     </KeyFormShell>
   );
