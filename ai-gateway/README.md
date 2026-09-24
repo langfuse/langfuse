@@ -314,7 +314,7 @@ headers, hop-by-hop headers and upstream framing are excluded.
 When inference is configured, each finalized execution is mapped to a generation
 span and queued without waiting. A single delivery worker groups spans by project
 and POSTs each batch to the Web base URL's `/api/public/otel/v1/traces` endpoint
-when it reaches 100 spans or 4 MiB, after a one-second linger, 30 seconds before its
+when it reaches 512 spans or 4 MiB, five seconds after it opened, 30 seconds before its
 grant expires, when more than 256 projects have open batches (the batch due soonest
 goes first), or at shutdown. The client response and provider admission never wait
 for ingestion. There is no durable delivery. A successful upload acknowledges

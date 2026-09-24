@@ -21,9 +21,9 @@ pub(super) struct BatchPolicy {
 impl Default for BatchPolicy {
     fn default() -> Self {
         Self {
-            max_records: 100,
+            max_records: 512,
             max_bytes: 4 * 1024 * 1024,
-            linger: Duration::from_secs(1),
+            linger: Duration::from_secs(5),
             expiry_margin: Duration::from_secs(30),
             max_open: 256,
         }
