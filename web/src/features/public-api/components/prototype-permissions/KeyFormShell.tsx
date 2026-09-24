@@ -35,13 +35,13 @@ export const KeyFormShell = ({
 }) => (
   <div className="bg-muted flex justify-center rounded-lg border p-6 sm:p-10">
     <Card className="w-full max-w-[26.44rem] shadow-2xl">
-      <CardHeader className="pt-6">
+      <CardHeader className="pt-4">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle>Create a new api key</CardTitle>
+          <CardTitle className="mt-2">Create a new api key</CardTitle>
           <Button
             variant="ghost"
             size="icon"
-            className="-mt-1 -mr-1 h-8 w-8 shrink-0"
+            className="-mr-1 h-8 w-8 shrink-0"
           >
             <X className="h-4 w-4" />
           </Button>
