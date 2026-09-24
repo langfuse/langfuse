@@ -118,9 +118,12 @@ export const VariantSingleDialog = ({
       <button
         type="button"
         onClick={() => setPopupRole(draft.preset)}
-        className="text-muted-foreground hover:text-foreground w-fit text-xs underline"
+        className="text-muted-foreground hover:text-foreground flex w-fit items-center gap-1 text-xs"
       >
-        View {rolePermissionCount(draft.preset)} permissions
+        <span className="underline">
+          View {rolePermissionCount(draft.preset)} permissions
+        </span>
+        <SquareArrowOutUpRight className="h-3 w-3" />
       </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
     </KeyFormShell>
@@ -148,7 +151,7 @@ const PermissionsPopup = ({
                 <span>{meta.label}</span>
                 <Badge
                   variant="tertiary"
-                  className="ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
+                  className="ml-1 shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums"
                 >
                   {rolePermissionCount(role)} Permissions
                 </Badge>
