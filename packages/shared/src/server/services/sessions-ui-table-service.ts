@@ -196,6 +196,9 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
   const tracesFilterRes = tracesFilter
     .filter((f) => f.field !== "environment")
     .apply();
+  const hasToolFilter = filter.some((item) =>
+    ["toolNames", "calledToolNames", "toolCalls"].includes(item.column),
+  );
   const scoresFilterRes = scoresFilter.apply();
 
   const traceTimestampFilter: DateTimeFilter | undefined = tracesFilter.find(
@@ -330,6 +333,13 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                 max(o.end_time) as max_end_time,
                 sumMap(usage_details) as sum_usage_details,
                 sumMap(cost_details) as sum_cost_details,
+                ${
+                  hasToolFilter
+                    ? `groupUniqArrayArray(mapKeys(o.tool_definitions)) as tool_names,
+                groupUniqArrayArray(o.tool_call_names) as called_tool_names,
+                sum(length(o.tool_calls)) as tool_calls_count,`
+                    : ""
+                }
                 anyLast(project_id) as project_id
           FROM deduplicated_observations o
           WHERE o.project_id = {projectId: String}
@@ -346,6 +356,13 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                 groupUniqArray(t.user_id) AS user_ids,
                 count(*) as trace_count,
                 groupUniqArrayArray(t.tags) as trace_tags,
+                ${
+                  hasToolFilter
+                    ? `groupUniqArrayArray(o.tool_names) as tool_names,
+                groupUniqArrayArray(o.called_tool_names) as called_tool_names,
+                sum(o.tool_calls_count) as tool_calls_count,`
+                    : ""
+                }
                 anyLast(t.environment) as trace_environment
                 -- Aggregate observations data at session level
                 ${
@@ -374,7 +391,7 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
                 }
             FROM deduplicated_traces t
             ${
-              selectMetrics
+              selectMetrics || hasToolFilter
                 ? `LEFT JOIN observations_agg o
                    ON t.id = o.trace_id AND t.project_id = o.project_id`
                 : ""

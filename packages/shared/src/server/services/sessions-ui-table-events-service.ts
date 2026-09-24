@@ -6,6 +6,7 @@ import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import {
   CTEQueryBuilder,
   DateTimeFilter,
+  EventsQueryBuilder,
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
@@ -17,7 +18,10 @@ import {
   eventsSessionScoresAggregation,
   eventsTracesAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { queryClickhouse } from "../repositories";
+import {
+  OBSERVATIONS_TO_TRACE_INTERVAL,
+  queryClickhouse,
+} from "../repositories";
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
@@ -249,6 +253,10 @@ const getSessionsTableFromEventsGeneric = async <T>(
     (filter) =>
       filter.clickhouseTable === "events_proto" && filter.field === "metadata",
   );
+  const toolColumns = ["toolNames", "calledToolNames", "toolCalls"];
+  const requiresToolsJoin =
+    filter.some((item) => toolColumns.includes(item.column)) ||
+    (orderBy != null && toolColumns.includes(orderBy.column));
 
   // Build session_data CTE
   const sessionsBuilder = eventsSessionsAggregation({
@@ -264,6 +272,60 @@ const getSessionsTableFromEventsGeneric = async <T>(
   let queryBuilder = new CTEQueryBuilder()
     .withCTEFromBuilder("session_data", sessionsBuilder)
     .from("session_data", "s");
+
+  if (requiresToolsJoin) {
+    const latestToolsBuilder = new EventsQueryBuilder({ projectId })
+      .selectRaw(
+        "e.session_id",
+        "e.is_deleted",
+        "e.tool_definitions",
+        "e.tool_call_names",
+        "e.tool_calls",
+      )
+      .whereRaw("e.session_id != ''")
+      .whereRaw("e.session_id IN (SELECT session_id FROM session_data)")
+      .orderByColumns([{ column: "e.event_ts", direction: "DESC" }])
+      .limitBy("e.project_id", "e.span_id");
+
+    if (traceTimestampFilter) {
+      latestToolsBuilder.whereRaw(
+        `e.start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}`,
+        {
+          startTimeFrom: convertDateToClickhouseDateTime(
+            traceTimestampFilter.value,
+          ),
+        },
+      );
+    }
+    if (sessionIdFilter?.values.length) {
+      latestToolsBuilder.whereRaw(
+        "e.session_id IN ({sessionIds: Array(String)})",
+        { sessionIds: sessionIdFilter.values },
+      );
+    }
+
+    const latestTools = latestToolsBuilder.buildWithParams();
+
+    queryBuilder = queryBuilder
+      .withCTE("session_tools", {
+        query: `SELECT
+          session_id AS tool_session_id,
+          groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names,
+          groupUniqArrayArray(tool_call_names) AS called_tool_names,
+          sum(length(tool_calls)) AS tool_calls_count
+        FROM (${latestTools.query})
+        WHERE is_deleted = 0
+        GROUP BY session_id`,
+        params: latestTools.params,
+        schema: [
+          "tool_session_id",
+          "tool_names",
+          "called_tool_names",
+          "tool_calls_count",
+        ],
+      })
+      .leftJoin("session_tools", "st", "ON st.tool_session_id = s.session_id");
+  }
 
   // Conditionally add scores CTE
   if (select === "metrics" || requiresScoresJoin) {
