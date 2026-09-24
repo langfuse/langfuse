@@ -16,6 +16,7 @@ type LineChartStoryProps = {
     | "many-lines"
     | "boundary-points"
     | "negative-values"
+    | "intermittent"
     | "category-short-labels"
     | "category-long-labels"
     | "category-hidden-labels";
@@ -51,6 +52,7 @@ const LineChartDemo = (props: LineChartStoryProps) => {
   if (props.variant === "many-lines") chartData = manyLinesData;
   if (props.variant === "boundary-points") chartData = boundaryPointData;
   if (props.variant === "negative-values") chartData = negativeData;
+  if (props.variant === "intermittent") chartData = intermittentData;
   if (props.variant === "empty") chartData = [];
   const chartSeries = props.variant === "many-lines" ? manyLinesSeries : series;
 
@@ -88,6 +90,12 @@ const boundaryPointData = [
 const negativeData = [
   { x: new Date(Date.UTC(2026, 8, 1)), values: { api: -8, worker: null } },
   { x: new Date(Date.UTC(2026, 8, 2)), values: { api: -3, worker: null } },
+];
+
+const intermittentData = [
+  { x: new Date(Date.UTC(2026, 8, 1)), values: { api: 8, worker: 3 } },
+  { x: new Date(Date.UTC(2026, 8, 2)), values: { api: null, worker: null } },
+  { x: new Date(Date.UTC(2026, 8, 3)), values: { api: 12, worker: 4 } },
 ];
 
 const manyLinesSeries: LineChartSeries[] = Array.from(
@@ -180,6 +188,20 @@ export const Empty = meta.story({
       canvas.getByRole("group", { name: "Line chart" }),
     ).toBeVisible();
     await expect(canvas.queryAllByRole("graphics-symbol")).toHaveLength(0);
+  },
+});
+
+export const Intermittent = meta.story({
+  args: { variant: "intermittent" },
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    await userEvent.hover(hoverArea);
+    await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
+      "No data available",
+    );
   },
 });
 

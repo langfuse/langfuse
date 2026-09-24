@@ -904,7 +904,6 @@ function LineChartContent(
               })
               .sort((left, right) => right.value - left.value);
             const first = values[0];
-            if (!first) return null;
             const heading = formatXTooltip(datum);
             const tooltipItems = values.map(({ item, value }) => ({
               id: item.id,
@@ -912,19 +911,32 @@ function LineChartContent(
               value: valueFormatter(value),
               color: hasDistinctColors ? item.color : undefined,
             }));
-            const referenceProps = getReferenceProps({
-              type: "items",
-              index,
-              heading,
-              focusPoint: {
-                x: currentX,
-                y: TOP_MARGIN + plotHeight / 2,
-              },
-              emphasizedItemId:
-                series.find((item) => item.emphasis === "emphasized")?.id ??
-                (!hasConfiguredEmphasis ? hoveredSeriesId : undefined),
-              items: tooltipItems,
-            });
+            const referenceProps = getReferenceProps(
+              first
+                ? {
+                    type: "items",
+                    index,
+                    heading,
+                    focusPoint: {
+                      x: currentX,
+                      y: TOP_MARGIN + plotHeight / 2,
+                    },
+                    emphasizedItemId:
+                      series.find((item) => item.emphasis === "emphasized")
+                        ?.id ??
+                      (!hasConfiguredEmphasis ? hoveredSeriesId : undefined),
+                    items: tooltipItems,
+                  }
+                : {
+                    type: "empty",
+                    index,
+                    heading,
+                    focusPoint: {
+                      x: currentX,
+                      y: TOP_MARGIN + plotHeight / 2,
+                    },
+                  },
+            );
             return (
               <g key={datum.key}>
                 <rect

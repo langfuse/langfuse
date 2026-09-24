@@ -56,6 +56,15 @@ type TooltipData = {
       details?: Array<Omit<TooltipItem, "color">>;
       emphasizedItemId?: never;
     }
+  | {
+      type: "empty";
+      items?: never;
+      emphasizedItemId?: never;
+      label?: never;
+      value?: never;
+      color?: never;
+      details?: never;
+    }
 );
 
 export function ChartTooltip({
@@ -296,6 +305,9 @@ export function ChartTooltip({
                 </div>
               </Fragment>
             ))}
+            {activeTooltip.type === "empty" ? (
+              <div className="text-muted-foreground">No data available</div>
+            ) : null}
             {activeTooltip.hint ? (
               <div
                 className="border-border/50 text-muted-foreground/70 grid border-t pt-1.5 text-[10px]"

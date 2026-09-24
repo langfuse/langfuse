@@ -81,6 +81,22 @@ export const Items = meta.story({
   },
 });
 
+export const NoData = meta.story({
+  name: "(Test) No Data",
+  args: {
+    data: {
+      type: "empty",
+      index: 0,
+      heading: "September 22, 2026",
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const tooltip = await focusTooltip(canvasElement);
+    await expect(tooltip).toHaveTextContent("September 22, 2026");
+    await expect(tooltip).toHaveTextContent("No data available");
+  },
+});
+
 export const WithHeading = meta.story({
   name: "(Test) With Heading",
   args: {

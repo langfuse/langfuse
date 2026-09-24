@@ -152,6 +152,20 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const Intermittent = meta.story({
+  args: { scenario: "gaps" },
+  play: async ({ canvasElement }) => {
+    const hoverArea = canvasElement.querySelectorAll<SVGRectElement>(
+      'rect[fill="transparent"]',
+    )[1];
+    if (!hoverArea) throw new Error("Missing hover area for data gap");
+    await userEvent.hover(hoverArea);
+    await expect(within(document.body).getByRole("tooltip")).toHaveTextContent(
+      "No data available",
+    );
+  },
+});
+
 export const DenseCategories = meta.story({
   name: "(Test) Dense Categories",
   args: { scenario: "denseCategory" },
