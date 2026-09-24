@@ -82,6 +82,10 @@ const environmentNoneOf = (values: string[]): FilterState => [
   },
 ];
 
+const traceNameEq = (value: string): FilterState => [
+  { column: "traceName", type: "string", operator: "=", value },
+];
+
 const resetCaptures = () => {
   recorder.captured.length = 0;
 };
@@ -197,6 +201,18 @@ describeWithFormat("scores selective-seek: emitted SQL", () => {
       expect(normalizeCapturedQueries([q])).toMatchSnapshot();
     });
   });
+
+  // A trace filter joins the traces CTE (alias `e`), which also exposes id and
+  // name. The rows projection must alias s.id / s.name so ClickHouse does not
+  // qualify the output columns (s.id / s.name), which the row mapper cannot read.
+  describe("trace filter joins traces and aliases colliding columns", () => {
+    it("rows: traceName = ", async () => {
+      const q = await captureRowsSql(traceNameEq("root"));
+      expect(q.query).toContain("JOIN traces e");
+      expect(q.query).toContain("s.id AS id");
+      expect(q.query).toContain("s.name AS name");
+    });
+  });
 });
 
 // ── Correctness parity vs FINAL over a multi-version fixture ─────────────────
@@ -252,6 +268,10 @@ const SCORES_DDL = `
 //  c: two day-buckets (distinct dedup groups), trace_id T3
 //  d: has observation_id O1
 //  e: value mutates 0.9 -> 0.1 (latest) — exercises dedup-then-filter
+//  f: two identical rows sharing the SAME max event_ts (a tie) — the equality
+//     join emits both, so LIMIT 1 BY must collapse them to one row. Divergent
+//     ties (tied versions differing in a filtered column) are FINAL-arbitrary by
+//     design — FINAL's own pick flips with insert order — so they are not asserted
 const ROWS: Array<
   [string, string, string, string, string | null, number, number]
 > = [
@@ -263,6 +283,8 @@ const ROWS: Array<
   ["d", "n3", "2026-01-10 07:00:00.000", "T4", "O1", 0.4, 1],
   ["e", "n4", "2026-01-10 06:00:00.000", "T5", null, 0.9, 1],
   ["e", "n4", "2026-01-10 06:05:00.000", "T5", null, 0.1, 2],
+  ["f", "n1", "2026-01-10 05:00:00.000", "T2", null, 0.9, 3],
+  ["f", "n1", "2026-01-10 05:00:00.000", "T2", null, 0.9, 3],
 ];
 
 const insertRows = () => {
