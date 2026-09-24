@@ -67,8 +67,8 @@ export const VariantSingleDialog = ({
           setDraft({ ...draft, preset: value as ApiKeyDraft["preset"] })
         }
       >
-        <SelectTrigger className="group h-auto" disableValueLineClamp>
-          <div className="flex w-full items-start gap-2 text-left">
+        <SelectTrigger className="h-auto" disableValueLineClamp>
+          <div className="flex items-start gap-2 text-left">
             <SelectedIcon className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex flex-col">
               <span className="font-bold">{selected?.label}</span>
@@ -76,28 +76,6 @@ export const VariantSingleDialog = ({
                 {selected?.description}
               </span>
             </div>
-            <span
-              role="button"
-              tabIndex={0}
-              onPointerDown={(e) => e.stopPropagation()}
-              onPointerUp={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setPopupRole(draft.preset);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setPopupRole(draft.preset);
-                }
-              }}
-              aria-label={`View ${selected?.label} permissions`}
-              className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-            >
-              <Info className="h-4 w-4" />
-            </span>
           </div>
         </SelectTrigger>
         <SelectContent>
@@ -107,7 +85,7 @@ export const VariantSingleDialog = ({
               <SelectItem
                 key={p.key}
                 value={p.key}
-                className="pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
+                className="group pl-2 [&>span:not([data-checkmark])]:flex-1 [&>span[data-checkmark]]:hidden"
               >
                 <div className="flex w-full items-start gap-2 text-left">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0" />
@@ -127,7 +105,7 @@ export const VariantSingleDialog = ({
                       openPopup(p.key);
                     }}
                     aria-label={`View ${p.label} permissions`}
-                    className="text-muted-foreground hover:bg-accent hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full"
+                    className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
                   >
                     <Info className="h-4 w-4" />
                   </button>
