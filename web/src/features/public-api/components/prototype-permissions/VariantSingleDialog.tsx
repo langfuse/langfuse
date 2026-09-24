@@ -8,7 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { ScrollArea } from "@/src/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -100,12 +99,10 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
               </Badge>
             </DialogTitle>
           </DialogHeader>
-          <DialogBody className="p-0">
-            <ScrollArea className="max-h-[70vh]">
-              <div className="px-5 py-4">
-                <RolePermissionList preset={preset} />
-              </div>
-            </ScrollArea>
+          <DialogBody className="max-h-[70vh] overflow-y-auto p-0">
+            <div className="px-5 py-4">
+              <RolePermissionList preset={preset} />
+            </div>
           </DialogBody>
         </>
       )}
