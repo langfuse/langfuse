@@ -30,6 +30,8 @@ type Turn = {
 type ThreadMessage = NormalizedMessage & {
   observationId: string; // observation that first emitted the message
   traceId: string;
+  startTime: Date; // source observation start, not an individual message timestamp
+  endTime: Date | null; // source observation end, when available
 };
 ```
 

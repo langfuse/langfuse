@@ -6,6 +6,10 @@ export type ThreadMessage = NormalizedMessage & {
   /** Trace the emitting observation belongs to. Helpful when the transcript
    * spans several traces, for example one session. */
   traceId: string;
+  /** Start time of the source observation, not the individual message. */
+  startTime: Date;
+  /** End time of the source observation; null while unavailable. */
+  endTime: Date | null;
 };
 
 /** Messages of one turn with the observations that emitted them. */

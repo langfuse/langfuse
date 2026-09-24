@@ -717,6 +717,8 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
               ],
               source: "input",
               observationId: "1bbf3edb8ef95ab6",
+              startTime: new Date("2026-09-09T08:26:57.837Z"),
+              endTime: new Date("2026-09-09T08:27:02.699Z"),
               traceId: "75b336f98e39e275a823b0a7ec1ba794",
             },
             {
@@ -750,6 +752,8 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
               },
               source: "output",
               observationId: "1bbf3edb8ef95ab6",
+              startTime: new Date("2026-09-09T08:26:57.837Z"),
+              endTime: new Date("2026-09-09T08:27:02.699Z"),
               traceId: "75b336f98e39e275a823b0a7ec1ba794",
             },
             {
@@ -762,6 +766,8 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
                 },
               ],
               observationId: "3dbf50cbf2036387",
+              startTime: new Date("2026-09-09T08:27:02.700Z"),
+              endTime: new Date("2026-09-09T08:27:08.255Z"),
               traceId: "75b336f98e39e275a823b0a7ec1ba794",
             },
             {
@@ -792,6 +798,8 @@ export const vercelAiSdkDocsToolLoopFixture: TranscriptFixture = {
               },
               source: "output",
               observationId: "0c13b686b4cf6ccc",
+              startTime: new Date("2026-09-09T08:27:08.267Z"),
+              endTime: new Date("2026-09-09T08:27:19.089Z"),
               traceId: "75b336f98e39e275a823b0a7ec1ba794",
             },
           ],

@@ -51,6 +51,8 @@ export const inheritedConversationHistoryFixture = {
               parts: [{ type: "text", text: "Follow-up request" }],
               source: "input",
               observationId: "inherited-history-generation",
+              startTime: new Date("2026-01-01T12:01:00.000Z"),
+              endTime: new Date("2026-01-01T12:01:01.000Z"),
               traceId: "inherited-history-trace",
             },
             {
@@ -58,6 +60,8 @@ export const inheritedConversationHistoryFixture = {
               parts: [{ type: "text", text: "Second response" }],
               source: "output",
               observationId: "inherited-history-generation",
+              startTime: new Date("2026-01-01T12:01:00.000Z"),
+              endTime: new Date("2026-01-01T12:01:01.000Z"),
               traceId: "inherited-history-trace",
             },
           ],

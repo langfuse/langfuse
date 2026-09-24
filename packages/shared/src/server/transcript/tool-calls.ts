@@ -60,6 +60,8 @@ export function createToolCallRegistry() {
       parts,
       observationId: observation.id,
       traceId: observation.traceId,
+      startTime: observation.startTime,
+      endTime: observation.endTime,
     };
     if (call.response) Object.assign(call.response, response);
     else {

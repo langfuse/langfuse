@@ -481,6 +481,8 @@ export const openaiAgentsSpanishHandoffFixture = {
               ],
               source: "input",
               observationId: "94a1dc00d7067ae8",
+              startTime: new Date("2025-09-30T09:03:51.192Z"),
+              endTime: new Date("2025-09-30T09:03:52.756Z"),
               traceId: "c376e44920527b875add9d97b4ed9312",
             },
             {
@@ -499,6 +501,8 @@ export const openaiAgentsSpanishHandoffFixture = {
               ],
               source: "output",
               observationId: "94a1dc00d7067ae8",
+              startTime: new Date("2025-09-30T09:03:51.192Z"),
+              endTime: new Date("2025-09-30T09:03:52.756Z"),
               traceId: "c376e44920527b875add9d97b4ed9312",
             },
             {
@@ -514,6 +518,8 @@ export const openaiAgentsSpanishHandoffFixture = {
                 },
               ],
               observationId: "a0391ae77593ad0c",
+              startTime: new Date("2025-09-30T09:03:52.760Z"),
+              endTime: new Date("2025-09-30T09:03:54.433Z"),
               traceId: "c376e44920527b875add9d97b4ed9312",
             },
             {
@@ -530,6 +536,8 @@ export const openaiAgentsSpanishHandoffFixture = {
               ],
               source: "output",
               observationId: "a0391ae77593ad0c",
+              startTime: new Date("2025-09-30T09:03:52.760Z"),
+              endTime: new Date("2025-09-30T09:03:54.433Z"),
               traceId: "c376e44920527b875add9d97b4ed9312",
             },
           ],

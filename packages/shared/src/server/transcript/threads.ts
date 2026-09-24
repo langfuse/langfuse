@@ -76,6 +76,8 @@ export function append(
       parts: [],
       observationId: observation.id,
       traceId: observation.traceId,
+      startTime: observation.startTime,
+      endTime: observation.endTime,
     };
     // Anchor output calls before attaching any results carried by the same message.
     if (isOutput) thread.messages.push(emitted);
@@ -152,7 +154,9 @@ export function splitTurn(thread: Turn): Thread {
   return {
     conversationHistory: messages
       .slice(0, turnStart)
-      .map(({ observationId, traceId, ...message }) => message),
+      .map(
+        ({ observationId, traceId, startTime, endTime, ...message }) => message,
+      ),
     currentTurn: {
       messages: current,
       observations: observations.filter(({ id, traceId }) =>

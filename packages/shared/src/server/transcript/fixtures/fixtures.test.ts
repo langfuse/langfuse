@@ -37,6 +37,18 @@ describe("transcript fixtures", () => {
     ]);
   });
 
+  it("preserves an unfinished generation's null end time", () => {
+    const observation = generation("1", ["A"], ["B"]);
+    observation.endTime = null;
+    const transcript = assembleTranscript([observation]);
+
+    expect(transcript?.threads[0].currentTurn.messages).toHaveLength(2);
+    for (const message of transcript!.threads[0].currentTurn.messages) {
+      expect(message.startTime).toEqual(observation.startTime);
+      expect(message.endTime).toBeNull();
+    }
+  });
+
   it("continues the newest matching thread without duplicating history", () => {
     const transcript = assembleTranscript([
       generation("1", ["A"], []),

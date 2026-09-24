@@ -48,6 +48,8 @@ export const standaloneToolObservationFixture = {
               parts: [{ type: "text", text: "Find my orders." }],
               source: "input",
               observationId: "standalone-generation",
+              startTime: new Date("2026-01-01T12:00:00.000Z"),
+              endTime: new Date("2026-01-01T12:00:01.000Z"),
               traceId: "standalone-tool-trace",
             },
             {
@@ -55,6 +57,8 @@ export const standaloneToolObservationFixture = {
               parts: [{ type: "text", text: "I'll look up your orders." }],
               source: "output",
               observationId: "standalone-generation",
+              startTime: new Date("2026-01-01T12:00:00.000Z"),
+              endTime: new Date("2026-01-01T12:00:01.000Z"),
               traceId: "standalone-tool-trace",
             },
           ],
