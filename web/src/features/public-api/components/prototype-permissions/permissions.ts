@@ -225,7 +225,6 @@ function resolvePreset(preset: PresetKey): string[] {
     case "otel":
       return [
         "project:traces:create",
-        "project:media:read",
         "project:media:create",
         "project:scores:write",
       ];
