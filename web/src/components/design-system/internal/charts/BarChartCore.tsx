@@ -1,6 +1,6 @@
 "use client";
 
-import { scaleBand, scaleLinear } from "d3-scale";
+import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
 import { CartesianChart } from "@/src/components/design-system/internal/charts/CartesianChart";
@@ -10,6 +10,7 @@ import {
   type ChartLegendItem,
 } from "@/src/components/design-system/internal/charts/ChartLegend";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
+import { createBarBandScale } from "@/src/components/design-system/internal/charts/fns/createBarBandScale";
 
 export type BarChartDatum = {
   label: string;
@@ -89,11 +90,12 @@ export function BarChartCore({
                 const plot = plotForTicks(yTicks.map(valueFormatter));
                 const leftMargin = plot.left;
                 const plotWidth = plot.width;
-                const xScale = scaleBand<number>()
-                  .domain(data.map((_, index) => index))
-                  .range([leftMargin, leftMargin + plotWidth])
-                  .paddingInner(barSpacing === "histogram" ? 0 : 0.2)
-                  .paddingOuter(barSpacing === "histogram" ? 0 : 0.1);
+                const xScale = createBarBandScale(
+                  data.length,
+                  leftMargin,
+                  plotWidth,
+                  barSpacing,
+                );
                 const baseline = yScale(
                   zeroBaseline || min < 0 ? 0 : (yScale.domain()[0] ?? 0),
                 );
