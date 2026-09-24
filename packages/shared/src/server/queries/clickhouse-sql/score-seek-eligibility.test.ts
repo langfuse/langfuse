@@ -76,6 +76,36 @@ const nameEq = (value = "accuracy") =>
     tablePrefix: "s",
   });
 
+const sessionIdEq = (value = "sess-1") =>
+  new StringFilter({
+    clickhouseTable: "scores",
+    field: "session_id",
+    operator: "=",
+    value,
+    tablePrefix: "s",
+    emptyEqualsNull: true,
+  });
+
+const evaluatorIdEq = (value = "eval-1") =>
+  new StringFilter({
+    clickhouseTable: "scores",
+    field: "evaluator_id",
+    operator: "=",
+    value,
+    tablePrefix: "s",
+    emptyEqualsNull: true,
+  });
+
+const evaluationRuleIdIn = (values: string[]) =>
+  new StringOptionsFilter({
+    clickhouseTable: "scores",
+    field: "evaluation_rule_id",
+    operator: "any of",
+    values,
+    tablePrefix: "s",
+    emptyEqualsNull: true,
+  });
+
 const environmentNoneOf = () =>
   new StringOptionsFilter({
     clickhouseTable: "scores",
@@ -106,6 +136,17 @@ describe("isSeekEligibleFilter", () => {
     expect(isSeekEligibleFilter(observationIdIn(["obs-1", "obs-2"]))).toBe(
       true,
     );
+  });
+
+  it("accepts the newly-indexed bloom columns (session / evaluator / rule)", () => {
+    expect(isSeekEligibleFilter(sessionIdEq())).toBe(true);
+    expect(isSeekEligibleFilter(evaluatorIdEq())).toBe(true);
+    expect(isSeekEligibleFilter(evaluationRuleIdIn(["r1"]))).toBe(true);
+  });
+
+  it("rejects the emptyEqualsNull degradation on a newly-indexed column", () => {
+    expect(isSeekEligibleFilter(sessionIdEq(""))).toBe(false);
+    expect(isSeekEligibleFilter(evaluationRuleIdIn(["", "r1"]))).toBe(false);
   });
 
   it("accepts a non-empty observation_id = despite emptyEqualsNull", () => {

@@ -9,11 +9,23 @@ import {
 // selective-seek path collect candidate dedup keys without a full-project scan:
 //   - id                        → idx_id (bloom_filter)
 //   - trace_id / observation_id → idx_project_trace_observation (bloom_filter)
+//   - session_id                → idx_project_session (bloom_filter)
+//   - dataset_run_id            → idx_project_dataset_run (bloom_filter)
+//   - evaluator_id              → idx_evaluator_id (bloom_filter)
+//   - evaluation_rule_id        → idx_evaluation_rule_id (bloom_filter)
 //   - name                      → PRIMARY KEY / ORDER BY (project_id, toDate(timestamp), name)
+//
+// created_at carries a minmax index (idx_created_at), which prunes ranges rather
+// than equality/IN, so it is intentionally excluded here — the seek predicate
+// below only handles `=` / `IN`.
 const SEEK_ELIGIBLE_FIELDS = new Set([
   "id",
   "trace_id",
   "observation_id",
+  "session_id",
+  "dataset_run_id",
+  "evaluator_id",
+  "evaluation_rule_id",
   "name",
 ]);
 
