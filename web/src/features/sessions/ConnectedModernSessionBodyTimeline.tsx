@@ -394,6 +394,12 @@ export function ConnectedModernSessionBodyTimeline({
   );
   const timelineController =
     useSessionConversationTimelineController(timelineTraces);
+  const transcriptChunkIndices = new Set(activeChunkIndices);
+  for (const item of timelineController.virtualItems) {
+    transcriptChunkIndices.add(
+      Math.floor(item.index / SIDEBAR_TRACE_CHUNK_SIZE),
+    );
+  }
   const handleSelect = (index: number, observationId?: string) => {
     const traceId = timelineTraces[index]?.trace.id;
     if (observationId && traceId) {
@@ -440,6 +446,17 @@ export function ConnectedModernSessionBodyTimeline({
           <ConnectedSessionTranscriptTimeline
             traces={timelineTraces}
             projectId={projectId}
+            activeTraceIds={
+              new Set(
+                traces
+                  .filter((_, index) =>
+                    transcriptChunkIndices.has(
+                      Math.floor(index / SIDEBAR_TRACE_CHUNK_SIZE),
+                    ),
+                  )
+                  .map((trace) => trace.id),
+              )
+            }
             controller={timelineController}
           />
         ) : (

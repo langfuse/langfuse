@@ -4,7 +4,8 @@ import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPag
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { CommentDrawerController } from "@/src/features/comments";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { SessionTranscriptTrace } from "./SessionTranscriptTrace";
+import { useSessionTraceTranscripts } from "./useSessionTraceTranscripts";
 
 type TranscriptTraceItem = {
   trace: EventSessionTrace;
@@ -14,12 +15,20 @@ type TranscriptTraceItem = {
 export function ConnectedSessionTranscriptTimeline({
   traces,
   projectId,
+  activeTraceIds,
   controller,
 }: {
   traces: readonly TranscriptTraceItem[];
   projectId: string;
+  activeTraceIds: ReadonlySet<string>;
   controller: SessionConversationTimelineController;
 }) {
+  const resultsByTraceId = useSessionTraceTranscripts({
+    projectId,
+    traces,
+    activeTraceIds,
+  });
+
   // TODO: Share the action controllers with the observation connector when
   // transcript actions are wired, rather than maintaining duplicate workflows.
   return (
@@ -32,8 +41,14 @@ export function ConnectedSessionTranscriptTimeline({
             >
               {() => (
                 <SessionConversationTimelineFeed
-                  traces={traces}
-                  TraceComponent={SessionTranscriptTracePlaceholder}
+                  traces={traces.map(({ trace, turnNumber }) => ({
+                    trace,
+                    turnNumber,
+                    result: resultsByTraceId.get(trace.id) ?? {
+                      state: "loading" as const,
+                    },
+                  }))}
+                  TraceComponent={SessionTranscriptTrace}
                   filterMeasurementKey="transcript"
                   controller={controller}
                 />
@@ -43,24 +58,5 @@ export function ConnectedSessionTranscriptTimeline({
         </CommentDrawerController>
       )}
     </AnnotateDrawerController>
-  );
-}
-
-function SessionTranscriptTracePlaceholder({
-  trace,
-  turnNumber,
-}: TranscriptTraceItem) {
-  return (
-    <section data-session-trace-id={trace.id} className="space-y-2 p-4">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-bold">
-          {turnNumber}. {trace.name ?? "Trace"}
-        </span>
-        <InternalFeatureBadge />
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Transcript fetching and rendering are not connected yet.
-      </p>
-    </section>
   );
 }
