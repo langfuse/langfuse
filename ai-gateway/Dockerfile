@@ -82,11 +82,11 @@ RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
-# Activate the FIPS crypto policy in the rootfs so the FIPS provider is used
-# even when the container host kernel is not in FIPS mode (on FIPS-mode hosts
-# RHEL activates it regardless). update-crypto-policies is python-based and
-# python is absent from the runtime image, so this flips the same policy
-# symlinks update-crypto-policies would have flipped.
+# Set the FIPS crypto policy in the rootfs. The policy only restricts TLS and
+# algorithm settings and applies on every host; the FIPS provider itself is
+# loaded only when the host kernel runs in FIPS mode. update-crypto-policies
+# is python-based and python is absent from the runtime image, so this flips
+# the same policy symlinks update-crypto-policies would have flipped.
 RUN echo FIPS > /mnt/rootfs/etc/crypto-policies/config && \
     for c in /mnt/rootfs/etc/crypto-policies/back-ends/*.config; do \
     n=$(basename "$c" .config); \
