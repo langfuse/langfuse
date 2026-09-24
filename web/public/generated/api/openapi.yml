@@ -2930,6 +2930,8 @@ paths:
                     `score-create` events are accepted; all other event types
                     are rejected.
                 metadata:
+                  type: object
+                  additionalProperties: true
                   nullable: true
                   description: >-
                     Optional. Metadata field used by the Langfuse SDKs for
@@ -9454,8 +9456,10 @@ components:
           nullable: true
           description: The user identifier associated with the trace
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
-          description: The metadata associated with the trace. Can be any JSON.
+          description: Metadata associated with the trace
         tags:
           type: array
           items:
@@ -9621,6 +9625,9 @@ components:
           nullable: true
           description: The model used for the observation
         modelParameters:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: The parameters of the model used for the observation
         input:
           description: The input data of the observation
@@ -9629,6 +9636,9 @@ components:
           nullable: true
           description: The version of the observation
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Additional metadata of the observation
         output:
           description: The output data of the observation
@@ -9684,10 +9694,8 @@ components:
         - endTime
         - completionStartTime
         - model
-        - modelParameters
         - input
         - version
-        - metadata
         - output
         - usage
         - level
@@ -9887,6 +9895,8 @@ components:
           nullable: true
           description: The output data of the observation
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Additional metadata of the observation
         model:
@@ -9898,6 +9908,8 @@ components:
           nullable: true
           description: The internal model ID matched by Langfuse
         modelParameters:
+          type: object
+          additionalProperties: true
           nullable: true
           description: The parameters of the model used for the observation
         usageDetails:
@@ -10143,6 +10155,9 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10173,7 +10188,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10334,6 +10348,9 @@ components:
           nullable: true
           description: Comment on the score
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the score
         configId:
           type: string
@@ -10363,7 +10380,6 @@ components:
         - updatedAt
         - authorUserId
         - comment
-        - metadata
         - configId
         - queueId
         - environment
@@ -10568,11 +10584,18 @@ components:
           nullable: true
           description: Description of the dataset
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the dataset
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item inputs
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item expected outputs
         projectId:
@@ -10587,9 +10610,6 @@ components:
         - id
         - name
         - description
-        - metadata
-        - inputSchema
-        - expectedOutputSchema
         - projectId
         - createdAt
         - updatedAt
@@ -10606,6 +10626,9 @@ components:
         expectedOutput:
           description: Expected output for the dataset item
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata associated with the dataset item
         sourceTraceId:
           type: string
@@ -10637,7 +10660,6 @@ components:
         - status
         - input
         - expectedOutput
-        - metadata
         - sourceTraceId
         - sourceObservationId
         - datasetId
@@ -10750,6 +10772,9 @@ components:
           nullable: true
           description: Description of the run
         metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: Metadata of the dataset run
         datasetId:
           type: string
@@ -10769,7 +10794,6 @@ components:
         - id
         - name
         - description
-        - metadata
         - datasetId
         - datasetName
         - createdAt
@@ -10862,6 +10886,9 @@ components:
             Optional. Tokenizer to be applied to observations which match to
             this model. See docs for more details.
         tokenizerConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: >-
             Optional. Configuration for the selected tokenizer. Needs to be
             JSON. See docs for more details.
@@ -10919,7 +10946,6 @@ components:
         - outputPrice
         - totalPrice
         - tokenizerId
-        - tokenizerConfig
         - isLangfuseManaged
         - createdAt
         - prices
@@ -11370,6 +11396,8 @@ components:
         expectedOutput:
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         sourceTraceId:
           type: string
@@ -11414,6 +11442,8 @@ components:
           nullable: true
           description: Description of the run. If run exists, description will be updated.
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Metadata of the dataset run, updates run if run already exists
         datasetItemId:
@@ -11490,13 +11520,19 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item inputs. When set, all new
             and existing dataset items will be validated against this schema.
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item expected outputs. When set,
@@ -13764,6 +13800,8 @@ components:
           format: date-time
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         input:
           nullable: true
@@ -13836,8 +13874,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
@@ -13872,8 +13909,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         usage:
           $ref: '#/components/schemas/IngestionUsage'
@@ -13927,8 +13963,7 @@ components:
           nullable: true
         modelParameters:
           type: object
-          additionalProperties:
-            $ref: '#/components/schemas/MapValue'
+          additionalProperties: true
           nullable: true
         input:
           nullable: true
@@ -13936,6 +13971,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         output:
           nullable: true
@@ -13987,6 +14024,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         tags:
           type: array
@@ -14044,6 +14083,8 @@ components:
           type: string
           nullable: true
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
         dataType:
           $ref: '#/components/schemas/ScoreDataType'
@@ -14078,6 +14119,8 @@ components:
             be used for ordering of events in future release. Resolution:
             milliseconds (required), microseconds (optimal).
         metadata:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Optional. Metadata field used by the Langfuse SDKs for debugging.
       required:
@@ -14936,6 +14979,8 @@ components:
             Optional. Tokenizer to be applied to observations which match to
             this model. See docs for more details.
         tokenizerConfig:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             Optional. Configuration for the selected tokenizer. Needs to be
@@ -15048,12 +15093,15 @@ components:
       description: Individual span representing a unit of work or operation
       properties:
         traceId:
+          type: string
           nullable: true
           description: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
         spanId:
+          type: string
           nullable: true
           description: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
         parentSpanId:
+          type: string
           nullable: true
           description: Parent span ID if this is a child span
         name:
@@ -15079,6 +15127,8 @@ components:
             Span attributes including Langfuse-specific attributes
             (langfuse.observation.*)
         status:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Span status object
     OtelAttribute:
@@ -15431,6 +15481,9 @@ components:
           type: string
           format: date-time
         lastConfig:
+          type: object
+          additionalProperties: true
+          nullable: true
           description: >-
             Config object of the most recent prompt version that matches the
             filters (if any are provided)
@@ -15441,7 +15494,6 @@ components:
         - labels
         - tags
         - lastUpdatedAt
-        - lastConfig
     CreatePromptRequest:
       title: CreatePromptRequest
       oneOf:
@@ -15458,6 +15510,8 @@ components:
           items:
             $ref: '#/components/schemas/ChatMessageWithPlaceholders'
         config:
+          type: object
+          additionalProperties: true
           nullable: true
         type:
           $ref: '#/components/schemas/CreateChatPromptType'
@@ -15490,6 +15544,8 @@ components:
         prompt:
           type: string
         config:
+          type: object
+          additionalProperties: true
           nullable: true
         type:
           $ref: '#/components/schemas/CreateTextPromptType'
@@ -15554,7 +15610,9 @@ components:
           type: string
         version:
           type: integer
-        config: {}
+        config:
+          type: object
+          additionalProperties: true
         labels:
           type: array
           items:

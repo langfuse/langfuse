@@ -108,4 +108,4 @@ types:
         type: optional<nullable<ModelTokenizerId>>
       tokenizerConfig:
         docs: Optional. Configuration for the selected tokenizer. Needs to be JSON. See docs for more details.
-        type: optional<nullable<unknown>>
+        type: optional<nullable<map<string, unknown>>>
