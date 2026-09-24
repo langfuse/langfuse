@@ -3,6 +3,7 @@
 import { scaleLinear } from "d3-scale";
 
 import { ChartContainer } from "@/src/components/design-system/charts/ChartContainer";
+import { INACTIVE_CHART_COLOR_STRENGTH } from "@/src/components/design-system/charts/constants";
 import type { BarChartDatum } from "@/src/components/design-system/internal/charts/BarChartCore";
 import { CARTESIAN_CHART_INSETS } from "@/src/components/design-system/internal/charts/CartesianLayout";
 import { ChartTooltip } from "@/src/components/design-system/internal/charts/ChartTooltip";
@@ -192,7 +193,7 @@ export function HorizontalBarChart({
                           rx={Math.min(4, rowHeight / 2)}
                           fill={
                             inactive
-                              ? `color-mix(in srgb, ${datum.color ?? color} 20%, hsl(var(--background)))`
+                              ? `color-mix(in srgb, ${datum.color ?? color} ${INACTIVE_CHART_COLOR_STRENGTH}%, hsl(var(--background)))`
                               : (datum.color ?? color)
                           }
                           pointerEvents="none"

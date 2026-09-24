@@ -5,8 +5,8 @@ import {
   type MultiSeriesBarChartCoreProps,
 } from "@/src/components/design-system/internal/charts/BarChartCore";
 
-export function StackedBarChart(
+export function GroupedBarChart(
   props: Omit<MultiSeriesBarChartCoreProps, "layout">,
 ) {
-  return <BarChartCore {...props} layout="stacked" />;
+  return <BarChartCore {...props} layout="grouped" />;
 }

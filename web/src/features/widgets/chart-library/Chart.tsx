@@ -27,7 +27,6 @@ import { AlertCircle } from "lucide-react";
 import { BigNumber } from "@/src/features/widgets/chart-library/BigNumber";
 import { PivotTable } from "@/src/features/widgets/chart-library/PivotTable";
 import { type OrderByState } from "@langfuse/shared";
-import { type ChartConfig } from "@/src/components/ui/chart";
 
 const DEFAULT_METRIC_THEME = {
   light: "hsl(var(--chart-1))",
@@ -87,7 +86,7 @@ const ChartComponent = ({
     show_data_point_dots?: boolean;
     subtle_fill?: boolean;
   };
-  config?: ChartConfig;
+  config?: ChartProps["config"];
   sortState?: OrderByState | null;
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
@@ -156,7 +155,7 @@ const ChartComponent = ({
           },
         ];
       }),
-    ) as ChartConfig;
+    ) as NonNullable<ChartProps["config"]>;
   }, [config]);
 
   const renderChart = () => {
@@ -254,7 +253,6 @@ const ChartComponent = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":
