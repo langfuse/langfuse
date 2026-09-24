@@ -120,7 +120,10 @@ export const VariantSingleDialog = ({
         onClick={() => setPopupRole(draft.preset)}
         className="text-muted-foreground hover:text-foreground ml-1 w-fit text-xs"
       >
-        See the <span className="underline">full list of permissions</span>
+        See the{" "}
+        <span className="underline">
+          full list of {rolePermissionCount(draft.preset)} permissions
+        </span>
       </button>
       <PermissionsPopup role={popupRole} onClose={() => setPopupRole(null)} />
     </KeyFormShell>
