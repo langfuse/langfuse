@@ -17,9 +17,10 @@ import { readExternalCodeEvalResponse } from "./externalCodeEvalResponse";
 // External invokes hold the HTTP request open through cold starts and user code execution.
 const EXTERNAL_INVOKE_REQUEST_TIMEOUT_MS = 10_000;
 
-// Mirrors ResourceConflictException, TooManyRequestsException, and
-// ServiceException from the Lambda dispatcher.
-const RETRYABLE_EXTERNAL_HTTP_STATUS_CODES = new Set([409, 429, 500]);
+// Retry conflicts, throttling, and transient service or gateway failures.
+const RETRYABLE_EXTERNAL_HTTP_STATUS_CODES = new Set([
+  409, 429, 500, 502, 503, 504,
+]);
 
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.TIMEOUT,

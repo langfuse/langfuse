@@ -408,8 +408,8 @@ describe("ExternalCodeEvalDispatcher", () => {
   });
 
   describe("HTTP error responses", () => {
-    it.each([409, 429, 500])(
-      "classifies Lambda-equivalent HTTP status %i as a retryable external invocation error",
+    it.each([409, 429, 500, 502, 503, 504])(
+      "classifies transient HTTP status %i as a retryable external invocation error",
       async (status) => {
         const response = {
           ok: false,
@@ -432,7 +432,7 @@ describe("ExternalCodeEvalDispatcher", () => {
       },
     );
 
-    it.each([400, 408, 502, 503, 504])(
+    it.each([400, 408])(
       "classifies other HTTP status %i as non-retryable",
       async (status) => {
         vi.stubGlobal(
