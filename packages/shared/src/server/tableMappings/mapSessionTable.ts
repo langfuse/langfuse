@@ -133,6 +133,24 @@ export const sessionCols: UiColumnMappings = [
     clickhouseSelect: "trace_tags",
   },
   {
+    uiTableName: "Available Tool Names",
+    uiTableId: "toolNames",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tool_names",
+  },
+  {
+    uiTableName: "Called Tool Names",
+    uiTableId: "calledToolNames",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "called_tool_names",
+  },
+  {
+    uiTableName: "Tool Calls",
+    uiTableId: "toolCalls",
+    clickhouseTableName: "traces",
+    clickhouseSelect: "tool_calls_count",
+  },
+  {
     uiTableName: "ID",
     uiTableId: "id",
     clickhouseTableName: "traces",
@@ -158,13 +176,21 @@ export const sessionCols: UiColumnMappings = [
   },
 ];
 
-export const sessionEventsCols: UiColumnMappings = sessionCols.concat({
-  uiTableName: "Metadata",
-  uiTableId: "metadata",
-  clickhouseTableName: "events_proto",
-  clickhouseSelect: "metadata",
-  queryPrefix: "s",
-});
+export const sessionEventsCols: UiColumnMappings = sessionCols
+  .map((column) =>
+    ["toolNames", "calledToolNames", "toolCalls"].includes(
+      column.uiTableId ?? "",
+    )
+      ? { ...column, queryPrefix: "st" }
+      : column,
+  )
+  .concat({
+    uiTableName: "Metadata",
+    uiTableId: "metadata",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "metadata",
+    queryPrefix: "s",
+  });
 
 export const sessionEventsOrderByCols: UiColumnMappings =
   sessionEventsCols.filter((column) => column.uiTableId !== "metadata");

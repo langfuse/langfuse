@@ -27,6 +27,8 @@ import {
   tracesTableUiColumnDefinitions,
   getEventsGroupedByUserId,
   getEventsGroupedByTraceTags,
+  getObservationsGroupedByToolName,
+  getObservationsGroupedByCalledToolName,
   hasAnySessionFromEventsTable,
   parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
@@ -564,6 +566,8 @@ export const sessionRouter = createTRPCRouter({
               column: "Timestamp", // Use exact trace column name for score functions
             }))
           : [];
+      const observationTimestampFilter =
+        timestampFilter?.map((tf) => ({ ...tf, column: "startTime" })) ?? [];
 
       const [
         userIds,
@@ -571,6 +575,8 @@ export const sessionRouter = createTRPCRouter({
         numericScoreNames,
         categoricalScoreNames,
         booleanScoreNames,
+        toolNames,
+        calledToolNames,
       ] = await Promise.all([
         getTracesGroupedByUsers(
           input.projectId,
@@ -591,6 +597,16 @@ export const sessionRouter = createTRPCRouter({
           scoreTimestampFilter,
         ),
         getBooleanScoresGroupedByName(input.projectId, scoreTimestampFilter),
+        getObservationsGroupedByToolName(
+          input.projectId,
+          observationTimestampFilter,
+          true,
+        ),
+        getObservationsGroupedByCalledToolName(
+          input.projectId,
+          observationTimestampFilter,
+          true,
+        ),
       ]);
 
       return {
@@ -600,6 +616,10 @@ export const sessionRouter = createTRPCRouter({
         })),
         environment: [], // Environment is fetched separately via api.projects.environmentFilterOptions
         tags: tags,
+        toolNames: toolNames.map((row) => ({ value: row.toolName })),
+        calledToolNames: calledToolNames.map((row) => ({
+          value: row.calledToolName,
+        })),
         scores_avg: numericScoreNames.map((s) => s.name),
         score_categories: categoricalScoreNames,
         score_booleans: booleanScoreNames.map((s) => s.name),
