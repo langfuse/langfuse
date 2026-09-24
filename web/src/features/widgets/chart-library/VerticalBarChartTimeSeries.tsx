@@ -30,7 +30,7 @@ export function VerticalBarChartTimeSeries({
   maxVisibleSeries,
   sync,
   hideXAxisLabels = false,
-}: ChartProps) {
+}: Omit<ChartProps, "subtleFill">) {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const visibleSeries = useMemo(

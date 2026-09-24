@@ -138,6 +138,25 @@ export const SingleSeriesAutoLegend = meta.story({
   },
 });
 
+export const SingleSeriesInitiallyHidden = meta.story({
+  name: "(Test) Single Series Initially Hidden",
+  args: {
+    series: [{ id: "api", label: "API", color: "hsl(var(--chart-1))" }],
+    legend: {
+      visibility: "auto",
+      interaction: "toggle",
+      summary: "none",
+      maxVisibleSeries: 0,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.queryAllByRole("graphics-symbol")).toHaveLength(0);
+    await userEvent.click(canvas.getByRole("button", { name: "Show API" }));
+    await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(3);
+  },
+});
+
 export const MissingBuckets = meta.story({
   name: "(Test) Missing Buckets",
   args: {
@@ -151,6 +170,9 @@ export const MissingBuckets = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getAllByRole("graphics-symbol")).toHaveLength(3);
+    const zero = canvas.getByRole("graphics-symbol", { name: "API: 0" });
+    await expect(zero).not.toHaveAttribute("clip-path");
+    await expect(zero).toHaveAttribute("height", "1");
     await expect(
       canvas.getByRole("button", { name: "Hide API" }),
     ).toHaveTextContent("Sum: 10");
@@ -207,6 +229,7 @@ export const ManyBuckets = meta.story({
         previous.getBoundingClientRect().right,
       );
     }
+    await expect(labels.at(-1)).toHaveTextContent("Bucket 60");
   },
 });
 

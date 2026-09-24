@@ -73,17 +73,27 @@ export function StackedBarChart({
   const [legendState, setLegendState] = useState({
     seedKey,
     highlightedId: undefined as string | undefined,
-    hiddenIds: initialHidden,
+    visibilityOverrides: new Map<string, boolean>(),
   });
   const effectiveState =
     legendState.seedKey === seedKey
       ? legendState
-      : { seedKey, highlightedId: undefined, hiddenIds: initialHidden };
-  const { highlightedId, hiddenIds } = effectiveState;
+      : {
+          seedKey,
+          highlightedId: undefined,
+          visibilityOverrides: new Map<string, boolean>(),
+        };
+  const { highlightedId, visibilityOverrides } = effectiveState;
+  const hiddenIds = new Set(initialHidden);
+  for (const [id, hidden] of visibilityOverrides) {
+    if (hidden) hiddenIds.add(id);
+    else hiddenIds.delete(id);
+  }
   const visibleSeries = series.filter((item) => !hiddenIds.has(item.id));
   const showLegend =
     legend?.visibility === "visible" ||
-    (legend?.visibility === "auto" && series.length > 1);
+    (legend?.visibility === "auto" &&
+      (series.length > 1 || hiddenIds.size > 0));
   const totals = data.map((datum) => {
     let positive = 0;
     let negative = 0;
@@ -129,19 +139,45 @@ export function StackedBarChart({
                 );
                 const activeIndex = hoveredIndex ?? syncedIndex;
                 let previousTickRight = -Infinity;
-                const xTicks = data.flatMap((datum, index) => {
+                const xTicks: {
+                  key: string;
+                  x: number;
+                  label: string;
+                  textAnchor?: "end";
+                }[] = [];
+                data.forEach((datum, index) => {
                   const label = tickFormatter(datum.key);
                   const center = (x(index) ?? plot.left) + x.bandwidth() / 2;
                   const labelWidth = label.length * 7;
+                  if (index === data.length - 1) {
+                    const right = Math.min(width - 8, center + labelWidth / 2);
+                    const left = right - labelWidth;
+                    while (xTicks.length > 0 && left < previousTickRight + 16) {
+                      xTicks.pop();
+                      const previous = xTicks.at(-1);
+                      previousTickRight = previous
+                        ? previous.x + previous.label.length * 3.5
+                        : -Infinity;
+                    }
+                    if (left >= 8) {
+                      xTicks.push({
+                        key: datum.key,
+                        x: right,
+                        label,
+                        textAnchor: "end",
+                      });
+                    }
+                    return;
+                  }
                   const left = center - labelWidth / 2;
                   if (
                     left < previousTickRight + 16 ||
                     center + labelWidth / 2 > width - 8
                   ) {
-                    return [];
+                    return;
                   }
                   previousTickRight = center + labelWidth / 2;
-                  return [{ key: datum.key, x: center, label }];
+                  xTicks.push({ key: datum.key, x: center, label });
                 });
 
                 if (
@@ -285,10 +321,10 @@ export function StackedBarChart({
                                 const start = value >= 0 ? positive : negative;
                                 if (value >= 0) positive += value;
                                 else negative += value;
-                                const top = Math.min(
-                                  y(start),
-                                  y(start + value),
-                                );
+                                const top =
+                                  value === 0
+                                    ? y(start) - 1
+                                    : Math.min(y(start), y(start + value));
                                 const barHeight = Math.max(
                                   1,
                                   Math.abs(y(start) - y(start + value)),
@@ -315,7 +351,11 @@ export function StackedBarChart({
                                     y={top}
                                     width={x.bandwidth()}
                                     height={barHeight}
-                                    clipPath={`url(#${clipId}-${value >= 0 ? "positive" : "negative"}-${index})`}
+                                    clipPath={
+                                      value === 0
+                                        ? undefined
+                                        : `url(#${clipId}-${value >= 0 ? "positive" : "negative"}-${index})`
+                                    }
                                     fill={fill}
                                     role="graphics-symbol"
                                     tabIndex={0}
@@ -369,11 +409,18 @@ export function StackedBarChart({
               ? {
                   allSelected: hiddenIds.size === 0,
                   onSelectAll: () =>
-                    setLegendState({ ...effectiveState, hiddenIds: new Set() }),
+                    setLegendState({
+                      ...effectiveState,
+                      visibilityOverrides: new Map(
+                        series.map((item) => [item.id, false]),
+                      ),
+                    }),
                   onDeselectAll: () =>
                     setLegendState({
                       ...effectiveState,
-                      hiddenIds: new Set(series.map((item) => item.id)),
+                      visibilityOverrides: new Map(
+                        series.map((item) => [item.id, true]),
+                      ),
                     }),
                 }
               : undefined
@@ -406,10 +453,12 @@ export function StackedBarChart({
                 pressed: legend.interaction === "toggle" ? !hidden : focused,
                 onClick: () => {
                   if (legend.interaction === "toggle") {
-                    const next = new Set(hiddenIds);
-                    if (hidden) next.delete(item.id);
-                    else next.add(item.id);
-                    setLegendState({ ...effectiveState, hiddenIds: next });
+                    const next = new Map(visibilityOverrides);
+                    next.set(item.id, !hidden);
+                    setLegendState({
+                      ...effectiveState,
+                      visibilityOverrides: next,
+                    });
                     return;
                   }
                   setLegendState({
