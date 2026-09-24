@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
 import React, {
@@ -7,30 +9,33 @@ import React, {
   useRef,
   useEffect,
   type CSSProperties,
+  type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
   type CustomHeights,
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
-import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
+  type DataTableCellBackground,
   type DataTableCellPadding,
   type LangfuseColumnDef,
 } from "@/src/components/table/types";
-import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
@@ -51,6 +56,8 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+
+import { useAnimatedBusy } from "@/src/hooks/useAnimatedBusy";
 import {
   type TableSelectionStoreLike,
   useTableRowIsSelected,
@@ -59,15 +66,44 @@ import {
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
+  onScroll?: UIEventHandler<HTMLDivElement>;
   data: AsyncTableData<TData[]>;
+  /**
+   * A fetch is in flight while rows are already on screen (refresh, filter,
+   * page, sort). Renders a thin bar above the header instead of blanking the
+   * table: `data.isLoading` stays reserved for a genuine cold load.
+   */
+  isFetching?: boolean;
   pagination?: {
     totalCount: number | null; // null if loading or intentionally unknown
+    /**
+     * The exact count is still in flight while rows are already on screen (its
+     * query re-keys on a filter change one step behind the rows). Renders the
+     * page count as loading rather than as a result.
+     */
+    isTotalCountLoading?: boolean;
     hasNextPage?: boolean;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
     hideTotalCount?: boolean;
     canJumpPages?: boolean;
+    /**
+     * Approximate row/entity count matching the active filters. Rendered near
+     * the pagination controls, but ONLY when the result set spans more than one
+     * page: a single (last) page shows the EXACT total derived from the loaded
+     * rows instead (no "≈"). Distinct from `totalCount` (which drives page-count
+     * math): a cheap estimate shown for context only. `null` while loading.
+     */
+    approxTotalCount?: number | null;
+    isApproxTotalCountLoading?: boolean;
+    /**
+     * True when the approximate count dropped non-native filters (score/comment/
+     * input-output/full-text search) and so over-counts vs the visible rows.
+     * The footer then marks the estimate partial-scope and drops the
+     * "within a few percent" tooltip.
+     */
+    approxTotalCountIsPartialScope?: boolean;
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
@@ -86,8 +122,13 @@ interface DataTableProps<TData, TValue> {
   className?: string;
   shouldRenderGroupHeaders?: boolean;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  renderRow?: (props: {
+    row: Row<TData>;
+    children: React.ReactNode;
+  }) => React.ReactNode;
   /** Used for row click handling and MemoizedTableBody snapshot only. Render <TablePeekView> as a sibling outside DataTable. */
   peekView?: DataTablePeekViewProps;
+  footer?: React.ReactNode;
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
@@ -127,15 +168,6 @@ function isValidCssVariableName({
     : /^(?![0-9])([a-zA-Z][a-zA-Z0-9-_]*)$/;
   return regex.test(name);
 }
-
-const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
-
-export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
-  if (!(target instanceof Element)) return false;
-
-  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
-};
 
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
@@ -178,9 +210,20 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   }
 };
 
+const cellBackgroundClassNames = {
+  gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green:
+    "bg-accent-light-green [&_[data-slot=skeleton]]:bg-accent-dark-green/20",
+} satisfies Record<DataTableCellBackground, string>;
+
+const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
+  background ? cellBackgroundClassNames[background] : undefined;
+
 export function DataTable<TData extends object, TValue>({
   columns,
+  onScroll,
   data,
+  isFetching = false,
   pagination,
   rowSelection,
   setRowSelection,
@@ -198,7 +241,9 @@ export function DataTable<TData extends object, TValue>({
   className,
   shouldRenderGroupHeaders = false,
   onRowClick,
+  renderRow,
   peekView,
+  footer,
   hidePagination = false,
   tableName,
   getRowClassName,
@@ -380,6 +425,11 @@ export function DataTable<TData extends object, TValue>({
     columnVisibility,
   ]);
 
+  // Held for whole sweeps of the bar's animation: a 200ms refetch would
+  // otherwise flash a single frame.
+  // Cycle length matches the sweep, so a held refresh ends on a whole sweep.
+  const refetchBar = useAnimatedBusy(isFetching, REFETCH_SWEEP_MS);
+
   const tableHeaders = shouldRenderGroupHeaders
     ? table.getHeaderGroups()
     : [table.getHeaderGroups().slice(-1)[0]];
@@ -393,21 +443,35 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
-          // last column's resize handle is never flush against the scrollbar/edge and
-          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
-          // browser still clamps the cursor at the screen edge, so this guarantees room
-          // to the right, not a complete fix.
-          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
+          // When the final visible column can be resized, reserve a small gutter so
+          // its handle is never flush against the scrollbar or edge and always has
+          // some cursor room. Partial mitigation for LFE-10460: a maximized browser
+          // still clamps the cursor at the screen edge.
+          className={cn(
+            "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
+            table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
+          )}
           style={{ ...columnSizeVars }}
+          onScroll={onScroll}
         >
+          {/* Zero-height so an arriving refetch never shifts the table. Sticky on
+              BOTH axes: this box is only as wide as the visible area, so without
+              `left-0` it scrolls out of view on a table wider than the viewport.
+              Keyed per busy period, not per fetch: one sweep from the left per
+              refresh, and no restart between a refresh's stages. */}
+          <div className="sticky top-0 left-0 z-30 h-0">
+            <TableRefetchBar
+              key={refetchBar.epoch}
+              active={refetchBar.active && !data.isLoading}
+            />
+          </div>
           <Table>
             <TableHeader className="sticky top-0 z-20">
               {tableHeaders.map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
                     const columnDef = header.column
-                      .columnDef as LangfuseColumnDef<ModelTableRow>;
+                      .columnDef as LangfuseColumnDef<unknown>;
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
@@ -427,6 +491,8 @@ export function DataTable<TData extends object, TValue>({
                           "group p-1 first:pl-2",
                           sortingEnabled && "cursor-pointer",
                           getPinningClasses(header.column),
+                          columnDef.headerClassName,
+                          columnDef.hideBelowMd && "hidden md:table-cell",
                         )}
                         style={{
                           ...getCommonPinningStyles(header.column),
@@ -480,21 +546,39 @@ export function DataTable<TData extends object, TValue>({
                         }}
                       >
                         {header.isPlaceholder ? null : (
-                          <div className="flex items-center select-none">
-                            <span
-                              className="truncate leading-normal"
-                              title={getPlainTextFromReactNode(
-                                flexRender(
+                          <div
+                            className={cn(
+                              "flex select-none",
+                              columnDef.headerBlock
+                                ? "items-start"
+                                : "items-center",
+                            )}
+                          >
+                            {columnDef.headerBlock ? (
+                              // Opted out of the single truncated line, so a
+                              // header can carry more than the column's name.
+                              <div className="min-w-0 flex-1 leading-normal">
+                                {flexRender(
                                   header.column.columnDef.header,
                                   header.getContext(),
-                                ),
-                              )}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span
+                                className="truncate leading-normal"
+                                title={getPlainTextFromReactNode(
+                                  flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext(),
+                                  ),
+                                )}
+                              >
+                                {flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                              </span>
+                            )}
                             {columnDef.headerTooltip && (
                               <DocPopup
                                 description={
@@ -503,7 +587,7 @@ export function DataTable<TData extends object, TValue>({
                                 href={columnDef.headerTooltip.href}
                               />
                             )}
-                            {orderBy?.column === columnDef.id
+                            {sortingEnabled && orderBy?.column === columnDef.id
                               ? renderOrderingIndicator(orderBy)
                               : null}
 
@@ -546,6 +630,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                renderRow={renderRow}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
                 selectionStore={selectionStore}
@@ -567,6 +652,7 @@ export function DataTable<TData extends object, TValue>({
                 help={help}
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
+                renderRow={renderRow}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
                 selectionStore={selectionStore}
@@ -574,21 +660,104 @@ export function DataTable<TData extends object, TValue>({
                 cellPadding={cellPadding}
               />
             )}
+            {footer ? (
+              <TableFooter className="bg-transparent">
+                <TableRow>
+                  <TableCell
+                    className="h-12 text-center"
+                    colSpan={table.getVisibleLeafColumns().length}
+                  >
+                    {footer}
+                  </TableCell>
+                </TableRow>
+              </TableFooter>
+            ) : null}
           </Table>
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium">
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-bold">
           <DataTablePagination
             table={table}
-            isLoading={data.isLoading}
+            isLoading={
+              data.isLoading || (pagination.isTotalCountLoading ?? false)
+            }
             paginationOptions={pagination.options}
             hideTotalCount={pagination.hideTotalCount}
             canJumpPages={pagination.canJumpPages}
+            approxTotalCount={pagination.approxTotalCount}
+            isApproxTotalCountLoading={pagination.isApproxTotalCountLoading}
+            approxTotalCountIsPartialScope={
+              pagination.approxTotalCountIsPartialScope
+            }
+            hasNextPage={pagination.hasNextPage}
           />
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * One sweep of the refetch bar. The single source of truth for the cycle: it is
+ * handed to the CSS animation as `--table-refetch-cycle` (see
+ * `--animate-table-refetch` in globals.css, which reads it with a fallback), and
+ * to `useAnimatedBusy` so the busy flag is only released on a whole sweep.
+ */
+const REFETCH_SWEEP_MS = 1400;
+
+/**
+ * The thin bar shown while a fetch runs over rows that are already on screen.
+ * Both edges are soft: the sweep is already running when the bar fades in (a
+ * one-shot fade rides on the sweep animation), and on the way out it fades
+ * first and only stops animating once that fade has finished. Mounted once per
+ * busy period — the caller keys it — so the sweep always starts from the left,
+ * and it never leaves an animation running behind an invisible bar.
+ */
+function TableRefetchBar({ active }: { active: boolean }) {
+  // The sweep runs only while the bar is on screen, plus the fade-out it has to
+  // survive. A bar that mounts idle — every table that passes no `isFetching`,
+  // and any table whose first render has nothing in flight — must never start it,
+  // and one that has faded out must stop. But `active` can also turn on within a
+  // single mount (a cold load holds it off until the skeletons go), so this
+  // cannot simply latch on the first render.
+  const [everActive, setEverActive] = useState(active);
+  const [fadedOut, setFadedOut] = useState(false);
+
+  if (active && !everActive) setEverActive(true);
+
+  const paused = !active && (!everActive || fadedOut);
+
+  return (
+    // Clipped track: the highlight sweeps out of view at both ends, and
+    // overflow-hidden keeps that from growing the table's scroll width. The fade
+    // uses an arbitrary transition, not `duration-*` — that utility sets
+    // --tw-duration, which `animate-*` reads as its animation-duration too, and
+    // turned the sweep into a strobe.
+    <div
+      aria-hidden="true"
+      onTransitionEnd={(event) => {
+        if (event.propertyName === "opacity" && !active) setFadedOut(true);
+      }}
+      className={cn(
+        "animate-table-refetch-in absolute inset-x-0 top-0 h-0.5 overflow-hidden [transition:opacity_200ms_ease-out]",
+        active ? "opacity-100" : "opacity-0",
+      )}
+    >
+      {/* Faint track, so the bar reads as one continuous element rather than a
+          highlight flashing in and out of nothing. Its own element: `cn` folds
+          two `bg-*` utilities into one and would drop it. */}
+      <div className="bg-primary-accent/20 absolute inset-0" />
+      <div
+        style={
+          { "--table-refetch-cycle": `${REFETCH_SWEEP_MS}ms` } as CSSProperties
+        }
+        className={cn(
+          "animate-table-refetch from-primary-accent/0 via-primary-accent to-primary-accent/0 absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r",
+          paused && "[animation-play-state:paused]",
+        )}
+      />
+    </div>
   );
 }
 
@@ -611,6 +780,10 @@ interface TableBodyComponentProps<TData> {
   help?: { description: string; href: string };
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  renderRow?: (props: {
+    row: Row<TData>;
+    children: React.ReactNode;
+  }) => React.ReactNode;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
   selectionStore?: TableSelectionStoreLike;
@@ -667,11 +840,10 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (rowIsSelected || shouldHighlightAllRows) &&
-          "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
-          ? "bg-muted/40 dark:bg-muted"
+          ? "bg-accent dark:bg-accent"
           : undefined,
+        (rowIsSelected || shouldHighlightAllRows) && "bg-accent dark:bg-accent",
         getRowClassName?.(row.original),
       )}
     >
@@ -689,6 +861,7 @@ function TableBodyComponent<TData>({
   help,
   noResultsMessage,
   onRowClick,
+  renderRow,
   getRowClassName,
   highlightAllRows,
   selectionStore,
@@ -722,6 +895,9 @@ function TableBodyComponent<TData>({
                     ),
                     (rowHeight ?? "s") === "s" && "whitespace-nowrap",
                     getPinningClasses(column),
+                    getCellBackgroundClassName(columnDef.cellBackground),
+                    columnDef.cellClassName,
+                    columnDef.hideBelowMd && "hidden md:table-cell",
                   )}
                   style={{
                     ...getCommonPinningStyles(column),
@@ -752,8 +928,9 @@ function TableBodyComponent<TData>({
                       }
 
                       return (
-                        <TableTextLoadingCell
+                        <Skeleton
                           className={cn(
+                            "h-4 w-1/2",
                             "min-w-[3rem]",
                             (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
                             (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
@@ -770,81 +947,89 @@ function TableBodyComponent<TData>({
           </TableRow>
         ))
       ) : rowModelRows.length ? (
-        rowModelRows.map((row) => (
-          <TableRowComponent
-            key={row.id}
-            row={row}
-            onRowClick={onRowClick}
-            getRowClassName={getRowClassName}
-            highlightAllRows={highlightAllRows}
-            selectionStore={selectionStore}
-          >
-            {row.getVisibleCells().map((cell) => {
-              const cellValue = cell.getValue();
-              const isStringCell = typeof cellValue === "string";
-              const isSmallRowHeight = (rowHeight ?? "s") === "s";
-              const columnDef = cell.column
-                .columnDef as LangfuseColumnDef<TData>;
+        rowModelRows.map((row) => {
+          const cells = row.getVisibleCells().map((cell) => {
+            const cellValue = cell.getValue();
+            const isStringCell = typeof cellValue === "string";
+            const isSmallRowHeight = (rowHeight ?? "s") === "s";
+            const columnDef = cell.column.columnDef as LangfuseColumnDef<TData>;
 
-              return (
-                <TableCell
-                  key={cell.id}
+            return (
+              <TableCell
+                key={cell.id}
+                className={cn(
+                  "overflow-hidden border-b text-xs first:pl-2",
+                  getCellPaddingClassName(columnDef.cellPadding ?? cellPadding),
+                  isSmallRowHeight && "whitespace-nowrap",
+                  getPinningClasses(cell.column),
+                  getCellBackgroundClassName(columnDef.cellBackground),
+                  columnDef.cellClassName,
+                  columnDef.hideBelowMd && "hidden md:table-cell",
+                )}
+                style={{
+                  ...getCommonPinningStyles(cell.column),
+                  width: columnDef.isFlexWidth
+                    ? "auto"
+                    : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                }}
+              >
+                <div
                   className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
-                    getCellPaddingClassName(
-                      columnDef.cellPadding ?? cellPadding,
-                    ),
-                    isSmallRowHeight && "whitespace-nowrap",
-                    getPinningClasses(cell.column),
+                    "flex",
+                    isSmallRowHeight && !topAlignCells
+                      ? "items-center"
+                      : "items-start",
+                    !isSmallRowHeight && "py-1",
+                    rowheighttw,
                   )}
-                  style={{
-                    ...getCommonPinningStyles(cell.column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  }}
                 >
-                  <div
-                    className={cn(
-                      "flex",
-                      isSmallRowHeight && !topAlignCells
-                        ? "items-center"
-                        : "items-start",
-                      !isSmallRowHeight && "py-1",
-                      rowheighttw,
-                    )}
-                  >
-                    {isStringCell && isSmallRowHeight ? (
-                      <div
-                        className="min-w-0 truncate leading-normal"
-                        title={getPlainTextFromReactNode(
-                          flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          ),
-                        )}
-                      >
-                        {flexRender(
+                  {isStringCell && isSmallRowHeight ? (
+                    <div
+                      className="min-w-0 truncate leading-normal"
+                      title={getPlainTextFromReactNode(
+                        flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
-                        )}
-                      </div>
-                    ) : isStringCell && !isSmallRowHeight ? (
-                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : (
-                      flexRender(cell.column.columnDef.cell, cell.getContext())
-                    )}
-                  </div>
-                </TableCell>
-              );
-            })}
-          </TableRowComponent>
-        ))
+                        ),
+                      )}
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : isStringCell && !isSmallRowHeight ? (
+                    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
+                    </div>
+                  ) : (
+                    flexRender(cell.column.columnDef.cell, cell.getContext())
+                  )}
+                </div>
+              </TableCell>
+            );
+          });
+
+          return renderRow ? (
+            <React.Fragment key={row.id}>
+              {renderRow({ row, children: cells })}
+            </React.Fragment>
+          ) : (
+            <TableRowComponent
+              key={row.id}
+              row={row}
+              onRowClick={onRowClick}
+              getRowClassName={getRowClassName}
+              highlightAllRows={highlightAllRows}
+              selectionStore={selectionStore}
+            >
+              {cells}
+            </TableRowComponent>
+          );
+        })
       ) : (
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={columns.length} className="h-24">

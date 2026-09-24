@@ -1,9 +1,62 @@
 import { globalIgnores } from "eslint/config";
+import boundaries from "eslint-plugin-boundaries";
+import checkFile from "eslint-plugin-check-file";
 import reactYouMightNotNeedAnEffect from "eslint-plugin-react-you-might-not-need-an-effect";
 import storybook from "eslint-plugin-storybook";
 import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
 import nextConfig from "@repo/eslint-config/next";
+
+// Restricted import patterns that apply everywhere. Flat config replaces (not
+// merges) a rule that is configured twice, so every block that configures
+// no-restricted-imports must spread the full pattern list it wants.
+const restrictedImportPatterns = [
+  {
+    regex: "^react-icons$",
+    message:
+      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+  },
+  {
+    regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
+    message:
+      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+  },
+  {
+    // Relative paths escaping web/ bypass @langfuse/shared's exports
+    // map (which points at dist/) and pull shared *source* into the
+    // Next.js typecheck program, where web's next-auth augmentation
+    // breaks it — this failed production deploys (PR #15031).
+    // Note: only static imports are checked. Dynamic import() is not
+    // covered by this rule, which also leaves room for the one
+    // legitimate use: tests that need a Vite-transformed source copy
+    // of a shared module to observe env mutations (vitest loads the
+    // CJS dist through Node's require cache as a second instance —
+    // see blob-storage-integration-trpc.servertest.ts).
+    regex: "^(\\.\\./)+(packages|ee|worker)/",
+    message:
+      "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
+  },
+];
+
+// One seam owns error capture: raw Sentry capture APIs are restricted to the
+// reportError seam (src/utils/reportError.ts) so classification (`expected`),
+// `area` tagging, and non-Error coercion live in exactly one place. The
+// capture contract lives in the seam's doc comment and in
+// .agents/skills/sentry-instrumentation/SKILL.md (human-facing version:
+// web/OBSERVABILITY.md, landing separately). Exempted files get a dedicated
+// config block below without this pattern — never an inline eslint-disable.
+const sentryCapturePattern = {
+  regex: "^@sentry/nextjs$",
+  importNames: ["captureException", "captureMessage"],
+  message:
+    "Do not capture directly — route through the reportError seam (@/src/utils/reportError) or a helper that wraps it (captureUnknownError, reportParserWorkerError), so one seam owns error classification. See the reportError doc comment and .agents/skills/sentry-instrumentation/SKILL.md.",
+};
+
+const designSystemInternalPattern = {
+  regex: "(^|/)design-system/internal(?:/|$)",
+  message:
+    "Design-system internals may only be imported by other design-system components.",
+};
 
 // eslint-plugin-tailwindcss types this as Config | ConfigArray, but the
 // recommended export is a single flat config object with rules at runtime.
@@ -18,7 +71,89 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
   {
+    name: "langfuse/web/storybook-test-story-names",
+    files: ["src/**/*.stories.{ts,tsx}"],
+    rules: {
+      "@repo/storybook-play-requires-test-name": "error",
+    },
+  },
+  {
+    name: "langfuse/web/no-abstracted-overlay-trigger",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.test.{ts,tsx}",
+      "src/**/*.story.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-abstracted-overlay-trigger": [
+        "warn",
+        {
+          overlayFamilies: [
+            {
+              module: "@/src/components/ui/dialog",
+              root: "Dialog",
+              trigger: "DialogTrigger",
+              contents: ["DialogContent"],
+            },
+            {
+              module: "@/src/components/ui/alert-dialog",
+              root: "AlertDialog",
+              trigger: "AlertDialogTrigger",
+              contents: ["AlertDialogContent"],
+            },
+            {
+              module: "@/src/components/ui/dropdown-menu",
+              root: "DropdownMenu",
+              trigger: "DropdownMenuTrigger",
+              contents: ["DropdownMenuContent", "DropdownMenuSubContent"],
+            },
+            {
+              module: "@/src/components/ui/drawer",
+              root: "Drawer",
+              trigger: "DrawerTrigger",
+              contents: ["DrawerContent"],
+            },
+            {
+              module: "@/src/components/ui/popover",
+              root: "Popover",
+              trigger: "PopoverTrigger",
+              contents: ["PopoverContent"],
+            },
+            {
+              module: "@/src/components/ui/sheet",
+              root: "Sheet",
+              trigger: "SheetTrigger",
+              contents: ["SheetContent"],
+            },
+          ],
+          overlayControllerFamilies: [
+            {
+              module:
+                "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController",
+              root: "ConfirmationDialogController",
+            },
+            {
+              module:
+                "@/src/components/design-system/DialogController/DialogController",
+              root: "DialogController",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     ...tailwindcssRecommendedConfig,
+    ignores: [
+      ".storybook/**/*",
+      "src/**/__tests__/**",
+      "src/**/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
     settings: {
       tailwindcss: {
         cssConfigPath: "src/styles/globals.css",
@@ -34,6 +169,8 @@ export default [
             "io-message-header",
             // Used by parent arbitrary selectors to tune IO preview body spacing and borders.
             "io-message-content",
+            // posthog-js block class: elements carrying it are excluded from session recordings.
+            "ph-no-capture",
             // Component-level selector hook for code block wrappers, not a Tailwind utility.
             "codeblock",
             // Sonner root hook used by group-[.toaster] descendant variants.
@@ -50,12 +187,17 @@ export default [
             "peer",
             // Valid named Tailwind peer marker; eslint-plugin-tailwindcss v4 misses it with Tailwind v4.
             "peer/menu-button",
+            // Component hooks used by the command and dialog primitives.
+            "cmdk-input-wrapper",
+            "dialog-header",
+            "dialog-footer",
           ],
         },
       ],
       "tailwindcss/enforces-negative-arbitrary-values": "warn",
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
+      "tailwindcss/enforces-canonical-classname": "off",
       "tailwindcss/enforces-shorthand": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
@@ -85,26 +227,182 @@ export default [
     },
   },
 
+  // Components should always render. Returning null/undefined hides the
+  // condition that owns visibility and makes composition unpredictable — the
+  // parent should branch, or the logic should live in a hook/HOC. Headless
+  // children/portal passthroughs (gates, createPortal wrappers) may return
+  // null; anything that owns markup may not. Existing violations use a
+  // file-level eslint-disable; do not add new ones.
+  {
+    name: "langfuse/web/no-null-render",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+      "src/**/*.stories.{ts,tsx}",
+      "src/components/layouts/**",
+    ],
+    rules: {
+      "@repo/no-null-render": "error",
+    },
+  },
+
+  // Next.js pages are the route composition root: the router, not a parent
+  // component, owns whether they mount. Returning null for auth, missing
+  // params, or SSR is a page-level concern, so this rule does not apply.
+  {
+    name: "langfuse/web/no-null-render-pages",
+    files: ["src/pages/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-null-render": "off",
+    },
+  },
+
+  // Component APIs should expose explicit variants instead of className, style,
+  // or prefixed variants such as badgeClassName. New file-level overrides are
+  // only acceptable for headless components that do not apply any internal
+  // styling themselves.
+  {
+    name: "langfuse/web/no-style-props",
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/__tests__/**",
+      "src/__e2e__/**",
+      "src/**/*.clienttest.{ts,tsx}",
+      "src/**/*.servertest.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-style-props": "error",
+    },
+  },
+
+  // Root design-system components follow `Name/Name.tsx`, optionally alongside
+  // `Name/Name.stories.tsx`. Files must be directly inside a PascalCase folder,
+  // match that folder's name, and expose a matching named runtime export. The
+  // charts, factories, table, and internal subtrees are domain-specific exceptions
+  // with their own structure.
+  {
+    name: "langfuse/web/design-system-component-structure",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    ignores: [
+      "src/components/design-system/charts/**",
+      "src/components/design-system/factories/**",
+      "src/components/design-system/internal/**",
+      "src/components/design-system/table/**",
+    ],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-match-with-fex": [
+        "error",
+        {
+          "*.{ts,tsx}": "src/components/design-system/*/",
+        },
+      ],
+      "check-file/folder-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/": "PASCAL_CASE",
+        },
+      ],
+      "check-file/filename-naming-convention": [
+        "error",
+        {
+          "src/components/design-system/*/*.{ts,tsx}": "<0>",
+        },
+        {
+          ignoreMiddleExtensions: true,
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-component-exports",
+    files: ["src/components/design-system/*/*.{ts,tsx}"],
+    ignores: [
+      "src/components/design-system/**/*.stories.{ts,tsx}",
+      "src/components/design-system/charts/**",
+      "src/components/design-system/table/**",
+    ],
+    rules: {
+      "@repo/filename-matches-export": "error",
+      "import/no-default-export": "error",
+    },
+  },
+
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
+    plugins: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.plugins,
+      boundaries,
+    },
+    settings: {
+      ...reactYouMightNotNeedAnEffect.configs.recommended.settings,
+      // Progressive adoption: only these trees are classified. Unknown
+      // targets (utils, hooks, third-party) stay allowed. Design-system
+      // files also match `app-component`; the policy below excludes that
+      // overlap with `noneOf: ["design-system"]`.
+      "boundaries/files": [
+        {
+          category: "design-system",
+          pattern: "src/components/design-system/**",
+        },
+        {
+          category: "app-component",
+          pattern: "src/components/**",
+        },
+        {
+          category: "feature",
+          pattern: "src/features/**",
+        },
+      ],
+    },
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
-      // Design-system component APIs must use explicit variants instead of styling escape hatches.
-      "@repo/no-style-props": "error",
+      "boundaries/dependencies": [
+        "error",
+        {
+          default: "allow",
+          policies: [
+            {
+              from: { file: { categories: "design-system" } },
+              disallow: {
+                to: {
+                  file: {
+                    categories: {
+                      anyOf: ["app-component", "feature"],
+                      noneOf: ["design-system"],
+                    },
+                  },
+                },
+              },
+              message:
+                "Design-system files must not import from the outer `src/components` tree or from `src/features`.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 
+  {
+    name: "langfuse/web/component-margin-rules",
+    files: ["src/components/**/*.{ts,tsx}"],
+    ignores: ["src/components/**/*.stories.{ts,tsx}"],
+    rules: {
       // Margin makes components harder to compose and should therefore be applied by the parent.
       // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
-      // TODO: Consider expanding this rule beyond design-system components
       "@repo/no-margin-on-root-elements": [
         "warn",
         { classNameFunctions: ["cn", "clsx"] },
       ],
-
-      // TODO: Expand to more of the codebase
-      "no-nested-ternary": "error",
     },
   },
 
@@ -112,7 +410,7 @@ export default [
   {
     ...reactYouMightNotNeedAnEffect.configs.recommended,
     name: "langfuse/web/in-app-agent",
-    files: ["src/ee/features/in-app-agent/**/*.{ts,tsx}"],
+    files: ["src/features/in-app-agent/**/*.{ts,tsx}"],
     rules: {
       ...reactYouMightNotNeedAnEffect.configs.recommended.rules,
       "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
@@ -124,6 +422,22 @@ export default [
       "@typescript-eslint/return-await": ["warn", "in-try-catch"],
       curly: ["error", "all"],
       "@repo/no-switch-statements": "error",
+    },
+  },
+
+  // Design-token lint wall. The type system has exactly two weights
+  // (`font-bold` for the bold role; text-* size tokens carry the regular
+  // weight), and colors must come from design tokens — palette utilities or
+  // token-backed arbitrary values like `bg-[hsl(var(--muted))]`. Raw weight
+  // utilities (font-medium, font-semibold, …) and raw colors in arbitrary
+  // values (bg-[#fff], shadow-[…rgb(0_0_0/0.3)]) escape the system and break
+  // theming.
+  {
+    name: "langfuse/web/design-tokens",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-raw-font-weight": "error",
+      "@repo/no-arbitrary-colors": "error",
     },
   },
 
@@ -145,7 +459,7 @@ export default [
   },
 
   // Overlay primitive wrappers must stack via the app layer system (route the
-  // portal into a layer container, see components/ui/layer.tsx), never by
+  // portal into a layer container, see context/LayerContext/LayerContext.tsx), never by
   // escalating z-index to escape to the top. On these wrapper files, ban a
   // high/arbitrary z-index ANYWHERE (mode "wrapper") — every high z-index here
   // is an escape. z-index stays a local, within-layer tool elsewhere.
@@ -177,9 +491,7 @@ export default [
     },
   },
 
-  // Restricted import paths. Flat config replaces (not merges) a rule that is
-  // configured twice, so all no-restricted-imports patterns live in this one
-  // block.
+  // Restricted import paths (patterns defined at the top of this file).
   {
     name: "langfuse/web/restricted-imports",
     rules: {
@@ -187,32 +499,72 @@ export default [
         "error",
         {
           patterns: [
-            {
-              regex: "^react-icons$",
-              message:
-                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-            },
-            {
-              regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
-              message:
-                "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-            },
-            {
-              // Relative paths escaping web/ bypass @langfuse/shared's exports
-              // map (which points at dist/) and pull shared *source* into the
-              // Next.js typecheck program, where web's next-auth augmentation
-              // breaks it — this failed production deploys (PR #15031).
-              // Note: only static imports are checked. Dynamic import() is not
-              // covered by this rule, which also leaves room for the one
-              // legitimate use: tests that need a Vite-transformed source copy
-              // of a shared module to observe env mutations (vitest loads the
-              // CJS dist through Node's require cache as a second instance —
-              // see blob-storage-integration-trpc.servertest.ts).
-              regex: "^(\\.\\./)+(packages|ee|worker)/",
-              message:
-                "Do not import other workspace packages via relative paths. Use the package entrypoints instead (e.g. @langfuse/shared/src/db, @langfuse/shared/src/server).",
-            },
+            ...restrictedImportPatterns,
+            sentryCapturePattern,
+            designSystemInternalPattern,
           ],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-allow-internal-imports",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [...restrictedImportPatterns, sentryCapturePattern],
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-naming",
+    files: ["src/components/design-system/internal/**/*.{ts,tsx}"],
+    plugins: {
+      "check-file": checkFile,
+    },
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "PASCAL_CASE",
+        },
+      ],
+    },
+  },
+
+  {
+    name: "langfuse/web/design-system-internal-charts-naming",
+    files: ["src/components/design-system/internal/charts/**/*.{ts,tsx}"],
+    rules: {
+      "check-file/folder-naming-convention": [
+        "warn",
+        {
+          "src/components/design-system/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/*/": "KEBAB_CASE",
+          "src/components/design-system/internal/charts/*/": "PASCAL_CASE",
+        },
+      ],
+    },
+  },
+
+  // Sanctioned homes for raw Sentry capture APIs: the reportError seam itself
+  // and the SDK init (`import * as Sentry` would otherwise trip the
+  // importNames restriction). Last-match wins in flat config, so these files
+  // get the shared restrictions without the Sentry capture pattern.
+  {
+    name: "langfuse/web/restricted-imports-sentry-seam",
+    files: ["src/utils/reportError.ts", "instrumentation-client.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [...restrictedImportPatterns, designSystemInternalPattern],
         },
       ],
     },

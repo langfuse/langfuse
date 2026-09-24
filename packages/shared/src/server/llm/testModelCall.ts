@@ -20,12 +20,14 @@ export const testModelCall = async ({
   apiKey,
   modelConfig,
   structuredOutputSchema,
+  timeout,
 }: {
   provider: string;
   model: string;
   apiKey: z.infer<typeof LLMApiKeySchema>;
   modelConfig?: ModelConfig | null;
   structuredOutputSchema?: StructuredOutputSchema;
+  timeout?: number;
 }) => {
   const schema =
     structuredOutputSchema ??
@@ -34,7 +36,7 @@ export const testModelCall = async ({
       reasoning: z.string(),
     });
 
-  await generateLLMText({
+  const result = await generateLLMText({
     ...mapLegacyLLMCompletionParams({
       connection: apiKey,
       messages: [
@@ -53,5 +55,9 @@ export const testModelCall = async ({
       },
     }),
     output: createLLMOutput(schema),
+    timeout,
   });
+
+  // Accessing output makes the AI SDK validate that structured output exists.
+  const { output: _output } = result;
 };

@@ -15,15 +15,20 @@ Peek views allow users to quickly preview table items in a side panel. When navi
   table behind stays interactive. A left-edge handle resizes it; dragging to the
   far edge (or the header Expand button) **expands** it to the max width
   (viewport − sidebar; the sidebar stays visible).
-- **Mobile** (`useIsMobile`, <768px) — a `vaul` bottom drawer with native
-  swipe-down dismissal (Expand is hidden).
+- **Handheld** (`useIsHandheld` — narrower than `md`, _or_ a coarse pointer on a
+  short screen, i.e. a phone in landscape) — a `vaul` bottom drawer with native
+  swipe-down dismissal (Expand is hidden). Not width-only: a landscape phone is
+  wider than `md` and would otherwise get the desktop sheet. An inner non-modal
+  Radix root keeps child menus and dialogs accessible: Vaul's `modal` option
+  controls its gestures and backdrop but is not forwarded to its Radix root.
 
 Dismissal:
 
 - **Click-outside closes**, with exceptions: a target inside the peek
   (`[data-peek-content]`) never closes it; clicking another table row
   (`[data-row-index]`) **switches** the peeked item in place; and selection
-  checkboxes / `data-ignore-outside-interaction` regions / the table's
+  checkboxes / `data-ignore-outside-interaction` regions / toast-layer overlays
+  (`[data-layer="toast"]`, e.g. the version-update banner) / the table's
   `ignoredSelectors` don't close it. Nested Radix popovers/menus opened inside
   the peek don't close it (DismissableLayer stacking).
 - **Escape**, the close button, and (mobile) swipe-down also close.
@@ -71,11 +76,11 @@ resolves against a transient mid-open width) keeps that default deterministic.
 The full-page trace view keeps its own share-based, per-tab layout.
 
 The peek and the standalone trace page already share one beta-aware fetch
-([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
-body + title
-([`../../trace/TraceDetailBody.tsx`](../../trace/TraceDetailBody.tsx) →
-`TraceDetailBody` / `traceDetailTitle`), and one action set
-([`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx) —
+([`../../trace/useTraceDetailData.ts`](../../../features/traces)), one
+body
+([`../../trace/TraceDetailBody.tsx`](../../../features/traces) →
+`TraceDetailBody`), and one action set
+([`../../trace/TraceDetailActions.tsx`](../../../features/traces) —
 star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
 hook. **Next slice:** collapse the `<Trace context>` branching and fold these
 primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
@@ -160,7 +165,7 @@ exception and must be wired explicitly by the caller.
    - Automatically detects peek context and uses it if available
 
 4. **`useFullTextSearch`** - Manages search query state
-   - Location: `web/src/components/table/use-cases/useFullTextSearch.tsx`
+   - Location: `web/src/features/search-bar/hooks/useFullTextSearch.ts`
    - Handles both search query and search type state
 
 ## Behavior
@@ -200,11 +205,15 @@ The `PeekTableState` interface defines what state is persisted:
 ```typescript
 interface PeekTableState {
   filters: FilterState;
-  sorting: OrderByState;
+  sorting: OrderByState | undefined;
   pagination: { pageIndex: number; pageSize: number };
   search: { query: string | null; type: string[] };
 }
 ```
+
+An undefined `sorting` value means the table uses the default passed to
+`useOrderByState`. Once the user changes or disables sorting, that explicit
+peek-local value is persisted.
 
 ## Implementation Guide
 
@@ -379,6 +388,12 @@ const filters = useSidebarFilterState(config, options, queryFilterOptions);
 
 - Peek state context: [`contexts/PeekTableStateContext.tsx`](./contexts/PeekTableStateContext.tsx)
 - Pagination hook: [`web/src/hooks/usePaginationState.ts`](../../../hooks/usePaginationState.ts)
-- Full text search hook: [`use-cases/useFullTextSearch.tsx`](../use-cases/useFullTextSearch.tsx)
+- Full text search hook: [`search-bar/hooks/useFullTextSearch.ts`](../../../features/search-bar/hooks/useFullTextSearch.ts)
 - Filter state hook: [`web/src/features/filters/hooks/useSidebarFilterState.tsx`](../../../features/filters/hooks/useSidebarFilterState.tsx)
 - Order by hook: [`web/src/features/orderBy/hooks/useOrderByState.ts`](../../../features/orderBy/hooks/useOrderByState.ts)
+
+Content may request a temporary review width with `data-peek-layout="review"`
+(two columns) or `"review-navigation"` (three columns). The shell's CSS minimum
+width is capped at the sidebar edge; it does not write the stored widget width
+or expanded URL state. Nested content owns its responsive fallback when the
+available width is smaller than its preferred columns.

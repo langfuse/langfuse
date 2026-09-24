@@ -9,11 +9,21 @@ import {
   instrumentSync,
 } from "../../../server/instrumentation";
 import { logger } from "../../../server/logger";
+import { ClickHouseResourceError } from "../../../server/repositories/clickhouse";
 import {
   getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
+import { getViewDeclaration } from "../../query/dataModel";
+import {
+  decodeFiltersGeneric,
+  encodeFiltersGeneric,
+} from "../../filters/filterQueryEncoding";
+import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
+import { scoresTableUiColumnDefinitions } from "../../../server/tableMappings/mapScoresTable";
+import { COMPATIBLE_FILTER_TYPES } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
+import type { FilterState } from "../../../types";
 import type { QueryType } from "../../query/types";
 import { isValidQuery } from "../isValidQuery";
 import {
@@ -28,7 +38,9 @@ import {
   MonitorSeveritySchema,
   MonitorStatusSchema,
   type MonitorAlert,
+  type MonitorSeverity,
   type MonitorWindow,
+  type MonitorView,
   type Monitor,
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
@@ -160,6 +172,16 @@ export class MonitorProcessor {
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
     } catch (error) {
+      // Resource pressure is transient, not a bad query; rethrow so the monitor stays ACTIVE and the scheduler retries.
+      if (ClickHouseResourceError.is(error)) {
+        logger.warn("queryMetrics hit a ClickHouse resource limit; retrying", {
+          errorType: error.errorType,
+          projectId: event.projectId,
+          schedulerBatchId: event.schedulerBatchId.toString(),
+          monitorIds: event.monitors.map((m) => m.monitorId),
+        });
+        throw error;
+      }
       logger.error(
         "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
         {
@@ -191,12 +213,16 @@ export class MonitorProcessor {
     completions: MonitorCompletion[];
   }): Promise<void> {
     if (args.completions.length === 0) return;
-    await this.db.$executeRaw(
-      buildCompleteQuery({
-        projectId: args.projectId,
-        completions: args.completions,
-      }),
-    );
+    await this.db.$transaction([
+      // tz-naive columns are read back as UTC by Prisma; pin the session so raw casts store UTC wall-clock
+      this.db.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+      this.db.$executeRaw(
+        buildCompleteQuery({
+          projectId: args.projectId,
+          completions: args.completions,
+        }),
+      ),
+    ]);
   }
 }
 
@@ -382,6 +408,18 @@ function buildAlert(args: {
     fromTimestamp,
     toTimestamp,
     permalink: buildPermalink(prev.projectId, prev.id),
+    // Only a threshold-cross (ALERT/WARNING) links to the breaching data window;
+    // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
+    // a recovered/empty window, so they carry no data link.
+    dataPermalink: isBreaching(next.severity)
+      ? buildDataWindowPermalink(
+          prev.projectId,
+          prev.view,
+          fromTimestamp,
+          toTimestamp,
+          prev.filters,
+        )
+      : undefined,
     message: renderAlertMessage({ monitor: prev, completion: next }),
     view: prev.view,
     filters: prev.filters,
@@ -396,7 +434,116 @@ export function buildPermalink(
 ): string | undefined {
   if (!env.NEXTAUTH_URL) return undefined;
   const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  return `${base}/project/${projectId}/monitors/${monitorId}`;
+  return `${base}/project/${projectId}/alerts/${monitorId}`;
+}
+
+/** isBreaching returns true for the threshold-cross severities (ALERT/WARNING) whose alert should deep-link to the breaching data window; OK (recovery) and the lifecycle states (NO_DATA/UNKNOWN/PAUSED) return false. */
+export function isBreaching(severity: MonitorSeverity): boolean {
+  return (
+    severity === MonitorSeveritySchema.enum.ALERT ||
+    severity === MonitorSeveritySchema.enum.WARNING
+  );
+}
+
+/**
+ * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
+ * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
+ *
+ * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
+ * param (absolute epoch-ms range; the client date-range parser accepts custom
+ * ranges directly, bypassing the preset gating). Score views carry their
+ * input predicates and implicit data-type restrictions to the scores table.
+ * A score link is omitted when the destination cannot preserve every filter.
+ */
+export function buildDataWindowPermalink(
+  projectId: string,
+  view: MonitorView,
+  fromTimestamp: Date,
+  toTimestamp: Date,
+  filters: FilterState = [],
+): string | undefined {
+  if (!env.NEXTAUTH_URL) return undefined;
+  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
+  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
+  if (view === "observations") {
+    return `${base}/project/${projectId}/observations?dateRange=${dateRange}`;
+  }
+
+  const tableFilters: FilterState = [];
+  const segments = getViewDeclaration(view, "v2").segments.map((filter) => ({
+    ...filter,
+    column: filter.column === "data_type" ? "dataType" : filter.column,
+  }));
+  for (const filter of [...filters, ...segments]) {
+    // Monitor booleans use the numeric 0/1 value. The table's Boolean Value
+    // facet uses string_value, which may be absent on existing boolean scores.
+    if (filter.column === "booleanValue" && filter.type === "boolean") {
+      const value = filter.operator === "=" ? filter.value : !filter.value;
+      tableFilters.push({
+        column: "value",
+        type: "number",
+        operator: "=",
+        value: Number(value),
+      });
+      continue;
+    }
+
+    // Trace-derived dimensions use different joins in the monitor and the
+    // legacy/events-backed scores readers. Only score-owned fields are portable.
+    const mapping = scoresTableUiColumnDefinitions.find(
+      (column) =>
+        column.uiTableId === filter.column &&
+        column.clickhouseTableName === "scores",
+    );
+    const definition = scoresTableCols.find(
+      (column) => column.id === filter.column,
+    );
+    if (
+      !mapping ||
+      mapping.emptyEqualsNull ||
+      !definition ||
+      (filter.type !== "null" &&
+        !COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type))
+    ) {
+      return undefined;
+    }
+
+    if (filter.type === "boolean") {
+      tableFilters.push({
+        ...filter,
+        operator: "=",
+        value: filter.operator === "=" ? filter.value : !filter.value,
+      });
+    } else {
+      tableFilters.push(filter);
+    }
+  }
+
+  let encodedFilters: string;
+  try {
+    encodedFilters = encodeFiltersGeneric(tableFilters);
+    // The table canonicalizes its URL after decoding. Keys containing legacy
+    // delimiters or percent escapes must survive that round-trip unchanged.
+    if (
+      encodeFiltersGeneric(decodeFiltersGeneric(encodedFilters)) !==
+      encodedFilters
+    ) {
+      return undefined;
+    }
+  } catch {
+    return undefined;
+  }
+
+  const query = new URLSearchParams({
+    dateRange,
+    filter: encodedFilters,
+    // Alert filters own the environment scope, including an unrestricted one.
+    showAllEnvironments: "true",
+  });
+  const href = `${base}/project/${projectId}/scores?${query.toString()}`;
+  // Slack button URLs are limited to 3000 characters. Dropping predicates to
+  // shorten a link would show scores outside the evaluated query.
+  return href.length <= 3000 ? href : undefined;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */

@@ -48,6 +48,28 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
+import { LLMValidationError } from "@langfuse/shared/src/server";
+
+const AISDK_ERROR_MARKER = Symbol.for("vercel.ai.error");
+const API_CALL_ERROR_MARKER = Symbol.for("vercel.ai.error.AI_APICallError");
+
+function createAiSdkError(name: string, message: string): Error {
+  const error = new Error(message);
+  error.name = name;
+  Object.assign(error, { [AISDK_ERROR_MARKER]: true });
+  return error;
+}
+
+function createProviderApiError(message: string, statusCode: number): Error {
+  const error = createAiSdkError("AI_APICallError", message);
+  Object.assign(error, {
+    [API_CALL_ERROR_MARKER]: true,
+    statusCode,
+    url: "https://api.example.com/v1/messages",
+    isRetryable: false,
+  });
+  return error;
+}
 
 const baseBody = {
   projectId: "project-1",
@@ -99,6 +121,7 @@ describe("chatCompletionHandler", () => {
       model: { adapter: "openai", id: "gpt-4.1" },
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
+      timeout: 95_000,
     });
   });
 
@@ -166,6 +189,34 @@ describe("chatCompletionHandler", () => {
     );
   });
 
+  it("preserves extracted tool names for provider validation", async () => {
+    const toolSet = { "ns:get_time": { description: "Get the time" } };
+    mocks.createToolSet.mockReturnValue(toolSet);
+    mocks.generate.mockResolvedValue({
+      text: "",
+      finalStep: {},
+      toolCalls: [],
+    });
+
+    const toolDefinition = {
+      name: "ns:get_time",
+      description: "Get the time",
+      parameters: { type: "object", properties: {} },
+    };
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        tools: [toolDefinition],
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.createToolSet).toHaveBeenCalledWith([toolDefinition]);
+    expect(mocks.generate).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: toolSet }),
+    );
+  });
+
   it("preserves the text/plain streaming response", async () => {
     const textStream = new ReadableStream<string>({
       start(controller) {
@@ -184,20 +235,67 @@ describe("chatCompletionHandler", () => {
       "text/plain; charset=utf-8",
     );
     expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.stream).toHaveBeenCalledWith({
+      model: { adapter: "openai", id: "gpt-4.1" },
+      connection: { secretKey: "encrypted-key" },
+      messages: [{ role: "user", content: "Hello" }],
+    });
   });
 
   it("preserves terminal LLM configuration status codes", async () => {
-    const error = new Error("Unsupported provider options: unknown_parameter");
-    error.name = "LLMCompletionError";
-    Object.assign(error, { responseStatusCode: 400, isRetryable: false });
+    const error = new LLMValidationError({
+      code: "invalid-request",
+      message: "Unsupported provider options: unknown_parameter",
+    });
     mocks.generate.mockRejectedValue(error);
 
     const response = await chatCompletionHandler(createRequest(baseBody));
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({
-      error: "LLMCompletionError",
+      error: "LLMValidationError",
       message: "Unsupported provider options: unknown_parameter",
+    });
+  });
+
+  it("maps structured-output AI SDK failures to 400 instead of 500", async () => {
+    mocks.createOutput.mockReturnValue({ kind: "object-output" });
+    mocks.generate.mockRejectedValue(
+      createAiSdkError(
+        "AI_NoOutputGeneratedError",
+        "The model did not generate output",
+      ),
+    );
+
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        structuredOutputSchema: {
+          type: "object",
+          properties: { answer: { type: "number" } },
+          required: ["answer"],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_NoOutputGeneratedError",
+      message: "The model did not generate output",
+    });
+  });
+
+  it("preserves upstream provider 5xx status codes", async () => {
+    mocks.generate.mockRejectedValue(
+      createProviderApiError("Provider unavailable", 500),
+    );
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_APICallError",
+      message: "Provider unavailable",
     });
   });
 });

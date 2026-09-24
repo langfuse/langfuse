@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   CodeEvalExecutionQueue,
   EvalExecutionQueue,
@@ -15,7 +16,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { type z } from "zod";
 
-export const getQueues = () => {
+const getQueues = () => {
   const queues: string[] = Object.values(QueueName);
   queues.push(
     ...IngestionQueue.getShardNames(),
@@ -116,12 +117,12 @@ export type IngestionAPIResponse = {
   successes: SuccessfulIngestion[];
 };
 
-export type SuccessfulIngestion = {
+type SuccessfulIngestion = {
   id: string;
   status: number;
 };
 
-export type ErrorIngestion = {
+type ErrorIngestion = {
   id: string;
   status: number;
   message: string;

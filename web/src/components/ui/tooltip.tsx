@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-style-props */
 "use client";
 
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/src/utils/tailwind";
-import { useLayerContainer } from "@/src/components/ui/layer";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 

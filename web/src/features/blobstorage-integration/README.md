@@ -109,15 +109,15 @@ worker picks up the job and sets `runStartedAt`.
 
 ## Key files
 
-| File                                                                        | Role                                              |
-| --------------------------------------------------------------------------- | ------------------------------------------------- |
-| `deriveSyncStatus.ts`                                                       | Derives display status from DB fields             |
-| `types.ts`                                                                  | Form zod schema, `BlobStorageSyncStatus` type     |
-| `exportSource.ts`                                                           | Export-source availability/options helpers (pure) |
-| `service.ts`                                                                | Upsert logic (web save path)                      |
-| `blobstorage-integration-router.ts`                                         | tRPC router (save, runNow)                        |
-| `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts` | Worker job handler                                |
-| `worker/src/features/blobstorage/handleBlobStorageIntegrationSchedule.ts`   | Scheduler (enqueues due jobs)                     |
+| File                                                                        | Role                                                                                                   |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `deriveSyncStatus.ts`                                                       | Derives display status from DB fields                                                                  |
+| `types.ts`                                                                  | Form zod schema, `BlobStorageSyncStatus` type                                                          |
+| `../analytics-integrations/exportSource.ts`                                 | Export-source option/alert UI adapters (pure); policy in `packages/shared/.../export-source-policy.ts` |
+| `service.ts`                                                                | Upsert logic (web save path)                                                                           |
+| `blobstorage-integration-router.ts`                                         | tRPC router (save, runNow)                                                                             |
+| `worker/src/features/blobstorage/handleBlobStorageIntegrationProjectJob.ts` | Worker job handler                                                                                     |
+| `worker/src/features/blobstorage/handleBlobStorageIntegrationSchedule.ts`   | Scheduler (enqueues due jobs)                                                                          |
 
 ## UI Owner Map
 
@@ -125,24 +125,24 @@ worker picks up the job and sets `runStartedAt`.
 configuration form plus sync status display.
 
 **Entry point**:
-`web/src/pages/project/[projectId]/settings/integrations/blobstorage.tsx`
+`web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx`
 owns the lifecycle: the tRPC `get` query (with status-driven refetch
 interval), the sync-status badge, and page layout. It mounts the two
 feature components below.
 
 **Structure** (`components/`):
 
-| File                                  | Role                                                                                                                                     |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `BlobStorageIntegrationContainer.tsx` | State layer: availability derivation, the four mutations, entity-action buttons (Validate / Run Now / Reset), loading gate, identity key |
-| `BlobStorageIntegrationForm.tsx`      | Disposable draft layer: `useForm` + schema, fields, Save; no tRPC                                                                        |
-| `formValues.ts`                       | Pure `buildBlobStorageFormValues()` + shared `BlobStorageFormControl` type                                                               |
-| `StorageProviderFields.tsx`           | Provider select + provider-dependent connection fields                                                                                   |
-| `ExportScheduleFields.tsx`            | Frequency, file type, export mode, custom start date                                                                                     |
-| `ExportSourceField.tsx`               | Source selector + blocked-save alert (LFE-10296)                                                                                         |
-| `ExportFieldGroupsField.tsx`          | Field-group checkboxes                                                                                                                   |
-| `GzipCompressionField.tsx`            | Gzip toggle; self-hides for Parquet                                                                                                      |
-| `BlobStorageStatusSection.tsx`        | Status header, last-error alert, sync card                                                                                               |
+| File                                  | Role                                                                                                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BlobStorageIntegrationContainer.tsx` | State layer: export-source policy context assembly, the four mutations, entity-action buttons (Validate / Run Now / Reset), loading gate, identity key |
+| `BlobStorageIntegrationForm.tsx`      | Disposable draft layer: `useForm` + schema, fields, Save; no tRPC                                                                                      |
+| `formValues.ts`                       | Pure `buildBlobStorageFormValues()` + shared `BlobStorageFormControl` type                                                                             |
+| `StorageProviderFields.tsx`           | Provider select + provider-dependent connection fields                                                                                                 |
+| `ExportScheduleFields.tsx`            | Frequency, file type, export mode, custom start date                                                                                                   |
+| `ExportSourceField.tsx`               | Source selector + blocked-save alert (LFE-10296)                                                                                                       |
+| `ExportFieldGroupsField.tsx`          | Field-group checkboxes                                                                                                                                 |
+| `GzipCompressionField.tsx`            | Gzip toggle; self-hides for Parquet                                                                                                                    |
+| `BlobStorageStatusSection.tsx`        | Status header, last-error alert, sync card                                                                                                             |
 
 **External consumers**: none — the components are only mounted by the
 settings page above.

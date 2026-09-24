@@ -1,7 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { organizationNameSchema } from "@/src/features/organizations/server";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
@@ -42,8 +42,9 @@ export async function handleCreateOrganization(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // Validate the request body using the organizationNameSchema
-  const validationResult = organizationNameSchema.safeParse(req.body);
+  const validationResult = z
+    .object({ name: organizationNameSchema })
+    .safeParse(req.body);
 
   if (!validationResult.success) {
     res.status(400).json({

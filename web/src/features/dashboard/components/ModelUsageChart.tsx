@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import {
@@ -7,13 +8,12 @@ import {
 } from "@/src/features/dashboard/components/hooks";
 import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { costFormatter } from "@/src/utils/numbers";
+import { costFormatter, compactNumberFormatter } from "@/src/utils/numbers";
 import { api } from "@/src/utils/api";
 import {
   type DashboardDateRangeAggregationOption,
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   ModelSelectorPopover,
@@ -23,7 +23,7 @@ import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const ModelUsageChart = ({
@@ -38,6 +38,7 @@ export const ModelUsageChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -47,18 +48,15 @@ export const ModelUsageChart = ({
   toTimestamp: Date;
   userAndEnvFilterState: FilterState;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
-  const {
-    allModels,
-    selectedModels,
-    setSelectedModels,
-    isAllSelected,
-    buttonText,
-    handleSelectAll,
-  } = useModelSelection(
+  const { allModels, selectedModels, setSelectedModels } = useModelSelection(
     projectId,
     userAndEnvFilterState,
     fromTimestamp,
@@ -364,9 +362,6 @@ export const ModelUsageChart = ({
             allModels={allModels}
             selectedModels={selectedModels}
             setSelectedModels={setSelectedModels}
-            buttonText={buttonText}
-            isAllSelected={isAllSelected}
-            handleSelectAll={handleSelectAll}
           />
         </div>
       }
@@ -402,6 +397,7 @@ export const ModelUsageChart = ({
                       // Token/cost totals are additive sums. (LFE-10498)
                       legendSummary="sum"
                       syncId={syncId}
+                      sync={sync}
                       // Additive sums: a bucket without data honestly sums to 0. (LFE-10694)
                       missingValue="zero"
                     />

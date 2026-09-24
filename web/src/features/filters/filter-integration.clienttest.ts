@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 /**
  * Integration tests for filter query encoding/decoding through full URL lifecycle.
  * These tests verify the complete flow: FilterState → URL → FilterState
@@ -9,18 +11,21 @@ import {
   type ColumnDefinition,
   tracesTableCols,
   observationsTableCols,
-} from "@langfuse/shared";
-import {
+  sessionsViewCols,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   computeSelectedValues,
-} from "./lib/filter-query-encoding";
+  DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
+} from "@langfuse/shared";
 import { validateFilters } from "@/src/components/table/table-view-presets/validation";
 import { traceFilterConfig } from "./config/traces-config";
 import { observationFilterConfig } from "./config/observations-config";
 import { transformFiltersForBackend } from "./lib/filter-transform";
-import { sessionFilterConfig } from "./config/sessions-config";
-import { observationEventsFilterConfig } from "@/src/features/events/config/filter-config";
+import {
+  sessionEventsFilterConfig,
+  sessionFilterConfig,
+} from "./config/sessions-config";
+import { observationEventsFilterConfig } from "@/src/features/events";
 import {
   decodeAndNormalizeFilters,
   resolveCheckboxOperator,
@@ -28,14 +33,19 @@ import {
 import {
   SESSION_DETAIL_SYSTEM_PRESETS,
   getSessionDetailPresetToApply,
-} from "@/src/components/session/session-detail-presets";
+} from "@/src/features/sessions";
 import {
   buildManagedEnvironmentPolicyConfig,
   buildImplicitEnvironmentFilter,
   buildEffectiveEnvironmentFilter,
-  stripImplicitEnvironmentFilterFromExplicitState,
+  canonicalizeExplicitEnvironmentFilters,
+  toSearchBarEnvironmentFilters,
 } from "./lib/managedEnvironmentPolicy";
-import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "./constants/internal-environments";
+import {
+  astToFilterState,
+  filterStateToQueryText,
+  validateQuery,
+} from "@/src/features/search-bar";
 
 // Helper to simulate complete URL flow
 function simulateUrlFlow(filters: FilterState): FilterState {
@@ -565,6 +575,96 @@ describe("Config Validation of old saved views", () => {
 
     expect(invalidFacets).toEqual([]);
   });
+
+  it("exposes metadata only on the v4 sessions filter config", () => {
+    expect(
+      sessionEventsFilterConfig.columnDefinitions.find(
+        (column) => column.id === "metadata",
+      ),
+    ).toMatchObject({ type: "stringObject" });
+    expect(
+      sessionEventsFilterConfig.facets.find(
+        (facet) => facet.column === "metadata",
+      ),
+    ).toMatchObject({ type: "stringKeyValue", label: "Metadata" });
+
+    expect(
+      sessionFilterConfig.columnDefinitions.some(
+        (column) => column.id === "metadata",
+      ),
+    ).toBe(false);
+    expect(
+      sessionFilterConfig.facets.some((facet) => facet.column === "metadata"),
+    ).toBe(false);
+  });
+});
+
+describe("Retired bookmarked filters (traces + sessions)", () => {
+  const bookmarkedFilter: FilterState = [
+    { column: "bookmarked", type: "boolean", operator: "=", value: true },
+  ];
+  const surfaces = [
+    ["traces", traceFilterConfig],
+    ["sessions", sessionFilterConfig],
+    ["sessions (v4)", sessionEventsFilterConfig],
+  ] as const;
+
+  it.each(surfaces)(
+    "drops a deep-linked bookmarked filter on the %s table",
+    (_label, config) => {
+      expect(
+        decodeAndNormalizeFilters(
+          encodeFiltersGeneric(bookmarkedFilter),
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([]);
+    },
+  );
+
+  it.each(surfaces)(
+    "drops a saved-view bookmarked filter on the %s table but keeps the rest",
+    (_label, config) => {
+      const savedView: FilterState = [
+        ...bookmarkedFilter,
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ];
+
+      expect(
+        validateFilters(
+          savedView,
+          config.columnDefinitions,
+          config.migrateFilterState,
+        ),
+      ).toEqual([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["production"],
+        },
+      ]);
+    },
+  );
+
+  it("drops the legacy star display name a pre-ID saved view stored", () => {
+    expect(
+      validateFilters(
+        [{ column: "⭐️", type: "boolean", operator: "=", value: true }],
+        sessionFilterConfig.columnDefinitions,
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps bookmarked in the shared definitions the public API filters on", () => {
+    expect(tracesTableCols.some((col) => col.id === "bookmarked")).toBe(true);
+    expect(sessionsViewCols.some((col) => col.id === "bookmarked")).toBe(true);
+  });
 });
 
 describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
@@ -630,6 +730,35 @@ describe("Filter Flow: URL → Decode → Normalize → Transform", () => {
     ];
 
     expect(simulateUrlFlow(filters)).toEqual(filters);
+  });
+
+  it("should preserve v4 release filters through the URL and search-bar flow", () => {
+    const filters: FilterState = [
+      {
+        column: "release",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["181"],
+      },
+    ];
+
+    const normalized = decodeAndNormalizeFilters(
+      encodeFiltersGeneric(filters),
+      observationEventsFilterConfig.columnDefinitions,
+    );
+
+    expect(normalized).toEqual(filters);
+
+    const { text, skipped } = filterStateToQueryText(normalized);
+    expect(skipped).toEqual([]);
+    expect(text).toBe("release:181");
+
+    const parsed = validateQuery(text);
+    expect(parsed.valid, text).toBe(true);
+    expect(astToFilterState(parsed.ast)).toMatchObject({
+      filters,
+      errors: [],
+    });
   });
 
   it("should discard stale positionInTrace URL filters on the general events table", () => {
@@ -800,10 +929,11 @@ describe("Saved view validation", () => {
     ];
     // LFE-10520: the default view is "All observations with I/O", expressed as
     // a real, renderable boolean filter (not a hidden flag). Selecting a
-    // generation preset still applies its positionInTrace filters.
+    // LLM-call preset still applies its positionInTrace filters.
     const defaultPreset = getSessionDetailPresetToApply({
       selectedViewId: null,
       hasFilters: false,
+      isTimelineEnabled: false,
     });
     expect(defaultPreset).toEqual(SESSION_DETAIL_SYSTEM_PRESETS[0]);
     expect(defaultPreset?.name).toBe("All observations with I/O");
@@ -827,19 +957,27 @@ describe("Saved view validation", () => {
       validateFilters(defaultPreset?.filters ?? [], sessionEventColumns),
     ).toEqual(defaultPreset?.filters ?? []);
 
-    const firstGenerationPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "First Generation in Trace",
+    const firstLlmCallPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
+      (preset) => preset.name === "First LLM Call per Trace",
     );
-    const appliedFirstGeneration = getSessionDetailPresetToApply({
-      selectedViewId: firstGenerationPreset?.id ?? null,
+    const appliedFirstLlmCall = getSessionDetailPresetToApply({
+      selectedViewId: firstLlmCallPreset?.id ?? null,
       hasFilters: false,
+      isTimelineEnabled: true,
     });
     const lastPreset = SESSION_DETAIL_SYSTEM_PRESETS.find(
-      (preset) => preset.name === "Last Generation in Trace",
+      (preset) => preset.name === "Last LLM Call per Trace",
     );
 
-    expect(appliedFirstGeneration).toEqual(firstGenerationPreset);
-    expect(firstGenerationPreset?.filters).toEqual([
+    expect(appliedFirstLlmCall).toEqual(firstLlmCallPreset);
+    expect(
+      getSessionDetailPresetToApply({
+        selectedViewId: null,
+        hasFilters: false,
+        isTimelineEnabled: true,
+      }),
+    ).toBeNull();
+    expect(firstLlmCallPreset?.filters).toEqual([
       {
         column: "type",
         type: "stringOptions",
@@ -854,11 +992,8 @@ describe("Saved view validation", () => {
       },
     ]);
     expect(
-      validateFilters(
-        firstGenerationPreset?.filters ?? [],
-        sessionEventColumns,
-      ),
-    ).toEqual(firstGenerationPreset?.filters ?? []);
+      validateFilters(firstLlmCallPreset?.filters ?? [], sessionEventColumns),
+    ).toEqual(firstLlmCallPreset?.filters ?? []);
     expect(lastPreset?.filters).toEqual([
       {
         column: "type",
@@ -1148,8 +1283,8 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     managedEnvironmentColumn: "environment",
     hiddenEnvironments,
   });
-  const strip = (explicitFilters: FilterState) =>
-    stripImplicitEnvironmentFilterFromExplicitState({
+  const canonicalize = (explicitFilters: FilterState) =>
+    canonicalizeExplicitEnvironmentFilters({
       explicitFilters,
       config: managedEnvironmentConfig,
     });
@@ -1194,8 +1329,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
   it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
     // The implicit default the sidebar auto-derives — and that the facet
     // re-creates when the user clears back to the default selection — is the
-    // `none of [hidden]` shape. That is the ONLY env filter we strip before
-    // persistence, so returning to default leaves a clean URL.
+    // `none of [hidden]` shape. That default is stripped before persistence,
+    // so returning to default leaves a clean URL. Extra exclusions on top of
+    // that default stay as `none of [hidden ∪ extras]`.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -1211,7 +1347,7 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithExactDefault)).toEqual([
+    expect(canonicalize(explicitWithExactDefault)).toEqual([
       {
         column: "name",
         type: "stringOptions",
@@ -1232,7 +1368,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         value: ["production", "staging"],
       },
     ];
-    expect(strip(userAuthoredDefaultSet)).toEqual(userAuthoredDefaultSet);
+    expect(canonicalize(userAuthoredDefaultSet)).toEqual(
+      userAuthoredDefaultSet,
+    );
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {
@@ -1251,7 +1389,9 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitWithHiddenEnabled)).toEqual(explicitWithHiddenEnabled);
+    expect(canonicalize(explicitWithHiddenEnabled)).toEqual(
+      explicitWithHiddenEnabled,
+    );
 
     const explicitAll: FilterState = [
       {
@@ -1262,12 +1402,12 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ];
 
-    expect(strip(explicitAll)).toEqual(explicitAll);
+    expect(canonicalize(explicitAll)).toEqual(explicitAll);
   });
 
   it("keeps hidden-only explicit selection as explicit override", () => {
     expect(
-      strip([
+      canonicalize([
         {
           column: "environment",
           type: "stringOptions",
@@ -1304,6 +1444,166 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
         type: "stringOptions",
         operator: "any of",
         value: ["langfuse-evaluation"],
+      },
+    ]);
+  });
+
+  it("keeps the full none-of exclusion set in explicit state", () => {
+    // Unchecking a default-included environment (production) from the implicit
+    // `none of [hidden]` default produces `none of [hidden ∪ production]`.
+    // Persist the full set so this cannot collapse with "enabled every hidden
+    // env and left production unchecked".
+    const fullExclusion: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ];
+
+    expect(canonicalize(fullExclusion)).toEqual(fullExclusion);
+  });
+
+  it("expands extras-only none-of to the full exclusion set on persist", () => {
+    // A search-bar commit of the displayed chip (`-environment:production`)
+    // lowers to extras-only none-of. Treat that as default-plus-extra-exclusion.
+    const stripped = canonicalize([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ]);
+
+    expect(stripped).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: [...hiddenEnvironments, "production"],
+      },
+    ]);
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: stripped,
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual(stripped);
+  });
+
+  it("shows only extras in the search-bar projection of a full none-of", () => {
+    expect(
+      toSearchBarEnvironmentFilters({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: [...hiddenEnvironments, "production"],
+          },
+          {
+            column: "name",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["trace-a"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["trace-a"],
+      },
+    ]);
+  });
+
+  it("does not fold extras-only none-of in effective state", () => {
+    // Effective state uses the persisted form as-is. Extras-only is expanded
+    // on persist/read of explicit state first; callers must strip before
+    // building effective state so hidden envs stay excluded.
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: ["production"],
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: ["production"],
+      },
+    ]);
+  });
+
+  it("does not strip a none-of that enables a hidden environment", () => {
+    // Checking one hidden env leaves `none of [hidden − that env]`. That is
+    // not the implicit default and must stay explicit so the enabled env
+    // is not silently re-hidden.
+    const remainingHidden = hiddenEnvironments.filter(
+      (environment) => environment !== "langfuse-evaluation",
+    );
+
+    expect(
+      canonicalize([
+        {
+          column: "environment",
+          type: "stringOptions",
+          operator: "none of",
+          value: remainingHidden,
+        },
+      ]),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
+      },
+    ]);
+
+    expect(
+      buildEffectiveEnvironmentFilter({
+        explicitFilters: [
+          {
+            column: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            value: remainingHidden,
+          },
+        ],
+        config: managedEnvironmentConfig,
+      }),
+    ).toEqual([
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "none of",
+        value: remainingHidden,
       },
     ]);
   });

@@ -1,5 +1,6 @@
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import * as React from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 import { Badge } from "@/src/components/ui/badge";
@@ -24,6 +25,9 @@ import { Input } from "@/src/components/ui/input";
 import { useRef, useState, useMemo, useCallback } from "react";
 import { PropertyHoverCard } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 
+/** compactSelectAllLimit is the most options a compact select shows Select All for. */
+const compactSelectAllLimit = 100;
+
 const getFreeTextInput = (
   isCustomSelectEnabled: boolean,
   values: string[],
@@ -43,6 +47,9 @@ export function MultiSelect({
   disabled,
   isCustomSelectEnabled = false,
   labelTruncateCutOff = 2,
+  chipsOnly = false,
+  onOpenChange,
+  isLoading = false,
 }: {
   title?: string;
   label?: string;
@@ -53,6 +60,10 @@ export function MultiSelect({
   disabled?: boolean;
   isCustomSelectEnabled?: boolean;
   labelTruncateCutOff?: number;
+  /** chipsOnly hides the placeholder/separator once values are selected, showing just the chips and chevron. */
+  chipsOnly?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  isLoading?: boolean;
 }) {
   const selectedValues = useMemo(() => new Set(values), [values]);
   const optionValues = new Set(options.map((option) => option.value));
@@ -77,6 +88,10 @@ export function MultiSelect({
     () => mergedOptions.filter((option) => option.value.length > 0),
     [mergedOptions],
   );
+
+  const showSelectAll =
+    selectableOptions.length > 0 &&
+    !(chipsOnly && selectableOptions.length > compactSelectAllLimit);
 
   const allSelectedState = useMemo(() => {
     if (selectableOptions.length === 0) return false;
@@ -120,86 +135,115 @@ export function MultiSelect({
   };
 
   function getSelectedOptions() {
-    const selectedOptions = options.filter(({ value }) =>
-      selectedValues.has(value),
+    const selectedOptions = mergedOptions.filter(
+      ({ value }) =>
+        selectedValues.has(value) &&
+        (!freeTextInput || value !== freeTextInput),
     );
+    const liveCustomOption: FilterOption[] =
+      freeTextInput && freeText ? [{ value: freeText }] : [];
 
-    const hasCustomOption =
-      !!freeText &&
-      !!getFreeTextInput(isCustomSelectEnabled, values, optionValues);
-    const customOption: FilterOption[] = hasCustomOption
-      ? [{ value: freeText }]
-      : [];
-
-    return [...selectedOptions, ...customOption];
+    return [...selectedOptions, ...liveCustomOption];
   }
 
+  const selectedBadges =
+    selectedValues.size > labelTruncateCutOff ? (
+      <Badge variant="secondary" className="rounded-sm px-1 font-normal">
+        {selectedValues.size} selected
+      </Badge>
+    ) : (
+      getSelectedOptions().map((option) => {
+        const displayValue =
+          option.displayValue ??
+          (option.value === "" ? "(empty)" : option.value);
+        return (
+          <Badge
+            variant="secondary"
+            key={option.value}
+            className={cn(
+              "min-w-0 rounded-sm px-1 font-normal",
+              option.value === "" && "italic",
+            )}
+          >
+            <span className="truncate" title={displayValue}>
+              {displayValue}
+            </span>
+          </Badge>
+        );
+      })
+    );
+
   return (
-    <Popover>
+    <Popover onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           className={cn(
-            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full items-center justify-between gap-x-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            // min-w-0 + overflow-hidden: the trigger must never grow past its
+            // container — wide selected values truncate instead.
+            "border-input ring-offset-background placeholder:text-foreground-tertiary focus:ring-ring flex h-8 w-full min-w-0 items-center justify-between gap-x-2 overflow-hidden rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className,
           )}
           disabled={disabled}
         >
-          {label ?? "Select"}
-          <ChevronDown className="h-4 w-4 opacity-50" />
-          {selectedValues.size > 0 && (
+          {chipsOnly && selectedValues.size > 0 ? (
             <>
-              <Separator orientation="vertical" className="mr-auto h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {selectedValues.size}
-              </Badge>
-              <div className="hidden space-x-1 lg:flex">
-                {selectedValues.size > labelTruncateCutOff ? (
+              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                {selectedBadges}
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            </>
+          ) : (
+            <>
+              {label ?? "Select"}
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+              {selectedValues.size > 0 && (
+                <>
+                  <Separator orientation="vertical" className="mr-auto h-4" />
                   <Badge
                     variant="secondary"
-                    className="rounded-sm px-1 font-normal"
+                    className="rounded-sm px-1 font-normal lg:hidden"
                   >
-                    {selectedValues.size} selected
+                    {selectedValues.size}
                   </Badge>
-                ) : (
-                  getSelectedOptions().map((option) => {
-                    const displayValue =
-                      option.displayValue ??
-                      (option.value === "" ? "(empty)" : option.value);
-                    return (
-                      <Badge
-                        variant="secondary"
-                        key={option.value}
-                        className={cn(
-                          "rounded-sm px-1 font-normal",
-                          option.value === "" && "italic",
-                        )}
-                      >
-                        {displayValue}
-                      </Badge>
-                    );
-                  })
-                )}
-              </div>
+                  <div className="hidden min-w-0 space-x-1 overflow-hidden lg:flex">
+                    {selectedBadges}
+                  </div>
+                </>
+              )}
             </>
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0" align="center">
         <InputCommand>
-          <InputCommandInput placeholder={title} variant="bottom" />
+          <InputCommandInput
+            placeholder={title}
+            variant="bottom"
+            disabled={isLoading}
+          />
           <InputCommandList>
+            {isLoading && (
+              <div
+                role="status"
+                className="text-muted-foreground flex items-center gap-2 px-3 py-2 text-sm"
+              >
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Loading…
+              </div>
+            )}
             {/* if isCustomSelectEnabled we always show custom select hence never empty */}
-            {!isCustomSelectEnabled && (
+            {!isCustomSelectEnabled && !isLoading && (
               <InputCommandEmpty>No results found.</InputCommandEmpty>
             )}
             <InputCommandGroup>
-              {selectableOptions.length > 0 && (
+              {showSelectAll && (
                 <>
-                  <InputCommandItem key="select-all" onSelect={handleSelectAll}>
+                  <InputCommandItem
+                    key="select-all"
+                    onSelect={handleSelectAll}
+                    disabled={isLoading}
+                  >
                     <div
                       className={cn(
                         "border-control-border mr-2 flex h-4 w-4 items-center justify-center rounded-sm border",
@@ -210,7 +254,7 @@ export function MultiSelect({
                     >
                       <Check className="h-4 w-4" />
                     </div>
-                    <div className="font-medium">
+                    <div className="font-bold">
                       {allSelectedState ? "Deselect All" : "Select All"}
                     </div>
                   </InputCommandItem>
@@ -230,6 +274,7 @@ export function MultiSelect({
                 const commandItem = (
                   <InputCommandItem
                     key={option.value}
+                    disabled={isLoading}
                     onSelect={() => {
                       if (isSelected) {
                         selectedValues.delete(option.value);
@@ -285,6 +330,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandItem
                   key="freeTextField"
+                  disabled={isLoading}
                   onSelect={() => {
                     const freeTextInput = getFreeTextInput(
                       isCustomSelectEnabled,
@@ -320,6 +366,7 @@ export function MultiSelect({
                   </div>
                   <Input
                     type="text"
+                    disabled={isLoading}
                     value={freeText}
                     onChange={(e) => {
                       setFreeText(e.target.value);
@@ -344,6 +391,7 @@ export function MultiSelect({
                 <InputCommandSeparator />
                 <InputCommandGroup>
                   <InputCommandItem
+                    disabled={isLoading}
                     onSelect={() => onValueChange([])}
                     className="justify-center text-center"
                   >

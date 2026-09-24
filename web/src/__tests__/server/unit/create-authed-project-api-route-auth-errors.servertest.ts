@@ -1,21 +1,49 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
+import type * as PrismaClientModule from "@prisma/client";
 
 const {
   mockVerifyAuthHeaderAndReturnScope,
   mockIsPrismaException,
   mockRateLimitRequest,
   mockTraceException,
-  mockCreateUnstablePublicApiAuthError,
-  mockSendUnstablePublicApiErrorResponse,
+  mockLoggerDebug,
+  mockLoggerInfo,
+  mockRecordIncrement,
+  mockExtractPublicApiCallerAttribution,
+  mockFindOrganization,
+  mockCreateStructuredPublicApiAuthError,
+  mockSendStructuredPublicApiErrorResponse,
+  mockEnv,
 } = vi.hoisted(() => ({
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
   mockTraceException: vi.fn(),
-  mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
-  mockSendUnstablePublicApiErrorResponse: vi.fn(),
+  mockLoggerDebug: vi.fn(),
+  mockLoggerInfo: vi.fn(),
+  mockRecordIncrement: vi.fn(),
+  mockExtractPublicApiCallerAttribution: vi.fn(
+    (): {
+      userAgent?: string;
+      sdkName?: string;
+      sdkVersion?: string;
+    } => ({
+      userAgent: "langfuse-python/4.8.1",
+      sdkName: "python",
+      sdkVersion: "4.8.1",
+    }),
+  ),
+  mockFindOrganization: vi.fn(),
+  mockCreateStructuredPublicApiAuthError: vi.fn((value) => value),
+  mockSendStructuredPublicApiErrorResponse: vi.fn(),
+  mockEnv: {
+    NODE_ENV: "test",
+    NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
+    LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED: "false" as "true" | "false",
+    LANGFUSE_API_ORGANIZATION_CUTOFF_DATE: "2026-09-16T00:00:00.000Z",
+  },
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -24,18 +52,31 @@ vi.mock("@/src/features/public-api/server/apiAuth", () => ({
   },
 }));
 
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: {},
-}));
+vi.mock("@langfuse/shared/src/db", async () => {
+  const { GatewayConnectionStatus, GatewayIngestionMode, GatewayProvider } =
+    await vi.importActual<typeof PrismaClientModule>("@prisma/client");
+  return {
+    GatewayConnectionStatus,
+    GatewayIngestionMode,
+    GatewayProvider,
+    prisma: {
+      organization: {
+        findUnique: mockFindOrganization,
+      },
+    },
+  };
+});
 
 vi.mock("@langfuse/shared/src/server", () => ({
   redis: null,
   logger: {
-    debug: vi.fn(),
-    info: vi.fn(),
+    debug: mockLoggerDebug,
+    info: mockLoggerInfo,
     warn: vi.fn(),
     error: vi.fn(),
   },
+  recordIncrement: mockRecordIncrement,
+  extractPublicApiCallerAttribution: mockExtractPublicApiCallerAttribution,
   traceException: mockTraceException,
   contextWithLangfuseProps: vi.fn(() => ({})),
   ClickHouseClientManager: {
@@ -58,20 +99,17 @@ vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
 }));
 
 vi.mock(
-  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  "@/src/features/public-api/server/structuredPublicApiErrorContract",
   () => ({
-    unstablePublicEvalsErrorContract: "unstable-public-evals",
-    createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
-    createUnstablePublicApiRequestValidationError: vi.fn(),
-    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+    structuredPublicApiErrorContract: "structured",
+    createStructuredPublicApiAuthError: mockCreateStructuredPublicApiAuthError,
+    createStructuredPublicApiRequestValidationError: vi.fn(),
+    sendStructuredPublicApiErrorResponse:
+      mockSendStructuredPublicApiErrorResponse,
   }),
 );
 
-vi.mock("@/src/env.mjs", () => ({
-  env: {
-    NODE_ENV: "test",
-  },
-}));
+vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
 
 vi.mock("@opentelemetry/api", () => ({
   context: {
@@ -86,11 +124,19 @@ vi.mock("@/src/utils/exceptions", () => ({
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
+  const deprecation = {
+    message: "This endpoint is deprecated. Use the replacement.",
+    replacement: "GET /api/public/v2/observations",
+    docsUrl:
+      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    sunsetAt: "2026-11-16",
+  };
   const validAuth = {
     validKey: true,
     scope: {
       projectId: "project-1",
       orgId: "org-1",
+      organizationCreatedAt: "2026-09-16T00:00:00.000Z",
       plan: "cloud:hobby",
       accessLevel: "project",
       rateLimitOverrides: [],
@@ -107,32 +153,42 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     mockRateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
     });
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "false";
   });
 
   async function callRoute(options?: {
-    useUnstableErrorContract?: boolean;
+    useStructuredErrorContract?: boolean;
     rateLimitUpgradePath?: {
       legacyEndpoint: string;
       replacementEndpoint: string;
       docsUrl: string;
     };
     mockResponseSerializationError?: boolean;
+    deprecation?: typeof deprecation;
+    method?: "GET" | "POST";
   }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
+      action: "project:read",
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
-      errorContract: options?.useUnstableErrorContract
-        ? "unstable-public-evals"
+      errorContract: options?.useStructuredErrorContract
+        ? "structured"
         : undefined,
       rateLimitUpgradePath: options?.rateLimitUpgradePath,
+      deprecation: options?.deprecation,
       fn: async () => ({ ok: true as const }),
     });
 
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-      method: "GET",
+      method: options?.method ?? "GET",
+      url: "/api/public/test",
       headers: {
         authorization: "Basic test",
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
       },
       query: {},
     });
@@ -151,6 +207,145 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     return res;
   }
 
+  it("rejects deprecated GET routes using cached organization data with actionable guidance", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(410);
+    expect(res._getJSONData()).toEqual({
+      error: "LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION",
+      message:
+        "GET /api/public/test is a legacy API that is not available to organizations created on or after September 16, 2026. Migrate this request to GET /api/public/v2/observations. See the migration documentation at https://langfuse.com/docs/api-and-data-platform/features/observations-api.",
+      requestedEndpoint: "GET /api/public/test",
+      replacementEndpoint: "GET /api/public/v2/observations",
+      documentationUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+      _deprecation: deprecation,
+    });
+    expect(mockRateLimitRequest).toHaveBeenCalledOnce();
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.public_api.legacy_get_rejected",
+      1,
+      {
+        sdkName: "python",
+        sdkVersion: "4.8.1",
+      },
+    );
+    expect(mockExtractPublicApiCallerAttribution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        "user-agent": "langfuse-python/4.8.1",
+        "x-langfuse-sdk-name": "langfuse-python",
+        "x-langfuse-sdk-version": "4.8.1",
+      }),
+    );
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      "Rejected legacy GET API request for organization created at or after cutoff",
+      {
+        orgId: "org-1",
+        projectId: "project-1",
+        apiRoute: "Test Route",
+        apiPath: "GET /api/public/test",
+        organizationCreatedAt: "2026-09-16T00:00:00.000Z",
+        cutoff: "2026-09-16T00:00:00.000Z",
+        userAgent: "langfuse-python/4.8.1",
+        sdkName: "python",
+        sdkVersion: "4.8.1",
+      },
+    );
+  });
+
+  it("keeps a caller-controlled user agent out of the rejection counter tags", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    const unrecognizedClient = `curl/${"x".repeat(251)}`;
+    mockExtractPublicApiCallerAttribution.mockReturnValueOnce({
+      userAgent: unrecognizedClient,
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(410);
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      "langfuse.public_api.legacy_get_rejected",
+      1,
+      {},
+    );
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      "Rejected legacy GET API request for organization created at or after cutoff",
+      expect.objectContaining({ userAgent: unrecognizedClient }),
+    );
+  });
+
+  it("keeps deprecated GET routes available when the cutoff is disabled", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+    expect(mockLoggerInfo).not.toHaveBeenCalled();
+  });
+
+  it("keeps deprecated GET routes available to older Cloud organizations", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      ...validAuth,
+      scope: {
+        ...validAuth.scope,
+        organizationCreatedAt: "2026-09-15T23:59:59.999Z",
+      },
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(200);
+    expect(res._getJSONData()).toEqual({
+      ok: true,
+      _deprecation: deprecation,
+    });
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
+  it("does not apply the organization cutoff outside Langfuse Cloud", async () => {
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
+  it("does not apply the organization cutoff to current GET routes", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
+  it("does not apply the organization cutoff to deprecated write routes", async () => {
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const res = await callRoute({ deprecation, method: "POST" });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
+  });
+
   it("returns 401 for invalid credentials", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
       validKey: false,
@@ -164,6 +359,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res._getJSONData()).toEqual({
       message:
         "Invalid credentials. Confirm that you've configured the correct host.",
+      error: "UnauthorizedError",
     });
   });
 
@@ -177,23 +373,39 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.statusCode).toBe(503);
     expect(res._getJSONData()).toEqual({
       message: "Service Unavailable",
+      error: "ServiceUnavailableError",
     });
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
   });
 
-  it("returns unstable auth errors and traces prisma auth failures", async () => {
+  it("returns structured authentication errors", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error: "Invalid credentials",
+    });
+
+    await callRoute({ useStructuredErrorContract: true });
+
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
+      statusCode: 401,
+      message: "Invalid credentials",
+    });
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns structured errors and traces prisma auth failures", async () => {
     const prismaLikeError = new Error("Can't reach database server");
     mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
     mockIsPrismaException.mockReturnValue(true);
 
-    await callRoute({ useUnstableErrorContract: true });
+    await callRoute({ useStructuredErrorContract: true });
 
     expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
-    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+    expect(mockCreateStructuredPublicApiAuthError).toHaveBeenCalledWith({
       statusCode: 503,
       message: "Service Unavailable",
     });
-    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+    expect(mockSendStructuredPublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the shared rate limit response for routes without upgrade guidance", async () => {
@@ -214,6 +426,25 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: undefined,
       upgradePath: undefined,
     });
+  });
+
+  it("rate limits deprecated GET routes before loading the organization", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+
+    mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+    mockEnv.LANGFUSE_API_ORGANIZATION_CUTOFF_ENABLED = "true";
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute({ deprecation });
+
+    expect(res.statusCode).toBe(429);
+    expect(mockFindOrganization).not.toHaveBeenCalled();
   });
 
   it("passes upgrade guidance to the shared rate limit response", async () => {
@@ -245,6 +476,44 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
   });
 
+  it("does not include request query or body data in debug logs", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Sensitive Route",
+      action: "project:read",
+      querySchema: z.object({ token: z.string() }),
+      bodySchema: z.object({
+        secretKey: z.string(),
+        extraHeaders: z.record(z.string(), z.string()),
+      }),
+      responseSchema: z.object({ ok: z.literal(true) }),
+      fn: async () => ({ ok: true as const }),
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "PUT",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {
+        token: "SENTINEL_QUERY_TOKEN",
+      },
+      body: {
+        secretKey: "SENTINEL_SECRET_KEY",
+        extraHeaders: {
+          Authorization: "Bearer SENTINEL_HEADER_TOKEN",
+        },
+      },
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(mockLoggerDebug).toHaveBeenCalledExactlyOnceWith(
+      "Request to route Sensitive Route projectId project-1",
+    );
+  });
+
   it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
 
@@ -255,5 +524,31 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       httpCode: 422,
       message: "Response payload is too large",
     });
+  });
+
+  it("sends a bodyless 204 when successStatusCode is 204", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    const handler = createAuthedProjectAPIRoute({
+      name: "Delete Route",
+      action: "prompts:CUD",
+      querySchema: z.object({}),
+      responseSchema: z.void(),
+      successStatusCode: 204,
+      fn: async () => undefined,
+    });
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "DELETE",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {},
+    });
+
+    await handler(req, res);
+
+    expect(res.statusCode).toBe(204);
+    expect(res._isEndCalled()).toBe(true);
+    expect(res._getData()).toBe("");
   });
 });

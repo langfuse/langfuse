@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import type { Session } from "next-auth";
 
@@ -21,8 +22,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
-import { MediaContentType } from "@/src/features/media/validation";
-
+import { MediaContentType } from "@/src/features/media/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const session: Session = {
@@ -55,14 +55,7 @@ const session: Session = {
         ],
       },
     ],
-    featureFlags: {
-      searchBar: false,
-      excludeClickhouseRead: false,
-      templateFlag: true,
-      v4BetaToggleVisible: false,
-      observationEvals: false,
-      experimentsV4Enabled: false,
-    },
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as never,
@@ -181,7 +174,7 @@ describe("Dataset item media references (public API read path)", () => {
     ]);
   });
 
-  it("resolves media references on embedded items in the dataset endpoint", async () => {
+  it("does not resolve media references on embedded items in the legacy dataset endpoint", async () => {
     const media = await createMediaRow();
     const { datasetName } = await createDatasetWithItem({
       image: media.referenceString,
@@ -194,13 +187,27 @@ describe("Dataset item media references (public API read path)", () => {
     const parsed = GetDatasetV1Response.parse(response);
 
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.items[0].mediaReferences).toEqual([
-      expect.objectContaining({
-        field: "input",
-        jsonPath: "$['image']",
-        media: expect.objectContaining({ mediaId: media.mediaId }),
-      }),
-    ]);
+    expect(parsed.items[0]).not.toHaveProperty("mediaReferences");
+  });
+
+  it("limits embedded items in the legacy dataset endpoint", async () => {
+    const dataset = await createDataset();
+    const result = await createManyDatasetItems({
+      projectId,
+      items: Array.from({ length: 1_001 }, (_, index) => ({
+        datasetId: dataset.id,
+        id: v4(),
+        input: { index },
+      })),
+    });
+    expect(result.success).toBe(true);
+
+    const response = await getDatasetByNameForApi({
+      projectId,
+      name: dataset.name,
+    });
+
+    expect(response.items).toHaveLength(1_000);
   });
 
   it("returns empty mediaReferences for items without media", async () => {

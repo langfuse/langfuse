@@ -1,13 +1,81 @@
 import {
   buildEventsFilterOptionColumnQuery,
   buildEventsFilterOptionsForColumnsQuery,
+  buildEventsExactFilterOptionsForColumnsQuery,
+  buildEventsMetadataValuesQuery,
   CTEQueryBuilder,
+  createFilterFromFilterState,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  eventsTableUiColumnDefinitions,
+  experimentPreAggCols,
   ExperimentsAggregationQueryBuilder,
 } from "@langfuse/shared/src/server";
+import {
+  eventsTableCachedInputCostSql,
+  eventsTableCachedInputTokensSql,
+  eventsTableCols,
+} from "@langfuse/shared";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
+  it.each([
+    ["cachedInputTokens", eventsTableCachedInputTokensSql, "Decimal64(3)"],
+    ["cachedInputCost", eventsTableCachedInputCostSql, "Decimal64(12)"],
+  ] as const)(
+    "maps %s filters to the cached-read metric expression",
+    (column, expression, clickhouseType) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "number",
+            operator: "=",
+            value: 0,
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain(expression);
+      expect(applied.query).toContain(clickhouseType);
+      expect(Object.values(applied.params)).toContain("0");
+    },
+  );
+
+  it.each([
+    ["cachedInputTokens", eventsTableCachedInputTokensSql],
+    ["cachedInputCost", eventsTableCachedInputCostSql],
+  ] as const)(
+    "keeps missing %s distinguishable from an explicit zero",
+    (column, expression) => {
+      expect(expression).toContain("mapExists");
+      expect(
+        eventsTableCols.find((definition) => definition.id === column),
+      ).toMatchObject({ nullable: true });
+
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "null",
+            operator: "is null",
+            value: "",
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      expect(filter.apply().query).toContain(`${expression} is null`);
+    },
+  );
+
   it("builds one events_core scan for multiple filter option columns", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",
@@ -42,6 +110,44 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
+  it("samples the base events scan and scales counts by the sample factor", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["name"],
+      limit: 1000,
+      sampleRows: 6_000_000,
+      includeApproxCount: true,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain("any(e._sample_factor) AS sample_factor");
+    expect(built.query).toContain(
+      "toUInt64(round(option.count * sample_factor)) AS count",
+    );
+  });
+
+  it("leaves the bulk facet scan exact without a sample size", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["name"],
+      limit: 1000,
+      includeApproxCount: true,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).not.toContain("SAMPLE");
+    expect(built.query).not.toContain("_sample_factor");
+    expect(built.query).not.toContain("sample_factor");
+    expect(built.query).toContain("option.count AS count");
+  });
+
   it("orders bulk filter option rows by per-column sort key and value", () => {
     const built = buildEventsFilterOptionsForColumnsQuery({
       projectId: "test-project",
@@ -54,17 +160,53 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     if (!built) throw new Error("expected query");
 
     expect(built.query).toContain(
-      "tuple('name', tupleElement(option, 1), tupleElement(option, 2), -toInt64(tupleElement(option, 2)))",
+      "tuple('name', tupleElement(option, 1), tupleElement(option, 2), -toInt64(tupleElement(option, 2)), '')",
     );
     expect(built.query).toContain(
-      "tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0))",
+      "tuple('traceTags', tupleElement(option, 1), tupleElement(option, 2), toInt64(0), '')",
     );
     expect(built.query).toContain(
-      "tuple('isRootObservation', tupleElement(option, 1), tupleElement(option, 2), if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)))",
+      "tuple('isRootObservation', tupleElement(option, 1), tupleElement(option, 2), if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0)), '')",
     );
     expect(built.query).toContain(
-      "ORDER BY column ASC, tupleElement(option, 4) ASC, tupleElement(option, 2) ASC",
+      "ORDER BY column ASC, option.sortKey ASC, option.value ASC",
     );
+  });
+
+  it("scans e.release for the release filter option column", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["release"],
+      limit: 1000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("e.release");
+    expect(built.query).toContain("tuple('release'");
+    expect(built.query).toContain("AS displayValue");
+  });
+
+  it("labels experimentId options with experiment_name via displayValue", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["experimentId"],
+      limit: 1000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain(
+      "tuple(toString(ifNull(e.experiment_id, '')), toString(ifNull(e.experiment_name, '')))",
+    );
+    expect(built.query).toContain(
+      "tuple('experimentId', tupleElement(tupleElement(option, 1), 1), tupleElement(option, 2), -toInt64(tupleElement(option, 2)), tupleElement(tupleElement(option, 1), 2))",
+    );
+    expect(built.query).toContain("option.displayValue AS displayValue");
   });
 
   it("applies events filters to the single base scan", () => {
@@ -96,13 +238,205 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.params).not.toHaveProperty("optionReserved");
   });
 
-  it("applies the scored traces scope without caller-provided raw SQL", () => {
+  it("translates whole metadata null filters to the physical events columns", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "metadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("empty(e.metadata_names)");
+    expect(built.query).not.toContain("e.metadata is null");
+    expect(built.query).toContain("FROM events_core e");
+  });
+
+  it("translates experiment metadata null filters through its table mapping", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "metadata",
+          operator: "is null",
+          value: "",
+          type: "null",
+        },
+      ],
+      experimentPreAggCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+
+    expect(filter.apply()).toEqual({
+      query: "empty(e.experiment_metadata_names)",
+      params: {},
+    });
+  });
+
+  it("reuses row-selection score dependencies and full-table routing", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          // `contains` is truncation-unsafe (a match can sit past char 200),
+          // so it must force full-table routing — which is what this test
+          // asserts. A short `=`/`starts with` value stays on events_core.
+          column: "metadata",
+          operator: "contains",
+          key: "region",
+          value: "eu",
+          type: "stringObject",
+        },
+        {
+          column: "scores_avg",
+          operator: ">",
+          key: "quality",
+          value: 0.5,
+          type: "numberObject",
+        },
+      ],
+      columns: ["name"],
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("LEFT JOIN scores_agg AS s");
+    expect(built.query).toContain("LEFT JOIN trace_scores_agg AS ts");
+    expect(built.query).toContain("FROM events_full e");
+    expect(Object.values(built.params)).toContain("quality");
+  });
+
+  it("combines scores-view event facets into one exact single-scan query", () => {
+    const built = buildEventsExactFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [
+        {
+          column: "startTime",
+          operator: ">=",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+          type: "datetime",
+        },
+      ],
+      columns: ["traceTags", "traceName", "userId"],
+      limit: 1000,
+      scope: {
+        type: "scoredTraces",
+        fromTime: {
+          operator: ">=",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        toTime: {
+          operator: "<=",
+          value: new Date("2026-01-01T00:30:00.000Z"),
+        },
+      },
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    // One scan of events_core, one scope semi-join, no UNION ALL / GROUP BY /
+    // approx sketch: facets are exact aggregates fanned out with arrayJoin.
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
+    expect(built.query).not.toContain("UNION ALL");
+    expect(built.query).not.toContain("GROUP BY value");
+    expect(built.query).not.toContain("approx_top_k");
+    expect(built.query.match(/FROM scores WHERE/g)).toHaveLength(1);
+    expect(built.query).toContain("sumMapIf(");
+    expect(built.query).toContain("sumMap(");
+    expect(built.query).toContain("arrayJoin(arrayConcat(");
+    expect(built.query).toContain("tuple('traceTags'");
+    expect(built.query).toContain("tuple('traceName'");
+    expect(built.query).toContain("tuple('userId'");
+    expect(built.query).not.toContain("FINAL");
+    expect(built.query).not.toMatch(/\bJOIN\b/i);
+    expect(built.query).toContain(
+      "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
+    );
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      optionLimit: 1000,
+      scoredTracesFromTime: "2026-01-01 00:00:00.000",
+      scoredTracesToTime: "2026-01-01 00:30:00.000",
+    });
+  });
+
+  it("bounds the scored traces scope by the view's both-sided window", () => {
+    const fromTime = new Date("2026-01-01T00:00:00.000Z");
+    const toTime = new Date("2026-01-01T00:30:00.000Z");
     const built = buildEventsFilterOptionColumnQuery({
       projectId: "test-project",
       filter: [],
       column: "traceName",
       limit: 100,
-      scope: "scoredTraces",
+      scope: {
+        type: "scoredTraces",
+        fromTime: { operator: ">=", value: fromTime },
+        toTime: { operator: "<=", value: toTime },
+      },
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain(
+      "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String} AND timestamp >= {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp <= {scoredTracesToTime: DateTime64(3, 'UTC')})",
+    );
+    expect(built.query).toContain(
+      "COALESCE(nullIf(e.trace_name, ''), if((e.parent_span_id = '' OR e.is_app_root = true), nullIf(e.name, ''), NULL))",
+    );
+    expect(built.query).toContain("GROUP BY value");
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      limit: 100,
+      scoredTracesFromTime: "2026-01-01 00:00:00.000",
+      scoredTracesToTime: "2026-01-01 00:30:00.000",
+    });
+  });
+
+  it("preserves strict scores timestamp operators", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "traceName",
+      limit: 100,
+      scope: {
+        type: "scoredTraces",
+        fromTime: {
+          operator: ">",
+          value: new Date("2026-01-01T00:00:00.000Z"),
+        },
+        toTime: { operator: "<", value: new Date("2026-01-01T00:30:00.000Z") },
+      },
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain(
+      "AND timestamp > {scoredTracesFromTime: DateTime64(3, 'UTC')} AND timestamp < {scoredTracesToTime: DateTime64(3, 'UTC')}",
+    );
+  });
+
+  it("omits scores timestamp bounds the view did not supply", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "traceName",
+      limit: 100,
+      scope: { type: "scoredTraces" },
     });
 
     expect(built).not.toBeNull();
@@ -111,11 +445,8 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     expect(built.query).toContain(
       "e.trace_id IN (SELECT DISTINCT trace_id FROM scores WHERE project_id = {projectId: String})",
     );
-    expect(built.query).toContain("GROUP BY value");
-    expect(built.params).toMatchObject({
-      projectId: "test-project",
-      limit: 100,
-    });
+    expect(built.query).not.toContain("scoredTracesFromTime");
+    expect(built.query).not.toContain("scoredTracesToTime");
   });
 
   it("builds a direct grouped query for one scalar filter option column", () => {
@@ -154,6 +485,220 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
       limit: 10,
       offset: 20,
     });
+  });
+
+  it("samples the grouped column scan and scales its counts", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "level",
+      limit: 10,
+      sampleRows: 6_000_000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain(
+      "toUInt64(round(count() * any(e._sample_factor))) AS count",
+    );
+  });
+
+  it("leaves the grouped column scan exact without a sample size", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "level",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).not.toContain("SAMPLE");
+    expect(built.query).not.toContain("_sample_factor");
+    expect(built.query).toContain("count() AS count");
+  });
+
+  it("builds release filter options from the observation release column", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "release",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'release' AS column");
+    expect(built.query).toContain("toString(e.release) AS value");
+    expect(built.query).toContain("e.release IS NOT NULL");
+  });
+
+  it("builds API key filter options from ingestion attribution", () => {
+    const built = buildEventsFilterOptionColumnQuery({
+      projectId: "test-project",
+      filter: [],
+      column: "ingestionApiKey",
+      limit: 10,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("'ingestionApiKey' AS column");
+    expect(built.query).toContain("toString(e.ingestion_api_key) AS value");
+    expect(built.query).toContain("length(e.ingestion_api_key) > 0");
+    expect(built.query).not.toContain("FINAL");
+  });
+
+  it.each([
+    // The SDK attribution columns default to the 'unknown' placeholder
+    // (clickhouse migration 0042), so their facets must exclude it;
+    // events_core.source has no such placeholder (plain '' default).
+    ["ingestionSdkName", "e.ingestion_sdk_name", true],
+    ["ingestionSdkVersion", "e.ingestion_sdk_version", true],
+    ["ingestionSource", "e.source", false],
+  ] as const)(
+    "builds %s filter options from ingestion attribution",
+    (column, expression, excludesUnknownPlaceholder) => {
+      const built = buildEventsFilterOptionColumnQuery({
+        projectId: "test-project",
+        filter: [],
+        column,
+        limit: 10,
+      });
+
+      expect(built).not.toBeNull();
+      if (!built) throw new Error("expected query");
+
+      expect(built.query).toContain(`'${column}' AS column`);
+      expect(built.query).toContain(`toString(${expression}) AS value`);
+      expect(built.query).toContain(`length(${expression}) > 0`);
+      if (excludesUnknownPlaceholder) {
+        expect(built.query).toContain(`${expression} != 'unknown'`);
+      } else {
+        expect(built.query).not.toContain("!= 'unknown'");
+      }
+      expect(built.query).not.toContain("FINAL");
+    },
+  );
+
+  it.each(["pk-lf-test", ""])(
+    "maps API key value %j to the ingestion attribution column",
+    (apiKey) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column: "ingestionApiKey",
+            type: "stringOptions",
+            operator: "any of",
+            value: [apiKey],
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain('e."ingestion_api_key" IN');
+      expect(Object.values(applied.params)).toContainEqual([apiKey]);
+    },
+  );
+
+  it.each([
+    ["ingestionSdkName", 'e."ingestion_sdk_name" IN', "python"],
+    ["ingestionSdkVersion", 'e."ingestion_sdk_version" IN', "4.7.1"],
+    ["ingestionSource", 'e."source" IN', "otel"],
+  ] as const)(
+    "maps %s filters to the ingestion attribution column",
+    (column, expectedClause, value) => {
+      const [filter] = createFilterFromFilterState(
+        [
+          {
+            column,
+            type: "stringOptions",
+            operator: "any of",
+            value: [value],
+          },
+        ],
+        eventsTableUiColumnDefinitions,
+        eventsTableCols,
+      );
+
+      expect(filter).toBeDefined();
+      if (!filter) throw new Error("expected filter");
+      const applied = filter.apply();
+      expect(applied.query).toContain(expectedClause);
+      expect(Object.values(applied.params)).toContainEqual([value]);
+    },
+  );
+
+  it("maps release filters to the observation release column", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["181"],
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    const applied = filter.apply();
+    expect(applied.query).toContain("e.release IN");
+    expect(Object.values(applied.params)).toContainEqual(["181"]);
+  });
+
+  it("treats an empty observation release as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "release",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e.release = '' OR e.release IS NULL)`,
+    );
+  });
+
+  it("treats an empty experiment ID as null", () => {
+    const [filter] = createFilterFromFilterState(
+      [
+        {
+          column: "experimentId",
+          type: "null",
+          operator: "is null",
+          value: "",
+        },
+      ],
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    );
+
+    expect(filter).toBeDefined();
+    if (!filter) throw new Error("expected filter");
+    expect(filter.apply().query).toContain(
+      `(e."experiment_id" = '' OR e."experiment_id" IS NULL)`,
+    );
   });
 
   it("builds a direct grouped query for one boolean filter option column", () => {
@@ -203,6 +748,29 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
     });
   });
 
+  it("folds distinct metadata key names into the bulk facet scan", () => {
+    const built = buildEventsFilterOptionsForColumnsQuery({
+      projectId: "test-project",
+      filter: [],
+      columns: ["metadataKeys"],
+      limit: 100,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query.match(/FROM events_core e/g)).toHaveLength(1);
+    expect(built.query).toContain("e.project_id = {projectId: String}");
+    expect(built.query).toContain("arrayDistinct(e.metadata_names)");
+    expect(built.query).toContain("approx_top_kArray");
+    expect(built.query).toContain("tuple('metadataKeys'");
+    expect(built.query).not.toMatch(/\bJOIN\b/i);
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      optionLimit: 100,
+    });
+  });
+
   it("rejects runtime values outside the filter option column registry", () => {
     expect(() =>
       buildEventsFilterOptionsForColumnsQuery({
@@ -221,6 +789,64 @@ describe("buildEventsFilterOptionsForColumnsQuery", () => {
         limit: 1000,
       }),
     ).toThrow("Unsupported events filter option column");
+  });
+});
+
+describe("buildEventsMetadataValuesQuery", () => {
+  it("aggregates values for a specific metadata key", () => {
+    const built = buildEventsMetadataValuesQuery({
+      projectId: "test-project",
+      filter: [],
+      key: "region",
+      limit: 100,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e");
+    expect(built.query).toContain(
+      "e.metadata_values[indexOf(e.metadata_names, {metadataKey: String})]",
+    );
+    expect(built.query).toContain(
+      "has(e.metadata_names, {metadataKey: String})",
+    );
+    expect(built.query).toContain("GROUP BY value");
+    expect(built.query).toContain("ORDER BY count() DESC, value ASC");
+    expect(built.params).toMatchObject({
+      projectId: "test-project",
+      metadataKey: "region",
+      limit: 100,
+    });
+  });
+
+  it("samples the value scan and scales its counts", () => {
+    const built = buildEventsMetadataValuesQuery({
+      projectId: "test-project",
+      filter: [],
+      key: "region",
+      limit: 100,
+      sampleRows: 6_000_000,
+    });
+
+    expect(built).not.toBeNull();
+    if (!built) throw new Error("expected query");
+
+    expect(built.query).toContain("FROM events_core e SAMPLE 6000000");
+    expect(built.query).toContain(
+      "toUInt64(round(count() * any(e._sample_factor))) AS count",
+    );
+  });
+
+  it("returns null for an empty key", () => {
+    expect(
+      buildEventsMetadataValuesQuery({
+        projectId: "test-project",
+        filter: [],
+        key: "",
+        limit: 100,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -468,5 +1094,18 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       projectId: "test-project",
       startTimeFrom: "2026-01-01 00:00:00.000",
     });
+  });
+
+  it("counts distinct items that carry an ERROR event", () => {
+    const { query } = new ExperimentsAggregationQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("base")
+      .whereRaw("e.experiment_id != ''")
+      .buildWithParams();
+
+    expect(query).toContain(
+      "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
+    );
   });
 });

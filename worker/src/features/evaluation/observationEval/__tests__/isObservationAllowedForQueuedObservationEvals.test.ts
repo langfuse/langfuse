@@ -23,18 +23,21 @@ describe("isObservationAllowedForQueuedObservationEvals", () => {
     ).toBe(true);
   });
 
-  it("blocks LLM-as-a-judge observations to prevent eval-on-eval recursion", () => {
-    // LLM-as-a-judge executions publish their telemetry through the OTel
-    // ingestion pipeline; scheduling evals on those observations would spawn
-    // evals of evals indefinitely.
-    expect(
-      isObservationAllowedForQueuedObservationEvals({
-        environment: "langfuse-llm-as-a-judge",
-        span_id: ROOT_SPAN_ID,
-        experiment_item_root_span_id: ROOT_SPAN_ID,
-      }),
-    ).toBe(false);
-  });
+  it.each(["langfuse-llm-as-a-judge", "llm-as-a-judge"])(
+    "blocks %s observations to prevent eval-on-eval recursion",
+    (environment) => {
+      // LLM-as-a-judge executions publish their telemetry through the OTel
+      // ingestion pipeline; scheduling evals on those observations would spawn
+      // evals of evals indefinitely.
+      expect(
+        isObservationAllowedForQueuedObservationEvals({
+          environment,
+          span_id: ROOT_SPAN_ID,
+          experiment_item_root_span_id: ROOT_SPAN_ID,
+        }),
+      ).toBe(false);
+    },
+  );
 
   it("blocks other internal langfuse environments", () => {
     for (const environment of [

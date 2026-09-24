@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   makeAPICall,
@@ -8,12 +9,14 @@ import {
   GetModelV1Response,
   GetModelsV1Response,
   PostModelsV1Response,
+  PutModelV1Response,
 } from "@/src/features/public-api/types/models";
 
 import {
   validateRegexPattern,
   validatePricingTiers,
   validatePricingMethod,
+  PricingTierInputSchema,
   type PricingTierInput,
 } from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
@@ -101,6 +104,64 @@ describe("validation methods", () => {
 
       const result = validatePricingTiers(tiers);
       expect(result.valid).toBe(true);
+    });
+
+    it("accepts attribute membership conditions", () => {
+      const result = PricingTierInputSchema.safeParse({
+        name: "Fast mode",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            source: "model_parameters",
+            key: "service_tier",
+            operator: "in",
+            values: ["fast", "priority"],
+          },
+        ],
+        prices: { input: 6.0, output: 30.0 },
+      });
+
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects empty attribute membership conditions", () => {
+      const result = PricingTierInputSchema.safeParse({
+        name: "Fast mode",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            source: "model_parameters",
+            key: "service_tier",
+            operator: "in",
+            values: [],
+          },
+        ],
+        prices: { input: 6.0, output: 30.0 },
+      });
+
+      expect(result.success).toBe(false);
+    });
+
+    it("rejects generic filter-shaped pricing conditions", () => {
+      const result = PricingTierInputSchema.safeParse({
+        name: "Priority",
+        isDefault: false,
+        priority: 1,
+        conditions: [
+          {
+            column: "model_parameters",
+            type: "stringObject",
+            key: "service_tier",
+            operator: "=",
+            value: "priority",
+          },
+        ],
+        prices: { input: 6.0, output: 30.0 },
+      });
+
+      expect(result.success).toBe(false);
     });
 
     it("should reject empty tier array", () => {
@@ -266,6 +327,40 @@ describe("validation methods", () => {
         },
       ];
 
+      const result = validatePricingTiers(tiers);
+      expect(result.valid).toBe(false);
+      expect(getValidationError(result)).toContain("names must be unique");
+    });
+
+    it("should reject names that differ only by whitespace, as the UI does", () => {
+      // The schema is what normalises: parsing trims, so the validator that
+      // runs after it cannot see "Standard " as a distinct name. Without that,
+      // a trailing space saved a second tier rendering an identical label.
+      const tiers = z.array(PricingTierInputSchema).parse([
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 3.0 },
+        },
+        {
+          name: "Standard ",
+          isDefault: false,
+          priority: 1,
+          conditions: [
+            {
+              usageDetailPattern: "^input",
+              operator: "gt",
+              value: 100,
+              caseSensitive: false,
+            },
+          ],
+          prices: { input: 5.0 },
+        },
+      ]);
+
+      expect(tiers[1].name).toBe("Standard");
       const result = validatePricingTiers(tiers);
       expect(result.valid).toBe(false);
       expect(getValidationError(result)).toContain("names must be unique");
@@ -811,6 +906,123 @@ describe("/models API Endpoints - Pricing Tiers", () => {
       expect(response.body.pricingTiers).toHaveLength(2);
       expect(response.body.inputPrice).toBe(3.0); // From default tier
       expect(response.body.outputPrice).toBe(15.0); // From default tier
+    });
+  });
+
+  describe("PUT /models/{modelId} - with pricing tiers", () => {
+    it("should atomically replace all pricing tiers and prices", async () => {
+      const uniqueId = randomUUID();
+      const { auth } = await createOrgProjectAndApiKey();
+      const modelName = `aaa-test-model-${uniqueId}`;
+
+      const createdModel = await makeZodVerifiedAPICall(
+        PostModelsV1Response,
+        "POST",
+        "/api/public/models",
+        {
+          modelName,
+          matchPattern: `^${modelName}$`,
+          unit: "TOKENS",
+          pricingTiers: [
+            {
+              name: "Standard",
+              isDefault: true,
+              priority: 0,
+              conditions: [],
+              prices: { input: 3.0, output: 15.0, cache_read: 0.3 },
+            },
+            {
+              name: "Large Context",
+              isDefault: false,
+              priority: 1,
+              conditions: [
+                {
+                  usageDetailPattern: "^input",
+                  operator: "gt",
+                  value: 200000,
+                  caseSensitive: false,
+                },
+              ],
+              prices: { input: 6.0, output: 18.0, cache_read: 0.6 },
+            },
+          ],
+        },
+        auth,
+      );
+
+      const originalTiers = await prisma.pricingTier.findMany({
+        where: { modelId: createdModel.body.id },
+        include: { prices: true },
+      });
+      const originalTierIds = originalTiers.map(({ id }) => id);
+      const originalPriceIds = originalTiers.flatMap(({ prices }) =>
+        prices.map(({ id }) => id),
+      );
+
+      const updatedModel = await makeZodVerifiedAPICall(
+        PutModelV1Response,
+        "PUT",
+        `/api/public/models/${createdModel.body.id}`,
+        {
+          modelName,
+          matchPattern: `(?i)^${modelName}$`,
+          unit: "TOKENS",
+          pricingTiers: [
+            {
+              name: "Standard v2",
+              isDefault: true,
+              priority: 0,
+              conditions: [],
+              prices: { input: 4.0, output: 16.0 },
+            },
+            {
+              name: "Batch",
+              isDefault: false,
+              priority: 2,
+              conditions: [
+                {
+                  usageDetailPattern: "^input",
+                  operator: "gte",
+                  value: 100000,
+                  caseSensitive: false,
+                },
+              ],
+              prices: { input: 2.0, output: 8.0 },
+            },
+          ],
+        },
+        auth,
+      );
+
+      expect(updatedModel.body.pricingTiers).toEqual([
+        expect.objectContaining({
+          name: "Standard v2",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: { input: 4.0, output: 16.0 },
+        }),
+        expect.objectContaining({
+          name: "Batch",
+          isDefault: false,
+          priority: 2,
+          prices: { input: 2.0, output: 8.0 },
+        }),
+      ]);
+
+      const replacementTiers = await prisma.pricingTier.findMany({
+        where: { modelId: createdModel.body.id },
+        include: { prices: true },
+      });
+      expect(replacementTiers).toHaveLength(2);
+      expect(
+        replacementTiers.some(({ id }) => originalTierIds.includes(id)),
+      ).toBe(false);
+      expect(
+        replacementTiers.some(({ prices }) =>
+          prices.some(({ id }) => originalPriceIds.includes(id)),
+        ),
+      ).toBe(false);
     });
   });
 

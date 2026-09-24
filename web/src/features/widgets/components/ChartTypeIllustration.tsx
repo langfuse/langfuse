@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { cn } from "@/src/utils/tailwind";

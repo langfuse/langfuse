@@ -5,7 +5,7 @@ import {
   VertexAIConfigSchema,
   type LLMConnectionConfig,
 } from "../../../interfaces/customLLMProviderConfigSchemas";
-import { LLMCompletionError } from "../errors";
+import { LLMValidationError } from "../errors";
 import { LLMAdapter } from "../types";
 import { translateAzureBaseURL } from "./providers/azure";
 import { assertValidBedrockRegion } from "./providers/bedrock";
@@ -39,12 +39,15 @@ export function resolveAiSdkModelConfig(params: {
   try {
     if (
       credentialSource === "langfuse" &&
-      model.adapter !== LLMAdapter.Bedrock
+      model.adapter !== LLMAdapter.Bedrock &&
+      model.adapter !== LLMAdapter.Anthropic &&
+      model.adapter !== LLMAdapter.OpenAI &&
+      model.adapter !== LLMAdapter.VertexAI
     ) {
-      throw new LLMCompletionError({
-        message: "Langfuse credentials are only supported for Amazon Bedrock",
-        responseStatusCode: 400,
-        isRetryable: false,
+      throw new LLMValidationError({
+        code: "invalid-connection",
+        message:
+          "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, OpenAI, and Vertex AI",
       });
     }
 
@@ -96,21 +99,27 @@ export function resolveAiSdkModelConfig(params: {
       case LLMAdapter.GoogleAIStudio:
         return { adapter: model.adapter };
 
+      case LLMAdapter.TypeSafe:
+        throw new LLMValidationError({
+          code: "invalid-request",
+          message:
+            "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+        });
+
       default: {
         const _exhaustiveCheck: never = model.adapter;
         throw new Error(`Unsupported LLM adapter: ${_exhaustiveCheck}`);
       }
     }
   } catch (cause) {
-    if (cause instanceof LLMCompletionError) throw cause;
+    if (LLMValidationError.isInstance(cause)) throw cause;
 
-    throw new LLMCompletionError({
+    throw new LLMValidationError({
+      code: "invalid-connection",
       message:
         cause instanceof Error
           ? cause.message
           : `Invalid ${model.adapter} connection configuration`,
-      responseStatusCode: 400,
-      isRetryable: false,
       cause,
     });
   }

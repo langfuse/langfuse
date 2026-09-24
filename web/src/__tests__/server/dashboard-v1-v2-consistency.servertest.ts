@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { v4 } from "uuid";
 import { executeQuery } from "@langfuse/shared/query/server";
 import { type QueryType } from "@langfuse/shared/query";
@@ -122,15 +124,15 @@ function buildMatchingEvents(
           input: t.input ?? null,
           output: t.output ?? null,
           metadata: t.metadata ?? {},
-          start_time: t.timestamp * 1000,
+          start_time: t.timestamp,
           end_time: null,
           cost_details: {},
           provided_cost_details: {},
           usage_details: {},
           provided_usage_details: {},
-          created_at: t.created_at * 1000,
-          updated_at: t.updated_at * 1000,
-          event_ts: t.event_ts * 1000,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+          event_ts: t.event_ts,
         }),
       ),
     );
@@ -176,14 +178,12 @@ function buildMatchingEvents(
           tool_definitions: o.tool_definitions ?? {},
           tool_calls: o.tool_calls ?? [],
           tool_call_names: o.tool_call_names ?? [],
-          start_time: o.start_time * 1000,
-          end_time: o.end_time ? o.end_time * 1000 : null,
-          completion_start_time: o.completion_start_time
-            ? o.completion_start_time * 1000
-            : null,
-          created_at: o.created_at * 1000,
-          updated_at: o.updated_at * 1000,
-          event_ts: o.event_ts * 1000,
+          start_time: o.start_time,
+          end_time: o.end_time ?? null,
+          completion_start_time: o.completion_start_time ?? null,
+          created_at: o.created_at,
+          updated_at: o.updated_at,
+          event_ts: o.event_ts,
         }),
       ),
     );
@@ -512,14 +512,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             ],
           },
         ],
-        featureFlags: {
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-          searchBar: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: true,
       },
       environment: {} as any,
@@ -1497,9 +1490,9 @@ describe("dashboard v1 vs v2 consistency", () => {
     });
   });
 
-  // ─── v2 empty trace_name fallback to root event name ─────────────────
+  // ─── v2 empty trace_name fallback to semantic-root names ────────────
 
-  maybe("v2 empty trace_name fallback to root event name", () => {
+  maybe("v2 empty trace_name fallback to semantic-root names", () => {
     let fallbackProjectId: string;
     let fallbackFromTimestamp: string;
     let fallbackToTimestamp: string;
@@ -1515,18 +1508,19 @@ describe("dashboard v1 vs v2 consistency", () => {
       // events_core uses DateTime64(6) — timestamps in microseconds
       const baseTimeUs = baseTime * 1000;
 
-      // ── Trace 1: empty trace_name, root event name = "FallbackTraceName" ──
+      // ── Trace 1: empty trace_name, app-root fallback ──
       emptyTraceNameTraceId = v4();
       const childObsId = v4();
 
       const rootEventEmpty = createEvent(
         asEventInsert({
-          id: `t-${emptyTraceNameTraceId}`,
-          span_id: `t-${emptyTraceNameTraceId}`,
+          id: `app-${emptyTraceNameTraceId}`,
+          span_id: `app-${emptyTraceNameTraceId}`,
           trace_id: emptyTraceNameTraceId,
           project_id: fallbackProjectId,
-          parent_span_id: "",
-          name: "FallbackTraceName",
+          parent_span_id: "external-parent",
+          is_app_root: true,
+          name: "AppRootFallbackName",
           type: "SPAN",
           environment: "default",
           trace_name: "",
@@ -1552,13 +1546,27 @@ describe("dashboard v1 vs v2 consistency", () => {
         }),
       );
 
+      // Production ingestion also materializes one parentless trace event.
+      // Scores join this canonical row; including the app root as well would
+      // duplicate a score before aggregation.
+      const syntheticTraceEventEmpty = createEvent({
+        id: `t-${emptyTraceNameTraceId}`,
+        span_id: `t-${emptyTraceNameTraceId}`,
+        trace_id: emptyTraceNameTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: "",
+        name: "AppRootFallbackName",
+        trace_name: "AppRootFallbackName",
+        start_time: baseTimeUs,
+      });
+
       const childEventEmpty = createEvent(
         asEventInsert({
           id: childObsId,
           span_id: childObsId,
           trace_id: emptyTraceNameTraceId,
           project_id: fallbackProjectId,
-          parent_span_id: `t-${emptyTraceNameTraceId}`,
+          parent_span_id: `app-${emptyTraceNameTraceId}`,
           name: "ChildObservationName",
           type: "GENERATION",
           environment: "default",
@@ -1591,7 +1599,24 @@ describe("dashboard v1 vs v2 consistency", () => {
         }),
       );
 
-      // ── Trace 2: populated trace_name (happy path) ──
+      // ── Trace 2: empty trace_name, physical-root fallback ──
+      const physicalRootTraceId = v4();
+      const physicalRootTimeUs = baseTimeUs + 750_000;
+      const physicalRootEvent = createEvent({
+        trace_id: physicalRootTraceId,
+        project_id: fallbackProjectId,
+        parent_span_id: "",
+        is_app_root: false,
+        name: "PhysicalRootFallbackName",
+        type: "SPAN",
+        trace_name: "",
+        start_time: physicalRootTimeUs,
+        created_at: physicalRootTimeUs,
+        updated_at: physicalRootTimeUs,
+        event_ts: physicalRootTimeUs,
+      });
+
+      // ── Trace 3: populated trace_name (happy path) ──
       populatedTraceNameTraceId = v4();
       const childObsId2 = v4();
 
@@ -1667,7 +1692,7 @@ describe("dashboard v1 vs v2 consistency", () => {
         }),
       );
 
-      // ── Scores for both traces (for scores view test) ──
+      // ── Scores for all traces (for scores view test) ──
       const scoreTs = baseTime + 200;
       const scoreEmpty = createTraceScore({
         project_id: fallbackProjectId,
@@ -1697,15 +1722,27 @@ describe("dashboard v1 vs v2 consistency", () => {
         updated_at: scoreTs + 100,
         event_ts: scoreTs + 100,
       });
+      const scorePhysicalRoot = createTraceScore({
+        project_id: fallbackProjectId,
+        trace_id: physicalRootTraceId,
+        name: "fb-score",
+        value: 0.7,
+        timestamp: scoreTs + 50,
+        created_at: scoreTs + 50,
+        updated_at: scoreTs + 50,
+        event_ts: scoreTs + 50,
+      });
 
       await Promise.all([
         createEventsCh([
           rootEventEmpty,
+          syntheticTraceEventEmpty,
           childEventEmpty,
+          physicalRootEvent,
           rootEventPopulated,
           childEventPopulated,
         ]),
-        createScoresCh([scoreEmpty, scorePopulated]),
+        createScoresCh([scoreEmpty, scorePhysicalRoot, scorePopulated]),
       ]);
 
       fallbackFromTimestamp = new Date(
@@ -1737,7 +1774,9 @@ describe("dashboard v1 vs v2 consistency", () => {
         result.map((r) => [r.name as string, Number(r.count_count)]),
       );
       // Trace with empty trace_name should resolve via root event's name
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      expect(nameMap.get("AppRootFallbackName")).toBe(1);
+      // A physical root remains a valid semantic-root fallback
+      expect(nameMap.get("PhysicalRootFallbackName")).toBe(1);
       // Trace with populated trace_name should resolve normally
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
       // Child observation name should never appear as a trace name
@@ -1763,7 +1802,8 @@ describe("dashboard v1 vs v2 consistency", () => {
       );
 
       const allNames = allResult.map((r) => r.traceName);
-      expect(allNames).toContain("FallbackTraceName");
+      expect(allNames).toContain("AppRootFallbackName");
+      expect(allNames).toContain("PhysicalRootFallbackName");
       expect(allNames).toContain("PopulatedTraceName");
       // Child observation name must never leak as traceName
       expect(allNames).not.toContain("ChildObservationName");
@@ -1799,17 +1839,18 @@ describe("dashboard v1 vs v2 consistency", () => {
           Number(r.uniq_traceId),
         ]),
       );
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
+      expect(nameMap.get("AppRootFallbackName")).toBe(1);
+      expect(nameMap.get("PhysicalRootFallbackName")).toBe(1);
       expect(nameMap.get("PopulatedTraceName")).toBe(1);
     });
 
-    it("scores view: traceName resolves via COALESCE on joined root events", async () => {
+    it("scores view: joins only the parentless trace event when an app root coexists", async () => {
       const result = await executeQuery(
         fallbackProjectId,
         {
           view: "scores-numeric",
           dimensions: [{ field: "traceName" }],
-          metrics: [{ measure: "count", aggregation: "count" }],
+          metrics: [{ measure: "value", aggregation: "sum" }],
           timeDimension: null,
           filters: [
             {
@@ -1828,13 +1869,13 @@ describe("dashboard v1 vs v2 consistency", () => {
       );
 
       const nameMap = new Map(
-        result.map((r) => [r.traceName as string, Number(r.count_count)]),
+        result.map((r) => [r.traceName as string, Number(r.sum_value)]),
       );
-      // Score on trace with empty trace_name should resolve via root event name
-      expect(nameMap.get("FallbackTraceName")).toBe(1);
-      // Score on trace with populated trace_name should resolve normally
-      expect(nameMap.get("PopulatedTraceName")).toBe(1);
-      // Child observation name should never appear
+      // Summing makes duplicate JOIN matches observable: the app-root score
+      // must remain 0.8 rather than being counted once per semantic root.
+      expect(nameMap.get("AppRootFallbackName")).toBeCloseTo(0.8);
+      expect(nameMap.get("PhysicalRootFallbackName")).toBeCloseTo(0.7);
+      expect(nameMap.get("PopulatedTraceName")).toBeCloseTo(0.9);
       expect(nameMap.has("ChildObservationName")).toBe(false);
     });
 

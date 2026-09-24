@@ -7,22 +7,55 @@ import {
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { paginationZod, type PrismaClient, Role } from "@langfuse/shared";
+import {
+  paginationZod,
+  type Prisma,
+  type PrismaClient,
+  Role,
+} from "@langfuse/shared";
 import { formatAuthProviderName } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { env } from "@/src/env.mjs";
+import {
+  EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES,
+  getOrganizationFeaturePreviewStatesByUserId,
+  getUserFeaturePreviewManagementCapabilities,
+} from "@/src/features/feature-flags/server";
 
 const orgLevelMemberQuery = z.object({
   orgId: z.string(),
   searchQuery: z.string().optional(),
+  roles: z.array(z.enum(Role)).optional(),
   ...paginationZod,
 });
 
 const projectLevelMemberQuery = z.object({
   projectId: z.string(),
   searchQuery: z.string().optional(),
+  roles: z.array(z.enum(Role)).optional(),
   ...paginationZod,
 });
+
+/**
+ * In a project, a member's effective role is their project role if one is
+ * set, otherwise their organization role.
+ */
+function roleFilter(
+  roles: Role[],
+  projectId: string | undefined,
+): Prisma.OrganizationMembershipWhereInput {
+  if (!projectId) return { role: { in: roles } };
+  return {
+    OR: [
+      { ProjectMemberships: { some: { projectId, role: { in: roles } } } },
+      {
+        role: { in: roles },
+        ProjectMemberships: { none: { projectId } },
+      },
+    ],
+  };
+}
 
 async function getMembers(
   prisma: PrismaClient,
@@ -31,50 +64,64 @@ async function getMembers(
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
   showAllOrgMembers = true,
 ) {
-  // Build common where clause to ensure consistency between findMany and count queries
-  const whereClause = {
-    orgId: query.orgId,
-    // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
-    ...("projectId" in query && !showAllOrgMembers
-      ? {
-          // either org level role or project level role
-          OR: [
-            {
+  if (!query.orgId) throw Error("Org ID required to get members");
+
+  const projectId = "projectId" in query ? query.projectId : undefined;
+  const conditions: Prisma.OrganizationMembershipWhereInput[] = [];
+
+  // restrict to only members with role in a project if projectId is set and showAllOrgMembers is false
+  if (projectId && !showAllOrgMembers) {
+    conditions.push({
+      // either org level role or project level role
+      OR: [
+        {
+          role: {
+            not: Role.NONE,
+          },
+        },
+        {
+          ProjectMemberships: {
+            some: {
+              projectId,
               role: {
                 not: Role.NONE,
               },
             },
-            {
-              ProjectMemberships: {
-                some: {
-                  projectId: query.projectId,
-                  role: {
-                    not: Role.NONE,
-                  },
-                },
-              },
-            },
-          ],
-        }
-      : {}),
-    ...(query.searchQuery && {
+          },
+        },
+      ],
+    });
+  }
+
+  if (query.searchQuery) {
+    conditions.push({
       user: {
         OR: [
           {
             name: {
               contains: query.searchQuery,
-              mode: "insensitive" as const,
+              mode: "insensitive",
             },
           },
           {
             email: {
               contains: query.searchQuery,
-              mode: "insensitive" as const,
+              mode: "insensitive",
             },
           },
         ],
       },
-    }),
+    });
+  }
+
+  if (query.roles?.length) {
+    conditions.push(roleFilter(query.roles, projectId));
+  }
+
+  // Build common where clause to ensure consistency between findMany and count queries
+  const whereClause: Prisma.OrganizationMembershipWhereInput = {
+    orgId: query.orgId,
+    AND: conditions,
   };
 
   const orgMemberships = await prisma.organizationMembership.findMany({
@@ -148,7 +195,58 @@ export const allMembersRoutes = {
         organizationId: input.orgId,
         scope: "organizationMembers:read",
       });
-      return getMembers(ctx.prisma, input);
+      const isDemoOrganization = env.NEXT_PUBLIC_DEMO_ORG_ID === input.orgId;
+      const canManageFeaturePreviews =
+        !isDemoOrganization &&
+        hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organization:update",
+        });
+      const [result, organization] = await Promise.all([
+        getMembers(ctx.prisma, input),
+        canManageFeaturePreviews
+          ? ctx.prisma.organization.findUnique({
+              where: { id: input.orgId },
+              select: { featureFlagOrgDefaults: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const userIds = result.memberships.map((membership) => membership.userId);
+      const [featurePreviewsByUserId, managementByUserId] =
+        canManageFeaturePreviews
+          ? await Promise.all([
+              getOrganizationFeaturePreviewStatesByUserId({
+                prisma: ctx.prisma,
+                userIds,
+                organizationDefaults:
+                  organization?.featureFlagOrgDefaults ?? [],
+              }),
+              getUserFeaturePreviewManagementCapabilities({
+                prisma: ctx.prisma,
+                actorUserId: ctx.session.user.id,
+                actorIsPlatformAdmin: ctx.session.user.admin === true,
+                targetUserIds: userIds,
+                demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+              }),
+            ])
+          : [new Map(), new Map()];
+
+      return {
+        ...result,
+        memberships: result.memberships.map((membership) => ({
+          ...membership,
+          featurePreviews: canManageFeaturePreviews
+            ? (featurePreviewsByUserId.get(membership.userId) ??
+              EMPTY_ORGANIZATION_FEATURE_PREVIEW_STATES)
+            : null,
+          featurePreviewManagement: canManageFeaturePreviews
+            ? (managementByUserId.get(membership.userId) ?? {
+                allowed: false,
+              })
+            : null,
+        })),
+      };
     }),
   allFromProject: protectedProjectProcedure
     .input(projectLevelMemberQuery)

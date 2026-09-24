@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { MoreVertical, PauseCircle, PlayCircle, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -7,28 +9,29 @@ import { useMediaQuery } from "react-responsive";
 import { DeleteMonitorButton } from "@/src/components/deleteButton";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableControls } from "@/src/components/table/data-table-controls";
-import { TableBadgeLoadingCell } from "@/src/components/table/loading-cells";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
-import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import TagList from "@/src/features/tag/components/TagList";
+import {
+  getMonitorFilterConfig,
+  useSidebarFilterState,
+} from "@/src/features/filters";
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useOrderByState } from "@/src/features/orderBy";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { TagList } from "@/src/features/tag";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
-import { type FilterState } from "@langfuse/shared";
+import { type FilterState, TableViewPresetTableName } from "@langfuse/shared";
 import {
   type ListMonitorFilter,
   ListMonitorFilterSchema,
@@ -38,6 +41,16 @@ import {
 } from "@langfuse/shared/monitors";
 
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
+import {
+  useColumnOrder,
+  useColumnVisibility,
+} from "@/src/features/column-visibility";
+import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
+import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
+import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+
+import { monitorsFieldRegistry } from "@/src/features/monitors/constants/monitorsSearchRegistry";
 
 /** monitorsRefetchInterval keeps the list's severity and paused state current without a manual reload. */
 const monitorsRefetchInterval = 5_000;
@@ -57,10 +70,10 @@ export function MonitorsTable() {
   const router = useRouter();
   const projectId = useProjectIdFromURL() ?? "";
   const utils = api.useUtils();
-  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the monitors:CUD RBAC scope. */
+  /** hasCUDAccess gates the edit, pause/resume, and delete row actions behind the alerts:CUD RBAC scope. */
   const hasCUDAccess = useHasProjectAccess({
     projectId,
-    scope: "monitors:CUD",
+    scope: "alerts:CUD",
   });
   /** isWiderThanPhone is true at viewports wider than the main nav's drawer breakpoint (768px / Tailwind `md`), the threshold at which the Tags column appears. */
   const isWiderThanPhone = useMediaQuery({ query: "(min-width: 768px)" });
@@ -70,16 +83,14 @@ export function MonitorsTable() {
     onSuccess: async (_data, variables) => {
       await utils.monitors.invalidate();
       showSuccessToast({
-        title:
-          variables.status === "PAUSED" ? "Monitor paused" : "Monitor resumed",
+        title: variables.status === "PAUSED" ? "Alert paused" : "Alert resumed",
         description:
           variables.status === "PAUSED"
             ? "Evaluations are halted until you resume."
             : "Evaluations have resumed.",
       });
     },
-    onError: (e) =>
-      showErrorToast("Failed to update monitor status", e.message),
+    onError: (e) => showErrorToast("Failed to update alert status", e.message),
   });
 
   /** paginationState is the bound page index + size, defaulting to 50 per page and synced to the `pageIndex`/`pageSize` URL params. */
@@ -120,15 +131,25 @@ export function MonitorsTable() {
           displayValue: value.replace(/_/g, " "),
         })),
       tags: filterOptions.data?.tags.map((t) => ({ value: t.value })) ?? [],
+      evaluatorId: filterOptions.data?.evaluators ?? [],
     }),
     [filterOptions.data],
   );
 
+  const monitorFilterConfig = useMemo(
+    () =>
+      getMonitorFilterConfig((filterOptions.data?.evaluators.length ?? 0) > 0),
+    [filterOptions.data?.evaluators.length],
+  );
+
   /** queryFilter is the bound sidebar filter state, synced to the URL and to session storage per project. */
+  const { viewControllersRef, onExplicitFilterStateChange } =
+    useTableViewFilterChange();
   const queryFilter = useSidebarFilterState(
     monitorFilterConfig,
     newFilterOptions,
     {
+      onExplicitFilterStateChange,
       loading: filterOptions.isPending,
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId ?? null,
@@ -167,7 +188,7 @@ export function MonitorsTable() {
       size: 100,
       minSize: 100,
       maxSize: 100,
-      loadingCell: <TableBadgeLoadingCell className="h-6 w-20" />,
+      loadingCell: <Skeleton className="h-6 w-20 shrink-0 rounded-sm" />,
       cell: ({ row }) => (
         <MonitorSeverityBadge severity={row.original.severity} />
       ),
@@ -182,7 +203,7 @@ export function MonitorsTable() {
       cell: ({ row }) => (
         <span
           className={cn(
-            "text-sm font-medium",
+            "text-sm font-bold",
             row.original.severity === "PAUSED" && "opacity-50",
           )}
         >
@@ -243,16 +264,84 @@ export function MonitorsTable() {
     },
   ];
 
+  const [columnVisibility, setColumnVisibility] =
+    useColumnVisibility<MonitorRow>("monitorsColumnVisibility", columns);
+  const [columnOrder, setColumnOrder] = useColumnOrder<MonitorRow>(
+    "monitorsColumnOrder",
+    columns,
+  );
+  const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
+    tableName: TableViewPresetTableName.Monitors,
+    projectId,
+    stateUpdaters: {
+      setColumnOrder,
+      setColumnVisibility,
+      setOrderBy: setOrderByState,
+      setFilters: (filters) =>
+        queryFilter.setFilterState(filters, { origin: "saved_view" }),
+      setExpandedFilters: queryFilter.onExpandedChange,
+    },
+    validationContext: {
+      columns,
+      filterColumnDefinition: monitorFilterConfig.columnDefinitions,
+      expandableFilterColumns: monitorFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+    },
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
+  });
+  viewControllersRef.current = viewControllers;
+  const handleColumnOrderChange: typeof setColumnOrder = (next) => {
+    const value = typeof next === "function" ? next(columnOrder) : next;
+    viewControllers.handleUserStateChange(columnOrder, value);
+    setColumnOrder(value);
+  };
+  const handleColumnVisibilityChange: typeof setColumnVisibility = (next) => {
+    const value = typeof next === "function" ? next(columnVisibility) : next;
+    viewControllers.handleUserStateChange(columnVisibility, value);
+    setColumnVisibility(value);
+  };
+
   return (
     <div className="flex h-full w-full flex-col">
+      <TableSearchBar
+        key={`${projectId}:${viewControllers.filterEditorResetKey}:${queryFilter.draftResetKey}`}
+        projectId={projectId}
+        tableName="monitors"
+        registry={monitorsFieldRegistry(monitorFilterConfig)}
+        filterState={queryFilter.searchBarFilterState}
+        setFilterState={queryFilter.setFilterState}
+        observed={toObservedOptions(newFilterOptions, filterOptions.isPending)}
+        isV4={false}
+      />
+      <DataTableToolbar
+        tableName="monitors"
+        columns={columns}
+        filterState={queryFilter.explicitFilterState}
+        columnVisibility={columnVisibility}
+        setColumnVisibility={handleColumnVisibilityChange}
+        columnOrder={columnOrder}
+        setColumnOrder={handleColumnOrderChange}
+        orderByState={orderByState}
+        isV4={false}
+        viewConfig={{
+          tableName: TableViewPresetTableName.Monitors,
+          projectId,
+          controllers: viewControllers,
+        }}
+      />
       <ResizableFilterLayout>
-        <DataTableControls queryFilter={queryFilter} />
+        <DataTableControls
+          key={viewControllers.filterEditorResetKey}
+          queryFilter={queryFilter}
+        />
         <div className="flex flex-1 flex-col overflow-hidden">
           <DataTable
             tableName="monitors"
             columns={columns}
             data={
-              monitors.isLoading
+              monitors.isLoading || isViewLoading
                 ? { isLoading: true, isError: false }
                 : monitors.isError
                   ? {
@@ -267,7 +356,14 @@ export function MonitorsTable() {
                     }
             }
             orderBy={orderByState}
-            setOrderBy={setOrderByState}
+            setOrderBy={(next) => {
+              viewControllers.handleUserStateChange(orderByState, next);
+              setOrderByState(next);
+            }}
+            columnOrder={columnOrder}
+            onColumnOrderChange={handleColumnOrderChange}
+            columnVisibility={columnVisibility}
+            onColumnVisibilityChange={handleColumnVisibilityChange}
             pagination={{
               totalCount: monitors.data?.totalCount ?? null,
               onChange: setPaginationState,
@@ -310,7 +406,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess}
-      aria-label="Edit monitor"
+      aria-label="Edit alert"
       title="Edit"
       className={cn(!collapsed && rowActionIconColors)}
     >
@@ -329,7 +425,7 @@ function MonitorRowActions({
       variant="ghost"
       size={collapsed ? "default" : "icon"}
       disabled={!hasCUDAccess || isStatusPending}
-      aria-label={isPaused ? "Resume monitor" : "Pause monitor"}
+      aria-label={isPaused ? "Resume alert" : "Pause alert"}
       title={isPaused ? "Resume" : "Pause"}
       className={cn(!collapsed && rowActionIconColors)}
       onClick={(e) => {
@@ -365,7 +461,7 @@ function MonitorRowActions({
       <div onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="xs" variant="ghost" aria-label="Monitor actions">
+            <Button size="xs" variant="ghost" aria-label="Alert actions">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
@@ -411,7 +507,7 @@ const filterStateToListMonitorFilter = (
 
 /** monitorHref is the project-scoped path to a monitor's page, the row-click and edit-action target. */
 const monitorHref = (projectId: string, monitorId: string): string =>
-  `/project/${projectId}/monitors/${encodeURIComponent(monitorId)}`;
+  `/project/${projectId}/alerts/${encodeURIComponent(monitorId)}`;
 
 /** buildStatusToggleUpdate returns a full update payload with only the status flipped between ACTIVE and PAUSED. */
 const buildStatusToggleUpdate = (monitor: Monitor): UpdateMonitor => ({

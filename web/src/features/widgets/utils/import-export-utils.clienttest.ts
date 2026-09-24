@@ -1,7 +1,10 @@
+// @vitest-environment node
+
 import {
   buildWidgetExport,
   buildWidgetImportAllowedValues,
   importWidgetFile,
+  parseImportedWidgetJson,
   parseAndNormalizeImportedWidget,
   parsePastedWidget,
   WIDGET_FILE_FORMAT_VERSION,
@@ -145,11 +148,74 @@ describe("parseAndNormalizeImportedWidget", () => {
       optionSets: {
         observationLevels: [],
       },
-      isBetaEnabled: true,
+      isV4: true,
     });
 
     expect(result.snapshot.selectedView).toBe("traces");
     expect(result.snapshot.widgetMinVersion).toBe(1);
+  });
+
+  it("accepts v2-only imported fields without rewriting the version hint", () => {
+    const rootFilter = {
+      column: "isRootObservation",
+      type: "boolean" as const,
+      operator: "=" as const,
+      value: true,
+    };
+    const result = parseImportedWidgetJson({
+      parsedJson: {
+        ...baseWidget,
+        view: "observations",
+        dimensions: [{ field: "experimentName" }],
+        chartType: "VERTICAL_BAR",
+        chartConfig: { type: "VERTICAL_BAR" },
+        filters: [rootFilter],
+      },
+      isV4: false,
+    });
+
+    expect(result.widget.minVersion).toBe(1);
+    expect(result.widget.filters).toEqual([rootFilter]);
+  });
+
+  it("imports boolean score widgets with boolean filters intact", async () => {
+    const result = await importWidgetFile({
+      file: {
+        text: async () =>
+          JSON.stringify({
+            ...baseWidget,
+            view: "scores-boolean",
+            dimensions: [{ field: "booleanValue" }],
+            metrics: [{ measure: "value", agg: "avg" }],
+            filters: [
+              {
+                column: "booleanValue",
+                type: "boolean",
+                operator: "=",
+                value: true,
+              },
+            ],
+            minVersion: 2,
+          }),
+      } as File,
+      optionSets: { observationLevels: [] },
+      isV4: true,
+    });
+
+    expect(result.snapshot).toMatchObject({
+      selectedView: "scores-boolean",
+      selectedDimension: "booleanValue",
+      selectedMeasure: "value",
+      selectedAggregation: "avg",
+      userFilterState: [
+        {
+          column: "Boolean Value",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ],
+    });
   });
 
   it("accepts an enveloped export file (round-trip)", async () => {
@@ -161,7 +227,7 @@ describe("parseAndNormalizeImportedWidget", () => {
       optionSets: {
         observationLevels: [],
       },
-      isBetaEnabled: false,
+      isV4: false,
     });
 
     expect(result.snapshot.widgetName).toBe("Imported widget");
@@ -180,7 +246,7 @@ describe("parseAndNormalizeImportedWidget", () => {
         optionSets: {
           observationLevels: [],
         },
-        isBetaEnabled: false,
+        isV4: false,
       }),
     ).rejects.toThrow();
   });
@@ -220,21 +286,21 @@ describe("parsePastedWidget", () => {
   };
 
   it("ignores non-JSON text", () => {
-    expect(parsePastedWidget("hello world", { isBetaEnabled: false })).toEqual({
+    expect(parsePastedWidget("hello world", { isV4: false })).toEqual({
       status: "not-widget",
     });
   });
 
   it("ignores JSON without the widget envelope", () => {
     expect(
-      parsePastedWidget(JSON.stringify(baseWidget), { isBetaEnabled: false }),
+      parsePastedWidget(JSON.stringify(baseWidget), { isV4: false }),
     ).toEqual({ status: "not-widget" });
   });
 
   it("parses an enveloped widget export", () => {
     const result = parsePastedWidget(
       JSON.stringify(buildWidgetExport(baseWidget)),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("widget");
@@ -250,7 +316,7 @@ describe("parsePastedWidget", () => {
         ...buildWidgetExport(baseWidget),
         version: WIDGET_FILE_FORMAT_VERSION + 1,
       }),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("invalid");
@@ -266,7 +332,7 @@ describe("parsePastedWidget", () => {
         // chartConfig.type no longer matches chartType
         chartConfig: { type: "PIE" },
       }),
-      { isBetaEnabled: false },
+      { isV4: false },
     );
 
     expect(result.status).toBe("invalid");

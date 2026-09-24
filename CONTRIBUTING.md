@@ -1,4 +1,10 @@
-![Langfuse GitHub Banner](https://github.com/langfuse/langfuse/assets/121163007/6035f0f3-d691-4963-b5d0-10cf506e9d42)
+<img width="2400" alt="hero-b (1)" src="https://github.com/user-attachments/assets/5810ae13-15d6-4b60-afd2-927adc501861" />
+
+> ### 🧑‍💻 We're hiring
+>
+> Langfuse is growing fast (we doubled the team in the last 6 months) - since January 2026 we're part of ClickHouse, we're hiring engineering hybrid across the EU.
+> We hire engineers who love open source and great developer experiences.
+> **[See open roles →](https://langfuse.com/careers?utm_source=github&utm_medium=readme&utm_campaign=hiring&utm_content=langfuse)**
 
 # Contributing to Langfuse
 
@@ -30,6 +36,19 @@ The maintainers are available on [Discord](https://langfuse.com/discord) in case
 _Before making any significant changes, please [open an issue](https://github.com/langfuse/langfuse/issues)._ Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Changes that were not discussed in an issue may be rejected.
 
 Once we've discussed your changes and you've got your code ready, make sure that tests are passing and open your pull request.
+
+Four checks gate every pull request and are cheaper to run before you open it than to discover in CI:
+
+```bash
+pnpm run lint        # eslint; every package runs with --max-warnings 0, so a warning fails
+pnpm tc              # typecheck all packages
+pnpm exec knip       # unused files, exports and dependencies
+pnpm run test        # see "Running Unit Tests" below for the setup this needs
+```
+
+`lint` and `typecheck` are cached, so a pass can be a replay of an earlier run. Read turbo's `Cached:` line as well as its `Tasks:` line, and re-run with `pnpm exec turbo run lint --force` if you need to be sure it executed. For a user-visible change, also open the affected screen in a browser and check it — every pull request gets a full preview deployment at `pr-<N>.preview.langfuse.com`.
+
+If a change is too large to review in one pull request, split it into a chained stack of small PRs rather than widening one.
 
 A good first step is to search for open [issues](https://github.com/langfuse/langfuse/issues). Issues are labeled, and some good issues to start with are labeled: [good first issue](https://github.com/langfuse/langfuse/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22).
 
@@ -102,6 +121,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 - `worker`: contains an application for asynchronous processing of tasks.
 - `packages`:
   - `shared`: contains shared code between the above packages.
+  - `native`: Rust native addon (napi-rs) that the worker loads in-process. See [packages/native/README.md](packages/native/README.md).
   - `config-eslint`: contains eslint configurations which are shared between the above packages.
   - `config-typescript`: contains typescript configurations which are shared between the above packages.
 - `ee`: contains all enterprise features. See [EE README](ee/README.md) for more details.
@@ -111,7 +131,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.10.0
+- [Rust via rustup](https://rust-lang.org/tools/install/) and a native compiler/linker, for the AI gateway (which starts with `pnpm dev`, see [gateway setup](ai-gateway/README.md#run-locally)) and for the worker's native addon (compiled during the worker build, see [packages/native/README.md](packages/native/README.md)). Each crate pins its own toolchain in `rust-toolchain.toml`; rustup installs it on first use.
 - Docker to run the database locally
 - Clickhouse client
 
@@ -157,6 +177,41 @@ Notes:
   PostgreSQL, Redis, ClickHouse, and object storage, plus matching environment
   variables in the Codex UI.
 
+### Cursor Cloud Setup
+
+Cursor Cloud Agents use the committed `.cursor/environment.json` and
+`.cursor/Dockerfile`. The environment build runs the shared setup script, and
+each agent run starts a branch-built six-service Docker Compose stack:
+
+```bash
+bash scripts/agents/setup.sh
+bash scripts/agents/start-cursor-cloud.sh
+```
+
+The start command waits for web, worker, PostgreSQL, ClickHouse, Redis, and
+MinIO, then seeds the synthetic demo project and checks both application health
+endpoints. Cursor team administrators separately configure the read-only MCP
+catalog described in `.agents/README.md`; credentials and OAuth grants belong
+in Cursor, never in repository files. Maintainers who need the issue tracker
+inside Cloud should also set secret `LINEAR_API_KEY` (personal Linear API key)
+in the Cloud Agents dashboard; Linear MCP OAuth does not complete in Cloud.
+
+After local verification, a Cursor agent should open a same-repo reviewable
+PR (not a draft), apply the GitHub `cursor` label, and test its
+`pr-<N>.preview.langfuse.com` deployment.
+Use Linear's git branch name (`lfe-XXXX-short-title`), not a `cursor/` prefix.
+When handing work to a human, give a one-sentence TL;DR, a preview URL with
+exact test steps (including how to seed or hit the same path on
+`http://localhost:3000`), and proof of the fix for user-visible changes
+posted on the GitHub PR (screenshot, video, or before/after — not only in
+chat). Cursor agents that comment as Cursor may also leave one PR comment
+with that proof plus what a reviewer should doubt; Claude Code and other
+tools that comment as the human author must not.
+Prefer one or two human actions at a time; if you need more, keep each
+point simple and super readable. Preview data and any attached artifacts
+must remain synthetic. Previews normally run Mon-Fri 08:00-24:00
+Europe/Berlin and are not woken with Cursor credentials.
+
 ### Shared Agent Setup
 
 This repository keeps the shared agent setup in source control so developers
@@ -165,9 +220,8 @@ MCP server catalog.
 
 - Canonical shared docs:
   - `.agents/AGENTS.md`
-- Root discovery symlinks:
-  - `AGENTS.md`
-  - `CLAUDE.md`
+- Root discovery symlink: `AGENTS.md` -> `.agents/AGENTS.md`
+- Folder instructions: `AGENTS.md` in the directory they describe
 - Shared agent setup overview: `.agents/README.md`
 - Shared skills: `.agents/skills/`
 - Shared tool/bootstrap/MCP config: `.agents/config.json`
@@ -179,17 +233,24 @@ MCP server catalog.
 - Tool-specific runtime shims generated locally from the shared config and not committed:
   - `.claude/settings.json`
   - `.codex/environments/environment.toml`
+- Cursor runtime contract generated from shared config and committed because
+  Cursor needs it before install:
   - `.cursor/environment.json`
 - Tool-specific skill projections generated locally and not committed:
   - `.claude/skills/*`
-- Shared bootstrap for agent environments: `bash scripts/codex/setup.sh`
+- Shared bootstrap for agent environments: `bash scripts/agents/setup.sh`
+
+Use a harness that reads `AGENTS.md` directly. For Claude Code, upgrade to
+2.1.277 or later and see the compatibility notes in `.agents/README.md`.
+Folder instructions need no `CLAUDE.md` copy or symlink.
 
 When you change the shared MCP setup:
 
 1. Edit `.agents/config.json`
 2. Run `pnpm run agents:sync`
 3. Run `pnpm run agents:check`
-4. Do not commit the generated MCP config files or runtime shims
+4. Commit `.cursor/environment.json` when it changes; do not commit the other
+   generated MCP config files or runtime shims
 
 **Steps**
 
@@ -211,12 +272,7 @@ When you change the shared MCP setup:
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
 
-   The pre-commit hook runs formatting and lint checks. To skip only the lint
-   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
-
-   ```bash
-   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
-   ```
+   The pre-commit hook runs formatting checks.
 
    CI still runs the required checks for pull requests.
 
@@ -371,6 +427,16 @@ CD on `main`
 
 - Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
 
+### Version tests
+
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
+using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+Additionally, we use those files to test different ClickHouse versions.
+- Azure: Use 25.12 for compatibility testing with our lowest supported version.
+- Redis Cluster: Use 26.8 as the latest available ClickHouse release.
+- Plain: Use 26.4 as the current Cloud version.
+
 ## Staging environment
 
 We run a staging environment at [https://staging.langfuse.com](https://staging.langfuse.com) that is automatically deployed on every push to `main` branch.
@@ -507,10 +573,12 @@ We maintain the API specifications manually to guarantee a high degree of unders
 To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api export --api server web/public/generated/api/openapi.yml
-npx fern-api export --api client web/public/generated/api-client/openapi.yml
-npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
+pnpm run openapi:export
 ```
+
+Commit the updated files under `web/public/generated/`. CI re-runs this export on PRs that touch `fern/**` or the served specs and fails if they drift (`pnpm run openapi:check`).
+
+This command also syncs standard OpenAPI `deprecated` flags and `**Deprecated:** …` description notices from the endpoint `availability` metadata in the Fern definitions.
 
 To generate the server SDKs, run:
 
@@ -526,4 +594,14 @@ Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [d
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 
-If the CLA check gets stuck after signing (a [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520)), comment `/check-cla` on your PR to retrigger it.
+### Troubleshoot CLA License Check
+
+If the CLA check still isn't passing after signing, it may be due to this [known cla-assistant bug](https://github.com/cla-assistant/cla-assistant/issues/520). Comment `/check-cla` on your PR to retrigger the license check.
+
+If it still isn't passing, the author header in your commits is likely missing your GitHub email address ([example patch](https://github.com/langfuse/langfuse/commit/f301bb528f5ca6944bd04afae3c1a87390f9b92e.patch)). To fix this, set your email address in your git config and rebase.
+
+```bash
+git config user.email "YOUR_GITHUB_EMAIL"
+git rebase --exec "git commit --amend --no-edit --reset-author" origin/main
+git push --force-with-lease
+```

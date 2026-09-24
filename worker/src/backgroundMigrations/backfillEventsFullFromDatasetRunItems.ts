@@ -24,6 +24,10 @@ import {
   type TraceProperties,
 } from "../features/eventPropagation/handleExperimentBackfill";
 import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
+import {
+  PID_TID_SORTING_TABLE,
+  pidTidSortingTable,
+} from "./utils/v4BackfillDdl";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
 // the Prisma migration that registers this row.
@@ -290,7 +294,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         '' AS trace_name,
         '' AS user_id,
         '' AS session_id
-      FROM observations_pid_tid_sorting o
+      FROM ${pidTidSortingTable()} o
       WHERE (o.project_id, o.trace_id) IN {tracePairs: Array(Tuple(String, String))}
         AND o.start_time >= {minTime: DateTime64(3)}
         AND o.start_time <= {maxTime: DateTime64(3)}
@@ -570,12 +574,20 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       return predecessor;
     }
 
-    const tables = await clickhouseClient().query({ query: "SHOW TABLES" });
+    const tables = await clickhouseClient().query({
+      query: "SHOW TABLES",
+      clickhouse_settings: {
+        log_comment: buildClickHouseLogComment({
+          surface: "worker",
+          route: "background-migration.backfillEventsFullFromDatasetRunItems",
+        }),
+      },
+    });
     const tableNames = (await tables.json()).data as { name: string }[];
 
     const requiredTables = [
       "dataset_run_items_rmt",
-      "observations_pid_tid_sorting",
+      PID_TID_SORTING_TABLE,
       "traces",
       "events_full",
       "events_core",

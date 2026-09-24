@@ -1,6 +1,30 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
-import { singleFilter } from "../../../";
+import { singleFilterList } from "../../../";
+import {
+  persistedWidgetViewToQueryView,
+  type views,
+} from "../../../features/query";
+
+/**
+ * Maps the persisted Prisma enum to the query model's public view id. The map
+ * itself is client-safe (`persistedWidgetViewToQueryView`); the `satisfies`
+ * here is what keeps it exhaustive against the Prisma enum.
+ */
+export const dashboardWidgetViewToQueryView =
+  persistedWidgetViewToQueryView satisfies Record<
+    DashboardWidgetViews,
+    z.infer<typeof views>
+  >;
+
+/** Maps the query model's public view id to the persisted Prisma enum. */
+export const queryViewToDashboardWidgetView = {
+  traces: DashboardWidgetViews.TRACES,
+  observations: DashboardWidgetViews.OBSERVATIONS,
+  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
+  "scores-boolean": DashboardWidgetViews.SCORES_BOOLEAN,
+  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
+} as const satisfies Record<z.infer<typeof views>, DashboardWidgetViews>;
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
@@ -116,7 +140,9 @@ export const DashboardDomainSchema = z.object({
   name: z.string(),
   description: z.string(),
   definition: DashboardDefinitionSchema,
-  filters: z.array(singleFilter).default([]),
+  // Persisted filters may predate the `is set` operator and use the legacy
+  // metadata `contains ""` key-presence idiom; coerce it before validation.
+  filters: singleFilterList.default([]),
   owner: OwnerEnum,
 });
 
@@ -139,9 +165,10 @@ export const WidgetDomainSchema = z.object({
   view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
+  // Lowest query-engine version required by the persisted widget definition.
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,
 });
@@ -153,10 +180,9 @@ export const CreateWidgetInputSchema = z.object({
   view: z.enum(DashboardWidgetViews),
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
-  minVersion: z.number().int().optional(),
 });
 
 // Define the widget list response

@@ -1,18 +1,20 @@
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import {
+  IntegrationSettingsSkeleton,
+  buildExportSourceContext,
+} from "@/src/features/analytics-integrations";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { api } from "@/src/utils/api";
 import {
-  isLegacyBlobExportAllowed,
-  isLegacyBlobExporter,
+  type V4WriteMode,
   type BlobStorageIntegration,
+  type ExportSourceContext,
 } from "@langfuse/shared";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects";
 import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
 
@@ -26,33 +28,33 @@ import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integrati
 export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
-  isLoading,
-  isEnrichedExportAvailable,
+  writeMode,
 }: {
   config: Partial<BlobStorageIntegration> | null;
   projectId: string;
-  isLoading: boolean;
-  isEnrichedExportAvailable: boolean;
+  writeMode: V4WriteMode;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
 
-  const isPostCutoffCloud =
-    project?.createdAt != null &&
-    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-  const eventsExportAvailable = isEnrichedExportAvailable;
-  // Integration-level cutoff (Cloud only): a row predating the exporter cutoff
-  // keeps legacy options; a new or post-cutoff row is locked to EVENTS.
-  const isLegacyExporter = isLegacyBlobExporter(
-    config?.createdAt ? new Date(config.createdAt) : null,
-    isLangfuseCloud,
-  );
-  const forceEventsExport =
-    isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
-  const availability = useMemo(
-    () => ({ eventsExportAvailable, forceEventsExport }),
-    [eventsExportAvailable, forceEventsExport],
+  // Policy context for the export-source selector; the policy itself lives in
+  // export-source-policy.ts. null integrationCreatedAt = new row.
+  const projectCreatedAt = project?.createdAt;
+  const integrationCreatedAt = config?.createdAt;
+  const exportSourceCtx: ExportSourceContext = useMemo(
+    () =>
+      buildExportSourceContext({
+        writeMode,
+        isCloud: isLangfuseCloud,
+        projectCreatedAt: projectCreatedAt
+          ? new Date(projectCreatedAt)
+          : undefined,
+        integrationCreatedAt: integrationCreatedAt
+          ? new Date(integrationCreatedAt)
+          : null,
+      }),
+    [isLangfuseCloud, writeMode, projectCreatedAt, integrationCreatedAt],
   );
 
   const utils = api.useUtils();
@@ -87,15 +89,10 @@ export const BlobStorageIntegrationContainer = ({
   });
 
   // The form is never mounted before its inputs resolve, so there is no
-  // mid-flight reset to protect a draft from.
-  if (isLoading || !project) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-      </div>
-    );
+  // mid-flight reset to protect a draft from. The page already gates on the
+  // integration query; only the separate project query can still be pending.
+  if (!project) {
+    return <IntegrationSettingsSkeleton />;
   }
 
   const handleSubmit = (values: BlobStorageIntegrationFormSchema) => {
@@ -116,9 +113,9 @@ export const BlobStorageIntegrationContainer = ({
       key={`${projectId}:${config ? "configured" : "new"}`}
       initialValues={buildBlobStorageFormValues(
         config ?? undefined,
-        availability,
+        exportSourceCtx,
       )}
-      availability={availability}
+      exportSourceCtx={exportSourceCtx}
       persistedExportSource={config?.exportSource}
       isSaving={mut.isPending}
       onSubmit={handleSubmit}

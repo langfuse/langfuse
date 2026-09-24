@@ -1,6 +1,6 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { createBatchActionJob } from "@/src/features/table/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

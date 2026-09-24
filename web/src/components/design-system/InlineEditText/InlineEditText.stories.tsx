@@ -34,7 +34,7 @@ export const WithLongValue = meta.story({
 
 export const InHeading = meta.story({
   render: (args) => (
-    <h2 className="text-lg leading-7 font-semibold">
+    <h2 className="text-lg leading-7 font-bold">
       <InlineEditText {...args} />
     </h2>
   ),

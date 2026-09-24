@@ -1,6 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { TableViewPresetTableName, type FilterState } from "@langfuse/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  QueryParamProvider,
+  type QueryParamAdapterComponent,
+  useQueryParam,
+} from "use-query-params";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
 import type { FilterConfig } from "./lib/filter-config";
 import { useTableViewManager } from "../../components/table/table-view-presets/hooks/useTableViewManager";
@@ -15,6 +26,7 @@ const mockUseRouter = vi.fn();
 const mockCapture = vi.fn();
 const mockGetDefaultUseQuery = vi.fn();
 const mockGetByIdUseQuery = vi.fn();
+const mockViewSelected = vi.fn();
 
 const queryParamStore = new Map<string, unknown>();
 
@@ -60,12 +72,9 @@ vi.mock("use-query-params", async () => {
   const React = require("react");
   const actual = await vi.importActual("use-query-params");
 
-  const StringParam = { __type: "string" } as const;
-
   return {
     ...actual,
-    StringParam,
-    useQueryParam: (key: string) => {
+    useQueryParam: vi.fn(function useMockQueryParam(key: string) {
       const initialValue = queryParamStore.has(key)
         ? queryParamStore.get(key)
         : null;
@@ -96,7 +105,7 @@ vi.mock("use-query-params", async () => {
       );
 
       return [value, setQueryValue];
-    },
+    }),
   };
 });
 
@@ -135,30 +144,48 @@ function ViewManagerHarness({
   tableName?: TableViewPresetTableName;
 }) {
   const [appliedFilters, setAppliedFilters] = useState<FilterState>([]);
-  const { selectedViewId, handleSetViewId } = useTableViewManager({
-    tableName,
-    projectId: "project-1",
-    stateUpdaters: {
-      setFilters: setAppliedFilters,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
-    },
-    validationContext: {
-      columns: [],
-      filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
-    },
-    currentFilterState: appliedFilters,
-  });
+  const { selectedViewId, handleSetViewId, applyViewState } =
+    useTableViewManager({
+      tableName,
+      projectId: "project-1",
+      stateUpdaters: {
+        setFilters: setAppliedFilters,
+        setColumnOrder: () => {},
+        setColumnVisibility: () => {},
+      },
+      validationContext: {
+        columns: [],
+        filterColumnDefinition: TEST_FILTER_CONFIG.columnDefinitions,
+      },
+      currentFilterState: appliedFilters,
+      onViewSelected: mockViewSelected,
+    });
 
   return (
     <div>
       <div data-testid="selected-view-id">{selectedViewId ?? "null"}</div>
+      <div data-testid="applied-filter-count">{appliedFilters.length}</div>
       <button
         onClick={() => handleSetViewId("view-1", { updateType: "replaceIn" })}
       >
         set-view-replace
       </button>
       <button onClick={() => handleSetViewId("view-1")}>set-view</button>
+      <button
+        onClick={() =>
+          applyViewState(
+            {
+              filters: TEST_FILTERS,
+              orderBy: null,
+              columnOrder: [],
+              columnVisibility: {},
+            },
+            { trigger: "select", viewId: "view-1" },
+          )
+        }
+      >
+        apply-view
+      </button>
     </div>
   );
 }
@@ -195,6 +222,7 @@ function FilterStateHarness() {
 describe("view-state URL writes and browser history (LFE-10715)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useQueryParam).mockReset();
     sessionStorage.clear();
     queryParamStore.clear();
     urlParamWrites.length = 0;
@@ -213,6 +241,14 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
       isSuccess: false,
       isError: false,
     });
+  });
+
+  it("resets table state for an explicit view selection, including reapplication", () => {
+    render(<ViewManagerHarness />);
+    expect(mockViewSelected).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("apply-view"));
+    fireEvent.click(screen.getByText("apply-view"));
+    expect(mockViewSelected).toHaveBeenCalledTimes(2);
   });
 
   it("strips a stale frontend system-preset viewId with a replace, not a push", async () => {
@@ -234,6 +270,174 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     expect(viewIdWrites.length).toBeGreaterThan(0);
     for (const write of viewIdWrites) {
       expect(write).toMatchObject({ value: null, updateType: "replaceIn" });
+    }
+  });
+
+  it("settles session preset recovery while URL updates are batched", async () => {
+    const actual = await vi.importActual<{
+      useQueryParam: typeof useQueryParam;
+    }>("use-query-params");
+    const presetId = "__langfuse_with_io__";
+    const recoverPreset = vi.fn(() => {
+      if (recoverPreset.mock.calls.length > 20) {
+        throw new Error("Session preset recovery did not settle");
+      }
+    });
+
+    const Adapter: QueryParamAdapterComponent = ({ children }) => {
+      const [location, setLocation] = useState({
+        search: `?viewId=${presetId}`,
+      });
+      return children({ location, replace: setLocation, push: setLocation });
+    };
+
+    function SessionPresetRecoveryHarness() {
+      const viewControllers = useTableViewManager({
+        tableName: TableViewPresetTableName.SessionDetail,
+        projectId: "project-1",
+        stateUpdaters: {
+          setColumnOrder: () => {},
+          setColumnVisibility: () => {},
+        },
+      });
+
+      // Session detail restores a matching frontend preset after URL stripping.
+      useEffect(() => {
+        if (viewControllers.isLoading || viewControllers.selectedViewId) return;
+        recoverPreset();
+        viewControllers.handleSetViewId(presetId, { updateType: "replaceIn" });
+      }, [viewControllers]);
+
+      return (
+        <div data-testid="recovered-view-id">
+          {viewControllers.selectedViewId ?? "null"}
+        </div>
+      );
+    }
+
+    vi.useFakeTimers();
+    try {
+      await vi
+        .mocked(useQueryParam)
+        .withImplementation(actual.useQueryParam, () => {
+          render(
+            <QueryParamProvider
+              adapter={Adapter}
+              options={{ enableBatching: true }}
+            >
+              <SessionPresetRecoveryHarness />
+            </QueryParamProvider>,
+          );
+
+          act(() => vi.runOnlyPendingTimers());
+          act(() => vi.runOnlyPendingTimers());
+
+          expect(screen.getByTestId("recovered-view-id").textContent).toBe(
+            presetId,
+          );
+          expect(recoverPreset).toHaveBeenCalled();
+        });
+    } finally {
+      act(() => vi.runOnlyPendingTimers());
+      vi.useRealTimers();
+    }
+  });
+
+  it("auto-applies a resolved default view with replacements, not pushes", async () => {
+    // Personal and project defaults have the same resolved client shape. The
+    // manager branches on viewId, not scope, so one regression covers both.
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "user" },
+      isLoading: false,
+    });
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Resolved default view",
+        tableName: TableViewPresetTableName.Traces,
+        orderBy: null,
+        filters: TEST_FILTERS,
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: "",
+      },
+      error: null,
+      isSuccess: true,
+      isError: false,
+    });
+
+    render(<ViewManagerHarness tableName={TableViewPresetTableName.Traces} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+      expect(screen.getByTestId("applied-filter-count").textContent).toBe("1");
+    });
+    expect(mockViewSelected).not.toHaveBeenCalled();
+
+    const viewIdWrites = urlParamWrites.filter(
+      (write) => write.key === "viewId",
+    );
+    // One replace selects the resolved default. A later replace is deliberately
+    // queued after its filter state; app-level query-param batching uses this
+    // final setter's update type for the combined navigation.
+    expect(viewIdWrites.length).toBeGreaterThan(1);
+    expect(viewIdWrites.at(-1)).toEqual({
+      key: "viewId",
+      value: "view-1",
+      updateType: "replaceIn",
+    });
+  });
+
+  it("restores a session-stored resolved default without pushing", async () => {
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+    });
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "Session-stored resolved default",
+        tableName: TableViewPresetTableName.Traces,
+        orderBy: null,
+        filters: TEST_FILTERS,
+        columnOrder: [],
+        columnVisibility: {},
+        searchQuery: "",
+      },
+      error: null,
+      isSuccess: true,
+      isError: false,
+    });
+
+    const { rerender } = render(
+      <ViewManagerHarness tableName={TableViewPresetTableName.Traces} />,
+    );
+
+    expect(screen.getByTestId("selected-view-id").textContent).toBe("null");
+    expect(urlParamWrites.filter((write) => write.key === "viewId")).toEqual(
+      [],
+    );
+
+    mockGetDefaultUseQuery.mockReturnValue({
+      data: { viewId: "view-1", scope: "project" },
+      isLoading: false,
+    });
+    rerender(
+      <ViewManagerHarness tableName={TableViewPresetTableName.Traces} />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-view-id").textContent).toBe("view-1");
+      expect(screen.getByTestId("applied-filter-count").textContent).toBe("1");
+    });
+
+    const viewIdWrites = urlParamWrites.filter(
+      (write) => write.key === "viewId",
+    );
+    expect(viewIdWrites.length).toBeGreaterThan(1);
+    for (const write of viewIdWrites) {
+      expect(write.updateType).toBe("replaceIn");
     }
   });
 
@@ -291,8 +495,7 @@ describe("view-state URL writes and browser history (LFE-10715)", () => {
     // sanitize effect rewrites the URL on mount — a programmatic correction
     // that must not mint a history entry, or Back bounces off it re-firing
     // the sanitize (same LFE-10715 class as the viewId writes).
-    const { encodeFiltersGeneric } =
-      await import("./lib/filter-query-encoding");
+    const { encodeFiltersGeneric } = await import("@langfuse/shared");
     const canonical = encodeFiltersGeneric(TEST_FILTERS);
     expect(canonical.startsWith("name;")).toBe(true);
     const nonCanonical = canonical.replace(/^name;/, "Name;");

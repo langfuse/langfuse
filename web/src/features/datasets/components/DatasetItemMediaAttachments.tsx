@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render */
 import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
@@ -10,7 +11,7 @@ import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import {
   type MediaContentType,
   type MediaReturnType,
-} from "@/src/features/media/validation";
+} from "@/src/features/media";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -164,7 +165,7 @@ export function createMediaDropPasteExtension({
  * Attach button for a dataset item field. Shows a spinner while its upload is
  * in flight; failures surface via toast from the upload hook.
  */
-export function DatasetItemMediaUploadButton({
+function DatasetItemMediaUploadButton({
   onSelectFile,
   disabled,
 }: {
@@ -245,15 +246,20 @@ function CopyFieldValueButton({ value }: { value: string }) {
 export function DatasetItemFieldToolbar({
   copyValue,
   onSelectFile,
+  disabled,
 }: {
   copyValue: string;
   onSelectFile?: (file: File) => void | Promise<void>;
+  disabled?: boolean;
 }) {
   return (
     <div className="ml-auto flex items-center gap-0.5">
       <CopyFieldValueButton value={copyValue} />
       {onSelectFile && (
-        <DatasetItemMediaUploadButton onSelectFile={onSelectFile} />
+        <DatasetItemMediaUploadButton
+          onSelectFile={onSelectFile}
+          disabled={disabled}
+        />
       )}
     </div>
   );
@@ -300,8 +306,8 @@ function DatasetItemAttachments({
     return null;
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium">Attachments</span>
-      <div className="flex flex-wrap gap-2">
+      <span className="text-sm font-bold">Attachments</span>
+      <div className="ph-no-capture flex flex-wrap gap-2">
         {referenceStrings.map((referenceString) => (
           <LangfuseMediaView
             key={referenceString}

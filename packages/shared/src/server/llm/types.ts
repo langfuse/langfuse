@@ -10,6 +10,7 @@ import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "./internalTraceEvents";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 
 // disable lint as this is exported and used in web/worker
 
@@ -41,6 +42,14 @@ export const JSONSchemaFormSchema = z
       .loose()
       .transform((data) => JSON.stringify(data, null, 2)),
   );
+
+export const LLMToolNameSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
+  )
+  .min(1, "Name is required");
 
 export const LLMToolDefinitionSchema = z.object({
   name: z.string(),
@@ -242,6 +251,15 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  TypeSafe = "typesafe",
+}
+
+export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
+  LLMAdapter.TypeSafe,
+];
+
+export function isDecisionModelAdapter(adapter: string): boolean {
+  return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
 }
 
 // Some providers require at least one user message. The persisted-message
@@ -311,6 +329,9 @@ export const openAIModels = [
   "gpt-4.1-mini-2025-04-14",
   "gpt-4.1-nano",
   "gpt-4.1-nano-2025-04-14",
+  "gpt-6-astra",
+  "gpt-6-sol",
+  "gpt-6-luna",
   "gpt-5.6-sol",
   "gpt-5.6-terra",
   "gpt-5.6-luna",
@@ -326,6 +347,7 @@ export const openAIModels = [
   "gpt-5.4-mini-2026-03-17",
   "gpt-5.4-nano",
   "gpt-5.4-nano-2026-03-17",
+  "gpt-5.3-codex",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
@@ -374,7 +396,11 @@ export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
   "claude-sonnet-5",
   "claude-fable-5",
+  "claude-fable-5-1",
   "claude-mythos-5",
+  "claude-mythos-5-1",
+  "claude-opus-5-5",
+  "claude-opus-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -400,7 +426,11 @@ export const anthropicModels = [
 export const vertexAIModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
@@ -423,7 +453,11 @@ export const vertexAIModels = [
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
   "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
   "gemini-3.1-flash-lite",
   "gemini-3.1-flash-lite-preview",
@@ -438,6 +472,54 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
+export const typeSafeModels = ["jev-latest"] as const;
+
+/**
+ * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
+ * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
+ * the AI SDK provider then defaults to. Presets only prefill the base URL; a
+ * `custom` connection stores any base URL the provider appends `/systemone`
+ * to.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  {
+    id: "typesafe",
+    label: "TypeSafe",
+    baseURL: null,
+    apiKeyLabel: "TypeSafe API key",
+  },
+  {
+    id: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    apiKeyLabel: "Vercel AI Gateway API key",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKeyLabel: "OpenRouter API key",
+  },
+  {
+    id: "custom",
+    label: "Custom",
+    baseURL: null,
+    apiKeyLabel: "API key",
+  },
+] as const;
+
+export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
+
+export function resolveTypeSafeUpstream(
+  baseURL: string | null | undefined,
+): TypeSafeUpstream {
+  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  return (
+    TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
+    TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
+  );
+}
+
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
 export const supportedModels = {
@@ -447,6 +529,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.TypeSafe]: typeSafeModels,
 } as const;
 
 export type LLMFunctionCall = {
@@ -525,7 +608,9 @@ export type TraceSinkParams = {
   // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
   environment: string;
   userId?: string;
+  sessionId?: string;
   metadata?: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
   prompt?: {
     name: string;
     version: number;
@@ -537,4 +622,14 @@ export type TraceSinkParams = {
    * events are still written to the legacy traces/observations tables.
    */
   eventsWriter?: InternalEventsWriter;
+  /**
+   * When true, v4 write modes (`dual` / `events_only`) publish through
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`
+   * (LangChain) or with `isLangfuseInternal: false` (AI SDK). Used by
+   * in-app agent, Ask AI, and conversation-title product traces. Those
+   * traces use environment `production` (not `langfuse-*`) so they stay
+   * eligible as observation-eval targets. Legacy write mode keeps
+   * `processEventBatch` for the LangChain path.
+   */
+  aiFeatureOtelIngestion?: boolean;
 };

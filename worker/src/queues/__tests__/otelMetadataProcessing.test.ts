@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Tests for OTel metadata processing
  * Flow: ResourceSpan -> processToEvent() -> createEventRecord() -> metadata_names/metadata_raw_values
@@ -336,6 +337,31 @@ describe("OTel metadata processing", () => {
         continent: "Europe",
         position: "3",
       });
+    });
+  });
+
+  describe("experiment item version", () => {
+    it.each([
+      ["2026-04-24 15:22:36.622", "2026-04-24 15:22:36.622"],
+      ["2026-04-24T15:22:36.622Z", "2026-04-24 15:22:36.622"],
+      ["None", undefined],
+      ["v1", undefined],
+    ])("normalizes '%s' to %s", async (input, expected) => {
+      const otelSpan = buildOtelSpan({
+        scopeVersion: "4.5.0",
+        resourceAttrKey: "service.name",
+        resourceAttrValue: "svc",
+        scopeAttrKey: "public_key",
+        scopeAttrValue: "pk-test",
+        metadataAttrs: [],
+      });
+      otelSpan.scopeSpans[0].spans[0].attributes.push({
+        key: "langfuse.experiment.item.version",
+        value: { stringValue: input },
+      });
+
+      const { eventRecord } = await processAndCreateEvent(otelSpan);
+      expect(eventRecord.experiment_item_version).toBe(expected);
     });
   });
 });

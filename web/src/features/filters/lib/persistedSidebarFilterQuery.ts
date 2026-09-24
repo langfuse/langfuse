@@ -1,7 +1,24 @@
+/* eslint-disable no-nested-ternary */
 export type PersistedSidebarFilterQueryState = {
   contextId: string | null;
   query: string;
 };
+
+/**
+ * The page-level entity an embedded table is scoped to. Such a table bounds its
+ * rows with a hidden filter (a user's traces, a session's events), so it
+ * persists its sidebar filters separately from the project-wide table: an
+ * inherited User ID would AND with the page's own and return nothing
+ * (LFE-14824).
+ */
+export type EmbeddedFilterScope = "user" | "session" | "prompt" | "model";
+
+export function buildSidebarFilterSessionContextId(
+  projectId: string,
+  embeddedScope?: EmbeddedFilterScope,
+): string {
+  return embeddedScope ? `${projectId}:${embeddedScope}` : projectId;
+}
 
 export function buildSidebarFilterQueryStorageKey(params: {
   tableName: string;
@@ -19,7 +36,7 @@ export function createPersistedSidebarFilterQueryState(
   return { contextId, query };
 }
 
-export function parsePersistedSidebarFilterQueryState(
+function parsePersistedSidebarFilterQueryState(
   rawState: string | null,
 ): PersistedSidebarFilterQueryState | null {
   if (!rawState) return null;

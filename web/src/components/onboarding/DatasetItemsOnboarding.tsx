@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SplashScreen } from "@/src/components/ui/splash-screen";
 import { Braces, Code, ListTree, Upload } from "lucide-react";
 import Link from "next/link";
@@ -11,8 +11,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 
 interface DatasetItemEntryPointRowProps {
@@ -61,7 +61,7 @@ const DatasetItemEntryPointRow = ({
     >
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
-        <h3 className="font-semibold">{title}</h3>
+        <h3 className="font-bold">{title}</h3>
         <p className="text-muted-foreground text-sm">{description}</p>
       </div>
     </div>
@@ -78,6 +78,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -113,7 +114,9 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
@@ -135,6 +138,9 @@ export const DatasetItemsOnboarding = ({
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />

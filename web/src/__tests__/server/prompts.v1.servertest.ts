@@ -1,15 +1,22 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { createMocks } from "node-mocks-http";
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { prisma, Prisma } from "@langfuse/shared/src/db";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import { v4 as uuidv4, v4 } from "uuid";
-import { type Prompt, PromptType } from "@langfuse/shared";
 import {
+  type Prompt,
+  PromptType,
   LegacyPromptSchema,
   type LegacyValidatedPrompt,
+  PRODUCTION_LABEL,
 } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
   getObservationById,
 } from "@langfuse/shared/src/server";
+import { createPromptForApi } from "@/src/features/prompts/server";
+import handler from "@/src/pages/api/public/prompts";
 
 describe("/api/public/prompts API Endpoint", () => {
   let auth: string;
@@ -24,6 +31,68 @@ describe("/api/public/prompts API Endpoint", () => {
     const setup = await createOrgProjectAndApiKey();
     auth = setup.auth;
     projectId = setup.projectId;
+  });
+
+  it("maps isActive onto production before the protected-label create guard", async () => {
+    await prisma.promptProtectedLabels.create({
+      data: { projectId, label: PRODUCTION_LABEL },
+    });
+
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: { authorization: auth },
+      body: {
+        name: `v1-protected-${projectId.slice(0, 8)}`,
+        prompt: "hello",
+        isActive: true,
+      },
+    });
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(201);
+    const body = res._getJSONData() as {
+      isActive: boolean;
+      labels: string[];
+    };
+    expect(body.isActive).toBe(true);
+    expect(body.labels).toContain(PRODUCTION_LABEL);
+  });
+
+  it("keeps prompt version conflicts as invalid public API requests", async () => {
+    const transactionSpy = vi
+      .spyOn(prisma, "$transaction")
+      .mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError(
+          "Unique constraint failed on the fields: (`project_id`,`name`,`version`)",
+          {
+            code: "P2002",
+            clientVersion: "test",
+            meta: { target: ["project_id", "name", "version"] },
+          },
+        ),
+      );
+
+    try {
+      await expect(
+        createPromptForApi({
+          context: {
+            projectId,
+            orgId: "test-org",
+            apiKeyId: "test-api-key",
+            accessLevel: "project",
+          },
+          input: {
+            name: "concurrent-prompt",
+            prompt: "test",
+            type: PromptType.Text,
+            labels: [],
+            config: {},
+          },
+        }),
+      ).rejects.toMatchObject({ httpCode: 400 });
+    } finally {
+      transactionSpy.mockRestore();
+    }
   });
 
   it("should fetch a prompt", async () => {

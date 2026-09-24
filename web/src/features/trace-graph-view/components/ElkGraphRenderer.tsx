@@ -16,13 +16,16 @@ import {
 import { ZoomIn, ZoomOut, Maximize } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { reportError } from "@/src/utils/reportError";
+import { cn } from "@/src/utils/tailwind";
 import { type GraphCanvasData, type GraphNodeData } from "../types";
 import {
-  computeGraphLayout,
   type GraphLayout,
   type GraphLayoutDirection,
+  isElkCallStackOverflow,
 } from "../layout/elkLayout";
-import { GraphNode } from "./GraphNode";
+import { requestGraphLayout } from "../layout/graphLayoutWorkerClient";
+import { GraphNode, SEARCH_DIM_OPACITY } from "./GraphNode";
 
 type ElkGraphRendererProps = {
   graph: GraphCanvasData;
@@ -36,8 +39,24 @@ type ElkGraphRendererProps = {
    * (resting state stays fully visible — no dimming).
    */
   activeNodeNames?: ReadonlySet<string> | null;
+  /**
+   * Node names that answer the active search, or `null`/absent when there is no
+   * query. The inverse of `activeNodeNames`: playback glows the few UP and
+   * leaves the rest alone, a search fades everything that missed DOWN — with
+   * a query live, "not in this set" is a statement and has to look like one,
+   * including the empty set, which dims the whole graph.
+   *
+   * Nodes and edges keep their hit targets while dimmed.
+   */
+  matchedNodeNames?: ReadonlySet<string> | null;
   /** Layer direction: DOWN (default) or RIGHT (long expanded chains). */
   layoutDirection?: GraphLayoutDirection;
+  /**
+   * Recovery action for the "too large to lay out" notice: switch to the
+   * budget-exempt expanded view, which can render the same trace. Omitted when
+   * no view switch is available (or the view is already expanded).
+   */
+  onShowExpanded?: (() => void) | null;
 };
 
 type Transform = { x: number; y: number; k: number };
@@ -50,6 +69,7 @@ const ZOOM_STEP = 1.4;
 // Below this scale labels are unreadable noise — show only node shape + icon.
 const LABEL_HIDE_SCALE = 0.5;
 const CLICK_MOVE_THRESHOLD = 4; // px; beyond this a pointerup is a drag, not a click
+const SLOW_LAYOUT_HINT_MS = 4_000;
 
 function toPath(points: { x: number; y: number }[]): string {
   return points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -84,7 +104,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   nodeToObservationsMap = {},
   currentObservationIndices = {},
   activeNodeNames = null,
+  matchedNodeNames = null,
   layoutDirection = "DOWN",
+  onShowExpanded = null,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -110,6 +132,10 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
   const [layout, setLayout] = useState<GraphLayout | null>(null);
   const [layoutError, setLayoutError] = useState(false);
   const [layoutAttempt, setLayoutAttempt] = useState(0);
+  // A layout past this point is a big graph (most finish in well under a second):
+  // say so, and say the rest of the view is still usable — the whole point of
+  // laying out off the main thread.
+  const [slowLayout, setSlowLayout] = useState(false);
   const [size, setSize] = useState({ width: 0, height: 0 });
   // Discrete zoom derivation: labels hide below LABEL_HIDE_SCALE.
   const [compact, setCompact] = useState(false);
@@ -142,26 +168,56 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
     return map;
   }, [nodeToObservationsMap, currentObservationIndices]);
 
-  // Compute layout via ELK whenever the graph changes (or a retry is asked).
+  // Lay the graph out in the layout worker whenever the graph changes (or a retry
+  // is asked). The two guards do different jobs: `abort` stops the worker's
+  // now-pointless run, `cancelled` keeps a late result from landing on a newer
+  // graph.
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setLayout(null);
     setLayoutError(false);
     setFitted(false);
+    setSlowLayout(false);
+    const slowTimer = setTimeout(
+      () => setSlowLayout(true),
+      SLOW_LAYOUT_HINT_MS,
+    );
     // A new graph gets a fresh fit; stale hover highlighting drops too.
     overrideRef.current = null;
     setHoveredId(null);
-    computeGraphLayout(graph, nodeToObservationsMap, layoutDirection)
+    requestGraphLayout(
+      graph,
+      nodeToObservationsMap,
+      layoutDirection,
+      controller.signal,
+    )
       .then((result) => {
+        clearTimeout(slowTimer); // a landed layout is not a slow one
         if (!cancelled) setLayout(result);
       })
       .catch((error) => {
-        console.error("Graph layout failed:", error);
-        // Guarded so a superseded effect's rejection can't stomp newer state.
-        if (!cancelled) setLayoutError(true);
+        clearTimeout(slowTimer);
+        if (cancelled) return; // superseded — the rejection IS the cancellation
+        // Stack overflow is converted to `tooLarge` inside runGraphLayout.
+        // If a wrapper still rejects with that signature, treat it as the
+        // same expected "cannot lay out" state — do not page Sentry.
+        if (isElkCallStackOverflow(error)) {
+          reportError(error, {
+            area: "trace-graph-layout",
+            expected: true,
+          });
+          setLayoutError(true);
+          return;
+        }
+        // No warnMessage: the console line must carry ELK's own reason.
+        reportError(error, { area: "trace-graph-layout" });
+        setLayoutError(true);
       });
     return () => {
       cancelled = true;
+      clearTimeout(slowTimer);
+      controller.abort();
     };
   }, [graph, nodeToObservationsMap, layoutDirection, layoutAttempt]);
 
@@ -326,20 +382,31 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
       ref={containerRef}
       role="group"
       aria-label="Trace agent graph"
-      className="bg-background/50 relative h-full w-full cursor-grab overflow-hidden active:cursor-grabbing"
+      // `touch-none`: d3-zoom owns pan and pinch here. Without it WebKit zooms
+      // the page instead, since `preventDefault` cannot cancel its pinch.
+      className="bg-background/50 relative h-full w-full cursor-grab touch-none overflow-hidden active:cursor-grabbing"
       onPointerDown={(e) =>
         (pointerDownPos.current = { x: e.clientX, y: e.clientY })
       }
       onClick={handleBackgroundClick}
     >
       {!layout && !layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">
-          Laying out graph…
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>Laying out graph…</span>
+          {slowLayout && (
+            <span>
+              This is a large graph — the tree and timeline stay usable while it
+              finishes.
+            </span>
+          )}
         </div>
       )}
       {layoutError && (
-        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm">
-          <span>Could not lay out the graph.</span>
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center text-sm">
+          <span>
+            Could not lay out the graph. Try the tree or timeline view to
+            explore this trace.
+          </span>
           <Button
             variant="outline"
             size="sm"
@@ -352,8 +419,42 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
           </Button>
         </div>
       )}
+      {layout?.tooLarge && (
+        // No layout: over the count ceiling, or the worker ran past its deadline
+        // and was killed. No retry — it would end the same way. Point the user at
+        // the tree/timeline instead.
+        <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-1 px-4 text-center text-sm">
+          <span>
+            This graph is too large to lay out
+            {layout.nodeCount != null && layout.edgeCount != null
+              ? ` (${layout.nodeCount.toLocaleString()} nodes, ${layout.edgeCount.toLocaleString()} connections)`
+              : ""}
+            .
+          </span>
+          <span>
+            Try the{" "}
+            {/* The expanded graph is an alternative only from another view. */}
+            {onShowExpanded && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation(); // don't treat as a canvas deselect
+                    onShowExpanded();
+                  }}
+                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  expanded graph
+                </button>
+                ,{" "}
+              </>
+            )}
+            tree or timeline view to explore this trace.
+          </span>
+        </div>
+      )}
 
-      {layout && (
+      {layout && !layout.tooLarge && (
         <div
           ref={worldRef}
           className="absolute top-0 left-0 origin-top-left"
@@ -406,15 +507,24 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
               const active =
                 focusNode != null &&
                 (edge.source === focusNode || edge.target === focusNode);
+              // An edge belongs to the matches when either end does — a hit's
+              // connections are part of reading where it sits. An edge between
+              // two misses is background and fades with them, which is what
+              // keeps the matching path readable through a dense graph.
+              const dimmed =
+                matchedNodeNames != null &&
+                !matchedNodeNames.has(edge.source) &&
+                !matchedNodeNames.has(edge.target);
               return (
                 <path
                   key={edge.id}
                   d={toPath(edge.points)}
-                  className={
+                  className={cn(
                     active
                       ? "stroke-primary fill-none"
-                      : "stroke-muted-foreground/40 fill-none"
-                  }
+                      : "stroke-muted-foreground/40 fill-none",
+                    dimmed && SEARCH_DIM_OPACITY,
+                  )}
                   // Strokes scale with the world transform (vector-effect can't
                   // reach across the HTML ancestor) — the CSS var, written by
                   // the zoom handler, keeps them visible when zoomed out.
@@ -444,6 +554,9 @@ export const ElkGraphRenderer: React.FC<ElkGraphRendererProps> = ({
                 counter={counters.get(node.id)}
                 selected={node.id === selectedNodeName}
                 active={activeNodeNames?.has(node.id) ?? false}
+                dimmed={
+                  matchedNodeNames != null && !matchedNodeNames.has(node.id)
+                }
                 compact={compact}
                 onSelect={handleSelect}
                 onHover={setHoveredId}

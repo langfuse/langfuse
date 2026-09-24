@@ -2,11 +2,12 @@ import { APIObservation } from "@/src/features/public-api/types/observations";
 import {
   APIScoreSchemaV1,
   commaSeparatedEnumArray,
+  deprecationResponseZod,
   paginationMetaResponseZod,
   orderBy,
   optionalJsonParam,
   publicApiPaginationZod,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import {
   stringDateTime,
@@ -84,12 +85,13 @@ export const GetTracesV1Query = z.object({
     unknownValues: "filter",
   }).transform((fields) => (fields && fields.length > 0 ? fields : null)),
   useEventsTable: useEventsTableSchema,
-  filter: optionalJsonParam(z.array(singleFilter), "filter"),
+  filter: optionalJsonParam(singleFilterList, "filter"),
 });
 export const GetTracesV1Response = z
   .object({
     data: z.array(APIExtendedTrace),
     meta: paginationMetaResponseZod,
+    _deprecation: deprecationResponseZod.optional(),
   })
   .strict();
 
@@ -107,6 +109,7 @@ export const GetTraceV1Query = z.object({
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),
   observations: z.array(APIObservation),
+  _deprecation: deprecationResponseZod.optional(),
 }).strict();
 
 // DELETE /api/public/traces/{traceId}

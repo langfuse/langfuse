@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   AuthMethod,
   CreateLlmApiKey,
@@ -7,7 +8,7 @@ import {
   SafeLlmApiKeySchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -25,21 +26,26 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
-  getEvaluatorBlockMetadata,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
+
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
+  createTypeSafeDecisionModelClient,
+  DECISION_MODEL_ADAPTERS,
   generateLLMText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  isDecisionModelAdapter,
   LLMAdapter,
   logger,
   mapLegacyLLMCompletionParams,
   decryptAndParseExtraHeaders,
-  blockEvaluatorConfigsInTx,
+  blockEvaluatorsUsingDefaultModel,
+  blockEvaluatorsUsingProvider,
+  EMPTY_EVALUATOR_BLOCK,
   EvaluatorBlockSource,
-  finalizeBlockedEvaluatorConfigBlocks,
+  finalizeEvaluatorBlocks,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -57,7 +63,7 @@ export function getDisplaySecretKey(secretKey: string) {
     : "..." + secretKey.slice(-4);
 }
 
-export function validateBedrockSecretKey(secretKey: string) {
+function validateBedrockSecretKey(secretKey: string) {
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return;
   }
@@ -101,6 +107,39 @@ type TestLLMConnectionParams = {
   config?: unknown;
 };
 
+async function testDecisionModelConnection(params: {
+  secretKey: string;
+  model: string;
+  baseURL?: string | null;
+  extraHeaders?: Record<string, string>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: params.secretKey,
+      model: params.model,
+      baseURL: params.baseURL,
+      extraHeaders: params.extraHeaders,
+    });
+    await client.evaluate({
+      state: { message: "Hello, is anyone there?" },
+      questions: {
+        kind: {
+          type: "choice",
+          instructions: "What kind of message is `message`?",
+          criteria: { greeting: null, other: null },
+        },
+      },
+    });
+    return { success: true };
+  } catch (err) {
+    logger.error(err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
+  }
+}
+
 async function testLLMConnection(
   params: TestLLMConnectionParams,
 ): Promise<{ success: boolean; error?: string }> {
@@ -110,6 +149,15 @@ async function testLLMConnection(
       : supportedModels[params.adapter][0];
 
     if (!model) throw Error("No model found");
+
+    if (isDecisionModelAdapter(params.adapter)) {
+      return await testDecisionModelConnection({
+        secretKey: params.secretKey,
+        model,
+        baseURL: params.baseURL,
+        extraHeaders: params.extraHeaders,
+      });
+    }
 
     if (params.adapter === LLMAdapter.VertexAI) {
       // Skip validation if using ADC (Application Default Credentials)
@@ -162,6 +210,7 @@ async function testLLMConnection(
         messages: testMessages,
       }),
       maxRetries: 1,
+      timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
     });
 
     return { success: true };
@@ -194,6 +243,35 @@ async function validateBaseURLForWrite(params: {
           : (params.errorPrefix ?? "Invalid base URL"),
     });
   }
+}
+
+function resolveUpdatedExtraHeaders(params: {
+  inputHeaders: Record<string, string | null | undefined> | undefined;
+  storedHeaders: string | null;
+  isBaseURLChanged: boolean;
+}): Record<string, string> | undefined {
+  const existingHeaders: Record<string, string> = params.isBaseURLChanged
+    ? {}
+    : (decryptAndParseExtraHeaders(params.storedHeaders) ?? {});
+
+  if (params.inputHeaders === undefined) {
+    return Object.keys(existingHeaders).length > 0
+      ? existingHeaders
+      : undefined;
+  }
+
+  const extraHeaders: Record<string, string> = {};
+  for (const [key, value] of Object.entries(params.inputHeaders)) {
+    if (value === null || value === undefined || value === "") {
+      if (existingHeaders[key] !== undefined) {
+        extraHeaders[key] = existingHeaders[key];
+      }
+    } else {
+      extraHeaders[key] = value;
+    }
+  }
+
+  return Object.keys(extraHeaders).length > 0 ? extraHeaders : undefined;
 }
 
 export const llmApiKeyRouter = createTRPCRouter({
@@ -324,63 +402,21 @@ export const llmApiKeyRouter = createTRPCRouter({
           },
         });
 
-        const providerBlockedJobConfigIds = new Set<string>();
-        const defaultModelBlockedJobConfigIds = new Set<string>();
-
-        if (llmApiKey?.provider) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId: input.projectId }, { projectId: null }],
+        const providerBlock = llmApiKey?.provider
+          ? await blockEvaluatorsUsingProvider({
+              tx,
+              projectId: input.projectId,
               provider: llmApiKey.provider,
-            },
-            select: {
-              id: true,
-            },
-          });
+            })
+          : EMPTY_EVALUATOR_BLOCK;
 
-          const providerBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
-              },
-            },
-            blockReason: EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.LLM_CONNECTION_MISSING,
-            ).message,
-          });
-
-          for (const configId of providerBlockResult.blockedJobConfigIds) {
-            providerBlockedJobConfigIds.add(configId);
-          }
-        }
-
-        if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
-            tx,
-            projectId: input.projectId,
-          });
-
-          const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
-            tx,
-            projectId: input.projectId,
-            where: {
-              evalTemplateId: {
-                in: evalTemplateIds,
-              },
-            },
-            blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            blockMessage: getEvaluatorBlockMetadata(
-              EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,
-            ).message,
-          });
-
-          for (const configId of defaultModelBlockResult.blockedJobConfigIds) {
-            defaultModelBlockedJobConfigIds.add(configId);
-          }
-        }
+        const defaultModelBlock =
+          !!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id
+            ? await blockEvaluatorsUsingDefaultModel({
+                tx,
+                projectId: input.projectId,
+              })
+            : EMPTY_EVALUATOR_BLOCK;
 
         await tx.llmApiKeys.delete({
           where: {
@@ -397,22 +433,17 @@ export const llmApiKeyRouter = createTRPCRouter({
           action: "delete",
         });
 
-        return {
-          providerBlockedJobConfigIds: Array.from(providerBlockedJobConfigIds),
-          defaultModelBlockedJobConfigIds: Array.from(
-            defaultModelBlockedJobConfigIds,
-          ),
-        };
+        return { providerBlock, defaultModelBlock };
       });
 
-      await finalizeBlockedEvaluatorConfigBlocks({
+      await finalizeEvaluatorBlocks({
         projectId: input.projectId,
         source: EvaluatorBlockSource.LLM_API_KEY_DELETION,
-        blockedByReason: {
+        evaluatorIdsByReason: {
           [EvaluatorBlockReason.LLM_CONNECTION_MISSING]:
-            result.providerBlockedJobConfigIds,
+            result.providerBlock.blockedEvaluatorIds,
           [EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING]:
-            result.defaultModelBlockedJobConfigIds,
+            result.defaultModelBlock.blockedEvaluatorIds,
         },
       });
 
@@ -422,6 +453,7 @@ export const llmApiKeyRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        includeDecisionModels: z.boolean().optional().default(false),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -430,6 +462,13 @@ export const llmApiKeyRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "llmApiKeys:read",
       });
+
+      const where = {
+        projectId: input.projectId,
+        ...(input.includeDecisionModels
+          ? {}
+          : { adapter: { notIn: [...DECISION_MODEL_ADAPTERS] } }),
+      };
 
       const storedApiKeys = await ctx.prisma.llmApiKeys.findMany({
         // secretKey is selected server-side only to derive a safe auth-method enum for Bedrock
@@ -448,9 +487,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           config: true,
           secretKey: true,
         },
-        where: {
-          projectId: input.projectId,
-        },
+        where,
       });
 
       const apiKeys = z.array(SafeLlmApiKeySchema).parse(
@@ -465,11 +502,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         })),
       );
 
-      const count = await ctx.prisma.llmApiKeys.count({
-        where: {
-          projectId: input.projectId,
-        },
-      });
+      const count = await ctx.prisma.llmApiKeys.count({ where });
 
       return {
         data: apiKeys, // does not contain the secret key
@@ -535,7 +568,8 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         const hasNewSecretKey =
           typeof input.secretKey === "string" && input.secretKey.length > 0;
-        const baseURL = input.baseURL ?? existingKey.baseURL;
+        const baseURL =
+          input.baseURL !== undefined ? input.baseURL : existingKey.baseURL;
         const isBaseURLChanged = baseURL !== existingKey.baseURL;
 
         if (isBaseURLChanged && !hasNewSecretKey) {
@@ -559,15 +593,11 @@ export const llmApiKeyRouter = createTRPCRouter({
         const customModels = input.customModels ?? existingKey.customModels;
         const config = input.config ?? existingKey.config;
 
-        // Never reuse stored headers across a destination change.
-        const extraHeaders =
-          input.extraHeaders !== undefined
-            ? input.extraHeaders
-            : isBaseURLChanged
-              ? undefined
-              : existingKey.extraHeaders
-                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-                : undefined;
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         return testLLMConnection({
           adapter,
@@ -631,6 +661,13 @@ export const llmApiKeyRouter = createTRPCRouter({
             ? input.baseURL !== existingKey.baseURL
             : false;
 
+        if (isBaseURLChanged && !input.secretKey) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Secret key is required when changing the base URL",
+          });
+        }
+
         if (input.baseURL && isBaseURLChanged) {
           await validateBaseURLForWrite({
             baseURL: input.baseURL,
@@ -674,42 +711,11 @@ export const llmApiKeyRouter = createTRPCRouter({
           input.extraHeaders = {};
         }
 
-        // Get existing decrypted headers for comparison
-        const decryptedHeaders = existingKey.extraHeaders
-          ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-          : null;
-        const existingHeaders: Record<string, string> = decryptedHeaders ?? {};
-
-        // Ensure we only update the extraHeaders where the value is not null
-        let extraHeaders: Record<string, string> | undefined;
-
-        if (input.extraHeaders === undefined) {
-          // Keep all existing headers unchanged
-          extraHeaders =
-            Object.keys(existingHeaders).length > 0
-              ? existingHeaders
-              : undefined;
-        } else {
-          // Process input headers, preserving existing values for empty inputs
-          extraHeaders = {};
-
-          for (const [key, value] of Object.entries(input.extraHeaders)) {
-            if (value === null || value === undefined || value === "") {
-              // Keep existing value if input value is empty and key exists
-              if (existingHeaders[key] !== undefined) {
-                extraHeaders[key] = existingHeaders[key];
-              }
-            } else {
-              // Use the new non-empty value
-              extraHeaders[key] = value;
-            }
-          }
-
-          // If no headers remain, set to undefined
-          if (Object.keys(extraHeaders).length === 0) {
-            extraHeaders = undefined;
-          }
-        }
+        const extraHeaders = resolveUpdatedExtraHeaders({
+          inputHeaders: input.extraHeaders,
+          storedHeaders: existingKey.extraHeaders,
+          isBaseURLChanged,
+        });
 
         const key = await ctx.prisma.llmApiKeys.update({
           where: {
@@ -720,10 +726,14 @@ export const llmApiKeyRouter = createTRPCRouter({
             ...(input.secretKey ? { secretKey: encrypt(input.secretKey) } : {}),
             extraHeaders: extraHeaders
               ? encrypt(JSON.stringify(extraHeaders))
-              : undefined,
+              : isBaseURLChanged
+                ? null
+                : undefined,
             extraHeaderKeys: extraHeaders
               ? Object.keys(extraHeaders)
-              : undefined,
+              : isBaseURLChanged
+                ? []
+                : undefined,
             displaySecretKey: input.secretKey
               ? getDisplaySecretKey(input.secretKey)
               : undefined,

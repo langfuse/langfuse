@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import {
   clickhouseClient,
   ClickhouseClientType,
@@ -5,6 +6,7 @@ import {
   getCurrentSpan,
   ObservationRecordInsertType,
   ObservationBatchStagingRecordInsertType,
+  recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -34,6 +36,7 @@ const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
   private static client: ClickhouseClientType | null = null;
+  private readonly activeFlushes = new Set<Promise<void>>();
   batchSize: number;
   writeInterval: number;
   maxAttempts: number;
@@ -89,8 +92,6 @@ export class ClickhouseWriter {
 
       this.isIntervalFlushInProgress = true;
 
-      logger.debug("Flush interval elapsed, flushing all queues...");
-
       this.flushAll().finally(() => {
         this.isIntervalFlushInProgress = false;
       });
@@ -105,32 +106,47 @@ export class ClickhouseWriter {
       this.intervalId = null;
     }
 
+    while (this.activeFlushes.size > 0) {
+      await Promise.all([...this.activeFlushes]);
+    }
+
     await this.flushAll(true);
 
     logger.info("ClickhouseWriter shutdown complete.");
   }
 
   public async flushAll(fullQueue = false) {
-    return instrumentAsync(
-      {
-        name: "write-to-clickhouse",
-      },
-      async () => {
-        recordIncrement("langfuse.queue.clickhouse_writer.request");
-        await Promise.all([
-          this.flush(TableName.Traces, fullQueue),
-          this.flush(TableName.TracesNull, fullQueue),
-          this.flush(TableName.Scores, fullQueue),
-          this.flush(TableName.Observations, fullQueue),
-          this.flush(TableName.ObservationsBatchStaging, fullQueue),
-          this.flush(TableName.BlobStorageFileLog, fullQueue),
-          this.flush(TableName.DatasetRunItems, fullQueue),
-          this.flush(TableName.EventsFull, fullQueue),
-        ]).catch((err) => {
-          logger.error("ClickhouseWriter.flushAll", err);
-        });
-      },
+    return this.trackActiveFlush(
+      instrumentAsync(
+        {
+          name: "write-to-clickhouse",
+        },
+        async () => {
+          recordIncrement("langfuse.queue.clickhouse_writer.request");
+          await Promise.all([
+            this.flush(TableName.Traces, fullQueue),
+            this.flush(TableName.TracesNull, fullQueue),
+            this.flush(TableName.Scores, fullQueue),
+            this.flush(TableName.Observations, fullQueue),
+            this.flush(TableName.ObservationsBatchStaging, fullQueue),
+            this.flush(TableName.BlobStorageFileLog, fullQueue),
+            this.flush(TableName.DatasetRunItems, fullQueue),
+            this.flush(TableName.EventsFull, fullQueue),
+          ]).catch((err) => {
+            logger.error("ClickhouseWriter.flushAll", err);
+          });
+        },
+      ),
     );
+  }
+
+  private trackActiveFlush(flush: Promise<void>): Promise<void> {
+    this.activeFlushes.add(flush);
+    flush.then(
+      () => this.activeFlushes.delete(flush),
+      () => this.activeFlushes.delete(flush),
+    );
+    return flush;
   }
 
   private isRetryableError(error: unknown): boolean {
@@ -138,8 +154,13 @@ export class ClickhouseWriter {
 
     const errorMessage = (error as Error).message?.toLowerCase() || "";
 
-    // Check for socket hang up and other network-related errors
-    return errorMessage.includes("socket hang up");
+    // Socket hang up and client-side request timeouts ("Timeout error." from
+    // @clickhouse/client when request_timeout elapses) are transient: a retry
+    // opens a fresh connection that can land on a healthy replica.
+    return (
+      errorMessage.includes("socket hang up") ||
+      errorMessage.includes("timeout error")
+    );
   }
 
   private isSizeError(error: unknown): boolean {
@@ -370,6 +391,15 @@ export class ClickhouseWriter {
       recordHistogram("langfuse.queue.clickhouse_writer.wait_time", waitTime, {
         unit: "milliseconds",
       });
+      recordDistribution(
+        "langfuse.queue.clickhouse_writer.time_distribution",
+        waitTime,
+        {
+          entity_type: tableName,
+          type: "wait",
+          unit: "milliseconds",
+        },
+      );
     });
 
     const currentSpan = getCurrentSpan();
@@ -483,10 +513,21 @@ export class ClickhouseWriter {
       );
 
       // Log processing time
+      const processingTime = Date.now() - processingStartTime;
+
       recordHistogram(
         "langfuse.queue.clickhouse_writer.processing_time",
-        Date.now() - processingStartTime,
+        processingTime,
         {
+          unit: "milliseconds",
+        },
+      );
+      recordDistribution(
+        "langfuse.queue.clickhouse_writer.time_distribution",
+        processingTime,
+        {
+          entity_type: tableName,
+          type: "processing",
           unit: "milliseconds",
         },
       );
@@ -561,7 +602,7 @@ export class ClickhouseWriter {
     if (entityQueue.length >= this.batchSize) {
       logger.debug(`Queue is full. Flushing ${tableName}...`);
 
-      this.flush(tableName).catch((err) => {
+      this.trackActiveFlush(this.flush(tableName)).catch((err) => {
         logger.error("ClickhouseWriter.addToQueue flush", err);
       });
     }

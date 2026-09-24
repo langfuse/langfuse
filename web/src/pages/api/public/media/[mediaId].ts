@@ -3,12 +3,10 @@ import { z } from "zod";
 import {
   getMedia,
   updateMediaUploadStatus,
-} from "@/src/features/media/server/mediaService";
-import {
   GetMediaQuerySchema,
   GetMediaResponseSchema,
   PatchMediaBodySchema,
-} from "@/src/features/media/validation";
+} from "@/src/features/media/server";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { ForbiddenError } from "@langfuse/shared";
@@ -16,6 +14,7 @@ import { ForbiddenError } from "@langfuse/shared";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Media data",
+    action: "media:read",
     querySchema: GetMediaQuerySchema,
     responseSchema: GetMediaResponseSchema,
     fn: async ({ query, auth }) => {
@@ -30,6 +29,7 @@ export default withMiddlewares({
 
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Media Uploaded At",
+    action: "media:create",
     querySchema: z.object({
       mediaId: z.string(),
     }),

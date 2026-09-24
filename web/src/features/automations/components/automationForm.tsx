@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary */
+import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
   Card,
@@ -42,16 +44,13 @@ import {
   TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
-import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
-import { DeleteAutomationButton } from "./DeleteAutomationButton";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
+import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { webhookSchema } from "./actions/WebhookActionForm";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "lucide-react";
 
@@ -68,6 +67,7 @@ const githubDispatchSchema = z.object({
   eventType: z.string().min(1, "Event type is required").max(100),
   githubToken: z.string(),
   displayGitHubToken: z.string().optional(),
+  originalUrl: z.string().optional(),
 });
 
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
@@ -247,7 +247,7 @@ const EventSourceField = ({
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
-                  Monitor
+                  Alert
                 </SelectItem>
               )}
               <SelectItem disabled={true} value="planned">
@@ -267,91 +267,108 @@ const EventSourceField = ({
 
 /** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
 const PromptTriggerFields = ({
+  projectId,
   control,
   disabled,
 }: {
+  projectId: string;
   control: Control<FormValues>;
   disabled: boolean;
-}) => (
-  <>
-    <FormField
-      control={control}
-      name="eventAction"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Event Action</FormLabel>
-          <FormControl>
-            <MultiSelect
-              title="Event Actions"
-              label="Actions"
-              values={field.value}
-              onValueChange={field.onChange}
-              options={[
-                {
-                  value: "created",
-                  description: "Whenever a new prompt version is created",
-                },
-                {
-                  value: "updated",
-                  description:
-                    "Whenever tags or labels on a prompt version are updated",
-                },
-                {
-                  value: "deleted",
-                  description: "Whenever a prompt version is deleted",
-                },
-              ]}
-              className="my-0 w-auto overflow-hidden"
-              disabled={disabled}
-              labelTruncateCutOff={4}
-            />
-          </FormControl>
-          <FormDescription>
-            The actions on the event source that trigger this automation.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-    <FormField
-      control={control}
-      name="filter"
-      render={({ field }) => (
-        <FormItem>
-          <FormLabel>Filter</FormLabel>
-          <FormControl>
-            <InlineFilterBuilder
-              columns={webhookActionFilterOptions()}
-              filterState={field.value || []}
-              onChange={field.onChange}
-              disabled={disabled}
-            />
-          </FormControl>
-          <FormDescription>
-            Add conditions to narrow down when this trigger fires.
-          </FormDescription>
-          <FormMessage />
-        </FormItem>
-      )}
-    />
-  </>
-);
+}) => {
+  const [optionsOpened, setOptionsOpened] = React.useState(false);
+  const { data: filterOptions, isFetching: optionsLoading } =
+    api.prompts.filterOptions.useQuery(
+      { projectId },
+      { enabled: optionsOpened },
+    );
+
+  return (
+    <>
+      <FormField
+        control={control}
+        name="eventAction"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Event Action</FormLabel>
+            <FormControl>
+              <MultiSelect
+                title="Event Actions"
+                label="Actions"
+                values={field.value}
+                onValueChange={field.onChange}
+                options={[
+                  {
+                    value: "created",
+                    description: "Whenever a new prompt version is created",
+                  },
+                  {
+                    value: "updated",
+                    description:
+                      "Whenever tags or labels on a prompt version are updated",
+                  },
+                  {
+                    value: "deleted",
+                    description: "Whenever a prompt version is deleted",
+                  },
+                ]}
+                className="my-0 w-auto overflow-hidden"
+                disabled={disabled}
+                labelTruncateCutOff={4}
+              />
+            </FormControl>
+            <FormDescription>
+              The actions on the event source that trigger this automation.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+      <FormField
+        control={control}
+        name="filter"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Filter</FormLabel>
+            <FormControl>
+              <InlineFilterBuilder
+                columns={webhookActionFilterOptions(filterOptions)}
+                columnsWithCustomSelect={["labels", "tags"]}
+                loadingOptionColumns={optionsLoading ? ["labels", "tags"] : []}
+                onOptionsOpen={(columnId) => {
+                  if (columnId === "labels" || columnId === "tags") {
+                    setOptionsOpened(true);
+                  }
+                }}
+                filterState={field.value || []}
+                onChange={field.onChange}
+                disabled={disabled}
+              />
+            </FormControl>
+            <FormDescription>
+              Add conditions to narrow down when this trigger fires.
+            </FormDescription>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </>
+  );
+};
 
 /** MonitorTriggerFields renders an info card explaining that monitors connect to this automation via the create-monitor page. */
 const MonitorTriggerFields = ({ projectId }: { projectId: string }) => (
-  <Alert>
-    <Info className="h-4 w-4" />
-    <AlertTitle>How Monitors Connect</AlertTitle>
-    <AlertDescription>
-      Add this automation to a monitor from the{" "}
+  <Alert icon={Info}>
+    <Alert.Title>How Alerts Connect</Alert.Title>
+    <Alert.Description>
+      Add this automation to an alert from the{" "}
       <Link
-        href={`/project/${projectId}/monitors/new`}
+        href={`/project/${projectId}/alerts/new`}
         className="text-primary underline underline-offset-2"
       >
-        create monitors page
+        create alerts page
       </Link>
       .
-    </AlertDescription>
+    </Alert.Description>
   </Alert>
 );
 
@@ -464,19 +481,13 @@ export const AutomationForm = ({
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(
-        automation,
-        resolvedEventSource,
-      );
+      const webhookDefaults = handler.getDefaultValues(automation);
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
-          apiVersion: webhookDefaults.webhook.apiVersion || {
-            prompt: "v1" as const,
-          },
         },
       };
     } else if (actionType === "SLACK") {
@@ -505,6 +516,7 @@ export const AutomationForm = ({
           githubToken: githubDefaults.githubDispatch.githubToken || "",
           displayGitHubToken:
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
+          originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
       };
     }
@@ -539,7 +551,10 @@ export const AutomationForm = ({
       return;
     }
 
-    const actionConfig = handler.buildActionConfig(data);
+    const actionConfig = handler.buildActionConfig(
+      data,
+      data.eventSource as TriggerEventSource,
+    );
 
     // Project-notification names are auto-generated from the destination (the
     // name field is hidden for this source; regenerated on every save so the
@@ -605,10 +620,7 @@ export const AutomationForm = ({
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues(
-        undefined,
-        form.getValues("eventSource") as TriggerEventSource,
-      );
+      const defaultValues = handler.getDefaultValues();
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
@@ -651,6 +663,13 @@ export const AutomationForm = ({
   const isProjectNotification =
     watchedEventSource === TriggerEventSource.ProjectNotification;
 
+  // A monitor-sourced trigger has nothing to configure, so with the source
+  // locked (e.g. created from the monitor form) the card is pure noise.
+  const hideTriggerCard =
+    isProjectNotification ||
+    (Boolean(lockedEventSource) &&
+      watchedEventSource === TriggerEventSource.Monitor);
+
   /** handleEventSourceChange resets eventAction + filter to defaults appropriate for the picked source. */
   const handleEventSourceChange = (value: TriggerEventSource) => {
     form.setValue("eventSource", value);
@@ -680,7 +699,7 @@ export const AutomationForm = ({
                         {...field}
                         autoFocus={!automation}
                         disabled={!hasAccess || !isEditing}
-                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-semibold focus-visible:ring-0 focus-visible:ring-offset-0"
+                        className="border-border rounded-none border-0 border-b bg-transparent px-0 text-2xl font-bold focus-visible:ring-0 focus-visible:ring-offset-0"
                       />
                     </FormControl>
                     <FormMessage />
@@ -693,7 +712,7 @@ export const AutomationForm = ({
               name="status"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center gap-2">
-                  <FormLabel className="text-sm font-medium">Active</FormLabel>
+                  <FormLabel className="text-sm font-bold">Active</FormLabel>
                   <FormControl>
                     <Switch
                       checked={field.value === "ACTIVE"}
@@ -710,8 +729,7 @@ export const AutomationForm = ({
           </div>
         )}
 
-        {/* Project-notification triggers are match-all, so there is nothing to configure. */}
-        {!isProjectNotification && (
+        {!hideTriggerCard && (
           <Card>
             <CardHeader>
               <CardTitle>Trigger</CardTitle>
@@ -731,6 +749,7 @@ export const AutomationForm = ({
                 <MonitorTriggerFields projectId={projectId} />
               ) : (
                 <PromptTriggerFields
+                  projectId={projectId}
                   control={form.control}
                   disabled={!hasAccess || !isEditing}
                 />
@@ -811,15 +830,25 @@ export const AutomationForm = ({
               automation?.trigger.id &&
               automation?.action.id && (
                 <div>
-                  <DeleteAutomationButton
+                  <DeleteAutomationDialogController
                     projectId={projectId}
                     automationId={automation.id}
-                    variant="button"
                     onSuccess={() => {
-                      utils.automations.invalidate();
                       router.push(`/project/${projectId}/settings/automations`);
                     }}
-                  />
+                  >
+                    {({ disabled, openDialog }) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-light-red flex items-center"
+                        disabled={disabled !== undefined}
+                        onClick={openDialog}
+                      >
+                        <span className="text-dark-red">Delete</span>
+                      </Button>
+                    )}
+                  </DeleteAutomationDialogController>
                 </div>
               )}
             <div className="grow"></div>

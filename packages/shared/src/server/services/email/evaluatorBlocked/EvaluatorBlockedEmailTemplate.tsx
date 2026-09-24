@@ -211,5 +211,3 @@ export const EvaluatorBlockedEmailTemplate = ({
     </Html>
   );
 };
-
-export default EvaluatorBlockedEmailTemplate;

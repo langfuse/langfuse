@@ -1,9 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { FilterState } from "@langfuse/shared";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { type FilterState, encodeFiltersGeneric } from "@langfuse/shared";
 import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import type { FilterConfig } from "./lib/filter-config";
-import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
+import { omitFilterFacets, type FilterConfig } from "./lib/filter-config";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
+import { getScoreFilterConfig } from "./config/scores-config";
+import { getFacetSummary } from "./lib/facet-display";
 
 const queryParamStore = new Map<string, unknown>();
 // Values placed here are NOT visible on the first render; they are applied on
@@ -96,6 +104,102 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
+describe("numeric conditions restored from the URL", () => {
+  it("keeps strict bounds visible and removes only the selected condition", () => {
+    const filters: FilterState = [
+      { column: "value", type: "number", operator: ">", value: 0.2 },
+      { column: "value", type: "number", operator: "<", value: 0.8 },
+      {
+        column: "source",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["API"],
+      },
+    ];
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+    queryParamStore.set("filter", encodeFiltersGeneric(filters));
+    const { result } = renderHook(() =>
+      useSidebarFilterState(
+        getScoreFilterConfig(),
+        {},
+        { stateLocation: "url" },
+      ),
+    );
+    const facet = result.current.filters.find(
+      (filter) => filter.type === "numeric",
+    );
+    if (!facet || facet.type !== "numeric")
+      throw new Error("numeric facet missing");
+
+    expect(getFacetSummary(facet)).toBe("> 0.2 · < 0.8");
+    expect(facet.value).toBeNull();
+    act(() => facet.onRemoveCondition(0));
+    expect(result.current.explicitFilterState).toEqual(filters.slice(1));
+  });
+
+  it.each<{
+    conditions: Extract<FilterState[number], { type: "number" }>[];
+    range: [number, number] | null;
+    summary: string;
+  }>([
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "=", value: 0.5 },
+      ],
+      range: null,
+      summary: "= 0.5",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: ">=", value: 0.4 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: ">= 0.2 · >= 0.4 · <= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: null,
+      summary: "<= 0.8",
+    },
+    {
+      conditions: [
+        { column: "value", type: "number", operator: ">=", value: 0.2 },
+        { column: "value", type: "number", operator: "<=", value: 0.8 },
+      ],
+      range: [0.2, 0.8],
+      summary: "0.2–0.8",
+    },
+  ])(
+    "projects $summary without adding or collapsing bounds",
+    ({ conditions, range, summary }) => {
+      queryParamStore.clear();
+      deferredQueryParams.clear();
+      queryParamStore.set("filter", encodeFiltersGeneric(conditions));
+      const { result } = renderHook(() =>
+        useSidebarFilterState(
+          getScoreFilterConfig(),
+          {},
+          { stateLocation: "url" },
+        ),
+      );
+      const facet = result.current.filters.find(
+        (filter) => filter.type === "numeric",
+      );
+      if (!facet || facet.type !== "numeric")
+        throw new Error("numeric facet missing");
+
+      expect(getFacetSummary(facet)).toBe(summary);
+      expect(facet.value).toEqual(range);
+      expect(result.current.explicitFilterState).toEqual(conditions);
+    },
+  );
+});
+
 const FILTER_A: FilterState = [
   {
     column: "name",
@@ -157,6 +261,25 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
         Set oversized
       </button>
     </div>
+  );
+}
+
+// An embedded, entity-scoped surface: the page bounds this column with its own
+// hidden filter, so the facet is omitted (a user-detail traces table omits
+// User ID).
+const EMBEDDED_FILTER_CONFIG = omitFilterFacets(TEST_FILTER_CONFIG, ["name"]);
+
+function EmbeddedSurfaceHarness() {
+  const queryFilter = useSidebarFilterState(
+    EMBEDDED_FILTER_CONFIG,
+    TEST_OPTIONS,
+    { stateLocation: "urlAndSessionStorage", sessionFilterContextId: null },
+  );
+
+  return (
+    <pre data-testid="explicit-state">
+      {JSON.stringify(queryFilter.explicitFilterState)}
+    </pre>
   );
 }
 
@@ -356,6 +479,28 @@ describe("useSidebarFilterState session persistence", () => {
 
     fireEvent.click(screen.getByTestId("clear-filters"));
 
+    await waitFor(() => {
+      expect(queryParamStore.has("filter")).toBe(false);
+    });
+    expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+  });
+
+  it("never applies a filter on a column the surface omits (LFE-14824)", async () => {
+    // The project-wide table's persisted filter (or a deep link) reaching an
+    // embedded surface whose facet is omitted: applying it would AND an
+    // invisible constraint with the page's own scope and return nothing.
+    const sessionKey = buildSessionKey();
+    sessionStorage.setItem(sessionKey, encodeStoredState(encodedFilterA));
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<EmbeddedSurfaceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual([]);
+    });
+
+    // Scrubbed from both persistence channels, so what is stored stays equal to
+    // what the sidebar can show.
     await waitFor(() => {
       expect(queryParamStore.has("filter")).toBe(false);
     });

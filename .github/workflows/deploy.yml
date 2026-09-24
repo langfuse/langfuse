@@ -15,6 +15,7 @@ on:
           - web-iso
           - worker
           - worker-cpu
+          - ai-gateway
         required: true
       environment:
         description: "Environment to deploy to"
@@ -46,14 +47,21 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
+            const isStaging = context.eventName === "workflow_dispatch"
+              ? context.payload.inputs.environment === "staging"
+              : context.ref === "refs/heads/main";
+            if (isStaging) services.push("ai-gateway");
+
             if (context.eventName === "workflow_dispatch") {
-              if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              const service = context.payload.inputs.service;
+              if (service === "ai-gateway" && !isStaging) {
+                throw new Error("AI Gateway deployments are only enabled in staging.");
               }
-              return `["${context.payload.inputs.service}"]`
+              return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              return JSON.stringify(services);
             }
             return "[]"
           result-encoding: string
@@ -123,8 +131,9 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
+      actions: read
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Notify Slack

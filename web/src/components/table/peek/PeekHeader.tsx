@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -11,9 +12,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
-import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
+import {
+  ItemBadge,
+  getItemTypeLabels,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import {
+  DetailPageNav,
+  type ListEntry,
+} from "@/src/features/navigate-detail-pages";
 import {
   ExternalLink,
   Maximize2,
@@ -206,15 +213,19 @@ export function PeekHeader({
     <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
       <div
         ref={headerRef}
-        className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+        className="bg-muted flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
       >
         <div className="flex min-w-0 flex-row items-center gap-2">
-          {/* Badge never truncates: it shows the full label or just the icon. */}
+          {/* Type never truncates: the word when it fits, the icon when not. */}
           <div ref={badgeRef} className="shrink-0">
-            <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
+            {plan.badgeShowLabel ? (
+              <Badge text={getItemTypeLabels(itemType).displayLabel} />
+            ) : (
+              <ItemBadge type={itemType} />
+            )}
           </div>
           <span
-            className="truncate text-sm font-medium focus:outline-hidden"
+            className="truncate text-sm font-bold focus:outline-hidden"
             tabIndex={0}
             title={typeof title === "string" ? title : undefined}
           >

@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -25,8 +26,10 @@ describe("project API keys trpc", () => {
     });
   });
 
-  async function createProjectCaller() {
-    const { projectId, orgId } = await createOrgProjectAndApiKey();
+  async function createProjectCaller(
+    projectRole: "ADMIN" | "MEMBER" = "ADMIN",
+  ) {
+    const { projectId, orgId, publicKey } = await createOrgProjectAndApiKey();
 
     const session: Session = {
       expires: "1",
@@ -47,7 +50,7 @@ describe("project API keys trpc", () => {
             projects: [
               {
                 id: projectId,
-                role: "ADMIN",
+                role: projectRole,
                 retentionDays: 30,
                 deletedAt: null,
                 hasTraces: false,
@@ -58,14 +61,7 @@ describe("project API keys trpc", () => {
             ],
           },
         ],
-        featureFlags: {
-          searchBar: false,
-          excludeClickhouseRead: false,
-          templateFlag: true,
-          v4BetaToggleVisible: false,
-          observationEvals: false,
-          experimentsV4Enabled: false,
-        },
+        featureFlags: testFeatureFlags(),
         admin: false,
       },
       environment: {} as any,
@@ -74,7 +70,7 @@ describe("project API keys trpc", () => {
     const ctx = createInnerTRPCContext({ session, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
 
-    return { caller, projectId };
+    return { caller, projectId, publicKey };
   }
 
   describe("projectApiKeys.byProjectId", () => {
@@ -96,6 +92,17 @@ describe("project API keys trpc", () => {
         "In-app agent key hidden from project UI",
       );
     });
+
+    // The settings page gates the list view on apiKeys:read, which MEMBERs
+    // hold without apiKeys:CUD. Pin that this read path stays open to them.
+    it("lists keys for MEMBER callers, who only hold apiKeys:read", async () => {
+      const { caller, projectId, publicKey } =
+        await createProjectCaller("MEMBER");
+
+      const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
+
+      expect(apiKeys.map((key) => key.publicKey)).toContain(publicKey);
+    });
   });
 
   describe("projectApiKeys.create", () => {
@@ -112,11 +119,31 @@ describe("project API keys trpc", () => {
       });
       expect(dbKey.createdByUserId).toBe("user-1");
       expect(dbKey.createdByApiKeyId).toBeNull();
+      expect(dbKey.scope).toBe("PROJECT");
+      expect(dbKey.projectId).toBe(projectId);
+      expect(dbKey.orgId).toBeNull();
 
       const apiKeys = await caller.projectApiKeys.byProjectId({ projectId });
       const listedKey = apiKeys.find((key) => key.id === apiKeyResult.id);
       expect(listedKey?.createdByUser?.id).toBe("user-1");
       expect(listedKey?.createdByApiKey).toBeNull();
+    });
+
+    it("rejects users without apiKeys:CUD access", async () => {
+      const { caller, projectId } = await createProjectCaller("MEMBER");
+
+      await expect(
+        caller.projectApiKeys.create({
+          projectId,
+          note: "Unauthorized migration key",
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        prisma.apiKey.count({
+          where: { projectId, note: "Unauthorized migration key" },
+        }),
+      ).resolves.toBe(0);
     });
   });
 

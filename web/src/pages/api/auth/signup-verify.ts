@@ -1,7 +1,8 @@
 import { env } from "@/src/env.mjs";
-import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { isEmailVerificationRequired } from "@/src/features/auth-credentials";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
+import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import type { NextApiRequest, NextApiResponse } from "next";
@@ -84,6 +85,7 @@ export default async function handler(
 
     await createProjectMembershipsOnSignup(newUser, {
       userWasJustCreated: true,
+      adClickIds: getAdClickIdsFromRequest(req),
     });
 
     // Trigger new user signup event

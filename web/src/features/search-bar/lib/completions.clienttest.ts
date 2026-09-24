@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import {
   applyPick,
   flattenOptions,
@@ -5,6 +7,7 @@ import {
   SECTION_COMPARE_OPS,
   SECTION_FIELDS,
   SECTION_MATCH_OPS,
+  SECTION_MATCHING_FILTERS,
   SECTION_RECENT,
   SECTION_VALUES,
   type CompletionOption,
@@ -14,6 +17,8 @@ import {
   toObservedOptions,
   type ObservedOptions,
 } from "@/src/features/search-bar/lib/observed-options";
+import { createFieldRegistry, EVENTS_FIELD_REGISTRY } from "./fields";
+import { validateQuery } from "./validate";
 
 const OBSERVED: ObservedOptions = {
   level: [
@@ -44,12 +49,180 @@ function plan(
 }
 
 describe("planInputCompletions", () => {
+  it("offers only declared scope rewrites and keeps compatibility in: out of suggestions", () => {
+    const registry = createFieldRegistry({
+      ...EVENTS_FIELD_REGISTRY,
+      fields: [],
+      defaultSearchType: ["id"],
+      freeTextScopeLabel: "prompt names and tags",
+      searchScopes: {
+        content: {
+          searchType: ["content"],
+          label: "Content",
+          description: "search prompt content",
+        },
+      },
+    });
+    const optionsFor = (input: string) =>
+      flattenOptions(
+        planInputCompletions(
+          {
+            input,
+            caret: input.length,
+            currentQueryText: input,
+            observed: {},
+            recents: [],
+          },
+          registry,
+        ),
+      );
+    const fields = optionsFor("").filter((option) => option.kind === "field");
+    expect(fields.some((option) => option.label === "content")).toBe(true);
+    expect(fields.some((option) => option.label === "in")).toBe(false);
+    const rewrites = optionsFor("refund policy").filter(
+      (option) => option.kind === "pattern" && option.id.startsWith("scope:"),
+    );
+    expect(rewrites.map((option) => option.label)).toEqual([
+      '"refund policy"',
+      'content:"refund policy"',
+    ]);
+    for (const option of rewrites)
+      expect(validateQuery(option.label, undefined, registry).valid).toBe(true);
+    expect(
+      optionsFor('content:"refund policy"').some(
+        (option) => option.kind === "pattern" && option.id === "scope:default",
+      ),
+    ).toBe(true);
+  });
+
   it("plans the empty stage with fields and recents", () => {
     const p = plan("", 0, { recents: ["level:ERROR"] });
     expect(p?.stage).toBe("empty");
     const titles = p?.sections.map((s) => s.title);
     expect(titles).toContain(SECTION_FIELDS);
     expect(titles).toContain(SECTION_RECENT);
+  });
+
+  it("always includes injected query presets at a blank top-level term", () => {
+    const presetSections = [
+      {
+        title: "Reuse rule filters",
+        options: [
+          {
+            id: "rule-filter:popular",
+            label: "environment:production",
+            detail: "Used by 8 evaluators",
+            query: "environment:production",
+          },
+        ],
+      },
+    ];
+
+    const empty = plan("", 0, { presetSections });
+    const afterExistingFilters = plan("level:ERROR ", 12, {
+      presetSections,
+    });
+
+    for (const result of [empty, afterExistingFilters]) {
+      expect(result?.sections[0]).toMatchObject({
+        title: "Reuse rule filters",
+        options: [
+          {
+            kind: "preset",
+            id: "rule-filter:popular",
+            query: "environment:production",
+          },
+        ],
+      });
+      expect(result?.autoHighlight).not.toBe(true);
+    }
+  });
+
+  it("caps all preset sections at ten and hides the current query", () => {
+    const presetSections = [
+      {
+        title: "Primary presets",
+        options: Array.from({ length: 6 }, (_, index) => ({
+          id: `rule-filter:${index}`,
+          label: `environment:env-${index}`,
+          query: `environment:env-${index}`,
+        })),
+      },
+      {
+        title: "Secondary presets",
+        options: Array.from({ length: 7 }, (_, index) => ({
+          id: `rule-filter:${index + 6}`,
+          label: `environment:env-${index + 6}`,
+          query: `environment:env-${index + 6}`,
+        })),
+      },
+    ];
+    const currentQuery = "environment:env-2";
+    const result = plan(`${currentQuery} `, currentQuery.length + 1, {
+      presetSections,
+    });
+    const presets =
+      result?.sections.filter((section) => section.title.endsWith("presets")) ??
+      [];
+    const presetIds = presets.flatMap((section) =>
+      section.options.map((option) => option.id),
+    );
+
+    expect(presets.map((section) => section.options.length)).toEqual([5, 5]);
+    expect(presetIds).not.toContain("rule-filter:2");
+    expect(presetIds).toEqual([
+      "rule-filter:0",
+      "rule-filter:1",
+      "rule-filter:3",
+      "rule-filter:4",
+      "rule-filter:5",
+      "rule-filter:6",
+      "rule-filter:7",
+      "rule-filter:8",
+      "rule-filter:9",
+      "rule-filter:10",
+    ]);
+  });
+
+  it("keeps only the first host preset when ids are duplicated", () => {
+    const result = plan("", 0, {
+      presetSections: [
+        {
+          title: "Reuse rule filters",
+          options: [
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:first",
+              query: "environment:first",
+            },
+            {
+              id: "rule-filter:duplicate",
+              label: "environment:second",
+              query: "environment:second",
+            },
+            {
+              id: "rule-filter:unique",
+              label: "environment:third",
+              query: "environment:third",
+            },
+          ],
+        },
+      ],
+    });
+    const presets = result?.sections.find(
+      (section) => section.title === "Reuse rule filters",
+    );
+
+    expect(presets?.options).toMatchObject([
+      {
+        id: "rule-filter:duplicate",
+        query: "environment:first",
+      },
+      {
+        id: "rule-filter:unique",
+        query: "environment:third",
+      },
+    ]);
   });
 
   it("ranks fields against the typed key prefix but does NOT arm Enter (free-text-first)", () => {
@@ -61,6 +234,35 @@ describe("planInputCompletions", () => {
     expect(p?.autoHighlight).toBe(false);
     const first = flattenOptions(p);
     expect(first[0]).toMatchObject({ kind: "field", fieldId: "level" });
+  });
+
+  it("always surfaces an exactly-named field first, even when ranking would drop it", () => {
+    // `ttft` is an alias of timeToFirstToken but not a substring of it — label
+    // ranking alone dropped the field entirely while the exact match armed
+    // Enter, which then picked whatever happened to sit first instead of the
+    // field the user named.
+    const ttft = plan("ttft", 4);
+    expect(ttft?.autoHighlight).toBe(true);
+    expect(flattenOptions(ttft)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "timeToFirstToken",
+    });
+    // `model` resolves to providedModelName; `modelId` merely ranks first by
+    // label prefix — Enter must honor the alias, not the label ranking.
+    const model = plan("model", 5);
+    expect(model?.autoHighlight).toBe(true);
+    expect(flattenOptions(model)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "providedModelName",
+    });
+    // `has` (the pseudo-field) hoists its own entry above the hasInput/
+    // hasParentObservation label matches.
+    const has = plan("has", 3);
+    expect(has?.autoHighlight).toBe(true);
+    expect(flattenOptions(has)[0]).toMatchObject({
+      kind: "field",
+      fieldId: "has",
+    });
   });
 
   it("arms Enter only when a bare word EXACTLY names a field", () => {
@@ -337,8 +539,15 @@ describe("planInputCompletions", () => {
     const labels = opts.map((o) => o.label);
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");
-    // content: was removed — the default already searches input + output.
-    expect(labels).not.toContain("content:refund");
+    // Explicit content excludes IDs/names; all preserves the complete scope.
+    expect(labels).toContain("content:refund");
+    expect(labels).not.toContain("all:refund");
+    expect(
+      flattenOptions(plan("", 0)).some(
+        (option) => option.kind === "field" && option.fieldId === "all",
+      ),
+    ).toBe(false);
+    expect(validateQuery("all:refund").valid).toBe(true);
   });
 
   it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
@@ -423,7 +632,7 @@ describe("planInputCompletions", () => {
     );
     expect(ids).not.toContain("scope:input");
     // content: was removed — never offered as a switch target.
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
     const toOutput = opts.find((o) => o.id === "scope:output");
     expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
       "output:abc",
@@ -585,7 +794,7 @@ describe("planInputCompletions", () => {
       expect.arrayContaining(["scope:input", "scope:default"]),
     );
     expect(ids).not.toContain("scope:output");
-    expect(ids).not.toContain("scope:content");
+    expect(ids).toContain("scope:content");
   });
 
   it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {
@@ -713,12 +922,150 @@ describe("planInputCompletions", () => {
     const operators = flattenOptions(p).filter((o) => o.kind === "operator");
     expect(operators.map((o) => o.label)).not.toContain("OR");
   });
+
+  describe("matching filters (contextual facet-value suggestions, LFE-10888)", () => {
+    // Typing `mcp` must not ONLY offer full-text search: when a loaded facet
+    // contains a matching value, the concrete `toolNames:mcp` filter is offered
+    // alongside — drawn from LOADED columns only (never fanning out on-demand
+    // option fetches).
+    const observed: ObservedOptions = {
+      ...OBSERVED,
+      toolNames: [
+        { value: "mcp", count: 42 },
+        { value: "mcp-search", count: 7 },
+      ],
+      calledToolNames: [{ value: "web-mcp" }],
+    };
+
+    it("suggests column:value matches for a bare term, exact > prefix > substring", () => {
+      const p = plan("mcp", 3, { observed });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options.map((o) => o.label)).toEqual([
+        "toolNames:mcp", // exact value match
+        "toolNames:mcp-search", // prefix
+        "calledToolNames:web-mcp", // substring
+      ]);
+      expect(sec?.options[0]).toMatchObject({
+        kind: "pattern",
+        insert: "toolNames:mcp",
+        detail: "Available tool names",
+        replaceSpan: { from: 0, to: 3 },
+      });
+      // Free-text stays the primary path: Enter is unarmed (commits the text)
+      // and the default-scope anchor is still offered.
+      expect(p?.autoHighlight ?? false).toBe(false);
+      expect(flattenOptions(p).map((o) => o.id)).toContain("scope:default");
+      // Loaded columns only — no on-demand option fetch is triggered by typing.
+      expect(p?.requestColumns).toBeUndefined();
+    });
+
+    it("prefers higher observed counts within the same match tier", () => {
+      // `er` prefixes both level:ERROR (count 12) and a name value (count 3);
+      // the count breaks the tie even though `name` precedes `level` in the
+      // registry.
+      const p = plan("er", 2, {
+        observed: { ...OBSERVED, name: [{ value: "error-handler", count: 3 }] },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options.map((o) => o.label)).toEqual([
+        "level:ERROR",
+        "name:error-handler",
+      ]);
+    });
+
+    it("caps the section at three matches", () => {
+      const p = plan("mcp", 3, {
+        observed: {
+          ...observed,
+          name: [{ value: "mcp-router" }, { value: "run-mcp" }],
+        },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options).toHaveLength(3);
+    });
+
+    it("matches the whole coalesced run and quotes spaced values", () => {
+      // Caret inside a two-word run: the match target is the logical phrase,
+      // and the suggestion rewrites the WHOLE run — like the scope switches —
+      // serializing the spaced value back to one quoted token.
+      const p = plan("codex tu", 4, {
+        observed: { ...OBSERVED, traceName: [{ value: "Codex Turn" }] },
+      });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options[0]).toMatchObject({
+        insert: 'traceName:"Codex Turn"',
+        replaceSpan: { from: 0, to: 8 },
+      });
+    });
+
+    it("scopes the rewrite to the free-text run, leaving existing filters alone", () => {
+      const q = "level:ERROR mcp";
+      const p = plan(q, q.length, { observed });
+      const sec = p?.sections.find((s) => s.title === SECTION_MATCHING_FILTERS);
+      expect(sec?.options[0]).toMatchObject({
+        insert: "toolNames:mcp",
+        replaceSpan: { from: 12, to: 15 },
+      });
+    });
+
+    it("offers no matches for 1-char terms, negated terms, or unloaded/absent values", () => {
+      // A 1-char term matches half the dataset — stay quiet.
+      const short = plan("m", 1, { observed });
+      expect(short?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // A negated term is not a free-text run (and a positive rewrite would
+      // invert the user's intent).
+      const negated = plan("-mcp", 4, { observed });
+      expect(negated?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // toolNames not loaded (lazy column absent) → nothing to match.
+      const unloaded = plan("mcp", 3);
+      expect(unloaded?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // Observed map still on its initial bulk load → no matches, no crash.
+      const initial = plan("mcp", 3, { observed: undefined });
+      expect(initial?.sections.map((s) => s.title) ?? []).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+    });
+
+    it("stays out of the value stage and of key positions inside existing filters", () => {
+      // Caret in a value (`level:ER`) plans the value stage — no run, no section.
+      const value = plan("level:ER", 8, { observed });
+      expect(value?.stage).toBe("value");
+      expect(value?.sections.map((s) => s.title)).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+      // Caret in the key of an existing filter — a switcher, not a run.
+      const key = plan("level:ERROR", 3, { observed });
+      expect(key?.sections.map((s) => s.title)).not.toContain(
+        SECTION_MATCHING_FILTERS,
+      );
+    });
+
+    it("applyPick replaces the run and completes the filter at the end", () => {
+      const p = plan("mcp", 3, { observed });
+      const opt = flattenOptions(p).find((o) => o.id === "match:toolNames:mcp");
+      expect(opt).toBeDefined();
+      const r = applyPick(
+        opt as Exclude<CompletionOption, { kind: "recent" | "preset" }>,
+        "mcp",
+        p!,
+      );
+      expect(r.next).toBe("toolNames:mcp ");
+      expect(r.caret).toBe("toolNames:mcp ".length);
+      expect(r.keepOpen).toBe(true);
+    });
+  });
 });
 
 describe("applyPick", () => {
-  // Narrowing helper: the popover only picks non-recent options here.
-  const nonRecent = (o: CompletionOption | undefined) =>
-    o as Exclude<CompletionOption, { kind: "recent" }>;
+  // Narrowing helper: applyPick only handles span-local options here.
+  const spanLocal = (o: CompletionOption | undefined) =>
+    o as Exclude<CompletionOption, { kind: "recent" | "preset" }>;
 
   it("keeps the caret INSIDE the block after picking a numeric operator", () => {
     // LFE-10501 BUG A. Picking `>` for a numeric field must not append a
@@ -730,7 +1077,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">",
     );
     expect(gt).toBeDefined();
-    const result = applyPick(nonRecent(gt), "latency:", p!);
+    const result = applyPick(spanLocal(gt), "latency:", p!);
     expect(result.next).toBe("latency:>"); // no trailing space appended
     expect(result.caret).toBe(9); // caret sits right after `>`, inside the block
   });
@@ -741,7 +1088,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === ">=",
     );
     expect(gte).toBeDefined();
-    const result = applyPick(nonRecent(gte), "startTime:", p!);
+    const result = applyPick(spanLocal(gte), "startTime:", p!);
     expect(result.next).toBe("startTime:>=");
     expect(result.caret).toBe(12);
   });
@@ -753,7 +1100,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "<",
     );
     expect(lt).toBeDefined();
-    const result = applyPick(nonRecent(lt), q, p!);
+    const result = applyPick(spanLocal(lt), q, p!);
     expect(result.next).toBe(`${q}<`);
     expect(result.caret).toBe(q.length + 1);
   });
@@ -767,7 +1114,7 @@ describe("applyPick", () => {
       (o) => o.kind === "value" && o.value === "ERROR",
     );
     expect(err).toBeDefined();
-    const result = applyPick(nonRecent(err), "level:", p!);
+    const result = applyPick(spanLocal(err), "level:", p!);
     expect(result.next).toBe("level:ERROR ");
     expect(result.caret).toBe(12);
     expect(result.keepOpen).toBe(true);
@@ -781,7 +1128,7 @@ describe("applyPick", () => {
       (o) => o.kind === "operator" && o.label === "NOT",
     );
     expect(not).toBeDefined();
-    const result = applyPick(nonRecent(not), "level:ERROR N", p!);
+    const result = applyPick(spanLocal(not), "level:ERROR N", p!);
     expect(result.next).toBe("level:ERROR NOT ");
     expect(result.caret).toBe("level:ERROR NOT ".length);
   });

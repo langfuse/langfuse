@@ -1,7 +1,4 @@
-# Codex Guidelines for `web`
-
-This file covers package-local guidance for this package.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `web`
 
 ## Purpose
 
@@ -12,13 +9,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR when material web-local changes occur:
-  - new/renamed web entry points
-  - new API route families
-  - changed web-specific verification commands
-- If the change also affects monorepo workflows or other packages, update root
-  `AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change.
 
 ## High-Signal Entry Points
 
@@ -27,7 +19,7 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - tRPC router registry: `src/server/api/root.ts`
 - tRPC routers: `src/server/api/routers/*`, `src/features/*/server/*`
 - Public REST API routes: `src/pages/api/public/*`
-- Unstable public eval APIs: `src/pages/api/public/unstable/{evaluators,evaluation-rules}/*`
+- Public eval APIs: `src/pages/api/public/v2/{evaluators,evaluation-rules}/*`
 - Feature modules: `src/features/*`
 - Reusable UI components: `src/components/*`
 - Tests:
@@ -48,6 +40,12 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Use narrower subpaths such as `@langfuse/shared/src/env` or
   `@langfuse/shared/encryption` only when that focused surface is the clearest
   dependency.
+- The in-app-agent execution runtime lives in the worker. Shared exposes its
+  durable browser-safe contracts plus explicit server-only persistence,
+  lifecycle, policy, tool-result, compaction, and prompt subpaths. Web owns the
+  UI, IDs, feedback/source/rate-limit schemas, conversation access, tRPC run
+  adapters, snapshot construction, watch framing/service, and the authenticated
+  watch route in `src/app/api/in-app-agent/watch/`.
 - See `../packages/shared/AGENTS.md` for the full shared export map and what
   each entrypoint contains.
 - For the higher-level platform topology across web, worker, Postgres,
@@ -73,6 +71,8 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   [`web/.agents/skills/vercel-react-best-practices/SKILL.md`](.agents/skills/vercel-react-best-practices/SKILL.md)
 - PostHog product analytics — when and how to instrument user actions:
   [`../.agents/skills/posthog-instrumentation/SKILL.md`](../.agents/skills/posthog-instrumentation/SKILL.md)
+- Sentry error capture — whether and how an error path should report:
+  [`../.agents/skills/sentry-instrumentation/SKILL.md`](../.agents/skills/sentry-instrumentation/SKILL.md)
 
 Read these package-local skills before substantial frontend refactors when the
 task involves component composition, reusable component APIs, rendering
@@ -83,23 +83,48 @@ from loaded data, read the frontend-large-feature-architecture skill first —
 most effects that derive or sync state should not exist. When adding a
 meaningful user action (button, handler, form, mutation, feature surface),
 read the PostHog instrumentation skill and decide explicitly whether the
-action should emit an analytics event.
+action should emit an analytics event. When adding or touching an error path —
+a `captureException` or `console.error` call, an error boundary, a `catch`
+block, a Worker `onerror`, or a Sentry `beforeSend`/denylist filter — read the
+Sentry instrumentation skill first and decide whether it should capture at all
+(and, for any suppression change, answer "does this rule hide a real error?").
 
 ## Web Conventions
 
+- Before creating a new component or reusing one from elsewhere in
+  `src/components`, first check `src/components/design-system` for an existing
+  component that satisfies the use case. Prefer the design-system component
+  and extend it when appropriate; use another component only when the design
+  system has no suitable option.
 - **Before adding or modifying a chart, dashboard, or chart formatter, read
   `src/features/widgets/chart-library/ARCHITECTURE.md` first** — the charts
   manifesto. It owns the data → preparer → visualiser contract: presentation
   decisions (formatting, colors, axis scale, overload) live in the preparer,
   not the chart components.
+- **When working on the search bar or any filtering UI/grammar, read
+  `src/features/search-bar/README.md` first.** It owns the grammar ↔
+  `FilterState` contract, the validate/lower parity invariants, and the
+  cross-view extension playbook — the bar is intended to become the primary
+  filter interface for every filterable view, so new filtering work extends it
+  through that contract rather than forking it.
+- When fixing an isolated styling issue in an individual component, create or
+  update a component story first, following
+  `../.agents/skills/storybook/SKILL.md`.
 - Put net-new feature code under `src/features/<feature>/*`; put broadly reusable
   components under `src/components/*`.
 - We use tRPC for full-stack web features; register routers in
   `src/server/api/root.ts`.
-- Authentication and RBAC guidance lives in `src/features/rbac/README.md`.
+- RBAC lives in `src/features/rbac`: role definitions in
+  `src/features/rbac/constants`, access checks in
+  `src/features/rbac/utils/checkProjectAccess.ts` and
+  `src/features/rbac/utils/checkOrganizationAccess.ts`.
 - Entitlements guidance lives in `src/features/entitlements/README.md`.
 - Prefer Shadcn/ui primitives from `src/components/ui`; if a missing component
   must be installed, ask the user before doing so.
+- When you surface a score in the UI, always show its level
+  (trace/observation/session/experiment) with the `<ScoreTag>` component
+  (`src/components/score-tag.tsx`) and its global color coding (see the
+  ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
 - Do not add `useEffect` by default. Use it only when a component must
@@ -151,7 +176,7 @@ action should emit an analytics event.
   in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
   `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
   `modal` is for true blocking Dialog and AlertDialog surfaces.
-  **THE RULE (see `src/components/ui/layer.tsx` JSDoc — source of truth): every
+  **THE RULE (see `src/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
   `container` (the `ui/*` wrappers do this with `useLayerContainer`); bespoke
@@ -179,8 +204,31 @@ action should emit an analytics event.
   `JobConfiguration` naming into the public contract.
 - Keep tests independent; in `src/__tests__/server/**`, prefer scoped cleanup or
   unique test data over global reset helpers.
+- Test teardown closes existing `globalThis.redis` and imports ClickHouse through
+  `@langfuse/shared/src/server/clickhouse`, not the full server barrel or relative
+  shared source paths. Suites own their private Redis clients; shared-context
+  workers skip per-file teardown.
 - Put pure server unit tests that do not need Postgres bootstrap under
   `src/__tests__/server/unit/**` so they skip the shared DB setup hook.
+- Server tests that drive the public REST API over HTTP need a web server on
+  port 3000 **serving the test database**. `web/vitest.config.mts` loads
+  `../.env.test`, which points `DATABASE_URL` at its own database, while
+  `pnpm run dev:web` loads only `.env` — so that server talks to a different
+  database, finds none of the API keys the tests just created, and every
+  authenticated call comes back 401 `Invalid credentials`. Start it with
+  `pnpm exec dotenv -e .env.test -e .env -- pnpm --filter web run dev`.
+- Preserve the server-test project split in `vitest.config.mts`. Most tests
+  consume the built `@langfuse/shared` package; only tests importing
+  `@langfuse/shared/in-app-agent` or `@langfuse/shared/src/env` use the
+  `server-shared-source*` projects. Do not move `sharedSourceResolve` back to
+  the root config: applying those aliases globally increased server-test
+  transforms/imports and made Vitest about 27–30% slower. The integration and
+  unit source projects stay separate because only integration tests run the
+  database `globalSetup`.
+- Keep CI web server tests at eight workers on an eight-vCPU runner unless a
+  new benchmark supports changing both together. With the current 4,237-test
+  suite, median Vitest duration was 82s at 8 workers/8 vCPUs, 115s at
+  4 workers/8 vCPUs, and 145s at 8 workers/4 vCPUs (measured 2026-08-06).
 - For small utility functions, prefer Vitest in-source tests when colocated
   coverage is the simplest option, especially when the test needs access to
   private implementation details without widening the module API.
@@ -198,8 +246,14 @@ action should emit an analytics event.
 - In-source tests: `pnpm --filter web run test:in-source <args>`
 - Client tests: `pnpm --filter web run test-client <args>`
 - E2E tests: `pnpm --filter web run test:e2e`
+- AI Gateway E2E tests against the local configured stack (also run in CI for AI Gateway changes): `pnpm --filter web run test:e2e:ai-gateway`
 - Agent browser install to the default user-level Playwright cache: `pnpm run playwright:install`
 - Build: `pnpm --filter web run build`
+- Structure-RFC violation counts: `pnpm --filter web run structure:stats`
+- Move files/folders with every importer rewritten:
+  `pnpm --filter web run structure:move <from...> <to-dir>` — never hand-edit
+  import specifiers for a move, and never `mv` a source file without it
+  (see `web/scripts/structure/README.md`)
 
 ## Playbooks
 
@@ -247,6 +301,8 @@ action should emit an analytics event.
 
 ## Package-Specific Rules
 
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
+
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the
   folder exists, put the route implementation in `foo/index.ts(x)` instead.
@@ -262,3 +318,13 @@ action should emit an analytics event.
   do not try to target these through `test-client` or by assuming a separate
   `*.clienttest.*`/`*.servertest.*` file exists.
 - Do not hand-edit build artifacts: `.next/*`, `.next-check/*`, `dist/*`.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

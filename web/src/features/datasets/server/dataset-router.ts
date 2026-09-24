@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   createTRPCRouter,
@@ -5,17 +6,17 @@ import {
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
+  createMediaUploadUrl,
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-} from "@/src/features/media/server/datasetItemMediaReferences";
-import { MediaContentType } from "@/src/features/media/validation";
+  MediaContentType,
+} from "@/src/features/media/server";
 import {
   paginationZod,
-  singleFilter,
+  singleFilterList,
   StringNoHTML,
   StringNoHTMLNonEmpty,
   type FilterState,
@@ -33,6 +34,7 @@ import {
   ActionId,
   BatchActionType,
   BatchExportTableName,
+  type BulkDatasetItemValidationError,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -82,6 +84,7 @@ import {
   getDatasetItemVersionHistory,
   getDatasetItemChangesSinceVersion,
   getDatasetItemsCountGrouped,
+  getDatasetExperimentMetricsFromEvents,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
   fetchWithSecureRedirects,
@@ -90,14 +93,22 @@ import {
   deleteDatasetsByIds,
   findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
+import { aggregateScores } from "@/src/features/scores/server";
 import {
   updateDataset,
   upsertDataset,
 } from "@/src/features/datasets/server/actions/createDataset";
-import { type BulkDatasetItemValidationError } from "@langfuse/shared";
+import {
+  buildRemoteExperimentRequest,
+  ensureRemoteExperimentSecret,
+  getRemoteExperimentConfig,
+  getRemoteExperimentConfigWithSecrets,
+  parseStoredRemoteExperimentHeaders,
+  processRemoteExperimentHeaders,
+  RemoteExperimentHeadersSchema,
+} from "@/src/features/datasets/server/remoteExperimentHelpers";
 import { v4 } from "uuid";
-import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { createBatchActionJob } from "@/src/features/table/server";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -176,7 +187,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
  * @param filters - Array of filter conditions to evaluate
  * @returns true if any filter requires DRI metrics, false if using basic dataset run data is sufficient
  */
-export const requiresClickhouseLookups = (filters: FilterState): boolean => {
+const requiresClickhouseLookups = (filters: FilterState): boolean => {
   if (filters.length === 0) {
     return false;
   }
@@ -225,7 +236,16 @@ const generateDatasetQuery = ({
   // CTE to get datasets for given project (same for root and folder queries)
   const datasetsCTE = Prisma.sql`
   filtered_datasets AS (
-   SELECT d.*
+   SELECT
+     d.id,
+     d.name,
+     d.description,
+     d.metadata,
+     d.project_id,
+     d.updated_at,
+     d.created_at,
+     d.input_schema,
+     d.expected_output_schema
    FROM datasets d
    WHERE d.project_id = ${projectId}
      ${pathFilter}
@@ -472,31 +492,40 @@ export const datasetRouter = createTRPCRouter({
 
       if (input.datasetIds.length === 0) return { metrics: [] };
 
-      // Get dataset runs metrics
-      const runsMetrics = await ctx.prisma.$queryRaw<
-        Array<{
-          id: string;
-          countDatasetRuns: number;
-          lastRunAt: Date | null;
-        }>
-      >`
-        SELECT d.id, COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
-        FROM datasets d
-        LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
-        WHERE d.project_id = ${input.projectId}
-        AND d.id IN (${Prisma.join(input.datasetIds)})
-        GROUP BY d.id
-      `;
-
-      // Get dataset items count for all datasets
-      const itemsCounts = await getDatasetItemsCountGrouped({
-        projectId: input.projectId,
-        datasetIds: input.datasetIds,
-      });
+      const [runsMetrics, itemsCounts] = await Promise.all([
+        ctx.session.user.v4BetaEnabled === true
+          ? getDatasetExperimentMetricsFromEvents({
+              projectId: input.projectId,
+              datasetIds: input.datasetIds,
+            })
+          : ctx.prisma.$queryRaw<
+              Array<{
+                datasetId: string;
+                countDatasetRuns: bigint;
+                lastRunAt: Date | null;
+              }>
+            >`
+                SELECT d.id AS "datasetId", COUNT(DISTINCT dr.id) AS "countDatasetRuns", MAX(dr.created_at) AS "lastRunAt"
+                FROM datasets d
+                LEFT JOIN dataset_runs dr ON d.id = dr.dataset_id AND dr.project_id = ${input.projectId}
+                WHERE d.project_id = ${input.projectId}
+                AND d.id IN (${Prisma.join(input.datasetIds)})
+                GROUP BY d.id
+              `.then((rows) =>
+              rows.map((row) => ({
+                ...row,
+                countDatasetRuns: Number(row.countDatasetRuns),
+              })),
+            ),
+        getDatasetItemsCountGrouped({
+          projectId: input.projectId,
+          datasetIds: input.datasetIds,
+        }),
+      ]);
 
       // Merge the metrics
       const metrics = input.datasetIds.map((datasetId) => {
-        const runsMetric = runsMetrics.find((m) => m.id === datasetId);
+        const runsMetric = runsMetrics.find((m) => m.datasetId === datasetId);
         const itemsCount = itemsCounts.find((m) => m.datasetId === datasetId);
 
         return {
@@ -514,7 +543,7 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(), // Required for protectedProjectProcedure
-        filter: z.array(singleFilter).nullable(),
+        filter: singleFilterList.nullable(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -1080,7 +1109,7 @@ export const datasetRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         datasetId: z.string(),
-        filter: z.array(singleFilter).nullish(),
+        filter: singleFilterList.nullish(),
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         version: z.date().optional(),
@@ -1823,7 +1852,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         datasetRunId: z.string(),
         datasetItemIds: z.array(z.string()).optional(),
-        filter: z.array(singleFilter),
+        filter: singleFilterList,
         ...optionalPaginationZod,
       }),
     )
@@ -1922,9 +1951,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
         ...paginationZod,
       }),
@@ -1998,9 +2025,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         runIds: z.array(z.string()),
         filterByRun: z
-          .array(
-            z.object({ runId: z.string(), filters: z.array(singleFilter) }),
-          )
+          .array(z.object({ runId: z.string(), filters: singleFilterList }))
           .nullish(),
       }),
     )
@@ -2122,6 +2147,8 @@ export const datasetRouter = createTRPCRouter({
         url: z.string(),
         defaultPayload: z.string(),
         enabled: z.boolean().optional(),
+        signingEnabled: z.boolean().optional(),
+        requestHeaders: RemoteExperimentHeadersSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -2131,13 +2158,11 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
+      // Read encrypted custom headers to preserve masked values on update.
+      // The signing secret itself is preserved by leaving its columns untouched.
+      const dataset = await getRemoteExperimentConfig({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
 
       if (!dataset) {
@@ -2156,14 +2181,88 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const updatedDataset = await updateDataset({
-        input: {
-          id: input.datasetId,
+      const existingHeaders = parseStoredRemoteExperimentHeaders(
+        dataset.remoteExperimentRequestHeaders,
+      );
+      const submittedHeadersByLowerKey = input.requestHeaders
+        ? Object.fromEntries(
+            Object.entries(input.requestHeaders).map(([key, value]) => [
+              key.trim().toLowerCase(),
+              value,
+            ]),
+          )
+        : undefined;
+      const reusesSecretHeader = Object.entries(existingHeaders).some(
+        ([key, existingHeader]) => {
+          if (!existingHeader.secret) {
+            return false;
+          }
+
+          // Omitting requestHeaders preserves every existing header.
+          if (input.requestHeaders === undefined) {
+            return true;
+          }
+
+          const normalizedKey = key.trim().toLowerCase();
+          const submittedHeader = submittedHeadersByLowerKey?.[normalizedKey];
+
+          // An empty submitted value preserves the existing secret.
+          return submittedHeader?.value.trim() === "";
+        },
+      );
+
+      if (input.url !== dataset.remoteExperimentUrl && reusesSecretHeader) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Secret headers must be re-entered when changing the remote experiment URL",
+        });
+      }
+
+      const { requestHeaders, displayHeaders } = processRemoteExperimentHeaders(
+        input.requestHeaders,
+        existingHeaders,
+      );
+
+      const signingSecret =
+        input.signingEnabled === false
+          ? {
+              secretKey: undefined,
+              displaySecretKey: undefined,
+              unencryptedSecretKey: undefined,
+            }
+          : ensureRemoteExperimentSecret({
+              displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
+            });
+
+      // Result excludes the secret columns via the global Prisma omit, so it
+      // is safe to audit-log and return.
+      const updatedDataset = await ctx.prisma.dataset.update({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
           remoteExperimentEnabled: input.enabled,
+          ...(input.signingEnabled === false
+            ? {
+                remoteExperimentSecretKey: null,
+                remoteExperimentDisplaySecretKey: null,
+              }
+            : signingSecret.secretKey && signingSecret.displaySecretKey
+              ? {
+                  remoteExperimentSecretKey: signingSecret.secretKey,
+                  remoteExperimentDisplaySecretKey:
+                    signingSecret.displaySecretKey,
+                }
+              : {}),
+          remoteExperimentRequestHeaders: requestHeaders,
+          remoteExperimentDisplayHeaders: displayHeaders,
         },
-        projectId: input.projectId,
       });
 
       await auditLog({
@@ -2174,7 +2273,11 @@ export const datasetRouter = createTRPCRouter({
         after: updatedDataset,
       });
 
-      return updatedDataset;
+      return {
+        datasetId: updatedDataset.id,
+        // Only present when a new secret was generated; shown once in the UI.
+        unencryptedSecretKey: signingSecret.unencryptedSecretKey,
+      };
     }),
   getRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
@@ -2193,6 +2296,8 @@ export const datasetRouter = createTRPCRouter({
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
           remoteExperimentEnabled: true,
+          remoteExperimentDisplaySecretKey: true,
+          remoteExperimentDisplayHeaders: true,
         },
       });
 
@@ -2202,6 +2307,10 @@ export const datasetRouter = createTRPCRouter({
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
         enabled: dataset.remoteExperimentEnabled,
+        displaySecretKey: dataset.remoteExperimentDisplaySecretKey,
+        displayHeaders: parseStoredRemoteExperimentHeaders(
+          dataset.remoteExperimentDisplayHeaders,
+        ),
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -2219,20 +2328,11 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      const dataset = await ctx.prisma.dataset.findUnique({
-        where: {
-          id_projectId: {
-            id: input.datasetId,
-            projectId: input.projectId,
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          remoteExperimentUrl: true,
-          remoteExperimentPayload: true,
-          remoteExperimentEnabled: true,
-        },
+      // Delivery path: reads the secret-bearing columns through the
+      // centralized helper to decrypt and sign the outbound request.
+      const dataset = await getRemoteExperimentConfigWithSecrets({
+        projectId: input.projectId,
+        datasetId: input.datasetId,
       });
 
       if (!dataset) {
@@ -2270,24 +2370,31 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
+        const { body, headers, sensitiveHeaderNames } =
+          buildRemoteExperimentRequest({
+            storedHeaders: dataset.remoteExperimentRequestHeaders,
+            encryptedSecretKey: dataset.remoteExperimentSecretKey,
+            bodyObject: {
+              projectId: input.projectId,
+              datasetId: input.datasetId,
+              datasetName: dataset.name,
+              payload: input.payload ?? dataset.remoteExperimentPayload,
+            },
+          });
+
         const { response, redirectChain, finalUrl } =
           await fetchWithSecureRedirects(
             dataset.remoteExperimentUrl,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                projectId: input.projectId,
-                datasetId: input.datasetId,
-                datasetName: dataset.name,
-                payload: input.payload ?? dataset.remoteExperimentPayload,
-              }),
+              headers,
+              body,
               signal: AbortSignal.timeout(REMOTE_EXPERIMENT_TIMEOUT_MS),
             },
             {
               maxRedirects: REMOTE_EXPERIMENT_MAX_REDIRECTS,
+              // Strip custom secret headers on cross-origin redirects
+              additionalSensitiveHeaders: sensitiveHeaderNames,
               redirectValidation: {
                 validateUrl: validateWebhookURL,
                 whitelist,
@@ -2359,15 +2466,23 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
-      const updatedDataset = await updateDataset({
-        input: {
-          id: input.datasetId,
+      const updatedDataset = await ctx.prisma.dataset.update({
+        where: {
+          id_projectId: {
+            id: input.datasetId,
+            projectId: input.projectId,
+          },
+        },
+        data: {
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
           // Reset to true so a future upsert doesn't inherit a stale disabled state
           remoteExperimentEnabled: true,
+          remoteExperimentSecretKey: null,
+          remoteExperimentDisplaySecretKey: null,
+          remoteExperimentRequestHeaders: Prisma.DbNull,
+          remoteExperimentDisplayHeaders: Prisma.DbNull,
         },
-        projectId: input.projectId,
       });
 
       await auditLog({

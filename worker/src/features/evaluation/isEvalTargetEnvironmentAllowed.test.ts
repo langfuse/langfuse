@@ -16,6 +16,7 @@ describe("isEvalTargetEnvironmentAllowed", () => {
   it("blocks eval-on-eval targets across all internal environments", () => {
     for (const environment of [
       "langfuse-llm-as-a-judge",
+      "llm-as-a-judge",
       "langfuse-code-eval",
       "langfuse-natural-language-filter",
       "langfuse-in-app-agent",

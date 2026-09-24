@@ -1,8 +1,11 @@
-import { type FilterState } from "@langfuse/shared";
 import {
+  type FilterState,
+  TABLE_AGGREGATION_OPTIONS,
+  TIME_RANGES,
   decodeFiltersGeneric,
   encodeFiltersGeneric,
-} from "@/src/features/filters/lib/filter-query-encoding";
+  rangeToString,
+} from "@langfuse/shared";
 
 type BuildEventsTablePathForSpanNameParams = {
   currentPath: string;
@@ -75,6 +78,75 @@ export function buildEventsTablePathForObservationType({
     column: "type",
     value: observationType,
   });
+}
+
+/** Smallest preset window still containing `time`, else an absolute day. */
+function dateRangeCovering(time: Date, now = new Date()): string {
+  const ageMinutes = (now.getTime() - time.getTime()) / 60_000;
+  for (const option of TABLE_AGGREGATION_OPTIONS) {
+    const minutes = TIME_RANGES[option].minutes;
+    // Presets reach back from now, so a future timestamp must not match.
+    if (minutes != null && ageMinutes >= 0 && ageMinutes < minutes * 0.9) {
+      return rangeToString({ range: option });
+    }
+  }
+  const dayMs = 24 * 60 * 60_000;
+  return rangeToString({
+    from: new Date(time.getTime() - dayMs),
+    to: new Date(
+      Math.max(time.getTime(), Math.min(now.getTime(), time.getTime() + dayMs)),
+    ),
+  });
+}
+
+function rangeCovers(encoded: string, time: Date, now = new Date()): boolean {
+  const preset = Object.values(TIME_RANGES).find(
+    (def) => def.abbreviation === encoded,
+  );
+  if (preset?.minutes != null) {
+    const age = now.getTime() - time.getTime();
+    return age >= 0 && age < preset.minutes * 60_000;
+  }
+  const [from, to] = encoded.split("-").map(Number);
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    return time.getTime() >= from && time.getTime() <= to;
+  }
+  return false;
+}
+
+export function buildEventsTablePathForColumnFilter({
+  currentPath,
+  projectId,
+  target,
+  filter,
+  coverTime,
+}: {
+  currentPath: string;
+  projectId: string;
+  target: "observations" | "traces";
+  filter: FilterState[number];
+  /** A time the window must include. */
+  coverTime?: Date;
+}) {
+  const url = new URL(currentPath, "https://langfuse.local");
+  const params = new URLSearchParams();
+
+  const dateRange = url.searchParams.get("dateRange");
+  if (coverTime && !(dateRange && rangeCovers(dateRange, coverTime))) {
+    params.set("dateRange", dateRangeCovering(coverTime));
+  } else if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
+
+  const existingFilters = decodeFiltersGeneric(
+    url.searchParams.get("filter") ?? "",
+  ).filter((f) => f.column !== filter.column);
+
+  params.set("filter", encodeFiltersGeneric([...existingFilters, filter]));
+
+  const query = params.toString();
+
+  return `/project/${projectId}/${target}${query ? `?${query}` : ""}`;
 }
 
 export type MetadataFilterOperator = "=" | "contains" | "does not contain";

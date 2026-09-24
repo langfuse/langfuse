@@ -1,5 +1,7 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
+import { describe, expect, it } from "vitest";
 
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -8,7 +10,11 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 describe("in-app agent router", () => {
   it("soft-deletes an owned conversation", async () => {
     const { caller, projectId, userId } = await createCaller();
-    const conversation = await createConversation({ projectId, userId });
+    const conversation = await createConversation({
+      projectId,
+      userId,
+      providerSessionId: "session-1",
+    });
 
     await caller.inAppAgent.deleteConversation({
       projectId,
@@ -26,6 +32,7 @@ describe("in-app agent router", () => {
       });
 
     expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
+    expect(deletedConversation.providerSessionId).toBeNull();
   });
 
   it("excludes deleted conversations from list and get", async () => {
@@ -179,14 +186,7 @@ function createCallerForFixture(
           ],
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        templateFlag: true,
-        excludeClickhouseRead: false,
-        observationEvals: false,
-        v4BetaToggleVisible: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: false,
     },
     environment: {
@@ -203,10 +203,12 @@ async function createConversation({
   projectId,
   userId,
   title = "Test conversation",
+  providerSessionId,
 }: {
   projectId: string;
   userId: string;
   title?: string;
+  providerSessionId?: string;
 }) {
   return prisma.inAppAgentConversation.create({
     data: {
@@ -214,6 +216,7 @@ async function createConversation({
       projectId,
       createdByUserId: userId,
       title,
+      providerSessionId,
     },
   });
 }

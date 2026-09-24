@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import {
   extractTimeSeriesData,
@@ -19,7 +20,7 @@ import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import type { DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { useMemo } from "react";
 
 export const GenerationLatencyChart = ({
@@ -33,6 +34,7 @@ export const GenerationLatencyChart = ({
   metricsVersion,
   schedulerId,
   syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -41,18 +43,15 @@ export const GenerationLatencyChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
   syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
-  const {
-    allModels,
-    selectedModels,
-    setSelectedModels,
-    isAllSelected,
-    buttonText,
-    handleSelectAll,
-  } = useModelSelection(
+  const { allModels, selectedModels, setSelectedModels } = useModelSelection(
     projectId,
     globalFilterState,
     fromTimestamp,
@@ -163,9 +162,6 @@ export const GenerationLatencyChart = ({
             allModels={allModels}
             selectedModels={selectedModels}
             setSelectedModels={setSelectedModels}
-            buttonText={buttonText}
-            isAllSelected={isAllSelected}
-            handleSelectAll={handleSelectAll}
           />
         </div>
       }
@@ -187,6 +183,7 @@ export const GenerationLatencyChart = ({
                       label="Latency"
                       unit="millisecond"
                       syncId={syncId}
+                      sync={sync}
                       missingValue="gap"
                     />
                   </div>

@@ -1,14 +1,18 @@
-import { type z } from "zod";
-import { z as zodSchema } from "zod";
+import { type z, z as zodSchema } from "zod";
+import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
-  protectedGetTraceProcedure,
+  protectedGetEventsTraceProcedure,
+  protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
+  singleFilterList,
   timeFilter,
 } from "@langfuse/shared";
 import {
@@ -16,14 +20,17 @@ import {
   toDomainWithStringifiedMetadata,
   type MetadataDomainClient,
 } from "@/src/utils/clientSideDomainTypes";
-import { EventsTableOptions } from "./types";
+import { EventsCursorTableOptions, EventsTableOptions } from "./types";
 import {
   getEventList,
+  getEventListCursor,
   getEventCount,
   getEventFilterOptions,
+  getEventMetadataValues,
   getEventBatchIO,
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
+import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -38,11 +45,26 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+} from "@/src/features/trace-graph-view/server";
 import type * as opentelemetry from "@opentelemetry/api";
 
-const GetAllEventsInput = EventsTableOptions.extend({
+const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
+});
+
+const GetSessionEventsInput = GetAllEventsInput.safeExtend({
+  sessionId: zodSchema.string().min(1),
+});
+
+const GetEventsCursorInput = EventsCursorTableOptions.safeExtend({
+  limit: paginationZod.limit,
+  cursor: zodSchema
+    .object({
+      lastStartTimeTo: zodSchema.date(),
+      lastTraceId: zodSchema.string(),
+      lastId: zodSchema.string(),
+    })
+    .optional(),
 });
 
 export type EventBatchIOOutput = {
@@ -56,19 +78,30 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
+  filter: singleFilterList.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
   isRootObservation: zodSchema.boolean().optional(),
   hasParentObservation: zodSchema.boolean().optional(),
   columns: zodSchema
     .array(zodSchema.enum(EVENT_FILTER_OPTIONS_COLUMNS))
     .optional(),
+  // When true, the response also carries the approximate total observation
+  // count ("Total ≈ X") — uniq(span_id) over the same bulk facet scan, matching
+  // `filter`. Sent only on the eager bulk request.
+  includeApproxCount: zodSchema.boolean().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
   typeof GetEventFilterOptionsInput
 >;
 
-export const BatchIOInput = zodSchema.object({
+const GetEventMetadataValuesInput = zodSchema.object({
+  projectId: zodSchema.string(),
+  key: zodSchema.string().min(1),
+  startTimeFilter: zodSchema.array(timeFilter).optional(),
+});
+
+const BatchIOInput = zodSchema.object({
   projectId: zodSchema.string(),
   observations: zodSchema
     .array(
@@ -83,12 +116,19 @@ export const BatchIOInput = zodSchema.object({
   minStartTime: zodSchema.date(),
   maxStartTime: zodSchema.date(),
   truncated: zodSchema.boolean().optional(), // Defaults to true for performance
+  // Caps the chars of I/O (and of each metadata value) an untruncated read
+  // ships. Bounded by the char limit above which the table cell stops
+  // rendering anyway (IO_TABLE_CHAR_LIMIT).
+  ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
-  // Opts into trace-level auth (public traces) in protectedGetTraceProcedure
+  // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
+const SessionBatchIOInput = BatchIOInput.omit({ traceId: true }).extend({
+  sessionId: zodSchema.string().min(1),
+});
 
-export type BatchIOInput = z.infer<typeof BatchIOInput>;
+type BatchIOInput = z.infer<typeof BatchIOInput>;
 
 export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
@@ -124,6 +164,88 @@ export const eventsRouter = createTRPCRouter({
             orderBy: normalizedOrderBy,
             page: input.page,
             limit: input.limit,
+          });
+        },
+      );
+    }),
+  sessionAll: protectedGetSessionProcedure
+    .input(GetSessionEventsInput)
+    .query(async ({ input, ctx }) => {
+      const filter = ctx.session.projectRole
+        ? (input.filter ?? [])
+        : (input.filter ?? []).filter(
+            ({ column }) =>
+              column !== "commentContent" && column !== "commentCount",
+          );
+
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: filter,
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return { observations: [], hasMore: false };
+      }
+
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+
+      return getEventList({
+        projectId: input.projectId,
+        filter: [
+          ...filterState,
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: input.sessionId,
+          },
+        ],
+        searchQuery: input.searchQuery ?? undefined,
+        searchType: input.searchType,
+        orderBy: normalizedOrderBy,
+        page: input.page,
+        limit: input.limit,
+      });
+    }),
+  listCursor: protectedProjectProcedure
+    .input(GetEventsCursorInput)
+    .query(async ({ input, ctx }) => {
+      const { filterState, hasNoMatches } = await applyCommentFilters({
+        filterState: input.filter ?? [],
+        prisma: ctx.prisma,
+        projectId: ctx.session.projectId,
+        objectType: "OBSERVATION",
+      });
+
+      if (hasNoMatches) {
+        return {
+          observations: [],
+          hasMore: false,
+          nextCursor: undefined,
+        };
+      }
+
+      return instrumentAsync(
+        { name: "get-event-list-cursor-trpc" },
+        async (span) => {
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: { column: "startTime", order: "DESC" },
+          });
+
+          return getEventListCursor({
+            projectId: ctx.session.projectId,
+            filter: filterState,
+            searchQuery: input.searchQuery ?? undefined,
+            searchType: input.searchType,
+            limit: input.limit,
+            cursor: input.cursor,
           });
         },
       );
@@ -174,6 +296,7 @@ export const eventsRouter = createTRPCRouter({
           addAttributesToSpan({ span, input, orderBy: undefined });
           return getEventFilterOptions({
             projectId: input.projectId,
+            filter: input.filter,
             startTimeFilter: input.startTimeFilter,
             isRootObservation:
               input.isRootObservation ??
@@ -181,11 +304,27 @@ export const eventsRouter = createTRPCRouter({
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
             columns: input.columns,
+            includeApproxCount: input.includeApproxCount,
           });
         },
       );
     }),
-  batchIO: protectedGetTraceProcedure
+  metadataValues: protectedProjectProcedure
+    .input(GetEventMetadataValuesInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-metadata-values-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getEventMetadataValues({
+            projectId: input.projectId,
+            key: input.key,
+            startTimeFilter: input.startTimeFilter,
+          });
+        },
+      );
+    }),
+  batchIO: protectedGetEventsTraceProcedure
     .input(BatchIOInput)
     .query(async ({ input }) => {
       return instrumentAsync(
@@ -206,6 +345,32 @@ export const eventsRouter = createTRPCRouter({
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
+            includeToolCallFields: input.includeToolCalls,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  sessionBatchIO: protectedGetSessionProcedure
+    .input(SessionBatchIOInput)
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-event-session-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("session_id", input.sessionId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
+            projectId: input.projectId,
+            sessionId: input.sessionId,
+            observations: input.observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
           });
 
@@ -228,6 +393,7 @@ export const eventsRouter = createTRPCRouter({
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
+            ioCharLimit: input.ioCharLimit,
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
           });
@@ -240,7 +406,7 @@ export const eventsRouter = createTRPCRouter({
    * Fetch scores and corrections for a trace.
    * Used by the v4 trace detail view where trace data comes from events table.
    */
-  scoresForTrace: protectedGetTraceProcedure
+  scoresForTrace: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -248,7 +414,7 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       return instrumentAsync(
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
@@ -258,7 +424,66 @@ export const eventsRouter = createTRPCRouter({
           return getScoresAndCorrectionsForTraces({
             projectId: input.projectId,
             traceIds: [input.traceId],
-            timestamp: input.timestamp,
+            // we need traceTS here because we filter for that in DB
+            // fallback to input in case trace unavailable - shouldn't happen
+            timestamp: ctx.trace?.timestamp ?? input.timestamp,
+          });
+        },
+      );
+    }),
+  /**
+   * Assemble the message transcript of a trace from its generations and tools,
+   * see `loadTraceTranscript`. Internal surface: Langfuse admins and
+   * deployments with experimental features enabled only, and only where the
+   * events tables are written.
+   */
+  transcriptByTraceId: protectedGetEventsTraceProcedure
+    .input(
+      zodSchema.object({
+        projectId: zodSchema.string(),
+        traceId: zodSchema.string(),
+        timestamp: zodSchema.date().optional(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session?.user?.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Transcripts are an internal preview.",
+        });
+      }
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "Transcripts need the events-backed trace view.",
+        });
+      }
+      // The trace timestamp bounds the observation read; the trace is loaded
+      // by the procedure, so the input is only a fallback.
+      const timestamp = ctx.trace?.timestamp ?? input.timestamp;
+      if (!timestamp) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Trace timestamp is required.",
+        });
+      }
+
+      return instrumentAsync(
+        { name: "get-transcript-by-trace-id-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("trace_id", input.traceId);
+
+          return loadTraceTranscript({
+            projectId: input.projectId,
+            traceId: input.traceId,
+            timestamp,
           });
         },
       );
@@ -268,7 +493,7 @@ export const eventsRouter = createTRPCRouter({
    * Returns up to MAX_OBSERVATIONS_PER_TRACE observations.
    * Sets cutoffObservationsAfterMaxCount=true if trace exceeds the cap.
    */
-  byTraceId: protectedGetTraceProcedure
+  byTraceId: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
@@ -276,7 +501,7 @@ export const eventsRouter = createTRPCRouter({
         timestamp: zodSchema.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       return instrumentAsync(
         { name: "get-events-by-trace-id-trpc" },
         async (span) => {
@@ -287,13 +512,18 @@ export const eventsRouter = createTRPCRouter({
             await getObservationsForTraceFromEventsTable({
               projectId: input.projectId,
               traceId: input.traceId,
-              timestamp: input.timestamp,
+              // we need traceTS here because we filter for that in DB
+              // fallback to input in case trace unavailable - shouldn't happen
+              timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
 
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
+            // The cap the client was served under, so UI copy states the number
+            // actually applied instead of keeping its own copy of it.
+            maxObservationsPerTrace: MAX_OBSERVATIONS_PER_TRACE,
           };
         },
       );
@@ -303,13 +533,13 @@ export const eventsRouter = createTRPCRouter({
    * Used by v4 events-based trace detail view for graph visualization.
    * Returns same shape as traces.getAgentGraphData for frontend compatibility.
    */
-  getAgentGraphData: protectedGetTraceProcedure
+  getAgentGraphData: protectedGetEventsTraceProcedure
     .input(
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.string(),
-        maxStartTime: zodSchema.string(),
+        minStartTime: zodSchema.iso.datetime({ offset: true }),
+        maxStartTime: zodSchema.iso.datetime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {
@@ -400,7 +630,7 @@ export const eventsRouter = createTRPCRouter({
     }),
 });
 
-export const addAttributesToSpan = ({
+const addAttributesToSpan = ({
   span,
   input,
   orderBy,
@@ -411,7 +641,7 @@ export const addAttributesToSpan = ({
 }) => {
   span.setAttribute("project_id", input.projectId);
 
-  // Only process filter if it exists (not present in GetEventFilterOptionsInput)
+  // Only process filters when supplied.
   if ("filter" in input && input.filter) {
     const startTimeFilter = input.filter.find(
       (f) => f.column === "startTime" && f.type === "datetime",
@@ -442,6 +672,6 @@ export const addAttributesToSpan = ({
   }
 };
 
-export const dateDiff = (date1: Date, date2: Date) => {
+const dateDiff = (date1: Date, date2: Date) => {
   return Math.abs(date2.getTime() - date1.getTime());
 };

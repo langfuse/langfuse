@@ -1,4 +1,5 @@
-import { prisma } from "@langfuse/shared/src/db";
+/* eslint-disable @repo/no-exotic-operators */
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
@@ -9,21 +10,28 @@ import {
   type ChatMessage,
   type Prompt,
   PromptType,
+  parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { parsePromptDependencyTags } from "@langfuse/shared";
 import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
+  createAndAddApiKeysToDb,
+  createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
 } from "@langfuse/shared/src/server";
+import {
+  createUserWithOrgRole,
+  protectPromptLabel,
+} from "@/src/__tests__/server/mcp-helpers";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
 import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
+import { promptsHandler } from "@/src/features/prompts/server/handlers/promptsHandler";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
@@ -1205,6 +1213,161 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       expect(v2Response.body).toHaveProperty("version");
       // @ts-expect-error - Response body type is flexible for testing
       expect(v2Response.body.version).toBe(2);
+    });
+  });
+
+  describe("when filtering a prompt list with structured filters", () => {
+    let projectId: string;
+    let auth: string;
+
+    const request = async (query: Record<string, string>) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        query,
+        headers: { authorization: auth },
+      });
+      await promptsHandler(req, res);
+      return res;
+    };
+
+    const list = async (
+      filter: unknown[],
+      query: Record<string, string> = {},
+    ) => {
+      const res = await request({ ...query, filter: JSON.stringify(filter) });
+      expect(res._getStatusCode()).toBe(200);
+      return res._getJSONData() as PromptsMetaResponse;
+    };
+
+    beforeAll(async () => {
+      ({ projectId, auth } = await createOrgProjectAndApiKey());
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      await Promise.all(
+        [
+          { name: "tools/a/description", version: 1, labels: ["production"] },
+          { name: "tools/a/description", version: 2, labels: ["latest"] },
+          { name: "tools/b/description", version: 1, labels: ["production"] },
+          { name: "tools/c/instructions", version: 1 },
+          { name: "other/description", version: 1 },
+          {
+            name: "tools/foreign/description",
+            version: 1,
+            projectId: otherProjectId,
+          },
+        ].map((prompt) =>
+          createPromptInDB({
+            prompt: "test",
+            labels: [],
+            tags: ["tool"],
+            config: { model: "test-model", version: prompt.version },
+            projectId,
+            createdBy: "user-test",
+            type: PromptType.Text,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+            updatedAt: new Date("2026-01-02T00:00:00Z"),
+            ...prompt,
+          }),
+        ),
+      );
+    });
+
+    it("combines name operators before pagination and preserves project isolation", async () => {
+      const filters = [
+        {
+          type: "string",
+          column: "name",
+          operator: "starts with",
+          value: "tools/",
+        },
+        {
+          type: "string",
+          column: "name",
+          operator: "ends with",
+          value: "/description",
+        },
+      ];
+      const first = await list(filters, {
+        limit: "1",
+        name: "ignored",
+        label: "ignored",
+        tag: "ignored",
+        version: "999",
+        fromUpdatedAt: "2030-01-01T00:00:00Z",
+        toUpdatedAt: "2020-01-01T00:00:00Z",
+      });
+      expect(first.data.map((prompt) => prompt.name)).toEqual([
+        "tools/a/description",
+      ]);
+      expect(first.data[0].versions).toEqual([1, 2]);
+      expect(first.data[0].lastConfig).toEqual({
+        model: "test-model",
+        version: 2,
+      });
+      expect(first.meta).toEqual({
+        page: 1,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+      expect(first.pagination).toEqual(first.meta);
+      const second = await list(filters, { limit: "1", page: "2" });
+      expect(second.data.map((prompt) => prompt.name)).toEqual([
+        "tools/b/description",
+      ]);
+      expect(second.meta).toEqual({ ...first.meta, page: 2 });
+    });
+
+    it("filters versions, arrays, timestamps, type, and config before aggregating metadata", async () => {
+      const result = await list([
+        { type: "string", column: "name", operator: "contains", value: "/a/" },
+        { type: "number", column: "version", operator: "<=", value: 1 },
+        {
+          type: "arrayOptions",
+          column: "labels",
+          operator: "any of",
+          value: ["production"],
+        },
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "all of",
+          value: ["tool"],
+        },
+        {
+          type: "datetime",
+          column: "createdAt",
+          operator: ">=",
+          value: "2026-01-01T00:00:00Z",
+        },
+        {
+          type: "datetime",
+          column: "updatedAt",
+          operator: "<",
+          value: "2026-01-03T00:00:00Z",
+        },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: ["text"],
+        },
+        {
+          type: "stringObject",
+          column: "config",
+          key: "model",
+          operator: "=",
+          value: "test-model",
+        },
+      ]);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          name: "tools/a/description",
+          versions: [1],
+          labels: ["production"],
+          lastConfig: { model: "test-model", version: 1 },
+        }),
+      ]);
+      expect(result.meta.totalItems).toBe(1);
     });
   });
 
@@ -3126,6 +3289,186 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it("returns a bodyless 204", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptBodyless" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: [],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+      expect(res._getData()).toBe("");
+    });
+
+    it("rejects a MEMBER in-app-agent key deleting a production-labeled prompt", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+        createdByUserId: userId,
+      });
+      const name = "deleteProtectedAgent" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(403);
+      expect(res._getJSONData().message).toContain(
+        "delete a prompt with a protected label",
+      );
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+    });
+
+    it("lets an ordinary project key delete a production-labeled prompt", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const name = "deleteProtectedProjectKey" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("lets a MEMBER in-app-agent key delete an unlabeled version when a sibling version is production", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: projectId,
+        scope: "PROJECT",
+        isInAppAgentKey: true,
+        createdByUserId: userId,
+      });
+      const name = "deleteUnlabeledSibling" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: [],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name, version: "2" },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]?.version).toBe(1);
+    });
+
     it("deletes all versions of a prompt", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const name = "deletePrompt" + uuidv4();

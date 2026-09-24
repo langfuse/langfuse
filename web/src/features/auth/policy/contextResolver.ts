@@ -1,0 +1,195 @@
+import { type ApiKey } from "@langfuse/shared/src/db";
+import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
+
+import { apiKeyAccessRights } from "@/src/features/rbac/constants/apiKeyAccessRights";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import {
+  OrganizationRepository,
+  type GetOrganizationResult,
+  type OrganizationWithProjects,
+} from "./organizationRepository";
+import {
+  internalServerError,
+  wildcard,
+  type AuthorizationContext,
+  type BoundResource,
+  type ErrorResult,
+  type Policy,
+  type Principal,
+  type PrincipalOrganization,
+  type Success,
+  type SystemPolicy,
+} from "./types";
+
+/** ContextResolver materializes an authenticated credential into its `AuthorizationContext`, loading and enriching the org it implies. */
+export class ContextResolver {
+  constructor(
+    private readonly orgs: OrganizationRepository = new OrganizationRepository(),
+  ) {}
+
+  /** resolve turns a verified credential into its context, collapsing a missing org to a 500 invariant break. */
+  async resolve(params: ResolveContextParams): Promise<Resolved> {
+    if (params.authorization === "admin") {
+      return { success: true, context: adminContext() };
+    }
+    const org = await this.getPrincipalOrganization(params.apiKey);
+    if (!org.success) return org;
+    return {
+      success: true,
+      context: materialize(
+        params.apiKey,
+        params.authorization,
+        org.organization,
+      ),
+    };
+  }
+
+  /** getPrincipalOrganization loads and derives the key's `PrincipalOrganization`, collapsing a null miss to a 500 invariant break. */
+  private async getPrincipalOrganization(
+    apiKey: ApiKey,
+  ): Promise<
+    | (Success & { organization: PrincipalOrganization })
+    | ErrorResult<InternalServerError>
+  > {
+    const found = await this.loadOrganization(apiKey);
+    if (!found.success) return found;
+    if (!found.organization) {
+      return internalServerError(
+        `verified key ${apiKey.id} resolved to no organization`,
+      );
+    }
+    return {
+      success: true,
+      organization: toPrincipalOrganization(found.organization),
+    };
+  }
+
+  /** loadOrganization loads the key's org by its scope: an org key by orgId, a project key by its bound projectId. */
+  private async loadOrganization(
+    apiKey: ApiKey,
+  ): Promise<GetOrganizationResult> {
+    if (apiKey.scope === "ORGANIZATION") {
+      if (apiKey.orgId === null) {
+        return internalServerError(`org key ${apiKey.id} has no orgId`);
+      }
+      return this.orgs.getOrganizationByOrgId(apiKey.orgId);
+    }
+    if (apiKey.projectId === null) {
+      return internalServerError(`project key ${apiKey.id} has no projectId`);
+    }
+    return this.orgs.getOrganizationByProjectId(apiKey.projectId);
+  }
+}
+
+/** materialize expands the `ApiKey` row and its presentation into the policies the credential implies. */
+function materialize(
+  apiKey: ApiKey,
+  authorization: "publicKey" | "privateKey",
+  org: PrincipalOrganization,
+): AuthorizationContext {
+  const principal: Principal = {
+    kind: "apiKey",
+    apiKeyId: apiKey.id,
+    userId: apiKey.createdByUserId,
+    isInAppAgentKey: apiKey.isInAppAgentKey,
+    publicKey: apiKey.publicKey,
+    scope: apiKey.scope,
+    presentation: authorization,
+    organizations: [org],
+    boundResource: boundResourceFor(apiKey, org),
+  };
+
+  const grants =
+    authorization === "publicKey"
+      ? apiKeyAccessRights.SCORES_INGEST
+      : apiKeyAccessRights[apiKey.scope];
+  const policies = grants.map((p) => bind(p, principal));
+  return { principal, policies };
+}
+
+/** adminContext is the admin context: no key row, the ADMIN role bound to the wildcard resource. */
+function adminContext(): AuthorizationContext {
+  const principal: Principal = { kind: "admin", userId: null };
+  return {
+    principal,
+    policies: apiKeyAccessRights.ADMIN.map((policy) => bind(policy, principal)),
+  };
+}
+
+/** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */
+function boundResourceFor(
+  apiKey: ApiKey,
+  org: PrincipalOrganization,
+): BoundResource {
+  if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
+  return { orgId: org.orgId, projectId: apiKey.projectId! };
+}
+
+/** bind fixes a resource-less SystemPolicy to the resources the principal covers, by the policy's kind. */
+function bind(policy: SystemPolicy, principal: Principal): Policy {
+  return policy.kind === "organization"
+    ? { ...policy, resources: orgResources(principal) }
+    : { ...policy, resources: projectResources(principal) };
+}
+
+/** orgResources are the org ids an org-kind policy binds to: the bound org, or the wildcard for admin. */
+function orgResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
+  return boundOrgs(principal).map((o) => o.orgId);
+}
+
+/** projectResources are the project ids a project-kind policy binds to: the bound project, the bound org's projects, or the wildcard for admin. */
+function projectResources(principal: Principal): Policy["resources"] {
+  if (principal.kind === "admin") return wildcard;
+  const bound =
+    principal.kind === "apiKey" ? principal.boundResource : undefined;
+  if (bound?.projectId) return [bound.projectId];
+  return boundOrgs(principal).flatMap((o) => o.projectIds);
+}
+
+/** boundOrgs are the principal's organizations, narrowed to the bound org when the credential bound one. */
+function boundOrgs(principal: NonAdminPrincipal): PrincipalOrganization[] {
+  const bound =
+    principal.kind === "apiKey" ? principal.boundResource : undefined;
+  return bound
+    ? principal.organizations.filter((o) => o.orgId === bound.orgId)
+    : principal.organizations;
+}
+
+/** toPrincipalOrganization derives an org's `PrincipalOrganization` caps and liveness from its raw row. */
+function toPrincipalOrganization(
+  org: OrganizationWithProjects,
+): PrincipalOrganization {
+  const cloudConfig = getCloudConfig(org);
+  return {
+    orgId: org.id,
+    organizationCreatedAt: org.createdAt.toISOString(),
+    plan: getOrganizationPlanServerSide(cloudConfig),
+    rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
+    projectIds: org.projects.map((p) => p.id),
+    isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+  };
+}
+
+/** getCloudConfig parses an org's raw cloud-config json, or undefined when unset. */
+function getCloudConfig(
+  org: OrganizationWithProjects,
+): CloudConfigSchema | undefined {
+  return org.cloudConfig ? CloudConfigSchema.parse(org.cloudConfig) : undefined;
+}
+
+/** ResolveContextParams is a verified credential: an api key with how it was presented, or the admin key. */
+export type ResolveContextParams =
+  | {
+      authorization: "publicKey" | "privateKey";
+      apiKey: ApiKey;
+    }
+  | { authorization: "admin" };
+
+/** Resolved is the materialized context, or a 500 when a verified key's org is missing. */
+export type Resolved =
+  | (Success & { context: AuthorizationContext })
+  | ErrorResult<InternalServerError>;
+
+/** NonAdminPrincipal is a user or api-key principal, the credentials that carry organizations. */
+type NonAdminPrincipal = Exclude<Principal, { kind: "admin" }>;

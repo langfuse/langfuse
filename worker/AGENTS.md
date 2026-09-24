@@ -1,7 +1,4 @@
-# Codex Guidelines for `worker`
-
-This file covers package-local guidance for the worker.
-Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
+# Agent Guidelines for `worker`
 
 ## Purpose
 
@@ -10,21 +7,44 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Maintenance Contract
 
-- `AGENTS.md` is a living document.
-- Update this file in the same PR for material worker-local changes:
-  - new/renamed queue processors
-  - new worker bootstrapping points
-  - changed worker verification commands
-- If queue contracts or shared workflows change, update root `AGENTS.md` and
-  likely `../packages/shared/AGENTS.md` too.
+- Update this file in the same PR when entry points, commands, or contracts
+  change. Queue-contract changes usually need `../packages/shared/AGENTS.md`
+  too.
 
 ## High-Signal Entry Points
 
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
+- OTEL event processing:
+  `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
+  after its legacy persistence path for event normalization, evaluation
+  scheduling, direct events-table writes, and trace-batch accounting.
+- Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
+  `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
+  `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
+  independently default-off and cloud-gated. Do not expose these PoC controls in
+  local or production env templates. Reader query controls are independent of
+  locality selection; logs must preserve separate input/output/metadata metrics.
+  `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
+  and Redis snapshots independently of dispatch/consumption when either role is
+  enabled. Global snapshot gauges must not be summed across worker reporters.
+  `src/features/traceBatching/traceBatchTranscript.ts` measures per-trace assembly
+  phases, thread count, current-turn/history token estimates and their sum.
+  Token partitions run sequentially; tool-response size uses comparable character
+  counts over message parts, without another tokenizer pass.
+  Allow one pending tokenization promise per batch while
+  buffering the next trace, and drain it even on read failure. Never flush a failed
+  stream's partial final trace; completion covers the query window, not future arrivals.
+- Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
+- Rust addon (`@langfuse/native`): telemetry init and the startup hello call live
+  in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code
+  records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
+- Direct-event replay: `pnpm --filter worker run test:otel-replay` exercises the
+  production OTEL event phase with isolated ClickHouse tables. Setup and scope:
+  `src/features/otel-ingestion/README.md`.
 
 ## Shared Package Imports
 
@@ -69,6 +89,22 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Preserve metrics/tracing patterns in `workerManager` and queue processors.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
+
+## In-App Agent Runtime
+
+- `src/features/in-app-agent/runtime/` owns Mastra adaptation, agent execution,
+  instrumentation, prompt loading, continuation handling, tools, skills, and
+  sandbox providers.
+- Worker env owns queue concurrency, sandbox configuration, and the
+  development-only in-app-agent AWS profile. Enablement is
+  `LANGFUSE_IN_APP_AGENT_ENABLED` via `isInAppAgentInstanceEnabled()`. Optional
+  `QUEUE_CONSUMER_IN_APP_AGENT_RUN_QUEUE_IS_ENABLED=false` and
+  `LANGFUSE_IN_APP_AGENT_INTEGRITY_RUNNER_ENABLED=false` opt a split-role
+  worker out of the queue consumer (and nested DLQ retry) or integrity runner.
+  Shared lifecycle policy values are fixed constants, so web and worker cannot
+  diverge.
+- Persisted/queued contracts, lifecycle, storage, MCP policy, tool-result
+  handling, and the seeded system prompt remain explicit shared subpaths.
 
 ## Package-Specific Rules
 

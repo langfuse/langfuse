@@ -11,6 +11,7 @@
  * This is split into its own file because the env is process-wide for the file;
  * the dual-mode flag tests live in traces-trpc.servertest.ts.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 // The events_full table is created only by the ClickHouse dev-tables setup
@@ -88,14 +89,7 @@ maybe("traces trpc (events_only write mode)", () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {} as any,
@@ -109,6 +103,76 @@ maybe("traces trpc (events_only write mode)", () => {
   // silently fall back to reading the (empty) legacy table.
   it("forces events_only write mode", () => {
     expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
+  });
+
+  it("loads a cross-midnight trace from a clicked observation timestamp", async () => {
+    const traceId = randomUUID();
+    const rootId = randomUUID();
+    const clickedId = randomUUID();
+    const rootTimestamp = new Date("2026-07-14T21:42:12.184Z");
+    const clickedTimestamp = new Date("2026-07-15T00:27:13.935Z");
+
+    await createEventsCh([
+      createEvent({
+        id: rootId,
+        span_id: rootId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: "",
+        start_time: rootTimestamp.getTime() * 1000,
+      }),
+      createEvent({
+        id: clickedId,
+        span_id: clickedId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: rootId,
+        start_time: clickedTimestamp.getTime() * 1000,
+        is_app_root: true,
+      }),
+    ]);
+    await waitForExpect(async () => {
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.id).toBe(traceId);
+    });
+
+    const result = await caller.events.byTraceId({
+      projectId,
+      traceId,
+      timestamp: clickedTimestamp,
+    });
+
+    expect(result.observations.map(({ id }) => id)).toEqual(
+      expect.arrayContaining([rootId, clickedId]),
+    );
+    expect(result.observations).toHaveLength(2);
+  });
+
+  it("rejects invalid agent graph timestamps as a bad request", async () => {
+    const traceId = randomUUID();
+
+    await createEventsCh([
+      createEvent({
+        id: traceId,
+        span_id: traceId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: null,
+      }),
+    ]);
+    await waitForExpect(async () => {
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.id).toBe(traceId);
+    });
+
+    await expect(
+      caller.events.getAgentGraphData({
+        projectId,
+        traceId,
+        minStartTime: "'",
+        maxStartTime: "2026-08-08T22:25:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   // On a fresh events_only deployment tracing data is written ONLY to the

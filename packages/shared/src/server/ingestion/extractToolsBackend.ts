@@ -7,8 +7,9 @@ type IngestionJsonValue = string | object | number | boolean | null | undefined;
  *
  * Deliberately native JSON.parse, not the shared parseJsonIfString: this runs
  * over full observation input/output for every ingested span, and the shared
- * helper's lossless-json slow path triggers on any digit followed by e/E
- * (most UUIDs) or 13+ consecutive digits (ms timestamps).
+ * helper's precision-preserving path (triggered by any digit followed by e/E
+ * — most UUIDs — or 13+ consecutive digits — ms timestamps) pays a per-value
+ * reviver callback that ingestion does not need.
  */
 function parseIfString(data: unknown): unknown {
   if (typeof data === "string") {

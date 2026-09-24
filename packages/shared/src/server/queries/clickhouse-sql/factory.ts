@@ -25,7 +25,7 @@ import {
 } from "./clickhouse-filter";
 import { assertValidFtsMatchFilter } from "./fts";
 
-export class QueryBuilderError extends Error {
+class QueryBuilderError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "QueryBuilderError";
@@ -40,7 +40,7 @@ const LEGACY_SCORE_FILTER_COLUMNS: Partial<
   booleanObject: "score_booleans",
 };
 
-const resolveLegacyScoreFilterColumn = (
+export const resolveLegacyScoreFilterColumn = (
   filter: EventsTableFilterState[number],
   columnMapping: UiColumnMappings,
 ): string => {

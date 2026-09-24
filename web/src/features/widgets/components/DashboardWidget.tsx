@@ -1,20 +1,21 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/src/utils/api";
 import {
   buildWidgetOrderBy,
   getResultUnit,
   isV2BreakdownChart,
-  requiresV2,
+  resolveWidgetRenderVersion,
   toQueryChartConfig,
   validateQuery,
   type QueryType,
-  type ViewVersion,
   type metricAggregations,
   type views,
 } from "@langfuse/shared/query";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type z } from "zod";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import { type FilterState, type OrderByState } from "@langfuse/shared";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import {
@@ -23,14 +24,17 @@ import {
   GripVerticalIcon,
   MoreVerticalIcon,
   CopyIcon,
-  ClipboardPasteIcon,
   CopyPlusIcon,
   FileJsonIcon,
   DownloadIcon,
+  TableIcon,
 } from "lucide-react";
 import { useRouter } from "next/router";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import {
+  buildTableFilterHref,
+  buildViewAsTableHint,
+} from "@/src/features/dashboard";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { downloadChartDataCsv } from "@/src/features/widgets/chart-library/downloadChartDataCsv";
 import {
   buildWidgetExport,
@@ -38,17 +42,11 @@ import {
   type WidgetExportSource,
 } from "@/src/features/widgets/utils/import-export-utils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
-import { isPasteablePlacementPayload } from "@/src/features/dashboard/utils/dashboard-import-export";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
+import { useCaptureWidgetHighCardinalityError } from "@/src/features/widgets/hooks/useWidgetQueryErrorCapture";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   formatMetricName,
+  mergeWidgetAndDashboardFilters,
   shouldUseWidgetSSE,
   sanitizePivotTableDefaultSort,
   getWidgetMetricPresentation,
@@ -59,10 +57,10 @@ import {
   getChartLoadingProgress,
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import type { ResolvedReadPath } from "@/src/features/events";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { Badge } from "@/src/components/ui/badge";
 
 export interface WidgetPlacement {
@@ -78,6 +76,8 @@ export interface WidgetPlacement {
 export function DashboardWidget({
   projectId,
   dashboardId,
+  chartSync,
+  readPath,
   placement,
   dateRange,
   filterState,
@@ -86,11 +86,13 @@ export function DashboardWidget({
   schedulerId,
   onLockedEditAttempt,
   readOnly,
-  onPasteWidget,
   onDuplicateWidget,
 }: {
   projectId: string;
   dashboardId: string;
+  chartSync: ChartProps["sync"];
+  /** Resolved by the page controller — the widget must not guess the version. */
+  readPath: ResolvedReadPath;
   placement: WidgetPlacement;
   dateRange: { from: Date; to: Date } | undefined;
   filterState: FilterState;
@@ -106,12 +108,7 @@ export function DashboardWidget({
   /** Pure viewing surface (e.g. Home): render no edit affordances. */
   readOnly?: boolean;
   /**
-   * Pastes the clipboard widget next to this tile. Passed only on editable
-   * (non-locked) dashboards; absent → no "Paste to the right" menu item.
-   */
-  onPasteWidget?: (anchor: WidgetPlacement) => void;
-  /**
-   * Duplicates this widget (new widget row seeded from `widget`) next to this
+   * Clones this widget (new widget row seeded from `widget`) next to this
    * tile. Passed only on editable (non-locked) dashboards.
    */
   onDuplicateWidget?: (
@@ -122,7 +119,7 @@ export function DashboardWidget({
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const { isBetaEnabled } = useV4Beta();
+  const isV4 = readPath === "v4";
   const widget = api.dashboardWidgets.get.useQuery(
     {
       widgetId: placement.widgetId,
@@ -132,21 +129,18 @@ export function DashboardWidget({
       enabled: Boolean(projectId),
     },
   );
-  const widgetRequiresV2 = requiresV2({
-    view: widget.data?.view ?? "traces",
-    dimensions: widget.data?.dimensions ?? [],
-    measures:
-      widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ?? [],
-    filters: widget.data?.filters ?? [],
+  const metricsVersion = resolveWidgetRenderVersion({
+    shape: {
+      view: widget.data?.view ?? "traces",
+      dimensions: widget.data?.dimensions ?? [],
+      measures:
+        widget.data?.metrics.map((metric) => ({ measure: metric.measure })) ??
+        [],
+      filters: widget.data?.filters ?? [],
+    },
+    persistedMinVersion: widget.data?.minVersion,
+    newestReadableVersion: isV4 ? "v2" : "v1",
   });
-  // If widget requires v2 features (minVersion >= 2), must use v2.
-  // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
   const hasRbacCUDAccess = useHasProjectAccess({
     projectId,
     scope: "dashboards:CUD",
@@ -173,17 +167,6 @@ export function DashboardWidget({
   });
   const [retryCount, setRetryCount] = useState(0);
   const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
-  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
-  // Gate "Paste to the right" on the clipboard actually holding a pasteable
-  // payload, where the browser lets us check silently.
-  const isPasteablePayload = useCallback(
-    (text: string) => isPasteablePlacementPayload(text, { isBetaEnabled }),
-    [isBetaEnabled],
-  );
-  const clipboardProbe = useClipboardWidgetProbe(
-    isActionsMenuOpen && Boolean(onPasteWidget),
-    isPasteablePayload,
-  );
 
   // Apply defaultSort when it becomes available (after widget data loads)
   // but only if user hasn't interacted yet
@@ -233,24 +216,26 @@ export function DashboardWidget({
         })
       : { type: chartType };
 
+    const view = (widget.data?.view as z.infer<typeof views>) ?? "traces";
+
+    // A widget's own environment filter overrides the dashboard's global
+    // environment selector; other dashboard-global filters still merge in.
+    // (LFE-14333 — see mergeWidgetAndDashboardFilters.)
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+
     return {
-      view: (widget.data?.view as z.infer<typeof views>) ?? "traces",
+      view,
       dimensions: widget.data?.dimensions ?? [],
       metrics:
         widget.data?.metrics.map((metric) => ({
           measure: metric.measure,
           aggregation: metric.agg as z.infer<typeof metricAggregations>,
         })) ?? [],
-      filters: [
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          widget.data?.filters ?? [],
-        ),
-        ...mapLegacyUiTableFilterToView(
-          (widget.data?.view as z.infer<typeof views>) ?? "traces",
-          filterState,
-        ),
-      ],
+      filters: mergedFilters,
       timeDimension: isTimeSeries ? { granularity: "auto" as const } : null,
       fromTimestamp: fromTimestamp.toISOString(),
       toTimestamp: toTimestamp.toISOString(),
@@ -266,6 +251,12 @@ export function DashboardWidget({
         : ({ valid: true } as const),
     [widgetQuery, metricsVersion, widget.data],
   );
+  useCaptureWidgetHighCardinalityError({
+    validation: queryValidation,
+    surface: "dashboard_tile",
+    chartType: widget.data?.chartType,
+    isV4: metricsVersion === "v2",
+  });
   const queryResult = useScheduledDashboardExecuteQuery(
     {
       projectId,
@@ -280,11 +271,11 @@ export function DashboardWidget({
       },
       queryId: `${schedulerId ?? `dashboard-widget:${placement.id}`}:execute`,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version: metricsVersion,
       }),
       enabled:
@@ -298,7 +289,7 @@ export function DashboardWidget({
     errorMessage: queryResult.error,
   });
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version: metricsVersion,
   });
   const loadingStateLayout =
@@ -459,6 +450,56 @@ export function DashboardWidget({
     [chartPresentation],
   );
 
+  // "View as table" navigation: the widget's own filters (config + dashboard
+  // global) translated to the traces/observations table's applicable filters,
+  // plus the widget's time range. Filters the table can't express are dropped
+  // (surfaced as a hint), never errored. The widget-filter merge mirrors the
+  // query build above via mergeWidgetAndDashboardFilters, so the environment
+  // override applies here too: a widget with its own environment filter must
+  // deep-link to a table scoped to ITS environment, not one carrying both the
+  // widget's and the dashboard selector's contradictory environment filters
+  // (which the table treats as applicable → empty table). (LFE-14333)
+  // buildTableFilterHref maps to view space again internally; that re-map is
+  // idempotent for the already-canonical columns this helper returns
+  // (isCanonicalViewFilterColumn short-circuits them), so no filter is
+  // double-mapped or dropped.
+  const tableView = useMemo(() => {
+    const view = widget.data?.view;
+    if (!view) return undefined;
+    const mergedFilters = mergeWidgetAndDashboardFilters({
+      view: view as z.infer<typeof views>,
+      widgetFilters: widget.data?.filters ?? [],
+      dashboardFilters: filterState,
+    });
+    return buildTableFilterHref(
+      projectId,
+      view as z.infer<typeof views>,
+      mergedFilters,
+      dateRange,
+      readPath,
+    );
+  }, [projectId, widget.data, filterState, dateRange, readPath]);
+
+  const handleViewAsTable = () => {
+    if (!tableView) return;
+    capture("dashboard:widget_view_as_table", {
+      widget_id: placement.widgetId,
+      dashboard_id: dashboardId,
+      view: widget.data?.view,
+      filters_not_applicable: tableView.notApplicable.size,
+      filters_dropped_for_length: tableView.droppedForLength,
+    });
+    router.push(tableView.href);
+  };
+
+  // Hint combines both reasons a widget filter can be missing from the table:
+  // dimensions the table can't express AND applicable filters dropped to keep
+  // the ?filter= URL within budget. A length-drop must never be silent.
+  const viewAsTableHint = useMemo(
+    () => (tableView ? buildViewAsTableHint(tableView) : null),
+    [tableView],
+  );
+
   const handleEdit = () => {
     router.push(
       `/project/${projectId}/widgets/${placement.widgetId}?dashboardId=${dashboardId}`,
@@ -546,6 +587,10 @@ export function DashboardWidget({
         widget_id: placement.widgetId,
         dashboard_id: dashboardId,
       });
+      showSuccessToast({
+        title: "Widget copied",
+        description: "Paste it on any dashboard with Cmd/Ctrl+V.",
+      });
     } catch {
       showErrorToast("Copy failed", "Could not write to the clipboard.");
     }
@@ -573,7 +618,7 @@ export function DashboardWidget({
       )}
       <div className="flex items-center justify-between">
         <span
-          className="flex min-w-0 items-center gap-1.5 truncate font-medium"
+          className="flex min-w-0 items-center gap-1.5 truncate text-base font-bold"
           title={widget.data.name}
         >
           <span className="truncate" title={widget.data.name}>
@@ -627,64 +672,94 @@ export function DashboardWidget({
                   <PencilIcon size={16} />
                 </button>
               ) : null}
-              <button
-                onClick={handleDelete}
-                className="text-muted-foreground hover:text-destructive hidden group-hover:block"
-                aria-label="Delete widget"
-              >
-                <TrashIcon size={16} />
-              </button>
             </>
           )}
-          <DropdownMenu onOpenChange={setIsActionsMenuOpen}>
-            <DropdownMenuTrigger asChild>
+          <DropdownMenu
+            placement="bottom-end"
+            items={[
+              ...(tableView
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "view-as-table",
+                      title: viewAsTableHint
+                        ? `View as table (${viewAsTableHint.count} filter${viewAsTableHint.count === 1 ? "" : "s"} not shown in the table)`
+                        : "View as table",
+                      tooltip: viewAsTableHint?.title,
+                      icon: TableIcon,
+                      onClick: handleViewAsTable,
+                    },
+                    {
+                      id: "table-separator",
+                      type: "separator" as const,
+                    },
+                  ]
+                : []),
+              {
+                type: "item",
+                id: "copy",
+                title: "Copy widget",
+                icon: CopyIcon,
+                onClick: handleCopyToClipboard,
+              },
+              ...(onDuplicateWidget
+                ? [
+                    {
+                      type: "item" as const,
+                      id: "clone",
+                      title: "Clone",
+                      icon: CopyPlusIcon,
+                      onClick: () =>
+                        onDuplicateWidget(placement, widgetExportSource),
+                    },
+                  ]
+                : []),
+              { id: "download-separator", type: "separator" },
+              {
+                type: "item",
+                id: "download-json",
+                title: "Download as JSON",
+                icon: FileJsonIcon,
+                onClick: handleDownloadJson,
+              },
+              {
+                type: "item",
+                id: "download-csv",
+                title: "Download data as CSV",
+                icon: DownloadIcon,
+                disabled: queryResult.isPending
+                  ? { reason: "Chart data is still loading" }
+                  : undefined,
+                onClick: () =>
+                  downloadChartDataCsv(transformedData, widget.data.name),
+              },
+              ...(!readOnly && (hasCUDAccess || isLockedEditable)
+                ? [
+                    {
+                      id: "delete-separator",
+                      type: "separator" as const,
+                    },
+                    {
+                      type: "item" as const,
+                      id: "delete",
+                      title: "Delete",
+                      icon: TrashIcon,
+                      variant: "destructive" as const,
+                      onClick: handleDelete,
+                    },
+                  ]
+                : []),
+            ]}
+          >
+            {({ getTriggerProps }) => (
               <button
-                className="text-muted-foreground hover:text-foreground hidden group-hover:block data-[state=open]:block"
+                className="text-muted-foreground hover:text-foreground hidden group-hover:block aria-expanded:block"
                 aria-label="Widget actions"
+                {...getTriggerProps()}
               >
                 <MoreVerticalIcon size={16} />
               </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={handleCopyToClipboard}>
-                <CopyIcon className="mr-2 h-4 w-4" />
-                Copy to clipboard
-              </DropdownMenuItem>
-              {onPasteWidget && (
-                <DropdownMenuItem
-                  disabled={clipboardProbe === "no-widget"}
-                  onClick={() => onPasteWidget(placement)}
-                >
-                  <ClipboardPasteIcon className="mr-2 h-4 w-4" />
-                  Paste to the right
-                </DropdownMenuItem>
-              )}
-              {onDuplicateWidget && (
-                <DropdownMenuItem
-                  onClick={() =>
-                    onDuplicateWidget(placement, widgetExportSource)
-                  }
-                >
-                  <CopyPlusIcon className="mr-2 h-4 w-4" />
-                  Duplicate
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleDownloadJson}>
-                <FileJsonIcon className="mr-2 h-4 w-4" />
-                Download as JSON
-              </DropdownMenuItem>
-              {/* Chart data download needs the query result to have loaded */}
-              <DropdownMenuItem
-                disabled={queryResult.isPending}
-                onClick={() =>
-                  downloadChartDataCsv(transformedData, widget.data.name)
-                }
-              >
-                <DownloadIcon className="mr-2 h-4 w-4" />
-                Download data as CSV
-              </DropdownMenuItem>
-            </DropdownMenuContent>
+            )}
           </DropdownMenu>
         </div>
       </div>
@@ -708,33 +783,38 @@ export function DashboardWidget({
           </div>
         ) : (
           <div className="relative min-h-0 flex-1">
-            <Chart
-              chartType={widget.data.chartType}
-              data={transformedData}
-              // Sync the hover crosshair across all time-series widgets on this
-              // dashboard (non-time-series chart types ignore it). (LFE-10549)
-              syncId={dashboardId}
-              config={chartMetricConfig}
-              rowLimit={
-                widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
-                widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
-                widget.data.chartConfig.type === "AREA_TIME_SERIES"
-                  ? 100
-                  : (widget.data.chartConfig.row_limit ?? 100)
-              }
-              chartConfig={chartConfigForRender}
-              sortState={
-                widget.data.chartType === "PIVOT_TABLE" ? sortState : undefined
-              }
-              onSortChange={
-                widget.data.chartType === "PIVOT_TABLE" ? updateSort : undefined
-              }
-              isLoading={queryResult.isPending}
-              metricFormatter={chartPresentation?.metricFormatter}
-              missingValue={getWidgetMissingBucketValue(
-                widget.data.metrics[0]?.agg ?? "count",
-              )}
-            />
+            <div className="absolute inset-0">
+              <Chart
+                chartType={widget.data.chartType}
+                data={transformedData}
+                syncId={dashboardId}
+                sync={chartSync}
+                config={chartMetricConfig}
+                rowLimit={
+                  widget.data.chartConfig.type === "LINE_TIME_SERIES" ||
+                  widget.data.chartConfig.type === "BAR_TIME_SERIES" ||
+                  widget.data.chartConfig.type === "AREA_TIME_SERIES"
+                    ? 100
+                    : (widget.data.chartConfig.row_limit ?? 100)
+                }
+                chartConfig={chartConfigForRender}
+                sortState={
+                  widget.data.chartType === "PIVOT_TABLE"
+                    ? sortState
+                    : undefined
+                }
+                onSortChange={
+                  widget.data.chartType === "PIVOT_TABLE"
+                    ? updateSort
+                    : undefined
+                }
+                isLoading={queryResult.isPending}
+                metricFormatter={chartPresentation?.metricFormatter}
+                missingValue={getWidgetMissingBucketValue(
+                  widget.data.metrics[0]?.agg ?? "count",
+                )}
+              />
+            </div>
             <ChartLoadingState
               isLoading={chartLoadingState.isLoading}
               showSpinner={chartLoadingState.showSpinner}

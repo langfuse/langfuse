@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { SiSlack } from "react-icons/si";
 import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -56,7 +57,7 @@ export function ProjectNotificationChannelsList({
                   <Webhook className="h-4 w-4 shrink-0" />
                 )}
                 <span
-                  className="truncate text-sm font-medium"
+                  className="truncate text-sm font-bold"
                   title={destinationLabel(channel)}
                 >
                   {destinationLabel(channel)}

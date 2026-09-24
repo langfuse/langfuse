@@ -1,16 +1,7 @@
-import React from "react";
 import Header from "@/src/components/layouts/header";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { ScoreConfigsTable } from "@/src/components/table/use-cases/score-configs";
+import { ConnectedScoreConfigsTable } from "@/src/features/score-configs/ScoreConfigsTable/ConnectedScoreConfigsTable";
 
 export function ScoreConfigSettings({ projectId }: { projectId: string }) {
-  const hasReadAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "scoreConfigs:read",
-  });
-
-  if (!hasReadAccess) return null;
-
   return (
     <div id="score-configs">
       <Header title="Score Configs" />
@@ -26,7 +17,7 @@ export function ScoreConfigSettings({ projectId }: { projectId: string }) {
         </a>{" "}
         in your project. Please note that all score configs are immutable.
       </p>
-      <ScoreConfigsTable projectId={projectId} />
+      <ConnectedScoreConfigsTable projectId={projectId} />
     </div>
   );
 }

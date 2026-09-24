@@ -6,7 +6,6 @@ import { Button } from "@/src/components/ui/button";
 import { ImageOff, Maximize2, Minimize2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { captureException } from "@sentry/nextjs";
 import { useSession } from "next-auth/react";
 import { buildResizableImageSrc } from "./resizable-image.utils";
 import { getSafeImageUrl } from "@/src/components/ui/safe-url";
@@ -143,9 +142,13 @@ export const ResizableImage = ({
                   "rounded border",
                   fitContent ? "h-auto w-full" : "h-full w-full object-contain",
                 )}
-                onError={(error) => {
+                onError={() => {
+                  // An image failing to load is an <img> error Event (a
+                  // SyntheticEvent), not an Error, and is expected: rendered
+                  // markdown routinely points at dead user-content URLs. Show
+                  // the fallback UI; do not report it to Sentry (a non-Error
+                  // capture is opaque and not actionable for us).
                   setHasFetchError(true);
-                  captureException(error);
                 }}
               />
               <Button

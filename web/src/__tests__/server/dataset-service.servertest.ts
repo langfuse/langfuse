@@ -12,14 +12,12 @@ import {
   getDatasetItemIdsWithRunData,
   createDatasetItem,
   createManyDatasetItems,
-} from "@langfuse/shared/src/server";
-import { v4 } from "uuid";
-import { prisma } from "@langfuse/shared/src/db";
-import {
   createObservation,
   createTraceScore,
   createTrace,
 } from "@langfuse/shared/src/server";
+import { v4 } from "uuid";
+import { prisma } from "@langfuse/shared/src/db";
 import {
   enrichAndMapToDatasetItemId,
   getRunItemsByRunIdOrItemId,
@@ -27,8 +25,7 @@ import {
 import {
   aggregateScores,
   composeAggregateScoreKey,
-} from "@/src/features/scores/lib/aggregateScores";
-
+} from "@/src/features/scores/server";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
@@ -311,6 +308,8 @@ describe("Fetch datasets for UI presentation", () => {
         comment: "some other comment for non run related score",
         hasMetadata: true,
         timestamp: expect.any(Date),
+        // single-value aggregate carries the score's executionTraceId (null for API scores)
+        executionTraceId: null,
       },
     };
 
@@ -474,6 +473,7 @@ describe("Fetch datasets for UI presentation", () => {
         // createScore adds metadata to the score
         hasMetadata: true,
         timestamp: expect.any(Date),
+        executionTraceId: null,
       },
     };
 
@@ -1478,6 +1478,7 @@ describe("Fetch datasets for UI presentation", () => {
         timestamp: expect.any(Date),
         // createScore adds metadata to the score
         hasMetadata: true,
+        executionTraceId: null,
       },
     };
 

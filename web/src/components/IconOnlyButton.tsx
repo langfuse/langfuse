@@ -1,10 +1,7 @@
+/* eslint-disable @repo/no-style-props */
 import * as React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { cn } from "@/src/utils/tailwind";
 
 export interface IconOnlyButtonProps extends Omit<
@@ -56,9 +53,10 @@ export const IconOnlyButton = React.forwardRef<
 ) {
   const isDisabled = disabled || Boolean(disabledReason);
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Tooltip label={disabledReason ?? label}>
+      {({ getTriggerProps }) => (
         <span
+          {...getTriggerProps()}
           className={cn("inline-flex", isDisabled && "cursor-not-allowed")}
           // A disabled button has pointer-events-none, so a click lands on this
           // span. Stop it so a disabled action in a clickable table row does not
@@ -77,8 +75,7 @@ export const IconOnlyButton = React.forwardRef<
             {icon}
           </Button>
         </span>
-      </TooltipTrigger>
-      <TooltipContent>{disabledReason ?? label}</TooltipContent>
+      )}
     </Tooltip>
   );
 });

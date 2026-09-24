@@ -92,7 +92,6 @@ web/test-results/*
 .claude/skills/
 .claude/launch.json
 .cursor/mcp.json
-.cursor/environment.json
 .vscode/mcp.json
 .codex/config.toml
 .codex/environments/environment.toml
@@ -113,6 +112,9 @@ web/test-results/*
 
 # Local overrides for AGENTS.md
 **/AGENTS.override.md
+
+# Local agent scratch (never commit)
+.langfuse/
 
 # Superset config
 .superset/

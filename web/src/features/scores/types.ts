@@ -1,6 +1,7 @@
-import { type AnnotationScoreDataSchema } from "@/src/features/scores/schema";
-import { type AnnotateFormSchema } from "@/src/features/scores/schema";
-import { type ButtonProps } from "@/src/components/ui/button";
+import {
+  type AnnotationScoreDataSchema,
+  type AnnotateFormSchema,
+} from "@/src/features/scores/schema";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 import {
   type ScoreSourceType,
@@ -8,22 +9,12 @@ import {
   type ScoreAggregate,
   type ScoreConfigDomain,
   type ScoreDomain,
-  ScoreConfigDataType,
+  type ScoreConfigDataType,
 } from "@langfuse/shared";
 import { type z } from "zod";
 
-export type HistogramBin = { binLabel: string; count: number };
 export type CategoryCounts = Record<string, number>;
 export type ChartBin = { binLabel: string } & CategoryCounts;
-
-export type TimeseriesChartProps = {
-  chartData: ChartBin[];
-  chartLabels: string[];
-  title: string;
-  type: "numeric" | "categorical";
-  index?: string;
-  maxFractionDigits?: number;
-};
 
 export type ChartData = {
   chartData: ChartBin[];
@@ -42,12 +33,12 @@ export interface TimeseriesDataTransformer {
   toChartData(): ChartData;
 }
 
-export type SessionScoreTarget = {
+type SessionScoreTarget = {
   type: "session";
   sessionId: string;
 };
 
-export type TraceScoreTarget = {
+type TraceScoreTarget = {
   type: "trace";
   traceId: string;
   observationId?: string;
@@ -70,26 +61,37 @@ export type AnnotationScore = {
   timestamp?: Date | null;
 };
 
-type AnalyticsData = {
+export type AnalyticsData = {
   type: "trace" | "session";
+  isV4: boolean;
   source:
     | "TraceDetail"
     | "SessionDetail"
     | "AnnotationQueue"
-    | "DatasetCompare";
+    | "DatasetCompare"
+    | "TraceTable"
+    | "ObservationTable"
+    | "SessionTable";
 };
 
-export type AnnotateDrawerProps<Target extends ScoreTarget> = {
-  projectId: string;
-  scoreTarget: Target;
-  scores: WithStringifiedMetadata<ScoreDomain>[];
-  analyticsData?: AnalyticsData;
+export type AnnotationPanelData = {
+  analyticsData: AnalyticsData;
   scoreMetadata: {
     projectId: string;
     queueId?: string;
     environment?: string;
   };
-  buttonVariant?: ButtonProps["variant"];
+  scoreTarget: ScoreTarget;
+  scores?: WithStringifiedMetadata<ScoreDomain>[];
+  companionTrace?: {
+    environment: string;
+    scores: WithStringifiedMetadata<ScoreDomain>[];
+  };
+};
+
+export type AnnotationRefreshHandle = {
+  focus: () => void;
+  refresh: (data: AnnotationPanelData) => void;
 };
 
 export type AnnotateFormSchemaType = z.infer<typeof AnnotateFormSchema>;
@@ -98,8 +100,15 @@ export type AnnotationScoreSchemaType = z.infer<
 >;
 
 export type AnnotationScoreDataType = ScoreConfigDataType;
-export const ANNOTATION_SCORE_DATA_TYPES_ARRAY =
-  Object.values(ScoreConfigDataType);
+// Client-safe mirror of the Prisma enum. Vite/Storybook resolve
+// `@langfuse/shared` from source and cannot turn `export * from "@prisma/client"`
+// into named ESM exports, so browser code must not value-import Prisma enums.
+export const ANNOTATION_SCORE_DATA_TYPES_ARRAY = [
+  "NUMERIC",
+  "CATEGORICAL",
+  "BOOLEAN",
+  "TEXT",
+] as const satisfies readonly ScoreConfigDataType[];
 
 export type ScoreColumn = {
   key: string;
@@ -113,6 +122,8 @@ export type ScoreConfigSelection =
   | { mode: "selectable" };
 
 export type AnnotationForm<Target extends ScoreTarget> = {
+  refreshRef?: React.Ref<AnnotationRefreshHandle>;
+  isActive?: boolean;
   scoreTarget: Target;
   serverScores: WithStringifiedMetadata<ScoreDomain>[] | ScoreAggregate;
   scoreMetadata: {
@@ -121,11 +132,12 @@ export type AnnotationForm<Target extends ScoreTarget> = {
     environment?: string;
   };
   configSelection?: ScoreConfigSelection;
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
 };
 
 export type AnnotationScoreFormData = {
+  targetKey?: string;
   id: string | null;
   configId: string;
   name: string;
@@ -136,19 +148,26 @@ export type AnnotationScoreFormData = {
   timestamp?: Date | null;
 };
 
-export type InnerAnnotationFormProps<Target extends ScoreTarget> = {
+type InnerAnnotationFormProps<Target extends ScoreTarget> = {
   scoreTarget: Target;
   initialFormData: AnnotationScoreFormData[];
   configControl: {
     configs: ScoreConfigDomain[];
     allowManualSelection: boolean;
     emptySelectedConfigIdsStorageKey?: string;
+    setSelectedConfigIds: (ids: string[]) => void;
+    selectedConfigIds: string[];
   };
   scoreMetadata: {
     projectId: string;
     queueId?: string;
     environment?: string;
   };
-  analyticsData?: AnalyticsData;
+  analyticsData: AnalyticsData;
   actionButtons?: React.ReactNode;
+};
+
+export type PreparedAnnotationTarget = InnerAnnotationFormProps<ScoreTarget> & {
+  key: string;
+  label: string;
 };

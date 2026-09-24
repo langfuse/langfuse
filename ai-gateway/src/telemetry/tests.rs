@@ -1,0 +1,679 @@
+use std::{sync::Arc, time::Duration};
+
+use axum::{
+    body::{Body, to_bytes},
+    http::Response,
+};
+use serde_json::{Value, json};
+use tokio::sync::Notify;
+
+use super::{
+    otlp::{ExportError, Payload},
+    *,
+};
+use crate::{
+    capture::RelayOutcome,
+    resolution::signing,
+    test_support::{
+        FakeServer, ingestion_token, resolved_request_context, upload_json, upload_text,
+    },
+};
+
+fn facts(project: &str) -> InferenceFacts {
+    InferenceFacts {
+        api_format: "openai.responses",
+        start_time_unix_ms: 1_735_689_600_000,
+        duration_ms: 100,
+        first_byte_ms: Some(10),
+        completion_start_ms: None,
+        http_status: Some(200),
+        metadata: json!({"project_id": project, "ingestion_mode": "usage"}),
+        outcome: RelayOutcome::Eof,
+        inference: crate::capture::ProviderFacts::default(),
+    }
+}
+
+async fn grant() -> DeliveryContext {
+    DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+        None,
+    )
+}
+
+fn uploader(url: &str) -> Uploader {
+    Uploader::new(&ControlPlaneConfig::new(url, "test-service-key").unwrap()).unwrap()
+}
+
+fn fast_retry() -> RetryPolicy {
+    RetryPolicy {
+        max_attempts: 3,
+        base_delay: Duration::from_millis(2),
+        max_delay: Duration::from_millis(10),
+    }
+}
+
+fn empty_payload() -> Payload {
+    Payload::encode(&[json!({})]).unwrap()
+}
+
+fn response(status: u16, body: impl Into<Body>) -> Response<Body> {
+    Response::builder()
+        .status(status)
+        .body(body.into())
+        .unwrap()
+}
+
+#[tokio::test]
+async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
+    let web = FakeServer::start(|request| async move {
+        assert_eq!(request.method(), "POST");
+        assert_eq!(request.uri().path(), "/app/api/public/otel/v1/traces");
+        let headers = request.headers();
+        let token = ingestion_token("org-1", "project-1");
+        assert_eq!(headers["authorization"], format!("Bearer {token}").as_str());
+        let signature = headers["langfuse-gateway-authorization"].to_str().unwrap();
+        let timestamp = signature
+            .strip_prefix("HMAC timestamp=")
+            .unwrap()
+            .split_once(',')
+            .unwrap()
+            .0
+            .parse()
+            .unwrap();
+        assert_eq!(
+            signature,
+            signing::authorization("test-service-key", &token, timestamp)
+        );
+        assert_eq!(headers["content-type"], "application/json");
+        assert_eq!(headers["content-encoding"], "gzip");
+        assert_eq!(headers["x-langfuse-sdk-name"], "langfuse-ai-gateway");
+        assert_eq!(headers["x-langfuse-sdk-version"], env!("CARGO_PKG_VERSION"));
+        assert_eq!(headers["x-langfuse-ingestion-version"], "4");
+        let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+        let payload = upload_json(&bytes);
+        let spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
+            .as_array()
+            .unwrap();
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0]["traceId"].as_str().unwrap().len(), 32);
+        assert_eq!(spans[0]["spanId"].as_str().unwrap().len(), 16);
+        let body = upload_text(&bytes);
+        assert!(!body.contains("provider-secret"));
+        assert!(!body.contains("private-ingestion-token"));
+        response(200, "{}")
+    })
+    .await;
+    let telemetry = Telemetry::new(
+        &ControlPlaneConfig::new(&format!("{}/app", web.url), "test-service-key").unwrap(),
+        DEFAULT_RETAINED_BYTES,
+    )
+    .unwrap();
+    telemetry.record(grant().await, facts("project-1"));
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(web.calls(), 1);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
+}
+
+#[tokio::test]
+async fn concurrent_projects_keep_their_original_grants_and_attribution() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let received = observed.clone();
+    let both_uploads = Arc::new(tokio::sync::Barrier::new(2));
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        let both_uploads = both_uploads.clone();
+        async move {
+            both_uploads.wait().await;
+            let authorization = request.headers()["authorization"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let payload = upload_json(&bytes);
+            let attributes = payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["attributes"]
+                .as_array()
+                .unwrap();
+            let metadata = attributes
+                .iter()
+                .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+                .unwrap();
+            let metadata: Value =
+                serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
+            received.lock().unwrap().push((
+                authorization,
+                metadata["langfuse.gateway.project.id"]
+                    .as_str()
+                    .unwrap()
+                    .to_owned(),
+            ));
+            response(200, "{}")
+        }
+    })
+    .await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        2,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    for project in ["project-a", "project-b"] {
+        let mut grant = grant().await;
+        grant.grant.project_id = project.into();
+        grant.grant.access_token = format!("token-{project}");
+        telemetry.record(grant, facts(project));
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    let mut actual = observed.lock().unwrap().clone();
+    actual.sort();
+    assert_eq!(
+        actual,
+        vec![
+            ("Bearer token-project-a".into(), "project-a".into()),
+            ("Bearer token-project-b".into(), "project-b".into())
+        ]
+    );
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 2);
+}
+
+#[tokio::test]
+async fn upload_response_failures_are_classified_per_attempt() {
+    let grant = grant().await;
+    for (status, body, expected) in [
+        (
+            500,
+            "{}",
+            Err(ExportError::Rejected {
+                status: 500,
+                retry_after: None,
+            }),
+        ),
+        (
+            200,
+            r#"{"partialSuccess":{"rejectedSpans":"1"}}"#,
+            Err(ExportError::Partial),
+        ),
+        (
+            200,
+            r#"{"partialSuccess":{"rejectedSpans":1}}"#,
+            Err(ExportError::Partial),
+        ),
+        (
+            200,
+            r#"{"partialSuccess":{"rejectedSpans":"bad"}}"#,
+            Err(ExportError::Response),
+        ),
+        (200, "[]", Err(ExportError::Response)),
+        (200, "not json", Err(ExportError::Response)),
+        (200, r#"{"partialSuccess":{"rejectedSpans":"0"}}"#, Ok(())),
+    ] {
+        let web = FakeServer::start(move |_| async move { response(status, body) }).await;
+        assert_eq!(
+            uploader(&web.url)
+                .export(&grant.grant, &empty_payload())
+                .await,
+            expected
+        );
+        assert_eq!(web.calls(), 1);
+    }
+    // Streaming without Content-Length must obey the response bound too.
+    let web = FakeServer::start(|_| async move {
+        let chunks = futures_util::stream::iter([Ok::<_, std::io::Error>(vec![b' '; 65 * 1024])]);
+        response(200, Body::from_stream(chunks))
+    })
+    .await;
+    assert_eq!(
+        uploader(&web.url)
+            .export(&grant.grant, &empty_payload())
+            .await,
+        Err(ExportError::Response)
+    );
+    assert_eq!(web.calls(), 1);
+    let web = FakeServer::start(|_| async {
+        Response::builder()
+            .status(429)
+            .header("retry-after", " 7 ")
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    assert_eq!(
+        uploader(&web.url)
+            .export(&grant.grant, &empty_payload())
+            .await,
+        Err(ExportError::Rejected {
+            status: 429,
+            retry_after: Some(Duration::from_secs(7)),
+        })
+    );
+}
+
+#[tokio::test]
+async fn redirects_do_not_forward_the_ingestion_credentials() {
+    let destination = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let location = destination.url.clone();
+    let web = FakeServer::start(move |_| {
+        let location = location.clone();
+        async move {
+            Response::builder()
+                .status(307)
+                .header("location", location)
+                .body(Body::empty())
+                .unwrap()
+        }
+    })
+    .await;
+    assert_eq!(
+        uploader(&web.url)
+            .export(&grant().await.grant, &empty_payload())
+            .await,
+        Err(ExportError::Rejected {
+            status: 307,
+            retry_after: None,
+        })
+    );
+    assert_eq!(web.calls(), 1);
+    assert_eq!(destination.calls(), 0);
+}
+
+#[tokio::test]
+async fn expired_grants_and_oversized_payloads_never_reach_the_network() {
+    let web = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let uploader = uploader(&web.url);
+    let mut expired = grant().await;
+    expired.grant.expires_at = 1;
+    assert_eq!(
+        uploader.export(&expired.grant, &empty_payload()).await,
+        Err(ExportError::Expired)
+    );
+    let oversized = json!({"oversized": "x".repeat(8 * 1024 * 1024)});
+    assert_eq!(
+        Payload::encode(&[oversized]).err(),
+        Some(ExportError::Payload)
+    );
+    assert_eq!(web.calls(), 0);
+}
+
+fn record_bytes(context: &DeliveryContext, facts: InferenceFacts) -> usize {
+    serde_json::to_vec(&mapping::span(facts, &context.generation))
+        .unwrap()
+        .len()
+        + context.grant.access_token.len()
+        + context.grant.project_id.len()
+}
+
+fn exported_spans(payload: &Value) -> usize {
+    payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
+        .as_array()
+        .unwrap()
+        .len()
+}
+
+#[tokio::test]
+async fn records_of_one_project_share_an_upload_with_the_latest_expiring_grant() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let received = observed.clone();
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let authorization = request.headers()["authorization"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let payload = upload_json(&bytes);
+            received
+                .lock()
+                .unwrap()
+                .push((authorization, exported_spans(&payload)));
+            response(200, "{}")
+        }
+    })
+    .await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        2,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    for (token, extra_seconds) in [("token-a", 0), ("token-b", 60), ("token-c", 30)] {
+        let mut context = grant().await;
+        context.grant.access_token = token.into();
+        context.grant.expires_at += extra_seconds;
+        telemetry.record(context, facts("project-1"));
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(
+        *observed.lock().unwrap(),
+        vec![("Bearer token-b".to_owned(), 3)]
+    );
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 3);
+}
+
+fn span_projects(payload: &Value) -> Vec<String> {
+    payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|span| {
+            let metadata = span["attributes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+                .unwrap();
+            let metadata: Value =
+                serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
+            metadata["langfuse.gateway.project.id"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect()
+}
+
+#[tokio::test]
+async fn interleaved_projects_never_share_an_upload_or_a_grant() {
+    let observed = Arc::new(Mutex::new(Vec::new()));
+    let received = observed.clone();
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let authorization = request.headers()["authorization"]
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let payload = upload_json(&bytes);
+            received
+                .lock()
+                .unwrap()
+                .push((authorization, span_projects(&payload)));
+            response(200, "{}")
+        }
+    })
+    .await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        2,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy {
+            max_records: 3,
+            ..BatchPolicy::default()
+        },
+        fast_retry(),
+    );
+    // Later records carry later-expiring grants, so each batch adopts a new grant
+    // while the other project's batch is open.
+    for round in 0..4u64 {
+        for project in ["project-a", "project-b"] {
+            let mut context = grant().await;
+            context.grant.project_id = project.into();
+            context.grant.access_token = format!("{project}-token-{round}");
+            context.grant.expires_at += round * 10;
+            telemetry.record(context, facts(project));
+        }
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    let mut uploads = observed.lock().unwrap().clone();
+    uploads.sort();
+    let spans = |project: &str, count| vec![project.to_owned(); count];
+    assert_eq!(
+        uploads,
+        vec![
+            ("Bearer project-a-token-2".into(), spans("project-a", 3)),
+            ("Bearer project-a-token-3".into(), spans("project-a", 1)),
+            ("Bearer project-b-token-2".into(), spans("project-b", 3)),
+            ("Bearer project-b-token-3".into(), spans("project-b", 1)),
+        ]
+    );
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 8);
+}
+
+#[tokio::test]
+async fn open_batches_upload_once_their_linger_elapses() {
+    let web = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy {
+            linger: Duration::from_millis(20),
+            ..BatchPolicy::default()
+        },
+        fast_retry(),
+    );
+    telemetry.record(grant().await, facts("project-1"));
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while telemetry.0.stats.accepted.load(Ordering::Relaxed) == 0 {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(web.calls(), 1);
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(web.calls(), 1);
+}
+
+async fn deliver_three_records(web: &FakeServer) -> Telemetry {
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    for _ in 0..3 {
+        telemetry.record(grant().await, facts("project-1"));
+    }
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    telemetry
+}
+
+#[tokio::test]
+async fn transient_failures_resend_the_identical_batch_until_accepted() {
+    let bodies = Arc::new(Mutex::new(Vec::new()));
+    let received = bodies.clone();
+    let web = FakeServer::start(move |request| {
+        let received = received.clone();
+        async move {
+            let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
+            let mut received = received.lock().unwrap();
+            received.push(bytes);
+            if received.len() == 1 {
+                response(503, "{}")
+            } else {
+                response(200, "{}")
+            }
+        }
+    })
+    .await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 2);
+    let bodies = bodies.lock().unwrap();
+    assert_eq!(bodies[0], bodies[1]);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 3);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
+}
+
+#[tokio::test]
+async fn batches_that_keep_failing_count_every_record_once_after_the_last_attempt() {
+    let web = FakeServer::start(|_| async { response(500, "{}") }).await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 3);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 3);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
+}
+
+#[tokio::test]
+async fn permanent_rejections_are_not_retried() {
+    let web = FakeServer::start(|_| async { response(400, "{}") }).await;
+    let telemetry = deliver_three_records(&web).await;
+    assert_eq!(web.calls(), 1);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 3);
+}
+
+#[tokio::test]
+async fn shutdown_deadline_cuts_retry_backoff_short() {
+    let web = FakeServer::start(|_| async { response(503, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        RetryPolicy {
+            max_attempts: 3,
+            base_delay: Duration::from_secs(60),
+            max_delay: Duration::from_secs(60),
+        },
+    );
+    telemetry.record(grant().await, facts("project-1"));
+    telemetry
+        .shutdown(Instant::now() + Duration::from_millis(200))
+        .await;
+    assert_eq!(web.calls(), 1);
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
+    assert_eq!(telemetry.0.stats.failed.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
+}
+
+#[tokio::test]
+async fn shutdown_deadline_bounds_hanging_delivery_and_closes_admission() {
+    let started = Arc::new(Notify::new());
+    let received = started.clone();
+    let web = FakeServer::start(move |_| {
+        let received = received.clone();
+        async move {
+            received.notify_one();
+            std::future::pending::<()>().await;
+            response(200, "{}")
+        }
+    })
+    .await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy {
+            max_records: 1,
+            ..BatchPolicy::default()
+        },
+        fast_retry(),
+    );
+    telemetry.record(grant().await, facts("project-1"));
+    tokio::time::timeout(Duration::from_secs(2), started.notified())
+        .await
+        .unwrap();
+    // Waits for the only upload slot behind the hanging upload.
+    telemetry.record(grant().await, facts("project-2"));
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 0);
+    telemetry.shutdown(Instant::now()).await;
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
+    telemetry.record(grant().await, facts("project-1"));
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 3);
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn retained_byte_budget_is_released_after_successful_drain() {
+    let started = Arc::new(Notify::new());
+    let release = Arc::new(Notify::new());
+    let received = started.clone();
+    let gate = release.clone();
+    let web = FakeServer::start(move |_| {
+        let received = received.clone();
+        let gate = gate.clone();
+        async move {
+            received.notify_one();
+            gate.notified().await;
+            response(200, "{}")
+        }
+    })
+    .await;
+    let grant = grant().await;
+    let budget = record_bytes(&grant, facts("project-1"));
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        2,
+        budget,
+        BatchPolicy {
+            max_records: 1,
+            ..BatchPolicy::default()
+        },
+        fast_retry(),
+    );
+    telemetry.record(grant, facts("project-1"));
+    tokio::time::timeout(Duration::from_secs(2), started.notified())
+        .await
+        .unwrap();
+    assert_eq!(telemetry.0.retained.available_permits(), 0);
+    let second = DeliveryContext::from_resolved(
+        &resolved_request_context("provider-secret").await,
+        &HeaderMap::new(),
+        None,
+    );
+    telemetry.record(second, facts("project-1"));
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
+    release.notify_one();
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(telemetry.0.retained.available_permits(), budget);
+    assert_eq!(telemetry.0.stats.accepted.load(Ordering::Relaxed), 1);
+    assert_eq!(web.calls(), 1);
+}
+
+#[tokio::test]
+async fn oversized_records_are_dropped_before_admission() {
+    let web = FakeServer::start(|_| async { response(200, "{}") }).await;
+    let telemetry = Telemetry::with_uploader(
+        uploader(&web.url),
+        1,
+        DEFAULT_RETAINED_BYTES,
+        BatchPolicy::default(),
+        fast_retry(),
+    );
+    let mut oversized = facts("project-1");
+    oversized.metadata["key_metadata"] = json!({"oversized": "x".repeat(MAX_RECORD_BYTES)});
+    telemetry.record(grant().await, oversized);
+    assert_eq!(telemetry.0.stats.dropped.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        telemetry.0.retained.available_permits(),
+        DEFAULT_RETAINED_BYTES
+    );
+    telemetry
+        .shutdown(Instant::now() + Duration::from_secs(2))
+        .await;
+    assert_eq!(web.calls(), 0);
+}

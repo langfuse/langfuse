@@ -33,16 +33,17 @@ import {
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
 import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { addUserToSpan, logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { BaseError, ForbiddenError, safeJsonParse } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
-import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@/src/ee/features/in-app-agent/constants";
-import { InAppAgentMcpRunOverrideSchema } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
-import { safeJsonParse } from "@/src/utils/json";
+import {
+  shadowAuth,
+  __dangerouslySkipAuthz,
+} from "@/src/features/public-api/server";
+import { IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER } from "@langfuse/shared/in-app-agent";
+import { InAppAgentMcpRunOverrideSchema } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 
 // Bootstrap MCP features - registers all tools at module load time
 import "@/src/features/mcp/server/bootstrap";
@@ -79,30 +80,37 @@ export default async function handler(
       return;
     }
 
-    // Authenticate request using BasicAuth (Public Key:Secret Key)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
+    // Each tool authorizes its own action.
+    const authResult = await shadowAuth({
+      req,
+      action: __dangerouslySkipAuthz,
+      allowedAccessLevels: ["project"],
       allowInAppAgentKey: true,
     });
 
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    if (!authResult.success) {
+      throw authResult.error;
     }
 
+    const { scope, ctx } = authResult;
+
     // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
+    if (scope.accessLevel !== "project" || !scope.projectId) {
       throw new ForbiddenError(
         "Access denied: MCP requires project-scoped API keys with BasicAuth",
       );
     }
 
+    addUserToSpan({
+      apiKeyId: scope.apiKeyId,
+      publicKey: scope.publicKey,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
+      plan: scope.plan,
+    });
+
     // Check if ingestion is suspended due to usage limits
-    if (authCheck.scope.isIngestionSuspended) {
+    if (scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
@@ -111,7 +119,7 @@ export default async function handler(
     // Rate limit MCP requests
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        scope,
         "public-api",
       );
 
@@ -123,14 +131,17 @@ export default async function handler(
     // run override for mutating tools; read-only tools remain available
     // without it via their MCP readOnlyHint annotation.
     const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
+      projectId: scope.projectId,
+      orgId: scope.orgId,
       userId: undefined, // API keys don't have associated users
-      apiKeyId: authCheck.scope.apiKeyId,
+      apiKeyId: scope.apiKeyId,
       accessLevel: "project",
-      publicKey: authCheck.scope.publicKey,
+      publicKey: scope.publicKey,
+      plan: scope.plan,
+      rateLimitOverrides: scope.rateLimitOverrides,
       userAgent: req.headers["user-agent"],
-      inAppAgent: getInAppAgentContext(req, authCheck.scope.isInAppAgentKey),
+      inAppAgent: getInAppAgentContext(req, scope.isInAppAgentKey),
+      auth: ctx,
     };
 
     logger.debug("MCP request authenticated", {
@@ -150,9 +161,22 @@ export default async function handler(
     // Transport handles routing based on HTTP method (POST, GET, DELETE, OPTIONS)
     await handleMcpRequest(server, req, res);
   } catch (error) {
-    logger.error("MCP API route error", {
+    // Client-caused errors (bad Host/Origin header -> "Invalid Host header",
+    // invalid input, auth failures) are expected, high-volume noise fired per
+    // request by misconfigured or probing clients. Keep the detailed line at
+    // debug for those (4xx) and reserve error level for genuine server faults.
+    const isExpectedClientError =
+      (error instanceof BaseError && error.httpCode < 500) ||
+      isUserInputError(error) ||
+      error instanceof ZodError;
+    const errorMeta = {
       message: error instanceof Error ? error.message : "Unknown error",
-    });
+    };
+    if (isExpectedClientError) {
+      logger.debug("MCP API route error", errorMeta);
+    } else {
+      logger.error("MCP API route error", errorMeta);
+    }
 
     // Format error for user (never throw from handler)
     if (!res.headersSent) {
@@ -196,8 +220,8 @@ export function getInAppAgentContext(
 
   return parsedOverride.success
     ? {
-        permissions: "single-tool-override",
-        allowedToolName: parsedOverride.data.toolName,
+        permissions: "tool-allowlist",
+        allowedToolNames: parsedOverride.data.toolNames,
       }
     : { permissions: "read" };
 }

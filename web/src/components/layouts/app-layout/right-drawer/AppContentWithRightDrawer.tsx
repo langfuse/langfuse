@@ -1,8 +1,10 @@
-import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
+/* eslint-disable no-nested-ternary */
+import { useSupportDrawer } from "@/src/features/support-chat";
+import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { type PropsWithChildren } from "react";
 import { useMediaQuery } from "react-responsive";
 import dynamic from "next/dynamic";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
 
 const DynamicMobileRightDrawer = dynamic(
@@ -26,6 +28,17 @@ const DynamicSupportDrawer = dynamic(
   },
 );
 
+const DynamicV4MigrationPanel = dynamic(
+  () =>
+    import("@/src/features/v4-migration/V4MigrationPanel").then((mod) => ({
+      default: mod.V4MigrationPanel,
+    })),
+  {
+    ssr: false,
+    loading: () => <RightDrawerLoadingFallback />,
+  },
+);
+
 function RightDrawerLoadingFallback() {
   return (
     <div className="flex h-full w-full items-center justify-center">
@@ -37,29 +50,35 @@ function RightDrawerLoadingFallback() {
 /**
  * App-shell content wrapper that attaches the support right drawer.
  *
- * Desktop keeps a stable split wrapper so routed page content does not remount
- * when a right drawer opens or closes. Mobile uses a bottom drawer.
+ * Routed page content keeps a stable split wrapper across viewport changes.
+ * Desktop uses the secondary panel; mobile drawers render as sibling overlays.
  */
 export function AppContentWithRightDrawer({ children }: PropsWithChildren) {
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
   const { open: supportOpen } = useSupportDrawer();
+  const { open: migrationOpen } = useV4MigrationPanel();
 
-  if (!isDesktop) {
-    return <DynamicMobileRightDrawer>{children}</DynamicMobileRightDrawer>;
-  }
-
-  const rightDrawerContent = supportOpen ? <DynamicSupportDrawer /> : null;
+  const rightDrawerContent = supportOpen ? (
+    <DynamicSupportDrawer />
+  ) : migrationOpen ? (
+    <DynamicV4MigrationPanel />
+  ) : null;
 
   return (
-    <ResizableSplitLayout
-      primaryContent={children}
-      secondaryContent={rightDrawerContent}
-      open={supportOpen}
-      defaultPrimarySize={70}
-      defaultSecondarySize={30}
-      minPrimarySize={30}
-      maxSecondarySize={60}
-      keepSecondaryMounted={false}
-    />
+    <>
+      <ResizableSplitLayout
+        primaryContent={children}
+        secondaryContent={rightDrawerContent}
+        open={isDesktop && (supportOpen || migrationOpen)}
+        defaultPrimarySize={supportOpen ? 70 : 60}
+        // The migration panel carries denser content than the support drawer,
+        // so it opens wider by default.
+        defaultSecondarySize={supportOpen ? 30 : 40}
+        minPrimarySize={30}
+        maxSecondarySize={60}
+        keepSecondaryMounted={false}
+      />
+      {!isDesktop && <DynamicMobileRightDrawer />}
+    </>
   );
 }

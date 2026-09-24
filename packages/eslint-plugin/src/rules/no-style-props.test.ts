@@ -68,6 +68,8 @@ ruleTester.run("no-style-props", rule, {
     `interface BaseProps { variant?: "primary"; }
      interface ButtonProps extends BaseProps { size?: "sm"; }
      const Button = (props: ButtonProps) => <div />;`,
+    `type ButtonProps = { classNames?: Record<string, string>; stylesheet?: string; classifier?: string };
+     function Button(props: ButtonProps) { return <div />; }`,
   ],
   invalid: [
     {
@@ -150,6 +152,37 @@ ruleTester.run("no-style-props", rule, {
       code: `type ButtonProps = { style?: React.CSSProperties };
              const Button: React.FC<ButtonProps> = (props) => <div />;`,
       errors: [{ messageId: "unexpectedProp", data: { propName: "style" } }],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             const Button = ((props: ButtonProps) => <div />) as React.FC<ButtonProps>;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             const Button = ((props: ButtonProps) => <div />) satisfies React.FC<ButtonProps>;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             const Button = <React.FC<ButtonProps>>((props: ButtonProps) => React.createElement("div"));`,
+      languageOptions: {
+        parserOptions: { ecmaFeatures: { jsx: false } },
+      },
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             export default ((props: ButtonProps) => <div />) as React.FC<ButtonProps>;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
     },
     {
       code: `const Button: React.FC<{ style?: React.CSSProperties }> = (props) => <div />;`,
@@ -293,6 +326,46 @@ ruleTester.run("no-style-props", rule, {
     },
     {
       code: `type ButtonProps = { className?: string };
+             const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => <div ref={ref} />) as React.FC;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { style?: React.CSSProperties };
+             const Button = memo(((props: ButtonProps) => <div />) as React.FC<ButtonProps>);`,
+      errors: [{ messageId: "unexpectedProp", data: { propName: "style" } }],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             const Button = (forwardRef(((props) => <div />) as React.FC<ButtonProps>))!;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             export default forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => <div ref={ref} />);`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             export default (class extends React.Component<ButtonProps> { render() { return <div />; } });`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
+             const Button = factoryResult as React.FC<ButtonProps>;`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type ButtonProps = { className?: string };
              class Button extends React.Component<ButtonProps> { render() { return <div />; } }`,
       errors: [
         { messageId: "unexpectedProp", data: { propName: "className" } },
@@ -318,6 +391,53 @@ ruleTester.run("no-style-props", rule, {
              function IconButton(props: ButtonProps) { return <div />; }`,
       errors: [
         { messageId: "unexpectedProp", data: { propName: "className" } },
+      ],
+    },
+    {
+      code: `type BadgeProps = { badgeClassName?: string };
+             function Badge(props: BadgeProps) { return <div />; }`,
+      errors: [
+        {
+          messageId: "unexpectedProp",
+          data: { propName: "badgeClassName" },
+        },
+      ],
+    },
+    {
+      code: `function Trigger({ triggerClassName }: { triggerClassName?: string }) { return <div />; }`,
+      errors: [
+        {
+          messageId: "unexpectedProp",
+          data: { propName: "triggerClassName" },
+        },
+        {
+          messageId: "unexpectedProp",
+          data: { propName: "triggerClassName" },
+        },
+      ],
+    },
+    {
+      code: `interface DialogProps { "overlayClassName"?: string; }
+             function Dialog(props: DialogProps) { return <div />; }`,
+      errors: [
+        {
+          messageId: "unexpectedProp",
+          data: { propName: "overlayClassName" },
+        },
+      ],
+    },
+    {
+      code: `type TooltipProps = { contentStyle?: React.CSSProperties };
+             function Tooltip(props: TooltipProps) { return <div />; }`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "contentStyle" } },
+      ],
+    },
+    {
+      code: `function Panel({ wrapperStyle }: { wrapperStyle?: React.CSSProperties }) { return <div />; }`,
+      errors: [
+        { messageId: "unexpectedProp", data: { propName: "wrapperStyle" } },
+        { messageId: "unexpectedProp", data: { propName: "wrapperStyle" } },
       ],
     },
   ],

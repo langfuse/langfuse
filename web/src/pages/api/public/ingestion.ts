@@ -3,30 +3,47 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import {
   traceException,
-  redis,
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
   eventTypes,
   markProjectIngestFailure,
   createIngestionAttribution,
+  processEventBatch,
+  type ApiAccessLevel,
+  redactLangfuseSecretKeys,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
-import { jsonSchema } from "@langfuse/shared";
-import { isPrismaException } from "@/src/utils/exceptions";
 import {
+  jsonSchema,
   MethodNotAllowedError,
   BaseError,
-  UnauthorizedError,
+  InternalServerError,
   ForbiddenError,
 } from "@langfuse/shared";
-import { processEventBatch } from "@langfuse/shared/src/server";
-import { prisma } from "@langfuse/shared/src/db";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { isPrismaException } from "@/src/utils/exceptions";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
+import {
+  attachDeprecation,
+  INGESTION_DEPRECATION,
+} from "@/src/features/public-api/server/deprecations";
+import {
+  SDK_NAME_ATTRIBUTE,
+  SDK_VERSION_ATTRIBUTE,
+  extractSdkAttributes,
+} from "@langfuse/shared/instrumentation/bootstrap";
+import {
+  shadowAuth,
+  shadowAuthorize,
+  __dangerouslySkipAuthz,
+} from "@/src/features/public-api/server";
+import {
+  type AuthorizationContext,
+  type ProjectAction,
+} from "@/src/features/auth/policy/types";
 
 export const config = {
   api: {
@@ -64,43 +81,55 @@ export default async function handler(
     // add context of api call to the span
     const currentSpan = getCurrentSpan();
 
-    // get x-langfuse-xxx headers and add them to the span
+    // Preserve the raw x-langfuse-* attributes consumed by existing ingestion
+    // dashboards. The canonical attributes below are shared by all public API
+    // routes and intentionally use a bounded SDK name/version vocabulary.
     Object.keys(req.headers).forEach((header) => {
       if (
         header.toLowerCase().startsWith("x-langfuse") ||
         header.toLowerCase().startsWith("x_langfuse")
       ) {
+        const value = req.headers[header];
+        if (value === undefined) return;
         currentSpan?.setAttributes({
           [`langfuse.header.${header.slice(11).toLowerCase().replaceAll("_", "-")}`]:
-            req.headers[header],
+            Array.isArray(value)
+              ? value.map(redactLangfuseSecretKeys)
+              : redactLangfuseSecretKeys(value),
         });
       }
     });
 
+    const { sdkName, sdkVersion } = extractSdkAttributes(req.headers);
+    if (sdkName) {
+      currentSpan?.setAttribute(SDK_NAME_ATTRIBUTE, sdkName);
+    }
+    if (sdkVersion) {
+      currentSpan?.setAttribute(SDK_VERSION_ATTRIBUTE, sdkVersion);
+    }
+
     if (req.method !== "POST") throw new MethodNotAllowedError();
 
-    // CHECK AUTH FOR ALL EVENTS
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
+    // CHECK AUTH FOR ALL EVENTS; each event authorizes its own action below.
+    const authResult = await shadowAuth({
+      req,
+      action: __dangerouslySkipAuthz,
+      allowedAccessLevels: ["project", "scores"],
+    });
+    if (!authResult.success) throw authResult.error;
+    const { scope, ctx: authCtx } = authResult;
+    // shadowAuth's project/scores gating guarantees a projectId; narrow the invariant.
+    if (!scope.projectId) {
+      throw new InternalServerError("Missing projectId on an authorized scope");
     }
-    if (!authCheck.scope.projectId) {
-      throw new UnauthorizedError(
-        "Missing projectId in scope. Are you using an organization key?",
-      );
-    }
-    const projectId = authCheck.scope.projectId;
+    const projectId = scope.projectId;
     projectIdForIngestFailure = projectId;
-
-    if (authCheck.scope.isIngestionSuspended) {
+    if (scope.isIngestionSuspended) {
       throw new ForbiddenError(
         "Ingestion suspended: Usage threshold exceeded. Please upgrade your plan.",
       );
     }
+    const authCheck = { validKey: true as const, scope };
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
@@ -147,25 +176,60 @@ export default async function handler(
 
         await telemetry();
 
-        // V4 events_only mode: refuse trace/observation events because their
-        // writes would land in the legacy ClickHouse tables this deployment no
-        // longer reads. Scores and SDK logs are unaffected and pass through.
+        // V4 events_only mode: refuse every non-score event because trace and
+        // observation writes target legacy ClickHouse tables this deployment
+        // no longer reads. SDK logs are no longer accepted in this mode.
         // Reject per-event so a mixed batch still processes its score events.
+        const isEventsOnlyMode =
+          env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only";
         const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
           parsedSchema.data.batch,
-          env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only",
+          isEventsOnlyMode,
         );
 
-        const result = await processEventBatch(batchForProcessing, authCheck, {
-          attribution: createIngestionAttribution({
-            headers: req.headers,
-            authCheck,
-          }),
+        const attribution = createIngestionAttribution({
+          headers: req.headers,
+          authCheck,
         });
-        if (rejectedErrors.length > 0) {
-          result.errors = [...result.errors, ...rejectedErrors];
+
+        if (isEventsOnlyMode && rejectedErrors.length > 0) {
+          logger.warn(
+            `Rejected ${rejectedErrors.length} event(s) from the legacy /api/public/ingestion endpoint for project ${projectId} because this Langfuse v4 deployment runs in events_only mode. These events were not stored. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
+            {
+              sdkName: attribution.ingestionSdkName,
+              sdkVersion: attribution.ingestionSdkVersion,
+            },
+          );
         }
-        return res.status(207).json(result);
+
+        const authorized = authorizeIngestionBatch(
+          batchForProcessing,
+          authCtx,
+          scope.accessLevel,
+          projectId,
+        );
+
+        const result = await processEventBatch(
+          authorized.batchForProcessing,
+          authCheck,
+          { attribution },
+        );
+        result.errors = [
+          ...result.errors,
+          ...rejectedErrors,
+          ...authorized.rejectedErrors,
+        ];
+
+        // Cloud-only: a 207 with every event 201 is how agents conclude the
+        // legacy write path is healthy. Stamp when the original batch asked
+        // to write a trace or observation, including events_only rejections.
+        const deprecation =
+          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+          batchContainsTraceOrObservationEvent(parsedSchema.data.batch)
+            ? INGESTION_DEPRECATION
+            : undefined;
+
+        return res.status(207).json(attachDeprecation(result, deprecation));
       } catch (error) {
         if (!(error instanceof BaseError && error.isUserError())) {
           markProjectIngestFailure(projectId, {
@@ -228,38 +292,38 @@ export default async function handler(
   }
 }
 
-// Event types that may continue to ingest in V4 events_only mode. Scores keep
-// their own ClickHouse table (no legacy traces/observations write); SDK logs
-// are non-persisting.
-const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
-  eventTypes.SCORE_CREATE,
-  eventTypes.SDK_LOG,
-  eventTypes.DATASET_RUN_ITEM_CREATE,
-]);
+// Scores keep their own ClickHouse table and are the only event type accepted
+// by this endpoint in V4 events_only mode.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([eventTypes.SCORE_CREATE]);
 
-function filterBatchForEventsOnly(
+const TRACE_OR_OBSERVATION_EVENT_TYPES = new Set<string>(
+  Object.values(eventTypes).filter(
+    (type) =>
+      type !== eventTypes.SCORE_CREATE &&
+      type !== eventTypes.SDK_LOG &&
+      type !== eventTypes.DATASET_RUN_ITEM_CREATE,
+  ),
+);
+
+const EVENTS_ONLY_INGESTION_DOCS_URL =
+  "https://langfuse.com/self-hosting/upgrade/upgrade-guides/upgrade-v3-to-v4";
+
+const EVENTS_ONLY_INGESTION_REMEDIATION = [
+  "Upgrade the client or integration to a v4-compatible SDK or OTLP ingestion path.",
+  "As a temporary migration bridge, set LANGFUSE_MIGRATION_V4_WRITE_MODE=dual on both the web and worker services and redeploy.",
+  `Docs: ${EVENTS_ONLY_INGESTION_DOCS_URL}`,
+].join(" ");
+
+export function filterBatchForEventsOnly(
   batch: unknown[],
   isEventsOnlyMode: boolean,
-): {
-  batchForProcessing: unknown[];
-  rejectedErrors: {
-    id: string;
-    status: number;
-    message: string;
-    error: string;
-  }[];
-} {
+): IngestionBatchFilter {
   if (!isEventsOnlyMode) {
     return { batchForProcessing: batch, rejectedErrors: [] };
   }
 
   const batchForProcessing: unknown[] = [];
-  const rejectedErrors: {
-    id: string;
-    status: number;
-    message: string;
-    error: string;
-  }[] = [];
+  const rejectedErrors: IngestionEventRejection[] = [];
 
   for (const event of batch) {
     const eventObj =
@@ -278,10 +342,89 @@ function filterBatchForEventsOnly(
         id,
         status: 400,
         message: "Event type not accepted",
-        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score, log, and dataset-run-item events.`,
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score events. ${EVENTS_ONLY_INGESTION_REMEDIATION}`,
       });
     }
   }
 
   return { batchForProcessing, rejectedErrors };
 }
+
+/** authorizeIngestionBatch authorizes each event against the resolved context, dropping enforce-mode denials as 207 rejections; legacy and shadow keep every event. */
+function authorizeIngestionBatch(
+  batch: unknown[],
+  ctx: AuthorizationContext | undefined,
+  accessLevel: ApiAccessLevel,
+  projectId: string,
+): IngestionBatchFilter {
+  const batchForProcessing: unknown[] = [];
+  const rejectedErrors: IngestionEventRejection[] = [];
+
+  for (const event of batch) {
+    const decision = shadowAuthorize({
+      ctx,
+      action: ingestionActionForEventType(eventTypeOf(event)),
+      resource: { projectId },
+      accessLevel,
+    });
+    if (!decision.success) {
+      rejectedErrors.push({
+        id: idOf(event),
+        status: 401,
+        message: "Authentication error",
+        error: "Access Scope Denied",
+      });
+      continue;
+    }
+    batchForProcessing.push(event);
+  }
+  return { batchForProcessing, rejectedErrors };
+}
+
+/** ingestionActionForEventType maps an event type to the project action its write asserts; SDK logs skip authz. */
+function ingestionActionForEventType(
+  type: string | null,
+): ProjectAction | typeof __dangerouslySkipAuthz {
+  if (type === eventTypes.SDK_LOG) return __dangerouslySkipAuthz;
+  if (type === eventTypes.SCORE_CREATE) return "scores:create";
+  return "traces:create";
+}
+
+/** idOf reads an event's `id`, defaulting to `unknown` for a malformed event. */
+function idOf(event: unknown): string {
+  return typeof event === "object" &&
+    event !== null &&
+    "id" in event &&
+    typeof (event as { id: unknown }).id === "string"
+    ? (event as { id: string }).id
+    : "unknown";
+}
+
+function eventTypeOf(event: unknown): string | null {
+  if (typeof event !== "object" || event === null) {
+    return null;
+  }
+  const type = (event as { type?: unknown }).type;
+  return typeof type === "string" ? type : null;
+}
+
+function batchContainsTraceOrObservationEvent(batch: unknown[]): boolean {
+  return batch.some((event) => {
+    const type = eventTypeOf(event);
+    return type !== null && TRACE_OR_OBSERVATION_EVENT_TYPES.has(type);
+  });
+}
+
+/** IngestionEventRejection is one event dropped from a batch, rendered in the 207 result's errors. */
+type IngestionEventRejection = {
+  id: string;
+  status: number;
+  message: string;
+  error: string;
+};
+
+/** IngestionBatchFilter is a batch split into the events to process and the events rejected. */
+type IngestionBatchFilter = {
+  batchForProcessing: unknown[];
+  rejectedErrors: IngestionEventRejection[];
+};

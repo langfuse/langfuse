@@ -12,6 +12,7 @@ type SendBatchExportSuccessParams = {
   downloadLink: string;
   userName: string;
   batchExportName: string;
+  downloadWindowHours: number;
 };
 
 export const sendBatchExportSuccessEmail = async ({
@@ -20,6 +21,7 @@ export const sendBatchExportSuccessEmail = async ({
   downloadLink,
   userName,
   batchExportName,
+  downloadWindowHours,
 }: SendBatchExportSuccessParams) => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error("Missing environment variables for sending email.");
@@ -34,6 +36,7 @@ export const sendBatchExportSuccessEmail = async ({
         downloadLink,
         userName,
         batchExportName,
+        downloadWindowHours,
       }),
     );
 

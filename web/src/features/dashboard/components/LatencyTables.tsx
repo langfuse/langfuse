@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
@@ -9,10 +10,11 @@ import {
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { truncate } from "@/src/utils/string";
+import { cn } from "@/src/utils/tailwind";
 import { Popup } from "@/src/components/layouts/doc-popup";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
 
 export type LatencyTableKind = "traces" | "generations" | "observations";
 
@@ -116,7 +118,7 @@ const generateLatencyData = (data?: Record<string, unknown>[]) => {
               triggerContent={
                 item.type ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                    <span className="text-muted-foreground text-[10px] font-bold tracking-wide uppercase">
                       {String(item.type)}
                     </span>
                     <span>{truncate(item.name as string)}</span>
@@ -174,7 +176,7 @@ export const LatencyTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const { title, nameHeader, buildQuery } = LATENCY_TABLE_KINDS[kind];
@@ -198,7 +200,11 @@ export const LatencyTable = ({
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the table fits its rows to the
+      // AVAILABLE height instead of overflowing; min-h-0 lets the flex column
+      // shrink so the row area scrolls internally. (LFE-11035)
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title={title}
       isLoading={isLoading || latencies.isPending}
     >

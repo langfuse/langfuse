@@ -9,7 +9,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
-import { verifyPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 
 // Schema for SCIM User response
 const ScimUserSchema = z.object({
@@ -224,9 +223,17 @@ describe("SCIM API", () => {
         "urn:ietf:params:scim:api:messages:2.0:ListResponse",
       );
       expect(response.body.Resources.length).toBeGreaterThan(0);
+      // RFC 7644 3.4.2: `totalResults` must match what was actually returned.
+      expect(response.body.totalResults).toBe(response.body.Resources.length);
       expect(response.body.Resources[0].id).toContain(
         "urn:ietf:params:scim:schemas:core:2.0:User",
       );
+      // `password` must not be advertised: schema discovery is how a SCIM
+      // client learns the attribute is unsupported.
+      const attributeNames = response.body.Resources[0].attributes.map(
+        (attribute) => (attribute as { name: string }).name,
+      );
+      expect(attributeNames).not.toContain("password");
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
@@ -473,7 +480,7 @@ describe("SCIM API", () => {
         expect(user?.name).toBe("Test User");
       });
 
-      it("should create a new user with password", async () => {
+      it("accepts a password attribute but never sets a credential", async () => {
         const uniqueEmail = `test.user.${randomUUID().substring(0, 8)}@example.com`;
         const password = `password-${randomUUID().substring(0, 8)}`;
         const response = await makeZodVerifiedAPICall(
@@ -517,9 +524,11 @@ describe("SCIM API", () => {
         expect(user).not.toBeNull();
         expect(user?.email).toBe(uniqueEmail);
         expect(user?.name).toBe("Test User With Password");
-        // Verify password was created
-        expect(user?.password).not.toBeNull();
-        expect(await verifyPassword(password, user?.password ?? "")).toBe(true);
+        // The password attribute is ignored, so the account has no usable
+        // credential and cannot be signed into with the supplied value. Okta
+        // sends a placeholder password on every create, so the request must
+        // still succeed rather than 4xx.
+        expect(user?.password).toBeNull();
       });
 
       it("should return 400 when userName is missing", async () => {
@@ -1482,6 +1491,134 @@ describe("SCIM API", () => {
           await prisma.user.deleteMany({ where: { id: secondOwner.id } });
         }
       });
+    });
+  });
+
+  describe("Cross-organization isolation (Users/{id})", () => {
+    const createdUserIds: string[] = [];
+
+    // A user that exists on the instance but is NOT a member of the caller's
+    // organization (seed-org-id) — i.e. a user belonging to some other org.
+    const createNonMemberUser = async () => {
+      const user = await prisma.user.create({
+        data: {
+          email: `outsider.${randomUUID().substring(0, 8)}@othercorp.example`,
+          name: "Outside Org User",
+        },
+      });
+      createdUserIds.push(user.id);
+      return user;
+    };
+
+    afterEach(async () => {
+      if (createdUserIds.length > 0) {
+        await prisma.organizationMembership.deleteMany({
+          where: { userId: { in: createdUserIds } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: createdUserIds } },
+        });
+        createdUserIds.length = 0;
+      }
+    });
+
+    it("GET on an out-of-org user is a 404", async () => {
+      const outsider = await createNonMemberUser();
+
+      const nonMember = await makeAPICall<{
+        detail: string;
+        userName?: string;
+        name?: unknown;
+        emails?: unknown;
+        meta?: unknown;
+      }>(
+        "GET",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(nonMember.status).toBe(404);
+      // None of the out-of-org user's attributes may cross the org boundary.
+      expect(nonMember.body.userName).toBeUndefined();
+      expect(nonMember.body.name).toBeUndefined();
+      expect(nonMember.body.emails).toBeUndefined();
+      expect(nonMember.body.meta).toBeUndefined();
+    });
+
+    it("PUT with active omitted returns 404 for an out-of-org user", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"] },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+      expect(result.body.detail).toContain("User not found");
+
+      // No membership was created as a side effect.
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(0);
+    });
+
+    it("PUT active:false on an out-of-org user is a 404, not a silent noop", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string; userName?: string }>(
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: false,
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
+      expect(result.body.userName).toBeUndefined();
+    });
+
+    it("PUT active:true provisions a user who is not yet a member", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeZodVerifiedAPICall(
+        ScimUserSchema,
+        "PUT",
+        `/api/public/scim/Users/${outsider.id}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          active: true,
+          roles: ["MEMBER"],
+        },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+        200,
+      );
+
+      expect(result.status).toBe(200);
+      const memberships = await prisma.organizationMembership.findMany({
+        where: { userId: outsider.id, orgId },
+      });
+      expect(memberships.length).toBe(1);
+      expect(memberships[0].role).toBe("MEMBER");
+    });
+
+    it("DELETE on an out-of-org user is a 404", async () => {
+      const outsider = await createNonMemberUser();
+
+      const result = await makeAPICall<{ detail: string }>(
+        "DELETE",
+        `/api/public/scim/Users/${outsider.id}`,
+        undefined,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+
+      expect(result.status).toBe(404);
     });
   });
 

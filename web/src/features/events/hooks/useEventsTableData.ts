@@ -7,9 +7,19 @@ import {
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
+import { usePendingRowIds } from "@/src/components/table/hooks/usePendingRowIds";
+import {
+  tablePlaceholderOptions,
+  type TableDataScope,
+} from "@/src/components/table/utils/tablePlaceholder";
 import { type EventBatchIOOutput } from "@/src/features/events/server/eventsRouter";
+import {
+  removeAppRootDefaultFilter,
+  shouldRunAppRootFallbackQuery,
+} from "@/src/features/events/lib/appRootDefaultFilterPolicy";
 
 type FullEventsObservation = FullEventsObservations[number] & {
   scores?: ScoreAggregate;
@@ -19,6 +29,7 @@ type FullEventsObservation = FullEventsObservations[number] & {
 type UseEventsTableDataParams = {
   projectId: string;
   filterState: FilterState;
+  tableDataScope: TableDataScope;
   paginationState: {
     page: number;
     limit: number;
@@ -32,11 +43,24 @@ type UseEventsTableDataParams = {
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
+  appRootFallbackEnabled?: boolean;
+  /**
+   * Gate the row + batched-I/O queries. Defaults to true; the events table
+   * passes `false` in chart mode so the (hidden) table's expensive row/IO
+   * fetches don't run alongside the chart's aggregate query.
+   */
+  rowsEnabled?: boolean;
+  /**
+   * Chars of I/O to fetch per cell. Undefined keeps the cheap pre-truncated
+   * read, which holds too little text to fill a taller row (LFE-14586).
+   */
+  ioCharLimit?: number;
 };
 
 export function useEventsTableData({
   projectId,
   filterState,
+  tableDataScope,
   paginationState,
   orderByState,
   searchQuery,
@@ -44,7 +68,11 @@ export function useEventsTableData({
   selectedRows,
   selectAll,
   setSelectedRows,
+  appRootFallbackEnabled = false,
+  rowsEnabled = true,
+  ioCharLimit,
 }: UseEventsTableDataParams) {
+  const capture = usePostHogClientCapture();
   // Prepare query payloads
   const getCountPayload = useMemo(
     () => ({
@@ -73,22 +101,63 @@ export function useEventsTableData({
   );
 
   const silentHttpCodes = [422];
+  const placeholderOptions = tablePlaceholderOptions(tableDataScope);
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    ...placeholderOptions,
+    enabled: rowsEnabled,
     refetchOnWindowFocus: true,
-    placeholderData: (prev) => prev,
     meta: {
+      ...placeholderOptions.meta,
       silentHttpCodes, // Turns off red bubble
     },
   });
 
-  const batchIOPayload = useMemo(() => {
-    if (observations.isPlaceholderData) {
-      return null;
-    }
+  const fallbackPayload = useMemo(
+    () => ({
+      ...getAllPayload,
+      filter: removeAppRootDefaultFilter(getAllPayload.filter),
+    }),
+    [getAllPayload],
+  );
+  const shouldRunAppRootFallback = shouldRunAppRootFallbackQuery({
+    enabled: appRootFallbackEnabled,
+    filters: getAllPayload.filter,
+    page: paginationState.page,
+    rootQuerySucceeded: observations.isSuccess,
+    rootQueryIsPlaceholder: observations.isPlaceholderData,
+    rootRowCount: observations.data?.observations.length ?? 0,
+  });
+  const appRootFallbackQuery = api.events.all.useQuery(fallbackPayload, {
+    // Also gate on rowsEnabled (matches the primary + I/O queries): otherwise a
+    // stale-cached fallback condition could fire a real row fetch in chart mode.
+    enabled: rowsEnabled && shouldRunAppRootFallback,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
+    retry: false,
+    meta: {
+      tableDataScope: {
+        ...tableDataScope,
+        filter: removeAppRootDefaultFilter(tableDataScope.filter),
+      },
+      silentHttpCodes,
+    },
+  });
+  const activeObservations =
+    shouldRunAppRootFallback && !appRootFallbackQuery.isError
+      ? appRootFallbackQuery
+      : observations;
+  const usedAppRootFallback =
+    shouldRunAppRootFallback &&
+    appRootFallbackQuery.isSuccess &&
+    appRootFallbackQuery.data.observations.length > 0;
 
+  // Built from the rows on screen, placeholder or not: while the row query is
+  // showing the previous page the payload — and therefore the I/O query key —
+  // is the previous one too, so the cells keep the I/O they already have.
+  const batchIOPayload = useMemo(() => {
     const validObservations =
-      observations.data?.observations?.filter(
+      activeObservations.data?.observations?.filter(
         (o) => o.id && o.traceId && o.startTime,
       ) ?? [];
 
@@ -111,39 +180,47 @@ export function useEventsTableData({
       })),
       minStartTime,
       maxStartTime,
+      // events_core's pre-truncated I/O can't fill a taller row, so ask for a
+      // bounded slice of the full I/O instead.
+      ...(ioCharLimit !== undefined
+        ? { truncated: false as const, ioCharLimit }
+        : {}),
     };
-  }, [
-    observations.data?.observations,
-    observations.isPlaceholderData,
-    projectId,
-  ]);
+  }, [activeObservations.data?.observations, projectId, ioCharLimit]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
     ...sendAsPostOption,
-    enabled: observations.isSuccess && batchIOPayload !== null,
+    ...placeholderOptions,
+    enabled:
+      rowsEnabled && activeObservations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
   });
 
-  // Extract error information for display (only from observations.all, not batchIO)
-  const error = observations.error;
+  // I/O lands one query behind the rows.
+  const isIoPending = usePendingRowIds(ioDataQuery);
 
-  const errorHttpStatus = observations.error?.data?.httpStatus;
+  // Extract error information for display (only from observations.all, not batchIO)
+  const error = activeObservations.error;
+
+  const errorHttpStatus = activeObservations.error?.data?.httpStatus;
 
   const isSilencedError =
-    observations.isError &&
+    activeObservations.isError &&
     errorHttpStatus &&
     silentHttpCodes.includes(errorHttpStatus);
 
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (observations.isLoading || observations.isPlaceholderData) {
+    // Same-scope placeholders keep paging and refreshes loaded; scope changes
+    // have no placeholder and show the cold-load state.
+    if (activeObservations.isPending) {
       return { status: "loading" as const, rows: undefined };
     }
 
-    if (observations.isError) {
+    if (activeObservations.isError) {
       if (isSilencedError) {
         // Treat silenced errors as successful with no data
         return { status: "success" as const, rows: [] };
@@ -153,20 +230,20 @@ export function useEventsTableData({
 
     // Success case - join the data
     return joinTableCoreAndMetrics<FullEventsObservation, EventBatchIOOutput>(
-      observations.data?.observations,
+      activeObservations.data?.observations,
       ioDataQuery.data,
     );
   }, [
-    observations.isLoading,
-    observations.isPlaceholderData,
-    observations.isError,
-    observations.data?.observations,
+    activeObservations.isPending,
+    activeObservations.isError,
+    activeObservations.data?.observations,
     ioDataQuery.data,
     isSilencedError,
   ]);
 
   // Fetch the exact count only after the user selects all matching rows.
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
+    ...placeholderOptions,
     enabled: selectAll,
     refetchOnWindowFocus: true,
   });
@@ -186,11 +263,22 @@ export function useEventsTableData({
     totalCount === null &&
     totalCountQuery.isError &&
     !totalCountQuery.isFetching;
-  const hasMore = observations.data?.hasMore ?? false;
+  const hasMore = activeObservations.data?.hasMore ?? false;
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      if (variables.isBatchAction || data.createdCount > 0) {
+        capture("annotation_queues:item_added", {
+          type: "trace",
+          source: "ObservationTable",
+          targetType: "observation",
+          objectType: "OBSERVATION",
+          queueCount: 1,
+          isV4: true,
+          ...(variables.isBatchAction ? {} : { itemCount: data.createdCount }),
+        });
+      }
       showSuccessToast({
         title: "Observations added to queue",
         description: `Selected observations will be added to queue "${data.queueName}". This may take a minute.`,
@@ -211,7 +299,7 @@ export function useEventsTableData({
     targetId: string;
   }) => {
     const visibleObservationIds = new Set(
-      (observations.data?.observations ?? [])
+      (activeObservations.data?.observations ?? [])
         .map((observation) => observation.id)
         .filter((id): id is string => Boolean(id)),
     );
@@ -236,7 +324,12 @@ export function useEventsTableData({
 
   return {
     observations: joinedData,
-    dataUpdatedAt: observations.dataUpdatedAt,
+    /**
+     * A fetch over the visible rows — drives the progress bar, not a skeleton.
+     * Deliberately excludes the select-all count query: it touches no row on
+     * screen, and `isTotalCountLoading` already covers its own UI.
+     */
+    isFetching: activeObservations.isFetching || ioDataQuery.isFetching,
     totalCount,
     uniqueTraceCount,
     isTotalCountLoading,
@@ -244,9 +337,10 @@ export function useEventsTableData({
     hasMore,
     addToQueueMutation,
     handleAddToAnnotationQueue,
-    ioLoading: ioDataQuery.isLoading,
+    isIoPending,
     error,
     errorHttpStatus,
     isSilencedError,
+    usedAppRootFallback,
   };
 }

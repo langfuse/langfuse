@@ -4,13 +4,14 @@
 // part with real branching logic — is unit-testable without a live model. This
 // mirrors the search-bar feature's own lib/ (pure) vs I/O split.
 
-import {
-  eventsTableCols,
-  type FilterState,
-  singleFilter,
-} from "@langfuse/shared";
+import { type FilterState, singleFilter } from "@langfuse/shared";
 
-import { SCORE_COLUMNS } from "../lib/fields";
+import {
+  EVENTS_FIELD_REGISTRY,
+  SCORE_COLUMNS,
+  type FieldRegistry,
+} from "../lib/fields";
+import { planCommit } from "../lib/commit";
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
 import type { ObservedScoreNames } from "../lib/observed-options";
 
@@ -39,10 +40,13 @@ const COMPATIBLE_FILTER_TYPES: Record<string, readonly string[]> = {
  * those. Unknown columns return true here and are dropped by the reverse-adapter
  * round-trip instead.
  */
-function isEventsContractCompatible(f: FilterState[number]): boolean {
+function isRegistryContractCompatible(
+  f: FilterState[number],
+  registry: FieldRegistry,
+): boolean {
   if (f.type === "null" || f.type === "positionInTrace") return true;
   const col = f.column.toLowerCase();
-  const def = eventsTableCols.find(
+  const def = registry.columns.find(
     (c) => c.id.toLowerCase() === col || c.name.toLowerCase() === col,
   );
   if (!def) return true;
@@ -51,44 +55,118 @@ function isEventsContractCompatible(f: FilterState[number]): boolean {
 }
 
 /**
- * Extract a `FilterState` from the model's completion. Tries the whole string,
- * then the widest bracketed array (greedy, so it survives nested objects), and
- * tolerates a `{ "filters": [...] }` wrapper. Returns the structurally-valid
+ * Scan `text` for balanced, top-level `[...]` substrings. Tracks bracket depth
+ * while treating brackets inside JSON string literals as inert, so a `]` in a
+ * value (`"array[0]"`) never closes an array early. Nested arrays (a value
+ * array inside a filter object, depth > 1) are part of their enclosing
+ * top-level array, not returned on their own. Returned in document order.
+ */
+function extractTopLevelArrays(text: string): string[] {
+  const arrays: string[] = [];
+  let depth = 0;
+  let start = -1;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      // Inside a string literal only `\` (escape) and an unescaped `"` (close)
+      // are meaningful; brackets here must not move the depth.
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+    } else if (ch === "[") {
+      if (depth === 0) start = i;
+      depth++;
+    } else if (ch === "]" && depth > 0) {
+      depth--;
+      if (depth === 0 && start !== -1) {
+        arrays.push(text.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
+  return arrays;
+}
+
+/**
+ * Extract a `FilterState` from the model's completion. Tries the whole string
+ * (a bare array or a `{ "filters": [...] }` wrapper) first, then every balanced
+ * top-level `[...]` in the prose, LAST-FIRST. Returns the structurally-valid
  * filters plus `rawCount` (how many elements the model actually emitted), so
  * the caller can count the malformed ones as dropped. `rawCount` is 0 when
  * nothing parses.
+ *
+ * Last-first matters: the model sometimes emits a DRAFT array, some prose, then
+ * a corrected SECOND array (self-correction). A single greedy `\[[\s\S]*\]`
+ * match spans from the first `[` to the last `]` — swallowing both arrays plus
+ * the prose between them, so `JSON.parse` fails and a correct answer is lost.
+ * Scanning balanced candidates and trying the LAST one first applies the
+ * model's self-correction instead of discarding it.
  */
 function parseFilterArray(completion: string): {
   filters: FilterState;
   rawCount: number;
 } {
-  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
-  const candidates = [completion, arrayMatch].filter((c): c is string =>
-    Boolean(c),
-  );
+  const candidates = [
+    completion,
+    ...extractTopLevelArrays(completion).reverse(),
+  ];
+  // A candidate that parses to a NON-EMPTY array but holds no structurally-valid
+  // filter (e.g. an all-malformed array, or a stray bracketed list in the prose)
+  // is remembered so `rawCount` still reflects what the model emitted, but it
+  // does NOT win over a later candidate that DOES contain a valid filter. This
+  // keeps a trailing non-filter array (`... use the [ERROR] level`) from
+  // shadowing the real filter array that preceded it.
+  let fallback: { filters: FilterState; rawCount: number } | null = null;
   for (const candidate of candidates) {
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(candidate);
-      const raw = Array.isArray(parsed) ? parsed : parsed.filters;
-      if (!Array.isArray(raw)) continue;
-      // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
-      // is all-or-nothing, so one off-spec element (wrong operator, missing
-      // key, value-as-string, unknown type — common on weaker models) would
-      // discard the valid siblings and surface a misleading "couldn't build
-      // filters". Keep the structurally-valid ones; the rejects show up in the
-      // dropped count below, mirroring the per-element keep/drop the two
-      // downstream guardrails already use.
-      const kept: FilterState = [];
-      for (const item of raw) {
-        const result = singleFilter.safeParse(item);
-        if (result.success) kept.push(result.data);
-      }
-      return { filters: kept, rawCount: raw.length };
+      parsed = JSON.parse(candidate);
     } catch {
-      // try the next candidate
+      continue;
+    }
+    const raw = Array.isArray(parsed)
+      ? parsed
+      : (parsed as { filters?: unknown } | null)?.filters;
+    if (!Array.isArray(raw)) continue;
+    // An explicitly EMPTY array is the model's "no filter applies" answer (the
+    // prompt asks for `[]` in exactly that case). Honor it as a real answer that
+    // WINS: return immediately rather than falling through to an earlier draft
+    // the model reconsidered — otherwise we'd silently apply a filter it
+    // retracted. Distinct from a non-empty array that yields no VALID filter
+    // (below): that stays a fallback so a stray prose list can't shadow a real
+    // earlier filter array. Last-first order means a trailing `[]` is the
+    // model's FINAL word, so this is safe to treat as the intended retraction.
+    if (raw.length === 0) return { filters: [], rawCount: 0 };
+    // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
+    // is all-or-nothing, so one off-spec element (wrong operator, missing
+    // key, value-as-string, unknown type — common on weaker models) would
+    // discard the valid siblings and surface a misleading "couldn't build
+    // filters". Keep the structurally-valid ones; the rejects show up in the
+    // dropped count below, mirroring the per-element keep/drop the two
+    // downstream guardrails already use.
+    const kept: FilterState = [];
+    for (const item of raw) {
+      const result = singleFilter.safeParse(item);
+      if (result.success) kept.push(result.data);
+    }
+    if (kept.length > 0) return { filters: kept, rawCount: raw.length };
+    // Had elements, none valid. Remember the LARGEST such array as the fallback:
+    // when nothing validates, `droppedCount` should reflect the biggest array
+    // the model emitted (the one it most plausibly intended as the answer), not
+    // whichever candidate happened to be visited first. Reversed iteration
+    // visits the last text array first, which might be a stray 2-element prose
+    // list while the intended (all-malformed) array had more elements.
+    if (fallback === null || raw.length > fallback.rawCount) {
+      fallback = { filters: [], rawCount: raw.length };
     }
   }
-  return { filters: [], rawCount: 0 };
+  return fallback ?? { filters: [], rawCount: 0 };
 }
 
 // Which ObservedScoreNames set holds the real names for each score column —
@@ -99,8 +177,10 @@ const SCORE_NAME_SET_BY_COLUMN: Record<
 > = {
   [SCORE_COLUMNS.observation.numeric]: "numeric",
   [SCORE_COLUMNS.observation.categorical]: "categorical",
+  [SCORE_COLUMNS.observation.boolean]: "booleans",
   [SCORE_COLUMNS.trace.numeric]: "traceNumeric",
   [SCORE_COLUMNS.trace.categorical]: "traceCategorical",
+  [SCORE_COLUMNS.trace.boolean]: "traceBooleans",
 };
 
 // Case/separator-insensitive form for the confident-correction match:
@@ -145,7 +225,11 @@ function validateScoreNames(
   const kept: FilterState = [];
   const unknown: string[] = [];
   for (const filter of filters) {
-    if (filter.type !== "numberObject" && filter.type !== "categoryOptions") {
+    if (
+      filter.type !== "numberObject" &&
+      filter.type !== "categoryOptions" &&
+      filter.type !== "booleanObject"
+    ) {
       kept.push(filter);
       continue;
     }
@@ -188,12 +272,15 @@ export type GeneratedFilters = {
 export function parseGeneratedFilters(
   completion: string,
   scoreNames?: ObservedScoreNames,
+  registry: FieldRegistry = EVENTS_FIELD_REGISTRY,
 ): GeneratedFilters {
   // `rawCount` is what the model emitted; `parsed` already excludes elements
   // that failed `singleFilter`, so the drop count is measured against rawCount.
   const { filters: parsed, rawCount } = parseFilterArray(completion);
   // Guardrail 1: drop filters whose type the events contract would reject.
-  const compatible = parsed.filter(isEventsContractCompatible);
+  const compatible = parsed.filter((filter) =>
+    isRegistryContractCompatible(filter, registry),
+  );
   // Guardrail 2: correct or drop score filters whose key names no real score —
   // the one hallucination the round-trip below cannot catch (any key renders
   // on a score column), yet it applies as a dead filter matching nothing.
@@ -201,11 +288,32 @@ export function parseGeneratedFilters(
     compatible,
     scoreNames,
   );
+  const projected: FilterState = [];
+  for (const filter of scoreChecked) {
+    const id = registry.columnIdOf(filter.column);
+    const ref = id === null ? null : registry.resolveField(id);
+    if (ref?.type !== "field" || ref.field.filterColumn === undefined) {
+      projected.push(filter);
+      continue;
+    }
+
+    const rendered = filterStateToQueryText([filter], {}, registry);
+    const result = planCommit(rendered.text, undefined, registry);
+    if (rendered.skippedFilters.length === 0 && result.status === "committed") {
+      for (const canonicalFilter of result.filters) {
+        projected.push(canonicalFilter);
+      }
+    }
+  }
   // Guardrail 3: drop anything that doesn't round-trip to bar grammar (unknown /
   // non-representable columns land in skippedFilters).
-  const { text, skippedFilters } = filterStateToQueryText(scoreChecked);
+  const { text, skippedFilters } = filterStateToQueryText(
+    projected,
+    {},
+    registry,
+  );
   const skipped = new Set(skippedFilters);
-  const filters = scoreChecked.filter((f) => !skipped.has(f));
+  const filters = projected.filter((f) => !skipped.has(f));
   return {
     filters,
     queryText: text,

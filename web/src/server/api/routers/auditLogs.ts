@@ -4,9 +4,11 @@ import {
   protectedProjectProcedure,
   protectedOrganizationProcedure,
 } from "../trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  throwIfNoProjectAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
 import { paginationZod } from "@langfuse/shared";
 import { AuditLogRecordType, type AuditLog } from "@langfuse/shared/src/db";
 
@@ -95,7 +97,7 @@ export const auditLogsRouter = createTRPCRouter({
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "auditLogs:read",
+        scope: "projectAuditLogs:read",
       });
 
       const [auditLogs, totalCount] = await Promise.all([
@@ -195,7 +197,7 @@ export const auditLogsRouter = createTRPCRouter({
       throwIfNoOrganizationAccess({
         session: ctx.session,
         organizationId: input.orgId,
-        scope: "auditLogs:read",
+        scope: "orgAuditLogs:read",
       });
 
       // Fetch organization-level audit logs (where projectId is null)

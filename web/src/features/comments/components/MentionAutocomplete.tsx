@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
-import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
 import {
   Command,
   CommandEmpty,
@@ -20,7 +20,6 @@ interface MentionAutocompleteProps {
   isLoading: boolean;
   selectedIndex: number;
   onSelect: (userId: string, displayName: string) => void;
-  onClose: () => void;
   onSelectedIndexChange: (index: number) => void;
 }
 
@@ -29,7 +28,6 @@ export function MentionAutocomplete({
   isLoading,
   selectedIndex,
   onSelect,
-  onClose: _onClose,
   onSelectedIndexChange,
 }: MentionAutocompleteProps) {
   const selectedItemRef = useRef<HTMLDivElement>(null);
@@ -42,25 +40,22 @@ export function MentionAutocomplete({
   // Get the currently selected user's ID for Command's value prop
   const selectedUserId = users[selectedIndex]?.id;
 
-  // Limit displayed users to first 3
-  const MAX_DISPLAYED_USERS = 3;
-  const displayedUsers = users.slice(0, MAX_DISPLAYED_USERS);
-  const remainingCount = users.length - MAX_DISPLAYED_USERS;
-
   return (
     <div
-      className="absolute right-0 bottom-full left-0 z-50 mb-1"
+      className="ph-no-capture min-w-0"
       role="region"
       aria-label="User mention suggestions"
     >
       <Command
-        className="max-h-60 rounded-md border shadow-md"
+        className="rounded-md"
         value={selectedUserId}
+        shouldFilter={false}
         aria-label="Mention user autocomplete"
       >
         <CommandList
           role="listbox"
-          aria-activedescendant={selectedUserId || ""}
+          className="max-h-44"
+          aria-label="People to mention"
         >
           {isLoading && (
             <div
@@ -78,10 +73,10 @@ export function MentionAutocomplete({
           {!isLoading && users.length > 0 && (
             <>
               <CommandGroup>
-                {displayedUsers.map((user, index) => {
+                {users.map((user, index) => {
                   const displayName = user.name || user.email || "User";
                   const isSelected = index === selectedIndex;
-                  const userLabel = user.name || "Unknown";
+                  const userLabel = displayName;
                   return (
                     <CommandItem
                       key={user.id}
@@ -93,13 +88,13 @@ export function MentionAutocomplete({
                       aria-selected={isSelected}
                       id={user.id}
                     >
-                      <Avatar className="h-6 w-6" aria-hidden="true">
-                        <AvatarFallback className="text-xs">
-                          {user.name ? user.name[0] : user.email?.[0] || "U"}
-                        </AvatarFallback>
-                      </Avatar>
+                      <Avatar
+                        size="sm"
+                        aria-hidden="true"
+                        displayName={displayName}
+                      />
                       <div className="text-foreground flex-1 overflow-hidden">
-                        <div className="truncate font-medium" title={userLabel}>
+                        <div className="truncate font-bold" title={userLabel}>
                           {userLabel}
                         </div>
                         {user.email && (
@@ -115,15 +110,6 @@ export function MentionAutocomplete({
                   );
                 })}
               </CommandGroup>
-              {remainingCount > 0 && (
-                <div
-                  className="text-muted-foreground border-t px-2 py-2 text-xs"
-                  role="status"
-                  aria-live="polite"
-                >
-                  and {remainingCount} more...
-                </div>
-              )}
             </>
           )}
         </CommandList>

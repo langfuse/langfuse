@@ -17,7 +17,11 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
+import { shadowAuthorize } from "@/src/features/public-api/server";
+import { formatErrorForUser } from "../core/error-formatting";
 import type { ServerContext } from "../types";
+import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
 import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
 import { context as otelContext } from "@opentelemetry/api";
@@ -28,6 +32,18 @@ const MCP_SERVER_NAME = "langfuse";
 // Tool availability and schemas may evolve over time, including the addition, removal, or modification of tools and fields.
 // Clients are expected to tolerate schema changes and refresh capabilities dynamically.
 const MCP_SERVER_VERSION = "0.3.0-unstable";
+const MCP_SERVER_INSTRUCTIONS = [
+  "Use this server for project-scoped Langfuse data and actions such as prompts, datasets, scores, comments, metrics, observations etc.",
+  "Inspect the available tools and their schemas dynamically; do not assume a fixed tool list.",
+  "For conceptual Langfuse product guidance, SDK/API documentation, instrumentation help, or prompt-migration guidance, prefer the Langfuse docs MCP server or installed Langfuse agent skills when they are available.",
+];
+const MCP_FEEDBACK_INSTRUCTION =
+  "To send feedback about Langfuse skills, MCP tools, CLI, docs, or public API, ask the user for permission and show the exact feedback payload; if they want a reply, include only an email address they explicitly provide in the feedback text; exclude secrets, customer/project data, trace payloads, and unrelated context, then call submitFeedback.";
+
+export const getMcpServerInstructions = (): string =>
+  isProductFeedbackAvailable()
+    ? [...MCP_SERVER_INSTRUCTIONS, MCP_FEEDBACK_INSTRUCTION].join("\n")
+    : MCP_SERVER_INSTRUCTIONS.join("\n");
 
 /**
  * Create and configure the MCP server instance.
@@ -58,6 +74,7 @@ export function createMcpServer(context: ServerContext): Server {
       capabilities: {
         tools: {},
       },
+      instructions: getMcpServerInstructions(),
     },
   );
 
@@ -91,6 +108,8 @@ export function createMcpServer(context: ServerContext): Server {
       throw new Error(`Unknown tool: ${name}`);
     }
 
+    assertToolAuthorized(registeredTool.definition, context);
+
     // Execute handler with context
     // Handler performs validation and error handling via defineTool wrapper
     const clickHouseCtx = contextWithLangfuseProps({
@@ -117,3 +136,19 @@ export function createMcpServer(context: ServerContext): Server {
 
   return server;
 }
+
+/** assertToolAuthorized authorizes a tool call through the per-item seam, throwing an enforce-mode deny as an MCP error. */
+function assertToolAuthorized(
+  definition: ToolDefinition,
+  context: ServerContext,
+): void {
+  const decision = shadowAuthorize({
+    ctx: context.auth,
+    action: definition.action,
+    resource: { projectId: context.projectId },
+    accessLevel: context.accessLevel,
+  });
+  if (!decision.success) throw formatErrorForUser(decision.error);
+}
+
+export const __test = { assertToolAuthorized };

@@ -5,11 +5,18 @@ import {
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
-import { Role, Prisma } from "@langfuse/shared/src/db";
-import type { PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
+import { canToggleV4 } from "@/src/features/events/server";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  featurePreviewFlags,
+  setUserFeaturePreview,
+  hasInternalAccess,
+  INTERNAL_FEATURE_FLAG,
+} from "@/src/features/feature-flags/server";
+import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -73,6 +80,34 @@ async function checkUserCanBeDeleted(
 }
 
 export const userAccountRouter = createTRPCRouter({
+  setViewMode: authenticatedProcedure
+    .input(z.object({ mode: z.enum(["INTERNAL", "EXTERNAL"]) }))
+    .mutation(async ({ input, ctx }) => {
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (
+        !hasInternalAccess({
+          isAdmin: ctx.session.user.admin === true,
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        }) ||
+        !canEnableFeaturePreviews
+      ) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: `Internal view mode requires ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+        });
+      }
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId: ctx.session.user.id,
+        flag: INTERNAL_FEATURE_FLAG,
+        enabled: input.mode === "INTERNAL",
+      });
+      return { success: true };
+    }),
   checkCanDelete: authenticatedProcedure.query(async ({ ctx }) => {
     const userId = ctx.session.user.id;
     return checkUserCanBeDeleted(userId, ctx.prisma);
@@ -96,56 +131,43 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
+  signOutAllSessions: authenticatedProcedure.mutation(async ({ ctx }) => {
+    await advanceSessionsExpiredAtForUser(ctx.session.user.id, ctx.prisma);
+
+    return { success: true };
+  }),
+
   setFeaturePreviewEnabled: authenticatedProcedure
     .input(
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        // TODO(remove ~2026-06-19): "searchBar" is retired — the bar is now GA
-        // on the v4 events tables (see useSearchBarEnabled) and no longer has a
-        // dialog tile. Kept in the allowlist as dead plumbing for a safe
-        // rollback; drop once the GA rollout is confirmed stable.
-        flag: z.enum(["searchBar"]),
+        flag: z.enum(featurePreviewFlags),
         enabled: z.boolean(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      if (input.enabled && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+      const canEnableFeaturePreviews =
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
+        ctx.session.user.v4BetaEnabled === true;
+
+      if (input.enabled && !canEnableFeaturePreviews) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message:
-            "Feature previews are not available in self-hosted deployments.",
+          message: `Feature previews require ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
         });
       }
 
-      // Serializable transaction: the read-modify-write of the featureFlags
-      // array is not atomic on its own, so two parallel toggles of DIFFERENT
-      // flags from one tab (the modal only disables the in-flight row) would
-      // last-write-wins and silently drop one. Mirrors the `delete` mutation.
-      await ctx.prisma.$transaction(
-        async (tx) => {
-          const currentUser = await tx.user.findUnique({
-            where: { id: userId },
-            select: { featureFlags: true },
-          });
-          if (!currentUser) {
-            throw new TRPCError({
-              code: "NOT_FOUND",
-              message: "User not found",
-            });
-          }
-          const nextFeatureFlags = input.enabled
-            ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
-            : currentUser.featureFlags.filter((flag) => flag !== input.flag);
-          await tx.user.update({
-            where: { id: userId },
-            data: { featureFlags: { set: nextFeatureFlags } },
-          });
-        },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
-      );
+      // The helper serializes and retries the read-modify-write so parallel
+      // toggles of different flags cannot silently drop one another.
+      await setUserFeaturePreview({
+        prisma: ctx.prisma,
+        userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      });
 
       return {
         success: true,

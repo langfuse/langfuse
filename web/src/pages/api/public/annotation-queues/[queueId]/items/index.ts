@@ -9,13 +9,14 @@ import {
 import {
   createAnnotationQueueItemForApi,
   listAnnotationQueueItemsForApi,
-} from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-
+} from "@/src/features/annotation-queues/server";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queue items",
+    action: "annotationQueues:read",
     querySchema: GetAnnotationQueueItemsQuery,
     responseSchema: GetAnnotationQueueItemsResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, auth }) =>
       await listAnnotationQueueItemsForApi({
         projectId: auth.scope.projectId,
@@ -27,9 +28,11 @@ export default withMiddlewares({
   }),
   POST: createAuthedProjectAPIRoute({
     name: "Create annotation queue item",
+    action: "annotationQueues:CUD",
     querySchema: GetAnnotationQueueItemsQuery,
     bodySchema: CreateAnnotationQueueItemBody,
     responseSchema: CreateAnnotationQueueItemResponse,
+    rateLimitResource: "annotation-queues",
     fn: async ({ query, body, auth }) =>
       await createAnnotationQueueItemForApi({
         projectId: auth.scope.projectId,

@@ -1,6 +1,6 @@
 import type { AssistantContent, ModelMessage } from "ai";
 
-import { LLMCompletionError } from "../errors";
+import { LLMValidationError } from "../errors";
 import {
   ChatMessage,
   ChatMessageRole,
@@ -85,10 +85,9 @@ export function mapChatMessagesToModelMessages(
       const toolName = toolCallIdToName.get(message.toolCallId);
 
       if (toolName === undefined) {
-        throw new LLMCompletionError({
+        throw new LLMValidationError({
+          code: "invalid-request",
           message: `Tool result references unknown tool call id: ${message.toolCallId}`,
-          responseStatusCode: 400,
-          isRetryable: false,
         });
       }
 
