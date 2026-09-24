@@ -101,8 +101,9 @@ impl Uploads {
         let retry = self.retry;
         self.tasks.spawn(
             async move {
-                let (flush, payload) = match encode(flush).await {
-                    Ok(encoded) => encoded,
+                let mut flush = flush;
+                let payload = match encode(&mut flush.items).await {
+                    Ok(payload) => payload,
                     Err(error) => return receipt.settle_failed(error.reason()),
                 };
                 let mut attempt = 1;
@@ -152,20 +153,13 @@ impl Uploads {
     }
 }
 
-<<<<<<< HEAD
-=======
-async fn encode(flush: Flush) -> Result<(Flush, Payload), ExportError> {
-    tokio::task::spawn_blocking(move || {
-        let spans: Vec<_> = flush.items.iter().map(|item| &item.span).collect();
-        let payload = Payload::encode(&spans)?;
-        drop(spans);
-        Ok((flush, payload))
-    })
-    .await
-    .unwrap_or(Err(ExportError::Payload))
+async fn encode(items: &mut [Pending]) -> Result<Payload, ExportError> {
+    let spans: Vec<_> = items.iter_mut().map(|item| item.span.take()).collect();
+    tokio::task::spawn_blocking(move || Payload::encode(&spans))
+        .await
+        .unwrap_or(Err(ExportError::Payload))
 }
 
->>>>>>> fbab56e64 (perf(ai-gateway): gzip telemetry uploads)
 struct Receipt {
     records: u64,
     stats: Arc<Stats>,
