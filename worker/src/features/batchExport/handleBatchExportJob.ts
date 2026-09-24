@@ -224,12 +224,19 @@ export const handleBatchExportJob = async (
     },
   });
 
+  // The read/transform pipeline is piped into the buffered uploader below. A
+  // mid-stream failure here (e.g. a ClickHouse query timeout) surfaces inside
+  // the uploader's try/catch and gets rewrapped as a storage error, so we
+  // capture the real cause here to re-attribute it after the upload rejects.
+  let readStreamError: unknown = null;
+
   const fileStream = pipeline(
     dbReadStream,
     loggingTransform,
     streamTransformations[jobDetails.format as BatchExportFileFormat](),
     (err) => {
       if (err) {
+        readStreamError = err;
         logger.error(
           "[BATCH EXPORT] Getting data from DB and transform failed: ",
           err,
@@ -269,13 +276,31 @@ export const handleBatchExportJob = async (
 
   const storageService = StorageServiceFactory.getInstance(storageParams);
 
-  await storageService.uploadFileBuffered({
-    fileName,
-    fileType:
-      exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
-    data: fileStream,
-    partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
-  });
+  try {
+    await storageService.uploadFileBuffered({
+      fileName,
+      fileType:
+        exportOptions[jobDetails.format as BatchExportFileFormat].fileType,
+      data: fileStream,
+      partSizeBytes: env.BATCH_EXPORT_S3_PART_SIZE_MIB * 1024 * 1024,
+    });
+  } catch (uploadError) {
+    // A read/transform stream failure surfaces here as an upload rejection.
+    // Re-throw the real cause so the worker failure log and traceException point
+    // at the actual origin (e.g. a CH timeout). Thrown as a plain Error so the
+    // customer-facing `log` stays generic and does not leak internals.
+    if (readStreamError) {
+      const causeMessage =
+        readStreamError instanceof Error
+          ? readStreamError.message
+          : String(readStreamError);
+      throw new Error(
+        `[BATCH EXPORT] Reading data from ClickHouse failed: ${causeMessage}`,
+        { cause: readStreamError },
+      );
+    }
+    throw uploadError;
+  }
 
   // asAttachment must be explicit: S3 defaults it to true, but GCS and Azure
   // don't — and the web tier's downloadUrl fallback returns this stored URL
