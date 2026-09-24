@@ -12,6 +12,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  getTypeSafeBaseURLError,
   isDecisionModelAdapter,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
@@ -266,18 +267,13 @@ const createFormSchema = (params: {
       ) {
         return;
       }
-      const baseURL = data.baseURL.trim();
-      if (!baseURL) {
+      const baseURLError = data.baseURL.trim()
+        ? getTypeSafeBaseURLError(data.baseURL)
+        : "A custom base URL is required.";
+      if (baseURLError) {
         ctx.addIssue({
           code: "custom",
-          message: "A custom base URL is required.",
-          path: ["baseURL"],
-        });
-      } else if (/\/systemone\/?$/.test(baseURL)) {
-        ctx.addIssue({
-          code: "custom",
-          message:
-            "Remove /systemone from the base URL. Langfuse appends it automatically.",
+          message: baseURLError,
           path: ["baseURL"],
         });
       }

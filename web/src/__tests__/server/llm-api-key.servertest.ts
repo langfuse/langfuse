@@ -375,6 +375,39 @@ describe("llmApiKey.all RPC", () => {
     });
   });
 
+  it("should reject a decision-model base URL that already ends in /systemone", async () => {
+    await expect(
+      caller.llmApiKey.create({
+        projectId,
+        secretKey: "sk-proxy",
+        provider: "jev-systemone",
+        adapter: LLMAdapter.TypeSafe,
+        baseURL: "https://example.com/typesafe/v1/systemone",
+      }),
+    ).rejects.toThrow("Remove /systemone from the base URL");
+
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "sk-proxy",
+      provider: "jev-systemone",
+      adapter: LLMAdapter.TypeSafe,
+    });
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: { projectId, provider: "jev-systemone" },
+    });
+
+    await expect(
+      caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        provider: "jev-systemone",
+        adapter: LLMAdapter.TypeSafe,
+        secretKey: "sk-proxy-2",
+        baseURL: "https://example.com/typesafe/v1/systemone/",
+      }),
+    ).rejects.toThrow("Remove /systemone from the base URL");
+  });
+
   it("should block decision-model connections with an internal custom base URL", async () => {
     await expect(
       caller.llmApiKey.create({

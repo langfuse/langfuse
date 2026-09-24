@@ -26,6 +26,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
+  getTypeSafeBaseURLError,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
 
@@ -245,6 +246,17 @@ async function validateBaseURLForWrite(params: {
   }
 }
 
+function assertTypeSafeBaseURL(params: {
+  adapter: LLMAdapter;
+  baseURL?: string | null;
+}): void {
+  if (params.adapter !== LLMAdapter.TypeSafe) return;
+  const error = getTypeSafeBaseURLError(params.baseURL);
+  if (error) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: error });
+  }
+}
+
 /**
  * Resolves the extra headers an update would store. Blank values stand for
  * masked stored values and are filled from the stored headers, but only when
@@ -294,6 +306,7 @@ export const llmApiKeyRouter = createTRPCRouter({
         await validateBaseURLForWrite({
           baseURL: input.baseURL,
         });
+        assertTypeSafeBaseURL(input);
 
         // Validate that default credentials sentinel is only allowed for Bedrock/VertexAI in self-hosted deployments
         const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
@@ -528,6 +541,7 @@ export const llmApiKeyRouter = createTRPCRouter({
       if (input.baseURL) {
         try {
           await validateLlmConnectionBaseURL(input.baseURL);
+          assertTypeSafeBaseURL(input);
         } catch (error) {
           return {
             success: false,
@@ -587,6 +601,10 @@ export const llmApiKeyRouter = createTRPCRouter({
 
         if (input.baseURL && isBaseURLChanged) {
           await validateLlmConnectionBaseURL(input.baseURL);
+          assertTypeSafeBaseURL({
+            adapter: input.adapter ?? (existingKey.adapter as LLMAdapter),
+            baseURL: input.baseURL,
+          });
         }
 
         const secretKey = hasNewSecretKey
@@ -678,6 +696,7 @@ export const llmApiKeyRouter = createTRPCRouter({
           await validateBaseURLForWrite({
             baseURL: input.baseURL,
           });
+          assertTypeSafeBaseURL(input);
         }
 
         if (input.secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
