@@ -15,14 +15,16 @@ already exist. Use a machine with network access and DDL permissions.
 
 ```bash
 # Read-only: prints targets, checks existing schemas, lists missing tables.
-pnpm run topics:dev-tables --env-file /absolute/path/staging.env
+pnpm run topics:dev-tables --config /absolute/path/staging.env
 
 # Same preflight, then create missing tables and verify the resulting schemas.
-pnpm run topics:dev-tables --env-file /absolute/path/staging.env --apply
+pnpm run topics:dev-tables --config /absolute/path/staging.env --apply
 ```
 
 An explicit env file supplies all connection settings; no fallback to exported
 variables or the local `.env`. Relative paths resolve from the repository root.
+The option is named `--config` because Node can consume `--env-file` before this
+script starts.
 No shell evaluation or variable interpolation inside the file. Target summaries
 omit credentials. `--check` is an explicit spelling of the default mode.
 
@@ -57,7 +59,7 @@ Topics provisioning and development seeders. **Local only:** its existing events
 seeder truncates/repopulates events. It does not reset volumes or start the app.
 For demo data, allow project `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`.
 
-For tables only: `pnpm run topics:dev-tables --apply`. Without `--env-file`, the
+For tables only: `pnpm run topics:dev-tables --apply`. Without `--config`, the
 root `.env` is loaded and exported variables take precedence. `DIRECT_URL` wins
 over `DATABASE_URL`; check both when overriding. ClickHouse uses `CLICKHOUSE_URL`
 (HTTP/HTTPS), `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` and `CLICKHOUSE_DB` (default

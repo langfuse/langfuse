@@ -199,7 +199,7 @@ async function checkClickhouse(db: ClickHouseClient, sql: string[]) {
 async function main() {
   const { values, positionals } = parseArgs({
     options: {
-      "env-file": { type: "string" },
+      config: { type: "string" },
       apply: { type: "boolean" },
       check: { type: "boolean" },
       help: { type: "boolean", short: "h" },
@@ -207,7 +207,7 @@ async function main() {
     allowPositionals: true,
   });
   if (values.help) {
-    console.log(`Usage: pnpm run topics:dev-tables [all|postgres|clickhouse] [--env-file /path/to/staging.env] [--apply|--check]
+    console.log(`Usage: pnpm run topics:dev-tables [all|postgres|clickhouse] [--config /path/to/staging.env] [--apply|--check]
 Defaults to a read-only preflight of both databases. --apply creates missing tables.
 An explicit env file is the sole source of database configuration; otherwise root .env plus exported variables are used.
 ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-managed clustered ClickHouse is unsupported.`);
@@ -221,7 +221,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
   ) {
     throw new SetupError("Invalid arguments. Use --help.");
   }
-  const envFile = values["env-file"];
+  const envFile = values.config;
   const defaultFile = resolve(sharedDir, "../../.env");
   const config = envFile
     ? parseEnv(readFileSync(resolve(sharedDir, "../..", envFile), "utf8"))
@@ -239,7 +239,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
   };
   let postgres: PrismaClient | undefined;
   let clickhouse: ClickHouseClient | undefined;
-  const postgresSql = statements("postgres.sql");
+  const postgresStatements = statements("postgres.sql");
   const clickhouseSql = statements("clickhouse.sql");
   try {
     if (target !== "clickhouse") {
@@ -285,7 +285,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
     }
     // Complete both preflights before either database receives DDL.
     const missingPostgres = postgres
-      ? await checkPostgres(postgres, postgresSql)
+      ? await checkPostgres(postgres, postgresStatements)
       : [];
     const missingClickhouse = clickhouse
       ? await checkClickhouse(clickhouse, clickhouseSql)
@@ -303,7 +303,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
       await postgres.$transaction(
         async (tx) => {
           await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '10s'");
-          for (const statement of postgresSql)
+          for (const statement of postgresStatements)
             await tx.$executeRawUnsafe(statement);
         },
         { timeout: 60_000 },
@@ -321,7 +321,7 @@ ClickHouse uses CLICKHOUSE_URL (HTTP/HTTPS), not CLICKHOUSE_MIGRATION_URL. Self-
       }
     }
     const remainingPostgres = postgres
-      ? await checkPostgres(postgres, postgresSql)
+      ? await checkPostgres(postgres, postgresStatements)
       : [];
     const remainingClickhouse = clickhouse
       ? await checkClickhouse(clickhouse, clickhouseSql)
