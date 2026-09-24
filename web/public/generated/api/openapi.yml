@@ -10570,9 +10570,13 @@ components:
         metadata:
           description: Metadata associated with the dataset
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item inputs
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: JSON Schema for validating dataset item expected outputs
         projectId:
@@ -11492,11 +11496,15 @@ components:
         metadata:
           nullable: true
         inputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item inputs. When set, all new
             and existing dataset items will be validated against this schema.
         expectedOutputSchema:
+          type: object
+          additionalProperties: true
           nullable: true
           description: >-
             JSON Schema for validating dataset item expected outputs. When set,
@@ -15071,6 +15079,8 @@ components:
             Span attributes including Langfuse-specific attributes
             (langfuse.observation.*)
         status:
+          type: object
+          additionalProperties: true
           nullable: true
           description: Span status object
     OtelAttribute:
