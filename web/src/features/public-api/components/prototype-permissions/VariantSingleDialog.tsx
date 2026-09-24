@@ -2,7 +2,7 @@
 // count, with a "View N permissions" link below opening a popup for the role.
 
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { SquareArrowOutUpRight } from "lucide-react";
 
 import { Badge } from "@/src/components/ui/badge";
 import {
@@ -107,7 +107,7 @@ export const VariantSingleDialog = ({
                     aria-label={`View ${p.label} permissions`}
                     className="text-muted-foreground hover:bg-background hover:text-foreground ml-auto flex h-6 w-6 shrink-0 items-center justify-center self-center rounded-full opacity-0 group-hover:opacity-100 group-data-highlighted:opacity-100 focus-visible:opacity-100"
                   >
-                    <Info className="h-4 w-4" />
+                    <SquareArrowOutUpRight className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </SelectItem>
