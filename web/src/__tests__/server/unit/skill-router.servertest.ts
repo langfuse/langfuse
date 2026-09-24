@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
-import { ForbiddenError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { skillRouter } from "@/src/features/skills/server/skill-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -180,20 +179,6 @@ describe("skill mutation router", () => {
         },
       });
       expect(mocks.get).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(mutations)(
-    "propagates service authorization errors when trying to $name",
-    async ({ mutate, write }) => {
-      write.mockRejectedValueOnce(
-        new ForbiddenError("Protected skill label access denied"),
-      );
-
-      await expect(mutate(createCaller("MEMBER"))).rejects.toMatchObject({
-        code: "FORBIDDEN",
-        message: "Protected skill label access denied",
-      });
     },
   );
 

@@ -113,6 +113,13 @@ const meta = preview.meta({
   },
 });
 
+export const CompactRows = meta.story({
+  args: {
+    rowHeight: "compact",
+    data: { status: "success", data: sortableRows },
+  },
+});
+
 export const Default = meta.story({
   name: "(Test) Default",
   args: {

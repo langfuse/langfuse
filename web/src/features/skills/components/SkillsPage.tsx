@@ -277,6 +277,7 @@ function SkillsList({
                 ) : (
                   <Table
                     tableName="skills"
+                    rowHeight="compact"
                     columns={columns}
                     data={tableData}
                     loadingRowCount={Math.min(paginationState.pageSize, 8)}

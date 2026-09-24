@@ -394,11 +394,11 @@ export function SkillFileExplorer({
           <div className="flex-1 overflow-y-auto p-2">
             {renderTree(tree, "")}
           </div>
-          <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
-            {isImporting
-              ? "Adding files to draft…"
-              : "Drop UTF-8 text files, folders, or a ZIP of text files here. Up to 200 files and 1 MB total. Changes stay local until you create a version."}
-          </p>
+          {isImporting ? (
+            <p className="text-muted-foreground border-t px-3 py-2 text-xs leading-4">
+              Adding files to draft…
+            </p>
+          ) : null}
           {isDragActive ? (
             <div className="bg-background/90 pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm font-bold">
               Drop files or folders to add to draft
