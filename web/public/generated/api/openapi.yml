@@ -13354,11 +13354,10 @@ components:
     CursorMeta:
       title: CursorMeta
       type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: Opaque cursor for the next page. Omitted when there is no next page.
+      description: Cursor pagination metadata.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     DeletedEvaluator:
       title: DeletedEvaluator
       type: object
@@ -13385,13 +13384,10 @@ components:
     ExperimentsResponseMeta:
       title: ExperimentsResponseMeta
       type: object
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Versioned base64url cursor for retrieving the next page. Absent when
-            there are no more results.
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     Experiment:
       title: Experiment
       type: object
@@ -14972,14 +14968,10 @@ components:
     ObservationsV2Meta:
       title: ObservationsV2Meta
       type: object
-      description: Metadata for cursor-based pagination
-      properties:
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            Base64-encoded cursor to use for retrieving the next page. If not
-            present, there are no more results.
+      description: Metadata for cursor-based pagination.
+      properties: {}
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     OtelResourceSpan:
       title: OtelResourceSpan
       type: object
@@ -16342,14 +16334,10 @@ components:
       properties:
         limit:
           type: integer
-        cursor:
-          type: string
-          nullable: true
-          description: >-
-            URL-safe base64 (base64url) cursor for the next page. Absent when
-            there are no more results.
       required:
         - limit
+      allOf:
+        - $ref: '#/components/schemas/utilsCursorMetaResponse'
     GetScoresV3Response:
       title: GetScoresV3Response
       type: object
@@ -17378,6 +17366,15 @@ components:
         - limit
         - totalItems
         - totalPages
+    utilsCursorMetaResponse:
+      title: utilsCursorMetaResponse
+      type: object
+      description: Metadata for cursor-based pagination.
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: Opaque cursor for the next page. Omitted when there is no next page.
   securitySchemes:
     BasicAuth:
       type: http
