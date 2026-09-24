@@ -94,12 +94,12 @@ export const VariantSingleDialog = ({
                       e.stopPropagation();
                       openPopup(p.key);
                     }}
-                    className="bg-tertiary text-tertiary-foreground hover:bg-tertiary/70 ml-auto flex shrink-0 items-center gap-1 self-center rounded-full px-2 py-0.5 text-[0.6rem] font-bold tracking-wider uppercase"
+                    className="text-muted-foreground hover:text-foreground ml-auto flex shrink-0 items-center gap-1 self-center text-xs underline"
                   >
                     <span className="tabular-nums">
                       {rolePermissionCount(p.key)}
                     </span>
-                    Permissions
+                    permissions
                     <SquareArrowOutUpRight className="h-3 w-3" />
                   </button>
                 </div>
