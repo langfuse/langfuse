@@ -42,8 +42,8 @@ export const RolePermissionList = ({
           >
             <span
               className={cn(
-                "bg-background text-muted-foreground sticky top-0 z-10 py-1 font-bold tracking-wider uppercase",
-                dense ? "text-[0.6rem]" : "text-[0.65rem]",
+                "bg-background text-muted-foreground sticky top-0 z-10 font-bold tracking-wider uppercase",
+                dense ? "py-1.5 text-[0.6rem]" : "py-2.5 text-[0.65rem]",
               )}
             >
               {domain.label}

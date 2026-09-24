@@ -87,7 +87,7 @@ const PermissionsDialog = ({ preset }: { preset: PresetKey }) => {
       closeOnInteractionOutside={true}
       renderContent={() => (
         <>
-          <DialogHeader>
+          <DialogHeader variant="action">
             <DialogTitle className="flex items-center gap-2">
               <Icon className="h-4 w-4" />
               {meta.label}
