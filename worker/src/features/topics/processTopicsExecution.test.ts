@@ -253,7 +253,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
   };
 });
 vi.mock("./models", () => ({
-  TOPICS_NAMING_MODEL: "gpt-5.6-luna",
+  TOPICS_NAMING_MODEL: "global.openai.gpt-5.6-terra",
   summarizeTopicTrace: (...args: unknown[]) => state.summarize(...args),
   embedTopicSummary: (...args: unknown[]) => state.embed(...args),
   nameTopicGroup: (...args: unknown[]) => state.name(...args),
@@ -694,6 +694,36 @@ describe("Topics execution", () => {
       );
     },
   );
+
+  it("rejects frozen legacy summary models before reusing or relabeling results", async () => {
+    await processSelection("source", 1);
+    const summary = [...state.summaries.values()][0];
+    summary.summaryModel = "gpt-4.1-nano";
+    const original = structuredClone(summary);
+    const legacy = execution("legacy", 1);
+    legacy.input.reuseExistingSummaries = true;
+    Object.assign(legacy.input.processingConfig, {
+      summaryModel: "gpt-4.1-nano",
+    });
+    state.executions.set(legacy.id, legacy);
+    vi.clearAllMocks();
+
+    await processTopicsExecution({
+      projectId: "project",
+      executionId: legacy.id,
+    });
+
+    expect(state.executions.get(legacy.id)).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("Start a new execution"),
+    });
+    expect([...state.summaries.values()]).toEqual([original]);
+    expect(state.resultReads).not.toHaveBeenCalled();
+    expect(state.loadTranscript).not.toHaveBeenCalled();
+    expect(state.summarize).not.toHaveBeenCalled();
+    expect(state.embed).not.toHaveBeenCalled();
+    expect(state.name).not.toHaveBeenCalled();
+  });
 
   it("preserves partially accepted summaries after a provider interruption", async () => {
     const original = state.summarize.getMockImplementation()!;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { singleFilterList } from "../interfaces/filters";
 
-export const TOPICS_SUMMARY_MODEL = "gpt-4.1-nano";
+export const TOPICS_SUMMARY_MODEL = "global.openai.gpt-5.6-luna";
 export const TOPICS_EMBEDDING_MODEL = "cohere.embed-v4:0";
 
 export const topicIdSchema = z

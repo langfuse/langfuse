@@ -1,14 +1,13 @@
 import { get_encoding } from "tiktoken";
 import { z } from "zod";
-import { encrypt } from "@langfuse/shared/encryption";
 import {
-  generateLLMText,
-  createLLMOutput,
-  LLMAdapter,
   logger,
   getLangfuseAIBedrockRegion,
 } from "@langfuse/shared/src/server";
-import { generateTopicEmbedding } from "@langfuse/shared/topics/server";
+import {
+  generateTopicEmbedding,
+  generateTopicText,
+} from "@langfuse/shared/topics/server";
 import {
   TOPICS_SUMMARY_MODEL,
   TOPICS_EMBEDDING_MODEL,
@@ -23,7 +22,20 @@ import {
   topicProviderError,
 } from "./provider-error";
 
-export const TOPICS_NAMING_MODEL = "gpt-5.6-luna";
+export const TOPICS_NAMING_MODEL = "global.openai.gpt-5.6-terra";
+
+function bedrockConfig() {
+  const region = getLangfuseAIBedrockRegion();
+  if (!region)
+    throw new TopicsProviderUnavailable(
+      "LANGFUSE_AI_AWS_BEDROCK_REGION is required for Topics models. Configure the worker's Bedrock region before resuming.",
+      "authentication",
+    );
+  return {
+    region,
+    profile: env.AWS_PROFILE ?? env.LANGFUSE_TOPICS_AWS_PROFILE,
+  };
+}
 
 function countTopicTokens(value: string): number {
   const encoding = get_encoding("o200k_base");
@@ -57,11 +69,7 @@ async function structuredCall<T>(
     | typeof TOPICS_SUMMARY_MODEL
     | typeof TOPICS_NAMING_MODEL = TOPICS_SUMMARY_MODEL,
 ): Promise<ModelResult<T>> {
-  if (!env.OPENAI_API_KEY)
-    throw new TopicsProviderUnavailable(
-      "OPENAI_API_KEY is required for the local Topics PoC. Reload worker credentials before resuming.",
-      "authentication",
-    );
+  const connection = bedrockConfig();
   // Include the structured-output schema and message framing in the input limit.
   if (
     countTopicTokens(system + input + JSON.stringify(z.toJSONSchema(schema))) +
@@ -76,28 +84,20 @@ async function structuredCall<T>(
     { role: "user" as const, content: input },
   ];
   const isNaming = model === TOPICS_NAMING_MODEL;
-  // Luna's long-context rate applies to the entire request above 272k input tokens.
+  // Bedrock global rates apply to the entire request above 272k input tokens.
   const rates = (tokens: number) =>
     isNaming
       ? {
-          input: tokens > 272_000 ? 0.4 : 0.2,
-          output: tokens > 272_000 ? 1.8 : 1.2,
+          input: tokens > 272_000 ? 4 : 2,
+          output: tokens > 272_000 ? 18 : 12,
         }
-      : { input: 0.1, output: 0.4 };
-  const result = await generateLLMText({
-    model: { adapter: LLMAdapter.OpenAI, id: model },
-    connection: {
-      secretKey: encrypt(env.OPENAI_API_KEY),
-      baseURL: "https://api.openai.com/v1",
-    },
+      : { input: 0.2, output: 1.2 };
+  const result = await generateTopicText({
+    ...connection,
+    model,
     messages,
-    output: createLLMOutput(schema),
+    schema,
     maxOutputTokens: outputLimit,
-    ...(isNaming
-      ? { providerOptions: { openai: { reasoningEffort: "none" } } }
-      : { temperature: 0 }),
-    maxRetries: 0,
-    timeout: 60_000,
   }).catch((error: unknown) => {
     logger.warn("Topics model request failed", {
       model,
@@ -216,12 +216,7 @@ export async function embedTopicSummary(
   summary: string,
   dimensions: number,
 ): Promise<ModelUsage & { embedding: number[] }> {
-  const region = getLangfuseAIBedrockRegion();
-  if (!region)
-    throw new TopicsProviderUnavailable(
-      "LANGFUSE_AI_AWS_BEDROCK_REGION is required for Topics embeddings. Configure the worker's Bedrock region before resuming.",
-      "authentication",
-    );
+  const connection = bedrockConfig();
   if (
     !summary.trim() ||
     !topicEmbeddingConfigSchema.safeParse({ embeddingDimensions: dimensions })
@@ -232,10 +227,9 @@ export async function embedTopicSummary(
       "invalid_input",
     );
   const result = await generateTopicEmbedding({
+    ...connection,
     summary,
     dimensions,
-    region,
-    profile: env.AWS_PROFILE ?? env.LANGFUSE_TOPICS_AWS_PROFILE,
   }).catch((error: unknown) => {
     throw topicProviderError(error);
   });

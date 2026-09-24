@@ -1104,7 +1104,14 @@ export async function processTopicsExecution({
   const phase = execution.phase === "embedding" ? "embedding" : "summarizing";
   await save(processing ? phase : "selecting");
   try {
-    if (execution.input.operation === "process")
+    if (execution.input.operation === "process") {
+      if (
+        execution.input.processingConfig.summaryModel !== TOPICS_SUMMARY_MODEL
+      )
+        throw new TopicsProviderUnavailable(
+          "This execution uses an unsupported summary model. Start a new execution to use the current Topics model.",
+          "invalid_input",
+        );
       await processTraces(
         metrics,
         execution as ProcessExecution,
@@ -1113,7 +1120,7 @@ export async function processTopicsExecution({
         retryFailed,
         save,
       );
-    else await updateTopics(metrics, execution as UpdateExecution);
+    } else await updateTopics(metrics, execution as UpdateExecution);
     execution.status = execution.facets.some(
       (facet) => facet.outcome === "failed" || facet.counts.failed > 0,
     )

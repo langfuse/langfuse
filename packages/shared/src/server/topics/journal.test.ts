@@ -97,7 +97,7 @@ const input: Extract<TopicExecutionInput, { operation: "process" }> = {
   traceIds: ["trace-a", "trace-b"],
   reuseExistingSummaries: false,
   processingConfig: {
-    summaryModel: "gpt-4.1-nano",
+    summaryModel: "global.openai.gpt-5.6-luna",
     maxInputTokens: 8000,
     maxOutputTokens: 512,
   },

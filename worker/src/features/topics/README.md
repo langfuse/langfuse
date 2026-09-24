@@ -45,11 +45,13 @@ dev commands also build it):
 pnpm --filter @langfuse/native run build
 ```
 
-The worker reads `OPENAI_API_KEY` for summaries/naming and
-`LANGFUSE_AI_AWS_BEDROCK_REGION` for embeddings through the normal `.env` loader.
-Use a region with direct Cohere Embed v4 availability, such as `eu-west-1`,
-`us-east-1`, or `ap-northeast-1`. Bedrock uses the default AWS credential chain;
-the worker role needs `bedrock:InvokeModel` access to `cohere.embed-v4:0`.
+The worker reads `LANGFUSE_AI_AWS_BEDROCK_REGION` for all Topics model calls
+through the normal `.env` loader.
+Use a region supporting both the global OpenAI inference profiles and Cohere
+Embed v4, such as `eu-west-1` or `us-east-1`. Bedrock uses the default AWS
+credential chain; the worker role needs `bedrock:InvokeModel` access to
+`global.openai.gpt-5.6-luna`, `global.openai.gpt-5.6-terra`, their routed
+foundation models, and `cohere.embed-v4:0`.
 Locally, set `LANGFUSE_TOPICS_AWS_PROFILE=playground` to use the SSO profile
 without changing credentials for local object storage. `AWS_PROFILE` takes
 precedence when set. Restart the worker's parent dev command after changing env.
@@ -67,8 +69,10 @@ Summaries snapshot source environment and trace name; assignments copy that
 snapshot. Reprocessing refreshes metadata even when text is reused; session
 results have no trace name.
 
-The key remains in the worker. Summaries use `gpt-4.1-nano`; cluster naming uses
-`gpt-5.6-luna` with reasoning disabled. Embeddings use Cohere Embed v4
+Summaries use `global.openai.gpt-5.6-luna`; cluster naming uses
+`global.openai.gpt-5.6-terra` through Bedrock Converse with reasoning disabled.
+Both OpenAI profiles use global cross-region inference, including when invoked
+from `eu-west-1`; they do not provide EU-only routing. Embeddings use Cohere Embed v4
 (`cohere.embed-v4:0`) on Amazon Bedrock, with float output, `clustering` input
 type for both discovery and assignment, and truncation disabled. Default: 1,024
 dimensions; supported choices: 256, 512, 1,024, 1,536. Calls embed one summary at a
@@ -83,6 +87,9 @@ After changing embedding models, start a new **Process traces** execution with
 then **Update topics** to rebuild the map. Old vectors/maps cannot match the new
 configuration. Drain existing work before deploying; old-model staged jobs cannot
 resume under the new schema. Old execution history remains readable.
+After changing the summary model, start a new **Process traces** execution;
+stored-summary reuse cannot reuse results from a different summary model.
+Existing topic names remain until their definitions change during **Update topics**.
 
 ## Run the experiment
 
@@ -214,7 +221,7 @@ Accepted Redis payloads retain their recorded version when the same execution
 resumes. Transcripts are regenerated from current observations; original source
 snapshots and content hashes are not retained.
 
-The tested nano prompt and schema write the summary before deciding applicability.
+The summary prompt and schema write the summary before deciding applicability.
 Check one trace after changing either prompt or schema before spending on a batch.
 Replaying an accepted summary or embedding does not require its source trace.
 If a retry needs a missing facet, it uses the current transcript for that facet.
@@ -306,6 +313,11 @@ Provider usage and calculated model costs use the events-style
 `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
 maps. Summary and embedding keys are prefixed by stage; effective maps include
 combined totals.
+Global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
+[Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+and $2/$12 for
+[Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html).
+Naming requests above 272,000 input tokens use $4/$18 for the whole request.
 Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
 is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
 Model prices and token budgets live in [models.ts](models.ts) and the shared

@@ -71,7 +71,7 @@
     Trace inputs and paid outputs belong outside the journal.
   - `embedding-queue.ts`: Redis staging with a fixed expiry; retain accepted
     payloads through assignment and save terminal job state before cleanup.
-  - `embeddings.ts`: Bedrock embedding transport using the shared AI SDK;
+  - `text.ts` and `embeddings.ts`: Bedrock model transport using the shared AI SDK;
     worker model calls own usage, cost and vector validation.
   - `loadTopicTranscript`: shared in-memory source assembly for worker and inspector.
     Returns the shared `Transcript | null`, capped at 10,000 serialized characters.

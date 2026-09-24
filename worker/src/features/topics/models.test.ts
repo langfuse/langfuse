@@ -2,17 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
   call: vi.fn(),
+  region: vi.fn(),
 }));
 vi.mock("../../env", () => ({
-  env: { OPENAI_API_KEY: "unit-test-placeholder" },
-}));
-vi.mock("@langfuse/shared/encryption", () => ({
-  encrypt: () => "encrypted-test-placeholder",
+  env: { LANGFUSE_TOPICS_AWS_PROFILE: "topics-test" },
 }));
 vi.mock("@langfuse/shared/src/server", () => ({
-  LLMAdapter: { OpenAI: "openai" },
-  createLLMOutput: (schema: unknown) => schema,
-  generateLLMText: (...args: unknown[]) => state.call(...args),
+  getLangfuseAIBedrockRegion: () => state.region(),
+  logger: { warn: vi.fn() },
+}));
+vi.mock("@langfuse/shared/topics/server", () => ({
+  generateTopicText: (...args: unknown[]) => state.call(...args),
 }));
 
 import { nameTopicGroup, summarizeTopicTrace } from "./models";
@@ -36,6 +36,7 @@ const evidence = {
 
 beforeEach(() => {
   state.call.mockReset();
+  state.region.mockReset().mockReturnValue("eu-west-1");
 });
 
 describe("Topics naming boundary", () => {
@@ -63,13 +64,29 @@ describe("Topics naming boundary", () => {
       total: 130,
     });
     expect(result.providedCostDetails).toEqual({});
-    expect(result.costDetails.summary_input).toBeCloseTo(0.00001, 10);
-    expect(result.costDetails.summary_output).toBeCloseTo(0.000012, 10);
-    expect(result.costDetails.total).toBeCloseTo(0.000022, 10);
+    expect(result.costDetails.summary_input).toBeCloseTo(0.00002, 10);
+    expect(result.costDetails.summary_output).toBeCloseTo(0.000036, 10);
+    expect(result.costDetails.total).toBeCloseTo(0.000056, 10);
     const request = state.call.mock.calls[0][0];
-    expect(request.model.id).toBe("gpt-4.1-nano");
+    expect(request).toMatchObject({
+      model: "global.openai.gpt-5.6-luna",
+      region: "eu-west-1",
+      profile: "topics-test",
+    });
     expect(request.messages[0].content).toContain(facet.prompt);
     expect(request.messages[1].content).toBe("RAW_TRANSCRIPT_SENTINEL");
+  });
+
+  it("rejects missing Bedrock configuration before calling the provider", async () => {
+    state.region.mockReturnValue(undefined);
+    await expect(
+      summarizeTopicTrace(
+        facet,
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({}),
+      ),
+    ).rejects.toMatchObject({ reason: "authentication" });
+    expect(state.call).not.toHaveBeenCalled();
   });
 
   it("keeps fallback token counts out of provider-reported usage", async () => {
@@ -120,8 +137,10 @@ describe("Topics naming boundary", () => {
       evidenceSummaryIds: [members[399].id],
     });
     expect(state.call).toHaveBeenCalledOnce();
-    expect(state.call.mock.calls[0][0].model.id).toBe("gpt-5.6-luna");
-    expect(result.costDetails.total).toBeCloseTo(0.003236, 10);
+    expect(state.call.mock.calls[0][0].model).toBe(
+      "global.openai.gpt-5.6-terra",
+    );
+    expect(result.costDetails.total).toBeCloseTo(0.03236, 10);
     const submitted = JSON.parse(
       state.call.mock.calls[0][0].messages[1].content,
     );
