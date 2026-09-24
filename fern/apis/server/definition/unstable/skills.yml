@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
-  pagination: ./utils/pagination.yml
+  pagination: ../utils/pagination.yml
 service:
   auth: true
-  base-path: /api/public/v1
+  base-path: /api/public/unstable
   endpoints:
     list:
       docs: List skills with metadata and timestamps from their latest version, shared tags, and the version assigned to production when present.

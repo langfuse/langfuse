@@ -1,12 +1,12 @@
 ## REST
 
-- `GET /api/public/v1/skills`
-- `POST /api/public/v1/skills`
-- `GET /api/public/v1/skills/{skillName}`
-- `PATCH /api/public/v1/skills/{skillName}`
-- `GET /api/public/v1/skills/files/{fileId}/content`
-- `PATCH /api/public/v1/skills/{skillName}/versions/{skillVersion}`
-- `DELETE /api/public/v1/skills/{skillName}/versions/{skillVersion}`
+- `GET /api/public/unstable/skills`
+- `POST /api/public/unstable/skills`
+- `GET /api/public/unstable/skills/{skillName}`
+- `PATCH /api/public/unstable/skills/{skillName}`
+- `GET /api/public/unstable/skills/files/{fileId}/content`
+- `PATCH /api/public/unstable/skills/{skillName}/versions/{skillVersion}`
+- `DELETE /api/public/unstable/skills/{skillName}/versions/{skillVersion}`
 
 ## tRPC
 
