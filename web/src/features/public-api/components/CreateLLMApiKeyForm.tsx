@@ -417,7 +417,8 @@ export function CreateLLMApiKeyForm({
     adapter === LLMAdapter.OpenAI ||
     adapter === LLMAdapter.Anthropic ||
     adapter === LLMAdapter.VertexAI ||
-    adapter === LLMAdapter.GoogleAIStudio;
+    adapter === LLMAdapter.GoogleAIStudio ||
+    adapter === LLMAdapter.TypeSafe;
 
   const { fields, append, remove } = useFieldArray({
     control: form.control,
@@ -1306,10 +1307,8 @@ export function CreateLLMApiKeyForm({
               {isCustomModelsRequired(currentAdapter) &&
                 renderCustomModelsField()}
 
-              {/* Extra headers - main section for adapters without advanced settings */}
-              {[LLMAdapter.Azure, LLMAdapter.TypeSafe].includes(
-                currentAdapter,
-              ) && renderExtraHeadersField()}
+              {/* Extra headers - show for Azure in main section (Azure has no advanced settings) */}
+              {currentAdapter === LLMAdapter.Azure && renderExtraHeadersField()}
 
               {hasAdvancedSettings(currentAdapter) && (
                 <div className="flex items-center">
@@ -1336,37 +1335,39 @@ export function CreateLLMApiKeyForm({
 
               {hasAdvancedSettings(currentAdapter) && showAdvancedSettings && (
                 <div className="space-y-4 border-t pt-4">
-                  {/* baseURL */}
-                  <FormField
-                    control={form.control}
-                    name="baseURL"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>API Base URL</FormLabel>
-                        <FormDescription>
-                          Leave blank to use the default base URL for the given
-                          LLM adapter.{" "}
-                          {currentAdapter === LLMAdapter.OpenAI && (
-                            <span>
-                              OpenAI default: https://api.openai.com/v1
-                            </span>
-                          )}
-                          {currentAdapter === LLMAdapter.Anthropic && (
-                            <span>
-                              Anthropic default: https://api.anthropic.com
-                              (excluding /v1/messages)
-                            </span>
-                          )}
-                        </FormDescription>
+                  {/* baseURL: TypeSafe sets it through the upstream cards */}
+                  {currentAdapter !== LLMAdapter.TypeSafe && (
+                    <FormField
+                      control={form.control}
+                      name="baseURL"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>API Base URL</FormLabel>
+                          <FormDescription>
+                            Leave blank to use the default base URL for the
+                            given LLM adapter.{" "}
+                            {currentAdapter === LLMAdapter.OpenAI && (
+                              <span>
+                                OpenAI default: https://api.openai.com/v1
+                              </span>
+                            )}
+                            {currentAdapter === LLMAdapter.Anthropic && (
+                              <span>
+                                Anthropic default: https://api.anthropic.com
+                                (excluding /v1/messages)
+                              </span>
+                            )}
+                          </FormDescription>
 
-                        <FormControl>
-                          <Input {...field} placeholder="default" />
-                        </FormControl>
+                          <FormControl>
+                            <Input {...field} placeholder="default" />
+                          </FormControl>
 
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   {/* VertexAI Location */}
                   {currentAdapter === LLMAdapter.VertexAI && (
@@ -1422,9 +1423,11 @@ export function CreateLLMApiKeyForm({
                   )}
 
                   {/* Extra Headers */}
-                  {[LLMAdapter.OpenAI, LLMAdapter.Anthropic].includes(
-                    currentAdapter,
-                  ) && renderExtraHeadersField()}
+                  {[
+                    LLMAdapter.OpenAI,
+                    LLMAdapter.Anthropic,
+                    LLMAdapter.TypeSafe,
+                  ].includes(currentAdapter) && renderExtraHeadersField()}
 
                   {/* With default models */}
                   <FormField

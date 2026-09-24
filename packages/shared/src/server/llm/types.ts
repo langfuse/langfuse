@@ -472,7 +472,7 @@ export const googleAIStudioModels = [
   "gemini-1.5-flash-8b",
 ] as const;
 
-export const typeSafeModels = ["jev-1.13.0", "jev-latest"] as const;
+export const typeSafeModels = ["jev-latest"] as const;
 
 /**
  * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
