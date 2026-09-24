@@ -68,7 +68,7 @@ export const VariantSingleDialog = ({
                 value={p.key}
                 className="pl-2 [&>span[data-checkmark]]:hidden"
               >
-                <div className="flex items-start gap-2 text-left">
+                <div className="flex w-full items-start gap-2 text-left">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0" />
                   <div className="flex flex-col">
                     <span className="font-bold">{p.label}</span>
