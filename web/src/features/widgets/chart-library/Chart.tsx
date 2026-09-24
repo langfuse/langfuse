@@ -254,7 +254,6 @@ const ChartComponent = ({
           <PieChart
             data={renderedData.slice(0, rowLimit)}
             metricFormatter={metricFormatter}
-            subtleFill={chartConfig?.subtle_fill}
           />
         );
       case "HISTOGRAM":

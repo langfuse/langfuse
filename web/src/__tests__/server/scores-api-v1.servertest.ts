@@ -10,6 +10,7 @@ import {
   createScoresCh,
   createTracesCh,
   createOrgProjectAndApiKey,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -289,6 +290,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createTracesCh([trace]);
 
       const scoreId = v4();
+      const now = Date.now();
 
       const score = createTraceScore({
         id: scoreId,
@@ -301,6 +303,8 @@ describe("/api/public/scores API Endpoint", () => {
         metadata: { "test-key": "test-value" },
         observation_id: null,
         environment: "production",
+        updated_at: now,
+        event_ts: now,
       });
       await createScoresCh([score]);
 
@@ -308,8 +312,8 @@ describe("/api/public/scores API Endpoint", () => {
         ...score,
         value: 200.5,
         metadata: { "test-key": "test-value-updated" },
-        updated_at: score.updated_at + 1,
-        event_ts: score.event_ts + 1,
+        updated_at: toClickhouseDateTime(now + 1),
+        event_ts: toClickhouseDateTime(now + 1),
       };
       await createScoresCh([updatedScore]);
 
